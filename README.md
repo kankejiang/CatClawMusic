@@ -13,21 +13,21 @@
 
 | 特性 | 状态 | 说明 |
 |------|:--:|------|
-| 🎵 本地音乐扫描 | ✅ | 自动扫描 Music/Download 目录，用 TagLibSharp 读取元数据，存入 SQLite |
-| 🔐 运行时权限请求 | ✅ | Android 13+ READ_MEDIA_AUDIO / 旧版 READ_EXTERNAL_STORAGE |
-| ▶️ 音频播放 | ✅ | Android MediaPlayer 封装，支持播放/暂停/Seek/音量 |
-| 🎶 LRC 歌词 | ✅ | 读取嵌入歌词 + 同名 .lrc 文件，自动滚动+点击跳转 |
-| 🔀 播放模式 | ✅ | 顺序 / 随机(Fisher-Yates) / 单曲循环 / 列表循环 |
-| 📋 播放队列 | ✅ | 历史记录栈，支持上一曲/下一曲/插播 |
-| 🔍 搜索 | ✅ | 本地数据库实时搜索，按标题/艺术家/专辑模糊匹配 |
-| 📂 播放列表 | ✅ | 系统默认列表（最近播放/收藏） |
-| ☁️ WebDAV | 🔧 | 配置页面 OK，协议实现待引入 NuGet |
-| 🎵 Navidrome | ✅ | Subsonic API 客户端、ping/搜索/流媒体/封面/歌词 |
-| 🖼️ 封面提取 | ✅ | 从音频文件内嵌封面提取 TagLib byte[] |
-| 📊 数据库 | ✅ | 8 张表 + 索引，SQLite 持久化 |
-| 🎨 浅色 UI | ✅ | 猫爪粉配色 #FF7BAC，暖粉白背景 #FFF5F7，站酷快乐体标题 |
-| 🌙 深色模式 | 🚫 | 已锁定浅色模式 |
-| 🔲 自定义图标启动 | ✅ | 原生 Android mipmap 图标 + drawable 全屏启动画面 |
+| 🎵 本地音乐扫描 | ✅ | MediaStore 扫描（无需权限）+ 文件系统扫描，存入 SQLite |
+| 🔐 运行时权限请求 | ✅ | MAUI Permissions API，可选授权以扫描自定义文件夹 |
+| ▶️ 音频播放 | ✅ | Android MediaPlayer 封装，播放/暂停/Seek/音量 |
+| 🎶 LRC 歌词 | ✅ | 嵌入歌词 + .lrc 文件，自动滚动+点击跳转 |
+| 🔀 播放模式 | ✅ | 顺序 / 随机 / 单曲循环 / 列表循环 |
+| 📋 播放队列 | ✅ | 历史栈 + 预播预览，跨页面状态保持 |
+| 🔍 搜索 | ✅ | 本地数据库搜索，标题/艺术家/专辑 |
+| 📂 播放列表 | ✅ | 系统默认列表，点击查看歌曲 |
+| ☁️ WebDAV | 🔧 | 配置页面 OK，协议实现（ListFiles/OpenRead）待完成 |
+| 🎵 Navidrome | 🔧 | Subsonic API 客户端已实现，需保存配置后测试 |
+| 🖼️ 封面提取 | ✅ | TagLibSharp byte[] 提取 + 缓存 |
+| 📊 播放统计 | ✅ | PlayCount + Favorite + RecentPlay 持久化 |
+| 🎨 浅色 UI | ✅ | 猫爪粉 #FF7BAC，暖白背景 #FFF5F7 |
+| 🌙 深色模式 | 🚫 | 锁定浅色 |
+| 🔲 图标启动 | ✅ | 原生 mipmap + drawable |
 
 ---
 
@@ -130,12 +130,12 @@ CatClawMusic/
 | M2 | 本地音乐扫描 + 权限 + 基础播放 | ✅ |
 | M3 | 播放界面 + 歌词 + 播放列表 + 搜索 | ✅ |
 | M4 | UI 主题重设计（猫爪少女风） | ✅ |
-| M5 | Navidrome/Subsonic 协议适配 | ✅ |
+| M5 | Navidrome/Subsonic 协议适配 | 🔧 |
 | M6 | WebDAV 协议实现 | 🔧 |
 | M7 | 设置页重构（二级菜单） | ✅ |
 | M8 | 图标 + 启动画面 | ✅ |
-| M9 | SMB / DLNA / FTP / NFS 协议 | ⏳ |
-| M10 | 测试 + Bug 修复 + 发布 | ⏳ |
+| M9 | 播放统计 + 状态保持 + 权限修复 | ✅ |
+| M10 | WebDAV 协议补全 + 测试 | ⏳ |
 
 ---
 

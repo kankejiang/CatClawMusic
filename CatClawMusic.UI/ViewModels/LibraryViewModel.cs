@@ -10,6 +10,7 @@ public class LibraryViewModel : BindableObject
     private readonly INetworkMusicService? _networkMusic;
     private readonly IPermissionService? _permission;
     private string _currentTab = "Local";
+    private bool _hasTriedPermission;
 
     public ObservableCollection<CoreModels.Song> Songs { get; set; } = new();
 
@@ -27,12 +28,6 @@ public class LibraryViewModel : BindableObject
 
     private string _statusText = "";
     public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-
-    private bool _hasError;
-    public bool HasError { get => _hasError; set { _hasError = value; OnPropertyChanged(); } }
-
-    private string _errorMessage = "";
-    public string ErrorMessage { get => _errorMessage; set { _errorMessage = value; OnPropertyChanged(); } }
 
     public Command<string> SwitchTabCommand { get; }
     public Command RefreshCommand { get; }
@@ -53,63 +48,67 @@ public class LibraryViewModel : BindableObject
         _currentTab = tab;
         OnPropertyChanged(nameof(LocalTabColor));
         OnPropertyChanged(nameof(NetworkTabColor));
-
-        if (tab == "Local")
-            _ = LoadLocalAsync();
-        else
-            _ = LoadNetworkAsync();
+        if (tab == "Local") _ = LoadLocalAsync();
+        else _ = LoadNetworkAsync();
     }
 
+    /// <summary>加载本地音乐：MediaStore 优先（无需权限），权限用于自定义文件夹</summary>
     public async Task LoadLocalAsync()
     {
-        if (_permission != null)
+        ShowPermissionRequest = false;
+        IsLoading = true;
+        StatusText = "正在扫描本地音乐...";
+        Songs.Clear();
+
+        try
         {
-            var granted = await _permission.CheckStoragePermissionAsync();
-            if (!granted)
+            // 直接扫描（MediaStore 无需权限）
+            var songs = await _musicLibrary.ScanLocalAsync();
+            foreach (var s in songs) Songs.Add(s);
+
+            StatusText = Songs.Count > 0
+                ? $"🐱 共 {Songs.Count} 首歌曲"
+                : "未找到音乐，请下拉刷新或授予权限";
+
+            // 如果结果很少且未尝试过权限，提示用户
+            if (Songs.Count == 0 && !_hasTriedPermission && _permission != null)
             {
-                ShowPermissionRequest = true;
-                PermissionText = _permission.GetPermissionStatus();
-                return;
+                var granted = await _permission.CheckStoragePermissionAsync();
+                if (!granted)
+                {
+                    ShowPermissionRequest = true;
+                    PermissionText = _permission.GetPermissionStatus();
+                }
             }
         }
-        ShowPermissionRequest = false;
-        await ScanAndLoadAsync();
+        catch (Exception ex)
+        {
+            StatusText = $"扫描出错: {ex.Message}";
+        }
+        finally { IsLoading = false; }
     }
 
     private async Task RequestAndScanAsync()
     {
         if (_permission != null)
         {
+            _hasTriedPermission = true;
             var granted = await _permission.RequestStoragePermissionAsync();
-            if (!granted) { StatusText = "权限被拒绝"; return; }
+            if (!granted)
+            {
+                PermissionText = "权限被拒绝，请在系统设置中手动开启";
+                OnPropertyChanged(nameof(PermissionText));
+                return;
+            }
         }
         ShowPermissionRequest = false;
-        await ScanAndLoadAsync();
-    }
-
-    private async Task ScanAndLoadAsync()
-    {
-        IsLoading = true; HasError = false;
-        StatusText = "正在扫描本地音乐...";
-        Songs.Clear();
-        try
-        {
-            var songs = await _musicLibrary.ScanLocalAsync();
-            foreach (var s in songs) Songs.Add(s);
-            StatusText = Songs.Count > 0 ? $"🐱 共 {Songs.Count} 首歌曲" : "未找到音乐，放入 Music 文件夹后下拉刷新";
-        }
-        catch (Exception ex)
-        {
-            HasError = true; ErrorMessage = ex.Message;
-            StatusText = "扫描出错，下拉刷新重试";
-        }
-        finally { IsLoading = false; }
+        await LoadLocalAsync();
     }
 
     public async Task LoadNetworkAsync()
     {
         ShowPermissionRequest = false;
-        IsLoading = true; HasError = false;
+        IsLoading = true;
         StatusText = "正在加载网络配置...";
         Songs.Clear();
 
@@ -117,36 +116,27 @@ public class LibraryViewModel : BindableObject
         {
             if (_networkMusic == null)
             {
-                StatusText = "网络服务未就绪";
-                return;
+                StatusText = "网络服务未就绪"; return;
             }
-
             var profiles = await _networkMusic.GetProfilesAsync();
-            if (profiles.Count == 0)
+            var enabled = profiles.Where(p => p.IsEnabled).ToList();
+            if (enabled.Count == 0)
             {
-                StatusText = "请先在设置中配置网络连接";
+                StatusText = "请先在设置中配置网络连接（WebDAV 或 Navidrome）";
                 return;
             }
-
-            var allSongs = new List<CoreModels.Song>();
-            foreach (var profile in profiles.Where(p => p.IsEnabled))
+            var all = new List<CoreModels.Song>();
+            foreach (var p in enabled)
             {
-                StatusText = $"正在连接 {profile.Name}...";
-                try
-                {
-                    var songs = await _networkMusic.ScanAsync(profile);
-                    allSongs.AddRange(songs);
-                }
-                catch { }
+                StatusText = $"正在连接 {p.Name}...";
+                try { all.AddRange(await _networkMusic.ScanAsync(p)); } catch { }
             }
-
-            foreach (var s in allSongs) Songs.Add(s);
-            StatusText = Songs.Count > 0 ? $"☁️ 共 {Songs.Count} 首网络歌曲" : "未找到网络歌曲";
+            foreach (var s in all) Songs.Add(s);
+            StatusText = Songs.Count > 0 ? $"☁️ 共 {Songs.Count} 首网络歌曲" : "连接成功但未找到歌曲";
         }
         catch (Exception ex)
         {
-            HasError = true; ErrorMessage = ex.Message;
-            StatusText = "连接失败，请检查设置";
+            StatusText = $"连接失败: {ex.Message}";
         }
         finally { IsLoading = false; }
     }

@@ -132,6 +132,34 @@ public class MusicDatabase
         await EnsureInitializedAsync();
         return await _database.Table<Playlist>().ToListAsync();
     }
+
+    // 更新播放统计
+    public async Task UpdatePlaybackStatsAsync(int songId, bool isLiked = false, bool isComplete = false)
+    {
+        await EnsureInitializedAsync();
+        var stat = await _database.Table<PlaybackStats>().Where(s => s.SongId == songId).FirstOrDefaultAsync();
+        if (stat == null)
+        {
+            stat = new PlaybackStats { SongId = songId };
+            await _database.InsertAsync(stat);
+        }
+        stat.PlayCount++;
+        stat.LastPlayedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (isLiked) stat.IsFavorite = !stat.IsFavorite;
+        if (isComplete) stat.CompletePlayCount++;
+        await _database.UpdateAsync(stat);
+    }
+
+    // 记录最近播放
+    public async Task RecordRecentPlayAsync(int songId)
+    {
+        await EnsureInitializedAsync();
+        await _database.InsertAsync(new RecentPlay
+        {
+            SongId = songId,
+            PlayedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+        });
+    }
 }
 
 /// <summary>
@@ -160,6 +188,7 @@ public class PlaybackStats
     public int SkipCount { get; set; } = 0;
     public int CompletePlayCount { get; set; } = 0;
     public long LastPlayedAt { get; set; } = 0;
+    public bool IsFavorite { get; set; }
 }
 
 /// <summary>

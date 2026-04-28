@@ -24,6 +24,12 @@ public partial class NowPlayingPage : ContentPage
         BindingContext = viewModel;
     }
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        _viewModel.SyncWithQueue();
+    }
+
     private void OnCoverSwiped(object? sender, SwipedEventArgs e)
     {
         _viewModel.SwipeCommand.Execute(e.Direction);
