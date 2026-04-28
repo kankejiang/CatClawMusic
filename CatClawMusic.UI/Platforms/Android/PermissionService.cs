@@ -1,5 +1,4 @@
 using Android;
-using Android.App;
 using Android.Content.PM;
 using Android.OS;
 using CatClawMusic.Core.Interfaces;
@@ -26,59 +25,40 @@ public class PermissionService : IPermissionService
     public async Task<bool> RequestStoragePermissionAsync()
     {
         var ctx = global::Android.App.Application.Context;
-        var act = Platform.CurrentActivity;
-        if (act == null) return false;
 
-        string permission;
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
-            permission = Manifest.Permission.ReadMediaAudio;
-        else if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
-            permission = Manifest.Permission.ReadExternalStorage;
-        else
-            return true;
-
-        // 已经授予
-        if (ctx.CheckSelfPermission(permission) == Permission.Granted)
-            return true;
-
-        var tcs = new TaskCompletionSource<bool>();
-        _pendingTcs = tcs;
-        _pendingPermission = permission;
-        act.RequestPermissions(new[] { permission }, 1001);
-        return await tcs.Task;
-    }
-
-    private static TaskCompletionSource<bool>? _pendingTcs;
-    private static string? _pendingPermission;
-
-    public static void OnPermissionResult(int requestCode, Permission[] grantResults)
-    {
-        if (requestCode == 1001 && _pendingTcs != null)
+        // 直接使用 MAUI 的权限 API 来处理
+        var status = await MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            var granted = grantResults.Length > 0 && grantResults[0] == Permission.Granted;
-            _pendingTcs.TrySetResult(granted);
-            _pendingTcs = null;
-        }
+            // 先检查
+            var s = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
+            if (s == PermissionStatus.Granted) return s;
+
+            // 请求
+            s = await Permissions.RequestAsync<Permissions.StorageRead>();
+            return s;
+        });
+
+        return status == PermissionStatus.Granted;
     }
 
     public string GetPermissionStatus()
     {
         var ctx = global::Android.App.Application.Context;
-        string perm;
+        string checkPerm;
         string label;
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
         {
-            perm = Manifest.Permission.ReadMediaAudio;
+            checkPerm = Manifest.Permission.ReadMediaAudio;
             label = "\"音乐和音频\"";
         }
         else
         {
-            perm = Manifest.Permission.ReadExternalStorage;
+            checkPerm = Manifest.Permission.ReadExternalStorage;
             label = "\"存储空间\"";
         }
 
-        var granted = ctx.CheckSelfPermission(perm) == Permission.Granted;
+        var granted = ctx.CheckSelfPermission(checkPerm) == Permission.Granted;
         return granted ? "已授权" : $"需要{label}权限来访问音乐文件夹";
     }
 }

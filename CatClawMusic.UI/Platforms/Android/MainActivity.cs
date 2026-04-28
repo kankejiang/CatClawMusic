@@ -22,6 +22,5 @@ public class MainActivity : MauiAppCompatActivity
     public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
     {
         base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
-        Platforms.Android.PermissionService.OnPermissionResult(requestCode, grantResults);
     }
 }

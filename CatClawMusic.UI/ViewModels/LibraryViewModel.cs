@@ -52,7 +52,7 @@ public class LibraryViewModel : BindableObject
         else _ = LoadNetworkAsync();
     }
 
-    /// <summary>加载本地音乐：MediaStore 优先（无需权限），权限用于自定义文件夹</summary>
+    /// <summary>加载本地音乐：MediaStore 优先（无需权限）</summary>
     public async Task LoadLocalAsync()
     {
         ShowPermissionRequest = false;
@@ -62,7 +62,6 @@ public class LibraryViewModel : BindableObject
 
         try
         {
-            // 读取用户自定义文件夹
             var customPath = Preferences.Get("music_folder", "");
             var customFolders = !string.IsNullOrWhiteSpace(customPath)
                 ? new List<string> { customPath }
@@ -73,16 +72,15 @@ public class LibraryViewModel : BindableObject
 
             StatusText = Songs.Count > 0
                 ? $"🐱 共 {Songs.Count} 首歌曲"
-                : "未找到音乐，请下拉刷新或授予权限";
+                : "未找到音乐";
 
-            // 如果结果很少且未尝试过权限，提示用户
             if (Songs.Count == 0 && !_hasTriedPermission && _permission != null)
             {
                 var granted = await _permission.CheckStoragePermissionAsync();
                 if (!granted)
                 {
                     ShowPermissionRequest = true;
-                    PermissionText = _permission.GetPermissionStatus();
+                    PermissionText = "可扫描自定义文件夹中的音乐";
                 }
             }
         }

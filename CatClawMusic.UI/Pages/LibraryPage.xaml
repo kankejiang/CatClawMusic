@@ -89,11 +89,11 @@
                 VerticalOptions="Center" HorizontalOptions="Center">
             <VerticalStackLayout Spacing="16" HorizontalOptions="Center">
                 <Label Text="🔐" FontSize="48" HorizontalOptions="Center" />
-                <Label Text="需要存储权限" FontSize="18" FontAttributes="Bold"
+                <Label Text="授予文件夹权限" FontSize="18" FontAttributes="Bold"
                        FontFamily="HappyZcool2016" TextColor="#4A3728" HorizontalOptions="Center" />
                 <Label Text="{Binding PermissionText}" FontSize="14"
                        TextColor="#8B7355" HorizontalTextAlignment="Center" />
-                <Label Text="用于扫描手机中的音乐文件" FontSize="12"
+                <Label Text="系统媒体库已自动扫描，权限用于访问自定义文件夹" FontSize="12"
                        TextColor="#C4B5A5" HorizontalTextAlignment="Center" />
                 <Button Text="授予权限"
                         Clicked="OnRequestPermissionClicked"
