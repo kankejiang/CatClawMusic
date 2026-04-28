@@ -7,12 +7,22 @@
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
   </PropertyGroup>
-  
+
+  <!-- 应用图标（自适应图标：前景+背景色） -->
+  <ItemGroup>
+    <MauiIcon Include="Resources\app_icon.png" ForegroundFile="Resources\app_icon.png" Color="#FF7BAC" />
+  </ItemGroup>
+
+  <!-- 启动画面 -->
+  <ItemGroup>
+    <MauiSplashScreen Include="Resources\splash.png" BaseSize="512,512" Resize="True" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
     <ProjectReference Include="..\CatClawMusic.Data\CatClawMusic.Data.csproj" />
   </ItemGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.0" />

@@ -21,7 +21,6 @@
     
     <application 
         android:label="猫爪音乐"
-        android:icon="@mipmap/ic_launcher"
         android:theme="@style/Maui.SplashTheme"
         android:forceDarkAllowed="false">
         
