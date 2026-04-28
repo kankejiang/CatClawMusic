@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
 
 namespace CatClawMusic.UI.ViewModels;
 
@@ -11,6 +12,7 @@ public class NowPlayingViewModel : BindableObject
     private readonly ILyricsService _lyricsService;
     private readonly IMusicLibraryService _musicLibrary;
     private readonly PlayQueue _playQueue;
+    private readonly MusicDatabase? _database;
     private LrcLyrics? _currentLyrics;
     private bool _isPositionUpdating;
 
@@ -55,12 +57,13 @@ public class NowPlayingViewModel : BindableObject
     public Command<SwipeDirection> SwipeCommand { get; }
 
     public NowPlayingViewModel(IAudioPlayerService audioPlayer, ILyricsService lyricsService,
-        IMusicLibraryService musicLibrary, PlayQueue playQueue)
+        IMusicLibraryService musicLibrary, PlayQueue playQueue, MusicDatabase? database = null)
     {
         _audioPlayer = audioPlayer;
         _lyricsService = lyricsService;
         _musicLibrary = musicLibrary;
         _playQueue = playQueue;
+        _database = database;
         Volume = _audioPlayer.Volume;
 
         PlayPauseCommand = new Command(OnPlayPause);
@@ -157,11 +160,11 @@ public class NowPlayingViewModel : BindableObject
     private void OnPlayPause()
     {
         if (_audioPlayer.IsPlaying) _audioPlayer.PauseAsync();
-        else if (CurrentSong != null) _audioPlayer.PlayAsync(CurrentSong.FilePath);
+        else if (CurrentSong != null) { _audioPlayer.PlayAsync(CurrentSong.FilePath); _ = RecordPlayAsync(); }
     }
 
-    private void OnNext() { var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); } }
-    private void OnPrevious() { var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); } }
+    private void OnNext() { var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void OnPrevious() { var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
     private void OnTogglePlayMode()
     {
@@ -170,6 +173,61 @@ public class NowPlayingViewModel : BindableObject
         OnPropertyChanged(nameof(PlayModeIcon));
     }
 
-    private void OnToggleShuffle() { _playQueue.PlayMode = _playQueue.PlayMode == PlayMode.Shuffle ? PlayMode.Sequential : PlayMode.Shuffle; PlayModeIcon = _playQueue.PlayMode == PlayMode.Shuffle ? "🔀" : "➡️"; OnPropertyChanged(nameof(PlayModeIcon)); }
-    private void OnToggleLike() => IsLiked = !IsLiked;
+    private void OnToggleShuffle() {
+        _playQueue.PlayMode = _playQueue.PlayMode == PlayMode.Shuffle ? PlayMode.Sequential : PlayMode.Shuffle;
+        if (_playQueue.PlayMode == PlayMode.Shuffle) _playQueue.EnableShuffle();
+        PlayModeIcon = _playQueue.PlayMode == PlayMode.Shuffle ? "🔀" : "➡️";
+        OnPropertyChanged(nameof(PlayModeIcon));
+        UpdateQueuePeek();
+    }
+
+    private void OnToggleLike()
+    {
+        IsLiked = !IsLiked;
+        _ = SaveFavoriteAsync();
+    }
+
+    /// <summary>从 PlayQueue 同步当前歌曲（从其他页面返回时调用）</summary>
+    public void SyncWithQueue()
+    {
+        var queueSong = _playQueue.CurrentSong;
+        if (queueSong != null && (CurrentSong == null || CurrentSong.Id != queueSong.Id))
+        {
+            _currentSong = queueSong;
+            OnPropertyChanged(nameof(CurrentSong));
+            _ = LoadLyricsAsync(queueSong);
+            _ = LoadCoverAsync(queueSong);
+            UpdateQueuePeek();
+        }
+        // 同步播放状态图标
+        if (_audioPlayer.IsPlaying)
+        {
+            PlayPauseIcon = "⏸";
+            OnPropertyChanged(nameof(PlayPauseIcon));
+        }
+    }
+
+    private async Task RecordPlayAsync()
+    {
+        if (_database == null || CurrentSong == null) return;
+        try
+        {
+            await _database.EnsureInitializedAsync();
+            await _database.UpdatePlaybackStatsAsync(CurrentSong.Id);
+            await _database.RecordRecentPlayAsync(CurrentSong.Id);
+        }
+        catch { }
+    }
+
+    private async Task SaveFavoriteAsync()
+    {
+        if (_database == null || CurrentSong == null) return;
+        try
+        {
+            await _database.EnsureInitializedAsync();
+            await _database.UpdatePlaybackStatsAsync(CurrentSong.Id,
+                isLiked: IsLiked, isComplete: true);
+        }
+        catch { }
+    }
 }
