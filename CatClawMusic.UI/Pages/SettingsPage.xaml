@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.UI.Pages.SettingsPage"
+             Title="设置">
+    
+    <VerticalStackLayout Spacing="20" Padding="20">
+        <!-- WebDAV 连接设置 -->
+        <Label Text="WebDAV 连接"
+               FontSize="20"
+               FontAttributes="Bold" />
+        
+        <Entry Placeholder="主机地址"
+               Text="{Binding Host}" />
+        <Entry Placeholder="端口"
+               Text="{Binding Port}"
+               Keyboard="Numeric" />
+        <Entry Placeholder="用户名"
+               Text="{Binding UserName}" />
+        <Entry Placeholder="密码"
+               Text="{Binding Password}"
+               IsPassword="True" />
+        <Entry Placeholder="基础路径"
+               Text="{Binding BasePath}" />
+        
+        <Button Text="测试连接"
+                Command="{Binding TestConnectionCommand}" />
+        <Button Text="保存连接"
+                Command="{Binding SaveConnectionCommand}"
+                BackgroundColor="{StaticResource PrimaryColor}" />
+        
+        <!-- 缓存设置 -->
+        <Label Text="缓存设置"
+               FontSize="20"
+               FontAttributes="Bold"
+               Margin="0,20,0,0" />
+        
+        <HorizontalStackLayout>
+            <Label Text="缓存大小限制：" />
+            <Label Text="{Binding CacheSizeText}" />
+        </HorizontalStackLayout>
+        <Slider Value="{Binding CacheSizeGB}"
+                Minimum="1"
+                Maximum="15"
+                ValueChanged="OnCacheSizeChanged" />
+        
+        <Button Text="清除缓存"
+                Command="{Binding ClearCacheCommand}"
+                BackgroundColor="Red" />
+        
+        <!-- 播放设置 -->
+        <Label Text="播放设置"
+               FontSize="20"
+               FontAttributes="Bold"
+               Margin="0,20,0,0" />
+        
+        <Switch IsToggled="{Binding OnlyWiFiCache}" />
+        <Label Text="仅 WiFi 网络缓存" />
+        
+    </VerticalStackLayout>
+    
+</ContentPage>

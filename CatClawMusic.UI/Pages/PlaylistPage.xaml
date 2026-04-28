@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.UI.Pages.PlaylistPage"
+             Title="播放列表">
+    
+    <VerticalStackLayout>
+        <!-- 播放列表标题 -->
+        <Label Text="我的播放列表"
+               FontSize="24"
+               FontAttributes="Bold"
+               Padding="20,10" />
+        
+        <!-- 播放列表 -->
+        <CollectionView x:Name="PlaylistCollection"
+                        SelectionMode="Single"
+                        SelectionChanged="OnPlaylistSelected">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="20,10">
+                        <Label Text="{Binding Name}"
+                               FontSize="18" />
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </VerticalStackLayout>
+    
+</ContentPage>

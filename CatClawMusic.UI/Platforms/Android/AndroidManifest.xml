@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.catclaw.music">
+    
+    <!-- 网络权限 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- 存储权限（Android 10 以下） -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+                   android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+                   android:maxSdkVersion="28" />
+    
+    <!-- Android 10+ 使用 MediaStore -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
+    
+    <!-- 前台服务（后台播放） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    
+    <application 
+        android:label="猫爪音乐"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/Maui.SplashTheme">
+        
+        <!-- 前台服务（后台播放） -->
+        <service 
+            android:name=".ForegroundPlayerService"
+            android:foregroundServiceType="mediaPlayback"
+            android:enabled="true"
+            android:exported="false" />
+        
+    </application>
+    
+</manifest>
