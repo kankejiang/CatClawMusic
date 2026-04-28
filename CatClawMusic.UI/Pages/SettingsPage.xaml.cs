@@ -32,4 +32,15 @@ public partial class SettingsPage : ContentPage
         if (BindingContext is SettingsViewModel vm)
             vm.CacheSizeGB = e.NewValue;
     }
+
+    private async void OnPickFolder(object? sender, EventArgs e)
+    {
+#if ANDROID
+        var path = await Platforms.Android.FolderPicker.PickFolderAsync();
+        if (!string.IsNullOrWhiteSpace(path) && BindingContext is SettingsViewModel vm)
+        {
+            vm.MusicFolder = path;
+        }
+#endif
+    }
 }
