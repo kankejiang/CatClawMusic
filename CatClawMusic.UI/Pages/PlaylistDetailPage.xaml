@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.UI.Pages.PlaylistDetailPage"
+             Title="{Binding PlaylistName}"
+             Shell.BackgroundColor="#FF7BAC"
+             Shell.ForegroundColor="White"
+             Shell.TitleColor="White">
+    <Grid RowDefinitions="Auto,*" RowSpacing="16" Padding="16">
+        <Frame Grid.Row="0" BackgroundColor="White" BorderColor="#F5E6ED"
+               CornerRadius="20" Padding="20,14" HasShadow="True">
+            <Frame.Shadow><Shadow Brush="#E8C4D0" Offset="0,3" Opacity="0.2" Radius="10"/></Frame.Shadow>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                <Label Text="📋" FontSize="28" VerticalOptions="Center" />
+                <VerticalStackLayout Grid.Column="1" Spacing="2">
+                    <Label Text="{Binding PlaylistName}" FontSize="20" FontAttributes="Bold"
+                           FontFamily="HappyZcool2016" TextColor="#FF7BAC" />
+                    <Label Text="{Binding StatusText}" FontSize="12" TextColor="#C4B5A5" />
+                </VerticalStackLayout>
+            </Grid>
+        </Frame>
+
+        <CollectionView Grid.Row="1" ItemsSource="{Binding Songs}"
+                        SelectionMode="Single"
+                        SelectionChanged="OnSongSelected"
+                        BackgroundColor="Transparent">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="12" Padding="40">
+                    <Label Text="🎵" FontSize="48" HorizontalOptions="Center" />
+                    <Label Text="播放列表为空" FontSize="16" TextColor="#C4B5A5"
+                           FontFamily="HappyZcool2016" HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Frame BackgroundColor="White" BorderColor="#F5E6ED"
+                           CornerRadius="18" Margin="2,4" Padding="16" HasShadow="True">
+                        <Frame.Shadow><Shadow Brush="#E8C4D0" Offset="0,2" Opacity="0.15" Radius="8"/></Frame.Shadow>
+                        <Grid ColumnDefinitions="44,*" ColumnSpacing="12">
+                            <Border Grid.Column="0" StrokeShape="RoundRectangle 10"
+                                    Stroke="#F5E6ED" HeightRequest="44" WidthRequest="44"
+                                    BackgroundColor="#FCF0F4">
+                                <Label Text="🎵" FontSize="18" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                <Label Text="{Binding Title}" FontSize="15" FontAttributes="Bold"
+                                       FontFamily="HappyZcool2016" TextColor="#4A3728" LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Artist}" FontSize="13" TextColor="#8B7355" LineBreakMode="TailTruncation" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Frame>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

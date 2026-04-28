@@ -23,7 +23,12 @@ public partial class PlaylistPage : ContentPage
     {
         if (e.CurrentSelection.FirstOrDefault() is Core.Models.Playlist selected)
         {
-            await Shell.Current.GoToAsync($"NowPlayingPage?playlistId={selected.Id}");
+            var navParams = new Dictionary<string, object>
+            {
+                { "playlistId", selected.Id },
+                { "playlistName", selected.Name }
+            };
+            await Shell.Current.GoToAsync("PlaylistDetailPage", navParams);
         }
     }
 }

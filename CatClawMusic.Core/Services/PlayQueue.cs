@@ -139,24 +139,63 @@ public class PlayQueue
         
         if (nextIndex >= list.Count)
         {
-            // 到达列表末尾
             if (PlayMode == PlayMode.ListRepeat)
             {
-                nextIndex = 0;  // 列表循环，回到开头
+                nextIndex = 0;
             }
             else if (PlayMode == PlayMode.Shuffle)
             {
-                // 随机模式：重新洗牌
                 _shuffledList = ShuffleService.Shuffle(_originalList);
                 nextIndex = 0;
             }
             else
             {
-                return -1;  // 顺序播放，停止
+                return -1;
             }
         }
         
         return nextIndex;
+    }
+
+    /// <summary>
+    /// 获取接下来 N 首预播歌曲（不改变队列状态）
+    /// </summary>
+    public List<Song> GetUpcomingSongs(int count = 3)
+    {
+        var upcoming = new List<Song>();
+        if (_originalList.Count == 0 || _currentIndex < 0) return upcoming;
+
+        var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
+        var peekIdx = _currentIndex;
+
+        for (int i = 0; i < count; i++)
+        {
+            if (PlayMode == PlayMode.SingleRepeat)
+            {
+                upcoming.Add(list[peekIdx]);
+                continue;
+            }
+
+            peekIdx++;
+            if (peekIdx >= list.Count)
+            {
+                if (PlayMode == PlayMode.ListRepeat || PlayMode == PlayMode.Shuffle)
+                    peekIdx = 0;
+                else
+                    break;
+            }
+            upcoming.Add(list[peekIdx]);
+        }
+
+        return upcoming;
+    }
+
+    /// <summary>
+    /// 获取当前播放列表
+    /// </summary>
+    public IReadOnlyList<Song> GetSongs()
+    {
+        return PlayMode == PlayMode.Shuffle ? _shuffledList.AsReadOnly() : _originalList.AsReadOnly();
     }
 }
 

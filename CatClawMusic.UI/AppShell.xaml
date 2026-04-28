@@ -25,5 +25,6 @@
     <ShellContent Route="NowPlayingPage" ContentTemplate="{DataTemplate pages:NowPlayingPage}" />
     <ShellContent Route="WebDavSettingsPage" ContentTemplate="{DataTemplate pages:WebDavSettingsPage}" />
     <ShellContent Route="NavidromeSettingsPage" ContentTemplate="{DataTemplate pages:NavidromeSettingsPage}" />
+    <ShellContent Route="PlaylistDetailPage" ContentTemplate="{DataTemplate pages:PlaylistDetailPage}" />
     
 </Shell>

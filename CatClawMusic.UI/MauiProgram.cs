@@ -49,6 +49,7 @@ public static class MauiProgram
         builder.Services.AddTransient<ViewModels.PlaylistViewModel>();
         builder.Services.AddTransient<ViewModels.WebDavSettingsViewModel>();
         builder.Services.AddTransient<ViewModels.NavidromeSettingsViewModel>();
+        builder.Services.AddTransient<ViewModels.PlaylistDetailViewModel>();
         
         // 注册页面（支持构造函数注入）
         builder.Services.AddTransient<LibraryPage>();
@@ -58,6 +59,7 @@ public static class MauiProgram
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<WebDavSettingsPage>();
         builder.Services.AddTransient<NavidromeSettingsPage>();
+        builder.Services.AddTransient<PlaylistDetailPage>();
 
         return builder.Build();
     }
