@@ -22,194 +22,100 @@
                     <Shadow Brush="#E8C4D0" Offset="0,3" Opacity="0.2" Radius="10"/>
                 </Frame.Shadow>
                 <VerticalStackLayout Spacing="12">
-                    <Label Text="🐾 猫爪音乐"
-                           FontSize="26"
-                           FontAttributes="Bold"
-                           FontFamily="HappyZcool2016"
-                           TextColor="#FF7BAC"
-                           HorizontalOptions="Center" />
-                    
+                    <Label Text="🐾 猫爪音乐" FontSize="26" FontAttributes="Bold"
+                           FontFamily="HappyZcool2016" TextColor="#FF7BAC" HorizontalOptions="Center" />
                     <HorizontalStackLayout HorizontalOptions="Center" Spacing="10">
-                        <Button Text="🐱 本地"
-                                Command="{Binding SwitchTabCommand}"
-                                CommandParameter="Local"
-                                CornerRadius="20"
-                                Padding="22,8"
-                                FontSize="13"
+                        <Button Text="🐱 本地" Command="{Binding SwitchTabCommand}" CommandParameter="Local"
+                                CornerRadius="20" Padding="22,8" FontSize="13"
                                 FontFamily="HappyZcool2016"
-                                BackgroundColor="{Binding LocalTabColor}"
-                                TextColor="White" />
-                        <Button Text="☁️ 网络"
-                                Command="{Binding SwitchTabCommand}"
-                                CommandParameter="Network"
-                                CornerRadius="20"
-                                Padding="22,8"
-                                FontSize="13"
+                                BackgroundColor="{Binding LocalTabColor}" TextColor="White" />
+                        <Button Text="☁️ 网络" Command="{Binding SwitchTabCommand}" CommandParameter="Network"
+                                CornerRadius="20" Padding="22,8" FontSize="13"
                                 FontFamily="HappyZcool2016"
-                                BackgroundColor="{Binding NetworkTabColor}"
-                                TextColor="White" />
+                                BackgroundColor="{Binding NetworkTabColor}" TextColor="White" />
                     </HorizontalStackLayout>
                 </VerticalStackLayout>
             </Frame>
-
-            <!-- 状态信息 -->
             <Grid ColumnDefinitions="*,Auto" Padding="4,0">
-                <Label Text="{Binding StatusText}"
-                       FontSize="12"
-                       TextColor="#C4B5A5"
-                       FontFamily="HappyZcool2016"
-                       VerticalOptions="Center" />
-                <Button Grid.Column="1"
-                        Text="🔄"
-                        FontSize="18"
-                        BackgroundColor="Transparent"
-                        TextColor="#FF7BAC"
-                        Command="{Binding RefreshCommand}" />
+                <Label Text="{Binding StatusText}" FontSize="12" TextColor="#C4B5A5"
+                       FontFamily="HappyZcool2016" VerticalOptions="Center" />
+                <Button Grid.Column="1" Text="🔄" FontSize="18" BackgroundColor="Transparent"
+                        TextColor="#FF7BAC" Command="{Binding RefreshCommand}" />
             </Grid>
         </VerticalStackLayout>
         
-        <!-- 权限请求弹窗 -->
-        <Border Grid.Row="1"
-                IsVisible="{Binding ShowPermissionRequest}"
-                BackgroundColor="White"
-                StrokeShape="RoundRectangle 20"
-                Stroke="#F5E6ED"
-                StrokeThickness="1"
-                VerticalOptions="Center"
-                HorizontalOptions="Center"
-                Padding="30,24"
-                Margin="30,0">
-            <VerticalStackLayout Spacing="16" HorizontalOptions="Center">
-                <Label Text="🔐"
-                       FontSize="48"
-                       HorizontalOptions="Center" />
-                <Label Text="需要存储权限"
-                       FontSize="18"
-                       FontAttributes="Bold"
-                       FontFamily="HappyZcool2016"
-                       TextColor="#4A3728"
-                       HorizontalOptions="Center" />
-                <Label Text="{Binding PermissionText}"
-                       FontSize="14"
-                       TextColor="#8B7355"
-                       HorizontalTextAlignment="Center" />
-                <Label Text="用于扫描手机中的音乐文件"
-                       FontSize="12"
-                       TextColor="#C4B5A5"
-                       HorizontalTextAlignment="Center" />
-                <Button Text="授予权限"
-                        Command="{Binding RequestPermissionCommand}"
-                        BackgroundColor="#FF7BAC"
-                        TextColor="White"
-                        CornerRadius="14"
-                        FontSize="14"
-                        FontFamily="HappyZcool2016"
-                        Padding="30,12"
-                        HorizontalOptions="Center" />
-            </VerticalStackLayout>
-        </Border>
-        
         <!-- 歌曲列表 -->
-        <CollectionView Grid.Row="1"
-                        ItemsSource="{Binding Songs}"
-                        SelectionMode="Single"
-                        SelectionChanged="OnSongSelected"
-                        BackgroundColor="Transparent">
-            <CollectionView.Header>
-                <Label Text="{Binding StatusText}"
-                       FontSize="13"
-                       TextColor="#C4B5A5"
-                       FontFamily="HappyZcool2016"
-                       Margin="4,0,0,8" />
-            </CollectionView.Header>
+        <CollectionView Grid.Row="1" ItemsSource="{Binding Songs}" SelectionMode="Single"
+                        SelectionChanged="OnSongSelected" BackgroundColor="Transparent">
             <CollectionView.EmptyView>
-                <VerticalStackLayout HorizontalOptions="Center"
-                                     VerticalOptions="Center"
-                                     Spacing="12"
-                                     Padding="40">
-                    <Label Text="🎵"
-                           FontSize="48"
-                           HorizontalOptions="Center" />
-                    <Label Text="还没有歌曲哦~"
-                           FontSize="16"
-                           TextColor="#C4B5A5"
-                           FontFamily="HappyZcool2016"
-                           HorizontalOptions="Center" />
-                    <Label Text="把音乐放进 Music 文件夹吧"
-                           FontSize="13"
-                           TextColor="#D4C5C9"
-                           HorizontalOptions="Center" />
+                <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="12" Padding="40">
+                    <Label Text="🎵" FontSize="48" HorizontalOptions="Center" />
+                    <Label Text="还没有歌曲哦~" FontSize="16" TextColor="#C4B5A5"
+                           FontFamily="HappyZcool2016" HorizontalOptions="Center" />
+                    <Label Text="把音乐放进 Music 文件夹吧" FontSize="13" TextColor="#D4C5C9" HorizontalOptions="Center" />
                 </VerticalStackLayout>
             </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Frame BackgroundColor="White"
-                           BorderColor="#F5E6ED"
-                           CornerRadius="18"
-                           Margin="2,4"
-                           Padding="16"
-                           HasShadow="True">
-                        <Frame.Shadow>
-                            <Shadow Brush="#E8C4D0" Offset="0,2" Opacity="0.15" Radius="8"/>
-                        </Frame.Shadow>
-                        <Grid ColumnDefinitions="56,*,Auto"
-                              ColumnSpacing="14">
-                            <!-- 专辑封面 -->
-                            <Border Grid.Column="0"
-                                    StrokeShape="RoundRectangle 14"
-                                    Stroke="#F5E6ED"
-                                    StrokeThickness="1"
-                                    HeightRequest="56"
-                                    WidthRequest="56"
-                                    BackgroundColor="#FCF0F4">
-                                <Image Source="{Binding CoverArtPath}"
-                                       Aspect="AspectFill"
-                                       WidthRequest="56"
-                                       HeightRequest="56">
-                                    <Image.Clip>
-                                        <RoundRectangleGeometry CornerRadius="14"
-                                                                 Rect="0,0,56,56"/>
-                                    </Image.Clip>
+                    <Frame BackgroundColor="White" BorderColor="#F5E6ED" CornerRadius="18"
+                           Margin="2,4" Padding="16" HasShadow="True">
+                        <Frame.Shadow><Shadow Brush="#E8C4D0" Offset="0,2" Opacity="0.15" Radius="8"/></Frame.Shadow>
+                        <Grid ColumnDefinitions="56,*,Auto" ColumnSpacing="14">
+                            <Border Grid.Column="0" StrokeShape="RoundRectangle 14" Stroke="#F5E6ED"
+                                    StrokeThickness="1" HeightRequest="56" WidthRequest="56" BackgroundColor="#FCF0F4">
+                                <Image Source="{Binding CoverArtPath}" Aspect="AspectFill" WidthRequest="56" HeightRequest="56">
+                                    <Image.Clip><RoundRectangleGeometry CornerRadius="14" Rect="0,0,56,56"/></Image.Clip>
                                 </Image>
-                                <!-- 无封面时的默认图标 -->
-                                <Label Text="🎵"
-                                       FontSize="22"
-                                       HorizontalOptions="Center"
-                                       VerticalOptions="Center"
-                                       InputTransparent="True" />
+                                <Label Text="🎵" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
                             </Border>
-                            
-                            <!-- 歌曲信息 -->
-                            <VerticalStackLayout Grid.Column="1"
-                                                 VerticalOptions="Center"
-                                                 Spacing="3">
-                                <Label Text="{Binding Title}"
-                                       FontSize="15"
-                                       FontAttributes="Bold"
-                                       FontFamily="HappyZcool2016"
-                                       TextColor="#4A3728"
-                                       LineBreakMode="TailTruncation" />
-                                <Label Text="{Binding Artist}"
-                                       FontSize="13"
-                                       TextColor="#8B7355"
-                                       LineBreakMode="TailTruncation" />
-                                <Label Text="{Binding Album}"
-                                       FontSize="11"
-                                       TextColor="#C4B5A5"
-                                       LineBreakMode="TailTruncation" />
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">
+                                <Label Text="{Binding Title}" FontSize="15" FontAttributes="Bold"
+                                       FontFamily="HappyZcool2016" TextColor="#4A3728" LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Artist}" FontSize="13" TextColor="#8B7355" LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Album}" FontSize="11" TextColor="#C4B5A5" LineBreakMode="TailTruncation" />
                             </VerticalStackLayout>
-                            
-                            <!-- 更多 -->
-                            <Label Grid.Column="2"
-                                   Text="⋯"
-                                   FontSize="20"
-                                   TextColor="#D4C5C9"
-                                   VerticalOptions="Center" />
+                            <Label Grid.Column="2" Text="⋯" FontSize="20" TextColor="#D4C5C9" VerticalOptions="Center" />
                         </Grid>
                     </Frame>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
+        
+        <!-- 权限请求弹窗（覆盖在列表上方） -->
+        <Border Grid.Row="1" IsVisible="{Binding ShowPermissionRequest}"
+                BackgroundColor="#FFF5F7"
+                StrokeShape="RoundRectangle 20" Stroke="Transparent"
+                Padding="30,24" Margin="20,0"
+                VerticalOptions="Center" HorizontalOptions="Center">
+            <VerticalStackLayout Spacing="16" HorizontalOptions="Center">
+                <Label Text="🔐" FontSize="48" HorizontalOptions="Center" />
+                <Label Text="需要存储权限" FontSize="18" FontAttributes="Bold"
+                       FontFamily="HappyZcool2016" TextColor="#4A3728" HorizontalOptions="Center" />
+                <Label Text="{Binding PermissionText}" FontSize="14"
+                       TextColor="#8B7355" HorizontalTextAlignment="Center" />
+                <Label Text="用于扫描手机中的音乐文件" FontSize="12"
+                       TextColor="#C4B5A5" HorizontalTextAlignment="Center" />
+                <Button Text="授予权限"
+                        Clicked="OnRequestPermissionClicked"
+                        BackgroundColor="#FF7BAC" TextColor="White"
+                        CornerRadius="14" FontSize="14"
+                        FontFamily="HappyZcool2016"
+                        Padding="30,12" HorizontalOptions="Center">
+                    <VisualStateManager.VisualStateGroups>
+                        <VisualStateGroupList>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Property="BackgroundColor" Value="#E8588E" />
+                                        <Setter Property="Scale" Value="0.95" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateGroupList>
+                    </VisualStateManager.VisualStateGroups>
+                </Button>
+            </VerticalStackLayout>
+        </Border>
     </Grid>
     
 </ContentPage>

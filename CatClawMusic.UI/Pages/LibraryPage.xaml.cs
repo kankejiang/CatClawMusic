@@ -45,6 +45,11 @@ public partial class LibraryPage : ContentPage
         }
     }
 
+    private void OnRequestPermissionClicked(object? sender, EventArgs e)
+    {
+        _viewModel.RequestPermissionCommand.Execute(null);
+    }
+
     private async void OnSongSelected(object sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is Song selectedSong)
