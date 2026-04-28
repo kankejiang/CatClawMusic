@@ -12,7 +12,6 @@ public static class FolderPicker
 {
     private const int PickFolderCode = 9001;
     private static TaskCompletionSource<string?>? _tcs;
-    private static Activity? _currentActivity;
 
     /// <summary>打开系统文件夹选择器</summary>
     public static async Task<string?> PickFolderAsync()

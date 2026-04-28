@@ -1,5 +1,3 @@
-using CatClawMusic.UI.ViewModels;
-
 namespace CatClawMusic.UI;
 
 public partial class App : Application
@@ -10,7 +8,10 @@ public partial class App : Application
 
         // 锁定浅色模式，统一 UI
         UserAppTheme = AppTheme.Light;
+    }
 
-        MainPage = new AppShell();
+    protected override Window CreateWindow(IActivationState? activationState)
+    {
+        return new Window(new AppShell());
     }
 }

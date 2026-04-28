@@ -3,12 +3,21 @@
     <TargetFramework>net9.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>CatClawMusic.UI</RootNamespace>
+    <ApplicationTitle>猫爪音乐</ApplicationTitle>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
   </PropertyGroup>
 
-  <!-- 图标和启动画面由 Android 原生资源处理（mipmap + drawable） -->
+  <!-- MauiSplashScreen：启动画面居中显示。360x640 约为手机屏幕 dp 尺寸，保持原图比例 -->
+  <ItemGroup>
+    <MauiSplashScreen Include="Resources\splash_catclawmusic_main.png" Color="#000000" BaseSize="360,640" />
+  </ItemGroup>
+
+  <!-- MauiIcon：应用图标 -->
+  <ItemGroup>
+    <MauiIcon Include="Resources\app_icon.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />

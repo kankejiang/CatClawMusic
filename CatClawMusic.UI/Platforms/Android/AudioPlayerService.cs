@@ -1,11 +1,12 @@
 using Android.Media;
+using Android.OS;
 using CatClawMusic.Core.Interfaces;
 using System.Timers;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
 /// <summary>
-/// Android 音频播放服务（封装 MediaPlayer）
+/// Android 音频播放服务（封装 MediaPlayer + WakeLock 后台保活）
 /// </summary>
 public class AudioPlayerService : IAudioPlayerService, IDisposable
 {
@@ -13,6 +14,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private bool _isPrepared;
     private System.Timers.Timer? _positionTimer;
     private int _volume = 100;
+    private PowerManager.WakeLock? _wakeLock;
 
     public bool IsPlaying => _mediaPlayer?.IsPlaying ?? false;
     public TimeSpan Position => TimeSpan.FromMilliseconds(_mediaPlayer?.CurrentPosition ?? 0);
@@ -24,10 +26,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         set
         {
             _volume = Math.Clamp(value, 0, 100);
-            if (_mediaPlayer != null)
-            {
-                _mediaPlayer.SetVolume(_volume / 100f, _volume / 100f);
-            }
+            _mediaPlayer?.SetVolume(_volume / 100f, _volume / 100f);
         }
     }
 
@@ -57,6 +56,9 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         await tcs.Task;
         _mediaPlayer.Start();
 
+        // 申请 WakeLock 防止 CPU 休眠导致播放卡顿
+        AcquireWakeLock();
+
         StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
         StartPositionTimer();
     }
@@ -65,6 +67,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     {
         _mediaPlayer?.Pause();
         StopPositionTimer();
+        ReleaseWakeLock();
         StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
         return Task.CompletedTask;
     }
@@ -74,6 +77,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         StopPositionTimer();
         _mediaPlayer?.Stop();
         _mediaPlayer?.Reset();
+        ReleaseWakeLock();
         StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
         return Task.CompletedTask;
     }
@@ -81,10 +85,28 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     public Task SeekAsync(TimeSpan position)
     {
         if (_mediaPlayer != null && _isPrepared)
-        {
             _mediaPlayer.SeekTo((int)position.TotalMilliseconds);
-        }
         return Task.CompletedTask;
+    }
+
+    private void AcquireWakeLock()
+    {
+        var ctx = global::Android.App.Application.Context;
+        var pm = (PowerManager?)ctx.GetSystemService(global::Android.Content.Context.PowerService);
+        if (pm != null)
+        {
+            _wakeLock = pm.NewWakeLock(WakeLockFlags.Partial, "CatClawMusic:AudioPlayback");
+            _wakeLock.Acquire();
+        }
+    }
+
+    private void ReleaseWakeLock()
+    {
+        if (_wakeLock != null && _wakeLock.IsHeld)
+        {
+            _wakeLock.Release();
+            _wakeLock = null;
+        }
     }
 
     private void EnsurePlayer()
@@ -100,12 +122,14 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private void OnCompletion(object? sender, EventArgs e)
     {
         StopPositionTimer();
+        ReleaseWakeLock();
         StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
     }
 
     private void OnError(object? sender, MediaPlayer.ErrorEventArgs e)
     {
         StopPositionTimer();
+        ReleaseWakeLock();
         StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs
         {
             State = PlaybackState.Error,
@@ -136,14 +160,13 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private void OnPositionTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (_mediaPlayer != null && _isPrepared)
-        {
             PositionChanged?.Invoke(this, Position);
-        }
     }
 
     public void Dispose()
     {
         StopPositionTimer();
+        ReleaseWakeLock();
         if (_mediaPlayer != null)
         {
             _mediaPlayer.Completion -= OnCompletion;

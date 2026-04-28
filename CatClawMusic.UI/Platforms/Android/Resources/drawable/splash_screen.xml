@@ -1,15 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 启动画面：等比缩放裁剪效果（cover） -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 黑色背景（图片未覆盖区域显示此色） -->
-    <item>
-        <color android:color="#000000" />
-    </item>
-    <!-- 图片居中显示，保持原始比例，超出部分裁剪 -->
+    <item android:drawable="@android:color/black" />
     <item>
         <bitmap
-            android:src="@drawable/splash_bg"
-            android:gravity="center"
-            android:tileMode="disabled" />
+            android:src="@drawable/splash_catclawmusic_main"
+            android:gravity="fill" />
     </item>
 </layer-list>

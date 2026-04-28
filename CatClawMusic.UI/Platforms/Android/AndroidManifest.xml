@@ -2,34 +2,49 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.catclaw.music">
     
-    <!-- 网络权限 -->
+    <!-- ═══════════════════════════════════════ -->
+    <!-- 核心必选权限 -->
+    <!-- ═══════════════════════════════════════ -->
+
+    <!-- Android 13+ 媒体权限（替代旧版存储权限，仅此即可读取所有音频） -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33" />
+
+    <!-- Android 10-12 存储权限（MediaStore 读取公共目录音频文件） -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- 后台播放保活：前台服务 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Android 14+ 前台服务必须细分类型 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" android:minSdkVersion="34" />
+
+    <!-- 防止休眠时 CPU 暂停导致播放卡顿 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- 功能可选权限 -->
+    <!-- ═══════════════════════════════════════ -->
+
+    <!-- 通知栏播放控制器 / 锁屏播放界面（Android 13+ 必须声明） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" android:minSdkVersion="33" />
+
+    <!-- 蓝牙播放控制 / 车载系统同步 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- 网络权限（WebDAV / Navidrome / 在线歌词 / 更新） -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- 存储权限（Android 10 以下） -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-                   android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-                   android:maxSdkVersion="28" />
+    <!-- 振动反馈 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Android 13+ 媒体权限 -->
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    
-    <!-- Android 10+ 使用 MediaStore -->
-    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
-    
-    <!-- 前台服务（后台播放） -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    
     <application 
         android:label="猫爪音乐"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
-        android:theme="@style/Maui.SplashTheme"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:forceDarkAllowed="false">
         
-        <!-- 前台服务（后台播放） -->
+        <!-- 前台服务（后台播放，适配 Android 14+） -->
         <service 
             android:name=".ForegroundPlayerService"
             android:foregroundServiceType="mediaPlayback"

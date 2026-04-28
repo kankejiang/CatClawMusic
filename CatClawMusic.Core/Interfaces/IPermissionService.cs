@@ -13,4 +13,10 @@ public interface IPermissionService
 
     /// <summary>获取权限状态描述</summary>
     string GetPermissionStatus();
+
+    /// <summary>权限是否被永久拒绝（不再询问），需引导用户到系统设置</summary>
+    bool IsPermanentlyDenied();
+
+    /// <summary>打开应用系统设置页面（让用户手动授权）</summary>
+    void OpenAppSettings();
 }
