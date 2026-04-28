@@ -69,19 +69,18 @@ public class SettingsViewModel : BindableObject
         set { _onlyWiFiCache = value; OnPropertyChanged(); }
     }
 
-    private bool _isTesting;
-    public bool IsTesting
+    private string _musicFolder = Preferences.Get("music_folder", "");
+    public string MusicFolder
     {
-        get => _isTesting;
-        set { _isTesting = value; OnPropertyChanged(); }
+        get => _musicFolder;
+        set { _musicFolder = value; OnPropertyChanged(); Preferences.Set("music_folder", value); }
     }
 
+    private bool _isTesting;
+    public bool IsTesting { get => _isTesting; set { _isTesting = value; OnPropertyChanged(); } }
+
     private string _statusText = "";
-    public string StatusText
-    {
-        get => _statusText;
-        set { _statusText = value; OnPropertyChanged(); }
-    }
+    public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
 
     public Command TestConnectionCommand { get; }
     public Command SaveConnectionCommand { get; }

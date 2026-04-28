@@ -97,6 +97,16 @@
                                 OnColor="#FF7BAC" ThumbColor="White"
                                 HorizontalOptions="End" />
                     </Grid>
+                    <BoxView HeightRequest="1" Color="#F5E6ED" Margin="0,4" />
+                    <Label Text="本地音乐文件夹" FontSize="14" TextColor="#8B7355" />
+                    <Entry Placeholder="/storage/emulated/0/Music"
+                           Text="{Binding MusicFolder}"
+                           BackgroundColor="#FFFBFD"
+                           FontSize="13" />
+                    <Label Text="✨ 留空使用系统默认目录（MediaStore + Music）"
+                           FontSize="11" TextColor="#C4B5A5" />
+                    <Label Text="💡 输入绝对路径，如 /storage/XXXX/Music"
+                           FontSize="11" TextColor="#C4B5A5" />
                 </VerticalStackLayout>
             </Frame>
 

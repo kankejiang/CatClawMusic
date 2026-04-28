@@ -16,7 +16,7 @@ public class MusicLibraryService : IMusicLibraryService
     /// <summary>
     /// 扫描本地音乐：优先使用 MediaStore（无需权限），降级到文件扫描
     /// </summary>
-    public async Task<List<Song>> ScanLocalAsync()
+    public async Task<List<Song>> ScanLocalAsync(List<string>? customFolders = null)
     {
         await _db.EnsureInitializedAsync();
 
@@ -32,8 +32,14 @@ public class MusicLibraryService : IMusicLibraryService
         catch { }
 #endif
 
-        // 2. 补充文件扫描（自定义目录）
-        var scanDirs = new[] { "/storage/emulated/0/Music", "/storage/emulated/0/Download" };
+        // 2. 补充文件扫描（默认目录 + 用户自定义目录）
+        var scanDirs = new List<string> { "/storage/emulated/0/Music", "/storage/emulated/0/Download" };
+        if (customFolders != null)
+        {
+            foreach (var f in customFolders)
+                if (!string.IsNullOrWhiteSpace(f) && Directory.Exists(f) && !scanDirs.Contains(f))
+                    scanDirs.Add(f);
+        }
         foreach (var dir in scanDirs)
         {
             if (Directory.Exists(dir))

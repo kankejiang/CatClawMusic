@@ -10,7 +10,7 @@ public interface IMusicLibraryService
     /// <summary>
     /// 扫描本地音乐
     /// </summary>
-    Task<List<Song>> ScanLocalAsync();
+    Task<List<Song>> ScanLocalAsync(List<string>? customFolders = null);
     
     /// <summary>
     /// 扫描网络音乐（WebDAV）

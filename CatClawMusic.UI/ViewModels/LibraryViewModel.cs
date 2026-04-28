@@ -62,8 +62,13 @@ public class LibraryViewModel : BindableObject
 
         try
         {
-            // 直接扫描（MediaStore 无需权限）
-            var songs = await _musicLibrary.ScanLocalAsync();
+            // 读取用户自定义文件夹
+            var customPath = Preferences.Get("music_folder", "");
+            var customFolders = !string.IsNullOrWhiteSpace(customPath)
+                ? new List<string> { customPath }
+                : null;
+
+            var songs = await _musicLibrary.ScanLocalAsync(customFolders);
             foreach (var s in songs) Songs.Add(s);
 
             StatusText = Songs.Count > 0
