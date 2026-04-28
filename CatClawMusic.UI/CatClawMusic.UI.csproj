@@ -7,12 +7,14 @@
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
   </PropertyGroup>
-  
+
+  <!-- 图标和启动画面由 Android 原生资源处理（mipmap + drawable） -->
+
   <ItemGroup>
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
     <ProjectReference Include="..\CatClawMusic.Data\CatClawMusic.Data.csproj" />
   </ItemGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.0" />

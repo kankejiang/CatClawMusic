@@ -27,6 +27,13 @@ public partial class LibraryPage : ContentPage
         BindingContext = viewModel;
     }
 
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        // 每次显示页面时尝试加载本地音乐（含权限检查）
+        await _viewModel.LoadLocalAsync();
+    }
+
     private void ResolveServices()
     {
         var services = Application.Current?.Handler?.MauiContext?.Services;
@@ -46,9 +53,7 @@ public partial class LibraryPage : ContentPage
             _playQueue.SelectSong(selectedSong.Id);
 
             if (!string.IsNullOrEmpty(selectedSong.FilePath))
-            {
                 await _audioPlayer.PlayAsync(selectedSong.FilePath);
-            }
 
             await Shell.Current.GoToAsync("NowPlayingPage");
         }

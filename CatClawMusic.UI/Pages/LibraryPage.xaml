@@ -68,6 +68,47 @@
             </Grid>
         </VerticalStackLayout>
         
+        <!-- 权限请求弹窗 -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding ShowPermissionRequest}"
+                BackgroundColor="White"
+                StrokeShape="RoundRectangle 20"
+                Stroke="#F5E6ED"
+                StrokeThickness="1"
+                VerticalOptions="Center"
+                HorizontalOptions="Center"
+                Padding="30,24"
+                Margin="30,0">
+            <VerticalStackLayout Spacing="16" HorizontalOptions="Center">
+                <Label Text="🔐"
+                       FontSize="48"
+                       HorizontalOptions="Center" />
+                <Label Text="需要存储权限"
+                       FontSize="18"
+                       FontAttributes="Bold"
+                       FontFamily="HappyZcool2016"
+                       TextColor="#4A3728"
+                       HorizontalOptions="Center" />
+                <Label Text="{Binding PermissionText}"
+                       FontSize="14"
+                       TextColor="#8B7355"
+                       HorizontalTextAlignment="Center" />
+                <Label Text="用于扫描手机中的音乐文件"
+                       FontSize="12"
+                       TextColor="#C4B5A5"
+                       HorizontalTextAlignment="Center" />
+                <Button Text="授予权限"
+                        Command="{Binding RequestPermissionCommand}"
+                        BackgroundColor="#FF7BAC"
+                        TextColor="White"
+                        CornerRadius="14"
+                        FontSize="14"
+                        FontFamily="HappyZcool2016"
+                        Padding="30,12"
+                        HorizontalOptions="Center" />
+            </VerticalStackLayout>
+        </Border>
+        
         <!-- 歌曲列表 -->
         <CollectionView Grid.Row="1"
                         ItemsSource="{Binding Songs}"

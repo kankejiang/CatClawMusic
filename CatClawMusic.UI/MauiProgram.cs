@@ -38,6 +38,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAudioPlayerService, Platforms.Android.AudioPlayerService>();
         builder.Services.AddSingleton<ILyricsService, LyricsService>();
         builder.Services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
+        builder.Services.AddSingleton<IPermissionService, Platforms.Android.PermissionService>();
         builder.Services.AddSingleton<PlayQueue>();
         
         // 注册 ViewModels
