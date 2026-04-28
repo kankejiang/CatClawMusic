@@ -43,12 +43,38 @@ public class NowPlayingViewModel : BindableObject
     
     public string PlayPauseIcon { get; set; } = "▶";
     public string PlayModeIcon { get; set; } = "🔁";
-    
+    public string LikeIcon { get; set; } = "🤍";
+
+    private bool _isLiked;
+    public bool IsLiked
+    {
+        get => _isLiked;
+        set
+        {
+            _isLiked = value;
+            LikeIcon = value ? "❤️" : "🤍";
+            OnPropertyChanged(nameof(LikeIcon));
+        }
+    }
+
+    private int _volume = 80;
+    public int Volume
+    {
+        get => _volume;
+        set
+        {
+            _volume = value;
+            OnPropertyChanged();
+            _audioPlayer.Volume = value;
+        }
+    }
+
     public Command PlayPauseCommand { get; }
     public Command NextCommand { get; }
     public Command PreviousCommand { get; }
     public Command TogglePlayModeCommand { get; }
     public Command ToggleShuffleCommand { get; }
+    public Command ToggleLikeCommand { get; }
 
     public NowPlayingViewModel(IAudioPlayerService audioPlayer, ILyricsService lyricsService, PlayQueue playQueue)
     {
@@ -61,6 +87,9 @@ public class NowPlayingViewModel : BindableObject
         PreviousCommand = new Command(OnPrevious);
         TogglePlayModeCommand = new Command(OnTogglePlayMode);
         ToggleShuffleCommand = new Command(OnToggleShuffle);
+        ToggleLikeCommand = new Command(OnToggleLike);
+        
+        _volume = _audioPlayer.Volume;
         
         _audioPlayer.StateChanged += OnPlaybackStateChanged;
         _audioPlayer.PositionChanged += OnPositionChanged;
@@ -213,5 +242,10 @@ public class NowPlayingViewModel : BindableObject
             _ => "🔁"
         };
         OnPropertyChanged(nameof(PlayModeIcon));
+    }
+
+    private void OnToggleLike()
+    {
+        IsLiked = !IsLiked;
     }
 }

@@ -2,63 +2,262 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.UI.Pages.NowPlayingPage"
-             Title="正在播放">
+             Title="正在播放"
+             Shell.BackgroundColor="#FF7BAC"
+             Shell.ForegroundColor="White"
+             Shell.TitleColor="White">
     
-    <VerticalStackLayout Spacing="20" Padding="20">
+    <Grid RowDefinitions="*,Auto,Auto,Auto,Auto,Auto"
+          RowSpacing="16"
+          Padding="20,12">
+        
         <!-- 专辑封面 -->
-        <Image Source="{Binding CurrentSong.CoverArtPath}"
-               HeightRequest="300"
-               WidthRequest="300"
-               Aspect="AspectFill" />
+        <Border Grid.Row="0"
+                StrokeShape="RoundRectangle 28"
+                Stroke="#F5E6ED"
+                StrokeThickness="2"
+                HorizontalOptions="Center"
+                VerticalOptions="Center"
+                HeightRequest="280"
+                WidthRequest="280">
+            <Border.Shadow>
+                <Shadow Brush="#D4A0B8"
+                        Offset="0,8"
+                        Opacity="0.3"
+                        Radius="24"/>
+            </Border.Shadow>
+            <Image Source="{Binding CurrentSong.CoverArtPath}"
+                   Aspect="AspectFill"
+                   WidthRequest="280"
+                   HeightRequest="280"
+                   BackgroundColor="#FCF0F4">
+                <Image.Clip>
+                    <RoundRectangleGeometry CornerRadius="28" Rect="0,0,280,280"/>
+                </Image.Clip>
+            </Image>
+            <!-- 无封面占位 -->
+            <Label Text="🐾"
+                   FontSize="60"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"
+                   InputTransparent="True"
+                   TextColor="#FFB3D0" />
+        </Border>
         
         <!-- 歌曲信息 -->
-        <VerticalStackLayout>
+        <VerticalStackLayout Grid.Row="1"
+                             Spacing="4"
+                             HorizontalOptions="Center">
             <Label Text="{Binding CurrentSong.Title}"
-                   FontSize="24"
+                   FontSize="22"
                    FontAttributes="Bold"
-                   HorizontalOptions="Center" />
+                   FontFamily="HappyZcool2016"
+                   TextColor="#4A3728"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation"
+                   MaxLines="1" />
             <Label Text="{Binding CurrentSong.Artist}"
-                   FontSize="18"
-                   TextColor="{StaticResource TextSecondaryColor}"
-                   HorizontalOptions="Center" />
+                   FontSize="15"
+                   TextColor="#8B7355"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation"
+                   MaxLines="1" />
+            <Label Text="{Binding CurrentSong.Album}"
+                   FontSize="12"
+                   TextColor="#C4B5A5"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation"
+                   MaxLines="1" />
         </VerticalStackLayout>
         
-        <!-- 歌词显示区域 -->
-        <ScrollView HeightRequest="200">
-            <VerticalStackLayout>
+        <!-- 歌词 -->
+        <Border Grid.Row="2"
+                StrokeShape="RoundRectangle 20"
+                Stroke="#F5E6ED"
+                StrokeThickness="1"
+                BackgroundColor="White"
+                Padding="20"
+                HeightRequest="110">
+            <VerticalStackLayout Spacing="8" VerticalOptions="Center">
                 <Label Text="{Binding CurrentLyricLine}"
-                       FontSize="20"
-                       TextColor="{StaticResource PrimaryColor}"
+                       FontSize="18"
                        FontAttributes="Bold"
-                       HorizontalOptions="Center" />
+                       FontFamily="HappyZcool2016"
+                       TextColor="#FF7BAC"
+                       HorizontalTextAlignment="Center"
+                       LineBreakMode="WordWrap" />
                 <Label Text="{Binding NextLyricLine}"
-                       FontSize="16"
-                       TextColor="{StaticResource TextSecondaryColor}"
-                       HorizontalOptions="Center" />
+                       FontSize="14"
+                       TextColor="#C4B5A5"
+                       HorizontalTextAlignment="Center"
+                       LineBreakMode="WordWrap" />
             </VerticalStackLayout>
-        </ScrollView>
+        </Border>
         
-        <!-- 播放进度条 -->
-        <HorizontalStackLayout>
-            <Label Text="{Binding CurrentPosition, StringFormat='{0:mm\\:ss}'}" />
+        <!-- 进度条 -->
+        <VerticalStackLayout Grid.Row="3" Spacing="4">
             <Slider Value="{Binding CurrentPositionSeconds}"
                     Maximum="{Binding TotalDurationSeconds}"
+                    Minimum="0"
                     HorizontalOptions="FillAndExpand" />
-            <Label Text="{Binding TotalDuration, StringFormat='{0:mm\\:ss}'}" />
+            <Grid ColumnDefinitions="*,*" Padding="4,0">
+                <Label Grid.Column="0"
+                       Text="{Binding CurrentPosition, StringFormat='{0:mm\\:ss}'}"
+                       FontSize="11"
+                       TextColor="#C4B5A5" />
+                <Label Grid.Column="1"
+                       Text="{Binding TotalDuration, StringFormat='{0:mm\\:ss}'}"
+                       FontSize="11"
+                       TextColor="#C4B5A5"
+                       HorizontalTextAlignment="End" />
+            </Grid>
+        </VerticalStackLayout>
+        
+        <!-- 播放控制 -->
+        <HorizontalStackLayout Grid.Row="4"
+                               HorizontalOptions="Center"
+                               Spacing="20">
+            <Button Text="{Binding PlayModeIcon}"
+                    FontSize="22"
+                    BackgroundColor="Transparent"
+                    TextColor="#C4B5A5"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    CornerRadius="22"
+                    Padding="0"
+                    Command="{Binding TogglePlayModeCommand}">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="Scale" Value="0.9"/>
+                                    <Setter Property="BackgroundColor" Value="#FFD4E5"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+            </Button>
+            
+            <Button Text="⏮"
+                    FontSize="22"
+                    BackgroundColor="Transparent"
+                    TextColor="#4A3728"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    CornerRadius="22"
+                    Padding="0"
+                    Command="{Binding PreviousCommand}">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="Scale" Value="0.9"/>
+                                    <Setter Property="BackgroundColor" Value="#FFD4E5"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+            </Button>
+            
+            <!-- 播放/暂停大按钮 -->
+            <Button Text="{Binding PlayPauseIcon}"
+                    FontSize="28"
+                    BackgroundColor="#FF7BAC"
+                    TextColor="White"
+                    WidthRequest="68"
+                    HeightRequest="68"
+                    CornerRadius="34"
+                    Padding="0"
+                    Command="{Binding PlayPauseCommand}">
+                <Button.Shadow>
+                    <Shadow Brush="#E8A0BE" Offset="0,6" Opacity="0.4" Radius="12"/>
+                </Button.Shadow>
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="Scale" Value="0.92"/>
+                                    <Setter Property="BackgroundColor" Value="#E8588E"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+            </Button>
+            
+            <Button Text="⏭"
+                    FontSize="22"
+                    BackgroundColor="Transparent"
+                    TextColor="#4A3728"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    CornerRadius="22"
+                    Padding="0"
+                    Command="{Binding NextCommand}">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="Scale" Value="0.9"/>
+                                    <Setter Property="BackgroundColor" Value="#FFD4E5"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+            </Button>
+            
+            <Button Text="🔀"
+                    FontSize="22"
+                    BackgroundColor="Transparent"
+                    TextColor="#C4B5A5"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    CornerRadius="22"
+                    Padding="0"
+                    Command="{Binding ToggleShuffleCommand}">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="Scale" Value="0.9"/>
+                                    <Setter Property="BackgroundColor" Value="#FFD4E5"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+            </Button>
         </HorizontalStackLayout>
         
-        <!-- 播放控制按钮 -->
-        <HorizontalStackLayout HorizontalOptions="Center" Spacing="30">
-            <Button Text="⏮" FontSize="30" Command="{Binding PreviousCommand}" />
-            <Button Text="{Binding PlayPauseIcon}" FontSize="30" Command="{Binding PlayPauseCommand}" />
-            <Button Text="⏭" FontSize="30" Command="{Binding NextCommand}" />
-        </HorizontalStackLayout>
-        
-        <!-- 播放模式切换 -->
-        <HorizontalStackLayout HorizontalOptions="Center" Spacing="20">
-            <Button Text="{Binding PlayModeIcon}" Command="{Binding TogglePlayModeCommand}" />
-            <Button Text="🔀" Command="{Binding ToggleShuffleCommand}" />
-        </HorizontalStackLayout>
-    </VerticalStackLayout>
+        <!-- 底部操作 -->
+        <VerticalStackLayout Grid.Row="5" Spacing="8" Margin="0,4,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20" Padding="4,0">
+                <Button Grid.Column="0"
+                        Text="{Binding LikeIcon}"
+                        FontSize="24"
+                        BackgroundColor="Transparent"
+                        Padding="8"
+                        Command="{Binding ToggleLikeCommand}" />
+                <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <Label Text="🔈" FontSize="14" TextColor="#C4B5A5" VerticalOptions="Center" />
+                    <Slider Grid.Column="1"
+                            Value="{Binding Volume}"
+                            Minimum="0"
+                            Maximum="100"
+                            VerticalOptions="Center" />
+                </Grid>
+                <Label Grid.Column="2" Text="🔊" FontSize="14"
+                       TextColor="#C4B5A5" VerticalOptions="Center" />
+            </Grid>
+        </VerticalStackLayout>
+    </Grid>
     
 </ContentPage>

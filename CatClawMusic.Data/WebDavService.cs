@@ -70,25 +70,25 @@ public class WebDavService : INetworkFileService
     /// <summary>
     /// 测试连接
     /// </summary>
-    public async Task<bool> TestConnectionAsync(ConnectionProfile profile)
+    public async Task<(bool Success, string Message)> TestConnectionAsync(ConnectionProfile profile)
     {
-        // TODO: 实现连接测试
+        // TODO: 使用 WebDav.Client NuGet 包实现
         /*
         try
         {
             var client = new WebDavClient(new HttpClient());
             var baseUrl = $"{profile.Protocol}://{profile.Host}:{profile.Port}{profile.BasePath}";
             var response = await client.PropFind(baseUrl, new PropFindParameters { Depth = 0 });
-            return response.IsSuccessful;
+            return (response.IsSuccessful, response.IsSuccessful ? "连接成功" : "连接失败");
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            return (false, $"连接失败: {ex.Message}");
         }
         */
-        
+
         await Task.CompletedTask;
-        return true; // 暂时返回 true，待实现
+        return (true, "WebDAV 连接待实现（占位）");
     }
     
     /// <summary>

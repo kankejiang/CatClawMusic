@@ -2,19 +2,16 @@ using CatClawMusic.UI.ViewModels;
 
 namespace CatClawMusic.UI.Pages;
 
-public partial class NowPlayingPage : ContentPage
+public partial class WebDavSettingsPage : ContentPage
 {
-    public NowPlayingPage()
+    public WebDavSettingsPage()
     {
         InitializeComponent();
         var services = Application.Current?.Handler?.MauiContext?.Services;
-        if (services != null)
-        {
-            BindingContext = services.GetRequiredService<NowPlayingViewModel>();
-        }
+        BindingContext = services?.GetRequiredService<WebDavSettingsViewModel>();
     }
 
-    public NowPlayingPage(NowPlayingViewModel viewModel)
+    public WebDavSettingsPage(WebDavSettingsViewModel viewModel)
     {
         InitializeComponent();
         BindingContext = viewModel;

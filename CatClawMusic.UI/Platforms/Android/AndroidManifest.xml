@@ -22,7 +22,8 @@
     <application 
         android:label="猫爪音乐"
         android:icon="@mipmap/ic_launcher"
-        android:theme="@style/Maui.SplashTheme">
+        android:theme="@style/Maui.SplashTheme"
+        android:forceDarkAllowed="false">
         
         <!-- 前台服务（后台播放） -->
         <service 

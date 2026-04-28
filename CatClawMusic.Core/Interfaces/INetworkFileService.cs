@@ -16,9 +16,9 @@ public interface INetworkFileService
     Task<Stream> OpenReadAsync(string filePath);
     
     /// <summary>
-    /// 测试连接
+    /// 测试连接，返回 (成功, 消息)
     /// </summary>
-    Task<bool> TestConnectionAsync(Models.ConnectionProfile profile);
+    Task<(bool Success, string Message)> TestConnectionAsync(Models.ConnectionProfile profile);
     
     /// <summary>
     /// 获取文件信息

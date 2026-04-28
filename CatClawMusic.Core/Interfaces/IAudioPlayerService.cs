@@ -63,6 +63,7 @@ public class PlaybackStateChangedEventArgs : EventArgs
 {
     public PlaybackState State { get; set; }
     public string? SongId { get; set; }
+    public string? ErrorMessage { get; set; }
 }
 
 /// <summary>

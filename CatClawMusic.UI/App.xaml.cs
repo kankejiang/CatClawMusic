@@ -7,8 +7,10 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        
-        // 设置主页面
+
+        // 锁定浅色模式，统一 UI
+        UserAppTheme = AppTheme.Light;
+
         MainPage = new AppShell();
     }
 }

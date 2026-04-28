@@ -91,6 +91,47 @@ public class MusicDatabase
         await EnsureInitializedAsync();
         return await _database.DeleteAsync(song);
     }
+
+    // 保存连接配置
+    public async Task<int> SaveConnectionProfileAsync(ConnectionProfile profile)
+    {
+        await EnsureInitializedAsync();
+        if (profile.Id != 0)
+            return await _database.UpdateAsync(profile);
+        return await _database.InsertAsync(profile);
+    }
+
+    // 获取连接配置
+    public async Task<ConnectionProfile?> GetConnectionProfileAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<ConnectionProfile>()
+            .Where(p => p.IsEnabled)
+            .FirstOrDefaultAsync();
+    }
+
+    // 获取所有连接配置
+    public async Task<List<ConnectionProfile>> GetConnectionProfilesAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<ConnectionProfile>().ToListAsync();
+    }
+
+    // 保存播放列表
+    public async Task<int> SavePlaylistAsync(Playlist playlist)
+    {
+        await EnsureInitializedAsync();
+        if (playlist.Id != 0)
+            return await _database.UpdateAsync(playlist);
+        return await _database.InsertAsync(playlist);
+    }
+
+    // 获取所有播放列表
+    public async Task<List<Playlist>> GetPlaylistsAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<Playlist>().ToListAsync();
+    }
 }
 
 /// <summary>

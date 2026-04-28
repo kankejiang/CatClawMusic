@@ -7,9 +7,16 @@ namespace CatClawMusic.UI.Pages;
 
 public partial class LibraryPage : ContentPage
 {
-    private readonly IAudioPlayerService _audioPlayer;
-    private readonly PlayQueue _playQueue;
-    private readonly LibraryViewModel _viewModel;
+    private IAudioPlayerService _audioPlayer = null!;
+    private PlayQueue _playQueue = null!;
+    private LibraryViewModel _viewModel = null!;
+
+    public LibraryPage()
+    {
+        InitializeComponent();
+        ResolveServices();
+        BindingContext = _viewModel;
+    }
 
     public LibraryPage(LibraryViewModel viewModel, IAudioPlayerService audioPlayer, PlayQueue playQueue)
     {
@@ -19,18 +26,31 @@ public partial class LibraryPage : ContentPage
         _playQueue = playQueue;
         BindingContext = viewModel;
     }
-    
-    private void OnSongSelected(object sender, SelectionChangedEventArgs e)
+
+    private void ResolveServices()
+    {
+        var services = Application.Current?.Handler?.MauiContext?.Services;
+        if (services != null)
+        {
+            _viewModel = services.GetRequiredService<LibraryViewModel>();
+            _audioPlayer = services.GetRequiredService<IAudioPlayerService>();
+            _playQueue = services.GetRequiredService<PlayQueue>();
+        }
+    }
+
+    private async void OnSongSelected(object sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is Song selectedSong)
         {
-            // 设置播放队列并开始播放
             _playQueue.SetSongs(_viewModel.Songs);
             _playQueue.SelectSong(selectedSong.Id);
-            _ = _audioPlayer.PlayAsync(selectedSong.FilePath);
-            
-            // 导航到播放页面
-            Shell.Current.GoToAsync("NowPlayingPage");
+
+            if (!string.IsNullOrEmpty(selectedSong.FilePath))
+            {
+                await _audioPlayer.PlayAsync(selectedSong.FilePath);
+            }
+
+            await Shell.Current.GoToAsync("NowPlayingPage");
         }
     }
 }

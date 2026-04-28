@@ -22,6 +22,8 @@ public static class MauiProgram
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+                fonts.AddFont("站酷快乐体2016修订版.ttf", "HappyZcool2016");
+                fonts.AddFont("298-CAI978.ttf", "CAI978");
             });
 
         // 配置数据库
@@ -30,15 +32,22 @@ public static class MauiProgram
         
         // 依赖注入 - Core Services
         builder.Services.AddSingleton(database);
+        builder.Services.AddSingleton<ISubsonicService, SubsonicService>();
         builder.Services.AddSingleton<INetworkFileService, WebDavService>();
+        builder.Services.AddSingleton<INetworkMusicService, NetworkMusicService>();
         builder.Services.AddSingleton<IAudioPlayerService, Platforms.Android.AudioPlayerService>();
         builder.Services.AddSingleton<ILyricsService, LyricsService>();
+        builder.Services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
         builder.Services.AddSingleton<PlayQueue>();
         
         // 注册 ViewModels
         builder.Services.AddTransient<ViewModels.LibraryViewModel>();
         builder.Services.AddTransient<ViewModels.NowPlayingViewModel>();
         builder.Services.AddTransient<ViewModels.SettingsViewModel>();
+        builder.Services.AddTransient<ViewModels.SearchViewModel>();
+        builder.Services.AddTransient<ViewModels.PlaylistViewModel>();
+        builder.Services.AddTransient<ViewModels.WebDavSettingsViewModel>();
+        builder.Services.AddTransient<ViewModels.NavidromeSettingsViewModel>();
         
         // 注册页面（支持构造函数注入）
         builder.Services.AddTransient<LibraryPage>();
@@ -46,6 +55,8 @@ public static class MauiProgram
         builder.Services.AddTransient<PlaylistPage>();
         builder.Services.AddTransient<SearchPage>();
         builder.Services.AddTransient<SettingsPage>();
+        builder.Services.AddTransient<WebDavSettingsPage>();
+        builder.Services.AddTransient<NavidromeSettingsPage>();
 
         return builder.Build();
     }

@@ -2,28 +2,91 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.UI.Pages.PlaylistPage"
-             Title="播放列表">
+             Title="📋 播放列表"
+             Shell.BackgroundColor="#FF7BAC"
+             Shell.ForegroundColor="White"
+             Shell.TitleColor="White">
     
-    <VerticalStackLayout>
-        <!-- 播放列表标题 -->
-        <Label Text="我的播放列表"
-               FontSize="24"
-               FontAttributes="Bold"
-               Padding="20,10" />
+    <Grid RowDefinitions="Auto,*"
+          RowSpacing="16"
+          Padding="16">
         
-        <!-- 播放列表 -->
-        <CollectionView x:Name="PlaylistCollection"
+        <Frame Grid.Row="0"
+               BackgroundColor="White"
+               BorderColor="#F5E6ED"
+               CornerRadius="20"
+               Padding="20,16"
+               HasShadow="True">
+            <Frame.Shadow>
+                <Shadow Brush="#E8C4D0" Offset="0,3" Opacity="0.2" Radius="10"/>
+            </Frame.Shadow>
+            <VerticalStackLayout Spacing="4">
+                <Label Text="🐾 我的播放列表"
+                       FontSize="22"
+                       FontAttributes="Bold"
+                       FontFamily="HappyZcool2016"
+                       TextColor="#FF7BAC"
+                       HorizontalOptions="Center" />
+                <Label Text="点击播放列表查看歌曲"
+                       FontSize="12"
+                       TextColor="#C4B5A5"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+        </Frame>
+        
+        <CollectionView Grid.Row="1"
+                        x:Name="PlaylistCollection"
                         SelectionMode="Single"
-                        SelectionChanged="OnPlaylistSelected">
+                        SelectionChanged="OnPlaylistSelected"
+                        BackgroundColor="Transparent">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Spacing="12"
+                                     Padding="40">
+                    <Label Text="📋"
+                           FontSize="48"
+                           HorizontalOptions="Center" />
+                    <Label Text="还没有播放列表~"
+                           FontSize="16"
+                           TextColor="#C4B5A5"
+                           FontFamily="HappyZcool2016"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Grid Padding="20,10">
-                        <Label Text="{Binding Name}"
-                               FontSize="18" />
-                    </Grid>
+                    <Frame BackgroundColor="White"
+                           BorderColor="#F5E6ED"
+                           CornerRadius="18"
+                           Margin="2,4"
+                           Padding="18,16"
+                           HasShadow="True">
+                        <Frame.Shadow>
+                            <Shadow Brush="#E8C4D0" Offset="0,2" Opacity="0.15" Radius="8"/>
+                        </Frame.Shadow>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="{Binding Name}"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       FontFamily="HappyZcool2016"
+                                       TextColor="#4A3728"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
+                                       FontSize="12"
+                                       TextColor="#C4B5A5" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="›"
+                                   FontSize="24"
+                                   TextColor="#D4C5C9"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Frame>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-    </VerticalStackLayout>
+    </Grid>
     
 </ContentPage>

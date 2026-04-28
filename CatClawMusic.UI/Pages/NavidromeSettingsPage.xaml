@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.UI.Pages.NavidromeSettingsPage"
+             Title="🎵 Navidrome"
+             Shell.BackgroundColor="#FF7BAC"
+             Shell.ForegroundColor="White"
+             Shell.TitleColor="White">
+    
+    <ScrollView BackgroundColor="#FFF5F7">
+        <VerticalStackLayout Spacing="16" Padding="16">
+            
+            <!-- 说明卡片 -->
+            <Frame BackgroundColor="#FFFBFD" BorderColor="#E8D5F5"
+                   CornerRadius="20" Padding="18" HasShadow="False">
+                <Label Text="Navidrome 是一款开源自托管音乐流媒体服务器，兼容 Subsonic API。输入你的服务器信息即可连接。" 
+                       FontSize="13" TextColor="#8B7355" LineBreakMode="WordWrap" />
+            </Frame>
+
+            <!-- 服务器信息 -->
+            <Frame BackgroundColor="White" BorderColor="#F5E6ED"
+                   CornerRadius="20" Padding="20" HasShadow="True">
+                <Frame.Shadow><Shadow Brush="#E8C4D0" Offset="0,3" Opacity="0.2" Radius="10"/></Frame.Shadow>
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="服务器连接" FontSize="18" FontAttributes="Bold"
+                           FontFamily="HappyZcool2016" TextColor="#FF7BAC" />
+                    
+                    <Label Text="显示名称" FontSize="12" TextColor="#C4B5A5" />
+                    <Entry Placeholder="我的 Navidrome" Text="{Binding Name}" BackgroundColor="#FFFBFD" />
+                    
+                    <Label Text="服务器地址" FontSize="12" TextColor="#C4B5A5" />
+                    <Entry Placeholder="如: music.example.com" Text="{Binding Host}" BackgroundColor="#FFFBFD" />
+                    
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <VerticalStackLayout>
+                            <Label Text="端口" FontSize="12" TextColor="#C4B5A5" />
+                            <Entry Placeholder="4533" Text="{Binding Port}" Keyboard="Numeric" BackgroundColor="#FFFBFD" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1">
+                            <Label Text="HTTPS" FontSize="12" TextColor="#C4B5A5" />
+                            <Switch IsToggled="{Binding UseHttps}" OnColor="#FF7BAC"
+                                    HorizontalOptions="Start" Margin="0,6,0,0" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- 认证 -->
+            <Frame BackgroundColor="White" BorderColor="#F5E6ED"
+                   CornerRadius="20" Padding="20" HasShadow="True">
+                <Frame.Shadow><Shadow Brush="#E8C4D0" Offset="0,3" Opacity="0.2" Radius="10"/></Frame.Shadow>
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="认证信息" FontSize="18" FontAttributes="Bold"
+                           FontFamily="HappyZcool2016" TextColor="#FF7BAC" />
+                    <Label Text="用户名" FontSize="12" TextColor="#C4B5A5" />
+                    <Entry Placeholder="admin" Text="{Binding UserName}" BackgroundColor="#FFFBFD" />
+                    <Label Text="密码" FontSize="12" TextColor="#C4B5A5" />
+                    <Entry Placeholder="••••••••" Text="{Binding Password}" IsPassword="True" BackgroundColor="#FFFBFD" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <HorizontalStackLayout Spacing="12">
+                <Button Text="🔗 测试连接" Command="{Binding TestCommand}"
+                        HorizontalOptions="FillAndExpand"
+                        BackgroundColor="#E8D5F5" TextColor="#7B5EA7"
+                        CornerRadius="14" FontSize="14"
+                        FontFamily="HappyZcool2016" Padding="16,10" />
+                <Button Text="💾 保存配置" Command="{Binding SaveCommand}"
+                        HorizontalOptions="FillAndExpand"
+                        BackgroundColor="#FF7BAC" TextColor="White"
+                        CornerRadius="14" FontSize="14"
+                        FontFamily="HappyZcool2016" Padding="16,10" />
+            </HorizontalStackLayout>
+
+            <Label Text="{Binding StatusText}" FontSize="13"
+                   TextColor="#8B7355" HorizontalTextAlignment="Center" />
+
+            <BoxView HeightRequest="20" Color="Transparent" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

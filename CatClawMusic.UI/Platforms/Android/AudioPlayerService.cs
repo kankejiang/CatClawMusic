@@ -7,36 +7,42 @@ namespace CatClawMusic.UI.Platforms.Android;
 /// <summary>
 /// Android 音频播放服务（封装 MediaPlayer）
 /// </summary>
-public class AudioPlayerService : IAudioPlayerService
+public class AudioPlayerService : IAudioPlayerService, IDisposable
 {
     private MediaPlayer? _mediaPlayer;
-    private bool _isPrepared = false;
+    private bool _isPrepared;
     private System.Timers.Timer? _positionTimer;
-    
+    private int _volume = 100;
+
     public bool IsPlaying => _mediaPlayer?.IsPlaying ?? false;
     public TimeSpan Position => TimeSpan.FromMilliseconds(_mediaPlayer?.CurrentPosition ?? 0);
     public TimeSpan Duration => TimeSpan.FromMilliseconds(_mediaPlayer?.Duration ?? 0);
-    public int Volume { get; set; } = 100;
-    
+
+    public int Volume
+    {
+        get => _volume;
+        set
+        {
+            _volume = Math.Clamp(value, 0, 100);
+            if (_mediaPlayer != null)
+            {
+                _mediaPlayer.SetVolume(_volume / 100f, _volume / 100f);
+            }
+        }
+    }
+
     public event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
     public event EventHandler<TimeSpan>? PositionChanged;
-    
+
     public async Task PlayAsync(string filePathOrUrl)
     {
-        if (_mediaPlayer == null)
-        {
-            _mediaPlayer = new MediaPlayer();
-            _mediaPlayer.Completion += OnCompletion;
-            _mediaPlayer.Error += OnError;
-        }
-        
-        _mediaPlayer.Reset();
+        EnsurePlayer();
+        _mediaPlayer!.Reset();
         _isPrepared = false;
-        
-        // 设置数据源
+
         await _mediaPlayer.SetDataSourceAsync(filePathOrUrl);
-        
-        // 异步准备，避免阻塞主线程
+        _mediaPlayer.SetVolume(_volume / 100f, _volume / 100f);
+
         var tcs = new TaskCompletionSource<bool>();
         EventHandler? preparedHandler = null;
         preparedHandler = (s, e) =>
@@ -47,41 +53,31 @@ public class AudioPlayerService : IAudioPlayerService
         };
         _mediaPlayer.Prepared += preparedHandler;
         _mediaPlayer.PrepareAsync();
-        
+
         await tcs.Task;
-        
         _mediaPlayer.Start();
-        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs 
-        { 
-            State = PlaybackState.Playing 
-        });
-        
+
+        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
         StartPositionTimer();
     }
-    
+
     public Task PauseAsync()
     {
         _mediaPlayer?.Pause();
         StopPositionTimer();
-        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs 
-        { 
-            State = PlaybackState.Paused 
-        });
+        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
         return Task.CompletedTask;
     }
-    
+
     public Task StopAsync()
     {
         StopPositionTimer();
         _mediaPlayer?.Stop();
         _mediaPlayer?.Reset();
-        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs 
-        { 
-            State = PlaybackState.Stopped 
-        });
+        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
         return Task.CompletedTask;
     }
-    
+
     public Task SeekAsync(TimeSpan position)
     {
         if (_mediaPlayer != null && _isPrepared)
@@ -90,25 +86,33 @@ public class AudioPlayerService : IAudioPlayerService
         }
         return Task.CompletedTask;
     }
-    
+
+    private void EnsurePlayer()
+    {
+        if (_mediaPlayer == null)
+        {
+            _mediaPlayer = new MediaPlayer();
+            _mediaPlayer.Completion += OnCompletion;
+            _mediaPlayer.Error += OnError;
+        }
+    }
+
     private void OnCompletion(object? sender, EventArgs e)
     {
         StopPositionTimer();
-        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs 
-        { 
-            State = PlaybackState.Stopped 
-        });
+        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
     }
-    
+
     private void OnError(object? sender, MediaPlayer.ErrorEventArgs e)
     {
         StopPositionTimer();
-        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs 
-        { 
-            State = PlaybackState.Error 
+        StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs
+        {
+            State = PlaybackState.Error,
+            ErrorMessage = $"MediaPlayer error: {e.What} - {e.Extra}"
         });
     }
-    
+
     private void StartPositionTimer()
     {
         StopPositionTimer();
@@ -117,7 +121,7 @@ public class AudioPlayerService : IAudioPlayerService
         _positionTimer.AutoReset = true;
         _positionTimer.Start();
     }
-    
+
     private void StopPositionTimer()
     {
         if (_positionTimer != null)
@@ -128,12 +132,25 @@ public class AudioPlayerService : IAudioPlayerService
             _positionTimer = null;
         }
     }
-    
+
     private void OnPositionTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (_mediaPlayer != null && _isPrepared)
         {
             PositionChanged?.Invoke(this, Position);
+        }
+    }
+
+    public void Dispose()
+    {
+        StopPositionTimer();
+        if (_mediaPlayer != null)
+        {
+            _mediaPlayer.Completion -= OnCompletion;
+            _mediaPlayer.Error -= OnError;
+            _mediaPlayer.Release();
+            _mediaPlayer.Dispose();
+            _mediaPlayer = null;
         }
     }
 }

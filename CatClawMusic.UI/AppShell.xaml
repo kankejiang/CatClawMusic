@@ -23,5 +23,7 @@
     
     <!-- 路由（用于导航到非标签页面） -->
     <ShellContent Route="NowPlayingPage" ContentTemplate="{DataTemplate pages:NowPlayingPage}" />
+    <ShellContent Route="WebDavSettingsPage" ContentTemplate="{DataTemplate pages:WebDavSettingsPage}" />
+    <ShellContent Route="NavidromeSettingsPage" ContentTemplate="{DataTemplate pages:NavidromeSettingsPage}" />
     
 </Shell>
