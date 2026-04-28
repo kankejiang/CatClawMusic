@@ -2,28 +2,48 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.UI.Pages.PlaylistPage"
-             Title="播放列表">
+             Title="播放列表"
+             BackgroundColor="{StaticResource BackgroundDark}">
     
-    <VerticalStackLayout>
-        <!-- 播放列表标题 -->
-        <Label Text="我的播放列表"
-               FontSize="24"
-               FontAttributes="Bold"
-               Padding="20,10" />
+    <Grid RowDefinitions="Auto,*"
+          Padding="{StaticResource SpacingLarge}">
+        <!-- 标题栏 -->
+        <Frame Grid.Row="0"
+               Style="{StaticResource CardStyle}"
+               CornerRadius="0"
+               Margin="0,0,0,10"
+               Padding="20,15">
+            <Label Text="播放列表"
+                   Style="{StaticResource LabelHeading}"
+                   HorizontalOptions="Center" />
+        </Frame>
         
         <!-- 播放列表 -->
-        <CollectionView x:Name="PlaylistCollection"
+        <CollectionView Grid.Row="1"
+                        x:Name="PlaylistCollection"
                         SelectionMode="Single"
-                        SelectionChanged="OnPlaylistSelected">
+                        SelectionChanged="OnPlaylistSelected"
+                        BackgroundColor="Transparent">
+            <CollectionView.Header>
+                <Label Text="我的播放列表"
+                       Style="{StaticResource LabelSubheading}"
+                       Margin="0,0,0,10" />
+            </CollectionView.Header>
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Grid Padding="20,10">
+                    <Frame Style="{StaticResource CardStyle}"
+                           Margin="0,0,0,10"
+                           Padding="20,15">
                         <Label Text="{Binding Name}"
-                               FontSize="18" />
-                    </Grid>
+                               Style="{StaticResource LabelPrimary}"
+                               FontSize="{StaticResource FontSizeLarge}"
+                               FontAttributes="Bold"
+                               LineBreakMode="TailTruncation"
+                               VerticalOptions="Center" />
+                    </Frame>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-    </VerticalStackLayout>
+    </Grid>
     
 </ContentPage>

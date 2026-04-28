@@ -2,63 +2,169 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.UI.Pages.NowPlayingPage"
-             Title="正在播放">
+             Title="正在播放"
+             BackgroundColor="{StaticResource BackgroundDark}">
     
-    <VerticalStackLayout Spacing="20" Padding="20">
-        <!-- 专辑封面 -->
-        <Image Source="{Binding CurrentSong.CoverArtPath}"
-               HeightRequest="300"
-               WidthRequest="300"
-               Aspect="AspectFill" />
+    <Grid RowDefinitions="*,Auto,Auto,Auto,Auto,Auto"
+          RowSpacing="{StaticResource SpacingMedium}"
+          Padding="{StaticResource SpacingLarge}">
+        
+        <!-- 专辑封面区域 -->
+        <Frame Grid.Row="0"
+               Style="{StaticResource CardStyle}"
+               CornerRadius="{StaticResource CornerRadiusXLarge}"
+               Padding="0"
+               IsClippedToBounds="True"
+               HorizontalOptions="Center"
+               VerticalOptions="Center">
+            <Image Source="{Binding CurrentSong.CoverArtPath}"
+                   Aspect="AspectFill"
+                   HeightRequest="300"
+                   WidthRequest="300"
+                   BackgroundColor="{StaticResource SurfaceLight}">
+                <!-- 封面阴影效果 -->
+                <Image.Shadow>
+                    <Shadow Brush="Black"
+                            Offset="0,10"
+                            Opacity="0.6"
+                            Radius="20"/>
+                </Image.Shadow>
+            </Image>
+        </Frame>
         
         <!-- 歌曲信息 -->
-        <VerticalStackLayout>
+        <VerticalStackLayout Grid.Row="1"
+                             Spacing="{StaticResource SpacingSmall}"
+                             HorizontalOptions="Center">
             <Label Text="{Binding CurrentSong.Title}"
-                   FontSize="24"
-                   FontAttributes="Bold"
-                   HorizontalOptions="Center" />
+                   Style="{StaticResource LabelHeading}"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation"
+                   MaxLines="1" />
             <Label Text="{Binding CurrentSong.Artist}"
-                   FontSize="18"
-                   TextColor="{StaticResource TextSecondaryColor}"
-                   HorizontalOptions="Center" />
+                   Style="{StaticResource LabelSecondary}"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation"
+                   MaxLines="1" />
+            <Label Text="{Binding CurrentSong.Album}"
+                   Style="{StaticResource LabelSecondary}"
+                   FontSize="{StaticResource FontSizeSmall}"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation"
+                   MaxLines="1" />
         </VerticalStackLayout>
         
         <!-- 歌词显示区域 -->
-        <ScrollView HeightRequest="200">
-            <VerticalStackLayout>
-                <Label Text="{Binding CurrentLyricLine}"
-                       FontSize="20"
-                       TextColor="{StaticResource PrimaryColor}"
-                       FontAttributes="Bold"
-                       HorizontalOptions="Center" />
-                <Label Text="{Binding NextLyricLine}"
-                       FontSize="16"
-                       TextColor="{StaticResource TextSecondaryColor}"
-                       HorizontalOptions="Center" />
-            </VerticalStackLayout>
-        </ScrollView>
+        <Frame Grid.Row="2"
+               Style="{StaticResource CardStyle}"
+               CornerRadius="{StaticResource CornerRadiusLarge}"
+               Padding="{StaticResource SpacingMedium}"
+               HeightRequest="120">
+            <ScrollView>
+                <VerticalStackLayout Spacing="{StaticResource SpacingSmall}">
+                    <Label Text="{Binding CurrentLyricLine}"
+                           FontSize="{StaticResource FontSizeXLarge}"
+                           TextColor="{StaticResource PrimaryColor}"
+                           FontAttributes="Bold"
+                           HorizontalTextAlignment="Center"
+                           LineBreakMode="WordWrap" />
+                    <Label Text="{Binding NextLyricLine}"
+                           FontSize="{StaticResource FontSizeLarge}"
+                           TextColor="{StaticResource TextSecondary}"
+                           HorizontalTextAlignment="Center"
+                           LineBreakMode="WordWrap" />
+                </VerticalStackLayout>
+            </ScrollView>
+        </Frame>
         
         <!-- 播放进度条 -->
-        <HorizontalStackLayout>
-            <Label Text="{Binding CurrentPosition, StringFormat='{0:mm\\:ss}'}" />
+        <VerticalStackLayout Grid.Row="3"
+                             Spacing="{StaticResource SpacingSmall}">
             <Slider Value="{Binding CurrentPositionSeconds}"
                     Maximum="{Binding TotalDurationSeconds}"
-                    HorizontalOptions="FillAndExpand" />
-            <Label Text="{Binding TotalDuration, StringFormat='{0:mm\\:ss}'}" />
-        </HorizontalStackLayout>
+                    Minimum="0"
+                    HorizontalOptions="FillAndExpand"
+                    MinimumTrackColor="{StaticResource PrimaryColor}"
+                    MaximumTrackColor="{StaticResource SurfaceMedium}" />
+            <Grid ColumnDefinitions="*,Auto,*">
+                <Label Grid.Column="0"
+                       Text="{Binding CurrentPosition, StringFormat='{0:mm\\:ss}'}"
+                       Style="{StaticResource LabelSecondary}"
+                       HorizontalOptions="Start" />
+                <Label Grid.Column="2"
+                       Text="{Binding TotalDuration, StringFormat='{0:mm\\:ss}'}"
+                       Style="{StaticResource LabelSecondary}"
+                       HorizontalOptions="End" />
+            </Grid>
+        </VerticalStackLayout>
         
         <!-- 播放控制按钮 -->
-        <HorizontalStackLayout HorizontalOptions="Center" Spacing="30">
-            <Button Text="⏮" FontSize="30" Command="{Binding PreviousCommand}" />
-            <Button Text="{Binding PlayPauseIcon}" FontSize="30" Command="{Binding PlayPauseCommand}" />
-            <Button Text="⏭" FontSize="30" Command="{Binding NextCommand}" />
+        <HorizontalStackLayout Grid.Row="4"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               Spacing="{StaticResource SpacingLarge}">
+            <!-- 播放模式按钮 -->
+            <Button Text="{Binding PlayModeIcon}"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeXLarge}"
+                    Command="{Binding TogglePlayModeCommand}" />
+            
+            <!-- 上一首 -->
+            <Button Text="⏮"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeXLarge}"
+                    Command="{Binding PreviousCommand}" />
+            
+            <!-- 播放/暂停 -->
+            <Button Text="{Binding PlayPauseIcon}"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeXXXLarge}"
+                    BackgroundColor="{StaticResource PrimaryColor}"
+                    WidthRequest="70"
+                    HeightRequest="70"
+                    CornerRadius="35"
+                    Command="{Binding PlayPauseCommand}">
+                <Button.Shadow>
+                    <Shadow Brush="{StaticResource PrimaryColor}"
+                            Offset="0,5"
+                            Opacity="0.5"
+                            Radius="10"/>
+                </Button.Shadow>
+            </Button>
+            
+            <!-- 下一首 -->
+            <Button Text="⏭"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeXLarge}"
+                    Command="{Binding NextCommand}" />
+            
+            <!-- 随机播放 -->
+            <Button Text="🔀"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeXLarge}"
+                    Command="{Binding ToggleShuffleCommand}" />
         </HorizontalStackLayout>
         
-        <!-- 播放模式切换 -->
-        <HorizontalStackLayout HorizontalOptions="Center" Spacing="20">
-            <Button Text="{Binding PlayModeIcon}" Command="{Binding TogglePlayModeCommand}" />
-            <Button Text="🔀" Command="{Binding ToggleShuffleCommand}" />
+        <!-- 底部额外控制（预留） -->
+        <!--
+        <HorizontalStackLayout Grid.Row="5"
+                               HorizontalOptions="Center"
+                               Spacing="{StaticResource SpacingLarge}"
+                               Margin="0,20,0,0">
+            <Button Text="❤️"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeLarge}"
+                    Command="{Binding ToggleLikeCommand}" />
+            <Button Text="➕"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeLarge}"
+                    Command="{Binding AddToPlaylistCommand}" />
+            <Button Text="🔀"
+                    Style="{StaticResource ButtonIcon}"
+                    FontSize="{StaticResource FontSizeLarge}"
+                    Command="{Binding ToggleShuffleCommand}" />
         </HorizontalStackLayout>
-    </VerticalStackLayout>
+        -->
+    </Grid>
     
 </ContentPage>

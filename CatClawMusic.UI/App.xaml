@@ -5,8 +5,229 @@
              x:Class="CatClawMusic.UI.App">
     <Application.Resources>
         <ResourceDictionary>
+            <!-- 现代化暗色主题配色 -->
+            <Color x:Key="BackgroundDark">#121212</Color>
+            <Color x:Key="SurfaceDark">#1E1E1E</Color>
+            <Color x:Key="SurfaceMedium">#2D2D2D</Color>
+            <Color x:Key="SurfaceLight">#3D3D3D</Color>
             <Color x:Key="PrimaryColor">#FF6B9D</Color>
+            <Color x:Key="PrimaryLight">#FF9AC2</Color>
+            <Color x:Key="PrimaryDark">#D8437E</Color>
             <Color x:Key="SecondaryColor">#7ED6A7</Color>
+            <Color x:Key="TextPrimary">#FFFFFF</Color>
+            <Color x:Key="TextSecondary">#B3B3B3</Color>
+            <Color x:Key="TextDisabled">#777777</Color>
+            <Color x:Key="SuccessColor">#4CAF50</Color>
+            <Color x:Key="WarningColor">#FF9800</Color>
+            <Color x:Key="ErrorColor">#F44336</Color>
+            
+            <!-- 字体大小 -->
+            <x:Double x:Key="FontSizeMicro">10</x:Double>
+            <x:Double x:Key="FontSizeSmall">12</x:Double>
+            <x:Double x:Key="FontSizeMedium">14</x:Double>
+            <x:Double x:Key="FontSizeLarge">16</x:Double>
+            <x:Double x:Key="FontSizeXLarge">20</x:Double>
+            <x:Double x:Key="FontSizeXXLarge">24</x:Double>
+            <x:Double x:Key="FontSizeXXXLarge">32</x:Double>
+            
+            <!-- 间距 -->
+            <x:Double x:Key="SpacingSmall">8</x:Double>
+            <x:Double x:Key="SpacingMedium">16</x:Double>
+            <x:Double x:Key="SpacingLarge">24</x:Double>
+            <x:Double x:Key="SpacingXLarge">32</x:Double>
+            
+            <!-- 圆角半径 -->
+            <x:Double x:Key="CornerRadiusSmall">4</x:Double>
+            <x:Double x:Key="CornerRadiusMedium">8</x:Double>
+            <x:Double x:Key="CornerRadiusLarge">12</x:Double>
+            <x:Double x:Key="CornerRadiusXLarge">20</x:Double>
+            <x:Double x:Key="CornerRadiusCircle">100</x:Double>
+            
+            <!-- 阴影 -->
+            <Style x:Key="ShadowSmall" TargetType="VisualElement">
+                <Setter Property="Shadow">
+                    <Shadow Brush="Black"
+                            Offset="0,2"
+                            Opacity="0.2"
+                            Radius="4"/>
+                </Setter>
+            </Style>
+            <Style x:Key="ShadowMedium" TargetType="VisualElement">
+                <Setter Property="Shadow">
+                    <Shadow Brush="Black"
+                            Offset="0,4"
+                            Opacity="0.3"
+                            Radius="8"/>
+                </Setter>
+            </Style>
+            <Style x:Key="ShadowLarge" TargetType="VisualElement">
+                <Setter Property="Shadow">
+                    <Shadow Brush="Black"
+                            Offset="0,8"
+                            Opacity="0.4"
+                            Radius="16"/>
+                </Setter>
+            </Style>
+            
+            <!-- 全局页面样式 -->
+            <Style TargetType="ContentPage">
+                <Setter Property="BackgroundColor" Value="{StaticResource BackgroundDark}" />
+                <Setter Property="Padding" Value="{StaticResource SpacingMedium}" />
+            </Style>
+            
+            <!-- 标签样式 -->
+            <Style TargetType="Label" x:Key="LabelPrimary">
+                <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+                <Setter Property="FontFamily" Value="OpenSansRegular" />
+            </Style>
+            <Style TargetType="Label" x:Key="LabelSecondary">
+                <Setter Property="TextColor" Value="{StaticResource TextSecondary}" />
+                <Setter Property="FontFamily" Value="OpenSansRegular" />
+            </Style>
+            <Style TargetType="Label" x:Key="LabelHeading">
+                <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeXXLarge}" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="FontFamily" Value="OpenSansSemiBold" />
+            </Style>
+            <Style TargetType="Label" x:Key="LabelSubheading">
+                <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeXLarge}" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="FontFamily" Value="OpenSansSemiBold" />
+            </Style>
+            
+            <!-- 按钮样式 -->
+            <Style TargetType="Button" x:Key="ButtonPrimary">
+                <Setter Property="BackgroundColor" Value="{StaticResource PrimaryColor}" />
+                <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeMedium}" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}" />
+                <Setter Property="Padding" Value="16,10" />
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource PrimaryColor}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource PrimaryDark}" />
+                                    <Setter Property="Scale" Value="0.98" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceMedium}" />
+                                    <Setter Property="TextColor" Value="{StaticResource TextDisabled}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+            
+            <Style TargetType="Button" x:Key="ButtonSecondary">
+                <Setter Property="BackgroundColor" Value="{StaticResource SurfaceMedium}" />
+                <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeMedium}" />
+                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}" />
+                <Setter Property="Padding" Value="16,10" />
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceMedium}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceLight}" />
+                                    <Setter Property="Scale" Value="0.98" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceDark}" />
+                                    <Setter Property="TextColor" Value="{StaticResource TextDisabled}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+            
+            <Style TargetType="Button" x:Key="ButtonIcon">
+                <Setter Property="BackgroundColor" Value="Transparent" />
+                <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeXLarge}" />
+                <Setter Property="Padding" Value="10" />
+                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusCircle}" />
+                <Setter Property="WidthRequest" Value="50" />
+                <Setter Property="HeightRequest" Value="50" />
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="Transparent" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceLight}" />
+                                    <Setter Property="Scale" Value="0.95" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+            
+            <!-- 卡片样式 -->
+            <Style x:Key="CardStyle" TargetType="Frame">
+                <Setter Property="BackgroundColor" Value="{StaticResource SurfaceDark}" />
+                <Setter Property="BorderColor" Value="{StaticResource SurfaceLight}" />
+                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}" />
+                <Setter Property="Padding" Value="{StaticResource SpacingMedium}" />
+                <Setter Property="HasShadow" Value="True" />
+                <Setter Property="Shadow">
+                    <Shadow Brush="Black"
+                            Offset="0,2"
+                            Opacity="0.2"
+                            Radius="4"/>
+                </Setter>
+            </Style>
+            
+            <!-- 滑块样式 -->
+            <Style TargetType="Slider">
+                <Setter Property="MinimumTrackColor" Value="{StaticResource PrimaryColor}" />
+                <Setter Property="MaximumTrackColor" Value="{StaticResource SurfaceMedium}" />
+                <Setter Property="ThumbColor" Value="{StaticResource PrimaryColor}" />
+            </Style>
+            
+            <!-- 集合视图项样式 -->
+            <Style x:Key="CollectionItemStyle" TargetType="Grid">
+                <Setter Property="BackgroundColor" Value="Transparent" />
+                <Setter Property="Padding" Value="0,8" />
+            </Style>
+            
+            <!-- 输入框样式 -->
+            <Style TargetType="Entry">
+                <Setter Property="TextColor" Value="{StaticResource TextPrimary}" />
+                <Setter Property="BackgroundColor" Value="{StaticResource SurfaceMedium}" />
+                <Setter Property="PlaceholderColor" Value="{StaticResource TextDisabled}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeMedium}" />
+            </Style>
+            
+            <!-- 默认样式 -->
+            <Style TargetType="Label" BasedOn="{StaticResource LabelPrimary}" />
+            <Style TargetType="Button" BasedOn="{StaticResource ButtonSecondary}" />
+            
         </ResourceDictionary>
     </Application.Resources>
 </Application>

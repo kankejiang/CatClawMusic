@@ -7,9 +7,16 @@ namespace CatClawMusic.UI.Pages;
 
 public partial class LibraryPage : ContentPage
 {
-    private readonly IAudioPlayerService _audioPlayer;
-    private readonly PlayQueue _playQueue;
-    private readonly LibraryViewModel _viewModel;
+    private IAudioPlayerService _audioPlayer = null!;
+    private PlayQueue _playQueue = null!;
+    private LibraryViewModel _viewModel = null!;
+
+    public LibraryPage()
+    {
+        InitializeComponent();
+        ResolveServices();
+        BindingContext = _viewModel;
+    }
 
     public LibraryPage(LibraryViewModel viewModel, IAudioPlayerService audioPlayer, PlayQueue playQueue)
     {
@@ -18,6 +25,17 @@ public partial class LibraryPage : ContentPage
         _audioPlayer = audioPlayer;
         _playQueue = playQueue;
         BindingContext = viewModel;
+    }
+
+    private void ResolveServices()
+    {
+        var services = Application.Current?.Handler?.MauiContext?.Services;
+        if (services != null)
+        {
+            _viewModel = services.GetRequiredService<LibraryViewModel>();
+            _audioPlayer = services.GetRequiredService<IAudioPlayerService>();
+            _playQueue = services.GetRequiredService<PlayQueue>();
+        }
     }
     
     private void OnSongSelected(object sender, SelectionChangedEventArgs e)

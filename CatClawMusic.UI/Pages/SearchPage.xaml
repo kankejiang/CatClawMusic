@@ -2,24 +2,74 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.UI.Pages.SearchPage"
-             Title="搜索">
+             Title="搜索"
+             BackgroundColor="{StaticResource BackgroundDark}">
     
-    <VerticalStackLayout>
+    <Grid RowDefinitions="Auto,*"
+          Padding="{StaticResource SpacingLarge}">
         <!-- 搜索框 -->
-        <SearchBar Placeholder="搜索歌曲、艺术家、专辑"
-                   TextChanged="OnSearchTextChanged" />
+        <Frame Grid.Row="0"
+               Style="{StaticResource CardStyle}"
+               CornerRadius="{StaticResource CornerRadiusLarge}"
+               Margin="0,0,0,10"
+               Padding="15">
+            <SearchBar Placeholder="搜索歌曲、艺术家、专辑"
+                       TextChanged="OnSearchTextChanged"
+                       BackgroundColor="Transparent"
+                       CancelButtonColor="{StaticResource PrimaryColor}"
+                       PlaceholderColor="{StaticResource TextDisabled}"
+                       TextColor="{StaticResource TextPrimary}"
+                       HorizontalOptions="FillAndExpand" />
+        </Frame>
         
         <!-- 搜索结果 -->
-        <CollectionView x:Name="SearchResults">
+        <CollectionView Grid.Row="1"
+                        x:Name="SearchResults"
+                        BackgroundColor="Transparent">
+            <CollectionView.Header>
+                <Label Text="搜索结果"
+                       Style="{StaticResource LabelSubheading}"
+                       Margin="0,0,0,10" />
+            </CollectionView.Header>
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Grid Padding="10">
-                        <Label Text="{Binding Title}"
-                               FontSize="16" />
-                    </Grid>
+                    <Frame Style="{StaticResource CardStyle}"
+                           Margin="0,0,0,10"
+                           Padding="15">
+                        <Grid ColumnDefinitions="Auto,*"
+                              ColumnSpacing="{StaticResource SpacingMedium}">
+                            <!-- 专辑封面 -->
+                            <Frame Grid.Column="0"
+                                   CornerRadius="{StaticResource CornerRadiusMedium}"
+                                   IsClippedToBounds="True"
+                                   Padding="0"
+                                   BackgroundColor="{StaticResource SurfaceLight}">
+                                <Image Source="{Binding CoverArtPath}"
+                                       Aspect="AspectFill"
+                                       HeightRequest="50"
+                                       WidthRequest="50"
+                                       BackgroundColor="{StaticResource SurfaceMedium}" />
+                            </Frame>
+                            
+                            <!-- 歌曲信息 -->
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="2">
+                                <Label Text="{Binding Title}"
+                                       FontSize="{StaticResource FontSizeLarge}"
+                                       FontAttributes="Bold"
+                                       TextColor="{StaticResource TextPrimary}"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Artist}"
+                                       FontSize="{StaticResource FontSizeMedium}"
+                                       TextColor="{StaticResource TextSecondary}"
+                                       LineBreakMode="TailTruncation" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Frame>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-    </VerticalStackLayout>
+    </Grid>
     
 </ContentPage>

@@ -22,6 +22,8 @@ public static class MauiProgram
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+                fonts.AddFont("站酷快乐体2016修订版.ttf", "HappyZcool2016");
+                fonts.AddFont("298-CAI978.ttf", "CAI978");
             });
 
         // 配置数据库
@@ -33,6 +35,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<INetworkFileService, WebDavService>();
         builder.Services.AddSingleton<IAudioPlayerService, Platforms.Android.AudioPlayerService>();
         builder.Services.AddSingleton<ILyricsService, LyricsService>();
+        builder.Services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
         builder.Services.AddSingleton<PlayQueue>();
         
         // 注册 ViewModels

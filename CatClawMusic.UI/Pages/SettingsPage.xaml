@@ -2,61 +2,114 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.UI.Pages.SettingsPage"
-             Title="设置">
+             Title="设置"
+             BackgroundColor="{StaticResource BackgroundDark}">
     
-    <VerticalStackLayout Spacing="20" Padding="20">
-        <!-- WebDAV 连接设置 -->
-        <Label Text="WebDAV 连接"
-               FontSize="20"
-               FontAttributes="Bold" />
-        
-        <Entry Placeholder="主机地址"
-               Text="{Binding Host}" />
-        <Entry Placeholder="端口"
-               Text="{Binding Port}"
-               Keyboard="Numeric" />
-        <Entry Placeholder="用户名"
-               Text="{Binding UserName}" />
-        <Entry Placeholder="密码"
-               Text="{Binding Password}"
-               IsPassword="True" />
-        <Entry Placeholder="基础路径"
-               Text="{Binding BasePath}" />
-        
-        <Button Text="测试连接"
-                Command="{Binding TestConnectionCommand}" />
-        <Button Text="保存连接"
-                Command="{Binding SaveConnectionCommand}"
-                BackgroundColor="{StaticResource PrimaryColor}" />
-        
-        <!-- 缓存设置 -->
-        <Label Text="缓存设置"
-               FontSize="20"
-               FontAttributes="Bold"
-               Margin="0,20,0,0" />
-        
-        <HorizontalStackLayout>
-            <Label Text="缓存大小限制：" />
-            <Label Text="{Binding CacheSizeText}" />
-        </HorizontalStackLayout>
-        <Slider Value="{Binding CacheSizeGB}"
-                Minimum="1"
-                Maximum="15"
-                ValueChanged="OnCacheSizeChanged" />
-        
-        <Button Text="清除缓存"
-                Command="{Binding ClearCacheCommand}"
-                BackgroundColor="Red" />
-        
-        <!-- 播放设置 -->
-        <Label Text="播放设置"
-               FontSize="20"
-               FontAttributes="Bold"
-               Margin="0,20,0,0" />
-        
-        <Switch IsToggled="{Binding OnlyWiFiCache}" />
-        <Label Text="仅 WiFi 网络缓存" />
-        
-    </VerticalStackLayout>
+    <ScrollView>
+        <VerticalStackLayout Spacing="{StaticResource SpacingLarge}" Padding="{StaticResource SpacingLarge}">
+            
+            <!-- WebDAV 连接设置 -->
+            <Frame Style="{StaticResource CardStyle}">
+                <VerticalStackLayout Spacing="{StaticResource SpacingMedium}">
+                    <Label Text="WebDAV 连接"
+                           Style="{StaticResource LabelSubheading}" />
+                    
+                    <Entry Placeholder="主机地址"
+                           Text="{Binding Host}" />
+                    <Entry Placeholder="端口"
+                           Text="{Binding Port}"
+                           Keyboard="Numeric" />
+                    <Entry Placeholder="用户名"
+                           Text="{Binding UserName}" />
+                    <Entry Placeholder="密码"
+                           Text="{Binding Password}"
+                           IsPassword="True" />
+                    <Entry Placeholder="基础路径"
+                           Text="{Binding BasePath}" />
+                    
+                    <HorizontalStackLayout Spacing="{StaticResource SpacingMedium}">
+                        <Button Text="测试连接"
+                                Command="{Binding TestConnectionCommand}"
+                                Style="{StaticResource ButtonSecondary}"
+                                HorizontalOptions="FillAndExpand" />
+                        <Button Text="保存连接"
+                                Command="{Binding SaveConnectionCommand}"
+                                Style="{StaticResource ButtonPrimary}"
+                                HorizontalOptions="FillAndExpand" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- 缓存设置 -->
+            <Frame Style="{StaticResource CardStyle}">
+                <VerticalStackLayout Spacing="{StaticResource SpacingMedium}">
+                    <Label Text="缓存设置"
+                           Style="{StaticResource LabelSubheading}" />
+                    
+                    <Grid ColumnDefinitions="*,Auto"
+                          ColumnSpacing="{StaticResource SpacingMedium}"
+                          VerticalOptions="Center">
+                        <Label Text="缓存大小限制："
+                               Style="{StaticResource LabelPrimary}"
+                               VerticalOptions="Center" />
+                        <Label Grid.Column="1"
+                               Text="{Binding CacheSizeText}"
+                               Style="{StaticResource LabelPrimary}"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                    </Grid>
+                    
+                    <Slider Value="{Binding CacheSizeGB}"
+                            Minimum="1"
+                            Maximum="15"
+                            ValueChanged="OnCacheSizeChanged" />
+                    
+                    <Button Text="清除缓存"
+                            Command="{Binding ClearCacheCommand}"
+                            Style="{StaticResource ButtonSecondary}"
+                            BackgroundColor="{StaticResource ErrorColor}"
+                            TextColor="{StaticResource TextPrimary}" />
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- 播放设置 -->
+            <Frame Style="{StaticResource CardStyle}">
+                <VerticalStackLayout Spacing="{StaticResource SpacingMedium}">
+                    <Label Text="播放设置"
+                           Style="{StaticResource LabelSubheading}" />
+                    
+                    <Grid ColumnDefinitions="*,Auto"
+                          ColumnSpacing="{StaticResource SpacingMedium}"
+                          VerticalOptions="Center">
+                        <Label Text="仅 WiFi 网络缓存"
+                               Style="{StaticResource LabelPrimary}"
+                               VerticalOptions="Center" />
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding OnlyWiFiCache}"
+                                OnColor="{StaticResource PrimaryColor}"
+                                ThumbColor="{StaticResource TextPrimary}"
+                                HorizontalOptions="End" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- 关于 -->
+            <Frame Style="{StaticResource CardStyle}">
+                <VerticalStackLayout Spacing="{StaticResource SpacingMedium}">
+                    <Label Text="关于"
+                           Style="{StaticResource LabelSubheading}" />
+                    <Label Text="猫爪音乐 v1.0"
+                           Style="{StaticResource LabelSecondary}" />
+                    <Label Text="基于 .NET MAUI 构建"
+                           Style="{StaticResource LabelSecondary}" />
+                    <Label Text="作者：kankejiang"
+                           Style="{StaticResource LabelSecondary}" />
+                    <Label Text="许可证：MIT"
+                           Style="{StaticResource LabelSecondary}" />
+                </VerticalStackLayout>
+            </Frame>
+            
+        </VerticalStackLayout>
+    </ScrollView>
     
 </ContentPage>

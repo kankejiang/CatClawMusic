@@ -3,53 +3,106 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:CatClawMusic.UI.ViewModels"
              x:Class="CatClawMusic.UI.Pages.LibraryPage"
-             Title="音乐库">
+             Title="音乐库"
+             BackgroundColor="{StaticResource BackgroundDark}">
     
-    <VerticalStackLayout>
-        <!-- 标签切换（本地/网络） -->
-        <HorizontalStackLayout Padding="10">
-            <Button Text="本地音乐" 
-                    Command="{Binding SwitchTabCommand}"
-                    CommandParameter="Local"
-                    BackgroundColor="{Binding LocalTabColor}" />
-            <Button Text="网络音乐" 
-                    Command="{Binding SwitchTabCommand}"
-                    CommandParameter="Network"
-                    BackgroundColor="{Binding NetworkTabColor}" />
-        </HorizontalStackLayout>
+    <Grid RowDefinitions="Auto,*">
+        <!-- 标题栏 -->
+        <Frame Grid.Row="0"
+               Style="{StaticResource CardStyle}"
+               Margin="0,0,0,10"
+               Padding="20,15"
+               CornerRadius="0">
+            <VerticalStackLayout>
+                <Label Text="音乐库"
+                       Style="{StaticResource LabelHeading}"
+                       HorizontalOptions="Center" />
+                <!-- 标签切换 -->
+                <HorizontalStackLayout HorizontalOptions="Center" Spacing="{StaticResource SpacingSmall}">
+                    <Button Text="本地音乐" 
+                            Command="{Binding SwitchTabCommand}"
+                            CommandParameter="Local"
+                            Style="{StaticResource ButtonSecondary}"
+                            CornerRadius="{StaticResource CornerRadiusCircle}"
+                            BackgroundColor="{Binding LocalTabColor}"
+                            TextColor="{StaticResource TextPrimary}"
+                            FontSize="{StaticResource FontSizeSmall}"
+                            Padding="20,8" />
+                    <Button Text="网络音乐" 
+                            Command="{Binding SwitchTabCommand}"
+                            CommandParameter="Network"
+                            Style="{StaticResource ButtonSecondary}"
+                            CornerRadius="{StaticResource CornerRadiusCircle}"
+                            BackgroundColor="{Binding NetworkTabColor}"
+                            TextColor="{StaticResource TextPrimary}"
+                            FontSize="{StaticResource FontSizeSmall}"
+                            Padding="20,8" />
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+        </Frame>
         
         <!-- 歌曲列表 -->
-        <CollectionView ItemsSource="{Binding Songs}"
+        <CollectionView Grid.Row="1"
+                        ItemsSource="{Binding Songs}"
                         SelectionMode="Single"
-                        SelectionChanged="OnSongSelected">
+                        SelectionChanged="OnSongSelected"
+                        BackgroundColor="Transparent">
+            <CollectionView.Header>
+                <Label Text="所有歌曲"
+                       Style="{StaticResource LabelSubheading}"
+                       Margin="0,0,0,10" />
+            </CollectionView.Header>
             <CollectionView.ItemTemplate>
                 <DataTemplate>
-                    <Grid Padding="10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="60" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        
-                        <!-- 专辑封面 -->
-                        <Image Grid.Column="0"
-                               Source="{Binding CoverArtPath}"
-                               Aspect="AspectFill"
-                               HeightRequest="50"
-                               WidthRequest="50" />
-                        
-                        <!-- 歌曲信息 -->
-                        <VerticalStackLayout Grid.Column="1" Padding="10,0">
-                            <Label Text="{Binding Title}"
-                                   FontSize="16"
-                                   FontAttributes="Bold" />
-                            <Label Text="{Binding Artist}"
-                                   FontSize="14"
-                                   TextColor="{StaticResource TextSecondaryColor}" />
-                        </VerticalStackLayout>
-                    </Grid>
+                    <Frame Style="{StaticResource CardStyle}"
+                           Margin="0,0,0,10"
+                           Padding="15">
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              ColumnSpacing="{StaticResource SpacingMedium}">
+                            <!-- 专辑封面 -->
+                            <Frame Grid.Column="0"
+                                   CornerRadius="{StaticResource CornerRadiusMedium}"
+                                   IsClippedToBounds="True"
+                                   Padding="0"
+                                   BackgroundColor="{StaticResource SurfaceLight}">
+                                <Image Source="{Binding CoverArtPath}"
+                                       Aspect="AspectFill"
+                                       HeightRequest="60"
+                                       WidthRequest="60"
+                                       BackgroundColor="{StaticResource SurfaceMedium}" />
+                            </Frame>
+                            
+                            <!-- 歌曲信息 -->
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="2">
+                                <Label Text="{Binding Title}"
+                                       FontSize="{StaticResource FontSizeLarge}"
+                                       FontAttributes="Bold"
+                                       TextColor="{StaticResource TextPrimary}"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Artist}"
+                                       FontSize="{StaticResource FontSizeMedium}"
+                                       TextColor="{StaticResource TextSecondary}"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Album}"
+                                       FontSize="{StaticResource FontSizeSmall}"
+                                       TextColor="{StaticResource TextDisabled}"
+                                       LineBreakMode="TailTruncation" />
+                            </VerticalStackLayout>
+                            
+                            <!-- 更多操作按钮（预留） -->
+                            <!-- <Button Grid.Column="2"
+                                    Text="⋯"
+                                    Style="{StaticResource ButtonIcon}"
+                                    FontSize="{StaticResource FontSizeXLarge}"
+                                    VerticalOptions="Center"
+                                    HorizontalOptions="End" /> -->
+                        </Grid>
+                    </Frame>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-    </VerticalStackLayout>
+    </Grid>
     
 </ContentPage>
