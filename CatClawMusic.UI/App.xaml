@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:CatClawMusic.UI"
+             x:Class="CatClawMusic.UI.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <Color x:Key="PrimaryColor">#FF6B9D</Color>
+            <Color x:Key="SecondaryColor">#7ED6A7</Color>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

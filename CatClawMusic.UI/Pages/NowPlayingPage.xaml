@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.UI.Pages.NowPlayingPage"
+             Title="正在播放">
+    
+    <VerticalStackLayout Spacing="20" Padding="20">
+        <!-- 专辑封面 -->
+        <Image Source="{Binding CurrentSong.CoverArtPath}"
+               HeightRequest="300"
+               WidthRequest="300"
+               Aspect="AspectFill" />
+        
+        <!-- 歌曲信息 -->
+        <VerticalStackLayout>
+            <Label Text="{Binding CurrentSong.Title}"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center" />
+            <Label Text="{Binding CurrentSong.Artist}"
+                   FontSize="18"
+                   TextColor="{StaticResource TextSecondaryColor}"
+                   HorizontalOptions="Center" />
+        </VerticalStackLayout>
+        
+        <!-- 歌词显示区域 -->
+        <ScrollView HeightRequest="200">
+            <VerticalStackLayout>
+                <Label Text="{Binding CurrentLyricLine}"
+                       FontSize="20"
+                       TextColor="{StaticResource PrimaryColor}"
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center" />
+                <Label Text="{Binding NextLyricLine}"
+                       FontSize="16"
+                       TextColor="{StaticResource TextSecondaryColor}"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+        </ScrollView>
+        
+        <!-- 播放进度条 -->
+        <HorizontalStackLayout>
+            <Label Text="{Binding CurrentPosition, StringFormat='{0:mm\\:ss}'}" />
+            <Slider Value="{Binding CurrentPositionSeconds}"
+                    Maximum="{Binding TotalDurationSeconds}"
+                    HorizontalOptions="FillAndExpand" />
+            <Label Text="{Binding TotalDuration, StringFormat='{0:mm\\:ss}'}" />
+        </HorizontalStackLayout>
+        
+        <!-- 播放控制按钮 -->
+        <HorizontalStackLayout HorizontalOptions="Center" Spacing="30">
+            <Button Text="⏮" FontSize="30" Command="{Binding PreviousCommand}" />
+            <Button Text="{Binding PlayPauseIcon}" FontSize="30" Command="{Binding PlayPauseCommand}" />
+            <Button Text="⏭" FontSize="30" Command="{Binding NextCommand}" />
+        </HorizontalStackLayout>
+        
+        <!-- 播放模式切换 -->
+        <HorizontalStackLayout HorizontalOptions="Center" Spacing="20">
+            <Button Text="{Binding PlayModeIcon}" Command="{Binding TogglePlayModeCommand}" />
+            <Button Text="🔀" Command="{Binding ToggleShuffleCommand}" />
+        </HorizontalStackLayout>
+    </VerticalStackLayout>
+    
+</ContentPage>
