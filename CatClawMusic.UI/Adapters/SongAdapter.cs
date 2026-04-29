@@ -2,6 +2,7 @@ using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Models;
+using TagLibFile = TagLib.File;
 
 namespace CatClawMusic.UI.Adapters;
 
@@ -50,6 +51,61 @@ public class SongAdapter : RecyclerView.Adapter
             _title.Text = song.Title ?? "未知歌曲";
             _artist.Text = song.Artist ?? "未知艺术家";
             _album.Text = song.Album ?? "";
+
+            // 加载封面：优先缓存，其次从文件提取
+            var coverPath = GetCoverCachedPath(song.Id);
+            if (System.IO.File.Exists(coverPath))
+            {
+                _cover.SetImageURI(global::Android.Net.Uri.Parse(coverPath));
+            }
+            else
+            {
+                _cover.SetImageResource(global::Android.Resource.Drawable.IcMenuGallery);
+                // 后台提取封面
+                Task.Run(() => ExtractAndCacheCover(song));
+            }
+        }
+
+        private static string GetCoverCachedPath(int songId)
+        {
+            var cacheDir = Path.Combine(
+                global::Android.App.Application.Context.CacheDir!.AbsolutePath, "covers");
+            return Path.Combine(cacheDir, $"cover_{songId}.jpg");
+        }
+
+        private static void ExtractAndCacheCover(Song song)
+        {
+            try
+            {
+                byte[]? coverBytes = null;
+
+                if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var ctx = global::Android.App.Application.Context;
+                    using var stream = ctx.ContentResolver!.OpenInputStream(
+                        global::Android.Net.Uri.Parse(song.FilePath));
+                    if (stream != null)
+                    {
+                        var abstraction = new CatClawMusic.Core.Services.ReadOnlyFileAbstraction(
+                            song.FilePath, stream);
+                        using var tagFile = TagLibFile.Create(abstraction);
+                        if (tagFile.Tag.Pictures is { Length: > 0 })
+                            coverBytes = tagFile.Tag.Pictures[0].Data.Data;
+                    }
+                }
+                else if (System.IO.File.Exists(song.FilePath))
+                {
+                    coverBytes = CatClawMusic.Core.Services.TagReader.ExtractCoverArt(song.FilePath);
+                }
+
+                if (coverBytes != null)
+                {
+                    var coverPath = GetCoverCachedPath(song.Id);
+                    Directory.CreateDirectory(Path.GetDirectoryName(coverPath)!);
+                    System.IO.File.WriteAllBytes(coverPath, coverBytes);
+                }
+            }
+            catch { /* 静默失败，封面非必需 */ }
         }
     }
 }

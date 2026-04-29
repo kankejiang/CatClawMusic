@@ -14,25 +14,14 @@ public class MusicLibraryService : IMusicLibraryService
     }
 
     /// <summary>
-    /// 扫描本地音乐：优先使用 MediaStore（无需权限），降级到文件扫描
+    /// 扫描本地音乐：调用方负责扫描逻辑，本方法负责去重+入库
     /// </summary>
     public async Task<List<Song>> ScanLocalAsync(List<string>? customFolders = null)
     {
         await _db.EnsureInitializedAsync();
-
         var allSongs = new List<Song>();
 
-        // 1. Android 10+ 使用 MediaStore（无需存储权限）
-#if ANDROID
-        try
-        {
-            var mediaSongs = CatClawMusic.UI.Platforms.Android.AndroidMediaScanner.ScanFromMediaStore();
-            allSongs.AddRange(mediaSongs);
-        }
-        catch { }
-#endif
-
-        // 2. 补充文件扫描（默认目录 + 用户自定义目录）
+        // 文件系统路径扫描（传统方式，MANAGE_EXTERNAL_STORAGE 已启用时可用）
         var scanDirs = new List<string> { "/storage/emulated/0/Music", "/storage/emulated/0/Download" };
         if (customFolders != null)
         {
@@ -60,7 +49,18 @@ public class MusicLibraryService : IMusicLibraryService
             }
         }
 
-        // 3. 去重 + 存数据库
+        return await SaveAndDeduplicateAsync(allSongs);
+    }
+
+    /// <summary>接受预扫描的歌曲列表，去重后入库</summary>
+    public async Task<List<Song>> ImportSongsAsync(List<Song> songs)
+    {
+        await _db.EnsureInitializedAsync();
+        return await SaveAndDeduplicateAsync(songs);
+    }
+
+    private async Task<List<Song>> SaveAndDeduplicateAsync(List<Song> allSongs)
+    {
         var distinct = allSongs
             .GroupBy(s => s.FilePath)
             .Select(g => g.First())

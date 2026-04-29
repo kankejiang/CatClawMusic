@@ -11,6 +11,11 @@ public interface IMusicLibraryService
     /// 扫描本地音乐
     /// </summary>
     Task<List<Song>> ScanLocalAsync(List<string>? customFolders = null);
+
+    /// <summary>
+    /// 导入预扫描歌曲列表（用于 Android 端三路径扫描后入库）
+    /// </summary>
+    Task<List<Song>> ImportSongsAsync(List<Song> songs);
     
     /// <summary>
     /// 扫描网络音乐（WebDAV）

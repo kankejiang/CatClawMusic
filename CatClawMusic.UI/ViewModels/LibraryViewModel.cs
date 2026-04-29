@@ -16,11 +16,13 @@ public partial class LibraryViewModel : ObservableObject
     public ObservableCollection<CoreModels.Song> Songs { get; } = new();
 
     [ObservableProperty] private bool _isLoading;
-    [ObservableProperty] private bool _showPermissionRequest;
-    [ObservableProperty] private string _permissionText = "";
+    [ObservableProperty] private bool _showPermissionPrompt;
+    [ObservableProperty] private string _permissionPromptText = "";
     [ObservableProperty] private string _statusText = "";
-    [ObservableProperty] private string _localTabColor = "#FF7BAC";
-    [ObservableProperty] private string _networkTabColor = "#D4C5C9";
+    [ObservableProperty] private string _localTabColor = "#9B7ED8";
+    [ObservableProperty] private string _networkTabColor = "#C0B8CA";
+
+    private bool _hasLoadedSongs;
 
     public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null, IPermissionService? permission = null)
     {
@@ -33,27 +35,70 @@ public partial class LibraryViewModel : ObservableObject
     private void SwitchTab(string tab)
     {
         _currentTab = tab;
-        LocalTabColor = tab == "Local" ? "#FF7BAC" : "#D4C5C9";
-        NetworkTabColor = tab == "Network" ? "#FF7BAC" : "#D4C5C9";
-        if (tab == "Local") _ = LoadLocalAsync();
-        else _ = LoadNetworkAsync();
+        LocalTabColor = tab == "Local" ? "#9B7ED8" : "#C0B8CA";
+        NetworkTabColor = tab == "Network" ? "#9B7ED8" : "#C0B8CA";
+        if (tab == "Local" && !_hasLoadedSongs)
+            _ = LoadLocalAsync();
+        else if (tab == "Network" && !_hasLoadedSongs)
+            _ = LoadNetworkAsync();
     }
 
     [RelayCommand]
-    private async Task Refresh() => await (_currentTab == "Local" ? LoadLocalAsync() : LoadNetworkAsync());
+    private async Task Refresh() => await (_currentTab == "Local" ? LoadLocalAsync(forceReload: true) : LoadNetworkAsync());
 
+    /// <summary>通过 SAF 系统文件管理器选择音乐文件夹</summary>
     [RelayCommand]
-    private async Task RequestPermission() => await OnRequestPermission();
-
-    public async Task LoadLocalAsync()
+    private async Task PickMusicFolder()
     {
-        ShowPermissionRequest = false; IsLoading = true;
+#if ANDROID
+        var uri = await CatClawMusic.UI.Platforms.Android.FolderPicker.PickFolderAsync();
+        if (!string.IsNullOrEmpty(uri))
+        {
+            _hasLoadedSongs = false;
+            await LoadLocalAsync();
+        }
+#endif
+    }
+
+    public async Task LoadLocalAsync(bool forceReload = false)
+    {
+        // 已有数据且非强制刷新，跳过扫描
+        if (!forceReload && _hasLoadedSongs && Songs.Count > 0)
+        {
+            System.Diagnostics.Debug.WriteLine("[CatClaw] 跳过重复扫描，使用缓存数据");
+            return;
+        }
+
+        ShowPermissionPrompt = false; IsLoading = true;
         StatusText = "正在扫描本地音乐..."; Songs.Clear();
         try
         {
-            var songs = await _musicLibrary.ScanLocalAsync(GetCustomFolders());
+            // 三路径扫描：MediaStore → 全文件路径 → SAF Content URI
+            var scannedSongs = await CatClawMusic.UI.Services.AndroidLocalScanner.ScanAsync(GetCustomFolders());
+            // 入库
+            var songs = await _musicLibrary.ImportSongsAsync(scannedSongs);
             foreach (var s in songs) Songs.Add(s);
-            StatusText = Songs.Count > 0 ? $"🐱 共 {Songs.Count} 首歌曲" : "未找到音乐\n可前往设置选择音乐文件夹";
+
+            if (Songs.Count > 0)
+            {
+                StatusText = $"🐱 共 {Songs.Count} 首歌曲";
+                _hasLoadedSongs = true;
+            }
+            else
+            {
+                var savedUri = CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUri();
+                if (string.IsNullOrEmpty(savedUri))
+                {
+                    PermissionPromptText = "点击下方按钮，选择手机上的音乐文件夹\n\n（使用系统文件管理器，无需额外权限）";
+                    StatusText = "未找到本地音乐";
+                }
+                else
+                {
+                    PermissionPromptText = "所选文件夹中未找到音乐文件\n可点击下方按钮重新选择";
+                    StatusText = "未找到音乐";
+                }
+                ShowPermissionPrompt = true;
+            }
         }
         catch (Exception ex)
         {
@@ -64,7 +109,7 @@ public partial class LibraryViewModel : ObservableObject
 
     public async Task LoadNetworkAsync()
     {
-        ShowPermissionRequest = false; IsLoading = true;
+        ShowPermissionPrompt = false; IsLoading = true;
         StatusText = "正在加载网络配置..."; Songs.Clear();
         try
         {
@@ -84,40 +129,8 @@ public partial class LibraryViewModel : ObservableObject
         finally { IsLoading = false; }
     }
 
-    private async Task OnRequestPermission()
-    {
-        if (_permission == null) return;
-        StatusText = "正在请求权限...";
-        if (await _permission.RequestAllMediaPermissionsAsync())
-        {
-            ShowPermissionRequest = false;
-            await LoadLocalAsync();
-        }
-        else if (_permission.IsPermanentlyDenied())
-        {
-            PermissionText = "权限被永久拒绝\n请在系统设置中手动授权";
-            StatusText = "权限被拒绝";
-            _permission.OpenAppSettings();
-        }
-        else
-        {
-            PermissionText = "权限被拒绝，请重试或在系统设置中手动授权";
-            StatusText = "权限被拒绝";
-        }
-    }
-
-    public void OpenAppSettings()
-    {
-        _permission?.OpenAppSettings();
-    }
-
     private List<string>? GetCustomFolders()
     {
-        var ctx = global::Android.App.Application.Context;
-        var prefs = ctx.GetSharedPreferences("catclaw_prefs", global::Android.Content.FileCreationMode.Private)!;
-        var path = prefs.GetString("music_folder", "");
-        return !string.IsNullOrWhiteSpace(path) ? new List<string> { path } : null;
+        return CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUris();
     }
-
-    public async Task DirectRequestPermissionAsync() => await OnRequestPermission();
 }

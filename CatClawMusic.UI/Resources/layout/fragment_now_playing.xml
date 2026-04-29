@@ -1,67 +1,151 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="@color/pageBackground">
+    android:orientation="vertical" android:background="@color/pageBackground">
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:padding="16dp" android:gravity="center_horizontal">
+    <!-- 顶部栏 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingHorizontal="8dp">
+        <ImageButton android:id="@+id/btn_back" android:layout_width="40dp"
+            android:layout_height="40dp" android:src="@drawable/ic_skip_previous"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:rotation="180" android:layout_marginEnd="8dp"
+            android:tint="@color/textPrimary" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical">
+            <TextView android:text="正在播放" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textColor="@color/textPrimary"
+                android:textSize="16sp" android:fontFamily="sans-serif-medium" />
+        </LinearLayout>
+        <ImageButton android:id="@+id/btn_like" android:layout_width="40dp"
+            android:layout_height="40dp" android:src="@drawable/ic_favorite_border"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+    </LinearLayout>
 
-        <com.google.android.material.card.MaterialCardView style="@style/CatClawCard"
-            android:layout_width="280dp" android:layout_height="280dp"
+    <!-- 专辑封面 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1.6" android:gravity="center"
+        android:paddingHorizontal="48dp" android:orientation="vertical">
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="240dp" android:layout_height="240dp"
+            app:cardCornerRadius="24dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorderDark" app:strokeWidth="0.5dp"
+            app:cardBackgroundColor="@color/cardBackgroundSolid"
             android:layout_marginBottom="16dp">
             <ImageView android:id="@+id/album_cover" android:layout_width="match_parent"
                 android:layout_height="match_parent" android:scaleType="centerCrop" />
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 歌名/艺术家 -->
         <TextView android:id="@+id/song_title" android:layout_width="match_parent"
-            android:layout_height="wrap_content" style="@style/CatClawTitle"
-            android:gravity="center" android:text="歌曲名称" />
-        <TextView android:id="@+id/song_artist" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:textSize="18sp"
+            android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium"
+            android:gravity="center" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/song_artist" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:textColor="@color/textSecondary"
-            android:textSize="@dimen/font_medium" android:text="艺术家" />
-        <TextView android:id="@+id/song_album" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:textColor="@color/textHint"
-            android:textSize="@dimen/font_small" android:text="专辑" />
-
-        <com.google.android.material.card.MaterialCardView style="@style/CatClawCard"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="12dp">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="12dp">
-                <TextView android:id="@+id/lyric_current" android:layout_width="match_parent"
-                    android:layout_height="wrap_content" android:gravity="center"
-                    android:textColor="@color/textPrimary" android:textSize="@dimen/font_large"
-                    android:text="🐾 猫爪音乐" />
-                <TextView android:id="@+id/lyric_next" android:layout_width="match_parent"
-                    android:layout_height="wrap_content" android:gravity="center"
-                    android:textColor="@color/textHint" android:textSize="@dimen/font_small" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="horizontal" android:gravity="center" android:layout_marginTop="12dp">
-            <TextView android:id="@+id/time_current" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="0:00" android:textColor="@color/textHint" />
-            <com.google.android.material.slider.Slider android:id="@+id/progress_slider"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:layout_marginHorizontal="8dp"
-                android:valueFrom="0" android:valueTo="100" android:value="0" />
-            <TextView android:id="@+id/time_total" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="0:00" android:textColor="@color/textHint" />
-        </LinearLayout>
-
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="horizontal" android:gravity="center" android:layout_marginTop="8dp">
-            <ImageButton android:id="@+id/btn_mode" android:layout_width="48dp"
-                android:layout_height="48dp" android:src="@drawable/ic_settings" android:background="?attr/selectableItemBackgroundBorderless" />
-            <ImageButton android:id="@+id/btn_prev" android:layout_width="56dp"
-                android:layout_height="56dp" android:src="@drawable/ic_search" android:background="?attr/selectableItemBackgroundBorderless" android:rotation="180" />
-            <ImageButton android:id="@+id/btn_play_pause" android:layout_width="72dp"
-                android:layout_height="72dp" android:src="@drawable/ic_library" android:background="@drawable/bg_rounded_pink" android:layout_marginHorizontal="20dp" />
-            <ImageButton android:id="@+id/btn_next" android:layout_width="56dp"
-                android:layout_height="56dp" android:src="@drawable/ic_search" android:background="?attr/selectableItemBackgroundBorderless" />
-            <ImageButton android:id="@+id/btn_shuffle" android:layout_width="48dp"
-                android:layout_height="48dp" android:src="@drawable/ic_playlist" android:background="?attr/selectableItemBackgroundBorderless" />
-        </LinearLayout>
+            android:textSize="13sp" android:gravity="center" android:layout_marginTop="2dp" />
     </LinearLayout>
-</ScrollView>
+
+    <!-- 歌词区（3行） -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="0.6" android:orientation="vertical"
+        android:gravity="center" android:clipChildren="false"
+        android:paddingHorizontal="24dp">
+
+        <TextView android:id="@+id/lyric_prev" android:layout_width="match_parent"
+            android:layout_height="0dp" android:layout_weight="1"
+            android:textColor="@color/textHint" android:textSize="13sp"
+            android:gravity="center" android:maxLines="1" android:ellipsize="end" />
+
+        <TextView android:id="@+id/lyric_current" android:layout_width="match_parent"
+            android:layout_height="0dp" android:layout_weight="1"
+            android:textColor="@color/primaryColor" android:textSize="17sp"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center" android:maxLines="1" android:ellipsize="end"
+            android:text="🐾 猫爪音乐" />
+
+        <TextView android:id="@+id/lyric_next" android:layout_width="match_parent"
+            android:layout_height="0dp" android:layout_weight="1"
+            android:textColor="@color/textHint" android:textSize="13sp"
+            android:gravity="center" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- 频谱可视化（代码中创建并添加到此容器） -->
+    <FrameLayout android:id="@+id/spectrum_container"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="8dp" />
+
+    <!-- 控制区域 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp" android:layout_marginBottom="16dp"
+        android:layout_marginTop="4dp"
+        app:cardCornerRadius="20dp" app:cardElevation="0dp"
+        app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+        app:cardBackgroundColor="@color/cardBackground">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingHorizontal="20dp"
+            android:paddingTop="16dp" android:paddingBottom="16dp">
+
+            <!-- 进度条 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical">
+                <TextView android:id="@+id/time_current" android:layout_width="36dp"
+                    android:layout_height="wrap_content" android:text="0:00"
+                    android:textColor="@color/textHint" android:textSize="11sp"
+                    android:gravity="center" />
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/progress_slider"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:layout_marginHorizontal="8dp"
+                    android:valueFrom="0" android:valueTo="100" android:value="0"
+                    app:thumbColor="@color/primaryColor"
+                    app:trackColorActive="@color/primaryColor"
+                    app:trackColorInactive="@color/primaryGlow"
+                    app:thumbRadius="7dp" app:trackHeight="3dp" />
+                <TextView android:id="@+id/time_total" android:layout_width="36dp"
+                    android:layout_height="wrap_content" android:text="0:00"
+                    android:textColor="@color/textHint" android:textSize="11sp"
+                    android:gravity="center" />
+            </LinearLayout>
+
+            <!-- 控制按钮 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center"
+                android:layout_marginTop="12dp">
+
+                <ImageButton android:id="@+id/btn_mode" android:layout_width="44dp"
+                    android:layout_height="44dp" android:src="@drawable/ic_repeat"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_marginEnd="8dp" android:tint="@color/textHint" />
+
+                <ImageButton android:id="@+id/btn_prev" android:layout_width="48dp"
+                    android:layout_height="48dp" android:src="@drawable/ic_skip_previous"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_marginEnd="8dp" android:tint="@color/textPrimary" />
+
+                <ImageButton android:id="@+id/btn_play_pause"
+                    android:layout_width="64dp" android:layout_height="64dp"
+                    android:src="@drawable/ic_play"
+                    android:background="@drawable/bg_rounded_glass"
+                    android:layout_marginHorizontal="16dp" />
+
+                <ImageButton android:id="@+id/btn_next" android:layout_width="48dp"
+                    android:layout_height="48dp" android:src="@drawable/ic_skip_next"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_marginStart="8dp" android:tint="@color/textPrimary" />
+
+                <ImageButton android:id="@+id/btn_shuffle" android:layout_width="44dp"
+                    android:layout_height="44dp" android:src="@drawable/ic_shuffle"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_marginStart="8dp" android:tint="@color/textHint" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</LinearLayout>

@@ -60,8 +60,16 @@ public partial class NowPlayingViewModel : ObservableObject
     [RelayCommand]
     private void PlayPause()
     {
-        if (_audioPlayer.IsPlaying) _ = _audioPlayer.PauseAsync();
-        else if (CurrentSong != null) { _ = _audioPlayer.PlayAsync(CurrentSong.FilePath); _ = RecordPlayAsync(); }
+        if (_audioPlayer.IsPlaying)
+        {
+            _ = _audioPlayer.PauseAsync();
+            PlayPauseIcon = "▶";
+        }
+        else if (CurrentSong != null)
+        {
+            _ = _audioPlayer.ResumeAsync();
+            PlayPauseIcon = "⏸";
+        }
     }
 
     [RelayCommand]
@@ -119,17 +127,46 @@ public partial class NowPlayingViewModel : ObservableObject
         if (song == null) return;
         try
         {
-            var stream = await _musicLibrary.GetAlbumCoverAsync(song);
+            byte[]? coverBytes = null;
+
+            // content:// URI 需要走 ContentResolver 来读标签
+            if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                coverBytes = ExtractCoverFromContentUri(song.FilePath);
+            }
+
+            var stream = coverBytes != null
+                ? new MemoryStream(coverBytes)
+                : await _musicLibrary.GetAlbumCoverAsync(song);
+
             if (stream != null)
             {
                 var cacheDir = Path.Combine(global::Android.App.Application.Context.CacheDir!.AbsolutePath, "covers");
                 Directory.CreateDirectory(cacheDir);
                 var coverPath = Path.Combine(cacheDir, $"cover_{song.Id}.jpg");
                 using (var fs = File.Create(coverPath)) await stream.CopyToAsync(fs);
+                if (coverBytes != null) stream.Dispose();
                 _dispatcher.Post(() => CoverSource = coverPath);
             }
         }
         catch { }
+    }
+
+    private static byte[]? ExtractCoverFromContentUri(string uri)
+    {
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            using var stream = ctx.ContentResolver!.OpenInputStream(global::Android.Net.Uri.Parse(uri));
+            if (stream == null) return null;
+
+            var abstraction = new CatClawMusic.Core.Services.ReadOnlyFileAbstraction(uri, stream);
+            using var file = TagLib.File.Create(abstraction);
+            if (file.Tag.Pictures is { Length: > 0 })
+                return file.Tag.Pictures[0].Data.Data;
+        }
+        catch { }
+        return null;
     }
 
     private void UpdateQueuePeek()

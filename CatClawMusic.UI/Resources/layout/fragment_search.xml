@@ -1,16 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="@color/pageBackground"
-    android:padding="16dp">
-    <EditText android:id="@+id/search_input" android:layout_width="match_parent"
-        android:layout_height="48dp" android:hint="搜索歌曲、艺术家、专辑..."
-        android:textColor="@color/textPrimary" android:textColorHint="@color/textHint"
-        android:background="@drawable/bg_rounded_white" android:paddingHorizontal="16dp"
-        android:layout_marginBottom="12dp" />
+    android:paddingHorizontal="16dp" android:paddingTop="16dp">
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:layout_marginBottom="12dp"
+        app:cardCornerRadius="16dp" app:cardElevation="0dp"
+        app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+        app:cardBackgroundColor="@color/cardBackground">
+        <EditText android:id="@+id/search_input" android:layout_width="match_parent"
+            android:layout_height="match_parent" android:hint="搜索歌曲、艺术家、专辑..."
+            android:textColor="@color/textPrimary" android:textColorHint="@color/textHint"
+            android:background="@null" android:paddingHorizontal="16dp"
+            android:fontFamily="sans-serif" android:textSize="14sp" />
+    </com.google.android.material.card.MaterialCardView>
+
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/search_results"
-        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:clipToPadding="false" android:paddingBottom="8dp" />
     <TextView android:id="@+id/status_text" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:gravity="center" android:padding="8dp"
-        android:textColor="@color/textHint" android:textSize="@dimen/font_small" />
+        android:textColor="@color/textHint" android:textSize="12sp" />
 </LinearLayout>

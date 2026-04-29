@@ -47,9 +47,9 @@ public class MainApplication : Application
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
 
-        // ViewModels (transient)
-        services.AddTransient<LibraryViewModel>();
-        services.AddTransient<NowPlayingViewModel>();
+        // ViewModels
+        services.AddSingleton<LibraryViewModel>();       // 单例——Fragment 重建时不丢缓存
+        services.AddSingleton<NowPlayingViewModel>();    // 单例——迷你播放器和全屏播放器共享状态
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<SearchViewModel>();
         services.AddTransient<PlaylistViewModel>();
@@ -66,6 +66,7 @@ public class MainApplication : Application
         services.AddTransient<PlaylistDetailFragment>();
         services.AddTransient<WebDavSettingsFragment>();
         services.AddTransient<NavidromeSettingsFragment>();
+        services.AddTransient<MusicFolderSettingsFragment>();
 
         // Adapters
         services.AddTransient<SongAdapter>();

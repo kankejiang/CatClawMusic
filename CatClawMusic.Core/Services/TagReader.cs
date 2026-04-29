@@ -1,14 +1,53 @@
 using CatClawMusic.Core.Models;
 using TagLib;
 using IOFile = System.IO.File;
+using TagLibFile = TagLib.File;
 
 namespace CatClawMusic.Core.Services;
 
 /// <summary>
-/// 音频标签读取器（使用 TagLibSharp，从方糖音乐播放器移植）
+/// 音频标签读取器（使用 TagLibSharp）
 /// </summary>
 public class TagReader
 {
+    /// <summary>从 Content URI Stream 读取歌曲信息（SAF 路径用）</summary>
+    public static Song? ReadFromStream(Stream stream, string uri, string displayName, long fileSize)
+    {
+        try
+        {
+            var abstraction = new ReadOnlyFileAbstraction(displayName, stream);
+            using var file = TagLibFile.Create(abstraction);
+            var props = file.Properties;
+            var tag = file.Tag;
+
+            return new Song
+            {
+                Title = !string.IsNullOrWhiteSpace(tag.Title)
+                    ? tag.Title : Path.GetFileNameWithoutExtension(displayName),
+                Artist = !string.IsNullOrWhiteSpace(tag.FirstPerformer)
+                    ? tag.FirstPerformer
+                    : tag.FirstAlbumArtist ?? "未知艺术家",
+                Album = tag.Album ?? "未知专辑",
+                Duration = (int)props.Duration.TotalSeconds,
+                FileSize = fileSize > 0 ? fileSize : stream.Length,
+                Bitrate = props.AudioBitrate,
+                FilePath = uri, // 保存 content:// URI 用于播放
+                Source = SongSource.Local
+            };
+        }
+        catch
+        {
+            return new Song
+            {
+                Title = Path.GetFileNameWithoutExtension(displayName),
+                Artist = "未知艺术家",
+                Album = "未知专辑",
+                FilePath = uri,
+                FileSize = fileSize > 0 ? fileSize : stream.Length,
+                Source = SongSource.Local
+            };
+        }
+    }
     /// <summary>
     /// 从音频文件读取歌曲信息
     /// </summary>
@@ -61,7 +100,7 @@ public class TagReader
     }
 
     /// <summary>
-    /// 提取专辑封面（返回字节数组，适合 MAUI 的 ImageSource）
+    /// 提取专辑封面（返回字节数组，content:// URI 由调用方单独处理）
     /// </summary>
     public static byte[]? ExtractCoverArt(string filePath)
     {
@@ -192,5 +231,28 @@ public class TagReader
         }
 
         return songs;
+    }
+}
+
+/// <summary>
+/// TagLibSharp IFileAbstraction 的只读 Stream 实现（替代缺失的 StreamFileAbstraction）
+/// </summary>
+public class ReadOnlyFileAbstraction : TagLib.File.IFileAbstraction
+{
+    private readonly Stream _stream;
+
+    public string Name { get; }
+    public Stream ReadStream => _stream;
+    public Stream WriteStream => throw new NotSupportedException();
+
+    public ReadOnlyFileAbstraction(string name, Stream stream)
+    {
+        Name = name;
+        _stream = stream;
+    }
+
+    public void CloseStream(Stream stream)
+    {
+        // 由调用方管理 Stream 生命周期
     }
 }

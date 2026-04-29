@@ -50,17 +50,20 @@ public class LibraryFragment : Fragment
 
         _btnLocal.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Local");
         _btnNetwork.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Network");
-        _btnGrant.Click += (s, e) => _ = _viewModel.DirectRequestPermissionAsync();
+        _btnGrant.Click += (s, e) => _viewModel.PickMusicFolderCommand.Execute(null);
 
         BindViews();
         _ = _viewModel.LoadLocalAsync();
+        // 缓存命中时手动填充 Adapter（LoadLocalAsync 跳过后不会触发 CollectionChanged）
+        if (_viewModel.Songs.Count > 0)
+            _adapter.UpdateSongs(_viewModel.Songs);
     }
 
     private void BindViews()
     {
         BindingHelper.BindText(_statusText, _viewModel, nameof(_viewModel.StatusText), _ => _viewModel.StatusText);
-        BindingHelper.BindVisible(_permissionOverlay, _viewModel, nameof(_viewModel.ShowPermissionRequest), _ => _viewModel.ShowPermissionRequest);
-        BindingHelper.BindText(_permissionText, _viewModel, nameof(_viewModel.PermissionText), _ => _viewModel.PermissionText);
+        BindingHelper.BindVisible(_permissionOverlay, _viewModel, nameof(_viewModel.ShowPermissionPrompt), _ => _viewModel.ShowPermissionPrompt);
+        BindingHelper.BindText(_permissionText, _viewModel, nameof(_viewModel.PermissionPromptText), _ => _viewModel.PermissionPromptText);
 
         _viewModel.Songs.CollectionChanged += (s, e) => { var a = Activity; if (a != null) a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs)); };
     }

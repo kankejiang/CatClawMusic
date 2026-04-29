@@ -1,39 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@color/pageBackground">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical" android:padding="16dp">
 
-        <com.google.android.material.card.MaterialCardView style="@style/CatClawCard"
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="设置" android:textSize="22sp"
+            android:fontFamily="@font/happy_zcool_2016"
+            android:textColor="@color/textPrimary" android:layout_marginBottom="16dp" />
+
+        <!-- 音乐文件夹管理 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btn_music_folders"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="16dp">
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="📁 音乐文件夹"
+                    android:textSize="15sp" android:textColor="@color/textPrimary"
+                    android:fontFamily="sans-serif-medium" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="音乐文件夹" style="@style/CatClawTitle" />
-                <TextView android:id="@+id/folder_path_text" android:layout_width="match_parent"
-                    android:layout_height="wrap_content" android:text="默认: /storage/emulated/0/Music"
-                    android:textColor="@color/textSecondary" android:textSize="@dimen/font_small"
-                    android:layout_marginTop="4dp" android:layout_marginBottom="12dp" />
-                <Button android:id="@+id/btn_pick_folder" android:layout_width="200dp"
-                    android:layout_height="40dp" android:text="选择文件夹"
-                    style="@style/CatClawButtonPrimary" />
+                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <com.google.android.material.card.MaterialCardView style="@style/CatClawCard"
+        <!-- Navidrome -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btn_navidrome"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="16dp">
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="☁️ Navidrome 服务器"
+                    android:textSize="15sp" android:textColor="@color/textPrimary"
+                    android:fontFamily="sans-serif-medium" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="Navidrome 设置" style="@style/CatClawTitle" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="配置 Navidrome 音乐服务器" android:textColor="@color/textSecondary"
-                    android:textSize="@dimen/font_small" />
+                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- WebDAV 设置 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btn_webdav"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="💾 WebDAV 连接"
+                    android:textSize="15sp" android:textColor="@color/textPrimary"
+                    android:fontFamily="sans-serif-medium" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
     </LinearLayout>
 </ScrollView>

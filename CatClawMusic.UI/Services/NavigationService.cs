@@ -30,10 +30,12 @@ public class NavigationService : INavigationService
             "PlaylistDetail" => CreatePlaylistDetail(parameters),
             "WebDavSettings" => MainApplication.Services.GetRequiredService<WebDavSettingsFragment>(),
             "NavidromeSettings" => MainApplication.Services.GetRequiredService<NavidromeSettingsFragment>(),
+            "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),
             _ => throw new ArgumentException($"Unknown route: {route}")
         };
 
         _bottomNav?.Visibility = ViewStates.Gone;
+        MainActivity.Instance?.SetMiniPlayerVisible(false);
 
         _fm.BeginTransaction()
             .Replace(_containerId, fragment, route)

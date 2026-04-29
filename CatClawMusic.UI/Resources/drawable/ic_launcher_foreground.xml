@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 主肉垫（大椭圆） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,62 Q38,54 46,50 Q54,46 62,50 Q70,54 70,62 Q70,76 58,80 Q46,84 38,76 Z" />
+
+    <!-- 主肉垫凹槽（心形分割线） -->
+    <path
+        android:fillColor="#FF7BAC"
+        android:pathData="M52,55 Q54,52 56,55 Q54,58 52,55" />
+
+    <!-- 左趾肉垫 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,34 Q32,28 36,24 Q42,20 44,24 Q46,28 44,32 Q42,38 36,38 Q30,38 30,34 Z" />
+
+    <!-- 中趾肉垫 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,28 Q48,22 52,18 Q56,16 58,20 Q60,24 58,28 Q56,34 52,34 Q48,34 48,28 Z" />
+
+    <!-- 右趾肉垫 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,34 Q64,28 68,24 Q74,20 76,24 Q78,28 76,32 Q74,38 68,38 Q62,38 62,34 Z" />
+
+    <!-- 右上趾肉垫（侧边小趾） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M76,40 Q76,36 78,34 Q82,32 84,34 Q86,36 86,40 Q86,44 82,46 Q78,46 76,42 Z" />
+
+</vector>

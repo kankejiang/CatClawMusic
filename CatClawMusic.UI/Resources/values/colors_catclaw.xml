@@ -1,21 +1,41 @@
 <resources>
-    <color name="pageBackground">#FFF5F7</color>
-    <color name="cardBackground">#FFFFFF</color>
-    <color name="cardBorder">#F5E6ED</color>
-    <color name="primaryColor">#FF7BAC</color>
-    <color name="primaryLight">#FFB3D0</color>
-    <color name="primaryDark">#E8588E</color>
-    <color name="primaryGlow">#FFD4E5</color>
-    <color name="secondaryColor">#C4A7E7</color>
-    <color name="secondaryLight">#E8D5F5</color>
-    <color name="accentColor">#98D8C8</color>
+    <!-- 毛玻璃 Glassmorphism 配色 -->
+    <color name="pageBackground">#F0F2F5</color>
+    <color name="pageBackgroundDark">#E4E6EB</color>
+    <color name="cardBackground">#E6FFFFFF</color>
+    <color name="cardBackgroundSolid">#F2F6FA</color>
+    <color name="cardBorder">#40FFFFFF</color>
+    <color name="cardBorderDark">#1A000000</color>
+
+    <!-- 主色调：柔和紫粉 -->
+    <color name="primaryColor">#9B7ED8</color>
+    <color name="primaryLight">#C4B5F0</color>
+    <color name="primaryDark">#7B5EC0</color>
+    <color name="primaryGlow">#E8DFF8</color>
+
+    <!-- 辅助色 -->
+    <color name="secondaryColor">#98B8E8</color>
+    <color name="secondaryLight">#D0E0F8</color>
+    <color name="accentColor">#90D5C8</color>
     <color name="accentLight">#C5F0E5</color>
-    <color name="textPrimary">#4A3728</color>
-    <color name="textSecondary">#8B7355</color>
-    <color name="textHint">#C4B5A5</color>
+
+    <!-- 文字 -->
+    <color name="textPrimary">#2D2438</color>
+    <color name="textSecondary">#6B5E7A</color>
+    <color name="textHint">#B0A8BA</color>
+    <color name="textOnPrimary">#FFFFFF</color>
+
+    <!-- 状态色 -->
     <color name="successColor">#90D5AC</color>
     <color name="warningColor">#FFC97A</color>
     <color name="errorColor">#FF8A8A</color>
-    <color name="tabActive">#FF7BAC</color>
-    <color name="tabInactive">#D4C5C9</color>
+
+    <!-- 导航 -->
+    <color name="tabActive">#9B7ED8</color>
+    <color name="tabInactive">#C0B8CA</color>
+    <color name="navBarBackground">#D9F0F2F5</color>
+
+    <!-- 渐变端点 -->
+    <color name="gradientStart">#E0D8F0</color>
+    <color name="gradientEnd">#D8E4F0</color>
 </resources>

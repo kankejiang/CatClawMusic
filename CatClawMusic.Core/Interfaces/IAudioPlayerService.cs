@@ -9,6 +9,11 @@ public interface IAudioPlayerService
     /// 播放指定歌曲
     /// </summary>
     Task PlayAsync(string filePathOrUrl);
+
+    /// <summary>
+    /// 从暂停状态恢复播放（保持当前进度）
+    /// </summary>
+    Task ResumeAsync();
     
     /// <summary>
     /// 暂停播放

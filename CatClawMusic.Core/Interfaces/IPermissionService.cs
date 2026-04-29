@@ -1,21 +1,21 @@
 namespace CatClawMusic.Core.Interfaces;
 
 /// <summary>
-/// 权限请求服务接口
+/// 权限请求服务接口（保留骨架，当前版本走 SAF Picker 路线）
 /// </summary>
 public interface IPermissionService
 {
-    /// <summary>检查存储/媒体权限是否已授予（仅音频）</summary>
+    /// <summary>检查存储/媒体权限是否已授予</summary>
     Task<bool> CheckStoragePermissionAsync();
 
-    /// <summary>请求存储/媒体权限（仅音频）</summary>
+    /// <summary>请求存储/媒体权限</summary>
     Task<bool> RequestStoragePermissionAsync();
 
-    /// <summary>检查所有媒体权限（音频 + 照片 + 视频）是否已授予</summary>
-    Task<bool> CheckAllMediaPermissionsAsync();
+    /// <summary>检查全文件管理权限 MANAGE_EXTERNAL_STORAGE（Android 11+ 绕过 Scoped Storage）</summary>
+    Task<bool> CheckManageStoragePermissionAsync();
 
-    /// <summary>请求所有媒体权限（音频 + 照片 + 视频），Android 13+ 一次请求三个细化权限</summary>
-    Task<bool> RequestAllMediaPermissionsAsync();
+    /// <summary>跳转到系统设置页面让用户手动开启全文件管理权限</summary>
+    Task<bool> RequestManageStoragePermissionAsync();
 
     /// <summary>获取权限状态描述</summary>
     string GetPermissionStatus();

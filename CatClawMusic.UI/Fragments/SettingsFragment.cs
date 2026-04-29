@@ -2,7 +2,6 @@ using Android.OS;
 using Android.Views;
 using Android.Widget;
 using CatClawMusic.Core.Interfaces;
-using CatClawMusic.UI.Platforms.Android;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,37 +9,25 @@ namespace CatClawMusic.UI.Fragments;
 
 public class SettingsFragment : Fragment
 {
-    private SettingsViewModel _viewModel = null!;
-    private TextView _folderPathText = null!;
-
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         var view = inflater.Inflate(Resource.Layout.fragment_settings, container, false)!;
-        _viewModel = MainApplication.Services.GetRequiredService<SettingsViewModel>();
-
-        var nav = MainApplication.Services.GetRequiredService<Core.Interfaces.INavigationService>();
+        var nav = MainApplication.Services.GetRequiredService<INavigationService>();
 
         // WebDAV 设置入口
-        var btnWebDav = view.FindViewById<View>(Resource.Id.btn_test);
-        if (btnWebDav != null) btnWebDav.SetOnClickListener(new ClickListener(() => nav.PushFragment("WebDavSettings")));
+        var btnWebDav = view.FindViewById<View>(Resource.Id.btn_webdav);
+        if (btnWebDav != null)
+            btnWebDav.SetOnClickListener(new ClickListener(() => nav.PushFragment("WebDavSettings")));
 
-        // 音乐文件夹选择
-        _folderPathText = view.FindViewById<TextView>(Resource.Id.folder_path_text)!;
-        _folderPathText.Text = _viewModel.MusicFolder ?? "默认: /storage/emulated/0/Music";
+        // 音乐文件夹管理 → 二级页面
+        var btnFolders = view.FindViewById<View>(Resource.Id.btn_music_folders);
+        if (btnFolders != null)
+            btnFolders.SetOnClickListener(new ClickListener(() => nav.PushFragment("MusicFolderSettings")));
 
-        var btnPickFolder = view.FindViewById<Button>(Resource.Id.btn_pick_folder);
-        if (btnPickFolder != null)
-        {
-            btnPickFolder.Click += async (s, e) =>
-            {
-                var path = await FolderPicker.PickFolderAsync();
-                if (!string.IsNullOrWhiteSpace(path))
-                {
-                    _viewModel.MusicFolder = path;
-                    _folderPathText.Text = path;
-                }
-            };
-        }
+        // Navidrome 设置入口
+        var btnNavidrome = view.FindViewById<View>(Resource.Id.btn_navidrome);
+        if (btnNavidrome != null)
+            btnNavidrome.SetOnClickListener(new ClickListener(() => nav.PushFragment("NavidromeSettings")));
 
         return view;
     }

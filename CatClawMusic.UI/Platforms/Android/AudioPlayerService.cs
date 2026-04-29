@@ -40,7 +40,19 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         _mediaPlayer!.Reset();
         _isPrepared = false;
 
-        await _mediaPlayer.SetDataSourceAsync(filePathOrUrl);
+        // content:// URI 需要用 Context overload
+        if (filePathOrUrl.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+        {
+            var ctx = global::Android.App.Application.Context;
+            var uri = global::Android.Net.Uri.Parse(filePathOrUrl);
+            if (uri != null)
+                _mediaPlayer.SetDataSource(ctx, uri);
+        }
+        else
+        {
+            await _mediaPlayer.SetDataSourceAsync(filePathOrUrl);
+        }
+
         _mediaPlayer.SetVolume(_volume / 100f, _volume / 100f);
 
         var tcs = new TaskCompletionSource<bool>();
@@ -73,6 +85,18 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    public Task ResumeAsync()
+    {
+        if (_mediaPlayer != null && _isPrepared)
+        {
+            _mediaPlayer.Start();
+            AcquireWakeLock();
+            StartPositionTimer();
+            StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
+        }
+        return Task.CompletedTask;
+    }
+
     public Task StopAsync()
     {
         StopPositionTimer();
@@ -99,8 +123,16 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var pm = (PowerManager?)ctx.GetSystemService(global::Android.Content.Context.PowerService);
         if (pm != null)
         {
-            _wakeLock = pm.NewWakeLock(WakeLockFlags.Partial, "CatClawMusic:AudioPlayback");
-            _wakeLock.Acquire();
+            try
+            {
+                _wakeLock = pm.NewWakeLock(WakeLockFlags.Partial, "CatClawMusic:AudioPlayback");
+                _wakeLock?.Acquire();
+            }
+            catch (Java.Lang.SecurityException)
+            {
+                // WAKE_LOCK 权限在某些 ROM (如 MIUI) 上可能被拒绝，静默忽略
+                _wakeLock = null;
+            }
         }
     }
 

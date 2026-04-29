@@ -6,11 +6,15 @@
     <!-- 核心必选权限 -->
     <!-- ═══════════════════════════════════════ -->
 
-    <!-- Android 13+ 媒体权限（替代旧版存储权限，仅此即可读取所有音频） -->
+    <!-- Android 13+ 音频权限（声明保留，主流程走 MANAGE_EXTERNAL_STORAGE） -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33" />
 
-    <!-- Android 10-12 存储权限（MediaStore 读取音频/照片/视频） -->
+    <!-- Android 10-12 存储读写权限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+
+    <!-- Android 11+ 全文件管理权限（绕过 Scoped Storage，需用户手动去系统设置开启） -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" android:minSdkVersion="30" />
 
     <!-- 后台播放保活：前台服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -24,12 +28,6 @@
     <!-- ═══════════════════════════════════════ -->
     <!-- 功能可选权限 -->
     <!-- ═══════════════════════════════════════ -->
-
-    <!-- ===== 照片 & 视频 ===== -->
-    <!-- Android 13+ 细化媒体权限：照片 -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" android:minSdkVersion="33" />
-    <!-- Android 13+ 细化媒体权限：视频 -->
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" android:minSdkVersion="33" />
 
     <!-- 通知栏播放控制器 / 锁屏播放界面（Android 13+ 必须声明） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" android:minSdkVersion="33" />
@@ -48,7 +46,9 @@
         android:label="猫爪音乐"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:forceDarkAllowed="false">
+        android:forceDarkAllowed="false"
+        android:enableOnBackInvokedCallback="true"
+        android:requestLegacyExternalStorage="true">
         
         <!-- 前台服务（后台播放，适配 Android 14+） -->
         <service 

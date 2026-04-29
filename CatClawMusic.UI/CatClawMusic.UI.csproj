@@ -9,6 +9,8 @@
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
     <LangVersion>preview</LangVersion>
     <NoWarn>NU1605;NU1608</NoWarn>
+    <AndroidUseFastDeployment>False</AndroidUseFastDeployment>
+    <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
   </PropertyGroup>
 
   <ItemGroup>

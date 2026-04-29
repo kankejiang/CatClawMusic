@@ -1,42 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="@color/pageBackground">
 
-    <TextView android:id="@+id/title_text" android:layout_width="wrap_content"
-        android:layout_height="wrap_content" android:textSize="@dimen/font_xxlarge"
-        android:textColor="@color/textPrimary" android:text="@string/local_music"
-        android:layout_margin="16dp" style="@style/CatClawTitle" />
-
-    <LinearLayout android:id="@+id/tab_row" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:orientation="horizontal"
-        android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
-        <Button android:id="@+id/btn_local" android:layout_width="0dp"
-            android:layout_height="40dp" android:layout_weight="1" android:text="@string/local_music"
-            style="@style/CatClawButtonPrimary" android:layout_marginEnd="8dp" />
-        <Button android:id="@+id/btn_network" android:layout_width="0dp"
-            android:layout_height="40dp" android:layout_weight="1" android:text="@string/network_music"
-            style="@style/CatClawButtonSecondary" />
+    <!-- 顶部标题区 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:paddingHorizontal="16dp"
+        android:paddingTop="16dp" android:paddingBottom="8dp"
+        android:gravity="center_vertical">
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:textSize="22sp"
+            android:textColor="@color/textPrimary" android:fontFamily="@font/happy_zcool_2016"
+            android:text="📀 音乐库" />
     </LinearLayout>
 
+    <!-- Tab 切换：毛玻璃胶囊 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp" android:layout_marginBottom="12dp"
+        app:cardCornerRadius="16dp" app:cardElevation="0dp"
+        app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+        app:cardBackgroundColor="@color/cardBackground">
+        <LinearLayout android:id="@+id/tab_row" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="horizontal"
+            android:padding="4dp">
+            <Button android:id="@+id/btn_local" android:layout_width="0dp"
+                android:layout_height="36dp" android:layout_weight="1" android:text="@string/local_music"
+                style="@style/CatClawButtonPrimary" android:layout_marginEnd="4dp" />
+            <Button android:id="@+id/btn_network" android:layout_width="0dp"
+                android:layout_height="36dp" android:layout_weight="1" android:text="@string/network_music"
+                style="@style/CatClawButtonSecondary" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 歌曲列表 -->
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/song_list"
         android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:clipToPadding="false" android:paddingBottom="8dp" />
+        android:layout_weight="1" android:clipToPadding="false"
+        android:paddingTop="4dp" android:paddingBottom="8dp" />
 
+    <!-- 权限引导覆盖 -->
     <LinearLayout android:id="@+id/permission_overlay" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:orientation="vertical"
         android:padding="24dp" android:visibility="gone" android:gravity="center">
         <TextView android:id="@+id/permission_text" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:text="@string/permission_needed"
-            android:textSize="@dimen/font_large" android:textColor="@color/textPrimary"
+            android:textSize="16sp" android:textColor="@color/textPrimary"
             android:gravity="center" android:layout_marginBottom="12dp" />
         <Button android:id="@+id/btn_grant" android:layout_width="200dp"
             android:layout_height="48dp" android:text="@string/grant_permission"
             style="@style/CatClawButtonPrimary" />
     </LinearLayout>
 
+    <!-- 状态文本 -->
     <TextView android:id="@+id/status_text" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:textSize="@dimen/font_small"
+        android:layout_height="wrap_content" android:textSize="12sp"
         android:textColor="@color/textHint" android:gravity="center"
         android:padding="8dp" android:text="@string/scanning" />
 </LinearLayout>
