@@ -1,6 +1,8 @@
 using Android.OS;
 using Android.Views;
+using Android.Widget;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.UI.Platforms.Android;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,6 +11,7 @@ namespace CatClawMusic.UI.Fragments;
 public class SettingsFragment : Fragment
 {
     private SettingsViewModel _viewModel = null!;
+    private TextView _folderPathText = null!;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
@@ -16,7 +19,28 @@ public class SettingsFragment : Fragment
         _viewModel = MainApplication.Services.GetRequiredService<SettingsViewModel>();
 
         var nav = MainApplication.Services.GetRequiredService<Core.Interfaces.INavigationService>();
-        view.FindViewById<View>(Resource.Id.btn_test)?.SetOnClickListener(new ClickListener(() => nav.PushFragment("WebDavSettings")));
+
+        // WebDAV 设置入口
+        var btnWebDav = view.FindViewById<View>(Resource.Id.btn_test);
+        if (btnWebDav != null) btnWebDav.SetOnClickListener(new ClickListener(() => nav.PushFragment("WebDavSettings")));
+
+        // 音乐文件夹选择
+        _folderPathText = view.FindViewById<TextView>(Resource.Id.folder_path_text)!;
+        _folderPathText.Text = _viewModel.MusicFolder ?? "默认: /storage/emulated/0/Music";
+
+        var btnPickFolder = view.FindViewById<Button>(Resource.Id.btn_pick_folder);
+        if (btnPickFolder != null)
+        {
+            btnPickFolder.Click += async (s, e) =>
+            {
+                var path = await FolderPicker.PickFolderAsync();
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    _viewModel.MusicFolder = path;
+                    _folderPathText.Text = path;
+                }
+            };
+        }
 
         return view;
     }

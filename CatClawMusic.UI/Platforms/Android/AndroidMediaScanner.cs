@@ -34,13 +34,17 @@ public static class AndroidMediaScanner
                 MediaStore.Audio.Media.InterfaceConsts.AlbumId,
             };
 
-            var cursor = ctx.ContentResolver?.Query(uri, projection, null, null, null);
+            // 不使用 ContentResolver?.Query —— ctx 已判空，ContentResolver 不会为 null
+            var cursor = ctx.ContentResolver!.Query(uri, projection, null, null, null);
             if (cursor == null) return songs;
 
+            var count = 0;
             while (cursor.MoveToNext())
             {
+                count++;
                 var dataPath = cursor.GetString(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Data));
-                if (string.IsNullOrEmpty(dataPath) || !File.Exists(dataPath)) continue;
+                // 放宽检查：Android 10+ scoped storage 下 File.Exists 可能误判，只过滤空路径
+                if (string.IsNullOrEmpty(dataPath)) continue;
 
                 songs.Add(new Song
                 {
@@ -50,14 +54,16 @@ public static class AndroidMediaScanner
                     Duration = (int)(cursor.GetLong(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Duration)) / 1000),
                     FileSize = cursor.GetLong(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Size)),
                     FilePath = dataPath,
+                    LyricsPath = MusicUtility.FindLyricsFile(dataPath),
                     Source = SongSource.Local
                 });
             }
             cursor.Close();
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] MediaStore 扫描完成，找到 {count} 条记录，最终 {songs.Count} 首歌曲");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // MediaStore 不可用时降级到文件扫描
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] MediaStore 扫描异常: {ex.Message}");
         }
 
         return songs;
