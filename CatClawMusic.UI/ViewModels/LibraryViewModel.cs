@@ -54,25 +54,11 @@ public partial class LibraryViewModel : ObservableObject
         {
             var songs = await _musicLibrary.ScanLocalAsync(GetCustomFolders());
             foreach (var s in songs) Songs.Add(s);
-            if (Songs.Count > 0) { StatusText = $"🐱 共 {Songs.Count} 首歌曲"; return; }
-            StatusText = "未找到音乐";
-            if (_permission != null && !_hasRequestedPermission)
-            {
-                if (!await _permission.CheckStoragePermissionAsync())
-                {
-                    ShowPermissionRequest = true;
-                    PermissionText = _permission.GetPermissionStatus();
-                }
-            }
+            StatusText = Songs.Count > 0 ? $"🐱 共 {Songs.Count} 首歌曲" : "未找到音乐\n可前往设置选择音乐文件夹";
         }
         catch (Exception ex)
         {
             StatusText = $"扫描出错: {ex.Message}";
-            if (_permission != null && !_hasRequestedPermission && !await _permission.CheckStoragePermissionAsync())
-            {
-                ShowPermissionRequest = true;
-                PermissionText = _permission.GetPermissionStatus();
-            }
         }
         finally { IsLoading = false; }
     }
@@ -109,11 +95,22 @@ public partial class LibraryViewModel : ObservableObject
             ShowPermissionRequest = false;
             await LoadLocalAsync();
         }
+        else if (_permission.IsPermanentlyDenied())
+        {
+            PermissionText = "权限被永久拒绝\n请在系统设置中手动授权";
+            StatusText = "权限被拒绝";
+            _permission.OpenAppSettings();
+        }
         else
         {
-            PermissionText = "权限被拒绝，请在系统设置中手动授权";
+            PermissionText = "权限被拒绝，请重试或在系统设置中手动授权";
             StatusText = "权限被拒绝";
         }
+    }
+
+    public void OpenAppSettings()
+    {
+        _permission?.OpenAppSettings();
     }
 
     private List<string>? GetCustomFolders()

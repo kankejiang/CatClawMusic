@@ -6,6 +6,7 @@ using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Adapters;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
