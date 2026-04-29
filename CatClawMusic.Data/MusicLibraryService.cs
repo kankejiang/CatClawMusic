@@ -68,8 +68,10 @@ public class MusicLibraryService : IMusicLibraryService
 
         foreach (var song in distinct)
         {
-            try { await _db.SaveSongAsync(song); } catch { }
+            try { await _db.SaveSongAsync(song); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 保存歌曲失败: {song.FilePath}, {ex.Message}"); }
         }
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] 扫描完成: MediaStore+文件共 {allSongs.Count} 首, 去重后 {distinct.Count} 首, 全部入库");
 
         return distinct;
     }

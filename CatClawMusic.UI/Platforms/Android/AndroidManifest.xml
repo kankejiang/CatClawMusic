@@ -9,7 +9,7 @@
     <!-- Android 13+ 媒体权限（替代旧版存储权限，仅此即可读取所有音频） -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33" />
 
-    <!-- Android 10-12 存储权限（MediaStore 读取公共目录音频文件） -->
+    <!-- Android 10-12 存储权限（MediaStore 读取音频/照片/视频） -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <!-- 后台播放保活：前台服务 -->
@@ -24,6 +24,12 @@
     <!-- ═══════════════════════════════════════ -->
     <!-- 功能可选权限 -->
     <!-- ═══════════════════════════════════════ -->
+
+    <!-- ===== 照片 & 视频 ===== -->
+    <!-- Android 13+ 细化媒体权限：照片 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" android:minSdkVersion="33" />
+    <!-- Android 13+ 细化媒体权限：视频 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" android:minSdkVersion="33" />
 
     <!-- 通知栏播放控制器 / 锁屏播放界面（Android 13+ 必须声明） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" android:minSdkVersion="33" />

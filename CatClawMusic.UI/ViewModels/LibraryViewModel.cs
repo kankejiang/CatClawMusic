@@ -12,7 +12,6 @@ public partial class LibraryViewModel : ObservableObject
     private readonly INetworkMusicService? _networkMusic;
     private readonly IPermissionService? _permission;
     private string _currentTab = "Local";
-    private bool _hasRequestedPermission;
 
     public ObservableCollection<CoreModels.Song> Songs { get; } = new();
 
@@ -88,9 +87,8 @@ public partial class LibraryViewModel : ObservableObject
     private async Task OnRequestPermission()
     {
         if (_permission == null) return;
-        _hasRequestedPermission = true;
         StatusText = "正在请求权限...";
-        if (await _permission.RequestStoragePermissionAsync())
+        if (await _permission.RequestAllMediaPermissionsAsync())
         {
             ShowPermissionRequest = false;
             await LoadLocalAsync();

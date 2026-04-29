@@ -26,8 +26,9 @@ public class MainApplication : Application
 
         var services = new ServiceCollection();
 
-        // Database
+        // Database（删除旧库以重建 — 新加了 LyricsPath 列）
         string dbPath = Path.Combine(CacheDir!.AbsolutePath, "catclaw.db");
+        try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { }
         var database = new MusicDatabase(dbPath);
         services.AddSingleton(database);
 

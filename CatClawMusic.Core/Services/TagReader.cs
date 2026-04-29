@@ -38,6 +38,7 @@ public class TagReader
                 FileSize = fileInfo.Length,
                 Bitrate = props.AudioBitrate,
                 FilePath = filePath,
+                LyricsPath = MusicUtility.FindLyricsFile(filePath),
                 LastModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
 
@@ -52,6 +53,7 @@ public class TagReader
                 Artist = "未知艺术家",
                 Album = "未知专辑",
                 FilePath = filePath,
+                LyricsPath = MusicUtility.FindLyricsFile(filePath),
                 FileSize = fileInfo.Length,
                 LastModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };

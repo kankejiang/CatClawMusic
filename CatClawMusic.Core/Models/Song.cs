@@ -1,10 +1,14 @@
+using SQLite;
+
 namespace CatClawMusic.Core.Models;
 
 /// <summary>
 /// 歌曲模型
 /// </summary>
+[Table("Songs")]
 public class Song
 {
+    [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
     
     /// <summary>
@@ -51,6 +55,11 @@ public class Song
     /// 专辑封面路径（本地缓存路径）
     /// </summary>
     public string? CoverArtPath { get; set; }
+    
+    /// <summary>
+    /// 本地歌词文件路径（同目录同名 .lrc 文件）
+    /// </summary>
+    public string? LyricsPath { get; set; }
     
     /// <summary>
     /// 歌曲来源类型
