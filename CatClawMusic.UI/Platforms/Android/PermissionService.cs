@@ -26,10 +26,10 @@ public class PermissionService : IPermissionService
 
     public Task<bool> RequestStoragePermissionAsync()
     {
-        var activity = Platform.CurrentActivity;
+        var activity = MainActivity.Instance;
         if (activity == null)
         {
-            System.Diagnostics.Debug.WriteLine("[CatClaw] Platform.CurrentActivity is null!");
+            System.Diagnostics.Debug.WriteLine("[CatClaw] MainActivity.Instance is null!");
             return Task.FromResult(false);
         }
 
@@ -75,7 +75,7 @@ public class PermissionService : IPermissionService
     /// <summary>检查权限是否被永久拒绝（用户勾选了"不再询问"）</summary>
     public bool IsPermanentlyDenied()
     {
-        var activity = Platform.CurrentActivity;
+        var activity = MainActivity.Instance;
         if (activity == null) return false;
 
         var permission = Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu
@@ -89,7 +89,7 @@ public class PermissionService : IPermissionService
     /// <summary>打开应用系统设置页面（让用户手动授权）</summary>
     public void OpenAppSettings()
     {
-        var activity = Platform.CurrentActivity;
+        var activity = MainActivity.Instance;
         if (activity == null) return;
 
         var intent = new global::Android.Content.Intent(

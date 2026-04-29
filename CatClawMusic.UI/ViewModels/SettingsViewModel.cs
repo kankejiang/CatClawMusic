@@ -1,192 +1,100 @@
-using System;
-using System.Threading.Tasks;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
 using CatClawMusic.Core.Models;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using CoreConnectionProfile = CatClawMusic.Core.Models.ConnectionProfile;
 
 namespace CatClawMusic.UI.ViewModels;
 
-public class SettingsViewModel : BindableObject
+public partial class SettingsViewModel : ObservableObject
 {
     private readonly INetworkFileService? _networkService;
     private readonly MusicDatabase? _database;
+    private readonly IDialogService _dialogService;
 
-    private string _host = "";
-    private string _port = "5005";
-    private string _userName = "";
-    private string _password = "";
-    private string _basePath = "/";
-    private double _cacheSizeGB = 1;
-    private bool _onlyWiFiCache = true;
-
-    public string Host
-    {
-        get => _host;
-        set { _host = value; OnPropertyChanged(); }
-    }
-
-    public string Port
-    {
-        get => _port;
-        set { _port = value; OnPropertyChanged(); }
-    }
-
-    public string UserName
-    {
-        get => _userName;
-        set { _userName = value; OnPropertyChanged(); }
-    }
-
-    public string Password
-    {
-        get => _password;
-        set { _password = value; OnPropertyChanged(); }
-    }
-
-    public string BasePath
-    {
-        get => _basePath;
-        set { _basePath = value; OnPropertyChanged(); }
-    }
-
-    public double CacheSizeGB
-    {
-        get => _cacheSizeGB;
-        set
-        {
-            _cacheSizeGB = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(CacheSizeText));
-        }
-    }
+    [ObservableProperty] private string _host = "";
+    [ObservableProperty] private string _port = "5005";
+    [ObservableProperty] private string _userName = "";
+    [ObservableProperty] private string _password = "";
+    [ObservableProperty] private string _basePath = "/";
+    [ObservableProperty] private double _cacheSizeGB = 1;
+    [ObservableProperty] private bool _onlyWiFiCache = true;
+    [ObservableProperty] private string _musicFolder;
+    [ObservableProperty] private bool _isTesting;
+    [ObservableProperty] private string _statusText = "";
 
     public string CacheSizeText => $"{CacheSizeGB:F0} GB";
 
-    public bool OnlyWiFiCache
-    {
-        get => _onlyWiFiCache;
-        set { _onlyWiFiCache = value; OnPropertyChanged(); }
-    }
+    partial void OnCacheSizeGBChanged(double value) => OnPropertyChanged(nameof(CacheSizeText));
 
-    private string _musicFolder = Preferences.Get("music_folder", "");
-    public string MusicFolder
-    {
-        get => _musicFolder;
-        set { _musicFolder = value; OnPropertyChanged(); Preferences.Set("music_folder", value); }
-    }
+    public SettingsViewModel() : this(null, null, null!) { }
 
-    private bool _isTesting;
-    public bool IsTesting { get => _isTesting; set { _isTesting = value; OnPropertyChanged(); } }
-
-    private string _statusText = "";
-    public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-
-    public Command TestConnectionCommand { get; }
-    public Command SaveConnectionCommand { get; }
-    public Command ClearCacheCommand { get; }
-
-    public SettingsViewModel() : this(null, null) { }
-
-    public SettingsViewModel(INetworkFileService? networkService, MusicDatabase? database)
+    public SettingsViewModel(INetworkFileService? networkService, MusicDatabase? database, IDialogService dialogService)
     {
         _networkService = networkService;
         _database = database;
+        _dialogService = dialogService;
 
-        TestConnectionCommand = new Command(async () => await TestConnectionAsync());
-        SaveConnectionCommand = new Command(async () => await SaveConnectionAsync());
-        ClearCacheCommand = new Command(async () => await ClearCacheAsync());
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_prefs", global::Android.Content.FileCreationMode.Private)!;
+        _musicFolder = prefs.GetString("music_folder", "") ?? "";
     }
 
-    private async Task TestConnectionAsync()
+    partial void OnMusicFolderChanged(string value)
     {
-        if (_networkService == null)
-        {
-            await Shell.Current.DisplayAlert("错误", "网络服务未初始化", "确定");
-            return;
-        }
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_prefs", global::Android.Content.FileCreationMode.Private)!;
+        prefs.Edit()!.PutString("music_folder", value)!.Apply();
+    }
 
-        if (string.IsNullOrWhiteSpace(Host))
-        {
-            await Shell.Current.DisplayAlert("提示", "请输入主机地址", "确定");
-            return;
-        }
-
-        IsTesting = true;
-        StatusText = "正在测试连接...";
-
+    [RelayCommand]
+    private async Task TestConnection()
+    {
+        if (_networkService == null) { await _dialogService.ShowAlertAsync("错误", "网络服务未初始化"); return; }
+        if (string.IsNullOrWhiteSpace(Host)) { await _dialogService.ShowAlertAsync("提示", "请输入主机地址"); return; }
+        IsTesting = true; StatusText = "正在测试连接...";
         try
         {
-            var profile = BuildProfile();
-            var (success, message) = await _networkService.TestConnectionAsync(profile);
+            var (success, message) = await _networkService.TestConnectionAsync(BuildProfile());
             StatusText = message;
-            await Shell.Current.DisplayAlert(success ? "成功" : "失败", message, "确定");
+            await _dialogService.ShowAlertAsync(success ? "成功" : "失败", message);
         }
-        catch (Exception ex)
-        {
-            StatusText = "连接失败";
-            await Shell.Current.DisplayAlert("错误", $"连接测试失败: {ex.Message}", "确定");
-        }
-        finally
-        {
-            IsTesting = false;
-        }
+        catch (Exception ex) { StatusText = "连接失败"; await _dialogService.ShowAlertAsync("错误", $"连接测试失败: {ex.Message}"); }
+        finally { IsTesting = false; }
     }
 
-    private async Task SaveConnectionAsync()
+    [RelayCommand]
+    private async Task SaveConnection()
     {
-        if (_database == null)
-        {
-            await Shell.Current.DisplayAlert("错误", "数据库未初始化", "确定");
-            return;
-        }
-
+        if (_database == null) { await _dialogService.ShowAlertAsync("错误", "数据库未初始化"); return; }
         try
         {
-            var profile = BuildProfile();
             await _database.EnsureInitializedAsync();
-            await _database.SaveConnectionProfileAsync(profile);
+            await _database.SaveConnectionProfileAsync(BuildProfile());
             StatusText = "配置已保存";
-
-            await Shell.Current.DisplayAlert("成功", "连接配置已保存", "确定");
+            await _dialogService.ShowAlertAsync("成功", "连接配置已保存");
         }
-        catch (Exception ex)
-        {
-            StatusText = "保存失败";
-            await Shell.Current.DisplayAlert("错误", $"保存失败: {ex.Message}", "确定");
-        }
+        catch (Exception ex) { StatusText = "保存失败"; await _dialogService.ShowAlertAsync("错误", $"保存失败: {ex.Message}"); }
     }
 
-    private async Task ClearCacheAsync()
+    [RelayCommand]
+    private async Task ClearCache()
     {
         try
         {
-            var cacheDir = Path.Combine(FileSystem.CacheDirectory, "music_cache");
-            if (Directory.Exists(cacheDir))
-            {
-                Directory.Delete(cacheDir, true);
-            }
+            var cacheDir = Path.Combine(global::Android.App.Application.Context.CacheDir!.AbsolutePath, "music_cache");
+            if (Directory.Exists(cacheDir)) Directory.Delete(cacheDir, true);
             StatusText = "缓存已清除";
-            await Shell.Current.DisplayAlert("成功", "缓存已清除", "确定");
+            await _dialogService.ShowAlertAsync("成功", "缓存已清除");
         }
-        catch (Exception ex)
-        {
-            StatusText = "清除失败";
-            await Shell.Current.DisplayAlert("错误", $"清除缓存失败: {ex.Message}", "确定");
-        }
+        catch (Exception ex) { StatusText = "清除失败"; await _dialogService.ShowAlertAsync("错误", $"清除缓存失败: {ex.Message}"); }
     }
 
-    private CoreConnectionProfile BuildProfile()
+    private CoreConnectionProfile BuildProfile() => new()
     {
-        return new CoreConnectionProfile
-        {
-            Protocol = ProtocolType.WebDAV,
-            Host = Host.Trim(),
-            Port = int.TryParse(Port, out var p) ? p : 5005,
-            UserName = UserName,
-            Password = Password,
-            BasePath = BasePath,
-            IsEnabled = true
-        };
-    }
+        Protocol = ProtocolType.WebDAV, Host = Host.Trim(),
+        Port = int.TryParse(Port, out var p) ? p : 5005,
+        UserName = UserName, Password = Password, BasePath = BasePath, IsEnabled = true
+    };
 }

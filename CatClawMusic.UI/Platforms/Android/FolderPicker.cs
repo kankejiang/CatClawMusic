@@ -16,7 +16,7 @@ public static class FolderPicker
     /// <summary>打开系统文件夹选择器</summary>
     public static async Task<string?> PickFolderAsync()
     {
-        var activity = Platform.CurrentActivity;
+        var activity = MainActivity.Instance;
         if (activity == null) return null;
 
         _tcs = new TaskCompletionSource<string?>();

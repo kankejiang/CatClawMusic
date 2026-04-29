@@ -7,17 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
-
-  <!-- MauiSplashScreen：启动画面居中显示。360x640 约为手机屏幕 dp 尺寸，保持原图比例 -->
-  <ItemGroup>
-    <MauiSplashScreen Include="Resources\splash_catclawmusic_main.png" Color="#000000" BaseSize="360,640" />
-  </ItemGroup>
-
-  <!-- MauiIcon：应用图标 -->
-  <ItemGroup>
-    <MauiIcon Include="Resources\app_icon.png" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
@@ -26,7 +17,10 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-    <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <!-- Material 1.12.0 自带 AppCompat/CardView/RecyclerView，不要重复引用 -->
+    <PackageReference Include="Xamarin.AndroidX.Fragment" Version="1.8.4" />
+    <PackageReference Include="Xamarin.AndroidX.ConstraintLayout" Version="2.2.0" />
+    <PackageReference Include="Xamarin.Google.Android.Material" Version="1.12.0" />
   </ItemGroup>
 </Project>

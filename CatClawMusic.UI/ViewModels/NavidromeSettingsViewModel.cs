@@ -1,55 +1,40 @@
 using CatClawMusic.Data;
 using CatClawMusic.Core.Interfaces;
-using CoreProfile = CatClawMusic.Core.Models.ConnectionProfile;
 using CatClawMusic.Core.Models;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CoreProfile = CatClawMusic.Core.Models.ConnectionProfile;
 
 namespace CatClawMusic.UI.ViewModels;
 
-public class NavidromeSettingsViewModel : BindableObject
+public partial class NavidromeSettingsViewModel : ObservableObject
 {
     private readonly ISubsonicService? _subsonic;
     private readonly MusicDatabase? _database;
+    private readonly IDialogService _dialogService;
 
-    private string _name = "我的 Navidrome";
-    private string _host = "";
-    private string _port = "4533";
-    private string _userName = "";
-    private string _password = "";
-    private bool _useHttps;
+    [ObservableProperty] private string _name = "我的 Navidrome";
+    [ObservableProperty] private string _host = "";
+    [ObservableProperty] private string _port = "4533";
+    [ObservableProperty] private string _userName = "";
+    [ObservableProperty] private string _password = "";
+    [ObservableProperty] private bool _useHttps;
+    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _statusText = "";
 
-    public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
-    public string Host { get => _host; set { _host = value; OnPropertyChanged(); } }
-    public string Port { get => _port; set { _port = value; OnPropertyChanged(); } }
-    public string UserName { get => _userName; set { _userName = value; OnPropertyChanged(); } }
-    public string Password { get => _password; set { _password = value; OnPropertyChanged(); } }
-    public bool UseHttps { get => _useHttps; set { _useHttps = value; OnPropertyChanged(); } }
+    public NavidromeSettingsViewModel() : this(null, null, null!) { }
 
-    private bool _isBusy;
-    public bool IsBusy { get => _isBusy; set { _isBusy = value; OnPropertyChanged(); } }
-
-    private string _statusText = "";
-    public string StatusText { get => _statusText; set { _statusText = value; OnPropertyChanged(); } }
-
-    public Command TestCommand { get; }
-    public Command SaveCommand { get; }
-
-    public NavidromeSettingsViewModel() : this(null, null) { }
-
-    public NavidromeSettingsViewModel(ISubsonicService? subsonic, MusicDatabase? database)
+    public NavidromeSettingsViewModel(ISubsonicService? subsonic, MusicDatabase? database, IDialogService dialogService)
     {
         _subsonic = subsonic;
         _database = database;
-        TestCommand = new Command(async () => await TestAsync());
-        SaveCommand = new Command(async () => await SaveAsync());
+        _dialogService = dialogService;
     }
 
+    [RelayCommand]
     private async Task TestAsync()
     {
-        if (string.IsNullOrWhiteSpace(Host))
-        {
-            await Shell.Current.DisplayAlert("提示", "请输入服务器地址", "确定");
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(Host)) { await _dialogService.ShowAlertAsync("提示", "请输入服务器地址"); return; }
         IsBusy = true; StatusText = "正在测试...";
         try
         {
@@ -57,13 +42,14 @@ public class NavidromeSettingsViewModel : BindableObject
             {
                 var (ok, msg) = await _subsonic.PingAsync(BuildProfile());
                 StatusText = msg;
-                await Shell.Current.DisplayAlert(ok ? "成功" : "失败", msg, "确定");
+                await _dialogService.ShowAlertAsync(ok ? "成功" : "失败", msg);
             }
         }
-        catch (Exception ex) { StatusText = "失败"; await Shell.Current.DisplayAlert("错误", ex.Message, "确定"); }
+        catch (Exception ex) { StatusText = "失败"; await _dialogService.ShowAlertAsync("错误", ex.Message); }
         finally { IsBusy = false; }
     }
 
+    [RelayCommand]
     private async Task SaveAsync()
     {
         if (_database == null) return;
@@ -73,21 +59,16 @@ public class NavidromeSettingsViewModel : BindableObject
             await _database.EnsureInitializedAsync();
             await _database.SaveConnectionProfileAsync(BuildProfile());
             StatusText = "已保存";
-            await Shell.Current.DisplayAlert("成功", "Navidrome 配置已保存", "确定");
+            await _dialogService.ShowAlertAsync("成功", "Navidrome 配置已保存");
         }
-        catch (Exception ex) { StatusText = "失败"; await Shell.Current.DisplayAlert("错误", ex.Message, "确定"); }
+        catch (Exception ex) { StatusText = "失败"; await _dialogService.ShowAlertAsync("错误", ex.Message); }
         finally { IsBusy = false; }
     }
 
     private CoreProfile BuildProfile() => new()
     {
-        Name = Name,
-        Protocol = ProtocolType.Navidrome,
-        Host = Host.Trim(),
+        Name = Name, Protocol = ProtocolType.Navidrome, Host = Host.Trim(),
         Port = int.TryParse(Port, out var p) ? p : 4533,
-        UserName = UserName,
-        Password = Password,
-        UseHttps = UseHttps,
-        IsEnabled = true
+        UserName = UserName, Password = Password, UseHttps = UseHttps, IsEnabled = true
     };
 }

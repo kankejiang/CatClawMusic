@@ -1,0 +1,21 @@
+<resources>
+    <color name="pageBackground">#FFF5F7</color>
+    <color name="cardBackground">#FFFFFF</color>
+    <color name="cardBorder">#F5E6ED</color>
+    <color name="primaryColor">#FF7BAC</color>
+    <color name="primaryLight">#FFB3D0</color>
+    <color name="primaryDark">#E8588E</color>
+    <color name="primaryGlow">#FFD4E5</color>
+    <color name="secondaryColor">#C4A7E7</color>
+    <color name="secondaryLight">#E8D5F5</color>
+    <color name="accentColor">#98D8C8</color>
+    <color name="accentLight">#C5F0E5</color>
+    <color name="textPrimary">#4A3728</color>
+    <color name="textSecondary">#8B7355</color>
+    <color name="textHint">#C4B5A5</color>
+    <color name="successColor">#90D5AC</color>
+    <color name="warningColor">#FFC97A</color>
+    <color name="errorColor">#FF8A8A</color>
+    <color name="tabActive">#FF7BAC</color>
+    <color name="tabInactive">#D4C5C9</color>
+</resources>

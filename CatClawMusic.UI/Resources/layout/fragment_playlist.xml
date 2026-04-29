@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/pageBackground"
+    android:padding="16dp">
+    <TextView android:id="@+id/title_text" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:text="@string/tab_playlist"
+        style="@style/CatClawTitle" android:layout_marginBottom="12dp" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/playlist_list"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <TextView android:id="@+id/empty_text" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:gravity="center" android:visibility="gone"
+        android:text="暂无播放列表" android:textColor="@color/textHint" android:textSize="@dimen/font_large" />
+</LinearLayout>

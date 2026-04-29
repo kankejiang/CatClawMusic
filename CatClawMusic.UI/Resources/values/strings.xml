@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">猫爪音乐</string>
+    <string name="tab_library">音乐库</string>
+    <string name="tab_playlist">播放列表</string>
+    <string name="tab_search">搜索</string>
+    <string name="tab_settings">设置</string>
+    <string name="local_music">本地音乐</string>
+    <string name="network_music">网络音乐</string>
+    <string name="now_playing">正在播放</string>
+    <string name="playlist_detail">播放列表</string>
+    <string name="webdav_settings">WebDAV 设置</string>
+    <string name="navidrome_settings">Navidrome 设置</string>
+    <string name="cache_settings">缓存设置</string>
+    <string name="permission_needed">需要权限</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="no_songs">没有歌曲</string>
+    <string name="no_results">没有结果</string>
+    <string name="scanning">正在扫描…</string>
+    <string name="refresh">刷新</string>
+    <string name="clear_cache">清除缓存</string>
+</resources>
