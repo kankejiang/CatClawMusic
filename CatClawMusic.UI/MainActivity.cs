@@ -1,9 +1,11 @@
+using Android.Content.PM;
 using Android.OS;
 using Android.Views;
 using AndroidX.AppCompat.App;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Fragments;
+using CatClawMusic.UI.Platforms.Android;
 using CatClawMusic.UI.Services;
 using Google.Android.Material.BottomNavigation;
 using Google.Android.Material.Navigation;
@@ -129,5 +131,11 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
     {
         if (Instance == this) Instance = null!;
         base.OnDestroy();
+    }
+
+    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
+    {
+        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+        PermissionService.HandlePermissionResult(requestCode, grantResults);
     }
 }

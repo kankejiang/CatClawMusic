@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
     <LangVersion>preview</LangVersion>
+    <NoWarn>NU1605;NU1608</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,5 +23,8 @@
     <PackageReference Include="Xamarin.AndroidX.Fragment" Version="1.8.4" />
     <PackageReference Include="Xamarin.AndroidX.ConstraintLayout" Version="2.2.0" />
     <PackageReference Include="Xamarin.Google.Android.Material" Version="1.12.0" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData.Core" Version="2.8.7" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Process" Version="2.8.7" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Common" Version="2.8.7" />
   </ItemGroup>
 </Project>
