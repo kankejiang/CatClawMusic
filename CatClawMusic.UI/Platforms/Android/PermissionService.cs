@@ -16,16 +16,19 @@ public class PermissionService : IPermissionService
 
     public Task<bool> CheckStoragePermissionAsync()
     {
+#pragma warning disable CA1416 // 运行时已做版本检查
         var ctx = global::Android.App.Application.Context;
         var permission = Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu
             ? Manifest.Permission.ReadMediaAudio
             : Manifest.Permission.ReadExternalStorage;
 
         return Task.FromResult(ctx.CheckSelfPermission(permission) == Permission.Granted);
+#pragma warning restore CA1416
     }
 
     public Task<bool> RequestStoragePermissionAsync()
     {
+#pragma warning disable CA1416 // 运行时已做版本检查
         var activity = MainActivity.Instance;
         if (activity == null)
         {
@@ -45,6 +48,7 @@ public class PermissionService : IPermissionService
 
         System.Diagnostics.Debug.WriteLine($"[CatClaw] Requesting permission: {permission}");
         activity.RequestPermissions(new[] { permission }, 1001);
+#pragma warning restore CA1416
 
         return tcs.Task;
     }
@@ -63,6 +67,7 @@ public class PermissionService : IPermissionService
 
     public string GetPermissionStatus()
     {
+#pragma warning disable CA1416 // 运行时已做版本检查
         var ctx = global::Android.App.Application.Context;
         var (perm, label) = Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu
             ? (Manifest.Permission.ReadMediaAudio, "\"音乐和音频\"")
@@ -70,11 +75,13 @@ public class PermissionService : IPermissionService
 
         var granted = ctx.CheckSelfPermission(perm) == Permission.Granted;
         return granted ? "已授权" : $"需要{label}权限来访问音乐文件夹";
+#pragma warning restore CA1416
     }
 
     /// <summary>检查权限是否被永久拒绝（用户勾选了"不再询问"）</summary>
     public bool IsPermanentlyDenied()
     {
+#pragma warning disable CA1416 // 运行时已做版本检查
         var activity = MainActivity.Instance;
         if (activity == null) return false;
 
@@ -84,6 +91,7 @@ public class PermissionService : IPermissionService
 
         return activity.CheckSelfPermission(permission) != Permission.Granted
                && !activity.ShouldShowRequestPermissionRationale(permission);
+#pragma warning restore CA1416
     }
 
     /// <summary>打开应用系统设置页面（让用户手动授权）</summary>

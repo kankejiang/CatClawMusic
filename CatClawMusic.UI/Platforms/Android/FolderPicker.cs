@@ -42,8 +42,8 @@ public static class FolderPicker
             try
             {
                 var flags = data.Flags & ActivityFlags.GrantReadUriPermission;
-                if (flags != 0)
-                    ctx.ContentResolver?.TakePersistableUriPermission(uri, flags);
+                if (flags != 0 && ctx.ContentResolver != null)
+                    ctx.ContentResolver.TakePersistableUriPermission(uri, flags);
             }
             catch { }
 

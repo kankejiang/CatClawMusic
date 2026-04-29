@@ -41,7 +41,7 @@ public partial class LibraryViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task Refresh() => _ = _currentTab == "Local" ? await LoadLocalAsync() : await LoadNetworkAsync();
+    private async Task Refresh() => await (_currentTab == "Local" ? LoadLocalAsync() : LoadNetworkAsync());
 
     [RelayCommand]
     private async Task RequestPermission() => await OnRequestPermission();

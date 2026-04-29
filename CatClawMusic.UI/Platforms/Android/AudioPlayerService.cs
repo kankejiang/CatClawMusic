@@ -26,7 +26,8 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         set
         {
             _volume = Math.Clamp(value, 0, 100);
-            _mediaPlayer?.SetVolume(_volume / 100f, _volume / 100f);
+            if (_mediaPlayer != null)
+                _mediaPlayer.SetVolume(_volume / 100f, _volume / 100f);
         }
     }
 
@@ -65,7 +66,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
     public Task PauseAsync()
     {
-        _mediaPlayer?.Pause();
+        if (_mediaPlayer != null) _mediaPlayer.Pause();
         StopPositionTimer();
         ReleaseWakeLock();
         StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
@@ -75,8 +76,11 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     public Task StopAsync()
     {
         StopPositionTimer();
-        _mediaPlayer?.Stop();
-        _mediaPlayer?.Reset();
+        if (_mediaPlayer != null)
+        {
+            _mediaPlayer.Stop();
+            _mediaPlayer.Reset();
+        }
         ReleaseWakeLock();
         StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
         return Task.CompletedTask;

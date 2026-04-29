@@ -21,6 +21,7 @@ public static class AndroidMediaScanner
             if (ctx == null) return songs;
 
             var uri = MediaStore.Audio.Media.ExternalContentUri;
+            if (uri == null) return songs;
             var projection = new[]
             {
                 MediaStore.Audio.Media.InterfaceConsts.Id,

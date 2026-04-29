@@ -25,8 +25,11 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
-        Instance = this;
+        // 从启动画面主题切换到 Material3 主主题，否则 BottomNavigationView 等 Material 组件无法加载
+        SetTheme(Resource.Style.CatClawTheme);
         base.OnCreate(savedInstanceState);
+
+        Instance = this;
 
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
         _ = db.EnsureInitializedAsync();
@@ -88,7 +91,9 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
         _bottomNav.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
     }
 
+#pragma warning disable CA1422
     public override void OnBackPressed()
+#pragma warning restore CA1422
     {
         if (SupportFragmentManager.BackStackEntryCount > 0)
         {
