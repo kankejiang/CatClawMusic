@@ -138,4 +138,10 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
         base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
         PermissionService.HandlePermissionResult(requestCode, grantResults);
     }
+
+    protected override void OnActivityResult(int requestCode, Result resultCode, Android.Content.Intent? data)
+    {
+        base.OnActivityResult(requestCode, resultCode, data);
+        FolderPicker.HandleResult(requestCode, resultCode, data);
+    }
 }

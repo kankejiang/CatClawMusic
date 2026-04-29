@@ -53,6 +53,11 @@ public class Song
     public string? CoverArtPath { get; set; }
     
     /// <summary>
+    /// 本地歌词文件路径（同目录同名 .lrc 文件）
+    /// </summary>
+    public string? LyricsPath { get; set; }
+    
+    /// <summary>
     /// 歌曲来源类型
     /// </summary>
     public SongSource Source { get; set; } = SongSource.Local;

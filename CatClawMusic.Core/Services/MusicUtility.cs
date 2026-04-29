@@ -82,6 +82,34 @@ public static class MusicUtility
         return results;
     }
 
+    /// <summary>
+    /// 在同目录下查找与音频文件同名的 .lrc 歌词文件
+    /// </summary>
+    public static string? FindLyricsFile(string audioFilePath)
+    {
+        if (string.IsNullOrEmpty(audioFilePath)) return null;
+        var dir = Path.GetDirectoryName(audioFilePath);
+        var name = Path.GetFileNameWithoutExtension(audioFilePath);
+        if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name)) return null;
+
+        // 精确匹配 song.lrc
+        var exact = Path.Combine(dir, name + ".lrc");
+        if (File.Exists(exact)) return exact;
+
+        // 模糊匹配 song*.lrc
+        try
+        {
+            foreach (var f in Directory.GetFiles(dir, "*.lrc"))
+            {
+                var lrcName = Path.GetFileNameWithoutExtension(f);
+                if (lrcName.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+                    return f;
+            }
+        }
+        catch { }
+        return null;
+    }
+
     private static void ScanDirectoryRecursive(DirectoryInfo dir, List<string> results)
     {
         if (!dir.Exists) return;

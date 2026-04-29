@@ -12,7 +12,6 @@ public partial class LibraryViewModel : ObservableObject
     private readonly INetworkMusicService? _networkMusic;
     private readonly IPermissionService? _permission;
     private string _currentTab = "Local";
-    private bool _hasRequestedPermission;
 
     public ObservableCollection<CoreModels.Song> Songs { get; } = new();
 
