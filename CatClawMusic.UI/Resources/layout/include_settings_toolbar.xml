@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置子页面通用顶部栏：返回按钮 + 标题 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="48dp"
+    android:orientation="horizontal" android:gravity="center_vertical"
+    android:paddingHorizontal="4dp">
+
+    <ImageButton android:id="@+id/btn_back" android:layout_width="40dp"
+        android:layout_height="40dp" android:src="@drawable/ic_arrow_back"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:tint="@color/textPrimary" />
+
+    <TextView android:id="@+id/toolbar_title" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:textSize="16sp"
+        android:fontFamily="sans-serif-medium" android:textColor="@color/textPrimary" />
+</LinearLayout>

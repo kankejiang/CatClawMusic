@@ -22,21 +22,33 @@
                 android:fontFamily="@font/happy_zcool_2016" />
         </LinearLayout>
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/fragment_container"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+        <FrameLayout android:layout_width="match_parent"
+            android:layout_height="0dp" android:layout_weight="1">
+
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/view_pager"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <androidx.fragment.app.FragmentContainerView
+                android:id="@+id/overlay_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+        </FrameLayout>
 
         <!-- 迷你播放器 -->
+        <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp" android:layout_marginBottom="4dp"
+            android:visibility="gone" android:id="@+id/mini_player_wrapper">
+
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/mini_player"
             android:layout_width="match_parent" android:layout_height="64dp"
-            android:layout_marginHorizontal="12dp" android:layout_marginBottom="4dp"
-            android:visibility="gone" android:clickable="true"
+            android:clickable="true"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeWidth="0dp"
+            app:cardBackgroundColor="#F8F4FC">
             <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
                 android:orientation="horizontal" android:gravity="center_vertical"
                 android:paddingHorizontal="12dp">
@@ -70,6 +82,14 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 迷你进度条 -->
+        <View android:id="@+id/mini_progress"
+            android:layout_width="0dp" android:layout_height="2dp"
+            android:layout_gravity="bottom"
+            android:background="@color/primaryColor" />
+
+        </FrameLayout>
+
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_navigation"
             android:layout_width="match_parent"
@@ -97,7 +117,9 @@
         <View android:id="@+id/side_panel_mask"
             android:layout_width="0dp" android:layout_height="match_parent"
             android:layout_weight="0.2"
-            android:background="#60000000" />
+            android:background="#60000000"
+            android:clickable="true"
+            android:focusable="true" />
     </LinearLayout>
 
 </FrameLayout>

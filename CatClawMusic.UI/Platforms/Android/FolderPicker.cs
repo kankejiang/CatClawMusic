@@ -61,6 +61,16 @@ public static class FolderPicker
         return uris.Count > 0 ? uris[0] : null;
     }
 
+    public static void RemoveSavedFolder(string uri)
+    {
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private)!;
+        var list = prefs.GetString(PrefKeyList, null);
+        if (string.IsNullOrEmpty(list)) return;
+        var folders = list.Split('|').Where(f => f != uri).ToList();
+        prefs.Edit()!.PutString(PrefKeyList, string.Join("|", folders))!.Apply();
+    }
+
     /// <summary>清空所有文件夹</summary>
     public static void ClearFolders()
     {

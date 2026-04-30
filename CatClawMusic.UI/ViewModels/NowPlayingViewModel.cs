@@ -18,15 +18,17 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IMainThreadDispatcher _dispatcher;
     private LrcLyrics? _currentLyrics;
     private bool _isPositionUpdating;
+    private int _saveCounter; // 定时保存计数器
 
     [ObservableProperty] private Song? _currentSong;
     [ObservableProperty] private string _coverSource = "";
+    [ObservableProperty] private string _prevLyricLine = "";
     [ObservableProperty] private string _currentLyricLine = "🐾 猫爪音乐";
     [ObservableProperty] private string _nextLyricLine = "选择一首歌曲开始播放吧~";
     [ObservableProperty] private TimeSpan _currentPosition;
     [ObservableProperty] private TimeSpan _totalDuration;
     [ObservableProperty] private string _playPauseIcon = "▶";
-    [ObservableProperty] private string _playModeIcon = "🔁";
+    [ObservableProperty] private string _playModeIcon = "🔁"; // 默认列表循环
     [ObservableProperty] private string _likeIcon = "🤍";
     [ObservableProperty] private bool _isLiked;
     [ObservableProperty] private int _volume = 80;
@@ -57,6 +59,13 @@ public partial class NowPlayingViewModel : ObservableObject
         _audioPlayer.PositionChanged += OnPositionChanged;
     }
 
+    /// <summary>恢复上次播放（供 PlaybackStateManager 调用）</summary>
+    public void SetCurrentSong(Song song)
+    {
+        CurrentSong = song;
+        UpdateQueuePeek();
+    }
+
     [RelayCommand]
     private void PlayPause()
     {
@@ -79,18 +88,24 @@ public partial class NowPlayingViewModel : ObservableObject
     private void Previous() { var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
     [RelayCommand]
-    private void TogglePlayMode()
+    private void CyclePlayMode()
     {
-        _playQueue.PlayMode = _playQueue.PlayMode switch { PlayMode.Sequential => PlayMode.Shuffle, PlayMode.Shuffle => PlayMode.SingleRepeat, PlayMode.SingleRepeat => PlayMode.ListRepeat, PlayMode.ListRepeat => PlayMode.Sequential, _ => PlayMode.Sequential };
-        PlayModeIcon = _playQueue.PlayMode switch { PlayMode.Sequential => "➡️", PlayMode.Shuffle => "🔀", PlayMode.SingleRepeat => "🔂", PlayMode.ListRepeat => "🔁", _ => "🔁" };
-    }
-
-    [RelayCommand]
-    private void ToggleShuffle()
-    {
-        _playQueue.PlayMode = _playQueue.PlayMode == PlayMode.Shuffle ? PlayMode.Sequential : PlayMode.Shuffle;
+        // 循环切换：🔁列表循环 → 🔂单曲循环 → 🔀随机播放
+        _playQueue.PlayMode = _playQueue.PlayMode switch
+        {
+            PlayMode.ListRepeat => PlayMode.SingleRepeat,
+            PlayMode.SingleRepeat => PlayMode.Shuffle,
+            PlayMode.Shuffle => PlayMode.ListRepeat,
+            _ => PlayMode.ListRepeat
+        };
         if (_playQueue.PlayMode == PlayMode.Shuffle) _playQueue.EnableShuffle();
-        PlayModeIcon = _playQueue.PlayMode == PlayMode.Shuffle ? "🔀" : "➡️";
+        PlayModeIcon = _playQueue.PlayMode switch
+        {
+            PlayMode.ListRepeat => "🔁",
+            PlayMode.SingleRepeat => "🔂",
+            PlayMode.Shuffle => "🔀",
+            _ => "➡️"
+        };
         UpdateQueuePeek();
     }
 
@@ -112,8 +127,7 @@ public partial class NowPlayingViewModel : ObservableObject
         var queueSong = _playQueue.CurrentSong;
         if (queueSong != null && (CurrentSong == null || CurrentSong.Id != queueSong.Id))
         {
-            _currentSong = queueSong;
-            OnPropertyChanged(nameof(CurrentSong));
+            CurrentSong = queueSong;
             _ = LoadLyricsAsync(queueSong);
             _ = LoadCoverAsync(queueSong);
             UpdateQueuePeek();
@@ -157,7 +171,9 @@ public partial class NowPlayingViewModel : ObservableObject
         try
         {
             var ctx = global::Android.App.Application.Context;
-            using var stream = ctx.ContentResolver!.OpenInputStream(global::Android.Net.Uri.Parse(uri));
+            var parsedUri = global::Android.Net.Uri.Parse(uri);
+            if (parsedUri == null) return null;
+            using var stream = ctx.ContentResolver!.OpenInputStream(parsedUri);
             if (stream == null) return null;
 
             var abstraction = new CatClawMusic.Core.Services.ReadOnlyFileAbstraction(uri, stream);
@@ -200,10 +216,14 @@ public partial class NowPlayingViewModel : ObservableObject
                 if (idx >= 0 && idx < _currentLyrics.Lines.Count)
                 {
                     CurrentLyricLine = _currentLyrics.Lines[idx].Text;
+                    PrevLyricLine = idx > 0 ? _currentLyrics.Lines[idx - 1].Text : "";
                     NextLyricLine = idx + 1 < _currentLyrics.Lines.Count ? _currentLyrics.Lines[idx + 1].Text : "";
                 }
             }
             _isPositionUpdating = false;
+            // 每 ~5 秒保存一次播放位置（500ms 定时器 × 10）
+            if (++_saveCounter % 10 == 0)
+                CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer);
         });
     }
 
@@ -218,12 +238,12 @@ public partial class NowPlayingViewModel : ObservableObject
     private async Task RecordPlayAsync()
     {
         if (_database == null || CurrentSong == null) return;
-        try { await _database.EnsureInitializedAsync(); await _database.UpdatePlaybackStatsAsync(CurrentSong.Id); await _database.RecordRecentPlayAsync(CurrentSong.Id); } catch { }
+        try { await _database.EnsureInitializedAsync(); await _database.RecordPlayAsync(CurrentSong.Id); } catch { }
     }
 
     private async Task SaveFavoriteAsync()
     {
         if (_database == null || CurrentSong == null) return;
-        try { await _database.EnsureInitializedAsync(); await _database.UpdatePlaybackStatsAsync(CurrentSong.Id, isLiked: IsLiked, isComplete: true); } catch { }
+        try { await _database.EnsureInitializedAsync(); await _database.SetFavoriteAsync(CurrentSong.Id, IsLiked); } catch { }
     }
 }

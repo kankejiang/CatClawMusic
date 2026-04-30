@@ -6,18 +6,19 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
-public class WebDavSettingsFragment : Fragment
+public class WebDavSettingsFragment : SettingsSubPageFragment
 {
     private WebDavSettingsViewModel _viewModel = null!;
     private EditText _etHost = null!, _etPort = null!;
     private Button _btnTest = null!;
 
+    protected override string GetTitle() => "WebDAV 设置";
+
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_webdav_settings, container, false)!;
 
-    public override void OnViewCreated(View view, Bundle? state)
+    protected override void OnSubViewCreated(View view, Bundle? state)
     {
-        base.OnViewCreated(view, state);
         _viewModel = MainApplication.Services.GetRequiredService<WebDavSettingsViewModel>();
 
         _etHost = view.FindViewById<EditText>(Resource.Id.et_host)!;

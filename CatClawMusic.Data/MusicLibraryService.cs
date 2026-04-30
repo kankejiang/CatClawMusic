@@ -68,11 +68,17 @@ public class MusicLibraryService : IMusicLibraryService
 
         foreach (var song in distinct)
         {
-            try { await _db.SaveSongAsync(song); }
+            try
+            {
+                // 填充 artist_id / album_id
+                song.ArtistId = await _db.EnsureArtistAsync(song.Artist);
+                song.AlbumId = await _db.EnsureAlbumAsync(song.Album, song.ArtistId);
+                song.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                await _db.SaveSongAsync(song);
+            }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 保存歌曲失败: {song.FilePath}, {ex.Message}"); }
         }
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] 扫描完成: MediaStore+文件共 {allSongs.Count} 首, 去重后 {distinct.Count} 首, 全部入库");
-
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] 扫描完成: {distinct.Count} 首入库");
         return distinct;
     }
 
@@ -130,4 +136,8 @@ public class MusicLibraryService : IMusicLibraryService
             .Select(g => new Album { Name = g.Key, Artist = g.First().Artist, SongCount = g.Count() })
             .ToList();
     }
+
+    public Task<int> EnsureArtistAsync(string name) => _db.EnsureArtistAsync(name);
+    public Task<int> EnsureAlbumAsync(string title, int artistId) => _db.EnsureAlbumAsync(title, artistId);
+    public async Task<int> SaveSongAsync(Song song) { await _db.EnsureInitializedAsync(); return await _db.SaveSongAsync(song); }
 }

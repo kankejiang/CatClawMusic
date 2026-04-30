@@ -1,34 +1,26 @@
+using SQLite;
+
 namespace CatClawMusic.Core.Models;
 
-/// <summary>
-/// 专辑模型
-/// </summary>
+[Table("Albums")]
 public class Album
 {
+    [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
-    
-    /// <summary>
-    /// 专辑名称
-    /// </summary>
+
+    [NotNull]
+    public string Title { get; set; } = string.Empty;
+
+    // 旧字段兼容
     public string Name { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// 艺术家
-    /// </summary>
     public string Artist { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// 专辑封面路径
-    /// </summary>
     public string? CoverArtPath { get; set; }
-    
-    /// <summary>
-    /// 歌曲数量
-    /// </summary>
     public int SongCount { get; set; }
-    
-    /// <summary>
-    /// 年份
-    /// </summary>
-    public int Year { get; set; }
+    public int? Year { get; set; }
+
+    [Indexed]
+    public int ArtistId { get; set; }
+
+    public string? Cover { get; set; }
+    public int? ReleaseYear { get; set; }
 }

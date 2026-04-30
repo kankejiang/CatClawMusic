@@ -15,9 +15,12 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private System.Timers.Timer? _positionTimer;
     private int _volume = 100;
     private PowerManager.WakeLock? _wakeLock;
+    private string? _currentPath;
 
     public bool IsPlaying => _mediaPlayer?.IsPlaying ?? false;
-    public TimeSpan Position => TimeSpan.FromMilliseconds(_mediaPlayer?.CurrentPosition ?? 0);
+    public string? CurrentSongFilePath => _currentPath;
+    public int AudioSessionId => _mediaPlayer?.AudioSessionId ?? 0;
+    public TimeSpan CurrentPosition => TimeSpan.FromMilliseconds(_mediaPlayer?.CurrentPosition ?? 0);
     public TimeSpan Duration => TimeSpan.FromMilliseconds(_mediaPlayer?.Duration ?? 0);
 
     public int Volume
@@ -33,10 +36,14 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
     public event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
     public event EventHandler<TimeSpan>? PositionChanged;
+#pragma warning disable CS0067
+    public event Action<byte[]>? PcmDataAvailable;
+#pragma warning restore CS0067
 
     public async Task PlayAsync(string filePathOrUrl)
     {
         EnsurePlayer();
+        _currentPath = filePathOrUrl;
         _mediaPlayer!.Reset();
         _isPrepared = false;
 
@@ -196,7 +203,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private void OnPositionTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (_mediaPlayer != null && _isPrepared)
-            PositionChanged?.Invoke(this, Position);
+            PositionChanged?.Invoke(this, CurrentPosition);
     }
 
     public void Dispose()

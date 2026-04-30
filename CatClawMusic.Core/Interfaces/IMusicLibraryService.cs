@@ -51,4 +51,13 @@ public interface IMusicLibraryService
     /// 获取所有专辑
     /// </summary>
     Task<List<Album>> GetAllAlbumsAsync();
+
+    /// <summary>确保艺术家存在，返回 ID</summary>
+    Task<int> EnsureArtistAsync(string name);
+
+    /// <summary>确保专辑存在，返回 ID</summary>
+    Task<int> EnsureAlbumAsync(string title, int artistId);
+
+    /// <summary>保存歌曲（去重），返回影响行数</summary>
+    Task<int> SaveSongAsync(Song song);
 }

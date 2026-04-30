@@ -28,10 +28,14 @@ public class TagReader
                     ? tag.FirstPerformer
                     : tag.FirstAlbumArtist ?? "未知艺术家",
                 Album = tag.Album ?? "未知专辑",
+                AlbumId = 0,
                 Duration = (int)props.Duration.TotalSeconds,
                 FileSize = fileSize > 0 ? fileSize : stream.Length,
                 Bitrate = props.AudioBitrate,
-                FilePath = uri, // 保存 content:// URI 用于播放
+                Year = (int)(tag.Year != 0 ? tag.Year : 0),
+                TrackNumber = (int)(tag.Track != 0 ? tag.Track : 0),
+                Genre = !string.IsNullOrEmpty(tag.FirstGenre) ? tag.FirstGenre : null,
+                FilePath = uri,
                 Source = SongSource.Local
             };
         }
@@ -42,6 +46,7 @@ public class TagReader
                 Title = Path.GetFileNameWithoutExtension(displayName),
                 Artist = "未知艺术家",
                 Album = "未知专辑",
+                AlbumId = 0,
                 FilePath = uri,
                 FileSize = fileSize > 0 ? fileSize : stream.Length,
                 Source = SongSource.Local
@@ -78,7 +83,7 @@ public class TagReader
                 Bitrate = props.AudioBitrate,
                 FilePath = filePath,
                 LyricsPath = MusicUtility.FindLyricsFile(filePath),
-                LastModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
+                DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
 
             return song;
@@ -94,7 +99,7 @@ public class TagReader
                 FilePath = filePath,
                 LyricsPath = MusicUtility.FindLyricsFile(filePath),
                 FileSize = fileInfo.Length,
-                LastModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
+                DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
         }
     }

@@ -40,7 +40,7 @@ public class SearchFragment : Fragment
             queue.SetSongs(_viewModel.SearchResults);
             queue.SelectSong(song.Id);
             _ = MainApplication.Services.GetRequiredService<Core.Interfaces.IAudioPlayerService>().PlayAsync(song.FilePath);
-            MainApplication.Services.GetRequiredService<Core.Interfaces.INavigationService>().PushFragment("NowPlaying");
+            MainApplication.Services.GetRequiredService<Core.Interfaces.INavigationService>().SwitchTab(0);
         };
         _resultsList.SetAdapter(_adapter);
 

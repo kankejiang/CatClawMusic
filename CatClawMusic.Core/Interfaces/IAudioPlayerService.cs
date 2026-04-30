@@ -34,11 +34,20 @@ public interface IAudioPlayerService
     /// 是否正在播放
     /// </summary>
     bool IsPlaying { get; }
+
+    /// <summary>当前播放的歌曲文件路径</summary>
+    string? CurrentSongFilePath { get; }
+
+    /// <summary>音频会话 ID（用于 Visualizer 绑定）</summary>
+    int AudioSessionId { get; }
+
+    /// <summary>PCM 数据回调（原始音频字节，供频谱分析用）</summary>
+    event Action<byte[]>? PcmDataAvailable;
     
     /// <summary>
     /// 当前播放位置
     /// </summary>
-    TimeSpan Position { get; }
+    TimeSpan CurrentPosition { get; }
     
     /// <summary>
     /// 歌曲总时长

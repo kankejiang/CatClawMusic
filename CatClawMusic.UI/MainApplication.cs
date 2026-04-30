@@ -26,8 +26,13 @@ public class MainApplication : Application
 
         var services = new ServiceCollection();
 
-        // Database
+        // Database（v3 新模型：artists/albums 关系表）
         string dbPath = Path.Combine(CacheDir!.AbsolutePath, "catclaw.db");
+        if (!File.Exists(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v3.marker")))
+        {
+            try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { }
+            File.WriteAllText(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v3.marker"), "1");
+        }
         var database = new MusicDatabase(dbPath);
         services.AddSingleton(database);
 
@@ -53,7 +58,6 @@ public class MainApplication : Application
         services.AddTransient<SearchViewModel>();
         services.AddTransient<PlaylistViewModel>();
         services.AddTransient<WebDavSettingsViewModel>();
-        services.AddTransient<NavidromeSettingsViewModel>();
         services.AddTransient<PlaylistDetailViewModel>();
 
         // Fragments (transient)
