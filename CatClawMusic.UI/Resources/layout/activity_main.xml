@@ -1,91 +1,103 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/pageBackground">
+    android:layout_height="match_parent">
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/fragment_container"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+    <!-- 主内容 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:background="@color/pageBackground">
 
-    <!-- 迷你播放器（常驻底部导航上方） -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/mini_player"
-        android:layout_width="match_parent"
-        android:layout_height="64dp"
-        android:layout_marginHorizontal="12dp"
-        android:layout_marginBottom="4dp"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="0dp"
-        app:strokeColor="@color/cardBorder"
-        app:strokeWidth="1dp"
-        app:cardBackgroundColor="@color/cardBackground">
-
-        <LinearLayout android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="12dp">
-
-            <!-- 封面缩略图 -->
-            <ImageView android:id="@+id/mini_cover"
-                android:layout_width="44dp" android:layout_height="44dp"
-                android:scaleType="centerCrop"
-                android:layout_marginEnd="12dp" />
-
-            <!-- 歌曲信息 -->
-            <LinearLayout android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView android:id="@+id/mini_title"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:textColor="@color/textPrimary" android:textSize="14sp"
-                    android:fontFamily="sans-serif-medium"
-                    android:maxLines="1" android:ellipsize="end"
-                    android:text="未在播放" />
-                <TextView android:id="@+id/mini_artist"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:textColor="@color/textHint" android:textSize="11sp"
-                    android:maxLines="1" android:ellipsize="end" />
-            </LinearLayout>
-
-            <!-- 控制按钮 -->
-            <ImageButton android:id="@+id/mini_prev"
-                android:layout_width="36dp" android:layout_height="36dp"
-                android:src="@drawable/ic_skip_previous"
+        <!-- 顶部工具栏 -->
+        <LinearLayout android:id="@+id/toolbar" android:layout_width="match_parent"
+            android:layout_height="48dp" android:orientation="horizontal"
+            android:gravity="center_vertical" android:paddingHorizontal="8dp">
+            <ImageButton android:id="@+id/btn_menu" android:layout_width="40dp"
+                android:layout_height="40dp" android:src="@drawable/ic_menu"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/textPrimary" android:layout_marginEnd="4dp" />
-
-            <ImageButton android:id="@+id/mini_play_pause"
-                android:layout_width="40dp" android:layout_height="40dp"
-                android:src="@drawable/ic_play"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/primaryColor" android:layout_marginEnd="4dp" />
-
-            <ImageButton android:id="@+id/mini_next"
-                android:layout_width="36dp" android:layout_height="36dp"
-                android:src="@drawable/ic_skip_next"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/textPrimary" />
+                android:tint="@color/textPrimary" android:layout_marginEnd="8dp" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="🐾 猫爪音乐"
+                android:textColor="@color/textPrimary" android:textSize="16sp"
+                android:fontFamily="@font/happy_zcool_2016" />
         </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
 
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottom_navigation"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/navBarBackground"
-        app:menu="@menu/bottom_nav_menu"
-        app:labelVisibilityMode="labeled"
-        app:elevation="0dp"
-        style="@style/CatClawBottomNav" />
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/fragment_container"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
-</LinearLayout>
+        <!-- 迷你播放器 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/mini_player"
+            android:layout_width="match_parent" android:layout_height="64dp"
+            android:layout_marginHorizontal="12dp" android:layout_marginBottom="4dp"
+            android:visibility="gone" android:clickable="true"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingHorizontal="12dp">
+                <ImageView android:id="@+id/mini_cover"
+                    android:layout_width="44dp" android:layout_height="44dp"
+                    android:scaleType="centerCrop" android:layout_marginEnd="12dp" />
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:id="@+id/mini_title"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/textPrimary" android:textSize="14sp"
+                        android:fontFamily="sans-serif-medium" android:maxLines="1"
+                        android:ellipsize="end" />
+                    <TextView android:id="@+id/mini_artist"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/textHint" android:textSize="11sp"
+                        android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <ImageButton android:id="@+id/mini_prev" android:layout_width="36dp"
+                    android:layout_height="36dp" android:src="@drawable/ic_skip_previous"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/textPrimary" android:layout_marginEnd="4dp" />
+                <ImageButton android:id="@+id/mini_play_pause" android:layout_width="40dp"
+                    android:layout_height="40dp" android:src="@drawable/ic_play"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/primaryColor" android:layout_marginEnd="4dp" />
+                <ImageButton android:id="@+id/mini_next" android:layout_width="36dp"
+                    android:layout_height="36dp" android:src="@drawable/ic_skip_next"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/textPrimary" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_navigation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/navBarBackground"
+            app:menu="@menu/bottom_nav_menu"
+            app:labelVisibilityMode="labeled"
+            app:elevation="0dp"
+            style="@style/CatClawBottomNav" />
+    </LinearLayout>
+
+    <!-- 左侧滑出设置面板 -->
+    <LinearLayout android:id="@+id/side_panel_overlay"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="horizontal" android:visibility="gone">
+
+        <!-- 设置面板（4/5屏宽） -->
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/side_panel_content"
+            android:layout_width="0dp" android:layout_height="match_parent"
+            android:layout_weight="0.8"
+            android:background="@color/pageBackground" />
+
+        <!-- 右侧空白区域（点击收起） -->
+        <View android:id="@+id/side_panel_mask"
+            android:layout_width="0dp" android:layout_height="match_parent"
+            android:layout_weight="0.2"
+            android:background="#60000000" />
+    </LinearLayout>
+
+</FrameLayout>

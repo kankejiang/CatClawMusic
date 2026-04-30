@@ -25,7 +25,7 @@ public static class SafeContentScanner
         {
             try
             {
-                var songs = await ScanTreeUriAsync(AUri.Parse(uriStr));
+                var songs = ScanTreeUri(AUri.Parse(uriStr));
                 allSongs.AddRange(songs);
             }
             catch (Exception ex)

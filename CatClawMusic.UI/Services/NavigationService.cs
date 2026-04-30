@@ -31,6 +31,7 @@ public class NavigationService : INavigationService
             "WebDavSettings" => MainApplication.Services.GetRequiredService<WebDavSettingsFragment>(),
             "NavidromeSettings" => MainApplication.Services.GetRequiredService<NavidromeSettingsFragment>(),
             "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),
+            "Settings" => MainApplication.Services.GetRequiredService<SettingsFragment>(),
             _ => throw new ArgumentException($"Unknown route: {route}")
         };
 

@@ -11,6 +11,7 @@ public partial class LibraryViewModel : ObservableObject
     private readonly IMusicLibraryService _musicLibrary;
     private readonly INetworkMusicService? _networkMusic;
     private readonly IPermissionService? _permission;
+    private readonly IMainThreadDispatcher _dispatcher;
     private string _currentTab = "Local";
 
     public ObservableCollection<CoreModels.Song> Songs { get; } = new();
@@ -24,11 +25,12 @@ public partial class LibraryViewModel : ObservableObject
 
     private bool _hasLoadedSongs;
 
-    public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null, IPermissionService? permission = null)
+    public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null, IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null)
     {
         _musicLibrary = musicLibrary;
         _networkMusic = networkMusic;
         _permission = permission;
+        _dispatcher = dispatcher!;
     }
 
     [RelayCommand]
@@ -62,49 +64,94 @@ public partial class LibraryViewModel : ObservableObject
 
     public async Task LoadLocalAsync(bool forceReload = false)
     {
-        // 已有数据且非强制刷新，跳过扫描
         if (!forceReload && _hasLoadedSongs && Songs.Count > 0)
         {
-            System.Diagnostics.Debug.WriteLine("[CatClaw] 跳过重复扫描，使用缓存数据");
+            System.Diagnostics.Debug.WriteLine("[CatClaw] 跳过重复扫描");
             return;
         }
 
         ShowPermissionPrompt = false; IsLoading = true;
-        StatusText = "正在扫描本地音乐..."; Songs.Clear();
+        StatusText = "正在加载...";
+
         try
         {
-            // 三路径扫描：MediaStore → 全文件路径 → SAF Content URI
-            var scannedSongs = await CatClawMusic.UI.Services.AndroidLocalScanner.ScanAsync(GetCustomFolders());
-            // 入库
-            var songs = await _musicLibrary.ImportSongsAsync(scannedSongs);
-            foreach (var s in songs) Songs.Add(s);
+            // 1️⃣ 先显示 SQLite 缓存（秒出）
+            if (!forceReload)
+            {
+                var cachedSongs = await _musicLibrary.GetAllSongsAsync();
+                if (cachedSongs.Count > 0)
+                {
+                    foreach (var s in cachedSongs) Songs.Add(s);
+                    _hasLoadedSongs = true;
+                    StatusText = $"🐱 共 {cachedSongs.Count} 首歌曲";
+                    IsLoading = false;
+                }
+            }
 
-            if (Songs.Count > 0)
-            {
-                StatusText = $"🐱 共 {Songs.Count} 首歌曲";
-                _hasLoadedSongs = true;
-            }
-            else
-            {
-                var savedUri = CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUri();
-                if (string.IsNullOrEmpty(savedUri))
-                {
-                    PermissionPromptText = "点击下方按钮，选择手机上的音乐文件夹\n\n（使用系统文件管理器，无需额外权限）";
-                    StatusText = "未找到本地音乐";
-                }
-                else
-                {
-                    PermissionPromptText = "所选文件夹中未找到音乐文件\n可点击下方按钮重新选择";
-                    StatusText = "未找到音乐";
-                }
-                ShowPermissionPrompt = true;
-            }
+            // 2️⃣ 后台扫描（fire-and-forget，不阻塞）
+            _ = BackgroundScanAsync(forceReload);
         }
-        catch (Exception ex)
+        catch (Exception ex) { StatusText = $"加载出错: {ex.Message}"; IsLoading = false; }
+    }
+
+    private async Task BackgroundScanAsync(bool forceReload)
+    {
+        try
         {
-            StatusText = $"扫描出错: {ex.Message}";
+            if (Songs.Count > 0)
+                _dispatcher.Post(() => StatusText = $"🐱 共 {Songs.Count} 首歌曲（后台扫描中...）");
+            else
+                _dispatcher.Post(() => StatusText = "正在扫描本地音乐...");
+
+            // SAF 扫描必须在主线程（ContentResolver 限制）
+            var scannedSongs = await Task.Run(() =>
+                CatClawMusic.UI.Services.AndroidLocalScanner.ScanAsync(GetCustomFolders()));
+
+            if (scannedSongs.Count == 0) return;
+
+            var imported = await _musicLibrary.ImportSongsAsync(scannedSongs);
+
+            // 合并去重
+            int added = 0;
+            foreach (var s in imported)
+            {
+                if (!Songs.Any(existing => existing.FilePath == s.FilePath))
+                {
+                    Songs.Add(s);
+                    added++;
+                }
+            }
+
+            if (added > 0)
+            {
+                _dispatcher.Post(() =>
+                {
+                    StatusText = $"🐱 共 {Songs.Count} 首歌曲";
+                    _hasLoadedSongs = true;
+                });
+            }
+
+            // 无歌曲时提示
+            if (Songs.Count == 0 && !_hasLoadedSongs)
+            {
+                _dispatcher.Post(() =>
+                {
+                    var savedUri = CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUri();
+                    if (string.IsNullOrEmpty(savedUri))
+                    {
+                        PermissionPromptText = "点击下方按钮，选择手机上的音乐文件夹\n\n（使用系统文件管理器，无需额外权限）";
+                        StatusText = "未找到本地音乐";
+                    }
+                    else
+                    {
+                        PermissionPromptText = "所选文件夹中未找到音乐文件\n可点击下方按钮重新选择";
+                        StatusText = "未找到音乐";
+                    }
+                    ShowPermissionPrompt = true;
+                });
+            }
         }
-        finally { IsLoading = false; }
+        catch { }
     }
 
     public async Task LoadNetworkAsync()

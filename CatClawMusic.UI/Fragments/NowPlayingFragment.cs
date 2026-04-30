@@ -21,8 +21,6 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnBack = null!, _btnLike = null!, _btnMode = null!, _btnShuffle = null!;
     private GoogleSlider _progressSlider = null!;
     private SpectrumView _spectrumView = null!;
-    private bool _isSliding;
-    private readonly Android.OS.Handler _sliderHandler = new(Android.OS.Looper.MainLooper!);
 
     // Visualizer
     private Android.Media.Audiofx.Visualizer? _visualizer;
@@ -70,11 +68,12 @@ public class NowPlayingFragment : Fragment
         _btnMode.Click += (s, e) => _viewModel.TogglePlayModeCommand.Execute(null);
         _btnShuffle.Click += (s, e) => _viewModel.ToggleShuffleCommand.Execute(null);
 
-        // 进度条 — ChangeListener + Handler 延迟检测拖拽结束
-        _progressSlider.AddOnChangeListener(new SliderChangeListener(_sliderHandler,
-            () => _isSliding = true,
-            () => { _isSliding = false; _viewModel.CurrentPositionSeconds = _progressSlider.Value; }
-        ));
+        // 进度条 — Touch 松开时 seek
+        _progressSlider.Touch += (s, e) =>
+        {
+            if (e?.Event?.Action == MotionEventActions.Up)
+                _viewModel.CurrentPositionSeconds = _progressSlider.Value;
+        };
 
         SyncUIFromViewModel();
         BindViewModel();
@@ -151,7 +150,6 @@ public class NowPlayingFragment : Fragment
 
     private void UpdateSlider()
     {
-        if (_isSliding) return;
         var dur = (float)_viewModel.TotalDurationSeconds;
         if (dur > 0)
         {
@@ -208,7 +206,9 @@ public class NowPlayingFragment : Fragment
         {
             StopVisualizer();
             _visualizer = new Android.Media.Audiofx.Visualizer(0);
-            _visualizer.SetCaptureSize(Android.Media.Audiofx.Visualizer.GetCaptureSizeRange()[1]);
+            var captureSizes = Android.Media.Audiofx.Visualizer.GetCaptureSizeRange();
+            if (captureSizes != null && captureSizes.Length > 1)
+                _visualizer.SetCaptureSize(captureSizes[1]);
 
             _visualizer.SetDataCaptureListener(new VisCaptureListener(data =>
             {
@@ -255,33 +255,5 @@ public class NowPlayingFragment : Fragment
             if (waveform != null) _onWaveform(waveform);
         }
         public void OnFftDataCapture(Android.Media.Audiofx.Visualizer? visualizer, byte[]? fft, int samplingRate) { }
-    }
-
-    /// <summary>Material Slider 拖拽回调</summary>
-    private class SliderChangeListener : Java.Lang.Object,
-        Google.Android.Material.Slider.Slider.IOnChangeListener
-    {
-        private readonly Android.OS.Handler _handler;
-        private readonly Action _onStart, _onStop;
-        private Java.Lang.IRunnable? _pendingStop;
-
-        public SliderChangeListener(Android.OS.Handler handler, Action onStart, Action onStop)
-        { _handler = handler; _onStart = onStart; _onStop = onStop; }
-
-        public void OnValueChange(Google.Android.Material.Slider.Slider? slider, float value, bool fromUser)
-        {
-            if (!fromUser) return;
-            _onStart();
-            _pendingStop?.Dispose();
-            _pendingStop = new StopRunnable(_onStop, () => _pendingStop = null);
-            _handler.PostDelayed(_pendingStop, 400);
-        }
-
-        private class StopRunnable : Java.Lang.Object, Java.Lang.IRunnable
-        {
-            private readonly Action _action, _cleanup;
-            public StopRunnable(Action action, Action cleanup) { _action = action; _cleanup = cleanup; }
-            public void Run() { try { _action(); } finally { _cleanup(); } }
-        }
     }
 }

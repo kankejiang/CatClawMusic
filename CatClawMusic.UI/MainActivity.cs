@@ -20,6 +20,8 @@ namespace CatClawMusic.UI;
 public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelectedListener
 {
     private BottomNavigationView _bottomNav = null!;
+    private View _toolbar = null!;
+    private ImageButton _btnMenu = null!;
     private Fragment[] _tabFragments = null!;
     private int _currentTab = 0;
 
@@ -29,6 +31,19 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
     private TextView _miniTitle = null!, _miniArtist = null!;
     private ImageButton _miniPlayPause = null!, _miniPrev = null!, _miniNext = null!;
 
+    // 侧滑面板
+    private View _sidePanelOverlay = null!;
+    private View _sidePanelMask = null!;
+    private View _sidePanelContent = null!;
+    private SettingsFragment? _settingsFragment;
+    private bool _panelOpen;
+    private float _panelSwipeStartX, _panelStartTx;
+    private const float PanelSwipeThreshold = 100f;
+
+    // 滑动切换
+    private float _swipeStartX;
+    private const float SwipeThreshold = 80f;
+
     public static MainActivity Instance { get; private set; } = null!;
 
     public NavigationService NavigationService =>
@@ -36,7 +51,6 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
-        // 从启动画面主题切换到 Material3 主主题，否则 BottomNavigationView 等 Material 组件无法加载
         SetTheme(Resource.Style.CatClawTheme);
         base.OnCreate(savedInstanceState);
 
@@ -47,46 +61,99 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
 
         SetContentView(Resource.Layout.activity_main);
 
+        _toolbar = FindViewById<View>(Resource.Id.toolbar)!;
+        _btnMenu = FindViewById<ImageButton>(Resource.Id.btn_menu)!;
         _bottomNav = FindViewById<BottomNavigationView>(Resource.Id.bottom_navigation)!;
         _bottomNav.SetOnItemSelectedListener(this);
 
+        // ≡ 汉堡 → 设置页
+        // ≡ 汉堡 → 弹出左侧设置面板
+        _sidePanelOverlay = FindViewById<View>(Resource.Id.side_panel_overlay)!;
+        _sidePanelMask = FindViewById<View>(Resource.Id.side_panel_mask)!;
+        _sidePanelContent = FindViewById<View>(Resource.Id.side_panel_content)!;
+        _btnMenu.Click += (s, e) => ToggleSidePanel();
+        _sidePanelMask.Click += (s, e) => CloseSidePanel();
+
+        // 设置面板内右滑收起
+        _sidePanelContent.Touch += OnSidePanelTouch;
+        _sidePanelMask.Touch += OnSidePanelTouch;
+
         _tabFragments = new Fragment[]
         {
-            MainApplication.Services.GetRequiredService<LibraryFragment>(),
-            MainApplication.Services.GetRequiredService<PlaylistFragment>(),
-            MainApplication.Services.GetRequiredService<SearchFragment>(),
-            MainApplication.Services.GetRequiredService<SettingsFragment>()
+            MainApplication.Services.GetRequiredService<NowPlayingFragment>(),   // 0: 播放页面
+            MainApplication.Services.GetRequiredService<PlaylistFragment>(),    // 1: 播放列表
+            MainApplication.Services.GetRequiredService<SearchFragment>(),      // 2: 搜索
+            MainApplication.Services.GetRequiredService<LibraryFragment>()      // 3: 音乐库
         };
 
         NavigationService.Initialize(SupportFragmentManager, Resource.Id.fragment_container, _bottomNav);
 
-        // 迷你播放器绑定
         BindMiniPlayer();
+        EnableSwipeNavigation();
 
         if (savedInstanceState == null)
         {
+            // 启动时直接进入播放页面
+            _currentTab = 0;
+            _bottomNav.SelectedItemId = Resource.Id.nav_playing;
             SupportFragmentManager.BeginTransaction()
                 .Add(Resource.Id.fragment_container, _tabFragments[0], "tab_0")
                 .Commit();
+            _toolbar.Visibility = ViewStates.Gone;
+            _bottomNav.Visibility = ViewStates.Gone; // 播放页沉浸
         }
     }
 
-    public bool OnNavigationItemSelected(IMenuItem item)
+    // ═══════════ 滑动切换 ═══════════
+
+    private void EnableSwipeNavigation()
     {
-        int index = item.ItemId switch
+        var container = FindViewById<View>(Resource.Id.fragment_container)!;
+        container.Touch += OnContainerTouch;
+    }
+
+    private void OnContainerTouch(object? sender, View.TouchEventArgs e)
+    {
+        if (e?.Event == null) return;
+        switch (e.Event.Action)
         {
-            Resource.Id.nav_library => 0,
-            Resource.Id.nav_playlist => 1,
-            Resource.Id.nav_search => 2,
-            Resource.Id.nav_settings => 3,
-            _ => 0
+            case MotionEventActions.Down:
+                _swipeStartX = e.Event.GetX();
+                break;
+            case MotionEventActions.Up:
+                float deltaX = e.Event.GetX() - _swipeStartX;
+                if (Math.Abs(deltaX) > SwipeThreshold)
+                {
+                    if (deltaX < 0) SwitchTabAnimated(_currentTab + 1);  // 左滑→下一个
+                    else SwitchTabAnimated(_currentTab - 1);             // 右滑→上一个
+                }
+                break;
+        }
+    }
+
+    private void SwitchTabAnimated(int index)
+    {
+        index = Math.Clamp(index, 0, _tabFragments.Length - 1);
+        if (index == _currentTab) return;
+
+        int oldIndex = _currentTab;
+        _currentTab = index;
+
+        // 更新底部导航高亮
+        _bottomNav.SelectedItemId = index switch
+        {
+            0 => Resource.Id.nav_playing, 1 => Resource.Id.nav_playlist,
+            2 => Resource.Id.nav_search, 3 => Resource.Id.nav_library,
+            _ => Resource.Id.nav_playing
         };
 
-        if (index == _currentTab) return true;
-
+        // 切换 Fragment
         var ft = SupportFragmentManager.BeginTransaction();
-        if (_currentTab >= 0 && _currentTab < _tabFragments.Length)
-            ft.Hide(_tabFragments[_currentTab]);
+        ft.SetTransition((int)(index > oldIndex
+            ? FragmentTransit.FragmentOpen
+            : FragmentTransit.FragmentClose));
+
+        ft.Hide(_tabFragments[oldIndex]);
 
         string tag = $"tab_{index}";
         var fragment = SupportFragmentManager.FindFragmentByTag(tag);
@@ -95,9 +162,114 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
         else
             ft.Show(fragment);
 
-        _currentTab = index;
         ft.Commit();
+
+        _toolbar.Visibility = index == 0 ? ViewStates.Gone : ViewStates.Visible;
+        _bottomNav.Visibility = index == 0 ? ViewStates.Gone : ViewStates.Visible;
+    }
+
+    // ═══════════ 导航回调 ═══════════
+
+    public bool OnNavigationItemSelected(IMenuItem item)
+    {
+        int index = item.ItemId switch
+        {
+            Resource.Id.nav_playing => 0,
+            Resource.Id.nav_playlist => 1,
+            Resource.Id.nav_search => 2,
+            Resource.Id.nav_library => 3,
+            _ => 0
+        };
+
+        if (index == _currentTab) return true;
+
+        int old = _currentTab;
+        _currentTab = index;
+
+        var ft = SupportFragmentManager.BeginTransaction();
+        ft.Hide(_tabFragments[old]);
+
+        string tag = $"tab_{index}";
+        var fragment = SupportFragmentManager.FindFragmentByTag(tag);
+        if (fragment == null)
+            ft.Add(Resource.Id.fragment_container, _tabFragments[index], tag);
+        else
+            ft.Show(fragment);
+
+        ft.Commit();
+
+        _toolbar.Visibility = index == 0 ? ViewStates.Gone : ViewStates.Visible;
+        _bottomNav.Visibility = index == 0 ? ViewStates.Gone : ViewStates.Visible;
+        _miniPlayer.Visibility = index == 0 ? ViewStates.Gone : _miniPlayer.Visibility;
         return true;
+    }
+
+    // ═══════════ 左侧设置面板 ═══════════
+
+    private void ToggleSidePanel()
+    {
+        if (_panelOpen) CloseSidePanel();
+        else OpenSidePanel();
+    }
+
+    private void OpenSidePanel()
+    {
+        _panelOpen = true;
+        _sidePanelOverlay.Visibility = ViewStates.Visible;
+
+        // 面板从左滑入
+        int screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
+        _sidePanelContent.TranslationX = -screenW * 0.8f;
+        _sidePanelContent.Animate().TranslationX(0).SetDuration(250).Start();
+
+        // 遮罩淡入
+        _sidePanelMask.Alpha = 0f;
+        _sidePanelMask.Animate().Alpha(1f).SetDuration(250).Start();
+
+        // 加载设置 Fragment
+        if (_settingsFragment == null)
+        {
+            _settingsFragment = MainApplication.Services.GetRequiredService<SettingsFragment>();
+            SupportFragmentManager.BeginTransaction()
+                .Replace(Resource.Id.side_panel_content, _settingsFragment)
+                .Commit();
+        }
+    }
+
+    private void CloseSidePanel()
+    {
+        if (!_panelOpen) return;
+        _panelOpen = false;
+
+        int screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
+        _sidePanelContent.Animate().TranslationX(-screenW * 0.8f).SetDuration(200)
+            .WithEndAction(new Java.Lang.Runnable(() =>
+                RunOnUiThread(() => _sidePanelOverlay.Visibility = ViewStates.Gone)))
+            .Start();
+        _sidePanelMask.Animate().Alpha(0f).SetDuration(200).Start();
+    }
+
+    private void OnSidePanelTouch(object? sender, View.TouchEventArgs e)
+    {
+        if (!_panelOpen || e?.Event == null) return;
+        switch (e.Event.Action)
+        {
+            case MotionEventActions.Down:
+                _panelSwipeStartX = e.Event.GetX();
+                _panelStartTx = _sidePanelContent.TranslationX;
+                break;
+            case MotionEventActions.Move:
+                float dx = e.Event.GetX() - _panelSwipeStartX;
+                if (dx > 0) // 只允许向右拖（收起方向）
+                    _sidePanelContent.TranslationX = _panelStartTx + dx;
+                break;
+            case MotionEventActions.Up:
+                if (e.Event.GetX() - _panelSwipeStartX > PanelSwipeThreshold)
+                    CloseSidePanel();
+                else
+                    _sidePanelContent.Animate().TranslationX(0).SetDuration(150).Start();
+                break;
+        }
     }
 
     public void SetBottomNavVisible(bool visible)
@@ -118,7 +290,6 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
     {
         if (SupportFragmentManager.BackStackEntryCount > 0)
         {
-            // PopBackStack() 是异步的，必须在此调用前判断是否为最后一个条目
             bool isLastEntry = SupportFragmentManager.BackStackEntryCount == 1;
             SupportFragmentManager.PopBackStack();
             if (isLastEntry)
@@ -127,9 +298,9 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
                 SetMiniPlayerVisible(true);
                 _bottomNav.SelectedItemId = _currentTab switch
                 {
-                    0 => Resource.Id.nav_library, 1 => Resource.Id.nav_playlist,
-                    2 => Resource.Id.nav_search, 3 => Resource.Id.nav_settings,
-                    _ => Resource.Id.nav_library
+                    0 => Resource.Id.nav_playing, 1 => Resource.Id.nav_playlist,
+                    2 => Resource.Id.nav_search, 3 => Resource.Id.nav_library,
+                    _ => Resource.Id.nav_playing
                 };
             }
         }
@@ -142,9 +313,9 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
         {
             _bottomNav.SelectedItemId = index switch
             {
-                0 => Resource.Id.nav_library, 1 => Resource.Id.nav_playlist,
-                2 => Resource.Id.nav_search, 3 => Resource.Id.nav_settings,
-                _ => Resource.Id.nav_library
+                0 => Resource.Id.nav_playing, 1 => Resource.Id.nav_playlist,
+                2 => Resource.Id.nav_search, 3 => Resource.Id.nav_library,
+                _ => Resource.Id.nav_playing
             };
         }
     }
@@ -167,6 +338,8 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
         FolderPicker.HandleResult(requestCode, resultCode, data);
     }
 
+    // ═══════════ 迷你播放器 ═══════════
+
     private void BindMiniPlayer()
     {
         _miniPlayer = FindViewById<MaterialCardView>(Resource.Id.mini_player)!;
@@ -180,19 +353,15 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
         var vm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
 
-        // 点击迷你播放器→打开 NowPlaying
         _miniPlayer.Click += (s, e) =>
         {
             if (vm.CurrentSong != null)
-                NavigationService.PushFragment("NowPlaying");
+                SwitchTab(0);
         };
-
-        // 控制按钮
         _miniPlayPause.Click += (s, e) => vm.PlayPauseCommand.Execute(null);
         _miniPrev.Click += (s, e) => vm.PreviousCommand.Execute(null);
         _miniNext.Click += (s, e) => vm.NextCommand.Execute(null);
 
-        // 监听 ViewModel 更新 UI（仅主页时显示）
         vm.PropertyChanged += (s, e) => RunOnUiThread(() =>
         {
             var song = vm.CurrentSong;
@@ -203,14 +372,10 @@ public class MainActivity : AppCompatActivity, NavigationBarView.IOnItemSelected
                 ? ViewStates.Visible : ViewStates.Gone;
 
             if (!hasSong) return;
-
             _miniTitle.Text = song.Title ?? "";
             _miniArtist.Text = song.Artist ?? "";
-
             _miniPlayPause.SetImageResource(
                 player.IsPlaying ? Resource.Drawable.ic_pause : Resource.Drawable.ic_play);
-
-            // 封面
             if (!string.IsNullOrEmpty(vm.CoverSource))
                 _miniCover.SetImageDrawable(Android.Graphics.Drawables.Drawable.CreateFromPath(vm.CoverSource));
         });
