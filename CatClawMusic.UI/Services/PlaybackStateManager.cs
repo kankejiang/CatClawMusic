@@ -58,14 +58,16 @@ public static class PlaybackStateManager
             var song = songs.FirstOrDefault(s => s.FilePath == path);
             if (song == null) { Clear(); return; }
 
+            // 恢复播放队列（所有歌曲）
+            queue.SetSongs(songs);
+            queue.SelectSong(song.Id);
+            vm.SetCurrentSong(song);
+
             await player.PlayAsync(song.FilePath);
             await Task.Delay(300);
             await player.PauseAsync();
             if (position.TotalSeconds > 0)
                 await player.SeekAsync(position);
-
-            queue.SelectSong(song.Id);
-            vm.SetCurrentSong(song);
         }
         catch
         {

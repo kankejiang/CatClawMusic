@@ -40,7 +40,7 @@ public static class FftAnalyzer
     }
 
     /// <summary>主入口：返回 (主柱, 峰值/背景柱)</summary>
-    public static (float[] bars, float[] peaks) Compute(byte[] pcmBytes, int barCount = 32)
+    public static (float[] bars, float[] peaks) Compute(byte[] pcmBytes, int sampleRate = 44100, int barCount = 32)
     {
         EnsureBuffers(barCount);
         var real = _real!; var imag = _imag!;
@@ -86,8 +86,8 @@ public static class FftAnalyzer
         {
             double fLow = 30 * Math.Pow(16000.0 / 30.0, (double)b / barCount);
             double fHigh = 30 * Math.Pow(16000.0 / 30.0, (double)(b + 1) / barCount);
-            int binLow = Math.Max(0, (int)(fLow * FftSize / 44100));
-            int binHigh = Math.Min(FftSize / 2 - 1, (int)(fHigh * FftSize / 44100));
+            int binLow = Math.Max(0, (int)(fLow * FftSize / sampleRate));
+            int binHigh = Math.Min(FftSize / 2 - 1, (int)(fHigh * FftSize / sampleRate));
             if (binHigh <= binLow) binHigh = binLow + 1;
 
             float energy = 0;

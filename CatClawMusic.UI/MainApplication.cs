@@ -42,6 +42,17 @@ public class MainApplication : Application
         services.AddSingleton<INetworkMusicService, NetworkMusicService>();
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
+        LyricsService.ContentUriReader = async uri =>
+        {
+            try
+            {
+                using var stream = global::Android.App.Application.Context.ContentResolver!.OpenInputStream(global::Android.Net.Uri.Parse(uri)!);
+                if (stream == null) return null;
+                using var reader = new System.IO.StreamReader(stream);
+                return await reader.ReadToEndAsync();
+            }
+            catch { return null; }
+        };
         services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
         services.AddSingleton<IPermissionService, PermissionService>();
         services.AddSingleton<PlayQueue>();

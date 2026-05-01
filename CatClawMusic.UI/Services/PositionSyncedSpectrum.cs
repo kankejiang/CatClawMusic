@@ -2,34 +2,107 @@ using Android.Media;
 
 namespace CatClawMusic.UI.Services;
 
-/// <summary>流式按需解码：每个采样位置即时解码 512 帧，无需预加载</summary>
 public class PositionSyncedSpectrum : IDisposable
 {
-    private readonly object _lock = new();
     private MediaExtractor? _extractor;
     private MediaCodec? _codec;
     private int _sampleRate = 44100, _channels = 2;
     private CancellationTokenSource? _cts;
-    private string? _filePath;
+    private bool _released;
 
     public void Start(string filePath, Func<TimeSpan> getPosition, Action<float[], float[]> onSpectrum)
     {
         Stop();
-        _filePath = filePath;
         InitCodec(filePath);
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
+        var codec = _codec;
+        var extractor = _extractor;
+        var sr = _sampleRate;
+        var ch = _channels;
+
         Task.Run(() =>
         {
+            var info = new MediaCodec.BufferInfo();
+            var lastSeekUs = -1L;
+
             while (!ct.IsCancellationRequested)
             {
-                ct.WaitHandle.WaitOne(60);
+                ct.WaitHandle.WaitOne(50);
                 if (ct.IsCancellationRequested) break;
                 try
                 {
-                    var (bars, peaks) = SampleAt(getPosition());
-                    onSpectrum(bars, peaks);
+                    var pos = getPosition();
+                    long seekUs = (long)(pos.TotalMilliseconds * 1000);
+
+                    if (_released || codec == null || extractor == null) continue;
+
+                    // 仅在位置大幅跳变时 seek + flush
+                    if (lastSeekUs < 0 || Math.Abs(seekUs - lastSeekUs) > 2000000)
+                    {
+                        extractor.SeekTo(seekUs, MediaExtractorSeekTo.ClosestSync);
+                        try { codec.Flush(); } catch { }
+                        lastSeekUs = seekUs;
+                    }
+
+                    // 解码
+                    var samples = new List<float>();
+                    bool inputDone = false;
+                    while (samples.Count < 1024)
+                    {
+                        if (_released) break;
+                        if (!inputDone)
+                        {
+                            int inIdx;
+                            try { inIdx = codec.DequeueInputBuffer(2000); }
+                            catch { break; }
+                            if (inIdx >= 0)
+                            {
+                                var inBuf = codec.GetInputBuffer(inIdx)!;
+                                int size = extractor.ReadSampleData(inBuf, 0);
+                                if (size < 0)
+                                {
+                                    codec.QueueInputBuffer(inIdx, 0, 0, 0, MediaCodecBufferFlags.EndOfStream);
+                                    inputDone = true;
+                                }
+                                else
+                                {
+                                    codec.QueueInputBuffer(inIdx, 0, size, extractor.SampleTime, MediaCodecBufferFlags.None);
+                                    extractor.Advance();
+                                }
+                            }
+                        }
+                        int outIdx;
+                        try { outIdx = codec.DequeueOutputBuffer(info, 2000); }
+                        catch { break; }
+                        if (outIdx >= 0)
+                        {
+                            var buf = codec.GetOutputBuffer(outIdx)!; buf.Position(info.Offset);
+                            var raw = new byte[info.Size]; buf.Get(raw);
+                            for (int i = 0; i < raw.Length; i += 2 * ch)
+                            {
+                                float sum = 0;
+                                for (int c = 0; c < ch && i + c * 2 + 1 < raw.Length; c++)
+                                    sum += (short)(raw[i + c * 2] | (raw[i + c * 2 + 1] << 8));
+                                samples.Add(sum / (ch * 32768f));
+                            }
+                            codec.ReleaseOutputBuffer(outIdx, false);
+                            if ((info.Flags & MediaCodecBufferFlags.EndOfStream) != 0) break;
+                        }
+                    }
+
+                    if (samples.Count < 512) continue;
+                    var pcm = new byte[1024];
+                    for (int i = 0; i < 512; i++)
+                    {
+                        short s = (short)Math.Clamp(samples[i] * 32767f, -32768, 32767);
+                        pcm[i * 2] = (byte)(s & 0xFF);
+                        pcm[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+                    }
+                    var result = FftAnalyzer.Compute(pcm, sr);
+                    onSpectrum(result.bars, result.peaks);
                 }
+                catch (OperationCanceledException) { break; }
                 catch { }
             }
         });
@@ -38,70 +111,17 @@ public class PositionSyncedSpectrum : IDisposable
     public void Stop()
     {
         _cts?.Cancel();
-        lock (_lock) { ReleaseCodec(); }
+        _released = true;
+        try { _codec?.Stop(); } catch { }
+        try { _codec?.Release(); } catch { }
+        try { _extractor?.Release(); } catch { }
+        _codec = null; _extractor = null;
         _cts = null;
-    }
-
-    private (float[], float[]) SampleAt(TimeSpan pos)
-    {
-        lock (_lock)
-        {
-            if (_codec == null || _extractor == null) return (new float[32], new float[32]);
-            long seekUs = (long)(pos.TotalMilliseconds * 1000);
-            // 每次 seek 后刷新解码器
-            _extractor.SeekTo(seekUs, MediaExtractorSeekTo.ClosestSync);
-            _codec.Flush();
-
-            var info = new MediaCodec.BufferInfo();
-            bool inputDone = false;
-            var samples = new List<float>();
-            int neededSamples = 1024; // 512 点 FFT × 2
-
-            while (samples.Count < neededSamples)
-            {
-                if (!inputDone)
-                {
-                    int inIdx = _codec.DequeueInputBuffer(5000);
-                    if (inIdx >= 0)
-                    {
-                        var inBuf = _codec.GetInputBuffer(inIdx)!;
-                        int size = _extractor.ReadSampleData(inBuf, 0);
-                        if (size < 0)
-                        { _codec.QueueInputBuffer(inIdx, 0, 0, 0, MediaCodecBufferFlags.EndOfStream); inputDone = true; }
-                        else { _codec.QueueInputBuffer(inIdx, 0, size, _extractor.SampleTime, MediaCodecBufferFlags.None); _extractor.Advance(); }
-                    }
-                }
-                int outIdx = _codec.DequeueOutputBuffer(info, 5000);
-                if (outIdx >= 0)
-                {
-                    var buf = _codec.GetOutputBuffer(outIdx)!; buf.Position(info.Offset);
-                    var raw = new byte[info.Size]; buf.Get(raw);
-                    for (int i = 0; i < raw.Length; i += 2 * _channels)
-                    {
-                        float sum = 0;
-                        for (int c = 0; c < _channels && i + c * 2 + 1 < raw.Length; c++)
-                            sum += (short)(raw[i + c * 2] | (raw[i + c * 2 + 1] << 8));
-                        samples.Add(sum / (_channels * 32768f));
-                    }
-                    _codec.ReleaseOutputBuffer(outIdx, false);
-                    if ((info.Flags & MediaCodecBufferFlags.EndOfStream) != 0) break;
-                }
-            }
-
-            if (samples.Count < 512) return (new float[32], new float[32]);
-            var pcm = new byte[samples.Count * 2];
-            for (int i = 0; i < samples.Count; i++)
-            {
-                short s = (short)Math.Clamp(samples[i] * 32767f, -32768, 32767);
-                pcm[i * 2] = (byte)(s & 0xFF);
-                pcm[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
-            }
-            return FftAnalyzer.Compute(pcm);
-        }
     }
 
     private void InitCodec(string path)
     {
+        _released = false;
         _extractor = new MediaExtractor();
         if (path.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             _extractor.SetDataSource(global::Android.App.Application.Context, global::Android.Net.Uri.Parse(path)!, null);
@@ -114,7 +134,7 @@ public class PositionSyncedSpectrum : IDisposable
             if (f.ContainsKey(MediaFormat.KeyMime) && f.GetString(MediaFormat.KeyMime)!.StartsWith("audio/"))
             { fmt = f; ti = i; break; }
         }
-        if (fmt == null || ti < 0) { ReleaseCodec(); return; }
+        if (fmt == null || ti < 0) { ReleaseNow(); return; }
         _extractor.SelectTrack(ti);
         _sampleRate = GetInt(fmt, MediaFormat.KeySampleRate, 44100);
         _channels = GetInt(fmt, MediaFormat.KeyChannelCount, 2);
@@ -124,12 +144,13 @@ public class PositionSyncedSpectrum : IDisposable
         _codec.Start();
     }
 
-    private void ReleaseCodec()
+    private void ReleaseNow()
     {
         try { _codec?.Stop(); } catch { }
         try { _codec?.Release(); } catch { }
         try { _extractor?.Release(); } catch { }
         _codec = null; _extractor = null;
+        _released = true;
     }
 
     private static int GetInt(MediaFormat f, string k, int d)

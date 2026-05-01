@@ -30,49 +30,97 @@ public class LyricsService : ILyricsService
     public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song)
     {
         var songPath = song.FilePath;
-        if (string.IsNullOrEmpty(songPath) || !File.Exists(songPath))
-            return null;
 
-        // 1. 读取音频文件内嵌歌词
-        var embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
-        if (!string.IsNullOrWhiteSpace(embeddedLyrics))
+        bool isContentUri = !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
+
+        // 1. 读取嵌入歌词（需要真实路径文件访问）
+        if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
         {
-            var parsed = ParseLrc(embeddedLyrics);
-            if (parsed != null) return parsed;
-        }
-
-        // 2. 查找同名 .lrc 文件
-        var directory = Path.GetDirectoryName(songPath) ?? "";
-        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(songPath);
-
-        var lrcPath = Path.Combine(directory, fileNameWithoutExt + ".lrc");
-        if (File.Exists(lrcPath))
-        {
-            var content = await File.ReadAllTextAsync(lrcPath);
-            var parsed = ParseLrc(content);
-            if (parsed != null) return parsed;
-        }
-
-        // 3. 查找同目录下其他 .lrc 文件（模糊匹配）
-        try
-        {
-            var lrcFiles = Directory.GetFiles(directory, "*.lrc");
-            foreach (var lrcFile in lrcFiles)
+            var embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
+            if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
-                var lrcName = Path.GetFileNameWithoutExtension(lrcFile);
-                if (fileNameWithoutExt.Contains(lrcName) || lrcName.Contains(fileNameWithoutExt))
+                var parsed = ParseLrc(embeddedLyrics);
+                if (parsed != null) return parsed;
+            }
+        }
+
+        // 2. 查找同名 .lrc
+        if (isContentUri)
+        {
+            // SAF content URI → 构造同路径 .lrc URI
+            var lrcUri = ConstructLrcUri(songPath);
+            if (lrcUri != null)
+            {
+                var content = await ReadContentUriAsync(lrcUri);
+                if (content != null) return ParseLrc(content);
+            }
+        }
+        else
+        {
+            // 文件系统路径
+            if (File.Exists(songPath))
+            {
+                var dir = Path.GetDirectoryName(songPath) ?? "";
+                var nameNoExt = Path.GetFileNameWithoutExtension(songPath);
+                var lrcPath = Path.Combine(dir, nameNoExt + ".lrc");
+                if (File.Exists(lrcPath))
                 {
-                    var content = await File.ReadAllTextAsync(lrcFile);
-                    var parsed = ParseLrc(content);
-                    if (parsed != null) return parsed;
+                    try { return ParseLrc(await File.ReadAllTextAsync(lrcPath)); }
+                    catch { }
                 }
             }
         }
-        catch
-        {
-            // 忽略目录访问错误
-        }
 
+        return null;
+    }
+
+    /// <summary>从 SAF content URI 构造同名 .lrc 的 content URI</summary>
+    internal static string? ConstructLrcUri(string songUri)
+    {
+        try
+        {
+            int docIdx = songUri.LastIndexOf("/document/", StringComparison.Ordinal);
+            if (docIdx < 0) return null;
+            string prefix = songUri.Substring(0, docIdx + "/document/".Length);
+            string docId = songUri.Substring(docIdx + "/document/".Length);
+            string newDocId = System.Text.RegularExpressions.Regex.Replace(docId, @"\.\w+$", ".lrc");
+            if (newDocId == docId) return null;
+            return prefix + newDocId;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>读取 content:// URI 文本（由平台层注入）</summary>
+    public static Func<string, Task<string?>>? ContentUriReader { get; set; }
+
+    private static async Task<string?> ReadContentUriAsync(string uri)
+    {
+        if (ContentUriReader != null)
+            return await ContentUriReader(uri);
+        return null;
+    }
+
+    /// <summary>SAF content:// URI → 真实文件系统路径</summary>
+    private static string? TryConvertContentUriToPath(string uri)
+    {
+        try
+        {
+            // content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2F...
+            var decoded = Uri.UnescapeDataString(uri);
+            // 提取 document ID 部分（最后一个 /document/ 之后）
+            int docIdx = decoded.LastIndexOf("/document/", StringComparison.Ordinal);
+            if (docIdx < 0) return null;
+            string docId = decoded.Substring(docIdx + "/document/".Length);
+
+            // primary:Foo/bar → /storage/emulated/0/Foo/bar
+            if (docId.StartsWith("primary:", StringComparison.Ordinal))
+            {
+                string subPath = docId.Substring("primary:".Length);
+                string fullPath = "/storage/emulated/0/" + subPath;
+                if (File.Exists(fullPath)) return fullPath;
+            }
+        }
+        catch { }
         return null;
     }
 
@@ -84,29 +132,22 @@ public class LyricsService : ILyricsService
     {
         var lyrics = new LrcLyrics();
 
-        // 标准化换行符
         lrcContent = lrcContent.Replace("\r\n", "\n").Replace("\r", "\n");
         var lines = lrcContent.Split('\n');
 
-        // 时间戳正则：兼容 [mm:ss.xx]、[mm:ss.xxx]、[mm:ss]
         var timeRegex = new Regex(@"\[(\d+):(\d+)(?:\.(\d+))?\]");
         var tagRegex = new Regex(@"\[(ti|ar|al|by|re|ve):(.+)\]", RegexOptions.IgnoreCase);
-
         foreach (var rawLine in lines)
         {
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line)) continue;
-
-            // 跳过注释行
             if (line.StartsWith("//")) continue;
 
-            // 解析元数据标签
             var tagMatch = tagRegex.Match(line);
             if (tagMatch.Success)
             {
                 var tag = tagMatch.Groups[1].Value.ToLower();
                 var value = tagMatch.Groups[2].Value.Trim();
-
                 switch (tag)
                 {
                     case "ti": lyrics.Metadata.Title = value; break;
@@ -119,10 +160,11 @@ public class LyricsService : ILyricsService
                 continue;
             }
 
-            // 简单的时间戳有效性校验（从方糖音乐移植的巧技）
-            // 如果行长度 > 10 且 Substring(1,5) 是合法 DateTime 格式，则为有效歌词行
+            // 时间戳行校验
             if (line.Length > 10 && !DateTime.TryParse(line.Substring(1, 5), out _))
+            {
                 continue;
+            }
 
             // 解析歌词行
             var timeMatches = timeRegex.Matches(line);

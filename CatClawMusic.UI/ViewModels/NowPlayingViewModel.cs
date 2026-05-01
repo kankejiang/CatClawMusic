@@ -215,9 +215,9 @@ public partial class NowPlayingViewModel : ObservableObject
                 var idx = _lyricsService.GetCurrentLyricIndex(_currentLyrics, position);
                 if (idx >= 0 && idx < _currentLyrics.Lines.Count)
                 {
-                    CurrentLyricLine = _currentLyrics.Lines[idx].Text;
                     PrevLyricLine = idx > 0 ? _currentLyrics.Lines[idx - 1].Text : "";
                     NextLyricLine = idx + 1 < _currentLyrics.Lines.Count ? _currentLyrics.Lines[idx + 1].Text : "";
+                    CurrentLyricLine = _currentLyrics.Lines[idx].Text; // 最后设，触发 UI 刷新
                 }
             }
             _isPositionUpdating = false;
@@ -233,6 +233,18 @@ public partial class NowPlayingViewModel : ObservableObject
         CurrentLyricLine = "正在加载歌词..."; NextLyricLine = "";
         _currentLyrics = await _lyricsService.GetLyricsAsync(song);
         if (_currentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
+        else if (_currentLyrics.Lines.Count > 0)
+        {
+            // 根据当前播放位置显示初始歌词行
+            var pos = _audioPlayer.CurrentPosition;
+            var idx = _lyricsService.GetCurrentLyricIndex(_currentLyrics, pos);
+            if (idx >= 0 && idx < _currentLyrics.Lines.Count)
+            {
+                PrevLyricLine = idx > 0 ? _currentLyrics.Lines[idx - 1].Text : "";
+                NextLyricLine = idx + 1 < _currentLyrics.Lines.Count ? _currentLyrics.Lines[idx + 1].Text : "";
+                CurrentLyricLine = _currentLyrics.Lines[idx].Text;
+            }
+        }
     }
 
     private async Task RecordPlayAsync()

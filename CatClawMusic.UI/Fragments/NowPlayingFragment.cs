@@ -80,6 +80,8 @@ public class NowPlayingFragment : Fragment
             if (_albumCover == null) return;
             if (!string.IsNullOrEmpty(_viewModel.CoverSource))
                 _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
+            else
+                _albumCover.SetImageResource(Resource.Drawable.cover_default);
             _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
             _songArtist.Text = _viewModel.CurrentSong?.Artist ?? "未知艺术家";
             UpdateTimeDisplay();
@@ -105,6 +107,8 @@ public class NowPlayingFragment : Fragment
                     case nameof(_viewModel.CoverSource):
                         if (!string.IsNullOrEmpty(_viewModel.CoverSource))
                             _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
+                        else
+                            _albumCover.SetImageResource(Resource.Drawable.cover_default);
                         break;
                     case nameof(_viewModel.CurrentPosition):
                         UpdateTimeDisplay();
@@ -128,6 +132,7 @@ public class NowPlayingFragment : Fragment
                         break;
                     case nameof(_viewModel.CurrentLyricLine):
                     case nameof(_viewModel.PrevLyricLine):
+                    case nameof(_viewModel.NextLyricLine):
                         UpdateLyrics();
                         break;
                 }
@@ -137,9 +142,15 @@ public class NowPlayingFragment : Fragment
 
     private void UpdateLyrics()
     {
-        _lyricPrev.Text = _viewModel.PrevLyricLine;
-        _lyricCurrent.Text = _viewModel.CurrentLyricLine;
-        _lyricNext.Text = _viewModel.NextLyricLine;
+        var prev = _viewModel.PrevLyricLine;
+        var curr = _viewModel.CurrentLyricLine;
+        var next = _viewModel.NextLyricLine;
+        if (_lyricCurrent.Text != curr)
+        {
+            _lyricPrev.Text = prev;
+            _lyricCurrent.Text = curr;
+            _lyricNext.Text = next;
+        }
     }
 
     private void UpdateTimeDisplay()
@@ -212,11 +223,12 @@ public class NowPlayingFragment : Fragment
         player.StateChanged -= OnPlayerStateForVis;
         player.StateChanged += OnPlayerStateForVis;
         if (player.IsPlaying) OnPlayerStateForVis(null, new PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
-        // 延迟刷新：等待 MediaPlayer 准备好后更新滑块和图标
-        Task.Delay(500).ContinueWith(_ => Activity?.RunOnUiThread(() =>
+        // 延迟刷新：等待 MediaPlayer 准备好后更新滑块、图标和歌词
+        Task.Delay(800).ContinueWith(_ => Activity?.RunOnUiThread(() =>
         {
             UpdateSlider();
             UpdatePlayPauseIcon();
+            UpdateLyrics();
         }));
     }
 
