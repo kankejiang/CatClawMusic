@@ -69,6 +69,7 @@ public class MainApplication : Application
         services.AddTransient<SearchViewModel>();
         services.AddTransient<PlaylistViewModel>();
         services.AddTransient<WebDavSettingsViewModel>();
+        services.AddTransient<NavidromeSettingsViewModel>();
         services.AddTransient<PlaylistDetailViewModel>();
 
         // Fragments (transient)

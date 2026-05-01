@@ -1,3 +1,5 @@
+using SQLite;
+
 namespace CatClawMusic.Core.Models;
 
 /// <summary>
@@ -16,8 +18,10 @@ public enum ProtocolType
 /// <summary>
 /// 连接配置（WebDAV / Navidrome / SMB 等）
 /// </summary>
+[Table("ConnectionProfiles")]
 public class ConnectionProfile
 {
+    [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
 
     /// <summary>显示名称</summary>

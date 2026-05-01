@@ -13,7 +13,7 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class SubsonicService : ISubsonicService
 {
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     private static string Md5(string input)
     {
@@ -33,25 +33,37 @@ public class SubsonicService : ISubsonicService
     private string ApiUrl(string endpoint, ConnectionProfile profile)
     {
         var baseUrl = profile.GetBaseUrl();
-        return $"{baseUrl}/rest/{endpoint}?{AuthParams(profile)}";
+        var sep = endpoint.Contains('?') ? "&" : "?";
+        return $"{baseUrl}/rest/{endpoint}{sep}{AuthParams(profile)}";
     }
 
     public async Task<(bool Success, string Message)> PingAsync(ConnectionProfile profile)
     {
         try
         {
-            var url = ApiUrl("ping", profile);
+            var url = ApiUrl("ping.view", profile);
             var resp = await _http.GetAsync(url);
             if (!resp.IsSuccessStatusCode)
-                return (false, $"HTTP {(int)resp.StatusCode}");
+                return (false, $"HTTP {(int)resp.StatusCode}: {resp.ReasonPhrase}");
             var json = await resp.Content.ReadAsStringAsync();
-            return json.Contains("\"status\":\"ok\"")
-                ? (true, "连接成功")
-                : (false, "服务器返回异常状态");
+            if (json.Contains("\"status\":\"ok\""))
+                return (true, "连接成功");
+            // 尝试解析错误信息
+            if (json.Contains("error"))
+                return (false, "认证失败，请检查用户名和密码");
+            return (false, "服务器返回异常状态");
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, "连接超时，请检查服务器地址和端口");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"无法连接服务器: {ex.Message}");
         }
         catch (Exception ex)
         {
-            return (false, ex.Message);
+            return (false, $"连接失败: {ex.Message}");
         }
     }
 
@@ -59,7 +71,7 @@ public class SubsonicService : ISubsonicService
     {
         try
         {
-            var url = ApiUrl($"search3?query={HttpUtility.UrlEncode(query)}", profile);
+            var url = ApiUrl($"search3.view?query={HttpUtility.UrlEncode(query)}", profile);
             var json = await _http.GetStringAsync(url);
             using var doc = JsonDocument.Parse(json);
             var songs = new List<Song>();
@@ -82,17 +94,41 @@ public class SubsonicService : ISubsonicService
         var songs = new List<Song>();
         try
         {
-            var url = ApiUrl("getRandomSongs?size=500", profile);
+            var url = ApiUrl("search3.view?query=&songCount=500&albumCount=0&artistCount=0", profile);
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs URL: {url}");
             var json = await _http.GetStringAsync(url);
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 响应前200字符: {(json.Length > 200 ? json[..200] : json)}");
             using var doc = JsonDocument.Parse(json);
-            var resp = doc.RootElement.GetProperty("subsonic-response").GetProperty("randomSongs");
-            if (resp.TryGetProperty("song", out var arr))
+            var resp = doc.RootElement.GetProperty("subsonic-response");
+            // 检查状态
+            if (resp.TryGetProperty("status", out var status) && status.GetString() == "failed")
             {
-                foreach (var item in arr.EnumerateArray())
-                    songs.Add(ParseSong(item, profile));
+                var err = resp.TryGetProperty("error", out var e) ? e.TryGetProperty("message", out var m) ? m.GetString() : "" : "";
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs API错误: {err}");
+                return songs;
+            }
+            if (resp.TryGetProperty("searchResult3", out var searchResult))
+            {
+                if (searchResult.TryGetProperty("song", out var arr))
+                {
+                    foreach (var item in arr.EnumerateArray())
+                        songs.Add(ParseSong(item, profile));
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[CatClaw] GetSongs: searchResult3 中没有 song 字段");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[CatClaw] GetSongs: 响应中没有 searchResult3");
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 失败: {ex.GetType().Name}: {ex.Message}");
+        }
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 返回 {songs.Count} 首歌曲");
         return songs;
     }
 
@@ -101,7 +137,7 @@ public class SubsonicService : ISubsonicService
         var albums = new List<Album>();
         try
         {
-            var url = ApiUrl("getAlbumList2?type=newest&size=200", profile);
+            var url = ApiUrl("getAlbumList2.view?type=newest&size=200", profile);
             var json = await _http.GetStringAsync(url);
             using var doc = JsonDocument.Parse(json);
             var resp = doc.RootElement.GetProperty("subsonic-response").GetProperty("albumList2");
@@ -125,13 +161,13 @@ public class SubsonicService : ISubsonicService
 
     public string GetStreamUrl(string songId, ConnectionProfile profile)
     {
-        return ApiUrl($"stream?id={HttpUtility.UrlEncode(songId)}", profile);
+        return ApiUrl($"stream.view?id={HttpUtility.UrlEncode(songId)}", profile);
     }
 
     public string GetCoverArtUrl(string coverArtId, ConnectionProfile profile)
     {
         var baseUrl = profile.GetBaseUrl();
-        return $"{baseUrl}/rest/getCoverArt?{AuthParams(profile)}&id={HttpUtility.UrlEncode(coverArtId)}";
+        return $"{baseUrl}/rest/getCoverArt.view?{AuthParams(profile)}&id={HttpUtility.UrlEncode(coverArtId)}";
     }
 
     public async Task<byte[]?> GetCoverArtAsync(string coverArtId, ConnectionProfile profile)
@@ -148,7 +184,7 @@ public class SubsonicService : ISubsonicService
     {
         try
         {
-            var url = ApiUrl($"getLyrics?id={HttpUtility.UrlEncode(songId)}", profile);
+            var url = ApiUrl($"getLyrics.view?id={HttpUtility.UrlEncode(songId)}", profile);
             var json = await _http.GetStringAsync(url);
             using var doc = JsonDocument.Parse(json);
             var resp = doc.RootElement.GetProperty("subsonic-response");

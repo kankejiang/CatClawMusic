@@ -26,7 +26,8 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string _scanStatus = "";
     [ObservableProperty] private bool _isScanning;
 
-    private bool _hasLoadedSongs;
+    private bool _hasLoadedLocal;
+    private bool _hasLoadedNetwork;
 
     public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null, IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null)
     {
@@ -42,9 +43,9 @@ public partial class LibraryViewModel : ObservableObject
         _currentTab = tab;
         LocalTabColor = tab == "Local" ? "#9B7ED8" : "#C0B8CA";
         NetworkTabColor = tab == "Network" ? "#9B7ED8" : "#C0B8CA";
-        if (tab == "Local" && !_hasLoadedSongs)
+        if (tab == "Local")
             _ = LoadLocalAsync();
-        else if (tab == "Network" && !_hasLoadedSongs)
+        else if (tab == "Network")
             _ = LoadNetworkAsync();
     }
 
@@ -59,7 +60,7 @@ public partial class LibraryViewModel : ObservableObject
         var uri = await CatClawMusic.UI.Platforms.Android.FolderPicker.PickFolderAsync();
         if (!string.IsNullOrEmpty(uri))
         {
-            _hasLoadedSongs = false;
+            _hasLoadedLocal = false;
             await LoadLocalAsync();
         }
 #endif
@@ -67,7 +68,7 @@ public partial class LibraryViewModel : ObservableObject
 
     public async Task LoadLocalAsync(bool forceReload = false)
     {
-        if (!forceReload && _hasLoadedSongs && Songs.Count > 0)
+        if (!forceReload && _hasLoadedLocal && Songs.Count > 0)
         {
             System.Diagnostics.Debug.WriteLine("[CatClaw] 跳过重复扫描");
             return;
@@ -85,7 +86,7 @@ public partial class LibraryViewModel : ObservableObject
                 if (cachedSongs.Count > 0)
                 {
                     foreach (var s in cachedSongs) Songs.Add(s);
-                    _hasLoadedSongs = true;
+                    _hasLoadedLocal = true;
                     StatusText = $"🐱 共 {cachedSongs.Count} 首歌曲（下拉刷新）";
                     IsLoading = false;
                     return;
@@ -93,7 +94,7 @@ public partial class LibraryViewModel : ObservableObject
             }
 
             // 首次启动且无缓存 → 提示用户选择文件夹后刷新
-            if (!forceReload && !_hasLoadedSongs)
+            if (!forceReload && !_hasLoadedLocal)
             {
                 var savedUri = CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUri();
                 if (string.IsNullOrEmpty(savedUri))
@@ -186,7 +187,7 @@ public partial class LibraryViewModel : ObservableObject
                 ScanStatus = "扫描完成";
                 IsScanning = false;
                 StatusText = $"🐱 共 {Songs.Count} 首歌曲";
-                _hasLoadedSongs = true;
+                _hasLoadedLocal = true;
             });
         }
         catch (Exception ex)
@@ -216,6 +217,7 @@ public partial class LibraryViewModel : ObservableObject
                 try { all.AddRange(await _networkMusic.ScanAsync(p)); } catch { }
             }
             foreach (var s in all) Songs.Add(s);
+            _hasLoadedNetwork = true;
             StatusText = Songs.Count > 0 ? $"☁️ 共 {Songs.Count} 首网络歌曲" : "连接成功但未找到歌曲";
         }
         catch (Exception ex) { StatusText = $"连接失败: {ex.Message}"; }

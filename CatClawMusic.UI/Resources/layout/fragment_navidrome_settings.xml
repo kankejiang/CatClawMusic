@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="@color/pageBackground">
 
@@ -11,27 +12,60 @@
             android:orientation="vertical">
 
             <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:hint="服务器地址" android:layout_marginBottom="12dp">
+                android:layout_height="wrap_content" android:hint="服务器名称" android:layout_marginBottom="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_name"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="我的Navidrome" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="服务器地址" android:layout_marginBottom="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_host"
                     android:layout_width="match_parent" android:layout_height="wrap_content" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:hint="用户名" android:layout_marginBottom="12dp">
+                android:layout_height="wrap_content" android:hint="端口" android:layout_marginBottom="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_port"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="number" android:text="4533" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="用户名" android:layout_marginBottom="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_username"
                     android:layout_width="match_parent" android:layout_height="wrap_content" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:hint="密码" android:layout_marginBottom="12dp">
+                android:layout_height="wrap_content" android:hint="密码" android:layout_marginBottom="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                app:passwordToggleEnabled="true">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_password"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:inputType="textPassword" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <androidx.appcompat.widget.SwitchCompat android:id="@+id/sw_https"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="使用 HTTPS" android:layout_marginBottom="12dp" />
+
+            <TextView android:id="@+id/status_text" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:textColor="@color/textHint"
+                android:textSize="13sp" android:padding="8dp" android:gravity="center"
+                android:visibility="gone" />
+
             <Button android:id="@+id/btn_test" android:layout_width="match_parent"
-                android:layout_height="48dp" android:text="保存连接"
+                android:layout_height="48dp" android:text="测试连接" android:layout_marginBottom="8dp"
                 style="@style/CatClawButtonPrimary" />
+
+            <Button android:id="@+id/btn_save" android:layout_width="match_parent"
+                android:layout_height="48dp" android:text="保存连接"
+                style="@style/CatClawButtonSecondary" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

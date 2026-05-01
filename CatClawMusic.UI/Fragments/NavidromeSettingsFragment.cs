@@ -9,8 +9,10 @@ namespace CatClawMusic.UI.Fragments;
 public class NavidromeSettingsFragment : SettingsSubPageFragment
 {
     private NavidromeSettingsViewModel _viewModel = null!;
-    private EditText _etHost = null!, _etUsername = null!, _etPassword = null!;
-    private Button _btnTest = null!;
+    private EditText _etName = null!, _etHost = null!, _etPort = null!, _etUsername = null!, _etPassword = null!;
+    private Button _btnTest = null!, _btnSave = null!;
+    private TextView _statusText = null!;
+    private AndroidX.AppCompat.Widget.SwitchCompat _swHttps = null!;
 
     protected override string GetTitle() => "Navidrome 设置";
 
@@ -21,14 +23,54 @@ public class NavidromeSettingsFragment : SettingsSubPageFragment
     {
         _viewModel = MainApplication.Services.GetRequiredService<NavidromeSettingsViewModel>();
 
+        _etName = view.FindViewById<EditText>(Resource.Id.et_name)!;
         _etHost = view.FindViewById<EditText>(Resource.Id.et_host)!;
+        _etPort = view.FindViewById<EditText>(Resource.Id.et_port)!;
         _etUsername = view.FindViewById<EditText>(Resource.Id.et_username)!;
         _etPassword = view.FindViewById<EditText>(Resource.Id.et_password)!;
         _btnTest = view.FindViewById<Button>(Resource.Id.btn_test)!;
+        _btnSave = view.FindViewById<Button>(Resource.Id.btn_save)!;
+        _statusText = view.FindViewById<TextView>(Resource.Id.status_text)!;
+        _swHttps = view.FindViewById<AndroidX.AppCompat.Widget.SwitchCompat>(Resource.Id.sw_https)!;
 
+        _etName.TextChanged += (s, e) => _viewModel.Name = e?.Text?.ToString() ?? "";
         _etHost.TextChanged += (s, e) => _viewModel.Host = e?.Text?.ToString() ?? "";
+        _etPort.TextChanged += (s, e) => _viewModel.Port = e?.Text?.ToString() ?? "";
         _etUsername.TextChanged += (s, e) => _viewModel.UserName = e?.Text?.ToString() ?? "";
         _etPassword.TextChanged += (s, e) => _viewModel.Password = e?.Text?.ToString() ?? "";
+        _swHttps.CheckedChange += (s, e) => _viewModel.UseHttps = e.IsChecked;
         _btnTest.Click += (s, e) => _viewModel.TestCommand.Execute(null);
+        _btnSave.Click += (s, e) => _viewModel.SaveCommand.Execute(null);
+
+        _viewModel.PropertyChanged += (s, e) =>
+        {
+            var a = Activity;
+            if (a == null) return;
+            a.RunOnUiThread(() =>
+            {
+                if (e.PropertyName == nameof(_viewModel.StatusText))
+                {
+                    _statusText.Visibility = string.IsNullOrEmpty(_viewModel.StatusText)
+                        ? ViewStates.Gone : ViewStates.Visible;
+                    _statusText.Text = _viewModel.StatusText;
+                }
+                // 从 DB 加载后推送数据到 UI
+                else if (e.PropertyName == nameof(_viewModel.Host))
+                    _etHost.Text = _viewModel.Host;
+                else if (e.PropertyName == nameof(_viewModel.Name))
+                    _etName.Text = _viewModel.Name;
+                else if (e.PropertyName == nameof(_viewModel.Port))
+                    _etPort.Text = _viewModel.Port;
+                else if (e.PropertyName == nameof(_viewModel.UserName))
+                    _etUsername.Text = _viewModel.UserName;
+                else if (e.PropertyName == nameof(_viewModel.Password))
+                    _etPassword.Text = _viewModel.Password;
+                else if (e.PropertyName == nameof(_viewModel.UseHttps))
+                    _swHttps.Checked = _viewModel.UseHttps;
+            });
+        };
+
+        // 加载已保存配置（放在最后，此时所有 UI 绑定已完成）
+        _ = _viewModel.LoadAsync();
     }
 }

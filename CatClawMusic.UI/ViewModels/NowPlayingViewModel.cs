@@ -42,7 +42,7 @@ public partial class NowPlayingViewModel : ObservableObject
     }
     public double TotalDurationSeconds => TotalDuration.TotalSeconds;
 
-    partial void OnCurrentSongChanged(Song? value) { _ = LoadLyricsAsync(value); _ = LoadCoverAsync(value); UpdateQueuePeek(); }
+    partial void OnCurrentSongChanged(Song? value) { _ = LoadLyricsAsync(value); _ = LoadCoverAsync(value); UpdateQueuePeek(); _ = CheckFavoriteAsync(); }
     partial void OnIsLikedChanged(bool value) { LikeIcon = value ? "❤️" : "🤍"; }
 
     public NowPlayingViewModel(IAudioPlayerService audioPlayer, ILyricsService lyricsService,
@@ -257,5 +257,21 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         if (_database == null || CurrentSong == null) return;
         try { await _database.EnsureInitializedAsync(); await _database.SetFavoriteAsync(CurrentSong.Id, IsLiked); } catch { }
+    }
+
+    /// <summary>切换歌曲时从数据库同步收藏状态，避免上一首歌的♥状态残留</summary>
+    private async Task CheckFavoriteAsync()
+    {
+        if (_database == null || CurrentSong == null)
+        {
+            IsLiked = false;
+            return;
+        }
+        try
+        {
+            await _database.EnsureInitializedAsync();
+            IsLiked = await _database.IsFavoriteAsync(CurrentSong.Id);
+        }
+        catch { IsLiked = false; }
     }
 }

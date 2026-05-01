@@ -4,6 +4,7 @@ using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
 using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.ViewModels;
 using CatClawMusic.UI.Helpers;
@@ -69,5 +70,7 @@ public class LibraryFragment : Fragment
         _ = MainApplication.Services.GetRequiredService<IAudioPlayerService>().PlayAsync(song.FilePath);
         // 同步迷你播放器
         MainApplication.Services.GetRequiredService<NowPlayingViewModel>().SetCurrentSong(song);
+        // 记录播放历史
+        _ = MainApplication.Services.GetRequiredService<MusicDatabase>().RecordPlayAsync(song.Id);
     }
 }

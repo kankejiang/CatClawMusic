@@ -61,12 +61,15 @@ public class MusicDatabase
     public async Task<List<Song>> GetSongsWithDetailsAsync()
     {
         var songs = await _database.Table<Song>().ToListAsync();
+        // 批量预加载艺术家和专辑，避免 N+1 查询
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var albums = await _database.Table<Album>().ToListAsync();
+        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
+        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
         foreach (var s in songs)
         {
-            var artist = await _database.Table<Artist>().Where(a => a.Id == s.ArtistId).FirstOrDefaultAsync();
-            var album = await _database.Table<Album>().Where(a => a.Id == s.AlbumId).FirstOrDefaultAsync();
-            s.Artist = artist?.Name ?? "未知艺术家";
-            s.Album = album?.Title ?? "未知专辑";
+            s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
+            s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
         }
         return songs;
     }
@@ -127,10 +130,11 @@ public class MusicDatabase
         await EnsureInitializedAsync();
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var existing = await _database.Table<PlayHistory>()
-            .Where(h => h.SongId == songId && h.PlayedAt > now - 3600)
+            .Where(h => h.SongId == songId)
             .FirstOrDefaultAsync();
         if (existing != null)
         {
+            existing.PlayedAt = now;
             existing.PlayCount++;
             await _database.UpdateAsync(existing);
         }
@@ -138,10 +142,53 @@ public class MusicDatabase
         {
             await _database.InsertAsync(new PlayHistory { SongId = songId, PlayedAt = now });
         }
+        // 只保留最近 20 条历史
+        await TrimHistoryAsync(20);
     }
 
-    public Task<List<PlayHistory>> GetRecentPlaysAsync(int limit = 50) =>
+    private async Task TrimHistoryAsync(int keepCount)
+    {
+        try
+        {
+            var all = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).ToListAsync();
+            if (all.Count <= keepCount) return;
+            var toDelete = all.Skip(keepCount).ToList();
+            foreach (var h in toDelete)
+                await _database.DeleteAsync(h);
+        }
+        catch { }
+    }
+
+    public Task<List<PlayHistory>> GetRecentPlaysAsync(int limit = 20) =>
         _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(limit).ToListAsync();
+
+    /// <summary>获取最近播放的歌曲（含艺术家/专辑名）</summary>
+    public async Task<List<Song>> GetRecentSongsAsync()
+    {
+        await EnsureInitializedAsync();
+        var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(20).ToListAsync();
+        if (history.Count == 0) return new List<Song>();
+
+        var songIds = history.Select(h => h.SongId).ToHashSet();
+        var songs = await _database.Table<Song>().ToListAsync();
+        var recentSongs = songs.Where(s => songIds.Contains(s.Id)).ToList();
+        if (recentSongs.Count == 0) return new List<Song>();
+
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var albums = await _database.Table<Album>().ToListAsync();
+        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
+        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+
+        foreach (var s in recentSongs)
+        {
+            s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
+            s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
+        }
+
+        // 按播放时间倒序排列
+        var playTimeDict = history.ToDictionary(h => h.SongId, h => h.PlayedAt);
+        return recentSongs.OrderByDescending(s => playTimeDict.TryGetValue(s.Id, out var t) ? t : 0).ToList();
+    }
 
     // ═══════════ Favorites ═══════════
 
@@ -163,6 +210,33 @@ public class MusicDatabase
 
     public Task<List<Favorite>> GetFavoritesAsync()
         => _database.Table<Favorite>().ToListAsync();
+
+    /// <summary>获取收藏歌曲完整信息（含艺术家/专辑名）</summary>
+    public async Task<List<Song>> GetFavoriteSongsAsync()
+    {
+        await EnsureInitializedAsync();
+        var favs = await _database.Table<Favorite>().ToListAsync();
+        if (favs.Count == 0) return new List<Song>();
+
+        // 批量加载所有歌曲、艺术家、专辑
+        var allFavIds = favs.Select(f => f.SongId).ToHashSet();
+        var songs = await _database.Table<Song>().ToListAsync();
+        var favSongs = songs.Where(s => allFavIds.Contains(s.Id)).ToList();
+        if (favSongs.Count == 0) return new List<Song>();
+
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var albums = await _database.Table<Album>().ToListAsync();
+        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
+        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+
+        foreach (var s in favSongs)
+        {
+            s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
+            s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
+        }
+
+        return favSongs.OrderByDescending(s => favs.First(f => f.SongId == s.Id).AddedAt).ToList();
+    }
 
     // ═══════════ Lyric ═══════════
 

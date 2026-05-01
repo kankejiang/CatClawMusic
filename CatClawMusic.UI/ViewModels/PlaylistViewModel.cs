@@ -19,7 +19,7 @@ public partial class PlaylistViewModel : ObservableObject
     private string _statusText = "";
 
     [ObservableProperty]
-    private string _activeTab = "all"; // all / fav / recent
+    private string _activeTab = "all";
 
     public PlaylistViewModel(IMusicLibraryService musicLibrary, INavigationService navigationService,
         IAudioPlayerService? audioPlayer = null, Core.Services.PlayQueue? playQueue = null, IServiceProvider? serviceProvider = null)
@@ -38,8 +38,7 @@ public partial class PlaylistViewModel : ObservableObject
         try
         {
             var songs = await _musicLibrary.GetMergedSongsAsync();
-            Songs.Clear();
-            foreach (var s in songs) Songs.Add(s);
+            BatchReplaceSongs(songs);
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         }
         catch { StatusText = "加载失败"; }
@@ -51,9 +50,9 @@ public partial class PlaylistViewModel : ObservableObject
         StatusText = "加载中...";
         try
         {
-            // TODO: 从数据库加载收藏歌曲
-            Songs.Clear();
-            StatusText = "暂无收藏";
+            var favSongs = await _musicLibrary.GetFavoriteSongsAsync();
+            BatchReplaceSongs(favSongs);
+            StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无收藏";
         }
         catch { StatusText = "加载失败"; }
     }
@@ -64,9 +63,9 @@ public partial class PlaylistViewModel : ObservableObject
         StatusText = "加载中...";
         try
         {
-            // TODO: 从数据库加载最近播放
-            Songs.Clear();
-            StatusText = "暂无记录";
+            var recentSongs = await _musicLibrary.GetRecentSongsAsync();
+            BatchReplaceSongs(recentSongs);
+            StatusText = recentSongs.Count > 0 ? $"最近 {recentSongs.Count} 首" : "暂无记录";
         }
         catch { StatusText = "加载失败"; }
     }
@@ -82,5 +81,17 @@ public partial class PlaylistViewModel : ObservableObject
         var npvm = _serviceProvider?.GetService(typeof(NowPlayingViewModel)) as NowPlayingViewModel
             ?? MainApplication.Services.GetService(typeof(NowPlayingViewModel)) as NowPlayingViewModel;
         npvm?.SetCurrentSong(song);
+        // 记录播放历史
+        var db = _serviceProvider?.GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase
+            ?? MainApplication.Services.GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase;
+        _ = db?.RecordPlayAsync(song.Id);
+    }
+
+    /// <summary>批量替换歌曲列表，先清空再一次性填充</summary>
+    private void BatchReplaceSongs(List<Song> songs)
+    {
+        Songs.Clear(); // 单次 Reset 事件
+        foreach (var s in songs)
+            Songs.Add(s);
     }
 }

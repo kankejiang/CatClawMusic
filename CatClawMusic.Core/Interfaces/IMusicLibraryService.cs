@@ -65,4 +65,10 @@ public interface IMusicLibraryService
 
     /// <summary>保存歌曲（去重），返回影响行数</summary>
     Task<int> SaveSongAsync(Song song);
+
+    /// <summary>获取收藏歌曲列表</summary>
+    Task<List<Song>> GetFavoriteSongsAsync();
+
+    /// <summary>获取最近播放歌曲列表（保留 20 条）</summary>
+    Task<List<Song>> GetRecentSongsAsync();
 }

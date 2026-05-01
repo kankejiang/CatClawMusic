@@ -163,4 +163,6 @@ public class MusicLibraryService : IMusicLibraryService
     public Task<int> EnsureArtistAsync(string name) => _db.EnsureArtistAsync(name);
     public Task<int> EnsureAlbumAsync(string title, int artistId) => _db.EnsureAlbumAsync(title, artistId);
     public async Task<int> SaveSongAsync(Song song) { await _db.EnsureInitializedAsync(); return await _db.SaveSongAsync(song); }
+    public async Task<List<Song>> GetFavoriteSongsAsync() { await _db.EnsureInitializedAsync(); return await _db.GetFavoriteSongsAsync(); }
+    public async Task<List<Song>> GetRecentSongsAsync() { await _db.EnsureInitializedAsync(); return await _db.GetRecentSongsAsync(); }
 }
