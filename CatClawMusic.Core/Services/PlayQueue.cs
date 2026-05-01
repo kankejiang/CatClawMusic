@@ -11,7 +11,7 @@ public class PlayQueue
     private List<Song> _shuffledList = new();  // 洗牌后的列表（随机模式使用）
     private int _currentIndex = -1;
     private Stack<int> _history = new();  // 历史记录（支持"上一曲"）
-    private PlayMode _playMode = PlayMode.Sequential;
+    private PlayMode _playMode = PlayMode.ListRepeat;
     
     /// <summary>
     /// 当前播放模式

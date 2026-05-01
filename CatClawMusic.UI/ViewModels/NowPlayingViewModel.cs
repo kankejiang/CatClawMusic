@@ -32,7 +32,7 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private TimeSpan _currentPosition;
     [ObservableProperty] private TimeSpan _totalDuration;
     [ObservableProperty] private string _playPauseIcon = "▶";
-    [ObservableProperty] private string _playModeIcon = "🔁"; // 默认列表循环
+    [ObservableProperty] private string _playModeIcon = ""; // 构造函数中同步
     [ObservableProperty] private string _likeIcon = "🤍";
     [ObservableProperty] private bool _isLiked;
     [ObservableProperty] private int _volume = 80;
@@ -63,6 +63,14 @@ public partial class NowPlayingViewModel : ObservableObject
         _subsonic = subsonic;
         _dispatcher = dispatcher!;
         Volume = _audioPlayer.Volume;
+        // 同步播放模式图标与 PlayQueue 的实际模式
+        PlayModeIcon = _playQueue.PlayMode switch
+        {
+            PlayMode.ListRepeat => "🔁",
+            PlayMode.SingleRepeat => "🔂",
+            PlayMode.Shuffle => "🔀",
+            _ => "➡️"
+        };
         _audioPlayer.StateChanged += OnPlaybackStateChanged;
         _audioPlayer.PositionChanged += OnPositionChanged;
     }
