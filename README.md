@@ -1,10 +1,13 @@
-# 🐾 猫爪音乐 (CatClaw Music)
+# 🐾 猫爪音乐 (CatClaw Music) v1.0
 
-萌系 Android 本地音乐播放器，纯原生 Android 开发，支持 Flac/WAV/MP3 播放、频谱可视化、LRC 歌词滚动。
+> 📅 首次发布：2026-05-01 · v1.0.0
+>
+> 萌系 Android 本地+网络音乐播放器，.NET 9 原生 Android 开发，支持本地播放、Navidrome/Subsonic 网络音乐、频谱可视化、LRC 歌词同步滚动。
 
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-9.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-12.0-blue)
+![版本](https://img.shields.io/badge/版本-v1.0-brightgreen)
 
 ---
 
@@ -98,7 +101,8 @@
 | 获取全部歌曲 | ✅ | `search3.view` 批量获取 |
 | 专辑列表 | ✅ | `getAlbumList2.view` |
 | 封面图 | ✅ | `getCoverArt.view` |
-| 歌词获取 | ✅ | `getLyrics.view` |
+| 歌词获取 | ✅ | `getLyricsBySongId` (OpenSubsonic 结构化歌词) |
+| 本地/网络歌曲隔离 | ✅ | Tab 切换时清空，按 Source 过滤 |
 | 流媒体 URL | ✅ | `stream.view` |
 | Token 认证 | ✅ | md5+salt |
 | 配置持久化 | ✅ | 主机/端口/用户/密码/HTTPS |
@@ -184,19 +188,11 @@
 
 ### 🔧 未完成功能
 
-#### P0 — 核心体验缺失
-
-| 特性 | 优先级 | 说明 |
-|------|:------:|------|
-| WebDAV 音频扫描入库 | 🔴 P0 | `ScanWebDavAsync` 返回空列表，WebDAV 文件操作已实现但未递归扫描音频文件入库 |
-| Navidrome 歌曲播放集成 | 🔴 P0 | ✅ 已修复。`GetSongsAsync` 将 `FilePath` 替换为 `stream.view` 流媒体 URL，可直接播放 |
-| 网络歌曲封面加载 | 🔴 P0 | Subsonic 封面 URL 已构建但未接入播放器封面显示 |
-| 网络歌曲歌词加载 | 🔴 P0 | Subsonic `GetLyricsAsync` 已实现但未集成到播放流程 |
-
 #### P1 — 重要功能缺失
 
 | 特性 | 优先级 | 说明 |
 |------|:------:|------|
+| WebDAV 音频扫描入库 | 🟠 P1 | `ScanWebDavAsync` 返回空列表，WebDAV 文件操作已实现但未递归扫描音频文件入库 |
 | 自定义播放列表 (创建/编辑) | 🟠 P1 | 数据表已建但无 UI 交互 |
 | 缓存下载 (CachedSong) | 🟠 P1 | 表已建、清缓存按钮已有，但下载逻辑未实现 |
 | 通知栏媒体控制 | 🟠 P1 | 未创建 MediaStyle Notification |
@@ -276,7 +272,7 @@ CatClawMusic/
 
 | 模块 | 实现 |
 |------|------|
-| **来源** | 嵌入歌词 → 同名 .lrc（SAF content URI） |
+| **来源** | 嵌入歌词 → 同名 .lrc（SAF）→ Navidrome 远程歌词（OpenSubsonic 结构化 + 纯文本回退） |
 | **解析** | 兼容 `[mm:ss.xx]` / `[mm:ss.xxx]` / `[mm:ss]` 格式 |
 | **同步** | 500ms 定时器匹配播放位置 → 三行显示（上/当前/下） |
 | **恢复** | 重启后根据保存位置显示对应歌词行 |
@@ -397,6 +393,25 @@ public interface ILyricsProviderPlugin : IPlugin
 ---
 
 ------
+
+## 🔨 构建说明
+
+```bash
+# 注意：.NET 10 SDK 有 NuGet restore 兼容性问题
+# 必须使用 VS MSBuild，而非 dotnet build
+
+# 方式一：双击 build_apk.bat（推荐）
+D:\WorkBuddy\CatClawMusic\build_apk.bat
+
+# 方式二：cmd 下运行
+cd D:\WorkBuddy\CatClawMusic
+cmd /c build_apk.bat
+
+# APK 输出路径：
+# CatClawMusic.UI\bin\Release\net9.0-android\CatClawMusic.UI-Signed.apk
+```
+
+---
 
 ## 📄 开源协议
 

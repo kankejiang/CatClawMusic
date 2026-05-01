@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
     <RestoreSolutionDirectory>D:\WorkBuddy\CatClawMusic</RestoreSolutionDirectory>
+    <AndroidSdkDirectory>C:\Users\lvjin\AppData\Local\Android\Sdk</AndroidSdkDirectory>
   </PropertyGroup>
 </Project>
