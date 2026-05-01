@@ -3,6 +3,7 @@ using Android.OS;
 using Android.Views;
 using Android.Widget;
 using AndroidX.AppCompat.App;
+using AndroidX.Core.View;
 using AndroidX.ViewPager2.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
@@ -94,6 +95,9 @@ public class MainActivity : AppCompatActivity
         _btnMenu = FindViewById<ImageButton>(Resource.Id.btn_menu)!;
         _viewPager = FindViewById<ViewPager2>(Resource.Id.view_pager)!;
         _bottomNav = FindViewById<BottomNavigationView>(Resource.Id.bottom_navigation)!;
+
+        // 适配状态栏：工具栏向下偏移状态栏高度，防止被遮挡（如 iQOO 等设备）
+        FitSystemBars();
 
         _tabFragments = new Fragment[]
         {
@@ -320,7 +324,36 @@ public class MainActivity : AppCompatActivity
         });
     }
 
+    // ═══════════ 系统栏适配 ═══════════
+
+    private void FitSystemBars()
+    {
+        var root = FindViewById<View>(Android.Resource.Id.Content)!;
+        ViewCompat.SetOnApplyWindowInsetsListener(root, new WindowInsetsListener((v, insets) =>
+        {
+            var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars());
+            // 工具栏整体下移留出状态栏空间，内容区保持完整
+            var toolbarLp = (LinearLayout.LayoutParams)_toolbar.LayoutParameters!;
+            toolbarLp.TopMargin = bars.Top;
+            _toolbar.LayoutParameters = toolbarLp;
+            // 底部导航底部加 padding，避免被导航栏手势条遮挡
+            _bottomNav.SetPadding(
+                _bottomNav.PaddingLeft,
+                _bottomNav.PaddingTop,
+                _bottomNav.PaddingRight,
+                bars.Bottom);
+            return ViewCompat.OnApplyWindowInsets(v, insets);
+        }));
+    }
+
     // ═══════════ 内部类 ═══════════
+
+    private class WindowInsetsListener : Java.Lang.Object, IOnApplyWindowInsetsListener
+    {
+        private readonly Func<View, WindowInsetsCompat, WindowInsetsCompat> _callback;
+        public WindowInsetsListener(Func<View, WindowInsetsCompat, WindowInsetsCompat> callback) => _callback = callback;
+        public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets) => _callback(v, insets);
+    }
 
     private class PageChangeCallback : ViewPager2.OnPageChangeCallback
     {

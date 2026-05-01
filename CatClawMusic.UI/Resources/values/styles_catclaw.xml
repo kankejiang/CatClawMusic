@@ -12,8 +12,8 @@
         <item name="bottomNavigationStyle">@style/CatClawBottomNav</item>
     </style>
 
-    <!-- 启动画面 -->
-    <style name="CatClaw.Splash" parent="Theme.AppCompat.NoActionBar">
+    <!-- 启动画面（必须继承 Material 主题，否则 MaterialCardView 无法 inflate） -->
+    <style name="CatClaw.Splash" parent="Theme.Material3.Light.NoActionBar">
         <item name="android:windowBackground">@drawable/splash_screen</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>

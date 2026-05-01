@@ -1,19 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="@color/pageBackground"
-    android:paddingHorizontal="0dp" android:paddingTop="16dp">
+    android:orientation="vertical" android:background="@color/pageBackground">
+
+    <!-- 标题 -->
     <TextView android:id="@+id/title_text" android:layout_width="wrap_content"
         android:layout_height="wrap_content" android:text="@string/tab_playlist"
         android:textSize="22sp" android:fontFamily="@font/happy_zcool_2016"
         android:textColor="@color/textPrimary" android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="12dp" />
-    <androidx.recyclerview.widget.RecyclerView android:id="@+id/playlist_list"
+        android:layout_marginTop="16dp" android:layout_marginBottom="12dp" />
+
+    <!-- 分类标签栏 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp">
+        <TextView android:id="@+id/tab_all" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="全部歌曲"
+            android:textSize="15sp" android:fontFamily="sans-serif-medium"
+            android:padding="8dp" android:layout_marginEnd="12dp"
+            android:clickable="true" android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+        <TextView android:id="@+id/tab_fav" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="收藏歌曲"
+            android:textSize="15sp" android:fontFamily="sans-serif"
+            android:padding="8dp" android:layout_marginEnd="12dp"
+            android:clickable="true" android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+        <TextView android:id="@+id/tab_recent" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="最近播放"
+            android:textSize="15sp" android:fontFamily="sans-serif"
+            android:padding="8dp" android:layout_marginEnd="12dp"
+            android:clickable="true" android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+    </LinearLayout>
+
+    <!-- 歌曲列表 -->
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/song_list"
         android:layout_width="match_parent" android:layout_height="0dp"
         android:layout_weight="1" android:clipToPadding="false"
-        android:paddingBottom="8dp" />
-    <TextView android:id="@+id/empty_text" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:gravity="center" android:visibility="gone"
-        android:text="暂无播放列表" android:textColor="@color/textHint"
-        android:textSize="15sp" android:padding="32dp" />
+        android:paddingHorizontal="12dp" android:paddingBottom="8dp" />
+
+    <!-- 状态文字 -->
+    <TextView android:id="@+id/status_text" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:gravity="center"
+        android:textColor="@color/textHint" android:textSize="12sp"
+        android:padding="8dp" android:visibility="gone" />
 </LinearLayout>

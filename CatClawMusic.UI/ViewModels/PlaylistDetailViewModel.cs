@@ -35,9 +35,15 @@ public partial class PlaylistDetailViewModel : ObservableObject
         StatusText = "加载中...";
         try
         {
-            var allSongs = await _musicLibrary.GetAllSongsAsync();
+            // 全部歌曲（Id=3）：本地+网络合并去重
+            List<Song> allSongs;
+            if (playlistId == 3)
+                allSongs = await _musicLibrary.GetMergedSongsAsync();
+            else
+                allSongs = await _musicLibrary.GetAllSongsAsync();
+
             Songs.Clear();
-            foreach (var s in allSongs.Take(50)) Songs.Add(s);
+            foreach (var s in allSongs) Songs.Add(s);
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         }
         catch { StatusText = "加载失败"; }

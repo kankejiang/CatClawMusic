@@ -11,12 +11,13 @@
     <NoWarn>NU1605;NU1608</NoWarn>
     <AndroidUseFastDeployment>False</AndroidUseFastDeployment>
     <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
+    <AndroidSdkDirectory>C:\Users\lvjin\AppData\Local\Android\Sdk</AndroidSdkDirectory>
+    <JavaSdkDirectory>C:\Program Files\Android\openjdk\jdk-21.0.8</JavaSdkDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <DebugSymbols>True</DebugSymbols>
     <AndroidKeyStore>False</AndroidKeyStore>
-    <AndroidCreatePackagePerAbi>True</AndroidCreatePackagePerAbi>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <PublishTrimmed>True</PublishTrimmed>

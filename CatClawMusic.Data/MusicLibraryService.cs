@@ -114,6 +114,29 @@ public class MusicLibraryService : IMusicLibraryService
         return await _db.GetSongsAsync();
     }
 
+    /// <summary>
+    /// 获取去重合并的全部歌曲：本地 + 网络歌曲按标题+艺术家去重，本地优先
+    /// </summary>
+    public async Task<List<Song>> GetMergedSongsAsync()
+    {
+        var allSongs = await GetAllSongsAsync();
+        // 按 Title+Artist 分组去重，优先保留本地歌曲
+        var deduped = allSongs
+            .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
+            .Select(g =>
+            {
+                // 优先选本地，其次 WebDAV，最后 Cache
+                var local = g.FirstOrDefault(s => s.Source == SongSource.Local);
+                if (local != null) return local;
+                var webdav = g.FirstOrDefault(s => s.Source == SongSource.WebDAV);
+                if (webdav != null) return webdav;
+                return g.First();
+            })
+            .OrderBy(s => s.Title)
+            .ToList();
+        return deduped;
+    }
+
     public async Task<List<Song>> GetSongsByArtistAsync(string artist)
     {
         await _db.EnsureInitializedAsync();

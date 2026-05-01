@@ -67,6 +67,7 @@ public class LibraryFragment : Fragment
         queue.SetSongs(_viewModel.Songs);
         queue.SelectSong(song.Id);
         _ = MainApplication.Services.GetRequiredService<IAudioPlayerService>().PlayAsync(song.FilePath);
-        MainApplication.Services.GetRequiredService<INavigationService>().SwitchTab(0);
+        // 同步迷你播放器
+        MainApplication.Services.GetRequiredService<NowPlayingViewModel>().SetCurrentSong(song);
     }
 }

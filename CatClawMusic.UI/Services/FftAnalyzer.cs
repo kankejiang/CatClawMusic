@@ -81,19 +81,26 @@ public static class FftAnalyzer
             mag[i] = Math.Clamp(mag[i] * norm, 0, 1);
 
         // 5. 对数频段划分：32 段从 30Hz 到 16kHz
+        // 确保每个柱条映射到独立的 FFT bin 范围，跳过 DC 分量（bin 0）
         float[] rawBars = new float[barCount];
+        int lastBinHigh = 0; // 追踪上一个柱条用到的最大 bin 索引
         for (int b = 0; b < barCount; b++)
         {
             double fLow = 30 * Math.Pow(16000.0 / 30.0, (double)b / barCount);
             double fHigh = 30 * Math.Pow(16000.0 / 30.0, (double)(b + 1) / barCount);
-            int binLow = Math.Max(0, (int)(fLow * FftSize / sampleRate));
+            int binLow = Math.Max(1, (int)(fLow * FftSize / sampleRate));
             int binHigh = Math.Min(FftSize / 2 - 1, (int)(fHigh * FftSize / sampleRate));
-            if (binHigh <= binLow) binHigh = binLow + 1;
+
+            // 确保不共用前一个柱条的 bin，避免多个柱条映射到 DC 分量
+            if (binLow <= lastBinHigh) binLow = lastBinHigh + 1;
+            if (binLow >= FftSize / 2) { binLow = FftSize / 2 - 1; binHigh = FftSize / 2 - 1; }
+            if (binHigh < binLow) binHigh = binLow;
+            lastBinHigh = binHigh;
 
             float energy = 0;
             for (int j = binLow; j <= binHigh; j++)
                 energy += mag[j];
-            rawBars[b] = Math.Min(1f, energy / (binHigh - binLow + 1) * 4f); // 降低增益防满格
+            rawBars[b] = Math.Min(1f, energy / (binHigh - binLow + 1) * 4f);
         }
 
         // 6. 包络跟随：主柱快上快下
