@@ -22,7 +22,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _basePath = "/";
     [ObservableProperty] private double _cacheSizeGB = 1;
     [ObservableProperty] private bool _onlyWiFiCache = true;
-    [ObservableProperty] private string _musicFolder;
+    [ObservableProperty] private string _musicFolder = "";
     [ObservableProperty] private bool _isTesting;
     [ObservableProperty] private string _statusText = "";
 
@@ -43,7 +43,7 @@ public partial class SettingsViewModel : ObservableObject
 
         var ctx = global::Android.App.Application.Context;
         var prefs = ctx.GetSharedPreferences("catclaw_prefs", global::Android.Content.FileCreationMode.Private)!;
-        _musicFolder = prefs.GetString("music_folder", "") ?? "";
+        MusicFolder = prefs.GetString("music_folder", "") ?? "";
 
         // 加载已有文件夹列表
         foreach (var uri in FolderPicker.GetSavedFolderUris())
@@ -74,7 +74,7 @@ public partial class SettingsViewModel : ObservableObject
             var name = GetFolderDisplayName(uri);
             if (!MusicFolders.Contains(name))
                 MusicFolders.Add(name);
-            _musicFolder = uri;
+            MusicFolder = uri;
             OnPropertyChanged(nameof(MusicFolder));
         }
     }
@@ -85,7 +85,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         FolderPicker.ClearFolders();
         MusicFolders.Clear();
-        _musicFolder = "";
+        MusicFolder = "";
         OnPropertyChanged(nameof(MusicFolder));
     }
 

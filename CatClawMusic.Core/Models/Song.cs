@@ -52,6 +52,9 @@ public class Song
 
     public SongSource Source { get; set; } = SongSource.Local;
 
+    /// <summary>远程歌曲唯一标识（Subsonic songId），用于网络歌曲去重</summary>
+    public string? RemoteId { get; set; }
+
     // ── 以下为兼容查询的运行时字段，不存储 ──
 
     [Ignore]

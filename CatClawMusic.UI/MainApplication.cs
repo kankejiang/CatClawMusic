@@ -26,12 +26,12 @@ public class MainApplication : Application
 
         var services = new ServiceCollection();
 
-        // Database（v3 新模型：artists/albums 关系表）
+        // Database（v4：新增 RemoteId 列用于网络歌曲去重）
         string dbPath = Path.Combine(CacheDir!.AbsolutePath, "catclaw.db");
-        if (!File.Exists(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v3.marker")))
+        if (!File.Exists(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v4.marker")))
         {
             try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { }
-            File.WriteAllText(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v3.marker"), "1");
+            File.WriteAllText(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v4.marker"), "1");
         }
         var database = new MusicDatabase(dbPath);
         services.AddSingleton(database);

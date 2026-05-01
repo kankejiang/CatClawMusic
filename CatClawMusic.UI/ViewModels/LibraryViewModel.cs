@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CoreModels = CatClawMusic.Core.Models;
@@ -11,6 +12,7 @@ public partial class LibraryViewModel : ObservableObject
     private readonly IMusicLibraryService _musicLibrary;
     private readonly INetworkMusicService? _networkMusic;
     private readonly IPermissionService? _permission;
+    private readonly MusicDatabase? _database;
     private readonly IMainThreadDispatcher _dispatcher;
     private string _currentTab = "Local";
 
@@ -27,13 +29,14 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private bool _isScanning;
 
     private bool _hasLoadedLocal;
-    private bool _hasLoadedNetwork;
 
-    public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null, IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null)
+    public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null,
+        IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null, MusicDatabase? database = null)
     {
         _musicLibrary = musicLibrary;
         _networkMusic = networkMusic;
         _permission = permission;
+        _database = database;
         _dispatcher = dispatcher!;
     }
 
@@ -43,6 +46,7 @@ public partial class LibraryViewModel : ObservableObject
         _currentTab = tab;
         LocalTabColor = tab == "Local" ? "#9B7ED8" : "#C0B8CA";
         NetworkTabColor = tab == "Network" ? "#9B7ED8" : "#C0B8CA";
+        Songs.Clear(); // 切换 tab 时清空列表，让 load 方法重新填充
         if (tab == "Local")
             _ = LoadLocalAsync();
         else if (tab == "Network")
@@ -50,7 +54,7 @@ public partial class LibraryViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task Refresh() => await (_currentTab == "Local" ? LoadLocalAsync(forceReload: true) : LoadNetworkAsync());
+    private async Task Refresh() => await (_currentTab == "Local" ? LoadLocalAsync(forceReload: true) : LoadNetworkAsync(forceRefresh: true));
 
     /// <summary>通过 SAF 系统文件管理器选择音乐文件夹</summary>
     [RelayCommand]
@@ -201,23 +205,40 @@ public partial class LibraryViewModel : ObservableObject
         _dispatcher.Post(() => { ScanProgress = pct; ScanStatus = status; });
     }
 
-    public async Task LoadNetworkAsync()
+    public async Task LoadNetworkAsync(bool forceRefresh = false)
     {
         ShowPermissionPrompt = false; IsLoading = true;
-        StatusText = "正在加载网络配置..."; Songs.Clear();
+        StatusText = "正在加载..."; Songs.Clear();
+
         try
         {
-            if (_networkMusic == null) { StatusText = "网络服务未就绪"; return; }
+            // 优先从本地缓存加载
+            if (_database != null && !forceRefresh)
+            {
+                await _database.EnsureInitializedAsync();
+                var cached = await _database.GetCachedNetworkSongsAsync();
+                if (cached.Count > 0)
+                {
+                    foreach (var s in cached) Songs.Add(s);
+                    StatusText = $"☁️ 共 {cached.Count} 首网络歌曲（缓存）";
+                    IsLoading = false;
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 从缓存加载了 {cached.Count} 首网络歌曲");
+                    return;
+                }
+            }
+
+            // 缓存为空或强制刷新：从服务器加载
+            if (_networkMusic == null) { StatusText = "网络服务未就绪"; IsLoading = false; return; }
             var enabled = (await _networkMusic.GetProfilesAsync()).Where(p => p.IsEnabled).ToList();
-            if (enabled.Count == 0) { StatusText = "请先在设置中配置网络连接"; return; }
+            if (enabled.Count == 0) { StatusText = "请先在设置中配置网络连接"; IsLoading = false; return; }
             var all = new List<CoreModels.Song>();
             foreach (var p in enabled)
             {
                 StatusText = $"正在连接 {p.Name}...";
                 try { all.AddRange(await _networkMusic.ScanAsync(p)); } catch { }
             }
+            // ScanAsync 内部已保存到本地缓存
             foreach (var s in all) Songs.Add(s);
-            _hasLoadedNetwork = true;
             StatusText = Songs.Count > 0 ? $"☁️ 共 {Songs.Count} 首网络歌曲" : "连接成功但未找到歌曲";
         }
         catch (Exception ex) { StatusText = $"连接失败: {ex.Message}"; }

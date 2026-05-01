@@ -60,7 +60,7 @@ public class MusicDatabase
 
     public async Task<List<Song>> GetSongsWithDetailsAsync()
     {
-        var songs = await _database.Table<Song>().ToListAsync();
+        var songs = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).ToListAsync();
         // 批量预加载艺术家和专辑，避免 N+1 查询
         var artists = await _database.Table<Artist>().ToListAsync();
         var albums = await _database.Table<Album>().ToListAsync();
@@ -262,4 +262,49 @@ public class MusicDatabase
 
     public Task<List<ConnectionProfile>> GetConnectionProfilesAsync()
         => _database.Table<ConnectionProfile>().ToListAsync();
+
+    // ═══════════ Network Song Cache ═══════════
+
+    /// <summary>替换所有网络缓存歌曲（先清除旧的，再批量写入新的）</summary>
+    public async Task ReplaceNetworkSongsAsync(List<Song> songs)
+    {
+        await EnsureInitializedAsync();
+        // 清除旧网络歌曲（Source=WebDAV）
+        try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.WebDAV); }
+        catch { /* 表可能为空 */ }
+        // 批量写入
+        foreach (var s in songs)
+        {
+            try
+            {
+                s.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                await _database.InsertAsync(s);
+            }
+            catch { /* FilePath 冲突跳过 */ }
+        }
+    }
+
+    /// <summary>获取缓存的网络歌曲</summary>
+    public async Task<List<Song>> GetCachedNetworkSongsAsync()
+    {
+        await EnsureInitializedAsync();
+        var songs = await _database.Table<Song>()
+            .Where(s => s.Source == SongSource.WebDAV)
+            .ToListAsync();
+        // 填充 Artist/Album 名称
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var albums = await _database.Table<Album>().ToListAsync();
+        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
+        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+        foreach (var s in songs)
+        {
+            s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
+            s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
+        }
+        return songs;
+    }
+
+    /// <summary>缓存网络歌曲数量</summary>
+    public async Task<int> GetCachedNetworkSongCountAsync()
+        => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV).CountAsync();
 }

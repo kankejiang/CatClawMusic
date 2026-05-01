@@ -54,16 +54,16 @@ public class NavidromeSettingsFragment : SettingsSubPageFragment
                         ? ViewStates.Gone : ViewStates.Visible;
                     _statusText.Text = _viewModel.StatusText;
                 }
-                // 从 DB 加载后推送数据到 UI
-                else if (e.PropertyName == nameof(_viewModel.Host))
+                // 从 DB 加载后推送到 UI（仅在值不同时更新，避免光标重置）
+                else if (e.PropertyName == nameof(_viewModel.Host) && _etHost.Text != _viewModel.Host)
                     _etHost.Text = _viewModel.Host;
-                else if (e.PropertyName == nameof(_viewModel.Name))
+                else if (e.PropertyName == nameof(_viewModel.Name) && _etName.Text != _viewModel.Name)
                     _etName.Text = _viewModel.Name;
-                else if (e.PropertyName == nameof(_viewModel.Port))
+                else if (e.PropertyName == nameof(_viewModel.Port) && _etPort.Text != _viewModel.Port)
                     _etPort.Text = _viewModel.Port;
-                else if (e.PropertyName == nameof(_viewModel.UserName))
+                else if (e.PropertyName == nameof(_viewModel.UserName) && _etUsername.Text != _viewModel.UserName)
                     _etUsername.Text = _viewModel.UserName;
-                else if (e.PropertyName == nameof(_viewModel.Password))
+                else if (e.PropertyName == nameof(_viewModel.Password) && _etPassword.Text != _viewModel.Password)
                     _etPassword.Text = _viewModel.Password;
                 else if (e.PropertyName == nameof(_viewModel.UseHttps))
                     _swHttps.Checked = _viewModel.UseHttps;

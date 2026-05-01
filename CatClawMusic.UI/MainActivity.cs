@@ -74,15 +74,18 @@ public class MainActivity : AppCompatActivity
         miniProgressTimer.Elapsed += (_, _) => RunOnUiThread(() =>
         {
             if (_miniProgress == null) return;
-            var dur = player.Duration.TotalSeconds;
-            var pos = player.CurrentPosition.TotalSeconds;
-            if (dur > 0 && player.IsPlaying)
-                _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(
-                    (int)(_miniPlayer!.Width * (pos / dur)), 2,
-                    GravityFlags.Bottom);
-            else if (!player.IsPlaying)
+            // 仅在确认播放中才读取 Duration/Position，避免在 Preparing/Error/Idle 状态触发原生 MediaPlayer 错误
+            if (!player.IsPlaying || player.Duration.TotalSeconds <= 0)
+            {
                 _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(
                     _miniPlayer?.Width ?? 0, 2, GravityFlags.Bottom);
+                return;
+            }
+            var dur = player.Duration.TotalSeconds;
+            var pos = player.CurrentPosition.TotalSeconds;
+            _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(
+                (int)(_miniPlayer!.Width * (pos / dur)), 2,
+                GravityFlags.Bottom);
         });
         miniProgressTimer.Start();
         _ = Task.Run(async () =>

@@ -15,10 +15,14 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IMusicLibraryService _musicLibrary;
     private readonly PlayQueue _playQueue;
     private readonly MusicDatabase? _database;
+    private readonly INetworkMusicService? _networkMusic;
+    private readonly ISubsonicService? _subsonic;
     private readonly IMainThreadDispatcher _dispatcher;
     private LrcLyrics? _currentLyrics;
     private bool _isPositionUpdating;
     private int _saveCounter; // 定时保存计数器
+    private ConnectionProfile? _cachedNetworkProfile;
+    private bool _profileLookedUp;
 
     [ObservableProperty] private Song? _currentSong;
     [ObservableProperty] private string _coverSource = "";
@@ -46,13 +50,17 @@ public partial class NowPlayingViewModel : ObservableObject
     partial void OnIsLikedChanged(bool value) { LikeIcon = value ? "❤️" : "🤍"; }
 
     public NowPlayingViewModel(IAudioPlayerService audioPlayer, ILyricsService lyricsService,
-        IMusicLibraryService musicLibrary, PlayQueue playQueue, MusicDatabase? database = null, IMainThreadDispatcher? dispatcher = null)
+        IMusicLibraryService musicLibrary, PlayQueue playQueue, MusicDatabase? database = null,
+        IMainThreadDispatcher? dispatcher = null, INetworkMusicService? networkMusic = null,
+        ISubsonicService? subsonic = null)
     {
         _audioPlayer = audioPlayer;
         _lyricsService = lyricsService;
         _musicLibrary = musicLibrary;
         _playQueue = playQueue;
         _database = database;
+        _networkMusic = networkMusic;
+        _subsonic = subsonic;
         _dispatcher = dispatcher!;
         Volume = _audioPlayer.Volume;
         _audioPlayer.StateChanged += OnPlaybackStateChanged;
@@ -149,9 +157,16 @@ public partial class NowPlayingViewModel : ObservableObject
                 coverBytes = ExtractCoverFromContentUri(song.FilePath);
             }
 
-            var stream = coverBytes != null
+            Stream? stream = coverBytes != null
                 ? new MemoryStream(coverBytes)
                 : await _musicLibrary.GetAlbumCoverAsync(song);
+
+            // 网络歌曲：通过 Subsonic API 获取远端封面
+            if (stream == null && song.Source == SongSource.WebDAV
+                && !string.IsNullOrEmpty(song.CoverArtPath))
+            {
+                stream = await GetNetworkCoverAsync(song);
+            }
 
             if (stream != null)
             {
@@ -209,7 +224,9 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             _isPositionUpdating = true;
             CurrentPosition = position;
-            TotalDuration = _audioPlayer.Duration;
+            // 仅在播放中读取 Duration，避免切歌时的竞态触发原生 getDuration 错误
+            if (_audioPlayer.IsPlaying)
+                TotalDuration = _audioPlayer.Duration;
             if (_currentLyrics?.Lines is { Count: > 0 })
             {
                 var idx = _lyricsService.GetCurrentLyricIndex(_currentLyrics, position);
@@ -232,6 +249,18 @@ public partial class NowPlayingViewModel : ObservableObject
         if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; _currentLyrics = null; return; }
         CurrentLyricLine = "正在加载歌词..."; NextLyricLine = "";
         _currentLyrics = await _lyricsService.GetLyricsAsync(song);
+
+        // 网络歌曲：尝试从 Subsonic 获取远程歌词
+        if (_currentLyrics == null && song.Source == SongSource.WebDAV)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 网络歌曲, Source={song.Source}, 尝试远程歌词");
+            _currentLyrics = await GetNetworkLyricsAsync(song);
+        }
+        else if (_currentLyrics == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 本地无歌词, Source={song.Source}, 跳过远程");
+        }
+
         if (_currentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
         else if (_currentLyrics.Lines.Count > 0)
         {
@@ -273,5 +302,92 @@ public partial class NowPlayingViewModel : ObservableObject
             IsLiked = await _database.IsFavoriteAsync(CurrentSong.Id);
         }
         catch { IsLiked = false; }
+    }
+
+    /// <summary>查找已启用的网络连接配置（Navidrome）</summary>
+    private async Task<ConnectionProfile?> GetNetworkProfileAsync()
+    {
+        if (_cachedNetworkProfile != null) return _cachedNetworkProfile;
+        if (_networkMusic == null || _profileLookedUp) return null;
+        _profileLookedUp = true;
+        try
+        {
+            var profiles = await _networkMusic.GetProfilesAsync();
+            _cachedNetworkProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled);
+            return _cachedNetworkProfile;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>通过网络 API 获取远程封面</summary>
+    private async Task<Stream?> GetNetworkCoverAsync(Song song)
+    {
+        if (_networkMusic == null || string.IsNullOrEmpty(song.CoverArtPath)) return null;
+        var profile = await GetNetworkProfileAsync();
+        if (profile == null) return null;
+        try { return await _networkMusic.GetCoverAsync(song.CoverArtPath, profile); }
+        catch { return null; }
+    }
+
+    /// <summary>通过网络 API 获取远程歌词</summary>
+    private async Task<LrcLyrics?> GetNetworkLyricsAsync(Song song)
+    {
+        if (_subsonic == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[CatClaw] GetNetworkLyrics: _subsonic 为 null");
+            return null;
+        }
+        var profile = await GetNetworkProfileAsync();
+        if (profile == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[CatClaw] GetNetworkLyrics: 未找到 Navidrome 配置");
+            return null;
+        }
+        try
+        {
+            var songId = ExtractSubsonicSongId(song);
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetNetworkLyrics: songId={songId}, title={song.Title}");
+            if (string.IsNullOrEmpty(songId)) return null;
+            var lrcText = await _subsonic.GetLyricsAsync(songId, profile);
+            if (string.IsNullOrEmpty(lrcText))
+            {
+                System.Diagnostics.Debug.WriteLine("[CatClaw] GetNetworkLyrics: API 返回空歌词");
+                return null;
+            }
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetNetworkLyrics: 获取到 {lrcText.Length} 字符");
+            // 先尝试 LRC 同步歌词
+            var parsed = _lyricsService.ParseLrc(lrcText);
+            if (parsed != null) return parsed;
+            // 回退：非同步歌词（纯文本），每行视为一条歌词
+            return BuildUnsynchronizedLyrics(lrcText);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>将纯文本歌词转换为伪 LRC（无时间戳，按行显示）</summary>
+    private static LrcLyrics BuildUnsynchronizedLyrics(string text)
+    {
+        var lyrics = new LrcLyrics();
+        var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+            lyrics.Lines.Add(new LrcLyricLine { Timestamp = TimeSpan.Zero, Text = trimmed });
+        }
+        return lyrics.Lines.Count > 0 ? lyrics : null!;
+    }
+
+    /// <summary>从 Subsonic stream URL 中提取歌曲 ID</summary>
+    private static string ExtractSubsonicSongId(Song song)
+    {
+        // FilePath 已替换为 stream URL: http://host/rest/stream.view?id=XXX&u=...
+        var path = song.FilePath;
+        if (string.IsNullOrEmpty(path)) return "";
+        var idx = path.IndexOf("id=", StringComparison.Ordinal);
+        if (idx < 0) return "";
+        idx += 3;
+        var end = path.IndexOf('&', idx);
+        return end > idx ? path[idx..end] : path[idx..];
     }
 }

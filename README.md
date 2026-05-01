@@ -189,7 +189,7 @@
 | 特性 | 优先级 | 说明 |
 |------|:------:|------|
 | WebDAV 音频扫描入库 | 🔴 P0 | `ScanWebDavAsync` 返回空列表，WebDAV 文件操作已实现但未递归扫描音频文件入库 |
-| Navidrome 歌曲播放集成 | 🔴 P0 | `GetStreamUrl` 已实现但点击播放未走流媒体 URL 路径 |
+| Navidrome 歌曲播放集成 | 🔴 P0 | ✅ 已修复。`GetSongsAsync` 将 `FilePath` 替换为 `stream.view` 流媒体 URL，可直接播放 |
 | 网络歌曲封面加载 | 🔴 P0 | Subsonic 封面 URL 已构建但未接入播放器封面显示 |
 | 网络歌曲歌词加载 | 🔴 P0 | Subsonic `GetLyricsAsync` 已实现但未集成到播放流程 |
 

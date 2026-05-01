@@ -27,12 +27,29 @@ public class NetworkMusicService : INetworkMusicService
 
     public async Task<List<Song>> ScanAsync(ConnectionProfile profile)
     {
-        return profile.Protocol switch
+        var songs = profile.Protocol switch
         {
             ProtocolType.Navidrome => await _subsonic.GetSongsAsync(profile),
             ProtocolType.WebDAV => await ScanWebDavAsync(profile),
             _ => new List<Song>()
         };
+
+        // 保存到本地缓存
+        if (songs.Count > 0)
+        {
+            try
+            {
+                await _db.EnsureInitializedAsync();
+                await _db.ReplaceNetworkSongsAsync(songs);
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 已缓存 {songs.Count} 首网络歌曲到本地");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 缓存网络歌曲失败: {ex.Message}");
+            }
+        }
+
+        return songs;
     }
 
     public async Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile)

@@ -81,7 +81,9 @@ public class SubsonicService : ISubsonicService
             {
                 foreach (var item in songArray.EnumerateArray())
                 {
-                    songs.Add(ParseSong(item, profile));
+                    var song = ParseSong(item, profile);
+                    song.FilePath = GetStreamUrl(song.FilePath, profile);
+                    songs.Add(song);
                 }
             }
             return songs;
@@ -92,43 +94,66 @@ public class SubsonicService : ISubsonicService
     public async Task<List<Song>> GetSongsAsync(ConnectionProfile profile)
     {
         var songs = new List<Song>();
+        var seenIds = new HashSet<string>(); // 重复检测：防止 offset 无效时死循环
+        const int pageSize = 500;
+        const int maxPages = 100; // 安全上限 50,000 首
+        int offset = 0;
+        int page = 0;
+
         try
         {
-            var url = ApiUrl("search3.view?query=&songCount=500&albumCount=0&artistCount=0", profile);
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs URL: {url}");
-            var json = await _http.GetStringAsync(url);
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 响应前200字符: {(json.Length > 200 ? json[..200] : json)}");
-            using var doc = JsonDocument.Parse(json);
-            var resp = doc.RootElement.GetProperty("subsonic-response");
-            // 检查状态
-            if (resp.TryGetProperty("status", out var status) && status.GetString() == "failed")
+            while (page < maxPages)
             {
-                var err = resp.TryGetProperty("error", out var e) ? e.TryGetProperty("message", out var m) ? m.GetString() : "" : "";
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs API错误: {err}");
-                return songs;
-            }
-            if (resp.TryGetProperty("searchResult3", out var searchResult))
-            {
-                if (searchResult.TryGetProperty("song", out var arr))
+                page++;
+                var url = ApiUrl($"search3.view?query=&songCount={pageSize}&albumCount=0&artistCount=0&offset={offset}", profile);
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs Page {page} URL: {url}");
+                var json = await _http.GetStringAsync(url);
+                var pageCount = 0;
+                var duplicateCount = 0;
+
+                using (var doc = JsonDocument.Parse(json))
                 {
-                    foreach (var item in arr.EnumerateArray())
-                        songs.Add(ParseSong(item, profile));
+                    var resp = doc.RootElement.GetProperty("subsonic-response");
+                    if (resp.TryGetProperty("status", out var status) && status.GetString() == "failed")
+                    {
+                        var err = resp.TryGetProperty("error", out var e) ? e.TryGetProperty("message", out var m) ? m.GetString() : "" : "";
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs API错误: {err}");
+                        break;
+                    }
+                    if (resp.TryGetProperty("searchResult3", out var searchResult))
+                    {
+                        if (searchResult.TryGetProperty("song", out var arr))
+                        {
+                            var songsInPage = EnumerateSongArray(arr);
+                            foreach (var item in songsInPage)
+                            {
+                                var songId = item.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                                // 重复检测：如果 ID 已存在说明 offset 无效，退出
+                                if (!seenIds.Add(songId))
+                                {
+                                    duplicateCount++;
+                                    continue;
+                                }
+                                var song = ParseSong(item, profile);
+                                song.FilePath = GetStreamUrl(song.FilePath, profile);
+                                songs.Add(song);
+                            }
+                            pageCount = songsInPage.Count;
+                        }
+                    }
                 }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("[CatClaw] GetSongs: searchResult3 中没有 song 字段");
-                }
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("[CatClaw] GetSongs: 响应中没有 searchResult3");
+
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs Page {page}: {pageCount} 首 (重复 {duplicateCount})");
+                if (duplicateCount > pageCount / 2) break; // 超过一半重复 → offset 无效
+                if (pageCount < pageSize) break;             // 最后一页
+                offset += pageSize;
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 失败: {ex.GetType().Name}: {ex.Message}");
         }
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 返回 {songs.Count} 首歌曲");
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 总计返回 {songs.Count} 首歌曲");
         return songs;
     }
 
@@ -184,17 +209,60 @@ public class SubsonicService : ISubsonicService
     {
         try
         {
-            var url = ApiUrl($"getLyrics.view?id={HttpUtility.UrlEncode(songId)}", profile);
+            // OpenSubsonic: getLyricsBySongId.view
+            var url = ApiUrl($"getLyricsBySongId.view?id={HttpUtility.UrlEncode(songId)}", profile);
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics URL: {url}");
             var json = await _http.GetStringAsync(url);
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics 响应: {(json.Length > 300 ? json[..300] : json)}");
             using var doc = JsonDocument.Parse(json);
             var resp = doc.RootElement.GetProperty("subsonic-response");
-            if (resp.TryGetProperty("lyrics", out var lrc))
+
+            // 1. OpenSubsonic 结构化歌词: { "lyricsList": { "structuredLyrics": [{ "line": [...] }] } }
+            if (resp.TryGetProperty("lyricsList", out var lyricsList) &&
+                lyricsList.TryGetProperty("structuredLyrics", out var structured) &&
+                structured.ValueKind == JsonValueKind.Array)
             {
-                if (!lrc.ValueKind.ToString().Contains("Null"))
-                    return lrc.GetProperty("value").GetString();
+                foreach (var entry in structured.EnumerateArray())
+                {
+                    if (entry.TryGetProperty("line", out var lines) && lines.ValueKind == JsonValueKind.Array)
+                    {
+                        var lrcBuilder = new System.Text.StringBuilder();
+                        foreach (var line in lines.EnumerateArray())
+                        {
+                            var ms = line.TryGetProperty("start", out var s) && s.TryGetInt64(out var msVal) ? msVal : 0;
+                            var text = line.TryGetProperty("value", out var v) ? v.GetString() ?? "" : "";
+                            var ts = TimeSpan.FromMilliseconds(ms);
+                            lrcBuilder.AppendLine($"[{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}]{text}");
+                        }
+                        var lrcText = lrcBuilder.ToString();
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics 结构化歌词 {lrcText.Length} 字符");
+                        return lrcText;
+                    }
+                }
+            }
+
+            // 2. OpenSubsonic 简单歌词: { "lyricsBySongId": { "value": "..." } }
+            if (resp.TryGetProperty("lyricsBySongId", out var lrcById) &&
+                lrcById.ValueKind != JsonValueKind.Null &&
+                lrcById.TryGetProperty("value", out var val))
+            {
+                var text = val.GetString();
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics lyricsBySongId {text?.Length ?? 0} 字符");
+                return text;
+            }
+
+            // 3. 旧版 Subsonic: { "lyrics": { "value": "..." } }
+            if (resp.TryGetProperty("lyrics", out var lrc) &&
+                lrc.ValueKind != JsonValueKind.Null &&
+                lrc.TryGetProperty("value", out var val2))
+            {
+                return val2.GetString();
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics 失败: {ex.Message}");
+        }
         return null;
     }
 
@@ -211,7 +279,8 @@ public class SubsonicService : ISubsonicService
             FileSize = GetLong(item, "size"),
             FilePath = songId,
             CoverArtPath = GetString(item, "coverArt"),
-            Source = SongSource.WebDAV
+            Source = SongSource.WebDAV,
+            RemoteId = songId
         };
     }
 
@@ -223,4 +292,20 @@ public class SubsonicService : ISubsonicService
 
     private static long GetLong(JsonElement el, string name) =>
         el.TryGetProperty(name, out var v) && v.TryGetInt64(out var l) ? l : 0;
+
+    /// <summary>安全枚举 song 数组（兼容 JSON 对象/数组两种格式）</summary>
+    private static List<JsonElement> EnumerateSongArray(JsonElement element)
+    {
+        var result = new List<JsonElement>();
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+                result.Add(item);
+        }
+        else if (element.ValueKind == JsonValueKind.Object)
+        {
+            result.Add(element); // 单首歌：JSON 对象而非数组
+        }
+        return result;
+    }
 }

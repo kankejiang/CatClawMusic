@@ -25,7 +25,9 @@ public static class SafeContentScanner
         {
             try
             {
-                var songs = ScanTreeUri(AUri.Parse(uriStr));
+                var treeUri = AUri.Parse(uriStr);
+                if (treeUri == null) continue;
+                var songs = ScanTreeUri(treeUri);
                 allSongs.AddRange(songs);
             }
             catch (Exception ex)
