@@ -1,11 +1,10 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
-简洁可爱的 Android 音乐播放器，少女风设计，支持本地播放 + Navidrome 网络播放。
+萌系 Android 本地音乐播放器，纯原生 Android 开发，支持 Flac/WAV/MP3 播放、频谱可视化、LRC 歌词滚动。
 
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-9.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-12.0-blue)
-![协议](https://img.shields.io/badge/协议-MIT-orange)
 
 ---
 
@@ -13,29 +12,18 @@
 
 | 特性 | 状态 | 说明 |
 |------|:--:|------|
-| 🎵 本地音乐扫描 | ✅ | MediaStore 扫描（无需权限）+ 文件系统扫描，存入 SQLite |
-| 🔐 运行时权限请求 | ✅ | MAUI Permissions API，可选授权以扫描自定义文件夹 |
-| ▶️ 音频播放 | ✅ | Android MediaPlayer 封装，播放/暂停/Seek/音量 |
-| 🎶 LRC 歌词 | ✅ | 嵌入歌词 + .lrc 文件，自动滚动+点击跳转 |
+| 🎵 音乐扫描 | ✅ | SAF 多文件夹 + MediaStore 双模式，存入 SQLite |
+| ▶️ 音频播放 | ✅ | Android MediaPlayer，FLAC/MP3/WAV |
+| 🎹 频谱可视化 | ✅ | 512 点 FFT + A加权 + 对数频段 + 包络跟随 + 峰值保持 |
+| 🎶 LRC 歌词 | ✅ | 嵌入歌词 + SAF content URI .lrc 文件读取，三行滚动 |
 | 🔀 播放模式 | ✅ | 顺序 / 随机 / 单曲循环 / 列表循环 |
-| 📋 播放队列 | ✅ | 历史栈 + 预播预览，跨页面状态保持 |
-| 🔍 搜索 | ✅ | 本地数据库搜索，标题/艺术家/专辑 |
-| 📂 播放列表 | ✅ | 系统默认列表，点击查看歌曲 |
-| ☁️ WebDAV | 🔧 | 配置页面 OK，协议实现（ListFiles/OpenRead）待完成 |
-| 🎵 Navidrome | 🔧 | Subsonic API 客户端已实现，需保存配置后测试 |
-| 🖼️ 封面提取 | ✅ | TagLibSharp byte[] 提取 + 缓存 |
-| 📊 播放统计 | ✅ | PlayCount + Favorite + RecentPlay 持久化 |
-| 🎨 浅色 UI | ✅ | 猫爪粉 #FF7BAC，暖白背景 #FFF5F7 |
-| 🌙 深色模式 | 🚫 | 锁定浅色 |
-| 🔲 图标启动 | ✅ | 原生 mipmap + drawable |
-
----
-
-## 📱 界面预览
-
-| 音乐库 | 正在播放 | 播放列表 | 搜索 | 设置 |
-|:---:|:---:|:---:|:---:|:---:|
-| 本地/网络分页 | 封面+歌词+进度 | 系统默认列表 | 实时搜索 | 二级菜单网络配置 |
+| 📋 播放队列 | ✅ | 全量队列 + 播放历史持久化（重启恢复） |
+| 🔍 搜索 | ✅ | 本地数据库实时搜索（标题/艺术家/专辑） |
+| 🖼️ 封面 | ✅ | TagLibSharp 提取 + 缓存 + 默认封面兜底 |
+| 📊 播放统计 | ✅ | 播放次数 + 收藏 + 最近播放持久化 |
+| 🎨 UI 风格 | ✅ | 扁平毛玻璃卡片 + 紫粉渐变主题 |
+| 🌙 深色模式 | ❌ | 锁定浅色 |
+| ☁️ 网络播放 | 🔧 | Subsonic/WebDAV 协议层预留 |
 
 ---
 
@@ -43,164 +31,77 @@
 
 ```
 CatClawMusic/
-├── CatClawMusic.Core/                  # 核心库
-│   ├── Models/
-│   │   ├── Song.cs                     # 歌曲模型 (Id/Title/Artist/Album/Duration/Source...)
-│   │   ├── Album.cs                    # 专辑模型
-│   │   ├── Playlist.cs                 # 播放列表模型
-│   │   ├── Lyrics.cs                   # LRC 歌词模型 (Metadata/Lines/TimeSpan)
-│   │   └── ConnectionProfile.cs        # 连接配置 (ProtocolType 枚举：WebDAV/Navidrome/SMB/DLNA/FTP/NFS)
-│   ├── Interfaces/
-│   │   ├── IAudioPlayerService.cs      # 音频播放接口 (Play/Pause/Seek/Volume/Events)
-│   │   ├── IMusicLibraryService.cs     # 音乐库管理接口 (Scan/Search/AlbumCover)
-│   │   ├── ILyricsService.cs           # 歌词服务接口 (LRC 解析/多源查找)
-│   │   ├── INetworkFileService.cs      # 网络文件服务接口 (WebDAV 文件系统)
-│   │   ├── ISubsonicService.cs         # Subsonic/Navidrome API 接口
-│   │   ├── INetworkMusicService.cs     # 网络音乐工厂接口 (协议分发)
-│   │   ├── IPermissionService.cs       # 权限服务接口
-│   │   └── IPlugin.cs                  # 插件体系 (预留)
-│   └── Services/
-│       ├── PlayQueue.cs                # 播放队列 (4 种模式 + Fisher-Yates 洗牌)
-│       ├── LyricsService.cs            # LRC 解析 + 嵌入歌词 + 同名文件查找
-│       ├── MusicUtility.cs             # 工具类 (秒→时间/字符串截取/目录扫描)
-│       └── TagReader.cs                # TagLibSharp 封装 (标签/封面/歌词/批量扫描)
+├── CatClawMusic.Core/              # 核心库
+│   ├── Models/                     # Song/Album/Playlist/Lyrics/ConnectionProfile
+│   ├── Interfaces/                 # IAudioPlayerService/ILyricsService/PlayQueue
+│   └── Services/                   # PlayQueue/LyricsService/TagReader/MusicUtility
 │
-├── CatClawMusic.Data/                  # 数据层
-│   ├── MusicDatabase.cs                # SQLite 8 表 + 索引 + CRUD
-│   ├── MusicLibraryService.cs          # IMusicLibraryService 实现 (扫描+DB 存储)
-│   ├── WebDavService.cs                # WebDAV 协议 (TODO: 引入 NuGet)
-│   ├── SubsonicService.cs              # Navidrome 客户端 (MD5 token/JSON 解析)
-│   └── NetworkMusicService.cs          # 协议路由器 (ProtocolType switch)
-│
-├── CatClawMusic.UI/                    # UI 层
-│   ├── Pages/
-│   │   ├── LibraryPage.xaml{.cs}       # 音乐库页 (权限请求卡片 + 歌曲列表)
-│   │   ├── NowPlayingPage.xaml{.cs}    # 播放页 (封面+歌词+进度+音量+收藏)
-│   │   ├── PlaylistPage.xaml{.cs}      # 播放列表页
-│   │   ├── SearchPage.xaml{.cs}        # 搜索页 (实时搜索+结果播放)
-│   │   ├── SettingsPage.xaml{.cs}      # 设置主页 (菜单→子页)
-│   │   ├── WebDavSettingsPage.xaml{.cs}# WebDAV 二级配置页
-│   │   └── NavidromeSettingsPage.xaml{.cs}# Navidrome 二级配置页
-│   ├── ViewModels/
-│   │   ├── LibraryViewModel.cs         # 权限检查→扫描→加载
-│   │   ├── NowPlayingViewModel.cs     # 播放控制+歌词同步+音量+收藏
-│   │   ├── SettingsViewModel.cs        # 缓存/播放设置
-│   │   ├── SearchViewModel.cs          # 搜索逻辑
-│   │   ├── PlaylistViewModel.cs        # 播放列表管理
-│   │   ├── WebDavSettingsViewModel.cs  # WebDAV 测试/保存
-│   │   └── NavidromeSettingsViewModel.cs# Navidrome 测试/保存
-│   ├── Platforms/Android/
-│   │   ├── AudioPlayerService.cs       # MediaPlayer 封装 (IDisposable/Volume)
-│   │   ├── PermissionService.cs        # MAUI Permissions API 封装
-│   │   ├── MainActivity.cs             # Activity 入口
-│   │   ├── MainApplication.cs
-│   │   ├── AndroidManifest.xml         # 权限声明+图标+主题
-│   │   └── Resources/                  # 原生图标/启动画面资源
-│   ├── Resources/
-│   │   ├── app_icon.png / splash.png   # 图标和启动画面
-│   │   └── 站酷快乐体2016修订版.ttf / 298-CAI978.ttf
-│   ├── App.xaml                        # 全局样式 (浅色主题/卡片/按钮/字体)
-│   ├── AppShell.xaml                   # Tab + Route 导航
-│   └── MauiProgram.cs                  # DI 注册 (Singleton + Transient)
+├── CatClawMusic.UI/                # UI 层（原生 Xamarin.Android）
+│   ├── Fragments/                  # NowPlayingFragment/SettingsFragment/LibraryFragment
+│   ├── Views/                      # SpectrumView（自定义绘制频谱）
+│   ├── ViewModels/                 # NowPlayingViewModel/LibraryViewModel/SettingsViewModel
+│   ├── Services/                   # PlaybackStateManager/PositionSyncedSpectrum/FftAnalyzer
+│   ├── Platforms/Android/          # AudioPlayerService/PermissionService/MainActivity
+│   └── Resources/                  # 图标/字体/布局/配色
 │
 └── CatClawMusic.sln
 ```
 
 ---
 
+## 🎹 频谱引擎
+
+| 模块 | 实现 |
+|------|------|
+| **采集** | MediaCodec 流式解码 → seek+flush 定位到播放位置 → 512 帧 PCM |
+| **FFT** | 512 点 Cooley-Tukey FFT + 汉宁窗 |
+| **加权** | A 加权等响度曲线修正，匹配人耳感知 |
+| **频段** | 30Hz~16kHz 纯对数 32 段（左密右疏） |
+| **动效** | 主柱快上快下（attack 0.7 / release 0.5），背景柱峰值保持 600ms + 慢落 |
+| **AGC** | 慢跟踪参考电平归一化，安静段不爆炸 |
+| **采样率** | 自动适配 44.1k/48k/96kHz |
+
+---
+
+## 🎶 歌词引擎
+
+| 模块 | 实现 |
+|------|------|
+| **来源** | 嵌入歌词 → 同名 .lrc（SAF content URI） |
+| **解析** | 兼容 `[mm:ss.xx]` / `[mm:ss.xxx]` / `[mm:ss]` 格式 |
+| **同步** | 500ms 定时器匹配播放位置 → 三行显示（上/当前/下） |
+| **恢复** | 重启后根据保存位置显示对应歌词行 |
+
+---
+
 ## 🔧 技术栈
 
-| 层 | 技术 | 版本 |
-|---|---|---|
-| 框架 | .NET MAUI | 9.0 |
-| 语言 | C# | 12.0 |
-| 数据库 | SQLite (sqlite-net-pcl) | 1.9.172 |
-| MVVM | CommunityToolkit.Mvvm | 8.2.2 |
-| 标签 | TagLibSharp | 2.3.0 |
-| 播放器 | Android.Media.MediaPlayer | Android 35 |
-| 权限 | MAUI Permissions API | — |
+| 层 | 技术 |
+|---|---|
+| 框架 | .NET 9 (Xamarin.Android) |
+| 语言 | C# 12.0 |
+| 数据库 | SQLite (sqlite-net-pcl) |
+| MVVM | CommunityToolkit.Mvvm |
+| 标签 | TagLibSharp |
+| 播放器 | Android.Media.MediaPlayer |
+| 解码 | Android.Media.MediaCodec |
+| 权限 | SAF (Storage Access Framework) |
 
 ---
 
-## 📝 开发进度
-
-| 阶段 | 内容 | 状态 |
-|------|------|:--:|
-| M1 | 项目搭建 + 基础架构 | ✅ |
-| M2 | 本地音乐扫描 + 权限 + 基础播放 | ✅ |
-| M3 | 播放界面 + 歌词 + 播放列表 + 搜索 | ✅ |
-| M4 | UI 主题重设计（猫爪少女风） | ✅ |
-| M5 | Navidrome/Subsonic 协议适配 | 🔧 |
-| M6 | WebDAV 协议实现 | 🔧 |
-| M7 | 设置页重构（二级菜单） | ✅ |
-| M8 | 图标 + 启动画面 | ✅ |
-| M9 | 播放统计 + 状态保持 + 权限修复 | ✅ |
-| M10 | WebDAV 协议补全 + 测试 | ⏳ |
-
----
-
-## 🖥 架构
-
-```
-┌─────────────────────────────────────────┐
-│  CatClawMusic.UI (.NET 9 Android)       │
-│  Pages ← ViewModels ← DI                │
-│  Platforms/Android/*                     │
-├─────────────────────────────────────────┤
-│  CatClawMusic.Data (.NET 9)             │
-│  MusicDatabase | SubsonicService         │
-│  WebDavService | NetworkMusicService    │
-├─────────────────────────────────────────┤
-│  CatClawMusic.Core (.NET 9)             │
-│  Models | Interfaces | Services          │
-└─────────────────────────────────────────┘
-```
-
-**DI 注册树**：
-```
-Singleton: MusicDatabase, ISubsonicService, INetworkFileService,
-           INetworkMusicService, IAudioPlayerService, ILyricsService,
-           IMusicLibraryService, IPermissionService, PlayQueue
-
-Transient: LibraryVM, NowPlayingVM, SettingsVM, SearchVM,
-           PlaylistVM, WebDavSettingsVM, NavidromeSettingsVM
-           + 7 Pages
-```
-
----
-
-## 🚀 编译运行
+## 🚀 编译
 
 ```bash
-# 环境要求
-- Visual Studio 2022 17.8+ / .NET 9 SDK
-- Android SDK API 35+
-
-# 克隆
-git clone https://github.com/yourusername/CatClawMusic.git
-cd CatClawMusic
-
-# 编译
 dotnet build CatClawMusic.UI/CatClawMusic.UI.csproj
-
-# 或直接打开 .sln 在 Visual Studio 运行
 ```
+
+要求：Visual Studio 2022 17.8+ / .NET 9 SDK / Android SDK API 35+
 
 ---
 
 ## 📄 开源协议
 
 MIT License © 2026 CatClaw Music
-
----
-
-## 💬 交流群
-
-> ₍˄·͈༝·͈˄*₎◞ ̑̑
-
-加入猫爪音乐交流群一起讨论喵~
-
-**QQ 群：855383639**
 
 ---
 
