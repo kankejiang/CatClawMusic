@@ -12,6 +12,18 @@
     <AndroidUseFastDeployment>False</AndroidUseFastDeployment>
     <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <DebugSymbols>True</DebugSymbols>
+    <AndroidKeyStore>False</AndroidKeyStore>
+    <AndroidCreatePackagePerAbi>True</AndroidCreatePackagePerAbi>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <PublishTrimmed>True</PublishTrimmed>
+    <AndroidKeyStore>False</AndroidKeyStore>
+    <AndroidCreatePackagePerAbi>True</AndroidCreatePackagePerAbi>
+    <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
