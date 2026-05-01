@@ -89,13 +89,13 @@ CatClawMusic/
 
 ---
 
-## 🚀 编译
+---
 
-```bash
-dotnet build CatClawMusic.UI/CatClawMusic.UI.csproj
-```
+## 💬 交流群
 
-要求：Visual Studio 2022 17.8+ / .NET 9 SDK / Android SDK API 35+
+> ₍˄·͈༝·͈˄*₎◞ ̑̑
+
+**QQ 群：855383639** — 加入猫爪音乐交流群一起讨论喵~
 
 ---
 
