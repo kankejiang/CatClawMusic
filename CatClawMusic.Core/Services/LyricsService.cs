@@ -30,11 +30,14 @@ public class LyricsService : ILyricsService
     public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song)
     {
         var songPath = song.FilePath;
+        System.Diagnostics.Debug.WriteLine($"[Lyrics] song.FilePath={songPath}");
+        System.Diagnostics.Debug.WriteLine($"[Lyrics] File.Exists={File.Exists(songPath ?? "")}");
         if (string.IsNullOrEmpty(songPath) || !File.Exists(songPath))
             return null;
 
         // 1. 读取音频文件内嵌歌词
         var embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
+        System.Diagnostics.Debug.WriteLine($"[Lyrics] embeddedLyrics length={embeddedLyrics?.Length ?? -1}");
         if (!string.IsNullOrWhiteSpace(embeddedLyrics))
         {
             var parsed = ParseLrc(embeddedLyrics);
@@ -46,6 +49,7 @@ public class LyricsService : ILyricsService
         var fileNameWithoutExt = Path.GetFileNameWithoutExtension(songPath);
 
         var lrcPath = Path.Combine(directory, fileNameWithoutExt + ".lrc");
+        System.Diagnostics.Debug.WriteLine($"[Lyrics] looking for: {lrcPath}, exists={File.Exists(lrcPath)}");
         if (File.Exists(lrcPath))
         {
             var content = await File.ReadAllTextAsync(lrcPath);
@@ -53,26 +57,22 @@ public class LyricsService : ILyricsService
             if (parsed != null) return parsed;
         }
 
-        // 3. 查找同目录下其他 .lrc 文件（模糊匹配）
-        try
+        // 3. 查找同目录下其他 .lrc 文件
+        var lrcFiles = Directory.GetFiles(directory, "*.lrc");
+        System.Diagnostics.Debug.WriteLine($"[Lyrics] dir={directory}, .lrc files count={lrcFiles.Length}");
+        foreach (var lrcFile in lrcFiles)
         {
-            var lrcFiles = Directory.GetFiles(directory, "*.lrc");
-            foreach (var lrcFile in lrcFiles)
+            System.Diagnostics.Debug.WriteLine($"[Lyrics]   found: {lrcFile}");
+            var lrcName = Path.GetFileNameWithoutExtension(lrcFile);
+            if (fileNameWithoutExt.Contains(lrcName) || lrcName.Contains(fileNameWithoutExt))
             {
-                var lrcName = Path.GetFileNameWithoutExtension(lrcFile);
-                if (fileNameWithoutExt.Contains(lrcName) || lrcName.Contains(fileNameWithoutExt))
-                {
-                    var content = await File.ReadAllTextAsync(lrcFile);
-                    var parsed = ParseLrc(content);
-                    if (parsed != null) return parsed;
-                }
+                var content = await File.ReadAllTextAsync(lrcFile);
+                var parsed = ParseLrc(content);
+                if (parsed != null) return parsed;
             }
         }
-        catch
-        {
-            // 忽略目录访问错误
-        }
 
+        System.Diagnostics.Debug.WriteLine("[Lyrics] no lyrics found");
         return null;
     }
 
