@@ -18,8 +18,16 @@
 - 🖼️ **封面懒加载**：滚动到可见时再加载封面，不阻塞列表渲染（支持本地内嵌封面 + 网络 API 下载）
 - 📈 **增量式网络扫描**：扫描过程中实时显示进度条，每扫描完一个专辑即更新列表
 - 📈 **增量式本地扫描**：与网络扫描一致，每发现 20 首歌曲即增量刷新列表
+- 🎤 **全屏歌词页**：NowPlaying 页左滑或点击歌词区域进入，右滑返回
+- 🌫️ **毛玻璃歌词背景**：封面图实时模糊（RenderEffect，API 31+），深色遮罩，沉浸式体验
+- 📊 **设置页重构**：音乐文件夹 + 远程音乐服务双卡片，远程服务子页含 Navidrome/WebDAV 快捷开关
+- 📈 **设置状态预览**：实时显示文件夹数、歌曲数、已启用服务数
 
 ### 🐛 修复
+- 修复 ViewPager2 切换 Tab 0（全屏歌词）时自动弹回的问题
+- 修复歌词区域点击与 ViewPager2 滑动手势冲突
+- 修复歌词三行显示截断问题（maxLines 调整 + wrap_content）
+- 修复 NowPlayingViewModel 歌词属性未触发通知的问题
 - 修复 Android 13+ 全文件访问权限检测（`Environment.IsExternalStorageManager`）
 - 修复某些设备/ROM 上 MediaStore 缺少 `year` / `track` 列导致的崩溃（`GetColumnIndex` 安全检查）
 - 修复 `Android.Graphics.Path` 与 `System.IO.Path` 命名冲突编译错误
@@ -33,24 +41,6 @@
 - **主线程性能**：`SongAdapter.AddRange()` 使用 `NotifyItemRangeInserted`，O(n²) → O(1)
 - **SAF 文件夹隔离**：有 SAF URI 时跳过 MediaStore 全设备扫描，只扫用户选择的文件夹
 - **去重优化**：`HashSet<string>` 替代 `Any()` 线性搜索
-
----
-
-## 🆕 v1.0.1 更新日志（2026-05-03）
-
-### ✨ 新增
-- 🎤 **全屏歌词页**：NowPlaying 页左滑或点击歌词区域进入，右滑返回
-- 🌫️ **毛玻璃歌词背景**：封面图实时模糊（RenderEffect，API 31+），深色遮罩，沉浸式体验
-- 📊 **设置页重构**：音乐文件夹 + 远程音乐服务双卡片，远程服务子页含 Navidrome/WebDAV 快捷开关
-- 📈 **设置状态预览**：实时显示文件夹数、歌曲数、已启用服务数
-
-### 🐛 修复
-- 修复 ViewPager2 切换 Tab 0（全屏歌词）时自动弹回的问题
-- 修复歌词区域点击与 ViewPager2 滑动手势冲突
-- 修复歌词三行显示截断问题（maxLines 调整 + wrap_content）
-- 修复 NowPlayingViewModel 歌词属性未触发通知的问题
-
-### 🔧 优化
 - Tab 顺序调整：全屏歌词(0) / NowPlaying(1) / Playlist(2) / Search(3) / Library(4)
 - 全屏歌词页当前行紫色高亮 + 自动滚动，手动滚动暂停 3 秒
 - 底部导航栏在歌词页自动隐藏
