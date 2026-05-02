@@ -1,5 +1,6 @@
 using Android.OS;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.UI.Services;
 using System.Timers;
 using AndroidHandler = Android.OS.Handler;
 using ALog = Android.Util.Log;
@@ -121,6 +122,8 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
             ALog.Debug("CatClaw","[CatClaw] PlayAsync: 即将启动位置定时器");
             StartPositionTimer();
             ALog.Debug("CatClaw","[CatClaw] PlayAsync: 位置定时器已启动");
+            // 启动前台服务保活
+            ForegroundPlayerService.Start(global::Android.App.Application.Context);
         }
         catch (System.OperationCanceledException)
         {
@@ -165,6 +168,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         if (_player != null)
             _mainHandler.Post(() => { _player!.Stop(); _player.PlayWhenReady = false; });
         ReleaseWakeLock();
+        ForegroundPlayerService.Stop(global::Android.App.Application.Context);
         StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
         return Task.CompletedTask;
     }
@@ -284,6 +288,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                     _lastPlaybackState = 4;
                     StopPositionTimer();
                     ReleaseWakeLock();
+                    ForegroundPlayerService.Stop(global::Android.App.Application.Context);
                     StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
                     return;
                 }
@@ -295,6 +300,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                     _lastPlaybackState = 1;
                     StopPositionTimer();
                     ReleaseWakeLock();
+                    ForegroundPlayerService.Stop(global::Android.App.Application.Context);
                     StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs
                     {
                         State = PlaybackState.Error,

@@ -33,6 +33,7 @@
   <ItemGroup>
     <PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0" />
     <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.10.0" />
+    <PackageReference Include="Xamarin.AndroidX.Media" Version="1.7.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <!-- Material 1.12.0 自带 AppCompat/CardView/RecyclerView，不要重复引用 -->
