@@ -68,6 +68,8 @@ public class MainActivity : AppCompatActivity
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
         var npVm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
+        // 立即从缓存恢复播放模式和进度位置（同步，无需等待数据库查询）
+        PlaybackStateManager.RestorePrefsToViewModel(queue, npVm);
 
         // 迷你进度条定时更新
         var miniProgressTimer = new System.Timers.Timer(500);
@@ -88,11 +90,8 @@ public class MainActivity : AppCompatActivity
                 GravityFlags.Bottom);
         });
         miniProgressTimer.Start();
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(500);
-            await PlaybackStateManager.RestoreAsync(player, db, queue, npVm);
-        });
+        // 后台异步：查找歌曲、恢复播放队列、播放并 seek 到上次位置（无延迟、不阻塞 UI）
+        _ = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm));
 
         _toolbar = FindViewById<View>(Resource.Id.toolbar)!;
         _btnMenu = FindViewById<ImageButton>(Resource.Id.btn_menu)!;
@@ -300,6 +299,21 @@ public class MainActivity : AppCompatActivity
         _miniProgress = FindViewById<View>(Resource.Id.mini_progress)!;
         _miniPrev = FindViewById<ImageButton>(Resource.Id.mini_prev)!;
         _miniNext = FindViewById<ImageButton>(Resource.Id.mini_next)!;
+
+        // 全局扫描进度条
+        var _scanProgressBar = FindViewById<View>(Resource.Id.scan_progress_bar)!;
+        var _scanProgress = FindViewById<ProgressBar>(Resource.Id.scan_progress)!;
+        var _scanStatusText = FindViewById<TextView>(Resource.Id.scan_status_text)!;
+        var libVm = MainApplication.Services.GetRequiredService<LibraryViewModel>();
+        libVm.PropertyChanged += (s, e) => RunOnUiThread(() =>
+        {
+            if (e.PropertyName == nameof(LibraryViewModel.IsScanning))
+                _scanProgressBar.Visibility = libVm.IsScanning ? ViewStates.Visible : ViewStates.Gone;
+            else if (e.PropertyName == nameof(LibraryViewModel.ScanProgress))
+                _scanProgress.Progress = libVm.ScanProgress;
+            else if (e.PropertyName == nameof(LibraryViewModel.ScanStatus))
+                _scanStatusText.Text = libVm.ScanStatus;
+        });
 
         var vm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();

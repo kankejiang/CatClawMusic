@@ -9,7 +9,7 @@
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
     <LangVersion>preview</LangVersion>
     <NoWarn>NU1605;NU1608</NoWarn>
-    <AndroidUseFastDeployment>False</AndroidUseFastDeployment>
+    <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
     <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
     <AndroidSdkDirectory>C:\Users\lvjin\AppData\Local\Android\Sdk</AndroidSdkDirectory>
     <JavaSdkDirectory>C:\Program Files\Android\openjdk\jdk-21.0.8</JavaSdkDirectory>
@@ -20,10 +20,7 @@
     <AndroidKeyStore>False</AndroidKeyStore>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <PublishTrimmed>True</PublishTrimmed>
     <AndroidKeyStore>False</AndroidKeyStore>
-    <AndroidCreatePackagePerAbi>True</AndroidCreatePackagePerAbi>
-    <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,6 +30,7 @@
 
   <ItemGroup>
     <PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0" />
+    <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.10.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <!-- Material 1.12.0 自带 AppCompat/CardView/RecyclerView，不要重复引用 -->

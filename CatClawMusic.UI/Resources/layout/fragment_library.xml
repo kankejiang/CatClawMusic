@@ -7,12 +7,17 @@
     <!-- 顶部标题区 -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:paddingHorizontal="16dp"
-        android:paddingTop="16dp" android:paddingBottom="8dp"
+        android:paddingTop="16dp" android:paddingBottom="4dp"
         android:gravity="center_vertical">
         <TextView android:layout_width="0dp" android:layout_height="wrap_content"
             android:layout_weight="1" android:textSize="22sp"
             android:textColor="@color/textPrimary" android:fontFamily="@font/happy_zcool_2016"
             android:text="📀 音乐库" />
+        <ImageButton android:id="@+id/btn_refresh" android:layout_width="36dp"
+            android:layout_height="36dp" android:src="@drawable/ic_refresh"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="@color/textHint" android:padding="6dp"
+            android:layout_marginEnd="4dp" />
     </LinearLayout>
 
     <!-- Tab 切换：毛玻璃胶囊 -->

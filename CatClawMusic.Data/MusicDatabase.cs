@@ -96,6 +96,15 @@ public class MusicDatabase
     public Task<int> DeleteSongAsync(Song song)
         => EnsureInitializedAsync().ContinueWith(_ => _database.DeleteAsync(song)).Unwrap();
 
+    /// <summary>清空所有本地歌曲（SAF 权限失效时清理旧缓存）</summary>
+    public async Task ClearLocalSongsAsync()
+    {
+        await EnsureInitializedAsync();
+        try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.Local); } catch { }
+        try { await _database.ExecuteAsync("DELETE FROM Artists"); } catch { }
+        try { await _database.ExecuteAsync("DELETE FROM Albums"); } catch { }
+    }
+
     // ═══════════ Artist / Album ═══════════
 
     public async Task<int> EnsureArtistAsync(string name)
@@ -278,9 +287,17 @@ public class MusicDatabase
             try
             {
                 s.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                // 确保 Artist/Album 记录存在并设置外键 ID
+                if (!string.IsNullOrEmpty(s.Artist))
+                    s.ArtistId = await EnsureArtistAsync(s.Artist);
+                if (!string.IsNullOrEmpty(s.Album))
+                    s.AlbumId = await EnsureAlbumAsync(s.Album, s.ArtistId);
                 await _database.InsertAsync(s);
             }
-            catch { /* FilePath 冲突跳过 */ }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] ReplaceNetworkSongs 插入失败: {s.Title} - {ex.Message}");
+            }
         }
     }
 
@@ -307,4 +324,23 @@ public class MusicDatabase
     /// <summary>缓存网络歌曲数量</summary>
     public async Task<int> GetCachedNetworkSongCountAsync()
         => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV).CountAsync();
+
+    /// <summary>开始替换网络歌曲（先清除旧的），配合 InsertSongAsync 逐首插入</summary>
+    public async Task ReplaceNetworkSongsBeginAsync()
+    {
+        await EnsureInitializedAsync();
+        try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.WebDAV); }
+        catch { /* 表可能为空 */ }
+    }
+
+    /// <summary>插入单首歌曲（用于增量入库）</summary>
+    public async Task InsertSongAsync(Song song)
+    {
+        await EnsureInitializedAsync();
+        try { await _database.InsertAsync(song); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] InsertSong 失败: {song.Title} - {ex.Message}");
+        }
+    }
 }

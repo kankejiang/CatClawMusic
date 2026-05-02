@@ -1,6 +1,7 @@
 using Android.Content;
 using Android.Database;
 using Android.Provider;
+using Android.Util;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 
@@ -11,6 +12,8 @@ namespace CatClawMusic.UI.Platforms.Android;
 /// </summary>
 public static class AndroidMediaScanner
 {
+    private const string TAG = "CatClaw";
+
     /// <summary>通过 MediaStore 查询所有音频文件（Android 10+ 无需权限）</summary>
     public static List<Song> ScanFromMediaStore()
     {
@@ -38,6 +41,10 @@ public static class AndroidMediaScanner
             var cursor = ctx.ContentResolver!.Query(uri, projection, null, null, null);
             if (cursor == null) return songs;
 
+            // 预先获取列索引，不存在的列返回 -1（某些设备/ROM 不提供 year/track 列）
+            var colYear = cursor.GetColumnIndex(MediaStore.Audio.Media.InterfaceConsts.Year);
+            var colTrack = cursor.GetColumnIndex(MediaStore.Audio.Media.InterfaceConsts.Track);
+
             var count = 0;
             while (cursor.MoveToNext())
             {
@@ -55,18 +62,18 @@ public static class AndroidMediaScanner
                     Duration = (int)(cursor.GetLong(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Duration)) / 1000),
                     FileSize = cursor.GetLong(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Size)),
                     FilePath = dataPath,
-                    Year = cursor.GetInt(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Year)),
-                    TrackNumber = cursor.GetInt(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Track)),
+                    Year = colYear >= 0 ? cursor.GetInt(colYear) : 0,
+                    TrackNumber = colTrack >= 0 ? cursor.GetInt(colTrack) : 0,
                     LyricsPath = MusicUtility.FindLyricsFile(dataPath),
                     Source = SongSource.Local
                 });
             }
             cursor.Close();
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] MediaStore 扫描完成，找到 {count} 条记录，最终 {songs.Count} 首歌曲");
+            Log.Debug(TAG, $"MediaStore 扫描完成，找到 {count} 条记录，最终 {songs.Count} 首歌曲");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] MediaStore 扫描异常: {ex.Message}");
+            Log.Debug(TAG, $"MediaStore 扫描异常: {ex.Message}");
         }
 
         return songs;

@@ -1,8 +1,11 @@
+using Android.App;
 using Android.Graphics.Drawables;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using CatClawMusic.UI.Views;
@@ -19,7 +22,7 @@ public class NowPlayingFragment : Fragment
     private TextView _lyricPrev = null!, _lyricCurrent = null!, _lyricNext = null!;
     private TextView _timeCurrent = null!, _timeTotal = null!;
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
-    private ImageButton _btnLike = null!, _btnModeCycle = null!;
+    private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
     private GoogleSlider _progressSlider = null!;
     private SpectrumView _spectrumView = null!;
 
@@ -47,6 +50,7 @@ public class NowPlayingFragment : Fragment
         _btnPrev = view.FindViewById<ImageButton>(Resource.Id.btn_prev)!;
         _btnLike = view.FindViewById<ImageButton>(Resource.Id.btn_like)!;
         _btnModeCycle = view.FindViewById<ImageButton>(Resource.Id.btn_mode_cycle)!;
+        _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
 
         // 控制区域拦截 ViewPager2 的横向滑动
@@ -65,6 +69,7 @@ public class NowPlayingFragment : Fragment
         _btnPrev.Click -= OnPrev; _btnPrev.Click += OnPrev;
         _btnLike.Click -= OnLikeClick; _btnLike.Click += OnLikeClick;
         _btnModeCycle.Click -= OnModeClick; _btnModeCycle.Click += OnModeClick;
+        _btnPlaylist.Click -= OnPlaylistClick; _btnPlaylist.Click += OnPlaylistClick;
 
         // 进度条：Touch 松开时 seek（SetOnTouchListener 不影响原生拖动）
         _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
@@ -78,6 +83,15 @@ public class NowPlayingFragment : Fragment
         try
         {
             if (_albumCover == null) return;
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] SyncUI: song={_viewModel.CurrentSong?.Title}(Id={_viewModel.CurrentSong?.Id}), cover={_viewModel.CoverSource?.Substring(0, Math.Min(50, _viewModel.CoverSource?.Length ?? 0))}");
+
+            // 如果 CurrentSong 有值但封面/歌词还没加载过，重新触发加载
+            if (_viewModel.CurrentSong != null && string.IsNullOrEmpty(_viewModel.CoverSource))
+            {
+                _ = _viewModel.LoadCoverAsync(_viewModel.CurrentSong);
+                _ = _viewModel.LoadLyricsAsync(_viewModel.CurrentSong);
+            }
+
             if (!string.IsNullOrEmpty(_viewModel.CoverSource))
                 _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
             else
@@ -166,7 +180,7 @@ public class NowPlayingFragment : Fragment
         {
             _progressSlider.ValueTo = dur;
             if (!_progressSlider.Pressed) // 拖动时不覆盖用户操作
-                _progressSlider.Value = (float)_viewModel.CurrentPositionSeconds;
+                _progressSlider.Value = Math.Min((float)_viewModel.CurrentPositionSeconds, dur);
         }
     }
 
@@ -187,6 +201,75 @@ public class NowPlayingFragment : Fragment
     private void OnPrev(object? s, EventArgs e) => _viewModel.PreviousCommand.Execute(null);
     private void OnLikeClick(object? s, EventArgs e) => _viewModel.ToggleLikeCommand.Execute(null);
     private void OnModeClick(object? s, EventArgs e) => _viewModel.CyclePlayModeCommand.Execute(null);
+    private void OnPlaylistClick(object? s, EventArgs e) => ShowPlaylistDialog();
+
+    /// <summary>弹出当前播放列表悬浮窗（毛玻璃圆角卡片风格）</summary>
+    private void ShowPlaylistDialog()
+    {
+        var act = Activity;
+        if (act == null) return;
+
+        var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
+        var allSongs = queue.GetSongs().ToList();
+        if (allSongs.Count == 0) return;
+
+        var currentSong = queue.CurrentSong;
+
+        // 加载自定义布局
+        var view = LayoutInflater.From(act)!.Inflate(Resource.Layout.dialog_playlist, null)!;
+        var listView = view.FindViewById<ListView>(Resource.Id.playlist_list)!;
+
+        // 构建适配器数据
+        var adapter = new PlaylistSongAdapter(act, allSongs, currentSong);
+        listView.Adapter = adapter;
+
+        // 点击歌曲播放
+        listView.ItemClick += (s, e) =>
+        {
+            var song = allSongs[e.Position];
+            PlaySong(song);
+            _playlistDialog?.Dismiss();
+        };
+
+        // 创建半透明 Dialog
+        var dialog = new Android.App.Dialog(act, Android.Resource.Style.ThemeTranslucentNoTitleBar);
+        dialog.SetContentView(view);
+        dialog.SetCancelable(true);
+        dialog.SetCanceledOnTouchOutside(true);
+
+        // 点击背景关闭
+        var root = view.FindViewById<FrameLayout>(Resource.Id.playlist_root)!;
+        root.Click += (s, e) => dialog.Dismiss();
+
+        // 自动滚到当前播放歌曲
+        if (currentSong != null)
+        {
+            var idx = allSongs.IndexOf(currentSong);
+            if (idx >= 0)
+            {
+                listView.Post(() => listView.SetSelection(idx));
+            }
+        }
+
+        _playlistDialog = dialog;
+        dialog.Show();
+    }
+
+    private Android.App.Dialog? _playlistDialog;
+
+    /// <summary>选中并播放指定歌曲</summary>
+    private void PlaySong(Song song)
+    {
+        var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
+        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+
+        queue.SelectSong(song.Id);
+        _viewModel.CurrentSong = song;
+        _ = player.PlayAsync(song.FilePath);
+
+        // 延迟同步 UI，确保播放器状态更新
+        Task.Delay(500).ContinueWith(_ => Activity?.RunOnUiThread(SyncUIFromViewModel));
+    }
 
     private void UpdateModeIcon()
     {
@@ -260,6 +343,8 @@ public class NowPlayingFragment : Fragment
             {
                 _visSpectrum?.Stop();
                 var path = player.CurrentSongFilePath;
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] Vis: state=Playing path={(path?.Substring(0, Math.Min(50, path?.Length ?? 0)) ?? "null")}");
+                global::Android.Util.Log.Debug("CatClaw", $"[CatClaw] Vis: state=Playing path={(path?.Substring(0, Math.Min(50, path?.Length ?? 0)) ?? "null")}");
                 if (!string.IsNullOrEmpty(path))
                 {
                     _visSpectrum = new PositionSyncedSpectrum();
@@ -312,6 +397,49 @@ public class NowPlayingFragment : Fragment
             }
             return false; // 不消费，让子控件正常处理
 
+        }
+    }
+
+    /// <summary>播放列表弹窗适配器：高亮当前播放歌曲</summary>
+    internal class PlaylistSongAdapter : ArrayAdapter<Song>
+    {
+        private readonly Song? _currentSong;
+        public PlaylistSongAdapter(Android.Content.Context context, IList<Song> songs, Song? current)
+            : base(context, 0, songs)
+        {
+            _currentSong = current;
+        }
+
+        public override View GetView(int position, View? convertView, ViewGroup? parent)
+        {
+            var song = GetItem(position);
+            var view = convertView;
+            if (view == null)
+            {
+                view = LayoutInflater.From(Context!)!.Inflate(
+                    global::Android.Resource.Layout.SimpleListItem2, parent, false)!;
+            }
+
+            var text1 = view!.FindViewById<TextView>(global::Android.Resource.Id.Text1)!;
+            var text2 = view.FindViewById<TextView>(global::Android.Resource.Id.Text2)!;
+
+            bool isCurrent = _currentSong != null && song!.Id == _currentSong.Id;
+
+            text1.Text = isCurrent ? $"♫ {song!.Title}" : $"    {song!.Title}";
+            text2.Text = $"{song!.Artist} · {song!.Album}";
+            text2.Visibility = ViewStates.Visible;
+
+            // 高亮当前歌曲
+            view.SetBackgroundColor(isCurrent
+                ? Android.Graphics.Color.Argb(40, 155, 126, 216)  // 淡紫色高亮
+                : Android.Graphics.Color.Transparent);
+
+            text1.SetTextColor(isCurrent
+                ? Android.Graphics.Color.ParseColor("#9B7ED8")
+                : Android.Graphics.Color.ParseColor("#DDDDDD"));
+
+            text2.SetTextColor(Android.Graphics.Color.ParseColor("#999999"));
+            return view;
         }
     }
 }

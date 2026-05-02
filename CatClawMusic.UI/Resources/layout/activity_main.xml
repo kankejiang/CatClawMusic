@@ -37,6 +37,25 @@
                 android:visibility="gone" />
         </FrameLayout>
 
+        <!-- 全局扫描进度条（入库/刷新时显示） -->
+        <LinearLayout android:id="@+id/scan_progress_bar"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingHorizontal="16dp" android:paddingVertical="4dp"
+            android:background="@color/pageBackground"
+            android:visibility="gone">
+            <ProgressBar android:id="@+id/scan_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp" android:layout_height="14dp"
+                android:layout_weight="1" android:max="100"
+                android:progressTint="@color/primaryColor"
+                android:progressBackgroundTint="#33281E36" />
+            <TextView android:id="@+id/scan_status_text"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textColor="@color/textHint"
+                android:layout_marginStart="8dp" android:minWidth="60dp" />
+        </LinearLayout>
+
         <!-- 迷你播放器 -->
         <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginHorizontal="12dp" android:layout_marginBottom="4dp"

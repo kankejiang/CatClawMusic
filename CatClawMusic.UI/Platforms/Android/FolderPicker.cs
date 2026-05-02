@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content;
 using Android.Provider;
+using AUri = Android.Net.Uri;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
@@ -77,6 +78,63 @@ public static class FolderPicker
         var ctx = global::Android.App.Application.Context;
         var prefs = ctx.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private)!;
         prefs.Edit()!.Remove(PrefKey)!.Remove(PrefKeyList)!.Commit();
+    }
+
+    /// <summary>验证已保存的文件夹 URI 权限是否仍有效，移除无效的</summary>
+    /// <returns>剩余的可用 URI 数量</returns>
+    public static int ValidateSavedFolders()
+    {
+        var uris = GetSavedFolderUris();
+        if (uris.Count == 0) return 0;
+
+        var ctx = global::Android.App.Application.Context;
+        var valid = new List<string>();
+
+        foreach (var uriStr in uris)
+        {
+            try
+            {
+                var treeUri = AUri.Parse(uriStr);
+                if (treeUri == null) continue;
+                // 尝试查询子文件来验证权限
+                var docId = DocumentsContract.GetTreeDocumentId(treeUri);
+                var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, docId);
+                using var cursor = ctx.ContentResolver!.Query(childrenUri, null, null, null, null);
+                if (cursor != null)
+                {
+                    valid.Add(uriStr);
+                    cursor.Close();
+                }
+            }
+            catch (Java.Lang.SecurityException)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 权限已丢失，移除: {uriStr}");
+            }
+            catch (System.Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 验证异常: {ex.Message}");
+            }
+        }
+
+        // 更新保存列表（只保留有效 URI）
+        if (valid.Count != uris.Count)
+        {
+            var prefs = ctx.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private)!;
+            if (valid.Count > 0)
+            {
+                prefs.Edit()!
+                    .PutString(PrefKeyList, string.Join("|", valid))
+                    .PutString(PrefKey, valid[0])
+                    .Apply();
+            }
+            else
+            {
+                prefs.Edit()!.Remove(PrefKey)!.Remove(PrefKeyList)!.Apply();
+            }
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 验证: {uris.Count} → {valid.Count} 个有效 URI");
+        return valid.Count;
     }
 
     /// <summary>MainActivity.OnActivityResult 中调用</summary>

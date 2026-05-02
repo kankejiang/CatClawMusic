@@ -15,7 +15,12 @@ public interface ISubsonicService
     Task<List<Song>> SearchAsync(string query, ConnectionProfile profile);
 
     /// <summary>浏览音乐库（按字母索引获取艺术家）</summary>
-    Task<List<Song>> GetSongsAsync(ConnectionProfile profile);
+    /// <param name="profile">连接配置</param>
+    /// <param name="progress">进度回调 (已处理专辑数, 总专辑数, 当前状态文本)</param>
+    /// <param name="songCallback">每获取完一个专辑的歌曲后回调，用于增量入库和刷新</param>
+    Task<List<Song>> GetSongsAsync(ConnectionProfile profile,
+        IProgress<(int done, int total, string status)>? progress = null,
+        Func<List<Song>, Task>? songCallback = null);
 
     /// <summary>获取专辑列表</summary>
     Task<List<Album>> GetAlbumsAsync(ConnectionProfile profile);

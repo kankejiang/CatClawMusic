@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
@@ -20,6 +21,7 @@ public class LibraryFragment : Fragment
     private TextView _statusText = null!;
     private Button _btnLocal = null!;
     private Button _btnNetwork = null!;
+    private ImageButton _btnRefresh = null!;
     private SongAdapter _adapter = null!;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
@@ -38,6 +40,7 @@ public class LibraryFragment : Fragment
         _statusText = view.FindViewById<TextView>(Resource.Id.status_text)!;
         _btnLocal = view.FindViewById<Button>(Resource.Id.btn_local)!;
         _btnNetwork = view.FindViewById<Button>(Resource.Id.btn_network)!;
+        _btnRefresh = view.FindViewById<ImageButton>(Resource.Id.btn_refresh)!;
 
         _adapter = sp.GetRequiredService<SongAdapter>();
         _adapter.SongClicked += OnSongClicked;
@@ -45,6 +48,7 @@ public class LibraryFragment : Fragment
 
         _btnLocal.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Local");
         _btnNetwork.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Network");
+        _btnRefresh.Click += (s, e) => _viewModel.RefreshCommand.Execute(null);
 
         BindViews();
         _ = _viewModel.LoadLocalAsync();
@@ -55,11 +59,59 @@ public class LibraryFragment : Fragment
     private void BindViews()
     {
         BindingHelper.BindText(_statusText, _viewModel, nameof(_viewModel.StatusText), _ => _viewModel.StatusText);
-        _viewModel.Songs.CollectionChanged += (s, e) =>
+
+        // 增量化 CollectionChanged 处理：Add 用 AddRange，Reset/Remove 用全量刷新
+        _viewModel.Songs.CollectionChanged += OnSongsCollectionChanged;
+
+        _viewModel.PropertyChanged += (s, e) =>
         {
-            var a = Activity;
-            if (a != null) a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
+            if (e.PropertyName == nameof(_viewModel.LocalTabColor))
+                UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, _viewModel.CurrentTab == "Local");
+            else if (e.PropertyName == nameof(_viewModel.NetworkTabColor))
+                UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, _viewModel.CurrentTab == "Network");
         };
+        UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, true);
+        UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, false);
+    }
+
+    private void OnSongsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        var a = Activity;
+        if (a == null) return;
+
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                if (e.NewItems != null && e.NewItems.Count > 0)
+                {
+                    var newSongs = e.NewItems.Cast<CoreModels.Song>().ToList();
+                    a.RunOnUiThread(() => _adapter.AddRange(newSongs));
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Reset:
+                a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+                // 简单处理：删除后全量刷新
+                a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
+                break;
+
+            default:
+                a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
+                break;
+        }
+    }
+
+    private static void UpdateTabButtonColor(Button btn, string hexColor, bool isActive)
+    {
+        var color = Android.Graphics.Color.ParseColor(hexColor);
+        btn.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(color);
+        btn.SetTextColor(isActive
+            ? Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White)
+            : Android.Content.Res.ColorStateList.ValueOf(
+                Android.Graphics.Color.ParseColor("#4A0072"))); // primaryDark
     }
 
     private void OnSongClicked(object? sender, CoreModels.Song song)

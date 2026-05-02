@@ -79,7 +79,7 @@
             android:orientation="vertical" android:paddingHorizontal="20dp"
             android:paddingTop="16dp" android:paddingBottom="16dp">
 
-            <!-- 进度条 -->
+            <!-- 进度条行：时间 | 进度条 | 时间 | 播放列表 -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center_vertical">
                 <TextView android:id="@+id/time_current" android:layout_width="36dp"
@@ -101,20 +101,29 @@
                     android:gravity="center" />
             </LinearLayout>
 
-            <!-- 控制按钮 -->
+            <!-- 播放列表按钮：右对齐，进度条下方 -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="right" android:layout_marginTop="0dp" android:layout_marginBottom="0dp">
+                <ImageButton android:id="@+id/btn_playlist" android:layout_width="28dp"
+                    android:layout_height="28dp" android:src="@drawable/ic_playlist"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/textHint" android:padding="2dp" />
+            </LinearLayout>
+
+            <!-- 控制按钮：居中排列 -->
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:gravity="center"
-                android:layout_marginTop="12dp">
+                android:layout_gravity="center_horizontal" android:layout_marginTop="12dp">
 
-                <ImageButton android:id="@+id/btn_like" android:layout_width="44dp"
-                    android:layout_height="44dp" android:src="@drawable/ic_favorite_border"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:layout_marginEnd="4dp" android:tint="@color/textHint" />
+                    <ImageButton android:id="@+id/btn_like" android:layout_width="44dp"
+                        android:layout_height="44dp" android:src="@drawable/ic_favorite_border"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:layout_marginEnd="4dp" android:tint="@color/textHint" />
 
-                <ImageButton android:id="@+id/btn_prev" android:layout_width="48dp"
-                    android:layout_height="48dp" android:src="@drawable/ic_skip_previous"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:layout_marginEnd="4dp" android:tint="@color/textPrimary" />
+                    <ImageButton android:id="@+id/btn_prev" android:layout_width="48dp"
+                        android:layout_height="48dp" android:src="@drawable/ic_skip_previous"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:layout_marginEnd="4dp" android:tint="@color/textPrimary" />
 
                 <ImageButton android:id="@+id/btn_play_pause"
                     android:layout_width="64dp" android:layout_height="64dp"

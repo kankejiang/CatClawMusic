@@ -23,6 +23,8 @@ public partial class NowPlayingViewModel : ObservableObject
     private int _saveCounter; // 定时保存计数器
     private ConnectionProfile? _cachedNetworkProfile;
     private bool _profileLookedUp;
+    private CancellationTokenSource? _errorDialogCts; // 错误对话框延迟
+    private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
 
     [ObservableProperty] private Song? _currentSong;
     [ObservableProperty] private string _coverSource = "";
@@ -106,12 +108,12 @@ public partial class NowPlayingViewModel : ObservableObject
     [RelayCommand]
     private void CyclePlayMode()
     {
-        // 循环切换：🔁列表循环 → 🔂单曲循环 → 🔀随机播放
+        // 循环切换：🔁列表循环 → 🔀随机播放 → 🔂单曲循环
         _playQueue.PlayMode = _playQueue.PlayMode switch
         {
-            PlayMode.ListRepeat => PlayMode.SingleRepeat,
-            PlayMode.SingleRepeat => PlayMode.Shuffle,
-            PlayMode.Shuffle => PlayMode.ListRepeat,
+            PlayMode.ListRepeat => PlayMode.Shuffle,
+            PlayMode.Shuffle => PlayMode.SingleRepeat,
+            PlayMode.SingleRepeat => PlayMode.ListRepeat,
             _ => PlayMode.ListRepeat
         };
         if (_playQueue.PlayMode == PlayMode.Shuffle) _playQueue.EnableShuffle();
@@ -123,6 +125,8 @@ public partial class NowPlayingViewModel : ObservableObject
             _ => "➡️"
         };
         UpdateQueuePeek();
+        // 记住播放模式
+        CatClawMusic.UI.Services.PlaybackStateManager.SavePlayMode(_playQueue.PlayMode);
     }
 
     [RelayCommand]
@@ -141,6 +145,7 @@ public partial class NowPlayingViewModel : ObservableObject
     public void SyncWithQueue()
     {
         var queueSong = _playQueue.CurrentSong;
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] SyncWithQueue: CurrentSong={CurrentSong?.Title}(Id={CurrentSong?.Id}), queueSong={queueSong?.Title}(Id={queueSong?.Id})");
         if (queueSong != null && (CurrentSong == null || CurrentSong.Id != queueSong.Id))
         {
             CurrentSong = queueSong;
@@ -148,10 +153,23 @@ public partial class NowPlayingViewModel : ObservableObject
             _ = LoadCoverAsync(queueSong);
             UpdateQueuePeek();
         }
+        SyncPlayMode();
         if (_audioPlayer.IsPlaying) PlayPauseIcon = "⏸";
     }
 
-    private async Task LoadCoverAsync(Song? song)
+    /// <summary>同步播放模式图标与 PlayQueue 的实际模式（供 RestoreAsync 调用）</summary>
+    public void SyncPlayMode()
+    {
+        PlayModeIcon = _playQueue.PlayMode switch
+        {
+            PlayMode.ListRepeat => "🔁",
+            PlayMode.SingleRepeat => "🔂",
+            PlayMode.Shuffle => "🔀",
+            _ => "➡️"
+        };
+    }
+
+    public async Task LoadCoverAsync(Song? song)
     {
         CoverSource = "";
         if (song == null) return;
@@ -221,13 +239,86 @@ public partial class NowPlayingViewModel : ObservableObject
         _dispatcher.Post(() =>
         {
             if (e.State == PlaybackState.Stopped) Next();
-            else if (e.State == PlaybackState.Playing) PlayPauseIcon = "⏸";
-            else if (e.State is PlaybackState.Paused or PlaybackState.Error) PlayPauseIcon = "▶";
+            else if (e.State == PlaybackState.Playing)
+            {
+                // 检查当前显示的歌曲和实际播放的队列歌曲是否一致
+                var queueSong = _playQueue.CurrentSong;
+                if (queueSong != null && (CurrentSong == null || CurrentSong.Id != queueSong.Id))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] Playing 同步: {queueSong.Title}(Id={queueSong.Id})");
+                    CurrentSong = queueSong;
+                    _ = LoadLyricsAsync(queueSong);
+                    _ = LoadCoverAsync(queueSong);
+                    UpdateQueuePeek();
+                }
+                // 记录此次成功播放的歌曲，取消待显示的报错对话框
+                _lastActiveSong = CurrentSong;
+                _errorDialogCts?.Cancel();
+                _errorDialogCts = null;
+                PlayPauseIcon = "⏸";
+            }
+            else if (e.State is PlaybackState.Paused or PlaybackState.Error)
+            {
+                PlayPauseIcon = "▶";
+                // 播放失败时，如果当前显示的歌曲和实际播放的不一致，回退到上一首
+                if (e.State == PlaybackState.Error)
+                {
+                    var actualPath = _audioPlayer.CurrentSongFilePath;
+                    if (!string.IsNullOrEmpty(actualPath) && CurrentSong != null
+                        && CurrentSong.FilePath != actualPath && _lastActiveSong != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] 播放失败，回退到: {_lastActiveSong.Title}");
+                        CurrentSong = _lastActiveSong;
+                        // 不手动调用 LoadCover/LoadLyrics，OnCurrentSongChanged 会自动触发
+                    }
+                    if (!string.IsNullOrEmpty(e.ErrorMessage))
+                        ShowErrorDialogDelayed(e.ErrorMessage);
+                }
+            }
         });
+    }
+
+    /// <summary>延迟 1 秒显示错误对话框，期间如果恢复播放则取消</summary>
+    private void ShowErrorDialogDelayed(string message)
+    {
+        // 取消之前的延迟
+        _errorDialogCts?.Cancel();
+        _errorDialogCts = new CancellationTokenSource();
+        var token = _errorDialogCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1000, token);
+                if (!token.IsCancellationRequested)
+                {
+                    _dispatcher.Post(() => ShowErrorDialog(message));
+                }
+            }
+            catch (TaskCanceledException) { /* 恢复了，不弹框 */ }
+        });
+    }
+
+    /// <summary>在 UI 线程弹出错误对话框</summary>
+    private static void ShowErrorDialog(string message)
+    {
+        var activity = MainActivity.Instance;
+        if (activity == null) return;
+        try
+        {
+            new global::Android.App.AlertDialog.Builder(activity)
+                .SetTitle("播放失败")
+                .SetMessage(message)
+                .SetPositiveButton("确定", (s, e) => { })
+                .Show();
+        }
+        catch { }
     }
 
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
+        global::Android.Util.Log.Debug("CatClaw", $"[CatClaw] PositionChanged: {position.TotalSeconds:F1}s");
         _dispatcher.Post(() =>
         {
             _isPositionUpdating = true;
@@ -252,7 +343,7 @@ public partial class NowPlayingViewModel : ObservableObject
         });
     }
 
-    private async Task LoadLyricsAsync(Song? song)
+    public async Task LoadLyricsAsync(Song? song)
     {
         if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; _currentLyrics = null; return; }
         CurrentLyricLine = "正在加载歌词..."; NextLyricLine = "";

@@ -11,7 +11,12 @@ public interface INetworkMusicService
     Task<List<ConnectionProfile>> GetProfilesAsync();
 
     /// <summary>扫描网络音乐库</summary>
-    Task<List<Song>> ScanAsync(ConnectionProfile profile);
+    /// <param name="profile">连接配置</param>
+    /// <param name="progress">进度回调 (已处理, 总数, 状态文本)</param>
+    /// <param name="songBatchCallback">每批次歌曲回调，用于增量入库和刷新列表</param>
+    Task<List<Song>> ScanAsync(ConnectionProfile profile,
+        IProgress<(int done, int total, string status)>? progress = null,
+        Action<List<Song>>? songBatchCallback = null);
 
     /// <summary>搜索网络歌曲</summary>
     Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile);

@@ -91,62 +91,121 @@ public class SubsonicService : ISubsonicService
         catch { return new List<Song>(); }
     }
 
-    public async Task<List<Song>> GetSongsAsync(ConnectionProfile profile)
+    public async Task<List<Song>> GetSongsAsync(ConnectionProfile profile,
+        IProgress<(int done, int total, string status)>? progress = null,
+        Func<List<Song>, Task>? songCallback = null)
     {
         var songs = new List<Song>();
-        var seenIds = new HashSet<string>(); // 重复检测：防止 offset 无效时死循环
-        const int pageSize = 500;
-        const int maxPages = 100; // 安全上限 50,000 首
-        int offset = 0;
-        int page = 0;
+        var seenIds = new HashSet<string>();
 
         try
         {
-            while (page < maxPages)
-            {
-                page++;
-                var url = ApiUrl($"search3.view?query=&songCount={pageSize}&albumCount=0&artistCount=0&offset={offset}", profile);
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs Page {page} URL: {url}");
-                var json = await _http.GetStringAsync(url);
-                var pageCount = 0;
-                var duplicateCount = 0;
+            // 策略：先拉专辑列表，再逐个专辑获取完整歌曲信息
+            // search3 空查询可能不返回 artist/album 字段，改用 getAlbum + getAlbumList2
+            var albums = new List<(string Id, string Name, string Artist, string CoverArt)>();
+            const int pageSize = 200;
+            int offset = 0;
+            int maxPages = 50;
 
-                using (var doc = JsonDocument.Parse(json))
+            // 1. 获取所有专辑
+            progress?.Report((0, 0, "获取专辑列表..."));
+            for (int page = 0; page < maxPages; page++)
+            {
+                var albumUrl = ApiUrl($"getAlbumList2.view?type=alphabeticalByArtist&size={pageSize}&offset={offset}", profile);
+                try
                 {
+                    var json = await _http.GetStringAsync(albumUrl);
+                    using var doc = JsonDocument.Parse(json);
                     var resp = doc.RootElement.GetProperty("subsonic-response");
-                    if (resp.TryGetProperty("status", out var status) && status.GetString() == "failed")
+                    if (resp.TryGetProperty("albumList2", out var list) &&
+                        list.TryGetProperty("album", out var arr))
                     {
-                        var err = resp.TryGetProperty("error", out var e) ? e.TryGetProperty("message", out var m) ? m.GetString() : "" : "";
-                        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs API错误: {err}");
-                        break;
-                    }
-                    if (resp.TryGetProperty("searchResult3", out var searchResult))
-                    {
-                        if (searchResult.TryGetProperty("song", out var arr))
+                        int count = 0;
+                        foreach (var item in EnumerateSongArray(arr))
                         {
-                            var songsInPage = EnumerateSongArray(arr);
-                            foreach (var item in songsInPage)
-                            {
-                                var songId = item.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
-                                // 重复检测：如果 ID 已存在说明 offset 无效，退出
-                                if (!seenIds.Add(songId))
-                                {
-                                    duplicateCount++;
-                                    continue;
-                                }
-                                var song = ParseSong(item, profile);
-                                song.FilePath = GetStreamUrl(song.FilePath, profile);
-                                songs.Add(song);
-                            }
-                            pageCount = songsInPage.Count;
+                            var id = GetString(item, "id");
+                            var name = GetString(item, "name");
+                            var artist = GetString(item, "artist");
+                            var coverId = GetString(item, "coverArt");
+                            albums.Add((id, name, artist, coverId));
+                            count++;
                         }
+                        if (count < pageSize) break;
+                    }
+                    else break;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] getAlbumList2 第{page}页失败: {ex.Message}");
+                    break;
+                }
+                offset += pageSize;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 共获取 {albums.Count} 张专辑");
+            progress?.Report((0, albums.Count, $"共 {albums.Count} 张专辑，开始拉取歌曲..."));
+
+            // 2. 逐个专辑获取歌曲（完整元数据）——每处理完一个专辑即回调
+            int albumIdx = 0;
+            foreach (var (albumId, albumName, albumArtist, coverArt) in albums)
+            {
+                albumIdx++;
+                try
+                {
+                    var songsUrl = ApiUrl($"getAlbum.view?id={HttpUtility.UrlEncode(albumId)}", profile);
+                    var json = await _http.GetStringAsync(songsUrl);
+                    using var doc = JsonDocument.Parse(json);
+                    var resp = doc.RootElement.GetProperty("subsonic-response");
+                    if (resp.TryGetProperty("album", out var album) &&
+                        album.TryGetProperty("song", out var songArr))
+                    {
+                        var albumSongs = new List<Song>();
+                        foreach (var item in EnumerateSongArray(songArr))
+                        {
+                            var songId = GetString(item, "id");
+                            if (!seenIds.Add(songId)) continue;
+
+                            // Navidrome: getAlbum 返回的歌曲元素不保证有 artist/album 字段
+                            // 直接使用专辑级别的艺术家和专辑名
+                            var songArtist = GetString(item, "artist").Trim();
+                            var songAlbum = GetString(item, "album").Trim();
+                            var songCoverId = GetString(item, "coverArt").Trim();
+
+                            var song = new Song
+                            {
+                                Title = GetString(item, "title"),
+                                Artist = songArtist.Length > 0 ? songArtist : albumArtist,
+                                Album = songAlbum.Length > 0 ? songAlbum : albumName,
+                                Duration = GetInt(item, "duration"),
+                                Bitrate = GetInt(item, "bitRate"),
+                                FileSize = GetLong(item, "size"),
+                                FilePath = songId,
+                                CoverArtPath = songCoverId.Length > 0 ? songCoverId : coverArt,
+                                Source = SongSource.WebDAV,
+                                RemoteId = songId,
+                                Year = GetInt(item, "year"),
+                                TrackNumber = GetInt(item, "track")
+                            };
+                            song.FilePath = GetStreamUrl(song.FilePath, profile);
+                            songs.Add(song);
+                            albumSongs.Add(song);
+                        }
+                        // 增量回调：每获取完一个专辑就通知调用方
+                        if (albumSongs.Count > 0 && songCallback != null)
+                            await songCallback(albumSongs);
                     }
                 }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 专辑 {albumName} 失败: {ex.Message}");
+                }
 
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs Page {page}: {pageCount} 首 (重复 {duplicateCount})");
-                if (duplicateCount > pageCount / 2) break; // 超过一半重复 → offset 无效
-                if (pageCount < pageSize) break;             // 最后一页
-                offset += pageSize;
+                // 每处理完一个专辑报告进度
+                if (albumIdx % 3 == 0 || albumIdx == albums.Count)
+                {
+                    progress?.Report((albumIdx, albums.Count,
+                        $"拉取歌曲中 ({albumIdx}/{albums.Count}) · {songs.Count} 首"));
+                }
             }
         }
         catch (Exception ex)

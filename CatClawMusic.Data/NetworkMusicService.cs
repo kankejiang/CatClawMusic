@@ -25,31 +25,57 @@ public class NetworkMusicService : INetworkMusicService
         return await _db.GetConnectionProfilesAsync();
     }
 
-    public async Task<List<Song>> ScanAsync(ConnectionProfile profile)
+    public async Task<List<Song>> ScanAsync(ConnectionProfile profile,
+        IProgress<(int done, int total, string status)>? progress = null,
+        Action<List<Song>>? songBatchCallback = null)
     {
-        var songs = profile.Protocol switch
+        // 先清除旧的网络缓存
+        try
         {
-            ProtocolType.Navidrome => await _subsonic.GetSongsAsync(profile),
-            ProtocolType.WebDAV => await ScanWebDavAsync(profile),
-            _ => new List<Song>()
-        };
-
-        // 保存到本地缓存
-        if (songs.Count > 0)
+            await _db.EnsureInitializedAsync();
+            await _db.ReplaceNetworkSongsBeginAsync();
+        }
+        catch (Exception ex)
         {
-            try
-            {
-                await _db.EnsureInitializedAsync();
-                await _db.ReplaceNetworkSongsAsync(songs);
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] 已缓存 {songs.Count} 首网络歌曲到本地");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] 缓存网络歌曲失败: {ex.Message}");
-            }
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 清除旧网络歌曲失败: {ex.Message}");
         }
 
-        return songs;
+        // 增量式拉取：每个专辑完成后立即入库 + 回调通知 UI
+        var allSongs = new List<Song>();
+
+        if (profile.Protocol == ProtocolType.Navidrome)
+        {
+            allSongs = await _subsonic.GetSongsAsync(profile, progress, async (batch) =>
+            {
+                // 每个专辑的歌曲立即入库
+                try
+                {
+                    foreach (var s in batch)
+                    {
+                        if (!string.IsNullOrEmpty(s.Artist))
+                            s.ArtistId = await _db.EnsureArtistAsync(s.Artist);
+                        if (!string.IsNullOrEmpty(s.Album))
+                            s.AlbumId = await _db.EnsureAlbumAsync(s.Album, s.ArtistId);
+                        s.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        await _db.InsertSongAsync(s);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 增量入库失败: {ex.Message}");
+                }
+                // 通知 ViewModel 增量刷新列表
+                songBatchCallback?.Invoke(batch);
+            });
+        }
+        else if (profile.Protocol == ProtocolType.WebDAV)
+        {
+            var songs = await ScanWebDavAsync(profile);
+            allSongs = songs;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] ScanAsync 总计 {allSongs.Count} 首网络歌曲");
+        return allSongs;
     }
 
     public async Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile)
