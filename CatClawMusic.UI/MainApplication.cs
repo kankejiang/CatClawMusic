@@ -73,12 +73,14 @@ public class MainApplication : Application
         services.AddTransient<PlaylistDetailViewModel>();
 
         // Fragments (transient)
+        services.AddTransient<FullLyricsFragment>();
         services.AddTransient<LibraryFragment>();
         services.AddTransient<NowPlayingFragment>();
         services.AddTransient<PlaylistFragment>();
         services.AddTransient<SearchFragment>();
         services.AddTransient<SettingsFragment>();
         services.AddTransient<PlaylistDetailFragment>();
+        services.AddTransient<RemoteMusicFragment>();
         services.AddTransient<WebDavSettingsFragment>();
         services.AddTransient<NavidromeSettingsFragment>();
         services.AddTransient<MusicFolderSettingsFragment>();

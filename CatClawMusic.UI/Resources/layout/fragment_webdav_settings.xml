@@ -12,6 +12,14 @@
             android:orientation="vertical">
 
             <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:hint="服务名称" android:layout_marginBottom="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_name"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="我的 WebDAV" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:hint="主机地址" android:layout_marginBottom="12dp"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_host"
@@ -24,7 +32,7 @@
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_port"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:inputType="number" android:text="8080" />
+                    android:inputType="number" android:text="5005" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
@@ -50,6 +58,10 @@
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:text="/" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <androidx.appcompat.widget.SwitchCompat android:id="@+id/sw_https"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="使用 HTTPS" android:layout_marginBottom="12dp" />
 
             <TextView android:id="@+id/status_text" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:textColor="@color/textHint"

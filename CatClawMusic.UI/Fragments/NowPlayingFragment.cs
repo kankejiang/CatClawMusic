@@ -53,6 +53,14 @@ public class NowPlayingFragment : Fragment
         _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
 
+        // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
+        // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
+        var lyricsArea = view.FindViewById<View>(Resource.Id.lyrics_area);
+        if (lyricsArea != null)
+        {
+            lyricsArea.SetOnTouchListener(new LyricTapListener(() => MainActivity.Instance?.SwitchTab(0)));
+        }
+
         // 控制区域拦截 ViewPager2 的横向滑动
         var controlsCard = view.FindViewById<View>(Resource.Id.controls_card)!;
         controlsCard.SetOnTouchListener(new ControlsTouchListener());
@@ -440,6 +448,38 @@ public class NowPlayingFragment : Fragment
 
             text2.SetTextColor(Android.Graphics.Color.ParseColor("#999999"));
             return view;
+        }
+    }
+
+    /// <summary>歌词区触摸监听：短按跳转全屏歌词，水平滑动交给 ViewPager2</summary>
+    internal class LyricTapListener : Java.Lang.Object, View.IOnTouchListener
+    {
+        private readonly Action _onTap;
+        private float _downX, _downY;
+        private long _downTime;
+
+        public LyricTapListener(Action onTap) => _onTap = onTap;
+
+        public bool OnTouch(View? v, MotionEvent? e)
+        {
+            if (e == null || v == null) return false;
+            switch (e.Action)
+            {
+                case MotionEventActions.Down:
+                    _downX = e.GetX();
+                    _downY = e.GetY();
+                    _downTime = Java.Lang.JavaSystem.CurrentTimeMillis();
+                    break;
+                case MotionEventActions.Up:
+                    float dx = Math.Abs(e.GetX() - _downX);
+                    float dy = Math.Abs(e.GetY() - _downY);
+                    long dt = Java.Lang.JavaSystem.CurrentTimeMillis() - _downTime;
+                    // 短按 + 小移动 → 视为点击
+                    if (dx < 30 && dy < 30 && dt < 300)
+                        _onTap();
+                    break;
+            }
+            return false; // 不消费事件，让 ViewPager2 仍能处理滑动
         }
     }
 }

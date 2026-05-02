@@ -18,7 +18,8 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly INetworkMusicService? _networkMusic;
     private readonly ISubsonicService? _subsonic;
     private readonly IMainThreadDispatcher _dispatcher;
-    private LrcLyrics? _currentLyrics;
+    [ObservableProperty] private LrcLyrics? _currentLyrics;
+    [ObservableProperty] private int _currentLyricIndex = -1;
     private bool _isPositionUpdating;
     private int _saveCounter; // 定时保存计数器
     private ConnectionProfile? _cachedNetworkProfile;
@@ -326,14 +327,15 @@ public partial class NowPlayingViewModel : ObservableObject
             // 仅在播放中读取 Duration，避免切歌时的竞态触发原生 getDuration 错误
             if (_audioPlayer.IsPlaying)
                 TotalDuration = _audioPlayer.Duration;
-            if (_currentLyrics?.Lines is { Count: > 0 })
+            if (CurrentLyrics?.Lines is { Count: > 0 })
             {
-                var idx = _lyricsService.GetCurrentLyricIndex(_currentLyrics, position);
-                if (idx >= 0 && idx < _currentLyrics.Lines.Count)
+                var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, position);
+                if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
                 {
-                    PrevLyricLine = idx > 0 ? _currentLyrics.Lines[idx - 1].Text : "";
-                    NextLyricLine = idx + 1 < _currentLyrics.Lines.Count ? _currentLyrics.Lines[idx + 1].Text : "";
-                    CurrentLyricLine = _currentLyrics.Lines[idx].Text; // 最后设，触发 UI 刷新
+                    PrevLyricLine = idx > 0 ? CurrentLyrics.Lines[idx - 1].Text : "";
+                    NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
+                    CurrentLyricLine = CurrentLyrics.Lines[idx].Text; // 最后设，触发 UI 刷新
+                    CurrentLyricIndex = idx;
                 }
             }
             _isPositionUpdating = false;
@@ -345,32 +347,32 @@ public partial class NowPlayingViewModel : ObservableObject
 
     public async Task LoadLyricsAsync(Song? song)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; _currentLyrics = null; return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; CurrentLyrics = null; return; }
         CurrentLyricLine = "正在加载歌词..."; NextLyricLine = "";
-        _currentLyrics = await _lyricsService.GetLyricsAsync(song);
+        CurrentLyrics = await _lyricsService.GetLyricsAsync(song);
 
         // 网络歌曲：尝试从 Subsonic 获取远程歌词
-        if (_currentLyrics == null && song.Source == SongSource.WebDAV)
+        if (CurrentLyrics == null && song.Source == SongSource.WebDAV)
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 网络歌曲, Source={song.Source}, 尝试远程歌词");
-            _currentLyrics = await GetNetworkLyricsAsync(song);
+            CurrentLyrics = await GetNetworkLyricsAsync(song);
         }
-        else if (_currentLyrics == null)
+        else if (CurrentLyrics == null)
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 本地无歌词, Source={song.Source}, 跳过远程");
         }
 
-        if (_currentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
-        else if (_currentLyrics.Lines.Count > 0)
+        if (CurrentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
+        else if (CurrentLyrics.Lines.Count > 0)
         {
             // 根据当前播放位置显示初始歌词行
             var pos = _audioPlayer.CurrentPosition;
-            var idx = _lyricsService.GetCurrentLyricIndex(_currentLyrics, pos);
-            if (idx >= 0 && idx < _currentLyrics.Lines.Count)
+            var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, pos);
+            if (idx >= 0 && idx < CurrentLyrics!.Lines.Count)
             {
-                PrevLyricLine = idx > 0 ? _currentLyrics.Lines[idx - 1].Text : "";
-                NextLyricLine = idx + 1 < _currentLyrics.Lines.Count ? _currentLyrics.Lines[idx + 1].Text : "";
-                CurrentLyricLine = _currentLyrics.Lines[idx].Text;
+                PrevLyricLine = idx > 0 ? CurrentLyrics.Lines[idx - 1].Text : "";
+                NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
+                CurrentLyricLine = CurrentLyrics.Lines[idx].Text;
             }
         }
     }
@@ -466,7 +468,7 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>将纯文本歌词转换为伪 LRC（无时间戳，按行显示）</summary>
     private static LrcLyrics BuildUnsynchronizedLyrics(string text)
     {
-        var lyrics = new LrcLyrics();
+        var lyrics = new LrcLyrics(); // unused in unsynchronized path
         var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
         foreach (var line in lines)
         {

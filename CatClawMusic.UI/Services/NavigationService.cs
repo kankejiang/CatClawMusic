@@ -40,6 +40,7 @@ public class NavigationService : INavigationService
         Fragment fragment = route switch
         {
             "PlaylistDetail" => CreatePlaylistDetail(parameters),
+            "RemoteMusic" => MainApplication.Services.GetRequiredService<RemoteMusicFragment>(),
             "WebDavSettings" => MainApplication.Services.GetRequiredService<WebDavSettingsFragment>(),
             "NavidromeSettings" => MainApplication.Services.GetRequiredService<NavidromeSettingsFragment>(),
             "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),

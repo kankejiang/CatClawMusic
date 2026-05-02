@@ -325,6 +325,10 @@ public class MusicDatabase
     public async Task<int> GetCachedNetworkSongCountAsync()
         => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV).CountAsync();
 
+    /// <summary>本地歌曲数量</summary>
+    public async Task<int> GetLocalSongCountAsync()
+        => await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
+
     /// <summary>开始替换网络歌曲（先清除旧的），配合 InsertSongAsync 逐首插入</summary>
     public async Task ReplaceNetworkSongsBeginAsync()
     {

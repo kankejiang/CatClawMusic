@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+
+    <!-- 底层：封面背景（会被代码加模糊效果） -->
+    <ImageView android:id="@+id/lyric_bg_cover" android:layout_width="match_parent"
+        android:layout_height="match_parent" android:scaleType="centerCrop"
+        android:src="@drawable/cover_default" />
+
+    <!-- 中层：半透明暗色遮罩（毛玻璃感） -->
+    <View android:id="@+id/lyric_bg_dim" android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#990F0D16" />
+
+    <!-- 上层：歌词内容 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 顶部：歌曲信息 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center"
+            android:paddingTop="48dp" android:paddingBottom="16dp"
+            android:paddingHorizontal="24dp">
+            <TextView android:id="@+id/lyric_song_title" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="18sp"
+                android:textColor="#FFFFFF" android:fontFamily="sans-serif-medium"
+                android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/lyric_song_artist" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="13sp"
+                android:textColor="#CCCCCC" android:layout_marginTop="2dp"
+                android:maxLines="1" android:ellipsize="end" />
+        </LinearLayout>
+
+        <!-- 歌词滚动区 -->
+        <ScrollView android:id="@+id/lyrics_scroll" android:layout_width="match_parent"
+            android:layout_height="0dp" android:layout_weight="1"
+            android:scrollbars="none" android:overScrollMode="never"
+            android:paddingHorizontal="32dp">
+            <LinearLayout android:id="@+id/lyrics_container"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:gravity="center_horizontal"
+                android:paddingTop="24dp" android:paddingBottom="200dp" />
+        </ScrollView>
+
+        <!-- 底部：进度 + 滑动提示 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center"
+            android:paddingBottom="32dp" android:paddingHorizontal="24dp">
+            <TextView android:id="@+id/lyric_progress_text"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="#808080" android:textSize="12sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="← 滑动返回播放页" android:textColor="#606060"
+                android:textSize="11sp" android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

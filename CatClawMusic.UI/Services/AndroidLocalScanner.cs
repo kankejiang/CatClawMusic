@@ -23,7 +23,7 @@ public class AndroidLocalScanner
         var existingPaths = new HashSet<string>();
 
         // 判断扫描模式
-        bool hasManageStorage = global::Android.OS.Build.Version.SdkInt >= global::Android.OS.BuildVersionCodes.R
+        bool hasManageStorage = global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.R
             && global::Android.OS.Environment.IsExternalStorageManager;
 
         // SAF 文件夹是否存在（用户通过文件选择器选的）

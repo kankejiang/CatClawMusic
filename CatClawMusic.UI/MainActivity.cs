@@ -27,9 +27,9 @@ public class MainActivity : AppCompatActivity
     private BottomNavigationView _bottomNav = null!;
     private View _toolbar = null!;
     private ImageButton _btnMenu = null!;
-    private Fragment[] _tabFragments = null!;
     private int _currentTab;
     private bool _isUserSwipe; // 区分代码切换和用户滑动
+    private bool _suppressNavListener; // 防止 UpdateNavSelection 触发 NavListener 循环
 
     // 迷你播放器
     private View _miniPlayerWrapper = null!;
@@ -101,16 +101,8 @@ public class MainActivity : AppCompatActivity
         // 适配状态栏：工具栏向下偏移状态栏高度，防止被遮挡（如 iQOO 等设备）
         FitSystemBars();
 
-        _tabFragments = new Fragment[]
-        {
-            MainApplication.Services.GetRequiredService<NowPlayingFragment>(),
-            MainApplication.Services.GetRequiredService<PlaylistFragment>(),
-            MainApplication.Services.GetRequiredService<SearchFragment>(),
-            MainApplication.Services.GetRequiredService<LibraryFragment>()
-        };
-
         // ViewPager2
-        _viewPager.Adapter = new TabPagerAdapter(this, _tabFragments);
+        _viewPager.Adapter = new TabPagerAdapter(this);
         _viewPager.UserInputEnabled = true;
         _viewPager.RegisterOnPageChangeCallback(new PageChangeCallback(index =>
         {
@@ -123,6 +115,7 @@ public class MainActivity : AppCompatActivity
         // BottomNav ↔ ViewPager 双向绑定
         _bottomNav.SetOnItemSelectedListener(new NavListener(index =>
         {
+            if (_suppressNavListener) return; // UpdateNavSelection 程序化设置时跳过
             _isUserSwipe = false;
             _viewPager.SetCurrentItem(index, true);
             _isUserSwipe = true;
@@ -143,29 +136,32 @@ public class MainActivity : AppCompatActivity
 
         BindMiniPlayer();
 
-        // 启动 → Tab 0（播放页）
-        _currentTab = 0;
+        // 启动 → Tab 1（播放页，Tab 0 是歌词页）
+        _viewPager.SetCurrentItem(1, false);
+        _currentTab = 1;
         _isUserSwipe = true;
-        UpdateTabUI(0);
+        UpdateTabUI(1);
     }
 
     private void UpdateNavSelection(int index)
     {
+        _suppressNavListener = true;
         _bottomNav.SelectedItemId = index switch
         {
-            0 => Resource.Id.nav_playing, 1 => Resource.Id.nav_playlist,
-            2 => Resource.Id.nav_search, 3 => Resource.Id.nav_library,
-            _ => Resource.Id.nav_playing
+            1 => Resource.Id.nav_playing, 2 => Resource.Id.nav_playlist,
+            3 => Resource.Id.nav_search, 4 => Resource.Id.nav_library,
+            _ => Resource.Id.nav_playing // Tab 0 (歌词) 无导航项，默认高亮播放
         };
+        _suppressNavListener = false;
     }
 
     private void UpdateTabUI(int index)
     {
-        // 播放页：隐藏工具栏 + 底部导航 + 迷你播放器
-        bool isNowPlaying = index == 0;
-        _toolbar.Visibility = isNowPlaying ? ViewStates.Gone : ViewStates.Visible;
-        _bottomNav.Visibility = isNowPlaying ? ViewStates.Gone : ViewStates.Visible;
-        SetMiniPlayerVisible(!isNowPlaying);
+        // 歌词页(Tab0) + 播放页(Tab1)：隐藏工具栏 + 底部导航 + 迷你播放器
+        bool hideNav = index is 0 or 1;
+        _toolbar.Visibility = hideNav ? ViewStates.Gone : ViewStates.Visible;
+        _bottomNav.Visibility = hideNav ? ViewStates.Gone : ViewStates.Visible;
+        SetMiniPlayerVisible(!hideNav);
     }
 
     public void SetBottomNavVisible(bool visible)
@@ -198,7 +194,7 @@ public class MainActivity : AppCompatActivity
 
     public void SwitchTab(int index)
     {
-        if (index >= 0 && index < _tabFragments.Length)
+        if (index >= 0 && index < 5) // 5 tabs
         {
             _isUserSwipe = false;
             _viewPager.SetCurrentItem(index, true);
@@ -318,7 +314,7 @@ public class MainActivity : AppCompatActivity
         var vm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
 
-        _miniPlayer.Click += (s, e) => { if (vm.CurrentSong != null) SwitchTab(0); };
+        _miniPlayer.Click += (s, e) => { if (vm.CurrentSong != null) SwitchTab(1); };
         _miniPlayPause.Click += (s, e) => vm.PlayPauseCommand.Execute(null);
         _miniPrev.Click += (s, e) => vm.PreviousCommand.Execute(null);
         _miniNext.Click += (s, e) => vm.NextCommand.Execute(null);
@@ -328,7 +324,7 @@ public class MainActivity : AppCompatActivity
             var song = vm.CurrentSong;
             bool hasSong = song != null;
             bool onMainPage = !_panelOpen;
-            bool isNowPlayingTab = _currentTab == 0;
+            bool isNowPlayingTab = _currentTab is 0 or 1;
             _miniPlayerWrapper.Visibility = hasSong && onMainPage && !isNowPlayingTab
                 ? ViewStates.Visible : ViewStates.Gone;
             if (!hasSong) return;
@@ -387,9 +383,9 @@ public class MainActivity : AppCompatActivity
         {
             int index = item.ItemId switch
             {
-                Resource.Id.nav_playing => 0, Resource.Id.nav_playlist => 1,
-                Resource.Id.nav_search => 2, Resource.Id.nav_library => 3,
-                _ => 0
+                Resource.Id.nav_playing => 1, Resource.Id.nav_playlist => 2,
+                Resource.Id.nav_search => 3, Resource.Id.nav_library => 4,
+                _ => 1
             };
             _onSelected(index);
             return true;

@@ -1,4 +1,6 @@
 @echo off
+set ANDROID_HOME=C:\Users\lvjin\AppData\Local\Android\Sdk
+set ANDROID_SDK_ROOT=C:\Users\lvjin\AppData\Local\Android\Sdk
 set SLN=D:\WorkBuddy\CatClawMusic\CatClawMusic.sln
 set MSDBUILD="C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\amd64\MSBuild.exe"
 

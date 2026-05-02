@@ -1,13 +1,59 @@
-# 🐾 猫爪音乐 (CatClaw Music) v1.0
+# 🐾 猫爪音乐 (CatClaw Music) v1.01
 
-> 📅 首次发布：2026-05-01 · v1.0.0
+> 📅 首次发布：2026-05-01 · v1.0.0  |  更新：2026-05-03 · v1.0.1
 >
 > 萌系 Android 本地+网络音乐播放器，.NET 9 原生 Android 开发，支持本地播放、Navidrome/Subsonic 网络音乐、频谱可视化、LRC 歌词同步滚动。
 
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-9.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-12.0-blue)
-![版本](https://img.shields.io/badge/版本-v1.0-brightgreen)
+![版本](https://img.shields.io/badge/版本-v1.0.1-brightgreen)
+
+---
+
+## 🆕 v1.0.1 更新日志（2026-05-03）
+
+### ✨ 新增
+- 🎵 **ExoPlayer (Media3) 播放引擎**：原生支持 content:// URI，更好的流媒体兼容性
+- 🖼️ **封面懒加载**：滚动到可见时再加载封面，不阻塞列表渲染（支持本地内嵌封面 + 网络 API 下载）
+- 📈 **增量式网络扫描**：扫描过程中实时显示进度条，每扫描完一个专辑即更新列表
+- 📈 **增量式本地扫描**：与网络扫描一致，每发现 20 首歌曲即增量刷新列表
+
+### 🐛 修复
+- 修复 Android 13+ 全文件访问权限检测（`Environment.IsExternalStorageManager`）
+- 修复某些设备/ROM 上 MediaStore 缺少 `year` / `track` 列导致的崩溃（`GetColumnIndex` 安全检查）
+- 修复 `Android.Graphics.Path` 与 `System.IO.Path` 命名冲突编译错误
+- 修复 `.NET 10 SDK` 的 `dotnet build` NuGet restore 崩溃（必须使用 VS MSBuild）
+- 修复 `CollectionChanged` → `NotifyDataSetChanged` 逐首刷新导致的主线程 ANR（改为 `NotifyItemRangeInserted`）
+
+### 🔧 优化
+- **播放引擎迁移**：`Android.Media.MediaPlayer` → `Xamarin.AndroidX.Media3.ExoPlayer`（Media3）
+- **增量式架构**：扫描、入库、UI 刷新三阶段全部增量流水线，不再等全部完成
+- **封面加载优化**：移除批量预提取 `ExtractCoversAsync`，改为 `SongAdapter` 滚动懒加载 + 磁盘缓存
+- **主线程性能**：`SongAdapter.AddRange()` 使用 `NotifyItemRangeInserted`，O(n²) → O(1)
+- **SAF 文件夹隔离**：有 SAF URI 时跳过 MediaStore 全设备扫描，只扫用户选择的文件夹
+- **去重优化**：`HashSet<string>` 替代 `Any()` 线性搜索
+
+---
+
+## 🆕 v1.0.1 更新日志（2026-05-03）
+
+### ✨ 新增
+- 🎤 **全屏歌词页**：NowPlaying 页左滑或点击歌词区域进入，右滑返回
+- 🌫️ **毛玻璃歌词背景**：封面图实时模糊（RenderEffect，API 31+），深色遮罩，沉浸式体验
+- 📊 **设置页重构**：音乐文件夹 + 远程音乐服务双卡片，远程服务子页含 Navidrome/WebDAV 快捷开关
+- 📈 **设置状态预览**：实时显示文件夹数、歌曲数、已启用服务数
+
+### 🐛 修复
+- 修复 ViewPager2 切换 Tab 0（全屏歌词）时自动弹回的问题
+- 修复歌词区域点击与 ViewPager2 滑动手势冲突
+- 修复歌词三行显示截断问题（maxLines 调整 + wrap_content）
+- 修复 NowPlayingViewModel 歌词属性未触发通知的问题
+
+### 🔧 优化
+- Tab 顺序调整：全屏歌词(0) / NowPlaying(1) / Playlist(2) / Search(3) / Library(4)
+- 全屏歌词页当前行紫色高亮 + 自动滚动，手动滚动暂停 3 秒
+- 底部导航栏在歌词页自动隐藏
 
 ---
 
@@ -31,22 +77,23 @@
 | 传统路径扫描 (`/Music`, `/Download`) | ✅ | 有权限时后备扫描 |
 | 递归扫描音频文件 | ✅ | 支持子目录 |
 | Tag 信息读取 | ✅ | TagLibSharp 解析标题/艺术家/专辑/时长等 |
-| 封面图抽取 | ✅ | 嵌入元数据 + content:// URI |
+| 封面图懒加载 | ✅ | SongAdapter 滚动时懒加载 + 磁盘缓存，不再批量预提取 |
 | 歌曲去重入库 | ✅ | 按文件路径去重，已存在则更新 |
-| 下拉刷新扫描 | ✅ | 带 0%→100% 进度条 |
-| 后台扫描不阻塞 UI | ✅ | Task.Run + UI 线程调度 |
+| **增量式扫描（新）** | ✅ | 逐批回调控件 + 入库，列表实时增量刷新，进度条动画 |
+| **SAF 文件夹隔离（新）** | ✅ | 有 SAF URI 时跳过 MediaStore，只扫用户选择的文件夹 |
 
 #### ▶️ 音频播放
 
 | 特性 | 状态 | 说明 |
 |------|:--:|------|
-| 播放/暂停/恢复 | ✅ | Android MediaPlayer |
+| 播放/暂停/恢复 | ✅ | **ExoPlayer (Media3)**：`AndroidX.Media3.ExoPlayer.SimpleExoPlayer` |
 | 上一首/下一首 | ✅ | 通过 PlayQueue 管理 |
 | 进度拖动 (Seek) | ✅ | Material Slider |
 | 音量控制 | ✅ | 0-100 |
 | WakeLock 后台保活 | ✅ | 防止播放时 CPU 休眠 |
 | 自动播放下一首 | ✅ | Completion 事件触发 |
 | 流媒体 URL 播放 | ✅ | 支持 HTTP/HTTPS |
+| **原生 content:// URI（新）** | ✅ | ExoPlayer 原生支持，无需 `ParcelFileDescriptor` 绕路 |
 
 #### 🔀 播放队列与模式
 
@@ -98,14 +145,15 @@
 |------|:--:|------|
 | **Navidrome (Subsonic API)** | | |
 | Ping 连接测试 | ✅ | `ping.view` |
-| 获取全部歌曲 | ✅ | `search3.view` 批量获取 |
+| 获取全部歌曲 | ✅ | `search3.view` 批量获取，**增量式回调**：每专辑完成后立即入库+刷新列表 |
 | 专辑列表 | ✅ | `getAlbumList2.view` |
-| 封面图 | ✅ | `getCoverArt.view` |
+| 封面图 | ✅ | `getCoverArt.view`，**懒加载**：列表滚动时按需下载 |
 | 歌词获取 | ✅ | `getLyricsBySongId` (OpenSubsonic 结构化歌词) |
 | 本地/网络歌曲隔离 | ✅ | Tab 切换时清空，按 Source 过滤 |
 | 流媒体 URL | ✅ | `stream.view` |
 | Token 认证 | ✅ | md5+salt |
 | 配置持久化 | ✅ | 主机/端口/用户/密码/HTTPS |
+| 扫描进度条 | ✅ | `IProgress` 实时报告扫描进度 |
 
 #### 📋 页面功能
 
@@ -118,10 +166,11 @@
 | Tab 切换 (全部/收藏/最近) | ✅ | |
 | 点击歌曲播放 | ✅ | 设置队列+播放+同步迷你播放器 |
 | **音乐库页** | | |
-| 本地音乐列表 | ✅ | 从 SQLite 加载 |
-| 网络音乐列表 | ✅ | 加载所有启用的网络配置 |
+| 本地音乐列表 | ✅ | 从 SQLite 加载，增量式每 50 首一批刷新 |
+| 网络音乐列表 | ✅ | 加载所有启用的网络配置，增量式逐专辑刷新 |
 | 本地/网络 Tab 切换 | ✅ | |
 | SAF 文件夹选择引导 | ✅ | |
+| **扫描进度条（新）** | ✅ | 实时显示扫描进度和状态 |
 | **搜索页** | | |
 | 多字段搜索 | ✅ | 标题/艺术家/专辑 |
 | **全屏播放器** | | |
@@ -174,9 +223,11 @@
 |------|:----:|
 | DI 容器 (IServiceProvider) | ✅ |
 | MVVM (CommunityToolkit.Mvvm) | ✅ |
+| **ExoPlayer (Media3) 播放引擎** | ✅ 替代 Android.Media.MediaPlayer |
+| 增量式扫描架构 | ✅ `IProgress` + `Func<List<Song>,Task>` 回调，逐批入库+增量 UI |
+| 封面懒加载 | ✅ SongAdapter 内部懒加载，`_boundSongId` 防错位 |
+| 适配器增量刷新 | ✅ `NotifyItemRangeInserted` 替代 `NotifyDataSetChanged`，O(n²)→O(1) |
 | 数据库 WAL 模式 | ✅ |
-| 批量预加载避免 N+1 | ✅ |
-| 播放状态恢复 | ✅ |
 
 ### 🔧 未完成功能
 
@@ -280,8 +331,8 @@ CatClawMusic/
 | 数据库 | SQLite (sqlite-net-pcl) |
 | MVVM | CommunityToolkit.Mvvm |
 | 标签 | TagLibSharp |
-| 播放器 | Android.Media.MediaPlayer |
-| 解码 | Android.Media.MediaCodec |
+| 播放器 | **ExoPlayer (AndroidX Media3)** |
+| 解码 | Android.Media.MediaCodec (频谱提取) |
 | 权限 | SAF (Storage Access Framework) |
 
 ---
@@ -391,6 +442,10 @@ public interface ILyricsProviderPlugin : IPlugin
 ```bash
 # 注意：.NET 10 SDK 有 NuGet restore 兼容性问题
 # 必须使用 VS MSBuild，而非 dotnet build
+
+# 构建前需设置 Android SDK 环境变量（build_apk.bat 已自动处理）：
+#   ANDROID_HOME = C:\Users\lvjin\AppData\Local\Android\Sdk
+#   ANDROID_SDK_ROOT = C:\Users\lvjin\AppData\Local\Android\Sdk
 
 # 方式一：双击 build_apk.bat（推荐）
 D:\WorkBuddy\CatClawMusic\build_apk.bat
