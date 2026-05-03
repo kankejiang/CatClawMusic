@@ -59,6 +59,8 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
 
     private Handler? _fadeHandler;
     private Action? _fadeAction;
+    private Handler? _lockHideHandler;
+    private Action? _lockHideAction;
     private int _currentLyricIndex = -1;
 
     private DesktopLyricService() { }
@@ -169,16 +171,15 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         {
             Android.Util.Log.Info("DesktopLyricService", "Step 1: Calculating position");
             var metrics = context.Resources?.DisplayMetrics;
-            var posX = _savedX >= 0 ? _savedX : (metrics?.WidthPixels / 4 ?? 200);
             var posY = _savedY >= 0 ? _savedY : (metrics?.HeightPixels / 3 ?? 400);
 
             Android.Util.Log.Info("DesktopLyricService", "Step 2: Trying overlay window");
-            var result = TryAddOverlayWindow(context, posX, posY);
+            var result = TryAddOverlayWindow(context, posY);
 
             if (!result.success)
             {
                 Android.Util.Log.Info("DesktopLyricService", "Step 3: Trying fallback window type");
-                result = TryAddOverlayWindow(context, posX, posY, fallback: true);
+                result = TryAddOverlayWindow(context, posY, fallback: true);
             }
 
             if (!result.success)
@@ -212,7 +213,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         public View? view;
     }
 
-    private AddResult TryAddOverlayWindow(Context context, int x, int y, bool fallback = false)
+    private AddResult TryAddOverlayWindow(Context context, int y, bool fallback = false)
     {
         try
         {
@@ -235,15 +236,15 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             }
             if (prevView != null)
             {
-                prevView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize * 0.75f);
+                prevView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize);
                 prevView.Typeface = typeface;
-                prevView.SetTextColor(ParseColor(_fontColor, 0.5f));
+                prevView.SetTextColor(ParseColor(_fontColor));
             }
             if (nextView != null)
             {
-                nextView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize * 0.85f);
+                nextView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize * 0.75f);
                 nextView.Typeface = typeface;
-                nextView.SetTextColor(ParseColor(_fontColor));
+                nextView.SetTextColor(ParseColor(_fontColor, 0.5f));
             }
 
             if (_displayMode == 1)
@@ -270,23 +271,25 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
 
             lockBtn?.SetOnClickListener(new LockClickListener(this, lockBtn));
 
+            if (lockBtn != null) lockBtn.Visibility = ViewStates.Visible;
+
             var windowType = fallback
                 ? WindowManagerTypes.Phone
                 : (Build.VERSION.SdkInt >= BuildVersionCodes.O
                     ? WindowManagerTypes.ApplicationOverlay
                     : WindowManagerTypes.Phone);
 
-            Android.Util.Log.Info("DesktopLyricService", $"Step 7: Adding view type={windowType} X={x} Y={y}");
+            Android.Util.Log.Info("DesktopLyricService", $"Step 7: Adding view type={windowType} Y={y}");
 
             var layoutParams = new WindowManagerLayoutParams(
-                WindowManagerLayoutParams.WrapContent,
+                WindowManagerLayoutParams.MatchParent,
                 WindowManagerLayoutParams.WrapContent,
                 windowType,
-                WindowManagerFlags.NotFocusable | WindowManagerFlags.NotTouchModal,
+                WindowManagerFlags.NotFocusable | WindowManagerFlags.NotTouchModal | WindowManagerFlags.LayoutNoLimits,
                 Format.Translucent);
 
-            layoutParams.Gravity = GravityFlags.Start | GravityFlags.Top;
-            layoutParams.X = x;
+            layoutParams.Gravity = GravityFlags.Top;
+            layoutParams.X = 0;
             layoutParams.Y = y;
 
             _windowManager?.AddView(view, layoutParams);
@@ -297,6 +300,8 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             _lyricNextView = nextView;
             _doubleLayout = doubleLayout;
             _lockButton = lockBtn;
+
+            ScheduleLockHide();
 
             return new AddResult { success = true, view = view };
         }
@@ -320,6 +325,43 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             _btn.SetTextColor(_service._isLocked
                 ? Color.ParseColor("#FF6B81")
                 : Color.White);
+        }
+    }
+
+    private void ShowLockButton()
+    {
+        if (_lockButton != null)
+        {
+            _lockButton.Visibility = ViewStates.Visible;
+        }
+    }
+
+    private void HideLockButton()
+    {
+        if (_lockButton != null)
+        {
+            _lockButton.Visibility = ViewStates.Gone;
+        }
+    }
+
+    private void ScheduleLockHide()
+    {
+        StopLockHide();
+        _lockHideHandler ??= new Handler(Looper.MainLooper!);
+        _lockHideAction = () =>
+        {
+            if (!_isDragging)
+                HideLockButton();
+        };
+        _lockHideHandler.PostDelayed(_lockHideAction, 2000);
+    }
+
+    private void StopLockHide()
+    {
+        if (_lockHideAction != null && _lockHideHandler != null)
+        {
+            _lockHideHandler.RemoveCallbacks(_lockHideAction);
+            _lockHideAction = null;
         }
     }
 
@@ -410,21 +452,20 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         {
             case MotionEventActions.Down:
                 _isDragging = false;
-                _initialX = layoutParams.X;
                 _initialY = layoutParams.Y;
                 _initialTouchX = e.RawX;
                 _initialTouchY = e.RawY;
                 StopFadeTimer();
+                StopLockHide();
+                ShowLockButton();
                 ApplyBackgroundAlpha(0.35f);
                 return true;
 
             case MotionEventActions.Move:
-                var dx = e.RawX - _initialTouchX;
                 var dy = e.RawY - _initialTouchY;
-                if (Math.Abs(dx) > 5 || Math.Abs(dy) > 5)
+                if (Math.Abs(dy) > 5)
                 {
                     _isDragging = true;
-                    layoutParams.X = (int)(_initialX + dx);
                     layoutParams.Y = (int)(_initialY + dy);
                     _windowManager.UpdateViewLayout(_lyricView, layoutParams);
                 }
@@ -434,11 +475,11 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             case MotionEventActions.Cancel:
                 if (_isDragging)
                 {
-                    _savedX = layoutParams.X;
                     _savedY = layoutParams.Y;
                     SavePosition();
                 }
                 _isDragging = false;
+                ScheduleLockHide();
                 StartFadeTimer();
                 return true;
         }
@@ -457,15 +498,15 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
         if (_lyricPrevView != null)
         {
-            _lyricPrevView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize * 0.75f);
+            _lyricPrevView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize);
             _lyricPrevView.Typeface = typeface;
-            _lyricPrevView.SetTextColor(ParseColor(_fontColor, 0.5f));
+            _lyricPrevView.SetTextColor(ParseColor(_fontColor));
         }
         if (_lyricNextView != null)
         {
-            _lyricNextView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize * 0.85f);
+            _lyricNextView.SetTextSize(Android.Util.ComplexUnitType.Sp, _fontSize * 0.75f);
             _lyricNextView.Typeface = typeface;
-            _lyricNextView.SetTextColor(ParseColor(_fontColor));
+            _lyricNextView.SetTextColor(ParseColor(_fontColor, 0.5f));
         }
     }
 
@@ -475,9 +516,9 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         if (_lyricSingleView != null)
             _lyricSingleView.SetTextColor(color);
         if (_lyricPrevView != null)
-            _lyricPrevView.SetTextColor(ParseColor(_fontColor, 0.5f));
+            _lyricPrevView.SetTextColor(color);
         if (_lyricNextView != null)
-            _lyricNextView.SetTextColor(color);
+            _lyricNextView.SetTextColor(ParseColor(_fontColor, 0.5f));
     }
 
     private void ApplyBackgroundAlpha(float alpha)
@@ -574,7 +615,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
         if (_lyricPrevView != null)
         {
-            _lyricPrevView.Text = string.IsNullOrEmpty(prev) ? "" : prev;
+            _lyricPrevView.Text = string.IsNullOrEmpty(current) ? "♪" : current;
         }
         if (_lyricNextView != null)
         {
