@@ -26,7 +26,9 @@ public class NowPlayingFragment : Fragment
     private GoogleSlider _progressSlider = null!;
     private SpectrumView _spectrumView = null!;
 
-    // PcmData 计数器
+    // 频谱去重
+    private bool _spectrumStarted;
+    private string? _spectrumPath;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_now_playing, container, false)!;
@@ -307,20 +309,36 @@ public class NowPlayingFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
-        _viewModel.SyncWithQueue();
-        SyncUIFromViewModel();
-        // 恢复播放状态监听 + 正在播放则启动可视化
+        // 启动时如果 RestoreAsync 还没跑完（队列为空），跳过同步避免无效 Layout
+        var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
+        if (queue.CurrentSong != null)
+        {
+            _viewModel.SyncWithQueue();
+            SyncUIFromViewModel();
+        }
+        // 恢复播放状态监听
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         player.StateChanged -= OnPlayerStateForVis;
         player.StateChanged += OnPlayerStateForVis;
-        if (player.IsPlaying) OnPlayerStateForVis(null, new PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
-        // 延迟刷新：等待 MediaPlayer 准备好后更新滑块、图标和歌词
-        Task.Delay(800).ContinueWith(_ => Activity?.RunOnUiThread(() =>
+        // 延迟启动频谱，等 ViewPager2 动画结束、避免初始化时卡帧
+        View?.PostDelayed(() =>
+        {
+            if (_viewModel.CurrentSong != null && player.IsPlaying)
+                TryStartSpectrum(player.CurrentSongFilePath);
+            else if (!player.IsPlaying)
+            {
+                _visSpectrum?.Stop();
+                _spectrumStarted = false;
+                _spectrumPath = null;
+            }
+        }, 300);
+        // 延迟刷新：等待 player 准备好后更新滑块、图标和歌词
+        View?.PostDelayed(() =>
         {
             UpdateSlider();
             UpdatePlayPauseIcon();
             UpdateLyrics();
-        }));
+        }, 800);
     }
 
     public override void OnPause()
@@ -328,7 +346,8 @@ public class NowPlayingFragment : Fragment
         base.OnPause();
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         player.StateChanged -= OnPlayerStateForVis;
-        _visSpectrum?.Stop();
+        // 不释放频谱 codec，仅暂停标记，下次 OnResume 复用
+        _spectrumStarted = false;
     }
 
     public override void OnDestroyView()
@@ -341,6 +360,25 @@ public class NowPlayingFragment : Fragment
 
     private PositionSyncedSpectrum? _visSpectrum;
 
+    private void TryStartSpectrum(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        // 同路径已运行就不重建
+        if (_spectrumStarted && _spectrumPath == path) return;
+
+        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] Vis: state=Playing path={(path[..Math.Min(50, path.Length)])}");
+        global::Android.Util.Log.Debug("CatClaw", $"[CatClaw] Vis: state=Playing path={(path[..Math.Min(50, path.Length)])}");
+
+        _visSpectrum?.Stop();
+        _visSpectrum = new PositionSyncedSpectrum();
+        _visSpectrum.Start(path,
+            () => player.CurrentPosition,
+            (bars, peaks) => { if (_spectrumView != null) _spectrumView.UpdateFftData(bars, peaks); });
+        _spectrumPath = path;
+        _spectrumStarted = true;
+    }
+
     private void OnPlayerStateForVis(object? sender, PlaybackStateChangedEventArgs e)
     {
         if (Activity == null) return;
@@ -349,21 +387,13 @@ public class NowPlayingFragment : Fragment
             var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
             if (e.State == PlaybackState.Playing)
             {
-                _visSpectrum?.Stop();
-                var path = player.CurrentSongFilePath;
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] Vis: state=Playing path={(path?.Substring(0, Math.Min(50, path?.Length ?? 0)) ?? "null")}");
-                global::Android.Util.Log.Debug("CatClaw", $"[CatClaw] Vis: state=Playing path={(path?.Substring(0, Math.Min(50, path?.Length ?? 0)) ?? "null")}");
-                if (!string.IsNullOrEmpty(path))
-                {
-                    _visSpectrum = new PositionSyncedSpectrum();
-                    _visSpectrum.Start(path,
-                        () => player.CurrentPosition,
-                        (bars, peaks) => { if (_spectrumView != null) _spectrumView.UpdateFftData(bars, peaks); });
-                }
+                TryStartSpectrum(player.CurrentSongFilePath);
             }
             else
             {
                 _visSpectrum?.Stop();
+                _spectrumStarted = false;
+                _spectrumPath = null;
             }
         });
     }

@@ -101,8 +101,9 @@ public class MainActivity : AppCompatActivity
         // 适配状态栏：工具栏向下偏移状态栏高度，防止被遮挡（如 iQOO 等设备）
         FitSystemBars();
 
-        // ViewPager2
+        // ViewPager2：保活全部 Fragment，避免滑动时反复销毁重建
         _viewPager.Adapter = new TabPagerAdapter(this);
+        _viewPager.OffscreenPageLimit = 4;
         _viewPager.UserInputEnabled = true;
         _viewPager.RegisterOnPageChangeCallback(new PageChangeCallback(index =>
         {
