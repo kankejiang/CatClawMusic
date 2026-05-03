@@ -2,12 +2,33 @@
 
 > 📅 首次发布：2026-05-01 · v1.0.0  |  更新：2026-05-03 · v1.0.1
 >
-> 萌系 Android 本地+网络音乐播放器，.NET 9 原生 Android 开发，支持本地播放、Navidrome/Subsonic 网络音乐、频谱可视化、LRC 歌词同步滚动。
+> 萌系 Android 本地+网络音乐播放器，.NET 9 原生 Android 开发，支持本地播放、Navidrome/Subsonic 网络音乐、WebDAV 远程音乐、频谱可视化、LRC 歌词同步滚动、全屏歌词体验。
 
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-9.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-12.0-blue)
 ![版本](https://img.shields.io/badge/版本-v1.0.1-brightgreen)
+
+---
+
+## 🚀 快速入门
+
+### 本地音乐
+1. 打开应用，进入「音乐库」页面
+2. 点击「选择文件夹」按钮，通过 SAF 选择你的音乐文件夹
+3. 应用会自动扫描并加载音乐（支持增量扫描）
+4. 点击歌曲开始播放
+
+### Navidrome 远程音乐
+1. 打开侧边栏设置，点击「网络服务」
+2. 选择「Navidrome」，填写服务器地址、端口、用户名和密码
+3. 启用后，在「音乐库」的「网络」标签页中即可看到远程歌曲
+
+### 全屏歌词
+- 在播放页（Tab 1），**左滑**或点击歌词区域可进入全屏歌词页
+- **右滑**可返回播放页
+- 全屏歌词页支持手动滚动，3 秒后自动恢复同步
+- 支持毛玻璃模糊背景，沉浸体验
 
 ---
 

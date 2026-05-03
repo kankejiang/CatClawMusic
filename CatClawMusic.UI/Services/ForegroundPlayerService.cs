@@ -7,6 +7,7 @@ using AndroidX.Core.App;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using ALog = Android.Util.Log;
 
 namespace CatClawMusic.UI.Services;
 
@@ -79,11 +80,24 @@ public class ForegroundPlayerService : Service
 
     public static void Start(Context context)
     {
-        var intent = new Intent(context, typeof(ForegroundPlayerService));
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
-            context.StartForegroundService(intent);
-        else
-            context.StartService(intent);
+        try
+        {
+            var intent = new Intent(context, typeof(ForegroundPlayerService));
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
+                context.StartForegroundService(intent);
+            else
+                context.StartService(intent);
+        }
+        catch (Java.Lang.IllegalStateException ex)
+        {
+            // Android 12+ 后台启动前台 Service 被拦截——不影响播放，
+            // 下次 App 回到前台时再做通知栏绑定
+            ALog.Warn("CatClaw", $"ForegroundPlayerService 启动被拒（App 在后台）: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"ForegroundPlayerService 启动失败: {ex.Message}");
+        }
     }
 
     public static void Stop(Context context)

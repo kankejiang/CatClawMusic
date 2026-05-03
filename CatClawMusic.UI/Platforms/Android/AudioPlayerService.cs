@@ -294,24 +294,24 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                 var state = _player.PlaybackState;
 
                 // 检测播放完毕：STATE_ENDED (4)
+                // 不杀掉前台 Service——保留通知栏给下一首歌用，
+                // 否则 App 在后台时取下一首重建前台 Service 会被系统拦截
                 if (state == 4 && _lastPlaybackState != 4)
                 {
                     _lastPlaybackState = 4;
                     StopPositionTimer();
                     ReleaseWakeLock();
-                    ForegroundPlayerService.Stop(global::Android.App.Application.Context);
                     StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
                     return;
                 }
 
-                // 检测错误
+                // 检测错误：同样不杀前台 Service，保留通知栏回血余地
                 var error = _player.PlayerError;
                 if (error != null && _lastPlaybackState != 1)
                 {
                     _lastPlaybackState = 1;
                     StopPositionTimer();
                     ReleaseWakeLock();
-                    ForegroundPlayerService.Stop(global::Android.App.Application.Context);
                     StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs
                     {
                         State = PlaybackState.Error,
