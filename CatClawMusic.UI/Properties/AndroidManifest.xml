@@ -23,5 +23,12 @@
     
     <!-- 请求忽略电池优化，确保后台播放稳定 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    
+    <!-- 悬浮窗权限（桌面歌词） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 小米 MIUI/HyperOS 悬浮窗增强权限（华为/OPPO/vivo 也有类似机制） -->
+    <uses-permission android:name="android.permission.MIUI_FLOATING_WINDOW" />
+    <uses-permission android:name="android.permission.MIUI_BACKGROUND_ACTIVITY" />
 
 </manifest>

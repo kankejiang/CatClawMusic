@@ -25,4 +25,10 @@ public interface IPermissionService
 
     /// <summary>打开应用系统设置页面（让用户手动授权）</summary>
     void OpenAppSettings();
+
+    /// <summary>检查悬浮窗权限是否已授予</summary>
+    Task<bool> CheckOverlayPermissionAsync();
+
+    /// <summary>跳转到系统设置页面让用户手动开启悬浮窗权限</summary>
+    Task<bool> RequestOverlayPermissionAsync();
 }

@@ -84,6 +84,8 @@ public class MainApplication : Application
         services.AddTransient<WebDavSettingsFragment>();
         services.AddTransient<NavidromeSettingsFragment>();
         services.AddTransient<MusicFolderSettingsFragment>();
+        services.AddTransient<GeneralSettingsFragment>();
+        services.AddTransient<DesktopLyricFragment>();
 
         // Adapters
         services.AddTransient<SongAdapter>();

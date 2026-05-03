@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/pageBackground">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="16dp">
+
+        <!-- 标题栏 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+            <ImageButton android:id="@+id/btn_back"
+                android:layout_width="40dp" android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="@color/textPrimary"
+                android:contentDescription="返回" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="桌面与歌词" android:textSize="20sp"
+                android:textColor="@color/textPrimary"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center" />
+            <View android:layout_width="40dp" android:layout_height="0dp" />
+        </LinearLayout>
+
+        <!-- 悬浮窗权限设置 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btn_overlay_permission"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="悬浮窗权限"
+                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_overlay_status"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="检测中…"
+                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 桌面歌词开关 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="桌面歌词"
+                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="在桌面显示悬浮歌词"
+                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <Switch android:id="@+id/sw_desktop_lyric"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 歌词字体大小 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="歌词字体大小"
+                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_font_size_value"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="20sp"
+                        android:textSize="14sp" android:textColor="@color/textHint"
+                        android:layout_marginEnd="8dp" />
+                </LinearLayout>
+                <SeekBar android:id="@+id/sb_font_size"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:min="12" android:max="36" android:progress="20" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 歌词颜色设置 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btn_font_color"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="歌词颜色"
+                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_font_color"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="白色"
+                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <View android:id="@+id/color_preview"
+                    android:layout_width="28dp" android:layout_height="28dp"
+                    android:background="#FFFFFF"
+                    android:layout_marginEnd="8dp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 字体样式（粗体） -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="粗体显示"
+                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="使用粗体字体显示歌词"
+                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <Switch android:id="@+id/sw_font_bold"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 背景透明度 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="背景透明度"
+                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_bg_alpha_value"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0%"
+                        android:textSize="14sp" android:textColor="@color/textHint"
+                        android:layout_marginEnd="8dp" />
+                </LinearLayout>
+                <SeekBar android:id="@+id/sb_bg_alpha"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:min="0" android:max="100" android:progress="0" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 显示窗口边框 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="窗口边框"
+                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="显示半透明圆角边框"
+                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <Switch android:id="@+id/sw_show_border"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:checked="true" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 单行/双行显示 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/cardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="显示模式"
+                    android:textSize="15sp" android:textColor="@color/textPrimary"
+                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginBottom="12dp" />
+                <RadioGroup android:id="@+id/rg_display_mode"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <RadioButton android:id="@+id/rb_single_line"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="单行显示"
+                        android:textSize="14sp"
+                        android:checked="true" />
+                    <RadioButton android:id="@+id/rb_double_line"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="双行显示"
+                        android:textSize="14sp" />
+                </RadioGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</ScrollView>

@@ -45,6 +45,8 @@ public class NavigationService : INavigationService
             "NavidromeSettings" => MainApplication.Services.GetRequiredService<NavidromeSettingsFragment>(),
             "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),
             "Settings" => MainApplication.Services.GetRequiredService<SettingsFragment>(),
+            "GeneralSettings" => MainApplication.Services.GetRequiredService<GeneralSettingsFragment>(),
+            "DesktopLyric" => MainApplication.Services.GetRequiredService<DesktopLyricFragment>(),
             _ => throw new ArgumentException($"Unknown route: {route}")
         };
 

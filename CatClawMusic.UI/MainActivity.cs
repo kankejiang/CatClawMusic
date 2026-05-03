@@ -64,6 +64,9 @@ public class MainActivity : AppCompatActivity
 
         SetContentView(Resource.Layout.activity_main);
 
+        // 初始化桌面歌词服务
+        DesktopLyricService.Instance.Initialize(this);
+
         // 恢复上次播放进度（不自动播放）
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
@@ -208,6 +211,7 @@ public class MainActivity : AppCompatActivity
 
     protected override void OnDestroy()
     {
+        DesktopLyricService.Instance.Dispose();
         if (Instance == this) Instance = null!;
         base.OnDestroy();
     }
