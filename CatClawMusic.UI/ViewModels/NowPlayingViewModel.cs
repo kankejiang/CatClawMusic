@@ -29,9 +29,11 @@ public partial class NowPlayingViewModel : ObservableObject
 
     [ObservableProperty] private Song? _currentSong;
     [ObservableProperty] private string _coverSource = "";
+    [ObservableProperty] private string _prevLyricLine2 = "";
     [ObservableProperty] private string _prevLyricLine = "";
     [ObservableProperty] private string _currentLyricLine = "🐾 猫爪音乐";
     [ObservableProperty] private string _nextLyricLine = "选择一首歌曲开始播放吧~";
+    [ObservableProperty] private string _nextLyricLine2 = "";
     [ObservableProperty] private TimeSpan _currentPosition;
     [ObservableProperty] private TimeSpan _totalDuration;
     [ObservableProperty] private string _playPauseIcon = "▶";
@@ -332,8 +334,10 @@ public partial class NowPlayingViewModel : ObservableObject
                 var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, position);
                 if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
                 {
+                    PrevLyricLine2 = idx > 1 ? CurrentLyrics.Lines[idx - 2].Text : "";
                     PrevLyricLine = idx > 0 ? CurrentLyrics.Lines[idx - 1].Text : "";
                     NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
+                    NextLyricLine2 = idx + 2 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 2].Text : "";
                     CurrentLyricLine = CurrentLyrics.Lines[idx].Text; // 最后设，触发 UI 刷新
                     CurrentLyricIndex = idx;
                 }
@@ -347,8 +351,8 @@ public partial class NowPlayingViewModel : ObservableObject
 
     public async Task LoadLyricsAsync(Song? song)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; CurrentLyrics = null; return; }
-        CurrentLyricLine = "正在加载歌词..."; NextLyricLine = "";
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; return; }
+        CurrentLyricLine = "正在加载歌词..."; NextLyricLine = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = "";
         CurrentLyrics = await _lyricsService.GetLyricsAsync(song);
 
         // 网络歌曲：尝试从 Subsonic 获取远程歌词
@@ -370,8 +374,10 @@ public partial class NowPlayingViewModel : ObservableObject
             var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, pos);
             if (idx >= 0 && idx < CurrentLyrics!.Lines.Count)
             {
+                PrevLyricLine2 = idx > 1 ? CurrentLyrics.Lines[idx - 2].Text : "";
                 PrevLyricLine = idx > 0 ? CurrentLyrics.Lines[idx - 1].Text : "";
                 NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
+                NextLyricLine2 = idx + 2 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 2].Text : "";
                 CurrentLyricLine = CurrentLyrics.Lines[idx].Text;
             }
         }

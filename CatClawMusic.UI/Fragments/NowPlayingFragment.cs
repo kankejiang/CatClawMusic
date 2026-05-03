@@ -19,7 +19,7 @@ public class NowPlayingFragment : Fragment
     private NowPlayingViewModel _viewModel = null!;
     private ImageView _albumCover = null!;
     private TextView _songTitle = null!, _songArtist = null!;
-    private TextView _lyricPrev = null!, _lyricCurrent = null!, _lyricNext = null!;
+    private TextView _lyricPrev2 = null!, _lyricPrev = null!, _lyricCurrent = null!, _lyricNext = null!, _lyricNext2 = null!;
     private TextView _timeCurrent = null!, _timeTotal = null!;
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
@@ -42,9 +42,11 @@ public class NowPlayingFragment : Fragment
         _albumCover = view.FindViewById<ImageView>(Resource.Id.album_cover)!;
         _songTitle = view.FindViewById<TextView>(Resource.Id.song_title)!;
         _songArtist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
+        _lyricPrev2 = view.FindViewById<TextView>(Resource.Id.lyric_prev2)!;
         _lyricPrev = view.FindViewById<TextView>(Resource.Id.lyric_prev)!;
         _lyricCurrent = view.FindViewById<TextView>(Resource.Id.lyric_current)!;
         _lyricNext = view.FindViewById<TextView>(Resource.Id.lyric_next)!;
+        _lyricNext2 = view.FindViewById<TextView>(Resource.Id.lyric_next2)!;
         _timeCurrent = view.FindViewById<TextView>(Resource.Id.time_current)!;
         _timeTotal = view.FindViewById<TextView>(Resource.Id.time_total)!;
         _btnPlayPause = view.FindViewById<ImageButton>(Resource.Id.btn_play_pause)!;
@@ -70,7 +72,7 @@ public class NowPlayingFragment : Fragment
         }
 
         // 同时设置子文本视图的点击事件，确保点击任意文本都能触发
-        var lyricViews = new[] { _lyricPrev, _lyricCurrent, _lyricNext };
+        var lyricViews = new[] { _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2 };
         foreach (var lyricView in lyricViews)
         {
             if (lyricView != null)
@@ -173,7 +175,9 @@ public class NowPlayingFragment : Fragment
                         break;
                     case nameof(_viewModel.CurrentLyricLine):
                     case nameof(_viewModel.PrevLyricLine):
+                    case nameof(_viewModel.PrevLyricLine2):
                     case nameof(_viewModel.NextLyricLine):
+                    case nameof(_viewModel.NextLyricLine2):
                         UpdateLyrics();
                         break;
                 }
@@ -183,15 +187,17 @@ public class NowPlayingFragment : Fragment
 
     private void UpdateLyrics()
     {
+        var prev2 = _viewModel.PrevLyricLine2;
         var prev = _viewModel.PrevLyricLine;
         var curr = _viewModel.CurrentLyricLine;
         var next = _viewModel.NextLyricLine;
-        if (_lyricCurrent.Text != curr)
-        {
-            _lyricPrev.Text = prev;
-            _lyricCurrent.Text = curr;
-            _lyricNext.Text = next;
-        }
+        var next2 = _viewModel.NextLyricLine2;
+        
+        _lyricPrev2.Text = prev2;
+        _lyricPrev.Text = prev;
+        _lyricCurrent.Text = curr;
+        _lyricNext.Text = next;
+        _lyricNext2.Text = next2;
     }
 
     private void UpdateTimeDisplay()

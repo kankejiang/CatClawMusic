@@ -3,6 +3,7 @@ using Android.OS;
 using Android.Provider;
 using Android.Views;
 using Android.Widget;
+using AndroidX.Core.App;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
@@ -16,6 +17,7 @@ public class SettingsFragment : Fragment
     private TextView? _tvLocalStatus;
     private TextView? _tvRemoteStatus;
     private TextView? _tvBatteryStatus;
+    private TextView? _tvNotificationStatus;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
@@ -40,6 +42,12 @@ public class SettingsFragment : Fragment
         if (btnBattery != null)
             btnBattery.SetOnClickListener(new ClickListener(() => OpenBatteryOptimizationSettings()));
 
+        // 🔔 通知权限设置
+        var btnNotification = view.FindViewById<View>(Resource.Id.btn_notification_permission);
+        _tvNotificationStatus = view.FindViewById<TextView>(Resource.Id.tv_notification_status);
+        if (btnNotification != null)
+            btnNotification.SetOnClickListener(new ClickListener(() => OpenNotificationSettings()));
+
         return view;
     }
 
@@ -52,8 +60,9 @@ public class SettingsFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
-        // 每次恢复页面时重新检查省电策略状态
+        // 每次恢复页面时重新检查状态
         CheckBatteryOptimizationStatus();
+        CheckNotificationStatus();
     }
 
     private async Task LoadStatusAsync()
@@ -91,6 +100,92 @@ public class SettingsFragment : Fragment
 
         // 检查省电策略状态
         CheckBatteryOptimizationStatus();
+        // 检查通知权限状态
+        CheckNotificationStatus();
+    }
+
+    private void CheckNotificationStatus()
+    {
+        if (Context == null) return;
+
+        bool areNotificationsEnabled = AreNotificationsEnabled();
+        string statusText;
+        Android.Graphics.Color statusColor;
+
+        if (areNotificationsEnabled)
+        {
+            statusText = "✅ 通知权限已开启";
+            statusColor = Android.Graphics.Color.ParseColor("#4CAF50");
+        }
+        else
+        {
+            statusText = "⚠️ 建议开启通知权限";
+            statusColor = Android.Graphics.Color.ParseColor("#FF9800");
+        }
+
+        _tvNotificationStatus?.Post(() =>
+        {
+            _tvNotificationStatus.Text = statusText;
+            _tvNotificationStatus.SetTextColor(statusColor);
+        });
+    }
+
+    private bool AreNotificationsEnabled()
+    {
+        if (Context == null) return false;
+
+        var notificationManager = (Android.App.NotificationManager)Context.GetSystemService(Context.NotificationService)!;
+        if (notificationManager == null) return false;
+
+        // 对于 Android 13+，我们也可以检查 POST_NOTIFICATIONS 权限
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
+        {
+            return notificationManager.AreNotificationsEnabled();
+        }
+
+        // 对于旧版本，默认认为通知是开启的
+        return true;
+    }
+
+    private void OpenNotificationSettings()
+    {
+        if (Context == null) return;
+
+        bool areEnabled = AreNotificationsEnabled();
+
+        if (areEnabled)
+        {
+            // 已经开启，显示提示
+            Toast.MakeText(Context, "当前通知权限已开启", ToastLength.Short)?.Show();
+            return;
+        }
+
+        try
+        {
+            // 尝试直接跳转到应用的通知设置页面
+            var intent = new Intent();
+            intent.SetAction(Settings.ActionAppNotificationSettings);
+            intent.PutExtra(Settings.ExtraAppPackage, Context.PackageName);
+            StartActivity(intent);
+        }
+        catch
+        {
+            try
+            {
+                // 如果上面的方法失败，跳转到应用详情页面
+                var intent = new Intent();
+                intent.SetAction(Settings.ActionApplicationDetailsSettings);
+                intent.SetData(Android.Net.Uri.Parse($"package:{Context.PackageName}"));
+                StartActivity(intent);
+                
+                Toast.MakeText(Context, "请在设置中找到通知权限并开启", ToastLength.Long)?.Show();
+            }
+            catch
+            {
+                // 如果都失败，提示用户手动操作
+                Toast.MakeText(Context, "请前往系统设置 > 应用 > 猫爪音乐 > 通知，开启通知权限", ToastLength.Long)?.Show();
+            }
+        }
     }
 
     private void CheckBatteryOptimizationStatus()
