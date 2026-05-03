@@ -60,7 +60,24 @@ public class NowPlayingFragment : Fragment
         var lyricsArea = view.FindViewById<View>(Resource.Id.lyrics_area);
         if (lyricsArea != null)
         {
+            // 设置父控件可点击和可聚焦
+            lyricsArea.Clickable = true;
+            lyricsArea.Focusable = true;
+            // 设置点击事件作为备用方案
+            lyricsArea.Click += (s, e) => MainActivity.Instance?.SwitchTab(0);
+            // 设置触摸监听器处理更复杂的手势
             lyricsArea.SetOnTouchListener(new LyricTapListener(() => MainActivity.Instance?.SwitchTab(0)));
+        }
+
+        // 同时设置子文本视图的点击事件，确保点击任意文本都能触发
+        var lyricViews = new[] { _lyricPrev, _lyricCurrent, _lyricNext };
+        foreach (var lyricView in lyricViews)
+        {
+            if (lyricView != null)
+            {
+                lyricView.Clickable = true;
+                lyricView.Click += (s, e) => MainActivity.Instance?.SwitchTab(0);
+            }
         }
 
         // 控制区域拦截 ViewPager2 的横向滑动
@@ -487,26 +504,52 @@ public class NowPlayingFragment : Fragment
         private readonly Action _onTap;
         private float _downX, _downY;
         private long _downTime;
+        private bool _isDown;
 
         public LyricTapListener(Action onTap) => _onTap = onTap;
 
         public bool OnTouch(View? v, MotionEvent? e)
         {
             if (e == null || v == null) return false;
+            
             switch (e.Action)
             {
                 case MotionEventActions.Down:
                     _downX = e.GetX();
                     _downY = e.GetY();
                     _downTime = Java.Lang.JavaSystem.CurrentTimeMillis();
+                    _isDown = true;
+                    // 按下时请求父视图不拦截，确保我们能收到完整的事件序列
+                    v.Parent?.RequestDisallowInterceptTouchEvent(true);
                     break;
+                    
+                case MotionEventActions.Move:
+                    if (_isDown)
+                    {
+                        float dx = Math.Abs(e.GetX() - _downX);
+                        float dy = Math.Abs(e.GetY() - _downY);
+                        // 如果是明显的水平滑动，交还给 ViewPager2 处理
+                        if (dx > 30 && dx > dy * 2)
+                        {
+                            v.Parent?.RequestDisallowInterceptTouchEvent(false);
+                        }
+                    }
+                    break;
+                    
                 case MotionEventActions.Up:
-                    float dx = Math.Abs(e.GetX() - _downX);
-                    float dy = Math.Abs(e.GetY() - _downY);
-                    long dt = Java.Lang.JavaSystem.CurrentTimeMillis() - _downTime;
-                    // 短按 + 小移动 → 视为点击
-                    if (dx < 30 && dy < 30 && dt < 300)
-                        _onTap();
+                case MotionEventActions.Cancel:
+                    if (_isDown && e.Action == MotionEventActions.Up)
+                    {
+                        float dx = Math.Abs(e.GetX() - _downX);
+                        float dy = Math.Abs(e.GetY() - _downY);
+                        long dt = Java.Lang.JavaSystem.CurrentTimeMillis() - _downTime;
+                        // 短按 + 小移动 → 视为点击
+                        if (dx < 40 && dy < 40 && dt < 500)
+                            _onTap();
+                    }
+                    _isDown = false;
+                    // 恢复父视图的事件拦截权限
+                    v.Parent?.RequestDisallowInterceptTouchEvent(false);
                     break;
             }
             return false; // 不消费事件，让 ViewPager2 仍能处理滑动
