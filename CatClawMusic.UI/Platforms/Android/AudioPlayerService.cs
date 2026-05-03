@@ -143,22 +143,26 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     public Task PauseAsync()
     {
         if (_player != null)
-            _mainHandler.Post(() => _player!.PlayWhenReady = false);
-        StopPositionTimer();
-        ReleaseWakeLock();
-        StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
+            _mainHandler.Post(() =>
+            {
+                _player!.PlayWhenReady = false;
+                StopPositionTimer();
+                ReleaseWakeLock();
+                StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
+            });
         return Task.CompletedTask;
     }
 
     public Task ResumeAsync()
     {
         if (_player != null && _isPrepared)
-        {
-            _mainHandler.Post(() => _player!.PlayWhenReady = true);
-            AcquireWakeLock();
-            StartPositionTimer();
-            StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
-        }
+            _mainHandler.Post(() =>
+            {
+                _player!.PlayWhenReady = true;
+                AcquireWakeLock();
+                StartPositionTimer();
+                StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
+            });
         return Task.CompletedTask;
     }
 
@@ -182,6 +186,13 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
     private void AcquireWakeLock()
     {
+        // 先释放旧 WakeLock，防止泄漏
+        if (_wakeLock != null && _wakeLock.IsHeld)
+        {
+            _wakeLock.Release();
+            _wakeLock = null;
+        }
+
         var ctx = global::Android.App.Application.Context;
         var pm = (PowerManager?)ctx.GetSystemService(global::Android.Content.Context.PowerService);
         if (pm != null)
