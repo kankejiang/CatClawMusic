@@ -93,7 +93,7 @@ public class SongAdapter : RecyclerView.Adapter
         public void Bind(Song song, SongAdapter adapter)
         {
             _title.Text = song.Title ?? "未知歌曲";
-            _artist.Text = song.Artist ?? "未知艺术家";
+            _artist.Text = string.IsNullOrEmpty(song.Artist) ? "未知艺术家" : song.Artist;
             _album.Text = song.Album ?? "";
             _boundSongId = song.Id;
 

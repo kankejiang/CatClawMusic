@@ -124,6 +124,29 @@ public class PlayQueue
     }
     
     /// <summary>
+    /// 预览下一首（不改变队列状态）
+    /// </summary>
+    public Song? PeekNext()
+    {
+        if (_originalList.Count == 0) return null;
+        var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
+
+        if (PlayMode == PlayMode.SingleRepeat)
+            return CurrentSong;
+
+        int nextIndex = _currentIndex + 1;
+        if (nextIndex >= list.Count)
+        {
+            if (PlayMode == PlayMode.ListRepeat || PlayMode == PlayMode.Shuffle)
+                nextIndex = 0;
+            else
+                return null;
+        }
+
+        return list.ElementAtOrDefault(nextIndex);
+    }
+
+    /// <summary>
     /// 获取下一首索引
     /// </summary>
     private int GetNextIndex()

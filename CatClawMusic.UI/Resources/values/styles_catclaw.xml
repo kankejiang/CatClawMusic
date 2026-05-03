@@ -10,6 +10,8 @@
         <item name="android:navigationBarColor">@color/pageBackground</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="bottomNavigationStyle">@style/CatClawBottomNav</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="fontFamily">sans-serif</item>
     </style>
 
     <!-- 启动画面（必须继承 Material 主题，否则 MaterialCardView 无法 inflate） -->

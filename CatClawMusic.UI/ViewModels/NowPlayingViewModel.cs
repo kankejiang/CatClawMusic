@@ -51,7 +51,7 @@ public partial class NowPlayingViewModel : ObservableObject
     }
     public double TotalDurationSeconds => TotalDuration.TotalSeconds;
 
-    partial void OnCurrentSongChanged(Song? value) { _ = LoadLyricsAsync(value); _ = LoadCoverAsync(value); UpdateQueuePeek(); _ = CheckFavoriteAsync(); }
+    partial void OnCurrentSongChanged(Song? value) { _ = LoadLyricsAsync(value); _ = LoadCoverAsync(value); UpdateQueuePeek(); _ = CheckFavoriteAsync(); _ = ResolveSongDetails(value); }
     partial void OnIsLikedChanged(bool value) { LikeIcon = value ? "❤️" : "🤍"; }
 
     public NowPlayingViewModel(IAudioPlayerService audioPlayer, ILyricsService lyricsService,
@@ -409,6 +409,31 @@ public partial class NowPlayingViewModel : ObservableObject
             IsLiked = await _database.IsFavoriteAsync(CurrentSong.Id);
         }
         catch { IsLiked = false; }
+    }
+
+    private async Task ResolveSongDetails(Song? song)
+    {
+        if (song == null || _database == null) return;
+        if (!string.IsNullOrEmpty(song.Artist) && !string.IsNullOrEmpty(song.Album)) return;
+
+        try
+        {
+            if (song.ArtistId > 0 && string.IsNullOrEmpty(song.Artist))
+            {
+                var allArtists = await _database.GetAllArtistsAsync();
+                var artist = allArtists.FirstOrDefault(a => a.Id == song.ArtistId);
+                if (!string.IsNullOrEmpty(artist?.Name))
+                    song.Artist = artist.Name;
+            }
+            if (song.AlbumId > 0 && string.IsNullOrEmpty(song.Album))
+            {
+                var allAlbums = await _database.GetAllAlbumsAsync();
+                var album = allAlbums.FirstOrDefault(a => a.Id == song.AlbumId);
+                if (!string.IsNullOrEmpty(album?.Title))
+                    song.Album = album.Title;
+            }
+        }
+        catch { }
     }
 
     /// <summary>查找已启用的网络连接配置（Navidrome）</summary>

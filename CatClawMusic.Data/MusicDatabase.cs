@@ -333,8 +333,58 @@ public class MusicDatabase
     public async Task ReplaceNetworkSongsBeginAsync()
     {
         await EnsureInitializedAsync();
+        try { await SaveNetworkFavoriteRefsAsync(); }
+        catch { }
         try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.WebDAV); }
         catch { /* 表可能为空 */ }
+    }
+
+    private readonly Dictionary<string, long> _pendingNetworkFavs = new();
+
+    private async Task SaveNetworkFavoriteRefsAsync()
+    {
+        _pendingNetworkFavs.Clear();
+        var favs = await _database.Table<Favorite>().ToListAsync();
+        if (favs.Count == 0) return;
+        var favSongIds = favs.Select(f => f.SongId).ToHashSet();
+        var networkSongs = await _database.Table<Song>()
+            .Where(s => s.Source == SongSource.WebDAV && favSongIds.Contains(s.Id))
+            .ToListAsync();
+        foreach (var ns in networkSongs)
+        {
+            if (!string.IsNullOrEmpty(ns.RemoteId))
+            {
+                var fav = favs.First(f => f.SongId == ns.Id);
+                _pendingNetworkFavs[ns.RemoteId] = fav.AddedAt;
+            }
+        }
+    }
+
+    public async Task RestoreNetworkFavoritesAsync()
+    {
+        if (_pendingNetworkFavs.Count == 0) return;
+        await EnsureInitializedAsync();
+
+        var newNetworkSongs = await _database.Table<Song>()
+            .Where(s => s.Source == SongSource.WebDAV)
+            .ToListAsync();
+
+        foreach (var kv in _pendingNetworkFavs)
+        {
+            var newMatch = newNetworkSongs.FirstOrDefault(s => s.RemoteId == kv.Key);
+            if (newMatch != null)
+            {
+                try
+                {
+                    var existing = await _database.Table<Favorite>()
+                        .Where(f => f.SongId == newMatch.Id).CountAsync();
+                    if (existing == 0)
+                        await _database.InsertAsync(new Favorite { SongId = newMatch.Id, AddedAt = kv.Value });
+                }
+                catch { }
+            }
+        }
+        _pendingNetworkFavs.Clear();
     }
 
     /// <summary>插入单首歌曲（用于增量入库）</summary>

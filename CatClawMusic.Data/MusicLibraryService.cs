@@ -120,12 +120,13 @@ public class MusicLibraryService : IMusicLibraryService
     public async Task<List<Song>> GetMergedSongsAsync()
     {
         var allSongs = await GetAllSongsAsync();
-        // 按 Title+Artist 分组去重，优先保留本地歌曲
+        var networkSongs = await _db.GetCachedNetworkSongsAsync();
+        allSongs.AddRange(networkSongs);
+
         var deduped = allSongs
             .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
             .Select(g =>
             {
-                // 优先选本地，其次 WebDAV，最后 Cache
                 var local = g.FirstOrDefault(s => s.Source == SongSource.Local);
                 if (local != null) return local;
                 var webdav = g.FirstOrDefault(s => s.Source == SongSource.WebDAV);

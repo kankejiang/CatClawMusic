@@ -25,10 +25,12 @@ public class PositionSyncedSpectrum : IDisposable
         {
             var info = new MediaCodec.BufferInfo();
             var lastSeekUs = -1L;
+            var sampleBuf = new List<float>(2048);
+            var pcmBuf = new byte[1024];
 
             while (!ct.IsCancellationRequested)
             {
-                ct.WaitHandle.WaitOne(50);
+                ct.WaitHandle.WaitOne(33);
                 if (ct.IsCancellationRequested) break;
                 try
                 {
@@ -37,7 +39,6 @@ public class PositionSyncedSpectrum : IDisposable
 
                     if (_released || codec == null || extractor == null) continue;
 
-                    // 仅在位置大幅跳变时 seek + flush
                     if (lastSeekUs < 0 || Math.Abs(seekUs - lastSeekUs) > 2000000)
                     {
                         extractor.SeekTo(seekUs, MediaExtractorSeekTo.ClosestSync);
@@ -45,10 +46,9 @@ public class PositionSyncedSpectrum : IDisposable
                         lastSeekUs = seekUs;
                     }
 
-                    // 解码
-                    var samples = new List<float>();
+                    sampleBuf.Clear();
                     bool inputDone = false;
-                    while (samples.Count < 1024)
+                    while (sampleBuf.Count < 1024)
                     {
                         if (_released) break;
                         if (!inputDone)
@@ -84,22 +84,21 @@ public class PositionSyncedSpectrum : IDisposable
                                 float sum = 0;
                                 for (int c = 0; c < ch && i + c * 2 + 1 < raw.Length; c++)
                                     sum += (short)(raw[i + c * 2] | (raw[i + c * 2 + 1] << 8));
-                                samples.Add(sum / (ch * 32768f));
+                                sampleBuf.Add(sum / (ch * 32768f));
                             }
                             codec.ReleaseOutputBuffer(outIdx, false);
                             if ((info.Flags & MediaCodecBufferFlags.EndOfStream) != 0) break;
                         }
                     }
 
-                    if (samples.Count < 512) continue;
-                    var pcm = new byte[1024];
+                    if (sampleBuf.Count < 512) continue;
                     for (int i = 0; i < 512; i++)
                     {
-                        short s = (short)Math.Clamp(samples[i] * 32767f, -32768, 32767);
-                        pcm[i * 2] = (byte)(s & 0xFF);
-                        pcm[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+                        short s = (short)Math.Clamp(sampleBuf[i] * 32767f, -32768, 32767);
+                        pcmBuf[i * 2] = (byte)(s & 0xFF);
+                        pcmBuf[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
                     }
-                    var result = FftAnalyzer.Compute(pcm, sr);
+                    var result = FftAnalyzer.Compute(pcmBuf, sr);
                     onSpectrum(result.bars, result.peaks);
                 }
                 catch (OperationCanceledException) { break; }

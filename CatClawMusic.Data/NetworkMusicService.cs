@@ -75,6 +75,8 @@ public class NetworkMusicService : INetworkMusicService
         }
 
         System.Diagnostics.Debug.WriteLine($"[CatClaw] ScanAsync 总计 {allSongs.Count} 首网络歌曲");
+        try { await _db.RestoreNetworkFavoritesAsync(); }
+        catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 恢复收藏失败: {ex.Message}"); }
         return allSongs;
     }
 

@@ -146,6 +146,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
         _windowManager = wm;
         _context = context;
+        _isLocked = false;
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
         {
@@ -325,6 +326,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             _btn.SetTextColor(_service._isLocked
                 ? Color.ParseColor("#FF6B81")
                 : Color.White);
+            _service.ApplyLockFlags();
         }
     }
 
@@ -341,6 +343,28 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         if (_lockButton != null)
         {
             _lockButton.Visibility = ViewStates.Gone;
+        }
+    }
+
+    private void ApplyLockFlags()
+    {
+        if (_lyricView == null || _windowManager == null || !_isShowing) return;
+        var lp = _lyricView.LayoutParameters as WindowManagerLayoutParams;
+        if (lp == null) return;
+
+        if (_isLocked)
+            lp.Flags |= WindowManagerFlags.NotTouchable;
+        else
+            lp.Flags &= ~WindowManagerFlags.NotTouchable;
+
+        try { _windowManager.UpdateViewLayout(_lyricView, lp); }
+        catch (System.Exception ex) { Android.Util.Log.Warn("DesktopLyricService", $"ApplyLockFlags UpdateViewLayout failed: {ex.Message}"); }
+
+        if (_isLocked)
+        {
+            StopFadeTimer();
+            HideLockButton();
+            ApplyBackgroundAlpha(0f);
         }
     }
 
@@ -768,7 +792,15 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     public float GetBackgroundAlpha() => _bgAlpha;
     public int GetDisplayMode() => _displayMode;
     public bool GetShowBorder() => _showBorder;
+    public bool IsLocked => _isLocked;
     public bool IsShowing => _isShowing;
+
+    public void ToggleLock()
+    {
+        _isLocked = !_isLocked;
+        if (_isShowing)
+            ApplyLockFlags();
+    }
 
     private void SavePosition()
     {
