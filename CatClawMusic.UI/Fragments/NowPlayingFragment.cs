@@ -6,9 +6,7 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
-using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
-using CatClawMusic.UI.Views;
 using Microsoft.Extensions.DependencyInjection;
 using GoogleSlider = Google.Android.Material.Slider.Slider;
 
@@ -24,12 +22,6 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
     private GoogleSlider _progressSlider = null!;
-    private SpectrumView _spectrumView = null!;
-
-    // 频谱去重
-    private bool _spectrumStarted;
-    private string? _spectrumPath;
-    private string? _spectrumTempFile;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_now_playing, container, false)!;
@@ -86,12 +78,6 @@ public class NowPlayingFragment : Fragment
         // 控制区域拦截 ViewPager2 的横向滑动
         var controlsCard = view.FindViewById<View>(Resource.Id.controls_card)!;
         controlsCard.SetOnTouchListener(new ControlsTouchListener());
-
-        // 频谱控件
-        var spectrumContainer = view.FindViewById<FrameLayout>(Resource.Id.spectrum_container)!;
-        _spectrumView = new SpectrumView(Context!);
-        spectrumContainer.AddView(_spectrumView,
-            new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
 
         // 播放控制（Click -=/+= 防止 ViewPager 重建时重复绑定）
         _btnPlayPause.Click -= OnPlayPause; _btnPlayPause.Click += OnPlayPause;
@@ -321,42 +307,22 @@ public class NowPlayingFragment : Fragment
                 : Android.Graphics.Color.ParseColor("#B0A8BA"));
     }
 
-    // ═══════════ Visualizer ═══════════
-
     public override void OnHiddenChanged(bool hidden)
     {
         base.OnHiddenChanged(hidden);
-        if (!hidden) // Fragment 重新显示时刷新 UI
+        if (!hidden)
             SyncUIFromViewModel();
     }
 
     public override void OnResume()
     {
         base.OnResume();
-        // 启动时如果 RestoreAsync 还没跑完（队列为空），跳过同步避免无效 Layout
         var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
         if (queue.CurrentSong != null)
         {
             _viewModel.SyncWithQueue();
             SyncUIFromViewModel();
         }
-        // 恢复播放状态监听
-        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-        player.StateChanged -= OnPlayerStateForVis;
-        player.StateChanged += OnPlayerStateForVis;
-        // 延迟启动频谱，等 ViewPager2 动画结束、避免初始化时卡帧
-        View?.PostDelayed(() =>
-        {
-            if (_viewModel.CurrentSong != null && player.IsPlaying)
-                TryStartSpectrum(player.CurrentSongFilePath);
-            else if (!player.IsPlaying)
-            {
-                StopSpectrum();
-                _spectrumStarted = false;
-                _spectrumPath = null;
-            }
-        }, 300);
-        // 延迟刷新：等待 player 准备好后更新滑块、图标和歌词
         View?.PostDelayed(() =>
         {
             UpdateSlider();
@@ -368,159 +334,13 @@ public class NowPlayingFragment : Fragment
     public override void OnPause()
     {
         base.OnPause();
-        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-        player.StateChanged -= OnPlayerStateForVis;
-        // 不释放频谱 codec，仅暂停标记，下次 OnResume 复用
-        _spectrumStarted = false;
     }
 
     public override void OnDestroyView()
     {
-        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-        player.StateChanged -= OnPlayerStateForVis;
-        StopSpectrum();
-        CleanupTempFile();
         base.OnDestroyView();
     }
 
-    private PositionSyncedSpectrum? _visSpectrum;
-
-    private static bool IsHttpUrl(string? path) =>
-        path != null && (path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                         path.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
-
-    private void TryStartSpectrum(string? path)
-    {
-        if (string.IsNullOrEmpty(path)) return;
-        if (_spectrumStarted && _spectrumPath == path) return;
-
-        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-        global::Android.Util.Log.Debug("CatClaw", $"[CatClaw] Vis: state=Playing path={(path[..Math.Min(50, path.Length)])}");
-
-        StopSpectrum();
-
-        if (IsHttpUrl(path))
-        {
-            _spectrumPath = path;
-            _spectrumStarted = true;
-            Task.Run(async () =>
-            {
-                await Task.Delay(5000);
-                if (_spectrumPath != path) return;
-                DownloadLowBitrateAndStart(path, player);
-            });
-            return;
-        }
-
-        StartSpectrum(path, path, player);
-    }
-
-    private void DownloadLowBitrateAndStart(string httpUrl, IAudioPlayerService player)
-    {
-        try
-        {
-            var lowUrl = httpUrl.Replace("&f=json", "") + "&format=mp3&maxBitRate=32&estimateContentLength=true";
-            global::Android.Util.Log.Debug("CatClaw", $"[CatClaw] Vis: downloading low-bitrate stream...");
-
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            var response = http.GetAsync(lowUrl, HttpCompletionOption.ResponseHeadersRead, cts.Token)
-                .GetAwaiter().GetResult();
-
-            if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength < 8192)
-            {
-                global::Android.Util.Log.Warn("CatClaw", $"Low-bitrate not available (status={response.StatusCode}, len={response.Content.Headers.ContentLength}), skip spectrum");
-                if (_spectrumPath == httpUrl) _spectrumStarted = false;
-                return;
-            }
-
-            var bytes = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-
-            if (bytes.Length < 8192)
-            {
-                global::Android.Util.Log.Warn("CatClaw", $"Low-bitrate download too small ({bytes.Length} bytes), skip spectrum");
-                if (_spectrumPath == httpUrl) _spectrumStarted = false;
-                return;
-            }
-
-            var tempDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
-            var tempFile = Path.Combine(tempDir, $"spectrum_{Guid.NewGuid():N}.mp3");
-            File.WriteAllBytes(tempFile, bytes);
-
-            if (_spectrumPath != httpUrl) { File.Delete(tempFile); return; }
-
-            Activity?.RunOnUiThread(() =>
-            {
-                if (_spectrumPath != httpUrl) { File.Delete(tempFile); return; }
-                CleanupTempFile();
-                _spectrumTempFile = tempFile;
-                StartSpectrum(tempFile, httpUrl, player);
-            });
-        }
-        catch (System.Exception ex)
-        {
-            global::Android.Util.Log.Warn("CatClaw", $"Low-bitrate failed ({ex.Message}), skip spectrum for this song");
-            if (_spectrumPath == httpUrl)
-            {
-                _spectrumPath = null;
-                _spectrumStarted = false;
-            }
-        }
-    }
-
-    private void StartSpectrum(string filePath, string cacheKey, IAudioPlayerService player)
-    {
-        try
-        {
-            _visSpectrum?.Stop();
-            _visSpectrum = new PositionSyncedSpectrum();
-            _visSpectrum.Start(filePath,
-                () => player.CurrentPosition,
-                (bars, peaks) => { if (_spectrumView != null) _spectrumView.UpdateFftData(bars, peaks); });
-            _spectrumPath = cacheKey;
-            _spectrumStarted = true;
-        }
-        catch (System.Exception ex)
-        {
-            global::Android.Util.Log.Warn("CatClaw", $"StartSpectrum failed for {filePath}: {ex.Message}");
-            CleanupTempFile();
-            _spectrumStarted = false;
-            _spectrumPath = null;
-        }
-    }
-
-    private void StopSpectrum()
-    {
-        _visSpectrum?.Stop();
-    }
-
-    private void CleanupTempFile()
-    {
-        if (_spectrumTempFile != null)
-        {
-            try { File.Delete(_spectrumTempFile); } catch { }
-            _spectrumTempFile = null;
-        }
-    }
-
-    private void OnPlayerStateForVis(object? sender, PlaybackStateChangedEventArgs e)
-    {
-        if (Activity == null) return;
-        Activity.RunOnUiThread(() =>
-        {
-            var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-            if (e.State == PlaybackState.Playing)
-            {
-                TryStartSpectrum(player.CurrentSongFilePath);
-            }
-            else
-            {
-                StopSpectrum();
-                _spectrumStarted = false;
-                _spectrumPath = null;
-            }
-        });
-    }
     internal class SliderTouchListener : Java.Lang.Object, View.IOnTouchListener
     {
         private readonly Action<float> _onEnd;
