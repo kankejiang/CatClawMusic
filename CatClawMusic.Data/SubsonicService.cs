@@ -182,6 +182,7 @@ public class SubsonicService : ISubsonicService
                                 FilePath = songId,
                                 CoverArtPath = songCoverId.Length > 0 ? songCoverId : coverArt,
                                 Source = SongSource.WebDAV,
+                                Protocol = ProtocolType.Navidrome,
                                 RemoteId = songId,
                                 Year = GetInt(item, "year"),
                                 TrackNumber = GetInt(item, "track")
@@ -328,11 +329,22 @@ public class SubsonicService : ISubsonicService
     private static Song ParseSong(JsonElement item, ConnectionProfile profile)
     {
         var songId = GetString(item, "id");
+        var artist = GetString(item, "artist");
+        // search3 API 可能不返回 artist，尝试从 artistId 获取或使用默认值
+        if (string.IsNullOrEmpty(artist))
+        {
+            artist = GetString(item, "artistId"); // 如果 API 返回 artistId 作为备用
+            if (string.IsNullOrEmpty(artist))
+                artist = "未知艺术家";
+        }
+        var album = GetString(item, "album");
+        if (string.IsNullOrEmpty(album))
+            album = "未知专辑";
         return new Song
         {
             Title = GetString(item, "title"),
-            Artist = GetString(item, "artist"),
-            Album = GetString(item, "album"),
+            Artist = artist,
+            Album = album,
             Duration = GetInt(item, "duration"),
             Bitrate = GetInt(item, "bitRate"),
             FileSize = GetLong(item, "size"),

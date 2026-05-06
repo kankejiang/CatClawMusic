@@ -52,6 +52,9 @@ public class Song
 
     public SongSource Source { get; set; } = SongSource.Local;
 
+    /// <summary>远程协议类型，用于区分 WebDAV 和 Navidrome</summary>
+    public ProtocolType Protocol { get; set; } = ProtocolType.WebDAV;
+
     /// <summary>远程歌曲唯一标识（Subsonic songId），用于网络歌曲去重</summary>
     public string? RemoteId { get; set; }
 

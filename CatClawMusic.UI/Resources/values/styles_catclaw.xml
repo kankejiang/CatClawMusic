@@ -1,6 +1,6 @@
 <resources>
-    <!-- 毛玻璃主题（Material 3） -->
-    <style name="CatClawTheme" parent="Theme.Material3.Light.NoActionBar">
+    <!-- 主主题（紫色） -->
+    <style name="CatClawTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primaryColor</item>
         <item name="colorOnPrimary">@color/textOnPrimary</item>
         <item name="colorPrimaryContainer">@color/primaryGlow</item>
@@ -12,9 +12,80 @@
         <item name="bottomNavigationStyle">@style/CatClawBottomNav</item>
         <item name="android:fontFamily">sans-serif</item>
         <item name="fontFamily">sans-serif</item>
+
+        <item name="catClawPageBackground">@color/pageBackground</item>
+        <item name="catClawPageBackgroundDark">@color/pageBackgroundDark</item>
+        <item name="catClawCardBackground">@color/cardBackground</item>
+        <item name="catClawCardBackgroundSolid">@color/cardBackgroundSolid</item>
+        <item name="catClawCardBorder">@color/cardBorder</item>
+        <item name="catClawCardBorderDark">@color/cardBorderDark</item>
+        <item name="catClawPrimaryColor">@color/primaryColor</item>
+        <item name="catClawPrimaryLight">@color/primaryLight</item>
+        <item name="catClawPrimaryDark">@color/primaryDark</item>
+        <item name="catClawPrimaryGlow">@color/primaryGlow</item>
+        <item name="catClawSecondaryColor">@color/secondaryColor</item>
+        <item name="catClawSecondaryLight">@color/secondaryLight</item>
+        <item name="catClawAccentColor">@color/accentColor</item>
+        <item name="catClawAccentLight">@color/accentLight</item>
+        <item name="catClawTextPrimary">@color/textPrimary</item>
+        <item name="catClawTextSecondary">@color/textSecondary</item>
+        <item name="catClawTextHint">@color/textHint</item>
+        <item name="catClawTextOnPrimary">@color/textOnPrimary</item>
+        <item name="catClawSuccessColor">@color/successColor</item>
+        <item name="catClawWarningColor">@color/warningColor</item>
+        <item name="catClawErrorColor">@color/errorColor</item>
+        <item name="catClawTabActive">@color/tabActive</item>
+        <item name="catClawTabInactive">@color/tabInactive</item>
+        <item name="catClawNavBarBackground">@color/navBarBackground</item>
+        <item name="catClawGradientStart">@color/gradientStart</item>
+        <item name="catClawGradientEnd">@color/gradientEnd</item>
     </style>
 
-    <!-- 启动画面（必须继承 Material 主题，否则 MaterialCardView 无法 inflate） -->
+    <!-- 粉色主题 -->
+    <style name="CatClawTheme.Pink" parent="CatClawTheme">
+        <item name="catClawPrimaryColor">#FF80AB</item>
+        <item name="catClawPrimaryLight">#FFB3D6</item>
+        <item name="catClawPrimaryDark">#E84E7F</item>
+        <item name="catClawPrimaryGlow">#4D1A2D</item>
+        <item name="catClawTabActive">#FF80AB</item>
+        <item name="catClawGradientStart">#3F1A2D</item>
+        <item name="catClawGradientEnd">#1A3F2D</item>
+    </style>
+
+    <!-- 蓝色主题 -->
+    <style name="CatClawTheme.Blue" parent="CatClawTheme">
+        <item name="catClawPrimaryColor">#64B5F6</item>
+        <item name="catClawPrimaryLight">#A3D9FF</item>
+        <item name="catClawPrimaryDark">#3D98E0</item>
+        <item name="catClawPrimaryGlow">#1A3D5C</item>
+        <item name="catClawTabActive">#64B5F6</item>
+        <item name="catClawGradientStart">#1A3D5C</item>
+        <item name="catClawGradientEnd">#1A2D4D</item>
+    </style>
+
+    <!-- 绿色主题 -->
+    <style name="CatClawTheme.Green" parent="CatClawTheme">
+        <item name="catClawPrimaryColor">#81C784</item>
+        <item name="catClawPrimaryLight">#B9F6CA</item>
+        <item name="catClawPrimaryDark">#5CA35F</item>
+        <item name="catClawPrimaryGlow">#1A3D2A</item>
+        <item name="catClawTabActive">#81C784</item>
+        <item name="catClawGradientStart">#1A3D2A</item>
+        <item name="catClawGradientEnd">#1A2D3F</item>
+    </style>
+
+    <!-- 橙色主题 -->
+    <style name="CatClawTheme.Orange" parent="CatClawTheme">
+        <item name="catClawPrimaryColor">#FFAB91</item>
+        <item name="catClawPrimaryLight">#FFCCBC</item>
+        <item name="catClawPrimaryDark">#E87F67</item>
+        <item name="catClawPrimaryGlow">#4D2A1A</item>
+        <item name="catClawTabActive">#FFAB91</item>
+        <item name="catClawGradientStart">#4D2A1A</item>
+        <item name="catClawGradientEnd">#3F1A2D</item>
+    </style>
+
+    <!-- 启动画面 -->
     <style name="CatClaw.Splash" parent="Theme.Material3.Light.NoActionBar">
         <item name="android:windowBackground">@drawable/splash_screen</item>
         <item name="android:statusBarColor">@android:color/black</item>
@@ -23,56 +94,56 @@
 
     <!-- 毛玻璃底部导航 -->
     <style name="CatClawBottomNav" parent="Widget.Material3.BottomNavigationView">
-        <item name="android:background">@color/navBarBackground</item>
+        <item name="android:background">?attr/catClawNavBarBackground</item>
         <item name="itemActiveIndicatorStyle">@style/GlassActiveIndicator</item>
-        <item name="itemIconTint">@color/tabActive</item>
-        <item name="itemTextColor">@color/tabActive</item>
+        <item name="itemIconTint">?attr/catClawTabActive</item>
+        <item name="itemTextColor">?attr/catClawTabActive</item>
         <item name="elevation">0dp</item>
     </style>
 
     <style name="GlassActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
-        <item name="android:color">@color/primaryGlow</item>
+        <item name="android:color">?attr/catClawPrimaryGlow</item>
     </style>
 
-    <!-- 毛玻璃卡片（扁平无阴影） -->
+    <!-- 毛玻璃卡片 -->
     <style name="CatClawCard" parent="Widget.Material3.CardView.Elevated">
         <item name="cardCornerRadius">20dp</item>
         <item name="cardElevation">0dp</item>
-        <item name="strokeColor">@color/cardBorder</item>
+        <item name="strokeColor">?attr/catClawCardBorder</item>
         <item name="strokeWidth">1dp</item>
-        <item name="cardBackgroundColor">@color/cardBackground</item>
+        <item name="cardBackgroundColor">?attr/catClawCardBackground</item>
     </style>
 
-    <!-- 毛玻璃小卡片（列表项用） -->
+    <!-- 毛玻璃小卡片 -->
     <style name="CatClawCardSmall" parent="Widget.Material3.CardView.Elevated">
         <item name="cardCornerRadius">16dp</item>
         <item name="cardElevation">0dp</item>
-        <item name="strokeColor">@color/cardBorder</item>
+        <item name="strokeColor">?attr/catClawCardBorder</item>
         <item name="strokeWidth">0.5dp</item>
-        <item name="cardBackgroundColor">@color/cardBackground</item>
+        <item name="cardBackgroundColor">?attr/catClawCardBackground</item>
     </style>
 
     <!-- 圆角图片 -->
     <style name="CatClawCardImage">
         <item name="cardCornerRadius">24dp</item>
         <item name="cardElevation">0dp</item>
-        <item name="strokeColor">@color/cardBorder</item>
+        <item name="strokeColor">?attr/catClawCardBorder</item>
         <item name="strokeWidth">0.5dp</item>
-        <item name="cardBackgroundColor">@color/cardBackgroundSolid</item>
+        <item name="cardBackgroundColor">?attr/catClawCardBackgroundSolid</item>
     </style>
 
-    <!-- 主按钮（扁平圆角） -->
+    <!-- 主按钮 -->
     <style name="CatClawButtonPrimary" parent="Widget.Material3.Button">
-        <item name="backgroundTint">@color/primaryColor</item>
-        <item name="android:textColor">@color/textOnPrimary</item>
+        <item name="backgroundTint">?attr/catClawPrimaryColor</item>
+        <item name="android:textColor">?attr/catClawTextOnPrimary</item>
         <item name="cornerRadius">16dp</item>
         <item name="android:elevation">0dp</item>
     </style>
 
-    <!-- 次按钮（毛玻璃风格） -->
+    <!-- 次按钮 -->
     <style name="CatClawButtonSecondary" parent="Widget.Material3.Button.TonalButton">
-        <item name="backgroundTint">@color/primaryGlow</item>
-        <item name="android:textColor">@color/primaryDark</item>
+        <item name="backgroundTint">?attr/catClawPrimaryGlow</item>
+        <item name="android:textColor">?attr/catClawPrimaryDark</item>
         <item name="cornerRadius">16dp</item>
         <item name="android:elevation">0dp</item>
     </style>
@@ -80,14 +151,14 @@
     <!-- 标题 -->
     <style name="CatClawHeading" parent="TextAppearance.Material3.HeadlineSmall">
         <item name="fontFamily">@font/happy_zcool_2016</item>
-        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textColor">?attr/catClawTextPrimary</item>
     </style>
     <style name="CatClawBody" parent="TextAppearance.Material3.BodyMedium">
         <item name="fontFamily">sans-serif</item>
-        <item name="android:textColor">@color/textSecondary</item>
+        <item name="android:textColor">?attr/catClawTextSecondary</item>
     </style>
     <style name="CatClawTitle" parent="TextAppearance.Material3.TitleLarge">
         <item name="fontFamily">@font/happy_zcool_2016</item>
-        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textColor">?attr/catClawTextPrimary</item>
     </style>
 </resources>

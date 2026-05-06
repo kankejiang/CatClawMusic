@@ -7,10 +7,14 @@ namespace CatClawMusic.Core.Services;
 
 /// <summary>
 /// 歌词服务实现（LRC 格式解析 + 多源查找）
-/// 从方糖音乐播放器移植并增强
 /// </summary>
 public class LyricsService : ILyricsService
 {
+    // 正则静态化，避免每次 ParseLrc 重新编译
+    private static readonly Regex TimeRegex = new(@"\[(\d+):(\d+)(?:\.(\d+))?\]", RegexOptions.Compiled);
+    private static readonly Regex TagRegex = new(@"\[(ti|ar|al|by|re|ve):(.+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ExtensionRegex = new(@"\.\w+$", RegexOptions.Compiled);
+
     /// <summary>
     /// 获取歌词（优先级：嵌入歌词 > 用户目录 > 同名 .lrc > 网络）
     /// </summary>
@@ -83,7 +87,7 @@ public class LyricsService : ILyricsService
             if (docIdx < 0) return null;
             string prefix = songUri.Substring(0, docIdx + "/document/".Length);
             string docId = songUri.Substring(docIdx + "/document/".Length);
-            string newDocId = System.Text.RegularExpressions.Regex.Replace(docId, @"\.\w+$", ".lrc");
+            string newDocId = ExtensionRegex.Replace(docId, ".lrc");
             if (newDocId == docId) return null;
             return prefix + newDocId;
         }
@@ -135,15 +139,13 @@ public class LyricsService : ILyricsService
         lrcContent = lrcContent.Replace("\r\n", "\n").Replace("\r", "\n");
         var lines = lrcContent.Split('\n');
 
-        var timeRegex = new Regex(@"\[(\d+):(\d+)(?:\.(\d+))?\]");
-        var tagRegex = new Regex(@"\[(ti|ar|al|by|re|ve):(.+)\]", RegexOptions.IgnoreCase);
         foreach (var rawLine in lines)
         {
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line)) continue;
             if (line.StartsWith("//")) continue;
 
-            var tagMatch = tagRegex.Match(line);
+            var tagMatch = TagRegex.Match(line);
             if (tagMatch.Success)
             {
                 var tag = tagMatch.Groups[1].Value.ToLower();
@@ -160,14 +162,8 @@ public class LyricsService : ILyricsService
                 continue;
             }
 
-            // 时间戳行校验
-            if (line.Length > 10 && !DateTime.TryParse(line.Substring(1, 5), out _))
-            {
-                continue;
-            }
-
             // 解析歌词行
-            var timeMatches = timeRegex.Matches(line);
+            var timeMatches = TimeRegex.Matches(line);
             if (timeMatches.Count == 0) continue;
 
             // 提取歌词文本（最后一个 ] 之后的内容）
@@ -201,28 +197,29 @@ public class LyricsService : ILyricsService
             }
         }
 
-        // 按时间戳排序
+        // 按时间戳排序（LRC 文件通常已有序，仅兜底排序）
         lyrics.Lines = lyrics.Lines.OrderBy(l => l.Timestamp).ToList();
 
         return lyrics.Lines.Count > 0 ? lyrics : null;
     }
 
     /// <summary>
-    /// 根据播放位置获取当前歌词行索引
+    /// 根据播放位置获取当前歌词行索引（二分查找，O(log n)）
     /// </summary>
     public int GetCurrentLyricIndex(LrcLyrics? lyrics, TimeSpan position)
     {
         if (lyrics?.Lines == null || lyrics.Lines.Count == 0) return -1;
 
-        var index = -1;
-        for (int i = 0; i < lyrics.Lines.Count; i++)
+        var lines = lyrics.Lines;
+        int lo = 0, hi = lines.Count - 1;
+        while (lo <= hi)
         {
-            if (lyrics.Lines[i].Timestamp <= position)
-                index = i;
+            int mid = lo + (hi - lo) / 2;
+            if (lines[mid].Timestamp <= position)
+                lo = mid + 1;
             else
-                break;
+                hi = mid - 1;
         }
-
-        return index;
+        return hi;
     }
 }

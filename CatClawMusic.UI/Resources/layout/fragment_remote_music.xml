@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="@color/pageBackground">
+    android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
     <include layout="@layout/include_settings_toolbar" />
 
@@ -14,7 +14,7 @@
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="连接你的远程音乐服务"
-                android:textSize="13sp" android:textColor="@color/textHint"
+                android:textSize="13sp" android:textColor="?attr/catClawTextHint"
                 android:layout_marginBottom="12dp" />
 
             <!-- ✅ Navidrome 服务器 -->
@@ -24,8 +24,8 @@
                 android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
                 android:foreground="?attr/selectableItemBackground"
                 app:cardCornerRadius="16dp" app:cardElevation="0dp"
-                app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-                app:cardBackgroundColor="@color/cardBackground">
+                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+                app:cardBackgroundColor="?attr/catClawCardBackground">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:paddingHorizontal="16dp"
                     android:paddingVertical="12dp" android:gravity="center_vertical">
@@ -39,12 +39,12 @@
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="Navidrome 服务器"
-                            android:textSize="15sp" android:textColor="@color/textPrimary"
+                            android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                             android:fontFamily="sans-serif-medium" />
                         <TextView android:id="@+id/tv_navidrome_status"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="未连接"
-                            android:textSize="12sp" android:textColor="@color/textHint"
+                            android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                             android:layout_marginTop="2dp" />
                     </LinearLayout>
 
@@ -63,8 +63,8 @@
                 android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
                 android:foreground="?attr/selectableItemBackground"
                 app:cardCornerRadius="16dp" app:cardElevation="0dp"
-                app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-                app:cardBackgroundColor="@color/cardBackground">
+                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+                app:cardBackgroundColor="?attr/catClawCardBackground">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:paddingHorizontal="16dp"
                     android:paddingVertical="12dp" android:gravity="center_vertical">
@@ -78,12 +78,12 @@
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="WebDAV 连接"
-                            android:textSize="15sp" android:textColor="@color/textPrimary"
+                            android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                             android:fontFamily="sans-serif-medium" />
                         <TextView android:id="@+id/tv_webdav_status"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="未连接"
-                            android:textSize="12sp" android:textColor="@color/textHint"
+                            android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                             android:layout_marginTop="2dp" />
                     </LinearLayout>
 
@@ -101,8 +101,8 @@
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp" android:clickable="false" android:focusable="false"
                 app:cardCornerRadius="16dp" app:cardElevation="0dp"
-                app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-                app:cardBackgroundColor="@color/cardBackground">
+                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+                app:cardBackgroundColor="?attr/catClawCardBackground">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:paddingHorizontal="16dp"
                     android:paddingVertical="12dp" android:gravity="center_vertical">
@@ -114,15 +114,15 @@
                         android:layout_weight="1" android:orientation="vertical">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="更多协议"
-                            android:textSize="15sp" android:textColor="@color/textHint"
+                            android:textSize="15sp" android:textColor="?attr/catClawTextHint"
                             android:fontFamily="sans-serif-medium" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="SMB / FTP / DLNA 即将支持"
-                            android:textSize="12sp" android:textColor="@color/textHint"
+                            android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                             android:layout_marginTop="2dp" />
                     </LinearLayout>
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="敬请期待" android:textSize="12sp" android:textColor="@color/textHint" />
+                        android:text="敬请期待" android:textSize="12sp" android:textColor="?attr/catClawTextHint" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

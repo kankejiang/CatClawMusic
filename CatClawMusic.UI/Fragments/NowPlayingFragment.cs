@@ -113,7 +113,10 @@ public class NowPlayingFragment : Fragment
             else
                 _albumCover.SetImageResource(Resource.Drawable.cover_default);
             _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
-            _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
+            if (_viewModel.CurrentSong?.Source == SongSource.WebDAV && _viewModel.CurrentSong.Artist == "未知艺术家")
+                _songArtist.Text = "正在加载...";
+            else
+                _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
             UpdateTimeDisplay();
             UpdateSlider();
             UpdatePlayPauseIcon();
@@ -126,50 +129,60 @@ public class NowPlayingFragment : Fragment
 
     private void BindViewModel()
     {
-        _viewModel.PropertyChanged += (s, e) =>
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void UnbindViewModel()
+    {
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        var act = Activity;
+        if (act == null) return;
+        act.RunOnUiThread(() =>
         {
-            var act = Activity;
-            if (act == null) return;
-            act.RunOnUiThread(() =>
+            switch (e.PropertyName)
             {
-                switch (e.PropertyName)
-                {
-                    case nameof(_viewModel.CoverSource):
-                        if (!string.IsNullOrEmpty(_viewModel.CoverSource))
-                            _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
-                        else
-                            _albumCover.SetImageResource(Resource.Drawable.cover_default);
-                        break;
-                    case nameof(_viewModel.CurrentPosition):
-                        UpdateTimeDisplay();
-                        UpdateSlider();
-                        break;
-                    case nameof(_viewModel.TotalDuration):
-                        UpdateSlider();
-                        break;
-                    case nameof(_viewModel.PlayPauseIcon):
-                        UpdatePlayPauseIcon();
-                        break;
-                    case nameof(_viewModel.PlayModeIcon):
-                        UpdateModeIcon();
-                        break;
-                    case nameof(_viewModel.LikeIcon):
-                        UpdateLikeIcon();
-                        break;
-                    case nameof(_viewModel.CurrentSong):
-                        _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
+                case nameof(_viewModel.CoverSource):
+                    if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+                        _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
+                    else
+                        _albumCover.SetImageResource(Resource.Drawable.cover_default);
+                    break;
+                case nameof(_viewModel.CurrentPosition):
+                    UpdateTimeDisplay();
+                    UpdateSlider();
+                    break;
+                case nameof(_viewModel.TotalDuration):
+                    UpdateSlider();
+                    break;
+                case nameof(_viewModel.PlayPauseIcon):
+                    UpdatePlayPauseIcon();
+                    break;
+                case nameof(_viewModel.PlayModeIcon):
+                    UpdateModeIcon();
+                    break;
+                case nameof(_viewModel.LikeIcon):
+                    UpdateLikeIcon();
+                    break;
+                case nameof(_viewModel.CurrentSong):
+                    _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
+                    if (_viewModel.CurrentSong?.Source == SongSource.WebDAV && _viewModel.CurrentSong.Artist == "未知艺术家")
+                        _songArtist.Text = "正在加载...";
+                    else
                         _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
-                        break;
-                    case nameof(_viewModel.CurrentLyricLine):
-                    case nameof(_viewModel.PrevLyricLine):
-                    case nameof(_viewModel.PrevLyricLine2):
-                    case nameof(_viewModel.NextLyricLine):
-                    case nameof(_viewModel.NextLyricLine2):
-                        UpdateLyrics();
-                        break;
-                }
-            });
-        };
+                    break;
+                case nameof(_viewModel.CurrentLyricLine):
+                case nameof(_viewModel.PrevLyricLine):
+                case nameof(_viewModel.PrevLyricLine2):
+                case nameof(_viewModel.NextLyricLine):
+                case nameof(_viewModel.NextLyricLine2):
+                    UpdateLyrics();
+                    break;
+            }
+        });
     }
 
     private void UpdateLyrics()
@@ -338,6 +351,9 @@ public class NowPlayingFragment : Fragment
 
     public override void OnDestroyView()
     {
+        UnbindViewModel();
+        _playlistDialog?.Dismiss();
+        _playlistDialog = null;
         base.OnDestroyView();
     }
 

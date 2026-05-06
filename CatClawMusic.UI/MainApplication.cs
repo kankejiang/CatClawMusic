@@ -61,6 +61,7 @@ public class MainApplication : Application
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
+        services.AddSingleton<IThemeService, ThemeService>();
 
         // ViewModels
         services.AddSingleton<LibraryViewModel>();       // 单例——Fragment 重建时不丢缓存

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -6,7 +6,7 @@
 
     <!-- 主内容 -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-        android:orientation="vertical" android:background="@color/pageBackground">
+        android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
         <!-- 顶部工具栏 -->
         <LinearLayout android:id="@+id/toolbar" android:layout_width="match_parent"
@@ -15,10 +15,10 @@
             <ImageButton android:id="@+id/btn_menu" android:layout_width="40dp"
                 android:layout_height="40dp" android:src="@drawable/ic_menu"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/textPrimary" android:layout_marginEnd="8dp" />
+                android:tint="?attr/catClawTextPrimary" android:layout_marginEnd="8dp" />
             <TextView android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" android:text="🐾 猫爪音乐"
-                android:textColor="@color/textPrimary" android:textSize="16sp"
+                android:textColor="?attr/catClawTextPrimary" android:textSize="16sp"
                 android:fontFamily="@font/happy_zcool_2016" />
         </LinearLayout>
 
@@ -42,17 +42,17 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical"
             android:paddingHorizontal="16dp" android:paddingVertical="4dp"
-            android:background="@color/pageBackground"
+            android:background="?attr/catClawPageBackground"
             android:visibility="gone">
             <ProgressBar android:id="@+id/scan_progress"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="0dp" android:layout_height="14dp"
                 android:layout_weight="1" android:max="100"
-                android:progressTint="@color/primaryColor"
+                android:progressTint="?attr/catClawPrimaryColor"
                 android:progressBackgroundTint="#33281E36" />
             <TextView android:id="@+id/scan_status_text"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textSize="11sp" android:textColor="@color/textHint"
+                android:textSize="11sp" android:textColor="?attr/catClawTextHint"
                 android:layout_marginStart="8dp" android:minWidth="60dp" />
         </LinearLayout>
 
@@ -78,26 +78,26 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:id="@+id/mini_title"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:textColor="@color/textPrimary" android:textSize="14sp"
+                        android:textColor="?attr/catClawTextPrimary" android:textSize="14sp"
                         android:fontFamily="sans-serif-medium" android:maxLines="1"
                         android:ellipsize="end" />
                     <TextView android:id="@+id/mini_artist"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:textColor="@color/textHint" android:textSize="11sp"
+                        android:textColor="?attr/catClawTextHint" android:textSize="11sp"
                         android:maxLines="1" android:ellipsize="end" />
                 </LinearLayout>
                 <ImageButton android:id="@+id/mini_prev" android:layout_width="36dp"
                     android:layout_height="36dp" android:src="@drawable/ic_skip_previous"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="@color/textPrimary" android:layout_marginEnd="4dp" />
+                    android:tint="?attr/catClawTextPrimary" android:layout_marginEnd="4dp" />
                 <ImageButton android:id="@+id/mini_play_pause" android:layout_width="40dp"
                     android:layout_height="40dp" android:src="@drawable/ic_play"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="@color/primaryColor" android:layout_marginEnd="4dp" />
+                    android:tint="?attr/catClawPrimaryColor" android:layout_marginEnd="4dp" />
                 <ImageButton android:id="@+id/mini_next" android:layout_width="36dp"
                     android:layout_height="36dp" android:src="@drawable/ic_skip_next"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="@color/textPrimary" />
+                    android:tint="?attr/catClawTextPrimary" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -105,7 +105,7 @@
         <View android:id="@+id/mini_progress"
             android:layout_width="0dp" android:layout_height="2dp"
             android:layout_gravity="bottom"
-            android:background="@color/primaryColor" />
+            android:background="?attr/catClawPrimaryColor" />
 
         </FrameLayout>
 
@@ -113,7 +113,7 @@
             android:id="@+id/bottom_navigation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/navBarBackground"
+            android:background="?attr/catClawNavBarBackground"
             app:menu="@menu/bottom_nav_menu"
             app:labelVisibilityMode="labeled"
             app:elevation="0dp"
@@ -130,7 +130,7 @@
             android:id="@+id/side_panel_content"
             android:layout_width="0dp" android:layout_height="match_parent"
             android:layout_weight="0.8"
-            android:background="@color/pageBackground" />
+            android:background="?attr/catClawPageBackground" />
 
         <!-- 右侧空白区域（点击收起） -->
         <View android:id="@+id/side_panel_mask"

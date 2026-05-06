@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
 
 namespace CatClawMusic.Data;
 
@@ -70,8 +71,8 @@ public class NetworkMusicService : INetworkMusicService
         }
         else if (profile.Protocol == ProtocolType.WebDAV)
         {
-            var songs = await ScanWebDavAsync(profile);
-            allSongs = songs;
+            allSongs = await ScanWebDavAsync(profile, songBatchCallback);
+            // 入库已在 ScanWebDavAsync 内部按批次完成
         }
 
         System.Diagnostics.Debug.WriteLine($"[CatClaw] ScanAsync 总计 {allSongs.Count} 首网络歌曲");
@@ -89,12 +90,138 @@ public class NetworkMusicService : INetworkMusicService
         };
     }
 
+    private const int TagHeadSize = 512 * 1024;
+
+    private async Task<MemoryStream?> DownloadHeadAsync(string remotePath)
+    {
+        var head = await _webDav.OpenReadRangeAsync(remotePath, 0, TagHeadSize);
+        if (head.Length > 0)
+            return new MemoryStream(head);
+
+        try
+        {
+            using var stream = await _webDav.OpenReadAsync(remotePath);
+            var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            return ms;
+        }
+        catch { return null; }
+    }
+
     public async Task<Stream?> GetCoverAsync(string songId, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.Navidrome)
         {
             var bytes = await _subsonic.GetCoverArtAsync(songId, profile);
             return bytes != null ? new MemoryStream(bytes) : null;
+        }
+        if (profile.Protocol == ProtocolType.WebDAV)
+        {
+            _webDav.Configure(profile);
+
+            try
+            {
+                var ms = await DownloadHeadAsync(songId);
+                if (ms != null)
+                {
+                    try
+                    {
+                        var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
+                        if (coverBytes != null)
+                            return new MemoryStream(coverBytes);
+                    }
+                    finally { ms.Dispose(); }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 封面提取失败: {ex.Message}");
+            }
+        }
+        return null;
+    }
+
+    public async Task<string?> GetLyricsAsync(string remotePath, ConnectionProfile profile)
+    {
+        if (profile.Protocol == ProtocolType.WebDAV)
+        {
+            _webDav.Configure(profile);
+
+            var lastDot = remotePath.LastIndexOf('.');
+            if (lastDot > 0)
+            {
+                var lrcPath = remotePath.Substring(0, lastDot) + ".lrc";
+                try
+                {
+                    using var lrcStream = await _webDav.OpenReadAsync(lrcPath);
+                    using var reader = new StreamReader(lrcStream);
+                    var lrcText = await reader.ReadToEndAsync();
+                    if (!string.IsNullOrWhiteSpace(lrcText))
+                        return lrcText;
+                }
+                catch { }
+            }
+
+            try
+            {
+                var ms = await DownloadHeadAsync(remotePath);
+                if (ms != null)
+                {
+                    try
+                    {
+                        return TagReader.ReadEmbeddedLyricsFromStream(ms, remotePath);
+                    }
+                    finally { ms.Dispose(); }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 歌词提取失败: {ex.Message}");
+            }
+        }
+        return null;
+    }
+
+    public async Task<Song?> FetchSongMetadataAsync(Song song, ConnectionProfile profile)
+    {
+        if (profile.Protocol != ProtocolType.WebDAV) return null;
+        var remotePath = song.RemoteId ?? song.CoverArtPath;
+        if (string.IsNullOrEmpty(remotePath)) return null;
+
+        _webDav.Configure(profile);
+        try
+        {
+            var ms = await DownloadHeadAsync(remotePath);
+            if (ms != null)
+            {
+                try
+                {
+                    var decodedRemotePath = Uri.UnescapeDataString(remotePath);
+                    var tagSong = TagReader.ReadFromStream(ms, song.FilePath, decodedRemotePath, song.FileSize);
+                    if (tagSong != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(tagSong.Title) && tagSong.Title != song.Title)
+                        {
+                            var tagTitleDecoded = Uri.UnescapeDataString(tagSong.Title);
+                            song.Title = tagTitleDecoded != song.Title ? tagTitleDecoded : song.Title;
+                        }
+                        song.Artist = !string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家" ? tagSong.Artist : song.Artist;
+                        song.Album = !string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑" ? tagSong.Album : song.Album;
+                        song.Duration = tagSong.Duration > 0 ? tagSong.Duration : song.Duration;
+                        song.Bitrate = tagSong.Bitrate > 0 ? tagSong.Bitrate : song.Bitrate;
+                        song.Year = tagSong.Year > 0 ? tagSong.Year : song.Year;
+                        song.TrackNumber = tagSong.TrackNumber > 0 ? tagSong.TrackNumber : song.TrackNumber;
+                        song.Genre = tagSong.Genre;
+                        return song;
+                    }
+                }
+                finally { ms.Dispose(); }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 元数据获取失败: {ex.Message}");
         }
         return null;
     }
@@ -103,12 +230,148 @@ public class NetworkMusicService : INetworkMusicService
     {
         if (profile.Protocol == ProtocolType.Navidrome)
             return Task.FromResult(_subsonic.GetStreamUrl(song.FilePath, profile));
+        if (profile.Protocol == ProtocolType.WebDAV)
+            return Task.FromResult(BuildWebDavStreamUrl(song.RemoteId ?? song.FilePath, profile));
         return Task.FromResult(song.FilePath);
     }
 
-    private async Task<List<Song>> ScanWebDavAsync(ConnectionProfile profile)
+    private static string BuildWebDavStreamUrl(string filePath, ConnectionProfile profile)
     {
-        // TODO: 实际 WebDAV 文件扫描
-        return new List<Song>();
+        // 如果已经是完整 HTTP URL，直接返回
+        if (filePath.StartsWith("http://") || filePath.StartsWith("https://"))
+            return filePath;
+
+        var scheme = profile.UseHttps ? "https" : "http";
+        var path = filePath.TrimStart('/');
+        // 包含 Basic 认证信息的 URL（ExoPlayer 原生支持）
+        var authUser = string.IsNullOrEmpty(profile.UserName) ? "" : Uri.EscapeDataString(profile.UserName);
+        var authPass = string.IsNullOrEmpty(profile.Password) ? "" : Uri.EscapeDataString(profile.Password);
+        var auth = string.IsNullOrEmpty(authUser) ? "" : $"{authUser}:{authPass}@";
+        return $"{scheme}://{auth}{profile.Host}:{profile.Port}/{path}";
+    }
+
+    private const int BatchSize = 10;
+
+    private async Task<List<Song>> ScanWebDavAsync(ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
+    {
+        var songs = new List<Song>();
+        var basePath = profile.BasePath?.TrimEnd('/') ?? "/";
+        if (string.IsNullOrEmpty(basePath)) basePath = "/";
+
+        // 先初始化 WebDAV 连接
+        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 初始化连接: {profile.Host}:{profile.Port}");
+        var connResult = await _webDav.TestConnectionAsync(profile);
+        if (!connResult.Success)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 连接失败: {connResult.Message}");
+            return songs;
+        }
+
+        // 累积批次，满了就回调
+        var batch = new List<Song>();
+
+        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 开始扫描: {basePath}");
+        await ScanWebDavDirectoryAsync(basePath, profile, songs, batch, songBatchCallback);
+        // 最后一批（不满 BatchSize 的残量）
+        await FlushBatchAsync(batch, songBatchCallback);
+
+        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 发现 {songs.Count} 首歌曲");
+        return songs;
+    }
+
+    private async Task FlushBatchAsync(List<Song> batch, Action<List<Song>>? songBatchCallback)
+    {
+        if (batch.Count == 0) return;
+
+        var toAdd = batch.ToList();
+        batch.Clear();
+
+        var inserted = new List<Song>();
+
+        foreach (var s in toAdd)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(s.Artist))
+                    s.ArtistId = await _db.EnsureArtistAsync(s.Artist);
+                if (!string.IsNullOrEmpty(s.Album))
+                    s.AlbumId = await _db.EnsureAlbumAsync(s.Album, s.ArtistId);
+                s.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                await _db.InsertSongAsync(s);
+                if (s.Id > 0)
+                    inserted.Add(s);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 入库失败: {s.Title} - {ex.Message}");
+            }
+        }
+
+        songBatchCallback?.Invoke(inserted);
+    }
+
+    private const int MaxScanDepth = 20;
+    private static readonly HashSet<string> AudioExtSet = new(
+        new[] { ".MP3", ".WAV", ".FLAC", ".AAC", ".OGG", ".M4A", ".WMA", ".APE", ".AIFF", ".DSF" },
+        StringComparer.Ordinal);
+
+    private static bool IsAudioExtension(string ext)
+        => AudioExtSet.Contains(ext);
+
+    private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs, List<Song> batch,
+        Action<List<Song>>? songBatchCallback, int depth = 0)
+    {
+        if (depth > MaxScanDepth)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 达到最大深度 {MaxScanDepth}，跳过: {path}");
+            return;
+        }
+
+        List<RemoteFile> files;
+        try
+        {
+            files = await _webDav.ListFilesAsync(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 列出 {path} 失败: {ex.Message}");
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            if (file.IsDirectory)
+            {
+                await ScanWebDavDirectoryAsync(file.Path, profile, songs, batch, songBatchCallback, depth + 1);
+            }
+            else
+            {
+                var ext = System.IO.Path.GetExtension(file.Name)?.ToUpperInvariant() ?? "";
+                if (!IsAudioExtension(ext)) continue;
+
+                var streamUrl = BuildWebDavStreamUrl(file.Path, profile);
+                var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
+                var song = new Song
+                {
+                    Title = title,
+                    Artist = "未知艺术家",
+                    Album = "未知专辑",
+                    FilePath = streamUrl,
+                    Duration = 0,
+                    FileSize = file.Size,
+                    DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    Source = SongSource.WebDAV,
+                    Protocol = ProtocolType.WebDAV,
+                    RemoteId = file.Path,
+                    CoverArtPath = file.Path
+                };
+
+                songs.Add(song);
+                batch.Add(song);
+
+                if (batch.Count >= BatchSize)
+                    await FlushBatchAsync(batch, songBatchCallback);
+            }
+        }
     }
 }

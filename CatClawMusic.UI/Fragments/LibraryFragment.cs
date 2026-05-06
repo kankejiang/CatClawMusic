@@ -22,6 +22,9 @@ public class LibraryFragment : Fragment
     private Button _btnLocal = null!;
     private Button _btnNetwork = null!;
     private ImageButton _btnRefresh = null!;
+    private LinearLayout _networkProtocolRow = null!;
+    private Spinner _protocolSpinner = null!;
+    private ArrayAdapter<string>? _protocolAdapter = null!;
     private SongAdapter _adapter = null!;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
@@ -41,10 +44,19 @@ public class LibraryFragment : Fragment
         _btnLocal = view.FindViewById<Button>(Resource.Id.btn_local)!;
         _btnNetwork = view.FindViewById<Button>(Resource.Id.btn_network)!;
         _btnRefresh = view.FindViewById<ImageButton>(Resource.Id.btn_refresh)!;
+        _networkProtocolRow = view.FindViewById<LinearLayout>(Resource.Id.network_protocol_row)!;
+        _protocolSpinner = view.FindViewById<Spinner>(Resource.Id.spinner_protocol)!;
 
         _adapter = sp.GetRequiredService<SongAdapter>();
         _adapter.SongClicked += OnSongClicked;
         _songList.SetAdapter(_adapter);
+
+        // 初始化 Spinner
+        _protocolAdapter = new ArrayAdapter<string>(Context!,
+            Android.Resource.Layout.SimpleSpinnerItem, _viewModel.ProtocolOptions);
+        _protocolAdapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
+        _protocolSpinner.Adapter = _protocolAdapter;
+        _protocolSpinner.ItemSelected += OnProtocolSelected;
 
         _btnLocal.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Local");
         _btnNetwork.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Network");
@@ -60,18 +72,54 @@ public class LibraryFragment : Fragment
     {
         BindingHelper.BindText(_statusText, _viewModel, nameof(_viewModel.StatusText), _ => _viewModel.StatusText);
 
-        // 增量化 CollectionChanged 处理：Add 用 AddRange，Reset/Remove 用全量刷新
         _viewModel.Songs.CollectionChanged += OnSongsCollectionChanged;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
-        _viewModel.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(_viewModel.LocalTabColor))
-                UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, _viewModel.CurrentTab == "Local");
-            else if (e.PropertyName == nameof(_viewModel.NetworkTabColor))
-                UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, _viewModel.CurrentTab == "Network");
-        };
         UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, true);
         UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, false);
+    }
+
+    private void UnbindViews()
+    {
+        _viewModel.Songs.CollectionChanged -= OnSongsCollectionChanged;
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _protocolSpinner.ItemSelected -= OnProtocolSelected;
+    }
+
+    private void OnViewModelPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(_viewModel.LocalTabColor))
+        {
+            UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, _viewModel.CurrentTab == "Local");
+            // 切换到本地 Tab 时隐藏协议选择
+            _networkProtocolRow.Visibility = ViewStates.Gone;
+        }
+        else if (e.PropertyName == nameof(_viewModel.NetworkTabColor))
+        {
+            UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, _viewModel.CurrentTab == "Network");
+            // 切换到网络 Tab 时显示协议选择
+            _networkProtocolRow.Visibility = _viewModel.CurrentTab == "Network" ? ViewStates.Visible : ViewStates.Gone;
+        }
+    }
+
+    private void OnProtocolSelected(object? sender, AdapterView.ItemSelectedEventArgs e)
+    {
+        if (_viewModel.SelectedProtocolIndex != e.Position)
+        {
+            _viewModel.SelectedProtocolIndex = e.Position;
+            // 协议变化时重新加载
+            if (_viewModel.CurrentTab == "Network")
+            {
+                _viewModel.Songs.Clear();
+                _ = _viewModel.LoadNetworkAsync();
+            }
+        }
+    }
+
+    public override void OnDestroyView()
+    {
+        UnbindViews();
+        base.OnDestroyView();
     }
 
     private void OnSongsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

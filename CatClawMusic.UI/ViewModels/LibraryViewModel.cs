@@ -28,6 +28,10 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private int _scanProgress;
     [ObservableProperty] private string _scanStatus = "";
     [ObservableProperty] private bool _isScanning;
+    [ObservableProperty] private int _selectedProtocolIndex = 0;
+
+    public ObservableCollection<string> ProtocolOptions { get; } = new();
+    public List<CoreModels.ProtocolType> ProtocolTypes { get; } = new();
 
     private bool _hasLoadedLocal;
     private bool _suppressCollectionChanged; // 批量添加时抑制逐首通知
@@ -40,6 +44,14 @@ public partial class LibraryViewModel : ObservableObject
         _permission = permission;
         _database = database;
         _dispatcher = dispatcher!;
+
+        // 初始化协议选项
+        ProtocolOptions.Add("全部协议");
+        ProtocolTypes.Add((CoreModels.ProtocolType)(-1));
+        ProtocolOptions.Add("WebDAV");
+        ProtocolTypes.Add(CoreModels.ProtocolType.WebDAV);
+        ProtocolOptions.Add("Navidrome");
+        ProtocolTypes.Add(CoreModels.ProtocolType.Navidrome);
     }
 
     /// <summary>批量添加歌曲到 Songs，减少 CollectionChanged 触发次数</summary>
@@ -260,8 +272,9 @@ public partial class LibraryViewModel : ObservableObject
                 if (cached.Count > 0)
                 {
                     Songs.Clear();
-                    AddSongsBatch(cached);
-                    StatusText = $"☁️ 共 {cached.Count} 首网络歌曲（缓存）";
+                    var filtered = FilterSongsByProtocol(cached);
+                    AddSongsBatch(filtered);
+                    StatusText = $"☁️ 共 {filtered.Count} 首网络歌曲（缓存）";
                     IsLoading = false;
                     return;
                 }
@@ -269,11 +282,21 @@ public partial class LibraryViewModel : ObservableObject
 
             if (_networkMusic == null) { StatusText = "网络服务未就绪"; IsLoading = false; return; }
             var enabled = (await _networkMusic.GetProfilesAsync()).Where(p => p.IsEnabled).ToList();
+            
+            // 根据选择的协议过滤
+            if (_selectedProtocolIndex > 0 && _selectedProtocolIndex < ProtocolTypes.Count)
+            {
+                var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
+                enabled = enabled.Where(p => p.Protocol == selectedProtocol).ToList();
+            }
+            
             if (enabled.Count == 0) { StatusText = "请先在设置中配置网络连接"; IsLoading = false; return; }
 
-            if (forceRefresh)
+            // 无论是强制刷新还是没有缓存，开始扫描前都要清空列表，避免重复
+            if (forceRefresh || !Songs.Any())
             {
-                IsScanning = true; ScanProgress = 0;
+                if (forceRefresh) IsScanning = true;
+                ScanProgress = 0;
                 Songs.Clear();
             }
 
@@ -315,6 +338,15 @@ public partial class LibraryViewModel : ObservableObject
         }
         catch (Exception ex) { StatusText = $"连接失败: {ex.Message}"; }
         finally { IsLoading = false; if (!forceRefresh) IsScanning = false; }
+    }
+
+    private List<CoreModels.Song> FilterSongsByProtocol(List<CoreModels.Song> songs)
+    {
+        if (_selectedProtocolIndex <= 0 || _selectedProtocolIndex >= ProtocolTypes.Count)
+            return songs;
+
+        var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
+        return songs.Where(s => s.Protocol == selectedProtocol).ToList();
     }
 
     private List<string>? GetCustomFolders()

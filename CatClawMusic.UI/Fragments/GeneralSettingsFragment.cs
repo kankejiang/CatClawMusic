@@ -15,16 +15,36 @@ public class GeneralSettingsFragment : Fragment
 {
     private TextView? _tvBatteryStatus;
     private TextView? _tvNotificationStatus;
+    private Spinner? _spinnerTheme;
+    private Spinner? _spinnerDarkMode;
+    private IThemeService? _themeService;
+    private bool _isThemeSpinnerInitialized = false;
+    private bool _isDarkModeSpinnerInitialized = false;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         var view = inflater.Inflate(Resource.Layout.fragment_general_settings, container, false)!;
         var nav = MainApplication.Services.GetRequiredService<INavigationService>();
+        _themeService = MainApplication.Services.GetRequiredService<IThemeService>();
 
         // 返回按钮
         var btnBack = view.FindViewById<ImageButton>(Resource.Id.btn_back);
         if (btnBack != null)
             btnBack.Click += (s, e) => nav.GoBack();
+
+        // 🎨 主题选择
+        _spinnerTheme = view.FindViewById<Spinner>(Resource.Id.spinner_theme);
+        if (_spinnerTheme != null)
+        {
+            SetupThemeSpinner();
+        }
+
+        // 🌓 深色模式选择
+        _spinnerDarkMode = view.FindViewById<Spinner>(Resource.Id.spinner_dark_mode);
+        if (_spinnerDarkMode != null)
+        {
+            SetupDarkModeSpinner();
+        }
 
         // 🔋 省电策略设置
         var btnBattery = view.FindViewById<View>(Resource.Id.btn_battery_optimization);
@@ -44,6 +64,106 @@ public class GeneralSettingsFragment : Fragment
             btnDesktopLyric.Click += (s, e) => nav.PushFragment("DesktopLyric");
 
         return view;
+    }
+
+    private void SetupThemeSpinner()
+    {
+        if (_themeService == null || _spinnerTheme == null) return;
+
+        // 创建主题名称列表
+        var themeNames = new List<string>
+        {
+            "💜 紫色主题",
+            "💗 粉色主题",
+            "💙 蓝色主题",
+            "💚 绿色主题",
+            "🧡 橙色主题"
+        };
+
+        // 创建适配器
+        var adapter = new ArrayAdapter<string>(
+            Context!,
+            Android.Resource.Layout.SimpleSpinnerItem,
+            themeNames);
+        adapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
+        
+        _spinnerTheme.Adapter = adapter;
+
+        // 设置当前选中的主题
+        var currentTheme = _themeService.CurrentTheme;
+        _spinnerTheme.SetSelection((int)currentTheme, false);
+
+        // 监听选择变化
+        _spinnerTheme.ItemSelected += (sender, e) =>
+        {
+            if (!_isThemeSpinnerInitialized)
+            {
+                _isThemeSpinnerInitialized = true;
+                return;
+            }
+
+            var selectedTheme = (AppTheme)e.Position;
+            if (selectedTheme != _themeService.CurrentTheme)
+            {
+                _themeService.SetTheme(selectedTheme);
+                // 重启活动以应用新主题
+                RestartActivityForTheme();
+            }
+        };
+    }
+
+    private void SetupDarkModeSpinner()
+    {
+        if (_themeService == null || _spinnerDarkMode == null) return;
+
+        // 创建深色模式选项列表
+        var darkModeNames = new List<string>
+        {
+            "☀️ 浅色模式",
+            "🌙 深色模式",
+            "🔄 跟随系统"
+        };
+
+        // 创建适配器
+        var adapter = new ArrayAdapter<string>(
+            Context!,
+            Android.Resource.Layout.SimpleSpinnerItem,
+            darkModeNames);
+        adapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
+        
+        _spinnerDarkMode.Adapter = adapter;
+
+        // 设置当前选中的深色模式
+        var currentDarkMode = _themeService.DarkModeSetting;
+        _spinnerDarkMode.SetSelection((int)currentDarkMode, false);
+
+        // 监听选择变化
+        _spinnerDarkMode.ItemSelected += (sender, e) =>
+        {
+            if (!_isDarkModeSpinnerInitialized)
+            {
+                _isDarkModeSpinnerInitialized = true;
+                return;
+            }
+
+            var selectedDarkMode = (DarkModeSetting)e.Position;
+            if (selectedDarkMode != _themeService.DarkModeSetting)
+            {
+                _themeService.SetDarkModeSetting(selectedDarkMode);
+                // 重启活动以应用新主题
+                RestartActivityForTheme();
+            }
+        };
+    }
+
+    private void RestartActivityForTheme()
+    {
+        if (Activity == null) return;
+
+        // 重启活动
+        var intent = Activity.Intent;
+        Activity.Finish();
+        StartActivity(intent);
     }
 
     public override void OnResume()

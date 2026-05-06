@@ -1,11 +1,13 @@
 namespace CatClawMusic.Core.Services;
 
 /// <summary>
-/// 音乐工具类（从方糖音乐播放器移植）
+/// 音乐工具类
 /// </summary>
 public static class MusicUtility
 {
     private static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a" };
+    private static readonly HashSet<string> AudioExtensionSet = new(
+        AudioExtensions.Select(e => e.ToUpperInvariant()), StringComparer.Ordinal);
 
     /// <summary>
     /// 秒转时间格式
@@ -47,24 +49,24 @@ public static class MusicUtility
     }
 
     /// <summary>
-    /// 单文件夹扫描音频文件
+    /// 单文件夹扫描音频文件（一次遍历替代 6 次目录扫描）
     /// </summary>
     public static List<string> ScanFolder(string folderPath)
     {
         var results = new List<string>();
         if (!Directory.Exists(folderPath)) return results;
 
-        foreach (var ext in AudioExtensions)
+        try
         {
-            try
+            foreach (var file in Directory.EnumerateFiles(folderPath))
             {
-                var files = Directory.GetFiles(folderPath, "*" + ext);
-                results.AddRange(files);
+                if (AudioExtensionSet.Contains(Path.GetExtension(file).ToUpperInvariant()))
+                    results.Add(file);
             }
-            catch
-            {
-                // 忽略权限错误
-            }
+        }
+        catch
+        {
+            // 忽略权限错误
         }
 
         return results;
@@ -75,11 +77,11 @@ public static class MusicUtility
     /// </summary>
     public static List<string> ScanFolderRecursive(string rootPath)
     {
-        var results = new List<string>();
-        if (!Directory.Exists(rootPath)) return results;
+        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(rootPath)) return new List<string>();
 
         ScanDirectoryRecursive(new DirectoryInfo(rootPath), results);
-        return results;
+        return results.ToList();
     }
 
     /// <summary>
@@ -110,7 +112,7 @@ public static class MusicUtility
         return null;
     }
 
-    private static void ScanDirectoryRecursive(DirectoryInfo dir, List<string> results)
+    private static void ScanDirectoryRecursive(DirectoryInfo dir, HashSet<string> results)
     {
         if (!dir.Exists) return;
 
@@ -118,16 +120,8 @@ public static class MusicUtility
         {
             foreach (var file in dir.EnumerateFiles())
             {
-                var ext = file.Extension.ToUpperInvariant();
-                foreach (var audioExt in AudioExtensions)
-                {
-                    if (ext == audioExt.ToUpperInvariant())
-                    {
-                        if (!results.Contains(file.FullName))
-                            results.Add(file.FullName);
-                        break;
-                    }
-                }
+                if (AudioExtensionSet.Contains(file.Extension.ToUpperInvariant()))
+                    results.Add(file.FullName);
             }
 
             foreach (var subDir in dir.EnumerateDirectories())

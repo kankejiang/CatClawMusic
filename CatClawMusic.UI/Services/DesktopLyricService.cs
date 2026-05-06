@@ -1,4 +1,4 @@
-using Android.Content;
+﻿using Android.Content;
 using Android.Graphics;
 using Android.OS;
 using Android.Runtime;
@@ -62,6 +62,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     private Handler? _lockHideHandler;
     private Action? _lockHideAction;
     private int _currentLyricIndex = -1;
+    private readonly Handler _mainHandler = new(Looper.MainLooper!); // 澶嶇敤 Handler锛岄伩鍏嶉绻佸垱寤?
 
     private DesktopLyricService() { }
 
@@ -85,12 +86,15 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
 
         if (_audioPlayer != null)
         {
+            _audioPlayer.StateChanged -= OnPlaybackStateChanged;
             _audioPlayer.StateChanged += OnPlaybackStateChanged;
+            _audioPlayer.PositionChanged -= OnPositionChanged;
             _audioPlayer.PositionChanged += OnPositionChanged;
         }
 
         if (_nowPlayingVm != null)
         {
+            _nowPlayingVm.PropertyChanged -= OnViewModelPropertyChanged;
             _nowPlayingVm.PropertyChanged += OnViewModelPropertyChanged;
         }
 
@@ -100,8 +104,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
 
         if (enabled)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.PostDelayed(() =>
+            _mainHandler.PostDelayed(() =>
             {
                 if (_context != null)
                     Show(_context);
@@ -138,7 +141,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         if (wm == null)
         {
             Android.Util.Log.Error("DesktopLyricService", "Show: cannot get WindowManager from any context source");
-            new Handler(Looper.MainLooper!).Post(() =>
+            _mainHandler.Post(() =>
             {
                 Toast.MakeText(context, "无法获取悬浮窗服务，请重启应用后重试", ToastLength.Long)?.Show();
             });
@@ -155,8 +158,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             if (!canDraw)
             {
                 Android.Util.Log.Warn("DesktopLyricService", "Show: overlay permission denied");
-                var handler = new Handler(Looper.MainLooper!);
-                handler.Post(() =>
+                _mainHandler.Post(() =>
                 {
                     Toast.MakeText(context, "请先在系统设置中开启「显示在其他应用上层」权限", ToastLength.Long)?.Show();
                 });
@@ -186,7 +188,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             if (!result.success)
             {
                 Android.Util.Log.Error("DesktopLyricService", "All window types failed");
-                new Handler(Looper.MainLooper!).Post(() =>
+                _mainHandler.Post(() =>
                 {
                     Toast.MakeText(context, "悬浮窗启动失败，请在系统设置中确认已开启权限", ToastLength.Long)?.Show();
                 });
@@ -322,7 +324,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         public void OnClick(View? v)
         {
             _service._isLocked = !_service._isLocked;
-            _btn.Text = _service._isLocked ? "🔐" : "🔒";
+            _btn.Text = _service._isLocked ? "馃攼" : "馃敀";
             _btn.SetTextColor(_service._isLocked
                 ? Color.ParseColor("#FF6B81")
                 : Color.White);
@@ -415,7 +417,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             {
                 var svc = ctx.GetSystemService(Context.WindowService);
                 var svcType = svc != null ? svc.Class.Name : "null";
-                Android.Util.Log.Info("DesktopLyricService", $"AcquireWindowManager: {name} → {svcType}");
+                Android.Util.Log.Info("DesktopLyricService", $"AcquireWindowManager: {name} 鈫?{svcType}");
 
                 if (svc != null)
                 {
@@ -610,8 +612,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     {
         if (!_isShowing || _nowPlayingVm == null) return;
 
-        var handler = new Handler(Looper.MainLooper!);
-        handler.Post(() =>
+        _mainHandler.Post(() =>
         {
             if (_nowPlayingVm.CurrentLyrics != null && _nowPlayingVm.CurrentLyrics.Lines.Count > 0)
             {
@@ -626,7 +627,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             }
             else
             {
-                UpdateLyricDisplay("桌面歌词", "", "");
+                UpdateLyricDisplay("妗岄潰姝岃瘝", "", "");
             }
         });
     }
@@ -655,8 +656,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
 
         if (enabled && !_isShowing && _context != null && e.State == PlaybackState.Playing)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() => Show(_context));
+            _mainHandler.Post(() => Show(_context));
         }
     }
 
@@ -664,8 +664,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     {
         if (!_isShowing || _nowPlayingVm == null) return;
 
-        var handler = new Handler(Looper.MainLooper!);
-        handler.Post(() =>
+        _mainHandler.Post(() =>
         {
             if (_nowPlayingVm.CurrentLyrics != null && _nowPlayingVm.CurrentLyrics.Lines.Count > 0)
             {
@@ -680,7 +679,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             else
             {
                 var line = _nowPlayingVm.CurrentLyricLine;
-                if (!string.IsNullOrEmpty(line) && line != "暂无歌词" && line != "正在加载歌词...")
+                if (!string.IsNullOrEmpty(line) && line != "鏆傛棤姝岃瘝" && line != "姝ｅ湪鍔犺浇姝岃瘝...")
                 {
                     UpdateLyricDisplay(line, _nowPlayingVm.PrevLyricLine, _nowPlayingVm.NextLyricLine);
                 }
@@ -695,8 +694,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLyricLine) ||
             e.PropertyName == nameof(NowPlayingViewModel.CurrentLyrics))
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() =>
+            _mainHandler.Post(() =>
             {
                 if (_nowPlayingVm != null)
                 {
@@ -715,8 +713,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         SavePreference(PrefKeyFontSize, _fontSize);
         if (_isShowing)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() => ApplyFontStyle());
+            _mainHandler.Post(() => ApplyFontStyle());
         }
     }
 
@@ -726,8 +723,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         SavePreference(PrefKeyFontColor, _fontColor);
         if (_isShowing)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() => ApplyFontColor());
+            _mainHandler.Post(() => ApplyFontColor());
         }
     }
 
@@ -737,8 +733,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         SavePreference(PrefKeyFontBold, _fontBold);
         if (_isShowing)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() => ApplyFontStyle());
+            _mainHandler.Post(() => ApplyFontStyle());
         }
     }
 
@@ -748,8 +743,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         SavePreference(PrefKeyBgAlpha, _bgAlpha);
         if (_isShowing && !_isDragging)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() =>
+            _mainHandler.Post(() =>
             {
                 ApplyBackgroundAlpha(_bgAlpha);
                 if (_bgAlpha > 0.01f)
@@ -770,8 +764,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         SavePreference(PrefKeyDisplayMode, _displayMode);
         if (_isShowing)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() => ApplyDisplayMode());
+            _mainHandler.Post(() => ApplyDisplayMode());
         }
     }
 
@@ -781,8 +774,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         SavePreference(PrefKeyShowBorder, _showBorder);
         if (_isShowing)
         {
-            var handler = new Handler(Looper.MainLooper!);
-            handler.Post(() => ApplyBackgroundAlpha(_isDragging ? 0.35f : _bgAlpha));
+            _mainHandler.Post(() => ApplyBackgroundAlpha(_isDragging ? 0.35f : _bgAlpha));
         }
     }
 

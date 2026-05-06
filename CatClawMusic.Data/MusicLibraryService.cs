@@ -7,21 +7,18 @@ namespace CatClawMusic.Data;
 public class MusicLibraryService : IMusicLibraryService
 {
     private readonly MusicDatabase _db;
+    private readonly INetworkMusicService? _networkMusic;
 
-    public MusicLibraryService(MusicDatabase db)
+    public MusicLibraryService(MusicDatabase db, INetworkMusicService? networkMusic = null)
     {
         _db = db;
+        _networkMusic = networkMusic;
     }
 
-    /// <summary>
-    /// 扫描本地音乐：调用方负责扫描逻辑，本方法负责去重+入库
-    /// </summary>
     public async Task<List<Song>> ScanLocalAsync(List<string>? customFolders = null)
     {
         await _db.EnsureInitializedAsync();
-        var allSongs = new List<Song>();
 
-        // 文件系统路径扫描（传统方式，MANAGE_EXTERNAL_STORAGE 已启用时可用）
         var scanDirs = new List<string> { "/storage/emulated/0/Music", "/storage/emulated/0/Download" };
         if (customFolders != null)
         {
@@ -29,27 +26,35 @@ public class MusicLibraryService : IMusicLibraryService
                 if (!string.IsNullOrWhiteSpace(f) && Directory.Exists(f) && !scanDirs.Contains(f))
                     scanDirs.Add(f);
         }
-        foreach (var dir in scanDirs)
+
+        var result = await Task.Run(() =>
         {
-            if (Directory.Exists(dir))
+            var allSongs = new List<Song>();
+            var seenPaths = new HashSet<string>();
+
+            foreach (var dir in scanDirs)
             {
-                try
+                if (Directory.Exists(dir))
                 {
-                    var scanPaths = MusicUtility.ScanFolderRecursive(dir);
-                    foreach (var path in scanPaths)
+                    try
                     {
-                        if (!allSongs.Any(s => s.FilePath == path))
+                        var scanPaths = MusicUtility.ScanFolderRecursive(dir);
+                        foreach (var path in scanPaths)
                         {
-                            var song = TagReader.ReadSongInfo(path);
-                            if (song != null) allSongs.Add(song);
+                            if (seenPaths.Add(path))
+                            {
+                                var song = TagReader.ReadSongInfo(path);
+                                if (song != null) allSongs.Add(song);
+                            }
                         }
                     }
+                    catch { }
                 }
-                catch { }
             }
-        }
+            return allSongs;
+        });
 
-        return await SaveAndDeduplicateAsync(allSongs);
+        return await SaveAndDeduplicateAsync(result);
     }
 
     /// <summary>接受预扫描的歌曲列表，去重后入库</summary>
@@ -89,18 +94,63 @@ public class MusicLibraryService : IMusicLibraryService
 
     public async Task<List<Song>> SearchAsync(string keyword)
     {
-        var all = await GetAllSongsAsync();
-        if (string.IsNullOrWhiteSpace(keyword)) return all;
-        var kw = keyword.ToLowerInvariant();
-        return all.Where(s =>
-            (s.Title?.ToLowerInvariant().Contains(kw) ?? false) ||
-            (s.Artist?.ToLowerInvariant().Contains(kw) ?? false) ||
-            (s.Album?.ToLowerInvariant().Contains(kw) ?? false)
-        ).ToList();
+        await _db.EnsureInitializedAsync();
+        if (string.IsNullOrWhiteSpace(keyword))
+            return await GetAllSongsAsync();
+
+        // 本地数据库搜索
+        var localResults = await _db.SearchSongsAsync(keyword);
+
+        // 网络搜索（Navidrome/Subsonic）
+        var networkResults = new List<Song>();
+        if (_networkMusic != null)
+        {
+            try
+            {
+                var profiles = await _networkMusic.GetProfilesAsync();
+                var enabledProfiles = profiles.Where(p => p.IsEnabled).ToList();
+                foreach (var profile in enabledProfiles)
+                {
+                    try
+                    {
+                        var results = await _networkMusic.SearchAsync(keyword, profile);
+                        networkResults.AddRange(results);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] 网络({profile.Name})搜索失败: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 获取网络配置失败: {ex.Message}");
+            }
+        }
+
+        // 合并结果：本地 + 网络，按标题+艺术家去重（本地优先）
+        if (networkResults.Count == 0) return localResults;
+
+        var allResults = new List<Song>(localResults);
+        var localKeys = new HashSet<string>(
+            localResults.Select(s => ((s.Title ?? "").Trim() + "|" + (s.Artist ?? "").Trim()).ToLowerInvariant()),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var ns in networkResults)
+        {
+            var key = ((ns.Title ?? "").Trim() + "|" + (ns.Artist ?? "").Trim()).ToLowerInvariant();
+            if (localKeys.Add(key))
+                allResults.Add(ns);
+        }
+
+        return allResults;
     }
 
     public async Task<Stream?> GetAlbumCoverAsync(Song song)
     {
+        if (song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return null;
         var coverBytes = TagReader.ExtractCoverArt(song.FilePath);
         if (coverBytes != null) return new MemoryStream(coverBytes);
         if (!string.IsNullOrEmpty(song.CoverArtPath) && File.Exists(song.CoverArtPath))
@@ -141,15 +191,15 @@ public class MusicLibraryService : IMusicLibraryService
     public async Task<List<Song>> GetSongsByArtistAsync(string artist)
     {
         await _db.EnsureInitializedAsync();
-        var all = await _db.GetSongsAsync();
-        return all.Where(s => s.Artist == artist).ToList();
+        // 使用 SQL JOIN 在数据库层面过滤
+        return await _db.GetSongsByArtistAsync(artist);
     }
 
     public async Task<List<Song>> GetSongsByAlbumAsync(string album)
     {
         await _db.EnsureInitializedAsync();
-        var all = await _db.GetSongsAsync();
-        return all.Where(s => s.Album == album).ToList();
+        // 使用 SQL JOIN 在数据库层面过滤
+        return await _db.GetSongsByAlbumAsync(album);
     }
 
     public async Task<List<Album>> GetAllAlbumsAsync()

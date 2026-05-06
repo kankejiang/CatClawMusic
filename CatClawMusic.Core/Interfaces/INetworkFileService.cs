@@ -14,6 +14,11 @@ public interface INetworkFileService
     /// 打开文件流（用于读取）
     /// </summary>
     Task<Stream> OpenReadAsync(string filePath);
+
+    /// <summary>
+    /// 读取文件指定范围（Range 请求），用于只下载文件头部提取 Tag
+    /// </summary>
+    Task<byte[]> OpenReadRangeAsync(string filePath, long offset, long length);
     
     /// <summary>
     /// 测试连接，返回 (成功, 消息)
@@ -24,6 +29,11 @@ public interface INetworkFileService
     /// 获取文件信息
     /// </summary>
     Task<RemoteFile?> GetFileInfoAsync(string filePath);
+
+    /// <summary>
+    /// 配置连接（初始化 HttpClient），在调用其他方法前使用
+    /// </summary>
+    void Configure(Models.ConnectionProfile profile);
 }
 
 /// <summary>

@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="@color/pageBackground">
+    android:background="?attr/catClawPageBackground">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical" android:padding="16dp">
@@ -15,12 +15,12 @@
                 android:layout_width="40dp" android:layout_height="40dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_arrow_back"
-                android:tint="@color/textPrimary"
+                android:tint="?attr/catClawTextPrimary"
                 android:contentDescription="返回" />
             <TextView android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="桌面与歌词" android:textSize="20sp"
-                android:textColor="@color/textPrimary"
+                android:textColor="?attr/catClawTextPrimary"
                 android:fontFamily="sans-serif-medium"
                 android:gravity="center" />
             <View android:layout_width="40dp" android:layout_height="0dp" />
@@ -33,8 +33,8 @@
             android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="16dp"
                 android:gravity="center_vertical">
@@ -42,16 +42,16 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="悬浮窗权限"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_overlay_status"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="检测中…"
-                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -61,8 +61,8 @@
             android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="16dp"
                 android:gravity="center_vertical">
@@ -70,11 +70,11 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="桌面歌词"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="在桌面显示悬浮歌词"
-                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
                 <Switch android:id="@+id/sw_desktop_lyric"
@@ -87,8 +87,8 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -96,12 +96,12 @@
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="歌词字体大小"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_font_size_value"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="20sp"
-                        android:textSize="14sp" android:textColor="@color/textHint"
+                        android:textSize="14sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginEnd="8dp" />
                 </LinearLayout>
                 <SeekBar android:id="@+id/sb_font_size"
@@ -118,8 +118,8 @@
             android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="16dp"
                 android:gravity="center_vertical">
@@ -127,12 +127,12 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="歌词颜色"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_font_color"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="白色"
-                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
                 <View android:id="@+id/color_preview"
@@ -140,7 +140,7 @@
                     android:background="#FFFFFF"
                     android:layout_marginEnd="8dp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -150,8 +150,8 @@
             android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="16dp"
                 android:gravity="center_vertical">
@@ -159,11 +159,11 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="粗体显示"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="使用粗体字体显示歌词"
-                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
                 <Switch android:id="@+id/sw_font_bold"
@@ -176,8 +176,8 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -185,12 +185,12 @@
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="背景透明度"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_bg_alpha_value"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="0%"
-                        android:textSize="14sp" android:textColor="@color/textHint"
+                        android:textSize="14sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginEnd="8dp" />
                 </LinearLayout>
                 <SeekBar android:id="@+id/sb_bg_alpha"
@@ -206,8 +206,8 @@
             android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="16dp"
                 android:gravity="center_vertical">
@@ -215,11 +215,11 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="窗口边框"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="显示半透明圆角边框"
-                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
                 <Switch android:id="@+id/sw_show_border"
@@ -233,13 +233,13 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:text="显示模式"
-                    android:textSize="15sp" android:textColor="@color/textPrimary"
+                    android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                     android:fontFamily="sans-serif-medium"
                     android:layout_marginBottom="12dp" />
                 <RadioGroup android:id="@+id/rg_display_mode"

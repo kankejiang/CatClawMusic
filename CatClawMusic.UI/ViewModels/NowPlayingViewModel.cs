@@ -21,10 +21,12 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private LrcLyrics? _currentLyrics;
     [ObservableProperty] private int _currentLyricIndex = -1;
     private bool _isPositionUpdating;
-    private int _saveCounter; // 定时保存计数器
-    private ConnectionProfile? _cachedNetworkProfile;
-    private bool _profileLookedUp;
-    private CancellationTokenSource? _errorDialogCts; // 错误对话框延迟
+    private int _saveCounter;
+    private ConnectionProfile? _cachedNavidromeProfile;
+    private ConnectionProfile? _cachedWebDavProfile;
+    private readonly HashSet<int> _metadataFetchAttempted = new();
+    private CancellationTokenSource? _errorDialogCts;
+    private CancellationTokenSource? _songLoadCts;
     private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
 
     [ObservableProperty] private Song? _currentSong;
@@ -51,7 +53,17 @@ public partial class NowPlayingViewModel : ObservableObject
     }
     public double TotalDurationSeconds => TotalDuration.TotalSeconds;
 
-    partial void OnCurrentSongChanged(Song? value) { _ = LoadLyricsAsync(value); _ = LoadCoverAsync(value); UpdateQueuePeek(); _ = CheckFavoriteAsync(); _ = ResolveSongDetails(value); }
+    partial void OnCurrentSongChanged(Song? value)
+    {
+        _songLoadCts?.Cancel();
+        _songLoadCts = new CancellationTokenSource();
+        var ct = _songLoadCts.Token;
+        _ = LoadLyricsAsync(value, ct);
+        _ = LoadCoverAsync(value, ct);
+        UpdateQueuePeek();
+        _ = CheckFavoriteAsync();
+        _ = ResolveSongDetails(value);
+    }
     partial void OnIsLikedChanged(bool value) { LikeIcon = value ? "❤️" : "🤍"; }
 
     public NowPlayingViewModel(IAudioPlayerService audioPlayer, ILyricsService lyricsService,
@@ -172,7 +184,7 @@ public partial class NowPlayingViewModel : ObservableObject
         };
     }
 
-    public async Task LoadCoverAsync(Song? song)
+    public async Task LoadCoverAsync(Song? song, CancellationToken ct = default)
     {
         CoverSource = "";
         if (song == null) return;
@@ -180,7 +192,6 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             byte[]? coverBytes = null;
 
-            // content:// URI 需要走 ContentResolver 来读标签
             if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
                 coverBytes = ExtractCoverFromContentUri(song.FilePath);
@@ -189,12 +200,12 @@ public partial class NowPlayingViewModel : ObservableObject
             Stream? stream = coverBytes != null
                 ? new MemoryStream(coverBytes)
                 : await _musicLibrary.GetAlbumCoverAsync(song);
+            ct.ThrowIfCancellationRequested();
 
-            // 网络歌曲：通过 Subsonic API 获取远端封面
-            if (stream == null && song.Source == SongSource.WebDAV
-                && !string.IsNullOrEmpty(song.CoverArtPath))
+            if (stream == null && song.Source == SongSource.WebDAV)
             {
                 stream = await GetNetworkCoverAsync(song);
+                ct.ThrowIfCancellationRequested();
             }
 
             if (stream != null)
@@ -203,7 +214,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 Directory.CreateDirectory(cacheDir);
                 var coverPath = Path.Combine(cacheDir, $"cover_{song.Id}.jpg");
                 using (var fs = File.Create(coverPath)) await stream.CopyToAsync(fs);
-                if (coverBytes != null) stream.Dispose();
+                stream.Dispose();
                 _dispatcher.Post(() => CoverSource = coverPath);
             }
         }
@@ -250,8 +261,9 @@ public partial class NowPlayingViewModel : ObservableObject
                 {
                     System.Diagnostics.Debug.WriteLine($"[CatClaw] Playing 同步: {queueSong.Title}(Id={queueSong.Id})");
                     CurrentSong = queueSong;
-                    _ = LoadLyricsAsync(queueSong);
-                    _ = LoadCoverAsync(queueSong);
+                    var ct = _songLoadCts?.Token ?? CancellationToken.None;
+                    _ = LoadLyricsAsync(queueSong, ct);
+                    _ = LoadCoverAsync(queueSong, ct);
                     UpdateQueuePeek();
                 }
                 // 记录此次成功播放的歌曲，取消待显示的报错对话框
@@ -349,17 +361,18 @@ public partial class NowPlayingViewModel : ObservableObject
         });
     }
 
-    public async Task LoadLyricsAsync(Song? song)
+    public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
         if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; return; }
         CurrentLyricLine = "正在加载歌词..."; NextLyricLine = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = "";
         CurrentLyrics = await _lyricsService.GetLyricsAsync(song);
+        ct.ThrowIfCancellationRequested();
 
-        // 网络歌曲：尝试从 Subsonic 获取远程歌词
         if (CurrentLyrics == null && song.Source == SongSource.WebDAV)
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 网络歌曲, Source={song.Source}, 尝试远程歌词");
             CurrentLyrics = await GetNetworkLyricsAsync(song);
+            ct.ThrowIfCancellationRequested();
         }
         else if (CurrentLyrics == null)
         {
@@ -414,6 +427,40 @@ public partial class NowPlayingViewModel : ObservableObject
     private async Task ResolveSongDetails(Song? song)
     {
         if (song == null || _database == null) return;
+
+        if (song.Source == SongSource.WebDAV
+            && (song.Artist == "未知艺术家" || song.Album == "未知专辑" || song.Duration == 0)
+            && _networkMusic != null
+            && !_metadataFetchAttempted.Contains(song.Id))
+        {
+            _metadataFetchAttempted.Add(song.Id);
+            var profile = await GetNetworkProfileAsync(ProtocolType.WebDAV);
+            if (profile != null)
+            {
+                try
+                {
+                    var updated = await _networkMusic.FetchSongMetadataAsync(song, profile);
+                    if (updated != null)
+                    {
+                        if (!string.IsNullOrEmpty(updated.Artist))
+                            updated.ArtistId = await _database.EnsureArtistAsync(updated.Artist);
+                        if (!string.IsNullOrEmpty(updated.Album))
+                            updated.AlbumId = await _database.EnsureAlbumAsync(updated.Album, updated.ArtistId);
+                        await _database.SaveSongAsync(updated);
+                        _dispatcher.Post(() =>
+                        {
+                            if (CurrentSong?.Id == updated.Id)
+                            {
+                                OnPropertyChanged(nameof(CurrentSong));
+                            }
+                        });
+                        return;
+                    }
+                }
+                catch { }
+            }
+        }
+
         if (!string.IsNullOrEmpty(song.Artist) && !string.IsNullOrEmpty(song.Album)) return;
 
         try
@@ -436,64 +483,96 @@ public partial class NowPlayingViewModel : ObservableObject
         catch { }
     }
 
-    /// <summary>查找已启用的网络连接配置（Navidrome）</summary>
-    private async Task<ConnectionProfile?> GetNetworkProfileAsync()
+    private async Task<ConnectionProfile?> GetNetworkProfileAsync(ProtocolType protocol)
     {
-        if (_cachedNetworkProfile != null) return _cachedNetworkProfile;
-        if (_networkMusic == null || _profileLookedUp) return null;
-        _profileLookedUp = true;
+        if (protocol == ProtocolType.Navidrome && _cachedNavidromeProfile != null) return _cachedNavidromeProfile;
+        if (protocol == ProtocolType.WebDAV && _cachedWebDavProfile != null) return _cachedWebDavProfile;
+        if (_networkMusic == null) return null;
         try
         {
             var profiles = await _networkMusic.GetProfilesAsync();
-            _cachedNetworkProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled);
-            return _cachedNetworkProfile;
+            _cachedNavidromeProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled);
+            _cachedWebDavProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.WebDAV && p.IsEnabled);
+            return protocol == ProtocolType.Navidrome ? _cachedNavidromeProfile : _cachedWebDavProfile;
         }
         catch { return null; }
     }
 
-    /// <summary>通过网络 API 获取远程封面</summary>
+    private static bool IsNavidromeSong(Song song)
+    {
+        return !string.IsNullOrEmpty(song.FilePath) && song.FilePath.Contains("stream.view?id=");
+    }
+
     private async Task<Stream?> GetNetworkCoverAsync(Song song)
     {
-        if (_networkMusic == null || string.IsNullOrEmpty(song.CoverArtPath)) return null;
-        var profile = await GetNetworkProfileAsync();
+        if (_networkMusic == null) return null;
+        var coverId = song.CoverArtPath ?? song.RemoteId;
+        if (string.IsNullOrEmpty(coverId)) return null;
+        var protocol = IsNavidromeSong(song) ? ProtocolType.Navidrome : ProtocolType.WebDAV;
+        var profile = await GetNetworkProfileAsync(protocol);
         if (profile == null) return null;
-        try { return await _networkMusic.GetCoverAsync(song.CoverArtPath, profile); }
+        try { return await _networkMusic.GetCoverAsync(coverId, profile); }
         catch { return null; }
     }
 
-    /// <summary>通过网络 API 获取远程歌词</summary>
+    private static string GetLyricsCachePath(int songId)
+    {
+        var cacheDir = Path.Combine(global::Android.App.Application.Context.CacheDir!.AbsolutePath, "lyrics");
+        Directory.CreateDirectory(cacheDir);
+        return Path.Combine(cacheDir, $"lyrics_{songId}.lrc");
+    }
+
     private async Task<LrcLyrics?> GetNetworkLyricsAsync(Song song)
     {
-        if (_subsonic == null)
+        var cachePath = GetLyricsCachePath(song.Id);
+        if (File.Exists(cachePath))
         {
-            System.Diagnostics.Debug.WriteLine("[CatClaw] GetNetworkLyrics: _subsonic 为 null");
-            return null;
-        }
-        var profile = await GetNetworkProfileAsync();
-        if (profile == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[CatClaw] GetNetworkLyrics: 未找到 Navidrome 配置");
-            return null;
-        }
-        try
-        {
-            var songId = ExtractSubsonicSongId(song);
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetNetworkLyrics: songId={songId}, title={song.Title}");
-            if (string.IsNullOrEmpty(songId)) return null;
-            var lrcText = await _subsonic.GetLyricsAsync(songId, profile);
-            if (string.IsNullOrEmpty(lrcText))
+            try
             {
-                System.Diagnostics.Debug.WriteLine("[CatClaw] GetNetworkLyrics: API 返回空歌词");
-                return null;
+                var cached = await File.ReadAllTextAsync(cachePath);
+                if (!string.IsNullOrWhiteSpace(cached))
+                {
+                    var parsed = _lyricsService.ParseLrc(cached);
+                    if (parsed != null) return parsed;
+                    return BuildUnsynchronizedLyrics(cached);
+                }
             }
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetNetworkLyrics: 获取到 {lrcText.Length} 字符");
-            // 先尝试 LRC 同步歌词
-            var parsed = _lyricsService.ParseLrc(lrcText);
-            if (parsed != null) return parsed;
-            // 回退：非同步歌词（纯文本），每行视为一条歌词
-            return BuildUnsynchronizedLyrics(lrcText);
+            catch { }
         }
-        catch { return null; }
+
+        var isNavidrome = IsNavidromeSong(song);
+        var protocol = isNavidrome ? ProtocolType.Navidrome : ProtocolType.WebDAV;
+        var profile = await GetNetworkProfileAsync(protocol);
+        if (profile == null) return null;
+
+        string? lrcText = null;
+        if (isNavidrome)
+        {
+            if (_subsonic == null) return null;
+            try
+            {
+                var songId = ExtractSubsonicSongId(song);
+                if (string.IsNullOrEmpty(songId)) return null;
+                lrcText = await _subsonic.GetLyricsAsync(songId, profile);
+            }
+            catch { return null; }
+        }
+        else
+        {
+            if (_networkMusic == null) return null;
+            var remotePath = song.RemoteId ?? song.CoverArtPath;
+            if (string.IsNullOrEmpty(remotePath)) return null;
+            try { lrcText = await _networkMusic.GetLyricsAsync(remotePath, profile); }
+            catch { return null; }
+        }
+
+        if (string.IsNullOrEmpty(lrcText)) return null;
+
+        try { await File.WriteAllTextAsync(cachePath, lrcText); } catch { }
+
+        var result = _lyricsService.ParseLrc(lrcText);
+        if (result != null) return result;
+        return BuildUnsynchronizedLyrics(lrcText);
     }
 
     /// <summary>将纯文本歌词转换为伪 LRC（无时间戳，按行显示）</summary>

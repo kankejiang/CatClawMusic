@@ -12,7 +12,8 @@ public class PlayQueue
     private int _currentIndex = -1;
     private Stack<int> _history = new();  // 历史记录（支持"上一曲"）
     private PlayMode _playMode = PlayMode.ListRepeat;
-    
+    private Dictionary<int, int> _songIdToIndex = new(); // O(1) 查找
+
     /// <summary>
     /// 当前播放模式
     /// </summary>
@@ -53,11 +54,19 @@ public class PlayQueue
         _shuffledList = new List<Song>();
         _currentIndex = -1;
         _history.Clear();
-        
+        RebuildIndex();
+
         if (PlayMode == PlayMode.Shuffle)
         {
             EnableShuffle();
         }
+    }
+
+    private void RebuildIndex()
+    {
+        _songIdToIndex.Clear();
+        for (int i = 0; i < _originalList.Count; i++)
+            _songIdToIndex[_originalList[i].Id] = i;
     }
     
     /// <summary>
@@ -112,14 +121,14 @@ public class PlayQueue
         {
             _history.Push(_currentIndex);
         }
-        
-        if (PlayMode == PlayMode.Shuffle)
+
+        if (_songIdToIndex.TryGetValue(songId, out var idx))
         {
-            _currentIndex = _shuffledList.FindIndex(s => s.Id == songId);
+            _currentIndex = idx;
         }
         else
         {
-            _currentIndex = _originalList.FindIndex(s => s.Id == songId);
+            _currentIndex = -1; // 歌曲不在列表中
         }
     }
     
@@ -227,8 +236,6 @@ public class PlayQueue
 /// </summary>
 public static class ShuffleService
 {
-    private static Random _random = new();
-    
     /// <summary>
     /// Fisher-Yates 洗牌算法
     /// </summary>
@@ -237,7 +244,7 @@ public static class ShuffleService
         var result = list.ToList();
         for (int i = result.Count - 1; i > 0; i--)
         {
-            int j = _random.Next(i + 1);
+            int j = Random.Shared.Next(i + 1);
             (result[i], result[j]) = (result[j], result[i]);
         }
         return result;

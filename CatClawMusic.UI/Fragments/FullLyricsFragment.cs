@@ -330,26 +330,36 @@ public class FullLyricsFragment : Fragment
     /// </summary>
     private void BindViewModel()
     {
-        _viewModel.PropertyChanged += (s, e) => Activity?.RunOnUiThread(() =>
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void UnbindViewModel()
+    {
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        Activity?.RunOnUiThread(() =>
         {
             switch (e.PropertyName)
             {
                 case nameof(_viewModel.CurrentLyrics): 
-                    RebuildLyrics(); // 歌词变化时重建
+                    RebuildLyrics();
                     break;
                 case nameof(_viewModel.CurrentLyricIndex): 
-                    HighlightCurrentLine(); // 歌词索引变化时高亮
+                    HighlightCurrentLine();
                     break;
                 case nameof(_viewModel.CurrentPosition):
                 case nameof(_viewModel.TotalDuration): 
-                    UpdateProgress(); // 进度变化时更新
+                    UpdateProgress();
                     break;
                 case nameof(_viewModel.CurrentSong): 
                     _songTitle.Text = _viewModel.CurrentSong?.Title ?? ""; 
                     _songArtist.Text = _viewModel.CurrentSong?.Artist ?? ""; 
                     break;
                 case nameof(_viewModel.CoverSource): 
-                    UpdateBackground(); // 封面变化时更新
+                    UpdateBackground();
                     break;
             }
         });
@@ -593,6 +603,7 @@ public class FullLyricsFragment : Fragment
     /// </summary>
     public override void OnDestroyView() 
     { 
+        UnbindViewModel();
         _scrollResumeHandler.RemoveCallbacksAndMessages(null); 
         _dragResumeHandler.RemoveCallbacksAndMessages(null);
         base.OnDestroyView(); 

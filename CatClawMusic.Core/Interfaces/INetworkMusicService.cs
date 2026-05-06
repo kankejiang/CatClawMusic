@@ -26,4 +26,10 @@ public interface INetworkMusicService
 
     /// <summary>获取流媒体 URL（用于播放）</summary>
     Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile);
+
+    /// <summary>获取远程歌词文本（LRC 或纯文本）</summary>
+    Task<string?> GetLyricsAsync(string remotePath, ConnectionProfile profile);
+
+    /// <summary>按需获取网络歌曲元数据（从远程音频文件读取 Tag）</summary>
+    Task<Song?> FetchSongMetadataAsync(Song song, ConnectionProfile profile);
 }

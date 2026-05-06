@@ -4,6 +4,7 @@ using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using System.Collections.Concurrent;
 using TagLibFile = TagLib.File;
 
 namespace CatClawMusic.UI.Adapters;
@@ -12,8 +13,13 @@ public class SongAdapter : RecyclerView.Adapter
 {
     private List<Song> _songs = new();
     private readonly INetworkMusicService? _networkMusic;
-    private ConnectionProfile? _cachedProfile;
-    private bool _profileLookedUp;
+    private ConnectionProfile? _cachedNavidromeProfile;
+    private ConnectionProfile? _cachedWebDavProfile;
+    private bool _profilesLookedUp;
+
+    // 封面加载的并发控制：去重 + 限流
+    private static readonly ConcurrentDictionary<string, Task> _loadingCovers = new();
+    private static readonly SemaphoreSlim _coverLoadSemaphore = new(4, 4); // 最多 4 个并发
 
     public event EventHandler<Song>? SongClicked;
 
@@ -58,19 +64,26 @@ public class SongAdapter : RecyclerView.Adapter
         ((SongViewHolder)holder).Bind(_songs[position], this);
     }
 
+    public override void OnViewRecycled(Java.Lang.Object holder)
+    {
+        ((SongViewHolder)holder).CancelLoad();
+        base.OnViewRecycled(holder);
+    }
+
     private void OnSongClick(int position) => SongClicked?.Invoke(this, _songs[position]);
 
-    /// <summary>懒加载获取已启用的 Navidrome 连接配置</summary>
-    internal async Task<ConnectionProfile?> GetNetworkProfileAsync()
+    internal async Task<ConnectionProfile?> GetNetworkProfileAsync(ProtocolType protocol)
     {
-        if (_cachedProfile != null) return _cachedProfile;
-        if (_networkMusic == null || _profileLookedUp) return null;
-        _profileLookedUp = true;
+        if (protocol == ProtocolType.Navidrome && _cachedNavidromeProfile != null) return _cachedNavidromeProfile;
+        if (protocol == ProtocolType.WebDAV && _cachedWebDavProfile != null) return _cachedWebDavProfile;
+        if (_networkMusic == null || _profilesLookedUp) return null;
+        _profilesLookedUp = true;
         try
         {
             var profiles = await _networkMusic.GetProfilesAsync();
-            _cachedProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled);
-            return _cachedProfile;
+            _cachedNavidromeProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled);
+            _cachedWebDavProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.WebDAV && p.IsEnabled);
+            return protocol == ProtocolType.Navidrome ? _cachedNavidromeProfile : _cachedWebDavProfile;
         }
         catch { return null; }
     }
@@ -80,6 +93,9 @@ public class SongAdapter : RecyclerView.Adapter
         private readonly TextView _title, _artist, _album;
         private readonly ImageView _cover;
         private int _boundSongId; // 当前绑定的歌曲 ID，防止封面加载错位
+        private CancellationTokenSource? _coverCts;
+        private string? _loadedCoverPath; // 记录上次加载的封面路径，避免重复 SetImageURI
+        private static readonly Handler _mainHandler = new(Looper.MainLooper!);
 
         public SongViewHolder(View view, Action<int> onClick) : base(view)
         {
@@ -97,18 +113,43 @@ public class SongAdapter : RecyclerView.Adapter
             _album.Text = song.Album ?? "";
             _boundSongId = song.Id;
 
+            // 取消上一个加载任务，防止旧任务覆盖新 ViewHolder 的封面
+            _coverCts?.Cancel();
+            _coverCts?.Dispose();
+            _coverCts = new CancellationTokenSource();
+            var ct = _coverCts.Token;
+
             // 加载封面：优先缓存，其次后台提取/下载
             var coverPath = GetCoverCachedPath(song.Id);
             if (System.IO.File.Exists(coverPath))
             {
-                _cover.SetImageURI(global::Android.Net.Uri.Parse(coverPath));
+                if (_loadedCoverPath != coverPath)
+                {
+                    _cover.SetImageURI(global::Android.Net.Uri.Parse(coverPath));
+                    _loadedCoverPath = coverPath;
+                }
             }
             else
             {
+                _loadedCoverPath = null;
                 _cover.SetImageResource(Resource.Drawable.cover_default);
-                // 后台提取/下载封面
-                Task.Run(() => LoadCoverAsync(song, adapter));
+                // 后台提取/下载封面（带去重和并发控制）
+                var cacheKey = $"song_{song.Id}";
+                if (!_loadingCovers.ContainsKey(cacheKey))
+                {
+                    var loadTask = LoadCoverWithThrottleAsync(song, adapter, ct);
+                    _loadingCovers[cacheKey] = loadTask;
+                    _ = loadTask.ContinueWith(_ => _loadingCovers.TryRemove(cacheKey, out _));
+                }
             }
+        }
+
+        /// <summary>取消当前加载任务（ViewHolder 回收时调用）</summary>
+        public void CancelLoad()
+        {
+            _coverCts?.Cancel();
+            _coverCts?.Dispose();
+            _coverCts = null;
         }
 
         private static string GetCoverCachedPath(int songId)
@@ -118,28 +159,32 @@ public class SongAdapter : RecyclerView.Adapter
             return System.IO.Path.Combine(cacheDir, $"cover_{songId}.jpg");
         }
 
-        /// <summary>后台加载封面（本地歌曲提取内嵌封面，网络歌曲通过 API 下载）</summary>
-        private async Task LoadCoverAsync(Song song, SongAdapter adapter)
+        /// <summary>后台加载封面（带并发限流和取消支持）</summary>
+        private async Task LoadCoverWithThrottleAsync(Song song, SongAdapter adapter, CancellationToken ct)
         {
+            await _coverLoadSemaphore.WaitAsync(ct);
             try
             {
+                ct.ThrowIfCancellationRequested();
                 byte[]? coverBytes = null;
 
                 if (song.Source == SongSource.WebDAV)
                 {
-                    // 网络歌曲：通过 Subsonic API 下载封面
-                    if (!string.IsNullOrEmpty(song.CoverArtPath))
+                    var coverId = song.CoverArtPath ?? song.RemoteId;
+                    if (!string.IsNullOrEmpty(coverId))
                     {
-                        var profile = await adapter.GetNetworkProfileAsync();
+                        var isNavidrome = !string.IsNullOrEmpty(song.FilePath) && song.FilePath.Contains("stream.view?id=");
+                        var protocol = isNavidrome ? ProtocolType.Navidrome : ProtocolType.WebDAV;
+                        var profile = await adapter.GetNetworkProfileAsync(protocol);
                         if (profile != null && adapter._networkMusic != null)
                         {
-                            var stream = await adapter._networkMusic.GetCoverAsync(song.CoverArtPath, profile);
+                            using var stream = await adapter._networkMusic.GetCoverAsync(coverId, profile);
                             if (stream != null)
                             {
                                 using var ms = new MemoryStream();
-                                await stream.CopyToAsync(ms);
+                                await stream.CopyToAsync(ms, ct);
+                                ct.ThrowIfCancellationRequested();
                                 coverBytes = ms.ToArray();
-                                stream.Dispose();
                             }
                         }
                     }
@@ -157,35 +202,43 @@ public class SongAdapter : RecyclerView.Adapter
                             var abstraction = new CatClawMusic.Core.Services.ReadOnlyFileAbstraction(
                                 song.FilePath, stream);
                             using var tagFile = TagLibFile.Create(abstraction);
+                            ct.ThrowIfCancellationRequested();
                             if (tagFile.Tag.Pictures is { Length: > 0 })
                                 coverBytes = tagFile.Tag.Pictures[0].Data.Data;
                         }
                     }
                     else if (System.IO.File.Exists(song.FilePath))
                     {
-                        coverBytes = CatClawMusic.Core.Services.TagReader.ExtractCoverArt(song.FilePath);
+                        coverBytes = await Task.Run(() =>
+                            CatClawMusic.Core.Services.TagReader.ExtractCoverArt(song.FilePath), ct);
                     }
                 }
 
+                ct.ThrowIfCancellationRequested();
                 if (coverBytes != null)
                 {
                     // 缓存到本地
                     var coverPath = GetCoverCachedPath(song.Id);
                     Directory.CreateDirectory(System.IO.Path.GetDirectoryName(coverPath)!);
-                    await System.IO.File.WriteAllBytesAsync(coverPath, coverBytes);
+                    await System.IO.File.WriteAllBytesAsync(coverPath, coverBytes, ct);
 
                     // 回到主线程更新 ImageView（检查 songId 防止错位）
-                    var handler = new Handler(Looper.MainLooper!);
-                    handler.Post(() =>
+                    _mainHandler.Post(() =>
                     {
                         if (_boundSongId == song.Id && System.IO.File.Exists(coverPath))
                         {
                             _cover.SetImageURI(global::Android.Net.Uri.Parse(coverPath));
+                            _loadedCoverPath = coverPath;
                         }
                     });
                 }
             }
+            catch (System.OperationCanceledException) { /* 任务被取消，静默退出 */ }
             catch { /* 静默失败，封面非必需 */ }
+            finally
+            {
+                _coverLoadSemaphore.Release();
+            }
         }
     }
 }

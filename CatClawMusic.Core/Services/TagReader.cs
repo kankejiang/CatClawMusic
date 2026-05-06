@@ -60,6 +60,9 @@ public class TagReader
     {
         if (!IOFile.Exists(filePath)) return null;
 
+        // 只在 try/catch 前计算一次，避免异常时重复文件系统查询
+        var lyricsPath = MusicUtility.FindLyricsFile(filePath);
+
         try
         {
             using var file = TagLib.File.Create(filePath);
@@ -82,7 +85,7 @@ public class TagReader
                 FileSize = fileInfo.Length,
                 Bitrate = props.AudioBitrate,
                 FilePath = filePath,
-                LyricsPath = MusicUtility.FindLyricsFile(filePath),
+                LyricsPath = lyricsPath,
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
 
@@ -97,7 +100,7 @@ public class TagReader
                 Artist = "未知艺术家",
                 Album = "未知专辑",
                 FilePath = filePath,
-                LyricsPath = MusicUtility.FindLyricsFile(filePath),
+                LyricsPath = lyricsPath,
                 FileSize = fileInfo.Length,
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
@@ -161,20 +164,7 @@ public class TagReader
         {
             using var file = TagLib.File.Create(filePath);
             if (file.Tag.Pictures is not { Length: > 0 }) return null;
-
-            var data = file.Tag.Pictures[0].Data.Data;
-            var tempPath = Path.Combine(Path.GetTempPath(), "catclaw_temp_" + Guid.NewGuid() + ".jpg");
-
-            IOFile.WriteAllBytes(tempPath, data);
-
-            try
-            {
-                return data;
-            }
-            finally
-            {
-                try { IOFile.Delete(tempPath); } catch { }
-            }
+            return file.Tag.Pictures[0].Data.Data;
         }
         catch
         {
@@ -217,6 +207,32 @@ public class TagReader
         {
             return false;
         }
+    }
+
+    public static byte[]? ExtractCoverFromStream(Stream stream, string name)
+    {
+        try
+        {
+            var abstraction = new ReadOnlyFileAbstraction(name, stream);
+            using var file = TagLibFile.Create(abstraction);
+            if (file.Tag.Pictures is { Length: > 0 })
+                return file.Tag.Pictures[0].Data.Data;
+        }
+        catch { }
+        return null;
+    }
+
+    public static string? ReadEmbeddedLyricsFromStream(Stream stream, string name)
+    {
+        try
+        {
+            var abstraction = new ReadOnlyFileAbstraction(name, stream);
+            using var file = TagLibFile.Create(abstraction);
+            var lyrics = file.Tag.Lyrics;
+            return !string.IsNullOrWhiteSpace(lyrics) ? lyrics : null;
+        }
+        catch { }
+        return null;
     }
 
     /// <summary>

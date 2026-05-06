@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="@color/pageBackground">
+    android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
     <include layout="@layout/include_settings_toolbar" />
 
@@ -17,8 +17,8 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent" android:layout_height="wrap_content"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground" android:layout_marginTop="12dp">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground" android:layout_marginTop="12dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="12dp">
                 <Button android:id="@+id/btn_add_folder" android:layout_width="0dp"
@@ -37,7 +37,7 @@
 
         <TextView android:id="@+id/scan_status" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:textSize="12sp"
-            android:textColor="@color/textHint" android:gravity="center"
+            android:textColor="?attr/catClawTextHint" android:gravity="center"
             android:layout_marginTop="4dp" android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>

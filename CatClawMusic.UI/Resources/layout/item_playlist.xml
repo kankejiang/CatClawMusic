@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/CatClawCardSmall"
@@ -10,11 +10,11 @@
         android:orientation="vertical" android:padding="16dp">
         <TextView android:id="@+id/playlist_name" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:textSize="15sp"
-            android:textColor="@color/textPrimary" android:fontFamily="sans-serif-medium"
+            android:textColor="?attr/catClawTextPrimary" android:fontFamily="sans-serif-medium"
             android:text="播放列表名" />
         <TextView android:id="@+id/playlist_count" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:textSize="12sp"
-            android:textColor="@color/textHint" android:layout_marginTop="4dp"
+            android:textColor="?attr/catClawTextHint" android:layout_marginTop="4dp"
             android:text="0 首" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

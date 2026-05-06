@@ -48,6 +48,13 @@ public class MainActivity : AppCompatActivity
     private float _panelSwipeStartX, _panelStartTx;
     private const float PanelSwipeThreshold = 100f;
 
+    // 迷你进度条定时器
+    private System.Timers.Timer? _miniProgressTimer;
+
+    // ViewModel 引用（用于 OnDestroy 取消订阅）
+    private LibraryViewModel? _libVm;
+    private NowPlayingViewModel? _miniVm;
+
     public static MainActivity Instance { get; private set; } = null!;
 
     public NavigationService NavigationService =>
@@ -55,7 +62,8 @@ public class MainActivity : AppCompatActivity
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
-        SetTheme(Resource.Style.CatClawTheme);
+        // 应用保存的主题
+        ApplySavedTheme();
         base.OnCreate(savedInstanceState);
         Instance = this;
 
@@ -75,8 +83,8 @@ public class MainActivity : AppCompatActivity
         PlaybackStateManager.RestorePrefsToViewModel(queue, npVm);
 
         // 迷你进度条定时更新
-        var miniProgressTimer = new System.Timers.Timer(500);
-        miniProgressTimer.Elapsed += (_, _) => RunOnUiThread(() =>
+        _miniProgressTimer = new System.Timers.Timer(500);
+        _miniProgressTimer.Elapsed += (_, _) => RunOnUiThread(() =>
         {
             if (_miniProgress == null) return;
             // 仅在确认播放中才读取 Duration/Position，避免在 Preparing/Error/Idle 状态触发原生 MediaPlayer 错误
@@ -92,7 +100,7 @@ public class MainActivity : AppCompatActivity
                 (int)(_miniPlayer!.Width * (pos / dur)), 2,
                 GravityFlags.Bottom);
         });
-        miniProgressTimer.Start();
+        _miniProgressTimer.Start();
         // 后台异步：查找歌曲、恢复播放队列、播放并 seek 到上次位置（无延迟、不阻塞 UI）
         _ = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm));
 
@@ -211,6 +219,14 @@ public class MainActivity : AppCompatActivity
 
     protected override void OnDestroy()
     {
+        _miniProgressTimer?.Stop();
+        _miniProgressTimer?.Dispose();
+
+        if (_libVm != null)
+            _libVm.PropertyChanged -= OnLibraryPropertyChanged;
+        if (_miniVm != null)
+            _miniVm.PropertyChanged -= OnMiniPlayerPropertyChanged;
+
         DesktopLyricService.Instance.Dispose();
         if (Instance == this) Instance = null!;
         base.OnDestroy();
@@ -305,40 +321,77 @@ public class MainActivity : AppCompatActivity
         var _scanProgressBar = FindViewById<View>(Resource.Id.scan_progress_bar)!;
         var _scanProgress = FindViewById<ProgressBar>(Resource.Id.scan_progress)!;
         var _scanStatusText = FindViewById<TextView>(Resource.Id.scan_status_text)!;
-        var libVm = MainApplication.Services.GetRequiredService<LibraryViewModel>();
-        libVm.PropertyChanged += (s, e) => RunOnUiThread(() =>
-        {
-            if (e.PropertyName == nameof(LibraryViewModel.IsScanning))
-                _scanProgressBar.Visibility = libVm.IsScanning ? ViewStates.Visible : ViewStates.Gone;
-            else if (e.PropertyName == nameof(LibraryViewModel.ScanProgress))
-                _scanProgress.Progress = libVm.ScanProgress;
-            else if (e.PropertyName == nameof(LibraryViewModel.ScanStatus))
-                _scanStatusText.Text = libVm.ScanStatus;
-        });
+        _libVm = MainApplication.Services.GetRequiredService<LibraryViewModel>();
+        _libVm.PropertyChanged += OnLibraryPropertyChanged;
 
-        var vm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
+        _miniVm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
 
-        _miniPlayer.Click += (s, e) => { if (vm.CurrentSong != null) SwitchTab(1); };
-        _miniPlayPause.Click += (s, e) => vm.PlayPauseCommand.Execute(null);
-        _miniPrev.Click += (s, e) => vm.PreviousCommand.Execute(null);
-        _miniNext.Click += (s, e) => vm.NextCommand.Execute(null);
+        _miniPlayer.Click += (s, e) => { if (_miniVm.CurrentSong != null) SwitchTab(1); };
+        _miniPlayPause.Click += (s, e) => _miniVm.PlayPauseCommand.Execute(null);
+        _miniPrev.Click += (s, e) => _miniVm.PreviousCommand.Execute(null);
+        _miniNext.Click += (s, e) => _miniVm.NextCommand.Execute(null);
 
-        vm.PropertyChanged += (s, e) => RunOnUiThread(() =>
+        _miniVm.PropertyChanged += OnMiniPlayerPropertyChanged;
+    }
+
+    private void OnLibraryPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        RunOnUiThread(() =>
         {
-            var song = vm.CurrentSong;
+            if (_libVm == null) return;
+            var bar = FindViewById<View>(Resource.Id.scan_progress_bar);
+            var pgr = FindViewById<ProgressBar>(Resource.Id.scan_progress);
+            var txt = FindViewById<TextView>(Resource.Id.scan_status_text);
+            if (bar == null || pgr == null || txt == null) return;
+            if (e.PropertyName == nameof(LibraryViewModel.IsScanning))
+                bar.Visibility = _libVm.IsScanning ? ViewStates.Visible : ViewStates.Gone;
+            else if (e.PropertyName == nameof(LibraryViewModel.ScanProgress))
+                pgr.Progress = _libVm.ScanProgress;
+            else if (e.PropertyName == nameof(LibraryViewModel.ScanStatus))
+                txt.Text = _libVm.ScanStatus;
+        });
+    }
+
+    private void OnMiniPlayerPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        RunOnUiThread(() =>
+        {
+            if (_miniVm == null) return;
+            var song = _miniVm.CurrentSong;
             bool hasSong = song != null;
             bool onMainPage = !_panelOpen;
             bool isNowPlayingTab = _currentTab is 0 or 1;
             _miniPlayerWrapper.Visibility = hasSong && onMainPage && !isNowPlayingTab
                 ? ViewStates.Visible : ViewStates.Gone;
             if (!hasSong) return;
-            _miniTitle.Text = song.Title ?? "";
-            _miniArtist.Text = song.Artist ?? "";
-            _miniPlayPause.SetImageResource(
-                player.IsPlaying ? Resource.Drawable.ic_pause : Resource.Drawable.ic_play);
-            if (!string.IsNullOrEmpty(vm.CoverSource))
-                _miniCover.SetImageDrawable(Android.Graphics.Drawables.Drawable.CreateFromPath(vm.CoverSource));
+
+            // 根据变化的属性按需更新，避免不必要的 I/O 和时序竞争
+            var propName = e.PropertyName;
+            bool needUpdateIcon = propName == nameof(NowPlayingViewModel.PlayPauseIcon)
+                || propName == null;
+            bool needUpdateInfo = propName == nameof(NowPlayingViewModel.CurrentSong)
+                || propName == null;
+            bool needUpdateCover = propName == nameof(NowPlayingViewModel.CoverSource)
+                || propName == null;
+
+            if (needUpdateInfo)
+            {
+                _miniTitle.Text = song.Title ?? "";
+                _miniArtist.Text = song.Artist ?? "";
+            }
+
+            if (needUpdateIcon)
+            {
+                // 直接使用 ViewModel 的 PlayPauseIcon 状态，避免读取 IAudioPlayerService.IsPlaying
+                // 导致的时序竞争（PauseAsync 通过 Handler.Post 异步执行，IsPlaying 更新滞后）
+                bool isPlaying = _miniVm.PlayPauseIcon == "⏸";
+                _miniPlayPause.SetImageResource(
+                    isPlaying ? Resource.Drawable.ic_pause : Resource.Drawable.ic_play);
+            }
+
+            if (needUpdateCover && !string.IsNullOrEmpty(_miniVm.CoverSource))
+                _miniCover.SetImageDrawable(Android.Graphics.Drawables.Drawable.CreateFromPath(_miniVm.CoverSource));
         });
     }
 
@@ -402,5 +455,45 @@ public class MainActivity : AppCompatActivity
         private readonly Action _action;
         public ClickListener(Action action) => _action = action;
         public void OnClick(View? v) => _action();
+    }
+
+    private void ApplySavedTheme()
+    {
+        try
+        {
+            var prefs = GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+            int themeValue = prefs.GetInt("selected_theme", 0);
+            int darkModeValue = prefs.GetInt("dark_mode_setting", 0);
+            var theme = (AppTheme)themeValue;
+            var darkModeSetting = (DarkModeSetting)darkModeValue;
+
+            // 设置深色模式
+            switch (darkModeSetting)
+            {
+                case DarkModeSetting.Light:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightNo;
+                    break;
+                case DarkModeSetting.Dark:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightYes;
+                    break;
+                case DarkModeSetting.FollowSystem:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightFollowSystem;
+                    break;
+            }
+
+            // 设置主题色
+            SetTheme(theme switch
+            {
+                AppTheme.Pink => Resource.Style.CatClawTheme_Pink,
+                AppTheme.Blue => Resource.Style.CatClawTheme_Blue,
+                AppTheme.Green => Resource.Style.CatClawTheme_Green,
+                AppTheme.Orange => Resource.Style.CatClawTheme_Orange,
+                _ => Resource.Style.CatClawTheme
+            });
+        }
+        catch
+        {
+            SetTheme(Resource.Style.CatClawTheme);
+        }
     }
 }

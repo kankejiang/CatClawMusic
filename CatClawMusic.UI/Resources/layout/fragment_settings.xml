@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="@color/pageBackground">
+    android:background="?attr/catClawPageBackground">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical" android:padding="16dp">
@@ -10,7 +10,7 @@
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="设置" android:textSize="22sp"
             android:fontFamily="@font/happy_zcool_2016"
-            android:textColor="@color/textPrimary" android:layout_marginBottom="16dp" />
+            android:textColor="?attr/catClawTextPrimary" android:layout_marginBottom="16dp" />
 
         <!-- 📁 本地音乐 -->
         <com.google.android.material.card.MaterialCardView
@@ -19,8 +19,8 @@
             android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="16dp"
                 android:gravity="center_vertical">
@@ -28,16 +28,16 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="📁 本地音乐"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_local_music_status"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="加载中…"
-                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -48,8 +48,8 @@
             android:layout_marginBottom="16dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:padding="16dp"
                 android:gravity="center_vertical">
@@ -57,16 +57,16 @@
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="☁️ 远程音乐服务"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_remote_music_status"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="加载中…"
-                        android:textSize="12sp" android:textColor="@color/textHint"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -77,8 +77,8 @@
             android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="@color/cardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="@color/cardBackground">
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical">
                 <!-- 分组标题 -->
@@ -88,11 +88,11 @@
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="通用设置"
-                        android:textSize="15sp" android:textColor="@color/textPrimary"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_arrow_general"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="@color/textHint" />
+                        android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

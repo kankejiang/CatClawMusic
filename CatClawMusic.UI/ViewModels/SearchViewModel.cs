@@ -14,6 +14,10 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty] private bool _isSearching;
     [ObservableProperty] private string _resultCount = "";
 
+    // 防抖机制
+    private CancellationTokenSource? _searchCts;
+    private const int DebounceDelayMs = 300;
+
     public SearchViewModel(IMusicLibraryService musicLibrary)
     {
         _musicLibrary = musicLibrary;
@@ -21,11 +25,40 @@ public partial class SearchViewModel : ObservableObject
 
     public async Task SearchAsync(string keyword)
     {
-        if (string.IsNullOrWhiteSpace(keyword)) { SearchResults.Clear(); ResultCount = ""; return; }
-        IsSearching = true;
+        // 取消之前的搜索任务
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            SearchResults.Clear();
+            ResultCount = "";
+            return;
+        }
+
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
+        // 防抖延迟
         try
         {
-            foreach (var song in await _musicLibrary.SearchAsync(keyword))
+            await Task.Delay(DebounceDelayMs, ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return; // 新的搜索已启动，放弃本次
+        }
+
+        if (ct.IsCancellationRequested) return;
+
+        IsSearching = true;
+        SearchResults.Clear();
+        try
+        {
+            var results = await _musicLibrary.SearchAsync(keyword);
+            if (ct.IsCancellationRequested) return;
+
+            foreach (var song in results)
                 SearchResults.Add(song);
             ResultCount = SearchResults.Count > 0 ? $"找到 {SearchResults.Count} 首歌曲" : "未找到结果";
         }

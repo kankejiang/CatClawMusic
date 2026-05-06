@@ -1,563 +1,321 @@
-# 🐾 猫爪音乐 (CatClaw Music) v1.03
+# 🐾 猫爪音乐 (CatClaw Music)
 
-> 📅 首次发布：2026-05-01 · v1.0.0  |  更新：2026-05-03 · v1.0.1 → v1.0.2 → 2026-05-05 · v1.0.3
->
-> 萌系 Android 本地+网络音乐播放器，.NET 9 原生 Android 开发，支持本地播放、Navidrome/Subsonic 网络音乐、WebDAV 远程音乐、桌面悬浮歌词（可拖拽/锁定/双行KTV）、频谱可视化、LRC 歌词同步滚动、全屏歌词体验、通知栏媒体控制 + MediaSession。
+> 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐播放、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、桌面悬浮歌词（可拖拽/锁定/双行KTV）、LRC 歌词同步滚动、全屏歌词体验、通知栏媒体控制 + MediaSession。
 
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-9.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-12.0-blue)
-![版本](https://img.shields.io/badge/版本-v1.0.3-brightgreen)
+![最低版本](https://img.shields.io/badge/最低版本-Android%2012%20(API%2031)-orange)
+![协议](https://img.shields.io/badge/协议-MIT-yellow)
 
-***
-
-## 🚀 快速入门
-
-### 本地音乐
-
-1. 打开应用，进入「音乐库」页面
-2. 点击「选择文件夹」按钮，通过 SAF 选择你的音乐文件夹
-3. 应用会自动扫描并加载音乐（支持增量扫描）
-4. 点击歌曲开始播放
-
-### Navidrome 远程音乐
-
-1. 打开侧边栏设置，点击「网络服务」
-2. 选择「Navidrome」，填写服务器地址、端口、用户名和密码
-3. 启用后，在「音乐库」的「网络」标签页中即可看到远程歌曲
-
-### 全屏歌词
-
-- 在播放页（Tab 1），**左滑**或点击歌词区域可进入全屏歌词页
-- **右滑**可返回播放页
-- 全屏歌词页支持手动滚动，3 秒后自动恢复同步
-- 支持毛玻璃模糊背景，沉浸体验
-
-***
-
-## 🆕 v1.0.3 更新日志（2026-05-05）
-
-### ✨ 新增
-
-- 🖥️ **桌面悬浮歌词（完整实现）**：可拖拽的悬浮窗，支持锁定位置、单行/双行KTV显示模式
-- 🎨 **桌面歌词全方位自定义**：字体大小(12-36sp)、10色预设色板、粗体、背景透明度(0-100%)、圆角边框
-- 🔔 **通知栏媒体控制**：MediaStyle 通知，支持播放/暂停/上下曲/收藏/桌面歌词开关
-- 🔐 **通知栏桌面歌词快捷控制**：无需切回 App，通知栏直接开/关/锁定/切换单双行
-- 📱 **MediaSession 集成**：蓝牙耳机、车载音响、穿戴设备均可控制播放
-- 🌐 **远程歌曲频谱支持**：HTTP 流媒体自动下载 32kbps 低码率样本用于频谱可视化
-- 🗄️ **数据库新增 SpectrumCache 表**（预埋，为频谱预计算缓存做准备）
-
-### 🐛 修复
-
-- 修复系统 WindowManager 获取失败场景，支持多 Context 降级获取（Application → Fragment/Activity → MainActivity）
-- 修复悬浮窗权限检查时机（Android 6.0+ 才需要 SYSTEM_ALERT_WINDOW）
-- 修复悬浮窗在部分 ROM 上 WindowManagerLayoutParams 类型不兼容问题（ApplicationOverlay → Phone 降级）
-- 修复通知栏与播放器状态不同步的问题（MediaSession + Notification 双通道联动更新）
-- 修复远程歌曲频谱无数据的问题（低码率下载 + 本地临时文件解码）
-
-### 🔧 优化
-
-- **桌面歌词动效优化**：触摸时显示背景 + 锁定按钮，松手 1 秒后自动渐隐，2 秒后隐藏锁定按钮
-- **通知栏 UI 优化**：播放控制 + 工具控制双通道分离，高优先级通道可绕过勿扰模式
-- **频谱远程流优化**：播放 5 秒后发起低码率下载，与正常播放互不干扰，下载失败优雅降级
-- **通知栏图标系统**：新增 8 个通知栏专用图标，统一视觉风格
-
-***
-
-## 🆕 v1.0.1 更新日志（2026-05-03）
-
-### ✨ 新增
-
-- 🎵 **ExoPlayer (Media3) 播放引擎**：原生支持 content:// URI，更好的流媒体兼容性
-- 🖼️ **封面懒加载**：滚动到可见时再加载封面，不阻塞列表渲染（支持本地内嵌封面 + 网络 API 下载）
-- 📈 **增量式网络扫描**：扫描过程中实时显示进度条，每扫描完一个专辑即更新列表
-- 📈 **增量式本地扫描**：与网络扫描一致，每发现 20 首歌曲即增量刷新列表
-- 🎤 **全屏歌词页**：NowPlaying 页左滑或点击歌词区域进入，右滑返回
-- 🌫️ **毛玻璃歌词背景**：封面图实时模糊（RenderEffect，API 31+），深色遮罩，沉浸式体验
-- 📊 **设置页重构**：音乐文件夹 + 远程音乐服务双卡片，远程服务子页含 Navidrome/WebDAV 快捷开关
-- 📈 **设置状态预览**：实时显示文件夹数、歌曲数、已启用服务数
-
-### 🐛 修复
-
-- 修复 ViewPager2 切换 Tab 0（全屏歌词）时自动弹回的问题
-- 修复歌词区域点击与 ViewPager2 滑动手势冲突
-- 修复歌词三行显示截断问题（maxLines 调整 + wrap_content）
-- 修复 NowPlayingViewModel 歌词属性未触发通知的问题
-- 修复 Android 13+ 全文件访问权限检测（`Environment.IsExternalStorageManager`）
-- 修复某些设备/ROM 上 MediaStore 缺少 `year` / `track` 列导致的崩溃（`GetColumnIndex` 安全检查）
-- 修复 `Android.Graphics.Path` 与 `System.IO.Path` 命名冲突编译错误
-- 修复 `.NET 10 SDK` 的 `dotnet build` NuGet restore 崩溃（必须使用 VS MSBuild）
-- 修复 `CollectionChanged` → `NotifyDataSetChanged` 逐首刷新导致的主线程 ANR（改为 `NotifyItemRangeInserted`）
-
-### 🔧 优化
-
-- **播放引擎迁移**：`Android.Media.MediaPlayer` → `Xamarin.AndroidX.Media3.ExoPlayer`（Media3）
-- **增量式架构**：扫描、入库、UI 刷新三阶段全部增量流水线，不再等全部完成
-- **封面加载优化**：移除批量预提取 `ExtractCoversAsync`，改为 `SongAdapter` 滚动懒加载 + 磁盘缓存
-- **主线程性能**：`SongAdapter.AddRange()` 使用 `NotifyItemRangeInserted`，O(n²) → O(1)
-- **SAF 文件夹隔离**：有 SAF URI 时跳过 MediaStore 全设备扫描，只扫用户选择的文件夹
-- **去重优化**：`HashSet<string>` 替代 `Any()` 线性搜索
-- Tab 顺序调整：全屏歌词(0) / NowPlaying(1) / Playlist(2) / Search(3) / Library(4)
-- 全屏歌词页当前行紫色高亮 + 自动滚动，手动滚动暂停 3 秒
-- 底部导航栏在歌词页自动隐藏
-
-***
-
-## 💬 交流群
-
->   ₍˄·͈༝·͈˄*₎◞ ̑̑
-
-**QQ 群：855383639** — 加入猫爪音乐交流群一起讨论喵~
-
-***
+---
 
 ## ✨ 功能特性
 
-### ✅ 已实现
+### 🎵 本地音乐播放
 
-#### 🎵 本地音乐
+| 特性 | 说明 |
+|------|------|
+| SAF 文件夹选择 | 系统文件管理器界面，无需 `MANAGE_EXTERNAL_STORAGE` |
+| MediaStore 扫描 | Android 10+ 无需存储权限即可扫描设备音频 |
+| 递归扫描 | 支持子目录，自动发现音频文件 |
+| Tag 信息读取 | TagLibSharp 解析标题/艺术家/专辑/时长/比特率/封面 |
+| 增量式扫描 | 逐批入库 + 列表实时刷新，进度条动画 |
+| 歌曲去重 | 按文件路径去重，已存在则更新 |
+| 封面懒加载 | 滚动到可见时加载，磁盘缓存，防错位 |
 
-| 特性                             |  状态 | 说明                                     |
-| ------------------------------ | :-: | -------------------------------------- |
-| SAF 文件选择器选文件夹                  |  ✅  | 系统文件管理器界面，无需 `MANAGE_EXTERNAL_STORAGE` |
-| 传统路径扫描 (`/Music`, `/Download`) |  ✅  | 有权限时后备扫描                               |
-| 递归扫描音频文件                       |  ✅  | 支持子目录                                  |
-| Tag 信息读取                       |  ✅  | TagLibSharp 解析标题/艺术家/专辑/时长等            |
-| 封面图懒加载                         |  ✅  | SongAdapter 滚动时懒加载 + 磁盘缓存，不再批量预提取      |
-| 歌曲去重入库                         |  ✅  | 按文件路径去重，已存在则更新                         |
-| 增量式扫描                          |  ✅  | 逐批回调控件 + 入库，列表实时增量刷新，进度条动画             |
-| SAF 文件夹隔离                      |  ✅  | 有 SAF URI 时跳过 MediaStore，只扫用户选择的文件夹    |
+### ▶️ 音频播放 (ExoPlayer)
 
-#### ▶️ 音频播放
+| 特性 | 说明 |
+|------|------|
+| 播放引擎 | AndroidX Media3 ExoPlayer |
+| 播放/暂停/上下曲 | 完整控制 |
+| 进度拖动 | Material Slider |
+| 音量控制 | 0-100 |
+| 自动下一首 | 播放完毕自动切换 |
+| 流媒体播放 | 支持 HTTP/HTTPS URL |
+| content:// URI | ExoPlayer 原生支持 SAF 路径 |
+| WakeLock | 后台播放防 CPU 休眠 |
+| WiFi Lock | 防止锁屏断网 |
 
-| 特性                       |  状态 | 说明                                                                 |
-| ------------------------ | :-: | ------------------------------------------------------------------ |
-| 播放/暂停/恢复                 |  ✅  | **ExoPlayer (Media3)**：`AndroidX.Media3.ExoPlayer.SimpleExoPlayer` |
-| 上一首/下一首                  |  ✅  | 通过 PlayQueue 管理                                                    |
-| 进度拖动 (Seek)              |  ✅  | Material Slider                                                    |
-| 音量控制                     |  ✅  | 0-100                                                              |
-| WakeLock 后台保活            |  ✅  | 防止播放时 CPU 休眠                                                       |
-| WiFi Lock 网络保活          |  ✅  | 防止锁屏断网（流媒体播放时自动获取）                                                |
-| 自动播放下一首                  |  ✅  | Completion 事件触发                                                    |
-| 流媒体 URL 播放               |  ✅  | 支持 HTTP/HTTPS                                                      |
-| 原生 content:// URI         |  ✅  | ExoPlayer 原生支持，无需 `ParcelFileDescriptor` 绕路                        |
+### 🔀 播放队列与模式
 
-#### 🔀 播放队列与模式
+| 模式 | 说明 |
+|------|------|
+| 顺序播放 | 到末尾停止 |
+| 列表循环 🔁 | 循环播放列表 |
+| 单曲循环 🔂 | 重复当前歌曲 |
+| 随机播放 🔀 | Fisher-Yates 洗牌算法 |
+| 播放历史栈 | 支持"上一曲"回溯 |
+| 即将播放预览 | 显示接下来 3 首 |
 
-| 特性        |  状态 | 说明              |
-| --------- | :-: | --------------- |
-| 顺序播放      |  ✅  |                 |
-| 列表循环 (🔁) |  ✅  |                 |
-| 单曲循环 (🔂) |  ✅  |                 |
-| 随机播放 (🔀) |  ✅  | Fisher-Yates 洗牌 |
-| 播放历史栈     |  ✅  | 支持"上一曲"回溯       |
-| 即将播放预览    |  ✅  | 显示接下来 3 首       |
+### 🎶 歌词系统
 
-#### 🎹 频谱可视化
+| 特性 | 说明 |
+|------|------|
+| LRC 格式解析 | 兼容 `[mm:ss.xx]` / `[mm:ss.xxx]` / `[mm:ss]` |
+| 多源歌词 | 嵌入歌词 → 同名 .lrc → Navidrome 远程歌词 |
+| 时间轴同步 | 5 行显示（上上/上/当前/下/下下），当前行高亮 |
+| 全屏歌词页 | 毛玻璃模糊背景，手动滚动暂停 3 秒 |
+| 拖拽定位 | 长按拖动选择歌词行，松手 seek |
+| 歌词设置 | 拖拽开关、字体大小、对齐方式（左/中/右） |
+| 歌词缓存 | 解析结果持久化到 SQLite |
+| 远程歌词 | OpenSubsonic 结构化歌词 + 纯文本回退 |
 
-| 特性              |  状态 | 说明                              |
-| --------------- | :-: | ------------------------------- |
-| 512 点 FFT       |  ✅  | Cooley-Tukey + 汉宁窗              |
-| A 加权            |  ✅  | 等响度曲线修正                         |
-| 32 段对数频段        |  ✅  | 30Hz~16kHz                      |
-| 包络动效            |  ✅  | attack 0.7 / release 0.5        |
-| 峰值保持            |  ✅  | 600ms 慢落                        |
-| AGC             |  ✅  | 参考电平归一化                         |
-| 自适应采样率          |  ✅  | 44.1k/48k/96kHz                 |
-| 远程流低码率下载        |  ✅  | 32kbps MP3 样本下载，本地临时文件解码        |
-| 远程流下载 5s 延迟     |  ✅  | 播放 5 秒后才发起下载，优先保证播放体验           |
-| SpectrumCache 表 |  ✅  | 预埋数据库表（为频谱预计算缓存做准备，v1.0.3 新增） |
-| 本地文件实时解码        |  ✅  | MediaCodec seek+flush 精确定位      |
+### 🖥️ 桌面悬浮歌词
 
-#### 🎶 歌词
+| 特性 | 说明 |
+|------|------|
+| 悬浮窗显示 | SYSTEM_ALERT_WINDOW 权限 |
+| 触摸拖拽 | Y 轴拖动，锁定模式禁止 |
+| 锁定模式 | 🔒 锁定位置 / 🔐 解锁 |
+| 单行模式 | 居中跑马灯滚动 |
+| 双行 KTV | 当前行左上亮色 + 下一行右下暗色 |
+| 字体大小 | 12-36sp，实时预览 |
+| 歌词颜色 | 10 色预设色板 |
+| 粗体/透明度/边框 | 全部可自定义 |
+| 位置持久化 | Y 坐标保存到 SharedPreferences |
+| 通知栏快捷控制 | 开/关/锁定/单双行切换 |
+| 全厂商适配 | 小米/华为/荣耀/OPPO/vivo/魅族悬浮窗权限 |
 
-| 特性                       |  状态 | 说明                                          |
-| ------------------------ | :-: | ------------------------------------------- |
-| LRC 格式解析                 |  ✅  | 兼容 `[mm:ss.xx]` / `[mm:ss.xxx]` / `[mm:ss]` |
-| 时间轴同步高亮（5 行显示）          |  ✅  | 上上/上/当前/下/下下，当前行紫色高亮                        |
-| 全屏歌词页                    |  ✅  | 左滑进入，手动滚动暂停 3 秒，毛玻璃模糊背景                     |
-| 歌词缓存到 DB                 |  ✅  | Lyric 表持久化                                  |
-| content:// URI 歌词读取      |  ✅  | 通过 ContentResolver                          |
-| Navidrome 远程歌词            |  ✅  | OpenSubsonic 结构化歌词 + 纯文本回退                    |
-| **桌面悬浮歌词**               |  ✅  | 显示当前歌词行，支持拖拽、锁定、单行/双行KTV模式                  |
-| **桌面歌词自定义**              |  ✅  | 字体大小/颜色/粗体/背景透明度/边框，10 色色板，SharedPreferences 持久化 |
+### 💚 收藏与播放历史
 
-#### 🖥️ 桌面悬浮歌词
+| 特性 | 说明 |
+|------|------|
+| 收藏/取消 | ♥ 实时写入 SQLite |
+| 收藏列表 | 播放列表→收藏歌曲 Tab |
+| 通知栏收藏 | 一键收藏/取消 |
+| 播放历史 | 自动记录，去重计次 |
+| 历史上限 | 保留最近 20 条 |
 
-| 特性               |  状态 | 说明                                  |
-| ---------------- | :-: | ----------------------------------- |
-| 悬浮窗显示/隐藏          |  ✅  | SYSTEM_ALERT_WINDOW 权限              |
-| 触摸拖拽 (Y 轴)        |  ✅  | 锁定模式下禁止拖拽                          |
-| 锁定模式 (🔒)         |  ✅  | 🔒 锁定位置 / 🔐 解锁，按钮颜色联动              |
-| 单行显示模式           |  ✅  | 居中显示，跑马灯滚动                          |
-| 双行KTV显示模式        |  ✅  | 上（亮色居左）+ 下（暗色居右），当前 / 下一行          |
-| 字体大小             |  ✅  | 12-36sp，实时预览                        |
-| 歌词颜色             |  ✅  | 10 色预设（白/暖黄/天蓝/浅绿/粉红/浅紫/橙色/青色/亮绿/玫红） |
-| 粗体显示             |  ✅  | 开关后即时生效                            |
-| 背景透明度            |  ✅  | 0-100%，触摸时临时显示，1 秒后渐隐              |
-| 窗口边框             |  ✅  | 半透明白色圆角边框，开关可切换                    |
-| 锁定/控制按钮自动隐藏      |  ✅  | 触摸时显示，松手 2 秒后隐藏                     |
-| 位置持久化            |  ✅  | Y 坐标保存到 SharedPreferences           |
-| 播放恢复联动           |  ✅  | 恢复播放时自动弹出悬浮窗                       |
-| 通知栏快捷控制          |  ✅  | 通知栏直接控制开/关/锁定/单双行                  |
+### 🔔 通知栏 / MediaSession
 
-#### 💚 收藏与播放历史
+| 特性 | 说明 |
+|------|------|
+| MediaStyle 通知 | 播放控制 + 工具控制双通道 |
+| 封面显示 | 大尺寸专辑封面 |
+| MediaSession | 蓝牙耳机/车载音响/穿戴设备控制 |
+| 锁屏显示 | 封面/标题/控制按钮 |
+| 高优先级 | 播放通道可绕过勿扰模式 |
+| 前台 Service | TypeMediaPlayback 保活 |
 
-| 特性        |  状态 | 说明             |
-| --------- | :-: | -------------- |
-| ♥ 添加/移除收藏 |  ✅  | 实时写入 SQLite    |
-| 收藏列表查看    |  ✅  | 播放列表→收藏歌曲 tab  |
-| 切歌时同步收藏状态 |  ✅  | 从 DB 读取避免残留    |
-| 通知栏收藏快捷操作 |  ✅  | 通知栏一键收藏/取消     |
-| 自动记录播放历史  |  ✅  | 每次播放记录         |
-| 历史去重计次    |  ✅  | 同一首歌只保留一条，递增计数 |
-| 仅保留 20 条  |  ✅  | 超出自动清理         |
-| 按播放时间排序   |  ✅  | 最近优先           |
+### ☁️ 网络协议
 
-#### 🔔 通知栏 / 锁屏 / MediaSession
+**Navidrome (Subsonic API)**
 
-| 特性                      |  状态 | 说明                             |
-| ----------------------- | :-: | ------------------------------ |
-| MediaStyle 通知            |  ✅  | 播放控制（播放/暂停/上下曲）+ 工具控制双通道       |
-| 通知栏收藏按钮                |  ✅  | ♥ 收藏/取消收藏                     |
-| 通知栏桌面歌词开关              |  ✅  | 一键切换显示/隐藏                      |
-| 通知栏桌面歌词锁定/单行/双行       |  ✅  | 完整快捷键组                        |
-| 大尺寸专辑封面 (通知栏)           |  ✅  | BitmapFactory 加载封面            |
-| MediaSession (蓝牙/车载)     |  ✅  | 播放状态 + 元数据同步，支持 Skip/Seek 操作  |
-| 通知栏高优先级 (绕过勿扰)          |  ✅  | 播放通道 NotificationImportance.High |
-| 锁屏显示封面/标题              |  ✅  | NotificationVisibility.Public  |
-| WiFi Lock 锁屏保网          |  ✅  | WifiManager.WifiLock            |
-| 前台 Service               |  ✅  | ForegroundService TypeMediaPlayback |
+| 特性 | 说明 |
+|------|------|
+| Ping 连接测试 | `ping.view` |
+| 增量式扫描 | `getAlbumList2` + `getAlbum` 两阶段拉取 |
+| 封面图 | `getCoverArt.view`，懒加载 |
+| 歌词获取 | OpenSubsonic 结构化歌词 + 纯文本回退 |
+| 收藏同步 | `star` / `unstar` |
+| 流媒体 | `stream.view` |
+| Token 认证 | MD5(password + salt) |
 
-#### ☁️ 网络协议
+**WebDAV**
 
-| 特性                           |   状态   | 说明                                            |
-| ---------------------------- | :----: | --------------------------------------------- |
-| **Navidrome (Subsonic API)** | <br /> | <br />                                        |
-| Ping 连接测试                    |    ✅   | `ping.view`                                   |
-| 获取全部歌曲                       |    ✅   | `search3.view` 批量获取，增量式回调：每专辑完成后立即入库+刷新列表 |
-| 专辑列表                         |    ✅   | `getAlbumList2.view`                          |
-| 封面图                          |    ✅   | `getCoverArt.view`，懒加载：列表滚动时按需下载              |
-| 歌词获取                         |    ✅   | `getLyricsBySongId` (OpenSubsonic 结构化歌词)      |
-| 收藏/取消收藏                      |    ✅   | `star` / `unstar`                             |
-| 本地/网络歌曲隔离                    |    ✅   | Tab 切换时清空，按 Source 过滤                         |
-| 流媒体 URL                      |    ✅   | `stream.view` + 低码率参数 (32kbps)                 |
-| Token 认证                     |    ✅   | md5+salt                                      |
-| 配置持久化                        |    ✅   | 主机/端口/用户/密码/HTTPS                             |
-| 扫描进度条                        |    ✅   | `IProgress` 实时报告扫描进度                          |
+| 特性 | 说明 |
+|------|------|
+| PROPFIND | 列出文件和目录 |
+| GET | 读取文件流 |
+| Basic 认证 | 用户名/密码 |
+| SSL 证书 | 支持跳过验证 |
+| 连接测试 | Depth=0 PROPFIND 验证 |
 
-#### 📋 页面功能
+### 📱 页面导航
 
-| 特性                |   状态   | 说明                        |
-| ----------------- | :----: | ------------------------- |
-| **播放列表页**         | <br /> | <br />                    |
-| 全部歌曲列表            |    ✅   | 本地+网络去重合并，本地优先            |
-| 收藏歌曲列表            |    ✅   |                           |
-| 最近播放列表            |    ✅   |                           |
-| Tab 切换 (全部/收藏/最近) |    ✅   |                           |
-| 点击歌曲播放            |    ✅   | 设置队列+播放+同步迷你播放器           |
-| **音乐库页**          | <br /> | <br />                    |
-| 本地音乐列表            |    ✅   | 从 SQLite 加载，增量式每 50 首一批刷新 |
-| 网络音乐列表            |    ✅   | 加载所有启用的网络配置，增量式逐专辑刷新      |
-| 本地/网络 Tab 切换      |    ✅   |                           |
-| SAF 文件夹选择引导       |    ✅   |                           |
-| 扫描进度条             |    ✅   | 实时显示扫描进度和状态               |
-| **搜索页**           | <br /> | <br />                    |
-| 多字段搜索             |    ✅   | 标题/艺术家/专辑                 |
-| **全屏播放器**         | <br /> | <br />                    |
-| 大尺寸专辑封面           |    ✅   | 渐变色背景                     |
-| 歌曲信息              |    ✅   | 标题/艺术家                    |
-| 歌词五行滚动            |    ✅   | 上上/上/当前/下/下下              |
-| 进度滑块              |    ✅   |                           |
-| 收藏按钮              |    ✅   | ♥ 状态切换 + 通知栏联动            |
-| 播放模式循环            |    ✅   | 🔁→🔂→🔀                  |
-| 频谱可视化             |    ✅   | 支持本地 + 远程流低码率样本           |
-| 上一首/下一首/暂停        |    ✅   |                           |
-| **迷你播放器**         | <br /> | <br />                    |
-| 底部迷你条             |    ✅   | MaterialCardView 毛玻璃      |
-| 封面/标题/艺术家         |    ✅   |                           |
-| 播放/暂停/上/下         |    ✅   |                           |
-| 进度指示条             |    ✅   | 500ms 更新                  |
-| 点击跳转全屏            |    ✅   |                           |
-| **桌面歌词设置页**       |    ✅   | 完整设置页：权限/开关/字体/颜色/粗体/透明度/边框/模式 |
+| Tab | 页面 | 说明 |
+|-----|------|------|
+| Tab 0 | 全屏歌词 | 毛玻璃背景，拖拽定位 |
+| Tab 1 | 正在播放 | 封面/歌词/控制/播放列表弹窗 |
+| Tab 2 | 播放列表 | 全部/收藏/最近三个子 Tab |
+| Tab 3 | 搜索 | 实时搜索标题/艺术家/专辑 |
+| Tab 4 | 音乐库 | 本地/网络 Tab 切换 |
 
-#### 🎨 UI / UX
+**子页面**（Fragment 路由）：设置、通用设置、音乐文件夹、远程音乐、Navidrome 设置、WebDAV 设置、桌面歌词设置、播放列表详情
 
-| 特性                  |  状态 | 说明               |
-| ------------------- | :-: | ---------------- |
-| BottomNavigation 导航 |  ✅  | 4 tab：播放/列表/搜索/库 |
-| ViewPager2 滑动切换     |  ✅  |                  |
-| 播放页沉浸模式             |  ✅  | 隐藏工具栏+导航栏        |
-| 状态栏适配               |  ✅  | FitSystemBars    |
-| 侧滑设置面板              |  ✅  | 手势/点击遮罩关闭        |
-| 自定义桌面图标             |  ✅  |                  |
-| Material3 紫粉主题      |  ✅  |                  |
-| 闪屏主题                |  ✅  |                  |
+---
 
-#### 🗄️ 数据库 (SQLite)
-
-| 表                             |  状态 | 说明                          |
-| ----------------------------- | :-: | --------------------------- |
-| Songs (含 ArtistId/AlbumId 索引) |  ✅  | 含 RemoteId 列用于网络歌曲去重         |
-| Artists                       |  ✅  |                             |
-| Albums                        |  ✅  |                             |
-| Favorites                     |  ✅  |                             |
-| PlayHistory (含 PlayCount)     |  ✅  |                             |
-| ConnectionProfiles            |  ✅  |                             |
-| CachedSongs                   |  ✅  | 缓存信息表，下载逻辑待实现               |
-| Lyrics                        |  ✅  |                             |
-| Playlists                     |  ✅  |                             |
-| PlaylistSongs                 |  ✅  |                             |
-| **SpectrumCache（新）**         |  ✅  | 频谱预计算缓存索引（v1.0.3 预埋，待实现读取） |
-
-#### 🏗️ 架构
-
-| 特性                           |                                状态                                |
-| ---------------------------- | :--------------------------------------------------------------: |
-| DI 容器 (IServiceProvider)     |                                 ✅                                |
-| MVVM (CommunityToolkit.Mvvm) |                                 ✅                                |
-| ExoPlayer (Media3) 播放引擎      |                ✅ 替代 Android.Media.MediaPlayer                 |
-| 增量式扫描架构                      |       ✅ `IProgress` + `Func<List<Song>,Task>` 回调，逐批入库+增量 UI      |
-| 封面懒加载                        |              ✅ SongAdapter 内部懒加载，`_boundSongId` 防错位              |
-| 适配器增量刷新                      | ✅ `NotifyItemRangeInserted` 替代 `NotifyDataSetChanged`，O(n²)→O(1) |
-| 数据库 WAL 模式                   |                                 ✅                                |
-| 前台 Service + 通知栏双通道          |                ✅ ForegroundPlayerService + MediaSession               |
-| 悬浮窗 WindowManager 多 Context 降级 |               ✅ Application → Fragment/Activity → MainActivity              |
-
-### 🔧 未完成功能
-
-#### P1 — 重要功能缺失
-
-| 特性                |  优先级  | 说明                                                             |
-| ----------------- | :---: | -------------------------------------------------------------- |
-| WebDAV 音频扫描/入库/播放  | 🟠 P1 | PROPFIND/文件读取已实现，音频扫描入库播放全流程待完善                                 |
-| 自定义播放列表 (创建/编辑)   | 🟠 P1 | 数据表已建但无 UI 交互                                                  |
-| 缓存下载 (CachedSong) | 🟠 P1 | 表已建、清缓存按钮已有，但下载逻辑未实现                                           |
-| Album/Artist 网格浏览 | 🟠 P1 | 数据层方法存在但无 UI                                                   |
-| 歌曲长按菜单            | 🟠 P1 | SongAdapter 未实现 Context Menu                                   |
-| HomeFragment 首页   | 🟠 P1 | 文件存在但未注册使用                                                     |
-| 播放列表搜索            | 🟠 P1 | 搜索在单独 tab 中                                                    |
-
-#### P2 — 增强功能
-
-| 特性                 |  优先级  | 说明                       |
-| ------------------ | :---: | ------------------------ |
-| 深色模式               | 🟡 P2 | 仅明亮主题                    |
-| 均衡器 (Equalizer)    | 🟡 P2 | Android AudioEffect 未集成  |
-| 睡眠定时器              | 🟡 P2 | <br />                   |
-| 专辑封面墙浏览            | 🟡 P2 | <br />                   |
-| 桌面小部件 (App Widget) | 🟡 P2 | <br />                   |
-| Android Auto       | 🟡 P2 | <br />                   |
-| 歌曲元数据编辑            | 🟡 P2 | 无 ID3 标签编辑               |
-| 状态栏歌词              | 🟡 P2 | 播放时在 Android 状态栏滚动显示当前歌词 |
-| 音频震动（节奏触觉反馈）       | 🟡 P2 | 跟随音乐节奏/低频产生触觉反馈（振动马达）    |
-
-#### P3 — 协议扩展
-
-| 特性      |  优先级  | 说明    |
-| ------- | :---: | ----- |
-| SMB 协议  | 🔵 P3 | 枚举已定义 |
-| FTP 协议  | 🔵 P3 | 枚举已定义 |
-| DLNA 协议 | 🔵 P3 | 枚举已定义 |
-| NFS 协议  | 🔵 P3 | 枚举已定义 |
-
-***
-
-## 🏗 项目结构
+## 🏗️ 项目结构
 
 ```
 CatClawMusic/
-├── CatClawMusic.Core/              # 核心库
-│   ├── Models/                     # Song/Album/Playlist/Lyrics/ConnectionProfile/CachedSong/SpectrumCacheEntry
-│   ├── Interfaces/                 # IAudioPlayerService/ILyricsService/IPermissionService/INetworkMusicService 等
-│   └── Services/                   # PlayQueue/LyricsService/TagReader/MusicUtility
+├── CatClawMusic.Core/                  # 核心层
+│   ├── Models/                         # 数据模型 (Song, Album, Artist, Playlist, Lyric, Favorite, PlayHistory, CachedSong, ConnectionProfile)
+│   ├── Interfaces/                     # 接口定义 (IAudioPlayerService, ILyricsService, IMusicLibraryService, INetworkMusicService, ISubsonicService, INetworkFileService, IPlugin 等)
+│   └── Services/                       # 核心服务 (PlayQueue, LyricsService, TagReader, MusicUtility)
 │
-├── CatClawMusic.Data/              # 数据层
-│   ├── MusicDatabase.cs            # SQLite 数据库 (WAL 模式，11 张表)
-│   ├── MusicLibraryService.cs      # 本地音乐库服务（增量扫描/入库）
-│   ├── NetworkMusicService.cs      # 网络音乐聚合服务
-│   ├── SubsonicService.cs          # Navidrome/Subsonic API 实现
-│   └── WebDavService.cs            # WebDAV 文件服务实现
+├── CatClawMusic.Data/                  # 数据层
+│   ├── MusicDatabase.cs                # SQLite 数据库 (WAL 模式, 10 张表)
+│   ├── MusicLibraryService.cs          # 本地音乐库服务 (扫描/入库/搜索/合并去重)
+│   ├── NetworkMusicService.cs          # 网络音乐聚合服务 (协议分发/增量入库)
+│   ├── SubsonicService.cs              # Subsonic/Navidrome API 客户端
+│   └── WebDavService.cs                # WebDAV PROPFIND 文件服务
 │
-├── CatClawMusic.UI/                # UI 层（原生 Xamarin.Android）
-│   ├── Fragments/                  # 15 个 Fragment（播放/歌词/设置/库/搜索/桌面歌词 等）
-│   ├── Views/                      # SpectrumView（32 段 3 色渐变 + 峰值柱自定义绘制）
-│   ├── ViewModels/                 # 7 个 ViewModel（MVVM + CommunityToolkit）
-│   ├── Services/                   # DesktopLyricService / ForegroundPlayerService / FftAnalyzer / AndroidLocalScanner
-│   ├── Adapters/                   # SongAdapter / PlaylistAdapter / UpcomingSongAdapter
-│   ├── Platforms/Android/          # AudioPlayerService(ExoPlayer) / PermissionService / FolderPicker
-│   └── Resources/                  # 30+ 图标 / 字体 / 布局 / 配色
+├── CatClawMusic.UI/                    # UI 层 (原生 Android)
+│   ├── Fragments/                      # 14 个 Fragment (播放/歌词/设置/库/搜索/桌面歌词等)
+│   ├── ViewModels/                     # 8 个 ViewModel (MVVM + CommunityToolkit.Mvvm)
+│   ├── Services/                       # 平台服务 (DesktopLyricService, ForegroundPlayerService, NavigationService, PlaybackStateManager, AndroidLocalScanner 等)
+│   ├── Adapters/                       # 列表适配器 (SongAdapter, PlaylistAdapter, UpcomingSongAdapter)
+│   ├── Platforms/Android/              # Android 平台实现 (AudioPlayerService, PermissionService, FolderPicker, SafeContentScanner)
+│   ├── Helpers/                        # UI 工具 (BindingHelper, FontHelper, UiHelper)
+│   └── Resources/                      # Android 资源 (布局/图标/字体/动画/配色)
 │
-└── CatClawMusic.sln
+├── docs/                               # 文档
+│   └── 技术方案.md                      # 技术设计文档
+├── CatClawMusic.sln                    # 解决方案文件
+├── Directory.Build.props               # 构建属性 (Android SDK 路径)
+├── global.json                         # .NET SDK 版本锁定 (9.0.313)
+└── build_apk.bat                       # APK 构建脚本
 ```
 
-***
+---
 
-## 🎹 频谱引擎
+## 🗄️ 数据库 (SQLite)
 
-| 模块      | 实现                                                                           |
-| ------- | ---------------------------------------------------------------------------- |
-| **采集**  | 本地：MediaCodec 流式解码 → seek+flush 定位 → 512 帧 PCM；远程：HTTP 32kbps MP3 下载 → 本地文件解码 |
-| **FFT** | 512 点 Cooley-Tukey FFT + 汉宁窗                                                 |
-| **加权**  | A 加权等响度曲线修正，匹配人耳感知                                                           |
-| **频段**  | 30Hz~16kHz 纯对数 32 段（左密右疏），独立 bin 映射避免 DC 分量                               |
-| **动效**  | 主柱快上快下（attack 0.7 / release 0.5），峰值保持 600ms + 慢落                              |
-| **AGC** | 慢跟踪参考电平归一化 (α=0.98)，安静段不爆炸                                                    |
-| **采样率** | 自动适配 44.1k/48k/96kHz                                                         |
-| **渲染**  | Custom View：浅色峰值柱 (6%alpha) + 3 色渐变主柱 + 振幅联动透明度                               |
-| **缓存**  | SpectrumCache 数据库表预埋（v1.0.3），为频谱预解码文件缓存做准备                                    |
+10 张表，WAL 模式，5 个额外索引：
 
-***
+| 表 | 说明 |
+|----|------|
+| Songs | 歌曲 (含 ArtistId/AlbumId 索引, RemoteId 网络去重) |
+| Artists | 艺术家 (名称唯一) |
+| Albums | 专辑 (含 ArtistId 索引) |
+| Playlists | 播放列表 (含系统列表标识) |
+| PlaylistSongs | 播放列表-歌曲关联 (含位置排序) |
+| Favorites | 收藏 (以 SongId 为主键) |
+| PlayHistory | 播放历史 (含播放次数, 保留 20 条) |
+| Lyrics | 歌词缓存 (以 SongId 为主键) |
+| CachedSongs | 离线缓存 (下载逻辑待实现) |
+| ConnectionProfiles | 网络连接配置 (支持多协议) |
 
-## 🎶 歌词引擎
+---
 
-| 模块     | 实现                                                            |
-| ------ | ------------------------------------------------------------- |
-| **来源** | 嵌入歌词 → 同名 .lrc（SAF）→ Navidrome 远程歌词（OpenSubsonic 结构化 + 纯文本回退） |
-| **解析** | 兼容 `[mm:ss.xx]` / `[mm:ss.xxx]` / `[mm:ss]` 格式                |
-| **同步** | 500ms 定时器匹配播放位置 → 五行显示（上上/上/当前/下/下下），当前行紫色高亮                |
-| **恢复** | 重启后根据保存位置显示对应歌词行                                              |
-| **全屏** | 左滑进入，毛玻璃背景 + 深色遮罩，手动滚动暂停 3 秒                                 |
+## 🎨 UI 设计
 
-***
+**设计风格**：毛玻璃 (Glassmorphism) + Material 3
 
-## 🖥️ 桌面悬浮歌词引擎
+| 用途 | 色值 | 说明 |
+|------|------|------|
+| 主色 | `#9B7ED8` | 柔和紫粉 |
+| 辅色 | `#98B8E8` | 淡蓝 |
+| 强调色 | `#90D5C8` | 薄荷绿 |
+| 页面背景 | `#F0F2F5` | 浅灰白 |
+| 卡片背景 | `#E6FFFFFF` | 80% 不透明白色 |
+| 主文字 | `#2D2438` | 深紫灰 |
+| 副文字 | `#6B5E7A` | 中紫灰 |
 
-| 模块       | 实现                                                   |
-| -------- | ---------------------------------------------------- |
-| **窗口**   | WindowManager + SYSTEM_ALERT_WINDOW                  |
-| **类型降级** | APPLICATION_OVERLAY → Phone（ROM 兼容），多 Context 降级获取 |
-| **位置**   | 触摸拖拽 Y 轴，SharedPreferences 持久化                        |
-| **锁定**   | 🔒/🔐 切换，颜色联动，锁定模式禁止拖拽                               |
-| **单行**   | 居中跑马灯                                               |
-| **双行KTV** | 当前行左上亮色 + 下一行右下暗色（字体 75%），双行独立跑马灯/省略                |
-| **样式**   | 字体大小/颜色(10色)/粗体/背景透明度/边框，均实时生效                        |
-| **动效**   | 触摸时背景显示 + 锁按钮可见 → 1s 背景渐隐 + 2s 锁按钮隐藏                 |
+**字体**：站酷快乐体 2016 (标题/按钮) + 系统默认 (正文)
 
-***
+---
 
 ## 🔧 技术栈
 
-| 层    | 技术                              |
-| ---- | ------------------------------- |
-| 框架   | .NET 9 (Xamarin.Android)        |
-| 语言   | C# 12.0                         |
-| 数据库  | SQLite (sqlite-net-pcl + WAL)   |
-| MVVM | CommunityToolkit.Mvvm           |
-| 标签   | TagLibSharp                     |
-| 播放器  | ExoPlayer (AndroidX Media3)     |
-| 解码   | Android.Media.MediaCodec (频谱)  |
-| 权限   | SAF (Storage Access Framework) |
-| 通知   | MediaStyle + 自定义布局双通道        |
+| 层 | 技术 |
+|----|------|
+| 框架 | .NET 9 (Android) |
+| 语言 | C# 12.0 |
+| 架构 | MVVM + 三层架构 |
+| DI | Microsoft.Extensions.DependencyInjection |
+| MVVM | CommunityToolkit.Mvvm 8.2.2 |
+| 数据库 | SQLite (sqlite-net-pcl + WAL) |
+| 标签读取 | TagLibSharp 2.3.0 |
+| 播放器 | ExoPlayer (AndroidX Media3 1.10.0) |
+| UI 组件 | Material 3 + ViewPager2 + RecyclerView |
+| 权限 | SAF (Storage Access Framework) |
+| 通知 | MediaStyle + 自定义布局双通道 |
 | 媒体会话 | Android.Media.Session.MediaSession |
 
-***
-
-## 🧩 计划：插件扩展系统
-
-> 目标：通过轻量插件机制，让猫爪音乐支持更多功能而无需改动核心代码。
-
-### 插件类型
-
-| 类型         | 说明                                     | 示例                   |
-| ---------- | -------------------------------------- | -------------------- |
-| **协议插件**   | 实现 `INetworkMusicService` 接口，接入新的网络音乐源 | SMB、FTP、DLNA、NFS     |
-| **音频引擎插件** | 替换或扩展 `IAudioPlayerService` 实现         | ExoPlayer、VLC engine |
-| **封面来源插件** | 实现 `IAlbumCoverProvider`，提供额外封面来源      | 网易云封面、Last.fm        |
-| **歌词来源插件** | 实现 `ILyricsProvider`，在线搜索或下载歌词         | QQ 音乐歌词、网易云歌词        |
-| **显示插件**   | 扩展歌词/信息的显示方式                           | 状态栏歌词、桌面悬浮歌词         |
-| **可视化插件**  | 实现自定义频谱/可视化效果                          | 波形、环形光谱、花朵绽放         |
-| **控制插件**   | 扩展系统级播放控制入口                            | 锁屏控件、通知栏控件、桌面小部件     |
-| **交互插件**   | 扩展触觉/体感交互                              | 音频震动（节奏触觉反馈）         |
-| **工具插件**   | 提供额外的实用功能                              | 睡眠定时器、音乐闹钟、铃声制作      |
-
-### 插件接口设计（草案）
-
-```csharp
-/// <summary>
-/// 插件基类接口
-/// </summary>
-public interface IPlugin
-{
-    string Id { get; }                 // 唯一标识
-    string Name { get; }               // 显示名称
-    string Version { get; }
-    string? IconPath { get; }          // 可选图标
-    Task<bool> InitializeAsync();      // 初始化
-    Task ShutdownAsync();              // 卸载
-}
-
-/// <summary>
-/// 协议扩展插件
-/// </summary>
-public interface INetworkProtocolPlugin : IPlugin
-{
-    ProtocolType Protocol { get; }
-    ConnectionProfile DefaultProfile { get; }
-    Task<List<Song>> ScanAsync(ConnectionProfile profile);
-    Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile);
-    Task<Stream?> GetCoverAsync(string songId, ConnectionProfile profile);
-    Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile);
-}
-
-/// <summary>
-/// 歌词来源插件
-/// </summary>
-public interface ILyricsProviderPlugin : IPlugin
-{
-    Task<LrcLyrics?> SearchLyricsAsync(string title, string artist, string? album);
-    Task<string?> DownloadLyricsTextAsync(string sourceUrl);
-}
-```
-
-### 插件发现与安装
-
-| 方式            | 说明                                          |
-| ------------- | ------------------------------------------- |
-| **内置插件**      | 编译时集成到 APK，无需额外安装                           |
-| **本地导入**      | 通过 `.catclaw-plugin` 安装包（ZIP 格式，内含清单 + 程序集） |
-| **远程仓库**      | 从插件仓库索引列表一键下载安装                             |
-| **GitHub 直链** | 输入 GitHub Releases URL 自动识别并安装              |
-
-### 优先级排序
-
-|  优先级  | 插件                 | 预计工作量 |
-| :---: | ------------------ | :---: |
-| 🔴 P0 | 协议插件框架（SMB 作为首个实现） |   中   |
-| 🟠 P1 | 在线歌词搜索插件           |   中   |
-| 🟠 P1 | 后台下载缓存插件           |   小   |
-| 🔵 P3 | 封面搜索插件             |   中   |
-| 🔵 P3 | 可视化效果包             |   大   |
-
-***
+---
 
 ## 🔨 构建说明
 
+### 环境要求
+
+- .NET SDK 9.0+
+- Visual Studio 2022+ (需使用 MSBuild 构建，`dotnet build` 存在兼容性问题)
+- Android SDK (API 31+)
+- JDK 21
+
+### 构建步骤
+
 ```bash
-# 注意：.NET 10 SDK 有 NuGet restore 兼容性问题
-# 必须使用 VS MSBuild，而非 dotnet build
+# 方式一：使用构建脚本（推荐）
+build_apk.bat
 
-# 构建前需设置 Android SDK 环境变量（build_apk.bat 已自动处理）：
-#   ANDROID_HOME = C:\Users\lvjin\AppData\Local\Android\Sdk
-#   ANDROID_SDK_ROOT = C:\Users\lvjin\AppData\Local\Android\Sdk
+# 方式二：手动构建
+# 1. 设置环境变量
+set ANDROID_HOME=C:\Users\<用户名>\AppData\Local\Android\Sdk
+set ANDROID_SDK_ROOT=%ANDROID_HOME%
 
-# 方式一：双击 build_apk.bat（推荐）
-D:\WorkBuddy\CatClawMusic\build_apk.bat
+# 2. NuGet 还原
+MSBuild /t:Restore /p:Configuration=Release
 
-# 方式二：cmd 下运行
-cd D:\WorkBuddy\CatClawMusic
-cmd /c build_apk.bat
-
-# APK 输出路径：
-# CatClawMusic.UI\bin\Release\net9.0-android\CatClawMusic.UI-Signed.apk
+# 3. 构建 APK
+MSBuild /t:Build /p:Configuration=Release
 ```
 
-***
+### APK 输出路径
+
+```
+CatClawMusic.UI\bin\Release\net9.0-android\CatClawMusic.UI-Signed.apk
+```
+
+---
+
+## 🧩 插件扩展系统 (规划中)
+
+通过轻量插件机制扩展功能，已定义接口：
+
+| 插件类型 | 接口 | 说明 |
+|----------|------|------|
+| 协议插件 | `IProtocolProviderPlugin` | 接入新网络音乐源 (SMB/FTP/DLNA/NFS) |
+| 歌词插件 | `ILyricsProviderPlugin` | 在线搜索/下载歌词 |
+| 基础插件 | `IPlugin` | 插件生命周期管理 |
+
+`ProtocolType` 枚举已预留：`WebDAV(0)`, `Navidrome(1)`, `SMB(2)`, `DLNA(3)`, `FTP(4)`, `NFS(5)`
+
+---
+
+## 📋 待完成功能
+
+### P1 — 重要功能缺失
+
+| 功能 | 说明 |
+|------|------|
+| WebDAV 音频扫描/播放 | PROPFIND/文件读取已实现，音频全流程待完善 |
+| 自定义播放列表 | 数据表已建，无 UI 交互 |
+| 离线缓存下载 | CachedSong 表已建，下载逻辑未实现 |
+| Album/Artist 网格浏览 | 数据层方法存在，无 UI |
+| 歌曲长按菜单 | SongAdapter 未实现 Context Menu |
+
+### P2 — 增强功能
+
+| 功能 | 说明 |
+|------|------|
+| 深色模式 | 仅明亮主题 |
+| 均衡器 | Android AudioEffect 未集成 |
+| 睡眠定时器 | — |
+| 桌面小部件 | App Widget |
+| Android Auto | — |
+| 歌曲元数据编辑 | 无 ID3 标签编辑 |
+| 状态栏歌词 | — |
+
+### P3 — 协议扩展
+
+| 协议 | 状态 |
+|------|------|
+| SMB | 枚举已定义 |
+| FTP | 枚举已定义 |
+| DLNA | 枚举已定义 |
+| NFS | 枚举已定义 |
+
+---
 
 ## 📄 开源协议
 
-MIT License © 2026 CatClaw Music
+MIT License
 
-***
+---
 
 **🐾 猫爪音乐 — 让音乐更可爱 🎵**

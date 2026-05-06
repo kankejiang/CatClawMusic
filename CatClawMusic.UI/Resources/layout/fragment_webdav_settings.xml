@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="@color/pageBackground">
+    android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
     <include layout="@layout/include_settings_toolbar" />
 
@@ -51,20 +51,62 @@
                     android:inputType="textPassword" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:hint="路径（如 /music）" android:layout_marginBottom="12dp"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
-                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_base_path"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="/" />
-            </com.google.android.material.textfield.TextInputLayout>
+            <!-- 路径选择区域：只读显示 + 浏览按钮 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="音乐路径"
+                android:textColor="?attr/catClawTextSecondary"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp"
+                android:gravity="center_vertical">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    app:cardCornerRadius="12dp"
+                    app:cardBackgroundColor="?attr/catClawCardBackgroundSolid"
+                    app:strokeColor="?attr/catClawCardBorderDark"
+                    app:strokeWidth="1dp"
+                    android:layout_marginEnd="8dp">
+
+                    <TextView
+                        android:id="@+id/tv_base_path"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="8dp"
+                        android:text="/"
+                        android:textColor="?attr/catClawTextPrimary"
+                        android:textSize="14sp"
+                        android:maxLines="1"
+                        android:ellipsize="start" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <Button
+                    android:id="@+id/btn_browse"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:text="浏览"
+                    android:textSize="14sp"
+                    android:minWidth="72dp"
+                    style="@style/CatClawButtonPrimary" />
+            </LinearLayout>
 
             <androidx.appcompat.widget.SwitchCompat android:id="@+id/sw_https"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:text="使用 HTTPS" android:layout_marginBottom="12dp" />
 
             <TextView android:id="@+id/status_text" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:textColor="@color/textHint"
+                android:layout_height="wrap_content" android:textColor="?attr/catClawTextHint"
                 android:textSize="13sp" android:padding="8dp" android:gravity="center"
                 android:visibility="gone" />
 
