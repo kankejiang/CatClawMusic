@@ -237,31 +237,6 @@ CatClawMusic/
 - Android SDK (API 31+)
 - JDK 21
 
-### 构建步骤
-
-```bash
-# 方式一：使用构建脚本（推荐）
-build_apk.bat
-
-# 方式二：手动构建
-# 1. 设置环境变量
-set ANDROID_HOME=C:\Users\<用户名>\AppData\Local\Android\Sdk
-set ANDROID_SDK_ROOT=%ANDROID_HOME%
-
-# 2. NuGet 还原
-MSBuild /t:Restore /p:Configuration=Release
-
-# 3. 构建 APK
-MSBuild /t:Build /p:Configuration=Release
-```
-
-### APK 输出路径
-
-```
-CatClawMusic.UI\bin\Release\net9.0-android\CatClawMusic.UI-Signed.apk
-```
-
----
 
 ## 🧩 插件扩展系统 (规划中)
 
