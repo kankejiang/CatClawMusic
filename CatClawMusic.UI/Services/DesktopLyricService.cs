@@ -1,4 +1,4 @@
-﻿using Android.Content;
+using Android.Content;
 using Android.Graphics;
 using Android.OS;
 using Android.Runtime;
@@ -223,7 +223,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             var inflater = LayoutInflater.From(context);
             var view = inflater.Inflate(Resource.Layout.desktop_lyric_view, null);
 
-            var rootLayout = view.FindViewById<LinearLayout>(Resource.Id.desktop_lyric_root);
+            var rootLayout = view.FindViewById<ViewGroup>(Resource.Id.desktop_lyric_root);
             var singleView = view.FindViewById<TextView>(Resource.Id.tv_desktop_lyric_single);
             var prevView = view.FindViewById<TextView>(Resource.Id.tv_desktop_lyric_prev);
             var nextView = view.FindViewById<TextView>(Resource.Id.tv_desktop_lyric_next);
