@@ -28,6 +28,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private CancellationTokenSource? _errorDialogCts;
     private CancellationTokenSource? _songLoadCts;
     private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
+    private volatile bool _isSwitchingSong; // 用户主动切歌时设置，阻止 Stopped 事件错误调用 Next()
 
     [ObservableProperty] private Song? _currentSong;
     [ObservableProperty] private string _coverSource = "";
@@ -95,6 +96,7 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>恢复上次播放（供 PlaybackStateManager 调用）</summary>
     public void SetCurrentSong(Song song)
     {
+        _isSwitchingSong = true;
         CurrentSong = song;
         UpdateQueuePeek();
     }
@@ -115,10 +117,10 @@ public partial class NowPlayingViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Next() { var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void Next() { _isSwitchingSong = true; var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
     [RelayCommand]
-    private void Previous() { var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void Previous() { _isSwitchingSong = true; var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
     [RelayCommand]
     private void CyclePlayMode()
@@ -252,9 +254,14 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         _dispatcher.Post(() =>
         {
-            if (e.State == PlaybackState.Stopped) Next();
+            if (e.State == PlaybackState.Stopped)
+            {
+                if (!_isSwitchingSong)
+                    Next();
+            }
             else if (e.State == PlaybackState.Playing)
             {
+                _isSwitchingSong = false;
                 // 检查当前显示的歌曲和实际播放的队列歌曲是否一致
                 var queueSong = _playQueue.CurrentSong;
                 if (queueSong != null && (CurrentSong == null || CurrentSong.Id != queueSong.Id))
@@ -274,6 +281,7 @@ public partial class NowPlayingViewModel : ObservableObject
             }
             else if (e.State is PlaybackState.Paused or PlaybackState.Error)
             {
+                _isSwitchingSong = false;
                 PlayPauseIcon = "▶";
                 // 播放失败时，如果当前显示的歌曲和实际播放的不一致，回退到上一首
                 if (e.State == PlaybackState.Error)
