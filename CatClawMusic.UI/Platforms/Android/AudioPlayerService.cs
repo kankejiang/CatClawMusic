@@ -4,6 +4,7 @@ using CatClawMusic.UI.Services;
 using System.Timers;
 using AndroidHandler = Android.OS.Handler;
 using ALog = Android.Util.Log;
+using Am = Android.Media.AudioManager;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
@@ -21,6 +22,10 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private long _cachedPositionMs;
     private string? _currentAuthHeader;
     private readonly AndroidHandler _mainHandler = new(Looper.MainLooper!);
+
+    private Am? _audioManager;
+    private bool _pausedByFocusLoss;
+    private int _preFocusVolume = 100;
     public bool IsPlaying => _player?.IsPlaying ?? false;
     public string? CurrentSongFilePath => _currentPath;
     public int AudioSessionId => 0;
@@ -47,6 +52,91 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 #pragma warning disable CS0067
     public event Action<byte[]>? PcmDataAvailable;
 #pragma warning restore CS0067
+
+    private readonly AudioFocusChangeListener? _focusListener;
+
+    public AudioPlayerService()
+    {
+        var ctx = global::Android.App.Application.Context;
+        _audioManager = (Am)ctx.GetSystemService(global::Android.Content.Context.AudioService)!;
+        _focusListener = new AudioFocusChangeListener(this);
+    }
+
+    private class AudioFocusChangeListener : Java.Lang.Object, Am.IOnAudioFocusChangeListener
+    {
+        private readonly WeakReference<AudioPlayerService> _serviceRef;
+        public AudioFocusChangeListener(AudioPlayerService service) => _serviceRef = new(service);
+        public void OnAudioFocusChange(global::Android.Media.AudioFocus focusChange)
+        {
+            if (!_serviceRef.TryGetTarget(out var self)) return;
+            self._mainHandler.Post(() => self.HandleFocusChange(focusChange));
+        }
+    }
+
+    private void HandleFocusChange(global::Android.Media.AudioFocus focusChange)
+    {
+        ALog.Debug("CatClaw", $"[CatClaw] AudioFocus: {focusChange}");
+        switch (focusChange)
+        {
+            case global::Android.Media.AudioFocus.Gain:
+                if (_pausedByFocusLoss)
+                {
+                    _pausedByFocusLoss = false;
+                    _ = ResumeAsync();
+                }
+                else if (_volume < _preFocusVolume)
+                {
+                    Volume = _preFocusVolume;
+                }
+                break;
+            case global::Android.Media.AudioFocus.Loss:
+                _pausedByFocusLoss = false;
+                _ = PauseAsync();
+                break;
+            case global::Android.Media.AudioFocus.LossTransient:
+                if (IsPlaying)
+                {
+                    _pausedByFocusLoss = true;
+                    _ = PauseAsync();
+                }
+                break;
+            case global::Android.Media.AudioFocus.LossTransientCanDuck:
+                _preFocusVolume = _volume;
+                Volume = Math.Max(10, _volume / 3);
+                break;
+        }
+    }
+
+    private void RequestAudioFocus()
+    {
+        try
+        {
+            if (_audioManager == null || _focusListener == null) return;
+            var result = _audioManager.RequestAudioFocus(
+                _focusListener,
+                global::Android.Media.Stream.Music,
+                global::Android.Media.AudioFocus.Gain);
+            ALog.Debug("CatClaw", $"[CatClaw] RequestAudioFocus: {result}");
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"[CatClaw] RequestAudioFocus failed: {ex.Message}");
+        }
+    }
+
+    private void AbandonAudioFocus()
+    {
+        try
+        {
+            if (_audioManager != null && _focusListener != null)
+                _audioManager.AbandonAudioFocus(_focusListener);
+            _pausedByFocusLoss = false;
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"[CatClaw] AbandonAudioFocus failed: {ex.Message}");
+        }
+    }
 
     public async Task PlayAsync(string filePathOrUrl)
     {
@@ -140,6 +230,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
             _isPrepared = true;
             _currentPath = filePathOrUrl;
 
+            RequestAudioFocus();
             AcquireWakeLock();
             StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
             StartPositionTimer();
@@ -184,6 +275,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                 _player.ClearMediaItems();
                 StopPositionTimer();
                 ReleaseWakeLock();
+                AbandonAudioFocus();
                 StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
             });
         return Task.CompletedTask;
@@ -325,6 +417,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     {
         StopPositionTimer();
         ReleaseWakeLock();
+        AbandonAudioFocus();
         if (_player != null)
         {
             _mainHandler.Post(() => { _player.Release(); _player.Dispose(); });

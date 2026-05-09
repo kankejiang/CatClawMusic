@@ -6,6 +6,7 @@ using Android.Media;
 using Android.Media.Session;
 using Android.Net.Wifi;
 using Android.OS;
+using Android.Views;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -154,7 +155,9 @@ public class ForegroundPlayerService : Service
         try
         {
             _mediaSession = new MediaSession(this, "CatClawMusic");
-            _mediaSession.SetFlags(MediaSession.FlagHandlesTransportControls);
+            _mediaSession.SetFlags(
+                MediaSession.FlagHandlesTransportControls |
+                MediaSession.FlagHandlesMediaButtons);
             _mediaSession.SetCallback(new MediaSessionCallback(this));
             _mediaSession.Active = true;
             UpdateMediaSessionPlaybackState();
@@ -176,6 +179,62 @@ public class ForegroundPlayerService : Service
         public override void OnSkipToNext() => _service._nowPlayingVm?.NextCommand.Execute(null);
         public override void OnSkipToPrevious() => _service._nowPlayingVm?.PreviousCommand.Execute(null);
         public override void OnSeekTo(long pos) => _service._audioPlayer?.SeekAsync(TimeSpan.FromMilliseconds(pos));
+
+        public override bool OnMediaButtonEvent(Intent? mediaButtonIntent)
+        {
+            if (mediaButtonIntent?.Action != Intent.ActionMediaButton)
+                return base.OnMediaButtonEvent(mediaButtonIntent);
+
+            var keyEvent = mediaButtonIntent.GetParcelableExtra(Intent.ExtraKeyEvent) as KeyEvent;
+            if (keyEvent?.Action != KeyEventActions.Down)
+                return true;
+
+            var handled = true;
+            switch (keyEvent.KeyCode)
+            {
+                case Keycode.Headsethook:
+                case Keycode.MediaPlayPause:
+                    if (_service._audioPlayer?.IsPlaying ?? false)
+                        _service._audioPlayer?.PauseAsync();
+                    else
+                        _service._audioPlayer?.ResumeAsync();
+                    break;
+                case Keycode.MediaPlay:
+                    _service._audioPlayer?.ResumeAsync();
+                    break;
+                case Keycode.MediaPause:
+                    _service._audioPlayer?.PauseAsync();
+                    break;
+                case Keycode.MediaNext:
+                    _service._nowPlayingVm?.NextCommand.Execute(null);
+                    break;
+                case Keycode.MediaPrevious:
+                    _service._nowPlayingVm?.PreviousCommand.Execute(null);
+                    break;
+                case Keycode.MediaFastForward:
+                    if (_service._audioPlayer != null)
+                    {
+                        var fwdMs = _service._audioPlayer.CurrentPosition.TotalMilliseconds + 5000;
+                        _ = _service._audioPlayer.SeekAsync(TimeSpan.FromMilliseconds(fwdMs));
+                    }
+                    break;
+                case Keycode.MediaRewind:
+                    if (_service._audioPlayer != null)
+                    {
+                        var rwdMs = Math.Max(0, _service._audioPlayer.CurrentPosition.TotalMilliseconds - 5000);
+                        _ = _service._audioPlayer.SeekAsync(TimeSpan.FromMilliseconds(rwdMs));
+                    }
+                    break;
+                case Keycode.MediaStop:
+                    _service._audioPlayer?.PauseAsync();
+                    break;
+                default:
+                    handled = base.OnMediaButtonEvent(mediaButtonIntent);
+                    break;
+            }
+
+            return handled;
+        }
     }
 
     private void ReleaseMediaSession()
