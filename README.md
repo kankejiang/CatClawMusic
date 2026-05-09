@@ -287,6 +287,24 @@ CatClawMusic/
 
 ---
 
+## 📋 版本历史
+
+### v1.0.4 (2026-05-09)
+
+**🎵 本地音乐扫描重构**
+- ✅ 增量式扫描架构 — 与网络音乐保持一致，支持 `IProgress<(done, total, status)>` + `Func<List<Song>, Task>` 回调
+- ✅ SAF 文件夹隔离 — 检测到 SAF URI 时跳过 MediaStore，只扫描用户选择的文件夹
+- ✅ 主线程 ANR 修复 — `NotifyItemRangeInserted` 替代 `NotifyDataSetChanged`，从 O(n²) 降至 O(1)
+- ✅ 封面懒加载优化 — `SongAdapter` 注入 `INetworkMusicService`，按 `_boundSongId` 防错位
+- ✅ `build_apk.bat` 修复 — 添加 `ANDROID_HOME` 和 `ANDROID_SDK_ROOT` 环境变量
+
+**🐛 修复**
+- 修复扫描本地音乐时扫描到未选中文件夹的 bug
+- 修复主线程 ANR（9+ 秒帧跳过）
+- 修复 `Android.OS.Build.Version` 编译错误（全大写 VERSION）
+
+---
+
 ## 📄 开源协议
 
 MIT License
