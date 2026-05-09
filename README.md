@@ -305,6 +305,19 @@ CatClawMusic/
 - ✅ 封面懒加载优化 — `SongAdapter` 注入 `INetworkMusicService`，按 `_boundSongId` 防错位
 - ✅ `build_apk.bat` 修复 — 添加 `ANDROID_HOME` 和 `ANDROID_SDK_ROOT` 环境变量
 
+**☁️ WebDAV 功能完善**
+- ✅ WebDAV 音频扫描全流程
+- ✅ WebDAV 音频播放全流程
+- ✅ Basic 认证支持
+- ✅ SSL 证书支持（可跳过验证）
+- ✅ 连接测试（Depth=0 PROPFIND 验证）
+
+**🎨 主题功能**
+- ✅ 深色模式支持（明亮/深色主题切换）
+- ✅ 多配色主题（多套预设配色方案可选）
+- ✅ 主题持久化（用户选择自动保存）
+- ✅ 动态应用（切换主题实时生效）
+
 **🐛 修复**
 - 修复扫描本地音乐时扫描到未选中文件夹的 bug
 - 修复主线程 ANR（9+ 秒帧跳过）
