@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -20,6 +21,12 @@ public partial class PlaylistViewModel : ObservableObject
 
     [ObservableProperty]
     private string _activeTab = "all";
+
+    [ObservableProperty]
+    private string _sortKey = "title";
+
+    [ObservableProperty]
+    private bool _sortDescending;
 
     public PlaylistViewModel(IMusicLibraryService musicLibrary, INavigationService navigationService,
         IAudioPlayerService? audioPlayer = null, Core.Services.PlayQueue? playQueue = null, IServiceProvider? serviceProvider = null)
@@ -87,11 +94,54 @@ public partial class PlaylistViewModel : ObservableObject
         _ = db?.RecordPlayAsync(song.Id);
     }
 
+    public void SetSort(string key)
+    {
+        if (SortKey == key)
+            SortDescending = !SortDescending;
+        else
+        {
+            SortKey = key;
+            SortDescending = false;
+        }
+        ApplySort();
+    }
+
+    private void ApplySort()
+    {
+        var sorted = SortKey switch
+        {
+            "artist" => SortDescending
+                ? Songs.OrderByDescending(s => s.Artist).ToList()
+                : Songs.OrderBy(s => s.Artist).ToList(),
+            "album" => SortDescending
+                ? Songs.OrderByDescending(s => s.Album).ToList()
+                : Songs.OrderBy(s => s.Album).ToList(),
+            _ => SortDescending
+                ? Songs.OrderByDescending(s => s.Title).ToList()
+                : Songs.OrderBy(s => s.Title).ToList(),
+        };
+        Songs.Clear();
+        foreach (var s in sorted)
+            Songs.Add(s);
+    }
+
     /// <summary>批量替换歌曲列表，先清空再一次性填充</summary>
     private void BatchReplaceSongs(List<Song> songs)
     {
         Songs.Clear(); // 单次 Reset 事件
-        foreach (var s in songs)
+        var sorted = SortKey switch
+        {
+            "artist" => SortDescending
+                ? songs.OrderByDescending(s => s.Artist).ToList()
+                : songs.OrderBy(s => s.Artist).ToList(),
+            "album" => SortDescending
+                ? songs.OrderByDescending(s => s.Album).ToList()
+                : songs.OrderBy(s => s.Album).ToList(),
+            _ => SortDescending
+                ? songs.OrderByDescending(s => s.Title).ToList()
+                : songs.OrderBy(s => s.Title).ToList(),
+        };
+        foreach (var s in sorted)
             Songs.Add(s);
     }
 }

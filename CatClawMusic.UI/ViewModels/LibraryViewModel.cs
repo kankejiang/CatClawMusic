@@ -46,8 +46,6 @@ public partial class LibraryViewModel : ObservableObject
         _dispatcher = dispatcher!;
 
         // 初始化协议选项
-        ProtocolOptions.Add("全部协议");
-        ProtocolTypes.Add((CoreModels.ProtocolType)(-1));
         ProtocolOptions.Add("WebDAV");
         ProtocolTypes.Add(CoreModels.ProtocolType.WebDAV);
         ProtocolOptions.Add("Navidrome");
@@ -284,7 +282,7 @@ public partial class LibraryViewModel : ObservableObject
             var enabled = (await _networkMusic.GetProfilesAsync()).Where(p => p.IsEnabled).ToList();
             
             // 根据选择的协议过滤
-            if (_selectedProtocolIndex > 0 && _selectedProtocolIndex < ProtocolTypes.Count)
+            if (_selectedProtocolIndex < ProtocolTypes.Count)
             {
                 var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
                 enabled = enabled.Where(p => p.Protocol == selectedProtocol).ToList();
@@ -342,7 +340,7 @@ public partial class LibraryViewModel : ObservableObject
 
     private List<CoreModels.Song> FilterSongsByProtocol(List<CoreModels.Song> songs)
     {
-        if (_selectedProtocolIndex <= 0 || _selectedProtocolIndex >= ProtocolTypes.Count)
+        if (_selectedProtocolIndex >= ProtocolTypes.Count)
             return songs;
 
         var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];

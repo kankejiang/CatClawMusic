@@ -34,6 +34,37 @@
             android:background="?attr/selectableItemBackground" />
     </LinearLayout>
 
+    <!-- 排序栏 -->
+    <LinearLayout android:id="@+id/sort_bar" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:orientation="horizontal"
+        android:layout_marginHorizontal="16dp" android:layout_marginBottom="8dp"
+        android:gravity="center_vertical">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="排序：" android:textColor="?attr/catClawTextHint"
+            android:textSize="13sp" android:layout_marginEnd="8dp" />
+        <TextView android:id="@+id/sort_title" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="标题 ↑"
+            android:textColor="?attr/catClawTextPrimary" android:textSize="13sp"
+            android:fontFamily="sans-serif-medium" android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp" android:layout_marginEnd="8dp"
+            android:clickable="true" android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+        <TextView android:id="@+id/sort_artist" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="艺术家"
+            android:textColor="?attr/catClawTextHint" android:textSize="13sp"
+            android:fontFamily="sans-serif" android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp" android:layout_marginEnd="8dp"
+            android:clickable="true" android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+        <TextView android:id="@+id/sort_album" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="专辑"
+            android:textColor="?attr/catClawTextHint" android:textSize="13sp"
+            android:fontFamily="sans-serif" android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp" android:layout_marginEnd="8dp"
+            android:clickable="true" android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+    </LinearLayout>
+
     <!-- 歌曲列表 -->
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/song_list"
         android:layout_width="match_parent" android:layout_height="0dp"
