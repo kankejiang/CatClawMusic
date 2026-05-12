@@ -217,7 +217,8 @@ public partial class NowPlayingViewModel : ObservableObject
                 var coverPath = Path.Combine(cacheDir, $"cover_{song.Id}.jpg");
                 using (var fs = File.Create(coverPath)) await stream.CopyToAsync(fs);
                 stream.Dispose();
-                _dispatcher.Post(() => CoverSource = coverPath);
+                var songId = song.Id;
+                _dispatcher.Post(() => { if (CurrentSong?.Id == songId) CoverSource = coverPath; });
             }
         }
         catch { }
@@ -372,20 +373,26 @@ public partial class NowPlayingViewModel : ObservableObject
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
         if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; return; }
+        var songId = song.Id;
         CurrentLyricLine = "正在加载歌词..."; NextLyricLine = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = "";
         CurrentLyrics = await _lyricsService.GetLyricsAsync(song);
         ct.ThrowIfCancellationRequested();
+
+        if (CurrentSong?.Id != songId) return;
 
         if (CurrentLyrics == null && song.Source == SongSource.WebDAV)
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 网络歌曲, Source={song.Source}, 尝试远程歌词");
             CurrentLyrics = await GetNetworkLyricsAsync(song);
             ct.ThrowIfCancellationRequested();
+            if (CurrentSong?.Id != songId) return;
         }
         else if (CurrentLyrics == null)
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 本地无歌词, Source={song.Source}, 跳过远程");
         }
+
+        if (CurrentSong?.Id != songId) return;
 
         if (CurrentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
         else if (CurrentLyrics.Lines.Count > 0)

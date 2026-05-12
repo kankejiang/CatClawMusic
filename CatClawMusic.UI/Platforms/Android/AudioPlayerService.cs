@@ -142,6 +142,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     {
         _isPrepared = false;
         _lastPlaybackState = 1;
+        _cachedPositionMs = 0;
 
         ALog.Debug("CatClaw", $"[CatClaw] PlayAsync: path={filePathOrUrl?.Substring(0, Math.Min(120, filePathOrUrl?.Length ?? 0))}");
 
