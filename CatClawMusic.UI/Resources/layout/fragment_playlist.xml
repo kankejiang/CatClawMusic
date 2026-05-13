@@ -1,119 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
-    <!-- 标题 -->
     <TextView android:id="@+id/title_text" android:layout_width="wrap_content"
         android:layout_height="wrap_content" android:text="@string/tab_playlist"
         android:textSize="22sp" android:fontFamily="@font/happy_zcool_2016"
         android:textColor="?attr/catClawTextPrimary" android:layout_marginHorizontal="16dp"
         android:layout_marginTop="16dp" android:layout_marginBottom="8dp" />
 
-    <!-- 歌单横向列表 -->
-    <LinearLayout android:id="@+id/playlist_strip_section"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:gravity="center_vertical"
-        android:layout_marginHorizontal="16dp" android:layout_marginBottom="12dp">
-
-        <!-- 新建歌单按钮 -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/btn_new_playlist"
-            style="@style/CatClawCardSmall"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            app:cardCornerRadius="12dp" android:clickable="true" android:focusable="true"
-            android:foreground="?attr/selectableItemBackground"
-            app:strokeColor="#9B7ED8" app:strokeWidth="1dp">
-
-            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:orientation="vertical" android:padding="12dp"
-                android:gravity="center_horizontal" android:minWidth="80dp">
-
-                <TextView android:layout_width="32dp" android:layout_height="32dp"
-                    android:text="+" android:textSize="22sp" android:textColor="#9B7ED8"
-                    android:gravity="center" android:fontFamily="sans-serif-light" />
-
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="新建歌单" android:textSize="11sp"
-                    android:textColor="#9B7ED8" android:layout_marginTop="2dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 歌单横向滚动 -->
-        <HorizontalScrollView android:id="@+id/playlist_strip_scroll"
-            android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:scrollbars="none">
-
-            <LinearLayout android:id="@+id/playlist_strip_container"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:orientation="horizontal" />
-        </HorizontalScrollView>
-    </LinearLayout>
-
-    <!-- 分类标签栏 -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="8dp">
-        <TextView android:id="@+id/tab_all" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="全部歌曲"
-            android:textSize="15sp" android:fontFamily="sans-serif-medium"
-            android:padding="8dp" android:layout_marginEnd="12dp"
-            android:clickable="true" android:focusable="true"
-            android:background="?attr/selectableItemBackground" />
-        <TextView android:id="@+id/tab_fav" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="收藏歌曲"
-            android:textSize="15sp" android:fontFamily="sans-serif"
-            android:padding="8dp" android:layout_marginEnd="12dp"
-            android:clickable="true" android:focusable="true"
-            android:background="?attr/selectableItemBackground" />
-        <TextView android:id="@+id/tab_recent" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="最近播放"
-            android:textSize="15sp" android:fontFamily="sans-serif"
-            android:padding="8dp" android:layout_marginEnd="12dp"
-            android:clickable="true" android:focusable="true"
-            android:background="?attr/selectableItemBackground" />
-    </LinearLayout>
-
-    <!-- 排序栏 -->
-    <LinearLayout android:id="@+id/sort_bar" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:orientation="horizontal"
-        android:layout_marginHorizontal="16dp" android:layout_marginBottom="8dp"
-        android:gravity="center_vertical">
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="排序：" android:textColor="?attr/catClawTextHint"
-            android:textSize="13sp" android:layout_marginEnd="8dp" />
-        <TextView android:id="@+id/sort_title" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="标题 ↑"
-            android:textColor="?attr/catClawTextPrimary" android:textSize="13sp"
-            android:fontFamily="sans-serif-medium" android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp" android:layout_marginEnd="8dp"
-            android:clickable="true" android:focusable="true"
-            android:background="?attr/selectableItemBackground" />
-        <TextView android:id="@+id/sort_artist" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="艺术家"
-            android:textColor="?attr/catClawTextHint" android:textSize="13sp"
-            android:fontFamily="sans-serif" android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp" android:layout_marginEnd="8dp"
-            android:clickable="true" android:focusable="true"
-            android:background="?attr/selectableItemBackground" />
-        <TextView android:id="@+id/sort_album" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="专辑"
-            android:textColor="?attr/catClawTextHint" android:textSize="13sp"
-            android:fontFamily="sans-serif" android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp" android:layout_marginEnd="8dp"
-            android:clickable="true" android:focusable="true"
-            android:background="?attr/selectableItemBackground" />
-    </LinearLayout>
-
-    <!-- 歌曲列表 -->
-    <androidx.recyclerview.widget.RecyclerView android:id="@+id/song_list"
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/playlist_list"
         android:layout_width="match_parent" android:layout_height="0dp"
         android:layout_weight="1" android:clipToPadding="false"
-        android:paddingHorizontal="12dp" android:paddingBottom="8dp" />
+        android:paddingBottom="8dp" />
 
-    <!-- 状态文字 -->
     <TextView android:id="@+id/status_text" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:gravity="center"
         android:textColor="?attr/catClawTextHint" android:textSize="12sp"

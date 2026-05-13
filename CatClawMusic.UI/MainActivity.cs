@@ -28,8 +28,11 @@ public class MainActivity : AppCompatActivity
     private View _toolbar = null!;
     private ImageButton _btnMenu = null!;
     private int _currentTab;
-    private bool _isUserSwipe; // 区分代码切换和用户滑动
-    private bool _suppressNavListener; // 防止 UpdateNavSelection 触发 NavListener 循环
+    private bool _isUserSwipe;
+    private bool _suppressNavListener;
+    private bool _overlayOpen;
+
+    public void SetOverlayOpen(bool open) => _overlayOpen = open;
 
     // 迷你播放器
     private View _miniPlayerWrapper = null!;
@@ -179,8 +182,12 @@ public class MainActivity : AppCompatActivity
     public void SetBottomNavVisible(bool visible)
         => _bottomNav.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
 
+    public void SetToolbarVisible(bool visible)
+        => _toolbar.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
+
     public void SetMiniPlayerVisible(bool visible)
     {
+        if (_overlayOpen) { _miniPlayerWrapper.Visibility = ViewStates.Gone; return; }
         var vm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
         _miniPlayerWrapper.Visibility = visible && vm.CurrentSong != null && !_panelOpen
             ? ViewStates.Visible : ViewStates.Gone;
@@ -191,11 +198,13 @@ public class MainActivity : AppCompatActivity
         if (_panelOpen) { CloseSidePanel(); return; }
         if (SupportFragmentManager.BackStackEntryCount > 0)
         {
-            SupportFragmentManager.PopBackStack();
+            SupportFragmentManager.PopBackStackImmediate();
             if (SupportFragmentManager.BackStackEntryCount == 0)
             {
+                SetOverlayOpen(false);
                 var overlay = FindViewById<View>(Resource.Id.overlay_container);
                 if (overlay != null) overlay.Visibility = ViewStates.Gone;
+                SetToolbarVisible(true);
                 SetBottomNavVisible(true);
                 SetMiniPlayerVisible(true);
                 UpdateNavSelection(_currentTab);
@@ -360,7 +369,7 @@ public class MainActivity : AppCompatActivity
             if (_miniVm == null) return;
             var song = _miniVm.CurrentSong;
             bool hasSong = song != null;
-            bool onMainPage = !_panelOpen;
+            bool onMainPage = !_panelOpen && !_overlayOpen;
             bool isNowPlayingTab = _currentTab is 0 or 1;
             _miniPlayerWrapper.Visibility = hasSong && onMainPage && !isNowPlayingTab
                 ? ViewStates.Visible : ViewStates.Gone;

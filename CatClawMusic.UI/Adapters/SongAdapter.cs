@@ -16,6 +16,8 @@ public class SongAdapter : RecyclerView.Adapter
     private ConnectionProfile? _cachedNavidromeProfile;
     private ConnectionProfile? _cachedWebDavProfile;
     private bool _profilesLookedUp;
+    private int _currentPlayingSongId = -1;
+    private bool _isPlaying = false;
 
     // 封面加载的并发控制：去重 + 限流
     private static readonly ConcurrentDictionary<string, Task> _loadingCovers = new();
@@ -23,6 +25,7 @@ public class SongAdapter : RecyclerView.Adapter
 
     public event EventHandler<Song>? SongClicked;
     public event EventHandler<Song>? SongLongClicked;
+    public View? LastLongClickedView { get; private set; }
 
     public SongAdapter(INetworkMusicService? networkMusic = null)
     {
@@ -32,6 +35,13 @@ public class SongAdapter : RecyclerView.Adapter
     public void UpdateSongs(IEnumerable<Song> songs)
     {
         _songs = songs.ToList();
+        NotifyDataSetChanged();
+    }
+
+    public void UpdatePlayState(int currentSongId, bool isPlaying)
+    {
+        _currentPlayingSongId = currentSongId;
+        _isPlaying = isPlaying;
         NotifyDataSetChanged();
     }
 
@@ -72,7 +82,11 @@ public class SongAdapter : RecyclerView.Adapter
     }
 
     private void OnSongClick(int position) => SongClicked?.Invoke(this, _songs[position]);
-    private void OnSongLongClick(int position) => SongLongClicked?.Invoke(this, _songs[position]);
+    private void OnSongLongClick(int position, View anchor)
+    {
+        LastLongClickedView = anchor;
+        SongLongClicked?.Invoke(this, _songs[position]);
+    }
 
     internal async Task<ConnectionProfile?> GetNetworkProfileAsync(ProtocolType protocol)
     {
@@ -94,20 +108,22 @@ public class SongAdapter : RecyclerView.Adapter
     {
         private readonly TextView _title, _artist, _album;
         private readonly ImageView _cover;
+        private readonly Helpers.WaveformView _pauseIcon;
         private int _boundSongId; // 当前绑定的歌曲 ID，防止封面加载错位
         private CancellationTokenSource? _coverCts;
         private string? _loadedCoverPath; // 记录上次加载的封面路径，避免重复 SetImageURI
         private static readonly Handler _mainHandler = new(Looper.MainLooper!);
 
-        public SongViewHolder(View view, Action<int> onClick, Action<int>? onLongClick) : base(view)
+        public SongViewHolder(View view, Action<int> onClick, Action<int, View>? onLongClick) : base(view)
         {
             _title = view.FindViewById<TextView>(Resource.Id.song_title)!;
             _artist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
             _album = view.FindViewById<TextView>(Resource.Id.song_album)!;
             _cover = view.FindViewById<ImageView>(Resource.Id.song_cover)!;
+            _pauseIcon = view.FindViewById<Helpers.WaveformView>(Resource.Id.playing_pause_icon)!;
             view.Click += (s, e) => onClick(BindingAdapterPosition);
             if (onLongClick != null)
-                view.LongClick += (s, e) => { onLongClick(BindingAdapterPosition); };
+                view.LongClick += (s, e) => { onLongClick(BindingAdapterPosition, (View)s!); };
         }
 
         public void Bind(Song song, SongAdapter adapter)
@@ -116,6 +132,22 @@ public class SongAdapter : RecyclerView.Adapter
             _artist.Text = string.IsNullOrEmpty(song.Artist) ? "未知艺术家" : song.Artist;
             _album.Text = song.Album ?? "";
             _boundSongId = song.Id;
+
+            // 设置播放状态视觉效果
+            if (song.Id == adapter._currentPlayingSongId)
+            {
+                _title.SetTextColor(Android.Graphics.Color.ParseColor("#9B7ED8")); // 使用主题色
+                _pauseIcon.SetPlaying(adapter._isPlaying);
+            }
+            else
+            {
+                var typedValue = new Android.Util.TypedValue();
+                var color = ItemView.Context?.Theme?.ResolveAttribute(Resource.Attribute.catClawTextPrimary, typedValue, true) == true
+                    ? new Android.Graphics.Color(typedValue.Data)
+                    : Android.Graphics.Color.Black;
+                _title.SetTextColor(color);
+                _pauseIcon.SetPlaying(false);
+            }
 
             // 取消上一个加载任务，防止旧任务覆盖新 ViewHolder 的封面
             _coverCts?.Cancel();

@@ -4,17 +4,39 @@
     style="@style/CatClawCardSmall"
     android:layout_width="match_parent" android:layout_height="wrap_content"
     android:layout_marginHorizontal="16dp" android:layout_marginVertical="4dp"
-    android:clickable="true" android:foreground="?attr/selectableItemBackground">
+    android:clickable="true" android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardCornerRadius="12dp">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:padding="16dp">
-        <TextView android:id="@+id/playlist_name" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:textSize="15sp"
-            android:textColor="?attr/catClawTextPrimary" android:fontFamily="sans-serif-medium"
-            android:text="播放列表名" />
-        <TextView android:id="@+id/playlist_count" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:textSize="12sp"
-            android:textColor="?attr/catClawTextHint" android:layout_marginTop="4dp"
-            android:text="0 首" />
+        android:orientation="horizontal" android:padding="12dp"
+        android:gravity="center_vertical">
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="48dp" android:layout_height="48dp"
+            app:cardCornerRadius="8dp" app:cardElevation="0dp"
+            app:cardBackgroundColor="?attr/catClawCardBackgroundSolid">
+
+            <ImageView android:id="@+id/playlist_cover"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical"
+            android:layout_marginStart="12dp">
+
+            <TextView android:id="@+id/playlist_name" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="15sp"
+                android:textColor="?attr/catClawTextPrimary" android:fontFamily="sans-serif-medium"
+                android:maxLines="1" android:ellipsize="end"
+                android:text="歌单名" />
+
+            <TextView android:id="@+id/playlist_count" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="12sp"
+                android:textColor="?attr/catClawTextHint" android:layout_marginTop="2dp"
+                android:text="0 首" />
+        </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

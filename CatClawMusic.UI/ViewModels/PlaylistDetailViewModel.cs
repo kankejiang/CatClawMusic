@@ -12,6 +12,8 @@ public partial class PlaylistDetailViewModel : ObservableObject
     private readonly IAudioPlayerService? _audioPlayer;
     private readonly PlayQueue? _playQueue;
     private readonly INavigationService _navigationService;
+    private readonly IServiceProvider? _serviceProvider;
+    private Data.MusicDatabase? _db;
 
     public ObservableCollection<Song> Songs { get; } = new();
 
@@ -20,12 +22,22 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
     private int _playlistId;
 
-    public PlaylistDetailViewModel(IMusicLibraryService musicLibrary, IAudioPlayerService? audioPlayer = null, PlayQueue? playQueue = null, INavigationService? navigationService = null)
+    public PlaylistDetailViewModel(IMusicLibraryService musicLibrary, IAudioPlayerService? audioPlayer = null,
+        PlayQueue? playQueue = null, INavigationService? navigationService = null, IServiceProvider? serviceProvider = null)
     {
         _musicLibrary = musicLibrary;
         _audioPlayer = audioPlayer;
         _playQueue = playQueue;
         _navigationService = navigationService!;
+        _serviceProvider = serviceProvider;
+    }
+
+    private Data.MusicDatabase GetDb()
+    {
+        if (_db == null)
+            _db = (_serviceProvider ?? MainApplication.Services).GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase
+                ?? MainApplication.Services.GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase;
+        return _db!;
     }
 
     public async Task LoadAsync(int playlistId, string name)
@@ -35,15 +47,26 @@ public partial class PlaylistDetailViewModel : ObservableObject
         StatusText = "加载中...";
         try
         {
-            // 全部歌曲（Id=3）：本地+网络合并去重
-            List<Song> allSongs;
-            if (playlistId == 3)
-                allSongs = await _musicLibrary.GetMergedSongsAsync();
-            else
-                allSongs = await _musicLibrary.GetAllSongsAsync();
+            List<Song> songs;
+
+            switch (playlistId)
+            {
+                case -1:
+                    songs = await _musicLibrary.GetMergedSongsAsync();
+                    break;
+                case -2:
+                    songs = await _musicLibrary.GetFavoriteSongsAsync();
+                    break;
+                case -3:
+                    songs = await _musicLibrary.GetRecentSongsAsync();
+                    break;
+                default:
+                    songs = await _musicLibrary.GetPlaylistSongsAsync(playlistId);
+                    break;
+            }
 
             Songs.Clear();
-            foreach (var s in allSongs) Songs.Add(s);
+            foreach (var s in songs) Songs.Add(s);
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         }
         catch { StatusText = "加载失败"; }
@@ -52,10 +75,42 @@ public partial class PlaylistDetailViewModel : ObservableObject
     public async Task PlaySongAsync(Song song)
     {
         if (_audioPlayer == null || _playQueue == null) return;
-        _playQueue.SetSongs(Songs);
-        _playQueue.SelectSong(song.Id);
-        if (!string.IsNullOrEmpty(song.FilePath))
-            await _audioPlayer.PlayAsync(song.FilePath);
-        _navigationService.PushFragment("NowPlaying");
+
+        var currentSongInQueue = _playQueue.CurrentSong;
+        if (currentSongInQueue != null && currentSongInQueue.Id == song.Id)
+        {
+            if (_audioPlayer.IsPlaying)
+            {
+                await _audioPlayer.PauseAsync();
+            }
+            else
+            {
+                await _audioPlayer.ResumeAsync();
+            }
+        }
+        else
+        {
+            _playQueue.SetSongs(Songs);
+            _playQueue.SelectSong(song.Id);
+            if (!string.IsNullOrEmpty(song.FilePath))
+                await _audioPlayer.PlayAsync(song.FilePath);
+            _navigationService.PushFragment("NowPlaying");
+        }
+    }
+
+    public async Task<bool> IsFavoriteAsync(int songId)
+    {
+        try { return await GetDb().IsFavoriteAsync(songId); }
+        catch { return false; }
+    }
+
+    public async Task ToggleFavoriteAsync(int songId, bool isFav)
+    {
+        await GetDb().SetFavoriteAsync(songId, isFav);
+    }
+
+    public async Task AddSongToPlaylistAsync(int targetPlaylistId, int songId)
+    {
+        await _musicLibrary.AddSongToPlaylistAsync(targetPlaylistId, songId);
     }
 }

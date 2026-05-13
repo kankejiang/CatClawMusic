@@ -1,10 +1,14 @@
+using SQLite;
+
 namespace CatClawMusic.Core.Models;
 
 /// <summary>
 /// 播放列表模型
 /// </summary>
+[Table("Playlists")]
 public class Playlist
 {
+    [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
     
     /// <summary>
@@ -31,4 +35,10 @@ public class Playlist
     /// 是否系统播放列表（如"最近播放"、"收藏"）
     /// </summary>
     public bool IsSystem { get; set; }
+
+    /// <summary>
+    /// 封面歌曲ID（不持久化，运行时赋值）
+    /// </summary>
+    [Ignore]
+    public int CoverSongId { get; set; }
 }

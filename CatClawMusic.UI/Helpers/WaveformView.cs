@@ -1,0 +1,113 @@
+using Android.Animation;
+using Android.Content;
+using Android.Graphics;
+using Android.Util;
+using Android.Views;
+using Android.Views.Animations;
+using Android.Widget;
+
+namespace CatClawMusic.UI.Helpers;
+
+public class WaveformView : LinearLayout
+{
+    private readonly View[] _bars = new View[3];
+    private ObjectAnimator[] _animators = Array.Empty<ObjectAnimator>();
+    private bool _isPlaying;
+    private bool _initialized;
+
+    public WaveformView(Context context) : base(context) { Init(context); }
+    public WaveformView(Context context, IAttributeSet attrs) : base(context, attrs) { Init(context); }
+    public WaveformView(Context context, IAttributeSet attrs, int defStyleAttr) : base(context, attrs, defStyleAttr) { Init(context); }
+
+    private void Init(Context context)
+    {
+        Orientation = Android.Widget.Orientation.Horizontal;
+        SetGravity(GravityFlags.Center);
+
+        var colors = new[] { "#D87E9B", "#EDB8C9", "#D87E9B" };
+        var dp = Resources.DisplayMetrics.Density;
+
+        for (int i = 0; i < 3; i++)
+        {
+            var bar = new View(context);
+            var lp = new LayoutParams((int)(3 * dp), (int)(18 * dp));
+            if (i > 0) lp.MarginStart = (int)(3 * dp);
+            bar.LayoutParameters = lp;
+            bar.SetBackgroundColor(Color.ParseColor(colors[i]));
+            bar.ScaleY = 0.3f;
+            _bars[i] = bar;
+            AddView(bar);
+        }
+    }
+
+    protected override void OnSizeChanged(int w, int h, int oldw, int oldh)
+    {
+        base.OnSizeChanged(w, h, oldw, oldh);
+        if (_initialized) return;
+        _initialized = true;
+
+        var dp = Resources.DisplayMetrics.Density;
+        var delays = new[] { 0L, 120L, 240L };
+        _animators = new ObjectAnimator[3];
+
+        for (int i = 0; i < 3; i++)
+        {
+            _bars[i].PivotY = (int)(18 * dp);
+
+            var anim = ObjectAnimator.OfFloat(_bars[i], "scaleY", 0.3f, 1f, 0.3f);
+            anim.SetDuration(700);
+            anim.StartDelay = delays[i];
+            anim.SetInterpolator(new AccelerateDecelerateInterpolator());
+            anim.RepeatCount = ValueAnimator.Infinite;
+            anim.RepeatMode = ValueAnimatorRepeatMode.Restart;
+            _animators[i] = anim;
+        }
+
+        if (_isPlaying) StartAnimations();
+    }
+
+    public void SetPlaying(bool isPlaying)
+    {
+        if (_isPlaying == isPlaying) return;
+        _isPlaying = isPlaying;
+
+        if (isPlaying)
+        {
+            Visibility = ViewStates.Visible;
+            if (_initialized) StartAnimations();
+        }
+        else
+        {
+            StopAnimations();
+            Visibility = ViewStates.Gone;
+        }
+    }
+
+    private void StartAnimations()
+    {
+        foreach (var a in _animators) a.Start();
+    }
+
+    private void StopAnimations()
+    {
+        foreach (var a in _animators)
+        {
+            a.Cancel();
+        }
+        foreach (var bar in _bars)
+        {
+            bar.ScaleY = 0.3f;
+        }
+    }
+
+    protected override void OnDetachedFromWindow()
+    {
+        base.OnDetachedFromWindow();
+        foreach (var a in _animators)
+        {
+            a.Cancel();
+            a.Dispose();
+        }
+        _animators = Array.Empty<ObjectAnimator>();
+    }
+}

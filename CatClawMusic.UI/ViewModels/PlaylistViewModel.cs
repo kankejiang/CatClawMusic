@@ -10,33 +10,21 @@ public partial class PlaylistViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
     private readonly INavigationService _navigationService;
-    private readonly IAudioPlayerService? _audioPlayer;
-    private readonly Core.Services.PlayQueue? _playQueue;
     private readonly IServiceProvider? _serviceProvider;
     private Data.MusicDatabase? _db;
 
-    public ObservableCollection<Song> Songs { get; } = new();
     public ObservableCollection<Playlist> Playlists { get; } = new();
 
     [ObservableProperty]
     private string _statusText = "";
 
-    [ObservableProperty]
-    private string _activeTab = "all";
-
-    [ObservableProperty]
-    private string _sortKey = "title";
-
-    [ObservableProperty]
-    private bool _sortDescending;
+    private static readonly long _epoch = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
 
     public PlaylistViewModel(IMusicLibraryService musicLibrary, INavigationService navigationService,
-        IAudioPlayerService? audioPlayer = null, Core.Services.PlayQueue? playQueue = null, IServiceProvider? serviceProvider = null)
+        IServiceProvider? serviceProvider = null)
     {
         _musicLibrary = musicLibrary;
         _navigationService = navigationService;
-        _audioPlayer = audioPlayer;
-        _playQueue = playQueue;
         _serviceProvider = serviceProvider;
     }
 
@@ -48,122 +36,57 @@ public partial class PlaylistViewModel : ObservableObject
         return _db!;
     }
 
-    public async Task LoadAllSongsAsync()
-    {
-        ActiveTab = "all";
-        StatusText = "加载中...";
-        try
-        {
-            var songs = await _musicLibrary.GetMergedSongsAsync();
-            BatchReplaceSongs(songs);
-            StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
-        }
-        catch { StatusText = "加载失败"; }
-    }
-
-    public async Task LoadFavoritesAsync()
-    {
-        ActiveTab = "fav";
-        StatusText = "加载中...";
-        try
-        {
-            var favSongs = await _musicLibrary.GetFavoriteSongsAsync();
-            BatchReplaceSongs(favSongs);
-            StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无收藏";
-        }
-        catch { StatusText = "加载失败"; }
-    }
-
-    public async Task LoadRecentAsync()
-    {
-        ActiveTab = "recent";
-        StatusText = "加载中...";
-        try
-        {
-            var recentSongs = await _musicLibrary.GetRecentSongsAsync();
-            BatchReplaceSongs(recentSongs);
-            StatusText = recentSongs.Count > 0 ? $"最近 {recentSongs.Count} 首" : "暂无记录";
-        }
-        catch { StatusText = "加载失败"; }
-    }
-
-    public async Task PlaySongAsync(Song song)
-    {
-        if (_audioPlayer == null || _playQueue == null) return;
-        _playQueue.SetSongs(Songs);
-        _playQueue.SelectSong(song.Id);
-        if (!string.IsNullOrEmpty(song.FilePath))
-            await _audioPlayer.PlayAsync(song.FilePath);
-        // 同步迷你播放器
-        var npvm = _serviceProvider?.GetService(typeof(NowPlayingViewModel)) as NowPlayingViewModel
-            ?? MainApplication.Services.GetService(typeof(NowPlayingViewModel)) as NowPlayingViewModel;
-        npvm?.SetCurrentSong(song);
-        // 记录播放历史
-        var db = _serviceProvider?.GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase
-            ?? MainApplication.Services.GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase;
-        _ = db?.RecordPlayAsync(song.Id);
-    }
-
-    public void SetSort(string key)
-    {
-        if (SortKey == key)
-            SortDescending = !SortDescending;
-        else
-        {
-            SortKey = key;
-            SortDescending = false;
-        }
-        ApplySort();
-    }
-
-    private void ApplySort()
-    {
-        var sorted = SortKey switch
-        {
-            "artist" => SortDescending
-                ? Songs.OrderByDescending(s => s.Artist).ToList()
-                : Songs.OrderBy(s => s.Artist).ToList(),
-            "album" => SortDescending
-                ? Songs.OrderByDescending(s => s.Album).ToList()
-                : Songs.OrderBy(s => s.Album).ToList(),
-            _ => SortDescending
-                ? Songs.OrderByDescending(s => s.Title).ToList()
-                : Songs.OrderBy(s => s.Title).ToList(),
-        };
-        Songs.Clear();
-        foreach (var s in sorted)
-            Songs.Add(s);
-    }
-
-    /// <summary>批量替换歌曲列表，先清空再一次性填充</summary>
-    private void BatchReplaceSongs(List<Song> songs)
-    {
-        Songs.Clear();
-        var sorted = SortKey switch
-        {
-            "artist" => SortDescending
-                ? songs.OrderByDescending(s => s.Artist).ToList()
-                : songs.OrderBy(s => s.Artist).ToList(),
-            "album" => SortDescending
-                ? songs.OrderByDescending(s => s.Album).ToList()
-                : songs.OrderBy(s => s.Album).ToList(),
-            _ => SortDescending
-                ? songs.OrderByDescending(s => s.Title).ToList()
-                : songs.OrderBy(s => s.Title).ToList(),
-        };
-        foreach (var s in sorted)
-            Songs.Add(s);
-    }
-
     public async Task LoadPlaylistsAsync()
     {
+        StatusText = "加载中...";
         try
         {
-            var playlists = await _musicLibrary.GetAllPlaylistsAsync();
             Playlists.Clear();
-            foreach (var p in playlists) Playlists.Add(p);
+
+            var allSongs = await _musicLibrary.GetMergedSongsAsync();
+            Playlists.Add(new Playlist
+            {
+                Id = -1,
+                Name = "全部歌曲",
+                SongCount = allSongs.Count,
+                IsSystem = true,
+                CoverSongId = allSongs.FirstOrDefault()?.Id ?? 0,
+                CreatedAt = _epoch
+            });
+
+            var favSongs = await _musicLibrary.GetFavoriteSongsAsync();
+            Playlists.Add(new Playlist
+            {
+                Id = -2,
+                Name = "收藏歌曲",
+                SongCount = favSongs.Count,
+                IsSystem = true,
+                CoverSongId = favSongs.FirstOrDefault()?.Id ?? 0,
+                CreatedAt = _epoch + 1
+            });
+
+            var recentSongs = await _musicLibrary.GetRecentSongsAsync();
+            Playlists.Add(new Playlist
+            {
+                Id = -3,
+                Name = "最近播放",
+                SongCount = recentSongs.Count,
+                IsSystem = true,
+                CoverSongId = recentSongs.FirstOrDefault()?.Id ?? 0,
+                CreatedAt = _epoch + 2
+            });
+
+            var playlists = await _musicLibrary.GetAllPlaylistsAsync();
+            foreach (var p in playlists)
+            {
+                var firstSong = await GetDb().GetFirstSongInPlaylistAsync(p.Id);
+                p.CoverSongId = firstSong?.Id ?? 0;
+                Playlists.Add(p);
+            }
+
+            StatusText = Playlists.Count == 0 ? "" : "";
         }
-        catch { }
+        catch { StatusText = "加载失败"; }
     }
 
     public async Task<int> CreatePlaylistAsync(string name)

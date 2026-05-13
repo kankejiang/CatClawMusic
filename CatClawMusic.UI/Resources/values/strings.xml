@@ -1,13 +1,13 @@
 <resources>
     <string name="app_name">猫爪音乐</string>
     <string name="tab_library">音乐库</string>
-    <string name="tab_playlist">播放列表</string>
+    <string name="tab_playlist">歌单</string>
     <string name="tab_search">搜索</string>
     <string name="tab_settings">设置</string>
     <string name="local_music">本地音乐</string>
     <string name="network_music">网络音乐</string>
     <string name="now_playing">正在播放</string>
-    <string name="playlist_detail">播放列表</string>
+    <string name="playlist_detail">歌单详情</string>
     <string name="webdav_settings">WebDAV 设置</string>
     <string name="navidrome_settings">Navidrome 设置</string>
     <string name="cache_settings">缓存设置</string>

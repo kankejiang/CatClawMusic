@@ -39,6 +39,9 @@ public class MusicDatabase
 
             await CreateIndexesAsync();
 
+            await MigratePlaylistsTableAsync();
+            await MigratePlaylistSongsTableAsync();
+
             _isInitialized = true;
         }
         finally
@@ -455,6 +458,25 @@ public class MusicDatabase
             .CountAsync();
     }
 
+    public async Task<Song?> GetFirstSongInPlaylistAsync(int playlistId)
+    {
+        await EnsureInitializedAsync();
+        var entry = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .OrderBy(ps => ps.Position)
+            .FirstOrDefaultAsync();
+        if (entry == null) return null;
+
+        var song = await _database.Table<Song>().Where(s => s.Id == entry.SongId).FirstOrDefaultAsync();
+        if (song == null) return null;
+
+        var artist = await _database.Table<Artist>().Where(a => a.Id == song.ArtistId).FirstOrDefaultAsync();
+        var album = await _database.Table<Album>().Where(a => a.Id == song.AlbumId).FirstOrDefaultAsync();
+        song.Artist = artist?.Name ?? "未知艺术家";
+        song.Album = album?.Title ?? "未知专辑";
+        return song;
+    }
+
     // ═══════════ CachedSong CRUD ═══════════
 
     public async Task SaveCachedSongAsync(CachedSong cachedSong)
@@ -680,5 +702,72 @@ public class MusicDatabase
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] InsertSong 失败: {song.Title} - {ex.Message}");
         }
+    }
+
+    private async Task MigratePlaylistsTableAsync()
+    {
+        try
+        {
+            var hasOldTable = await TableExistsAsync("Playlist");
+            var hasNewTable = await TableExistsAsync("Playlists");
+
+            if (hasOldTable)
+            {
+                if (hasNewTable)
+                    await _database.ExecuteAsync("DROP TABLE Playlists");
+                await _database.ExecuteAsync("ALTER TABLE Playlist RENAME TO Playlists");
+                hasNewTable = true;
+            }
+
+            if (!hasNewTable) return;
+
+            var cols = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Playlists)");
+            if (cols.Any(c => c.pk > 0)) return;
+
+            await _database.ExecuteAsync("ALTER TABLE Playlists RENAME TO Playlists_old");
+            await _database.CreateTableAsync<Playlist>();
+            await _database.ExecuteAsync(
+                "INSERT INTO Playlists(Id, Name, CreatedAt, UpdatedAt, SongCount, IsSystem) " +
+                "SELECT Id, Name, CreatedAt, UpdatedAt, SongCount, IsSystem FROM Playlists_old");
+            await _database.ExecuteAsync("DROP TABLE Playlists_old");
+        }
+        catch { }
+    }
+
+    private async Task MigratePlaylistSongsTableAsync()
+    {
+        try
+        {
+            var exists = await TableExistsAsync("PlaylistSongs");
+            if (!exists) return;
+
+            var columns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(PlaylistSongs)");
+            if (columns.Any(c => c.pk > 0)) return;
+
+            await _database.ExecuteAsync("ALTER TABLE PlaylistSongs RENAME TO PlaylistSongs_old");
+            await _database.CreateTableAsync<PlaylistSong>();
+            await _database.ExecuteAsync(
+                "INSERT INTO PlaylistSongs(PlaylistId, SongId, Position) " +
+                "SELECT PlaylistId, SongId, Position FROM PlaylistSongs_old");
+            await _database.ExecuteAsync("DROP TABLE PlaylistSongs_old");
+        }
+        catch { }
+    }
+
+    private async Task<bool> TableExistsAsync(string tableName)
+    {
+        var count = await _database.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", tableName);
+        return count > 0;
+    }
+
+    private class TableColumn
+    {
+        public int cid { get; set; }
+        public string name { get; set; } = string.Empty;
+        public string type { get; set; } = string.Empty;
+        public int notnull { get; set; }
+        public string dflt_value { get; set; } = string.Empty;
+        public int pk { get; set; }
     }
 }

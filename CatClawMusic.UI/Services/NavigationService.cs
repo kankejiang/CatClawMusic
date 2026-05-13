@@ -52,11 +52,13 @@ public class NavigationService : INavigationService
 
         int containerId = _sidePanelContainerId ?? _overlayContainerId;
 
-        // 主区推入：隐藏底部导航 + 显示 overlay
+        // 主区推入：隐藏底部导航 + 工具栏 + 迷你播放器，显示 overlay
         if (_sidePanelContainerId == null)
         {
             _bottomNav?.Visibility = ViewStates.Gone;
+            MainActivity.Instance?.SetToolbarVisible(false);
             MainActivity.Instance?.SetMiniPlayerVisible(false);
+            MainActivity.Instance?.SetOverlayOpen(true);
             MainActivity.Instance?.RunOnUiThread(() =>
             {
                 var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
@@ -88,17 +90,16 @@ public class NavigationService : INavigationService
     public void GoBack()
     {
         if (_fm == null) return;
-        _fm.PopBackStack();
+        _fm.PopBackStackImmediate();
 
         if (_fm.BackStackEntryCount == 0 && _sidePanelContainerId == null)
         {
-            MainActivity.Instance?.RunOnUiThread(() =>
-            {
-                var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
-                if (overlay != null) overlay.Visibility = ViewStates.Gone;
-                _bottomNav!.Visibility = ViewStates.Visible;
-                MainActivity.Instance?.SetMiniPlayerVisible(true);
-            });
+            var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
+            if (overlay != null) overlay.Visibility = ViewStates.Gone;
+            if (_bottomNav != null) _bottomNav.Visibility = ViewStates.Visible;
+            MainActivity.Instance?.SetOverlayOpen(false);
+            MainActivity.Instance?.SetToolbarVisible(true);
+            MainActivity.Instance?.SetMiniPlayerVisible(true);
         }
     }
 
