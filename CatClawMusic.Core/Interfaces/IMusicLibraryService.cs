@@ -71,4 +71,24 @@ public interface IMusicLibraryService
 
     /// <summary>获取最近播放歌曲列表（保留 20 条）</summary>
     Task<List<Song>> GetRecentSongsAsync();
+
+    // ── Playlist CRUD ──
+
+    Task<List<Playlist>> GetAllPlaylistsAsync();
+    Task<Playlist?> GetPlaylistByIdAsync(int id);
+    Task<int> CreatePlaylistAsync(string name);
+    Task UpdatePlaylistAsync(Playlist playlist);
+    Task DeletePlaylistAsync(int playlistId);
+    Task AddSongToPlaylistAsync(int playlistId, int songId);
+    Task RemoveSongFromPlaylistAsync(int playlistId, int songId);
+    Task<List<Song>> GetPlaylistSongsAsync(int playlistId);
+    Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition);
+    Task<int> GetPlaylistSongCountAsync(int playlistId);
+
+    // ── CachedSong CRUD ──
+
+    Task SaveCachedSongAsync(CachedSong cachedSong);
+    Task<List<CachedSong>> GetCachedSongsAsync();
+    Task<CachedSong?> GetCachedSongAsync(int songId);
+    Task DeleteCachedSongAsync(int songId);
 }

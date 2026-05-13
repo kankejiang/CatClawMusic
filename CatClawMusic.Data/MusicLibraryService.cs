@@ -216,4 +216,24 @@ public class MusicLibraryService : IMusicLibraryService
     public async Task<int> SaveSongAsync(Song song) { await _db.EnsureInitializedAsync(); return await _db.SaveSongAsync(song); }
     public async Task<List<Song>> GetFavoriteSongsAsync() { await _db.EnsureInitializedAsync(); return await _db.GetFavoriteSongsAsync(); }
     public async Task<List<Song>> GetRecentSongsAsync() { await _db.EnsureInitializedAsync(); return await _db.GetRecentSongsAsync(); }
+
+    // ── Playlist CRUD ──
+
+    public async Task<List<Playlist>> GetAllPlaylistsAsync() { await _db.EnsureInitializedAsync(); return await _db.GetAllPlaylistsAsync(); }
+    public async Task<Playlist?> GetPlaylistByIdAsync(int id) { await _db.EnsureInitializedAsync(); return await _db.GetPlaylistByIdAsync(id); }
+    public async Task<int> CreatePlaylistAsync(string name) => await _db.CreatePlaylistAsync(name);
+    public async Task UpdatePlaylistAsync(Playlist playlist) => await _db.UpdatePlaylistAsync(playlist);
+    public async Task DeletePlaylistAsync(int playlistId) => await _db.DeletePlaylistAsync(playlistId);
+    public async Task AddSongToPlaylistAsync(int playlistId, int songId) => await _db.AddSongToPlaylistAsync(playlistId, songId);
+    public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId) => await _db.RemoveSongFromPlaylistAsync(playlistId, songId);
+    public async Task<List<Song>> GetPlaylistSongsAsync(int playlistId) => await _db.GetPlaylistSongsAsync(playlistId);
+    public async Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition) => await _db.UpdateSongPositionAsync(playlistId, songId, newPosition);
+    public async Task<int> GetPlaylistSongCountAsync(int playlistId) => await _db.GetPlaylistSongCountAsync(playlistId);
+
+    // ── CachedSong CRUD ──
+
+    public async Task SaveCachedSongAsync(CachedSong cachedSong) => await _db.SaveCachedSongAsync(cachedSong);
+    public async Task<List<CachedSong>> GetCachedSongsAsync() { await _db.EnsureInitializedAsync(); return await _db.GetCachedSongsAsync(); }
+    public async Task<CachedSong?> GetCachedSongAsync(int songId) { await _db.EnsureInitializedAsync(); return await _db.GetCachedSongAsync(songId); }
+    public async Task DeleteCachedSongAsync(int songId) => await _db.DeleteCachedSongAsync(songId);
 }

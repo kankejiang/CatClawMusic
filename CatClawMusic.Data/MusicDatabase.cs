@@ -318,6 +318,172 @@ public class MusicDatabase
     public Task<List<ConnectionProfile>> GetConnectionProfilesAsync()
         => _database.Table<ConnectionProfile>().ToListAsync();
 
+    // ═══════════ Playlist CRUD ═══════════
+
+    public Task<List<Playlist>> GetAllPlaylistsAsync()
+    {
+        return _database.Table<Playlist>().ToListAsync();
+    }
+
+    public Task<Playlist?> GetPlaylistByIdAsync(int id)
+    {
+        return _database.Table<Playlist>().Where(p => p.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<int> CreatePlaylistAsync(string name)
+    {
+        await EnsureInitializedAsync();
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var playlist = new Playlist { Name = name, CreatedAt = now, UpdatedAt = now };
+        return await _database.InsertAsync(playlist);
+    }
+
+    public async Task UpdatePlaylistAsync(Playlist playlist)
+    {
+        await EnsureInitializedAsync();
+        playlist.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await _database.UpdateAsync(playlist);
+    }
+
+    public async Task DeletePlaylistAsync(int playlistId)
+    {
+        await EnsureInitializedAsync();
+        await _database.ExecuteAsync("DELETE FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
+        await _database.DeleteAsync<Playlist>(playlistId);
+    }
+
+    public async Task AddSongToPlaylistAsync(int playlistId, int songId)
+    {
+        await EnsureInitializedAsync();
+        var existing = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId)
+            .FirstOrDefaultAsync();
+        if (existing != null) return;
+
+        var maxPos = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .CountAsync();
+        await _database.InsertAsync(new PlaylistSong
+        {
+            PlaylistId = playlistId,
+            SongId = songId,
+            Position = maxPos
+        });
+
+        var playlist = await GetPlaylistByIdAsync(playlistId);
+        if (playlist != null)
+        {
+            playlist.SongCount = maxPos + 1;
+            await UpdatePlaylistAsync(playlist);
+        }
+    }
+
+    public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId)
+    {
+        await EnsureInitializedAsync();
+        var entry = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId)
+            .FirstOrDefaultAsync();
+        if (entry == null) return;
+
+        await _database.DeleteAsync(entry);
+
+        var remaining = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .OrderBy(ps => ps.Position)
+            .ToListAsync();
+        for (int i = 0; i < remaining.Count; i++)
+        {
+            remaining[i].Position = i;
+            await _database.UpdateAsync(remaining[i]);
+        }
+
+        var playlist = await GetPlaylistByIdAsync(playlistId);
+        if (playlist != null)
+        {
+            playlist.SongCount = remaining.Count;
+            await UpdatePlaylistAsync(playlist);
+        }
+    }
+
+    public async Task<List<Song>> GetPlaylistSongsAsync(int playlistId)
+    {
+        await EnsureInitializedAsync();
+        var entries = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .OrderBy(ps => ps.Position)
+            .ToListAsync();
+        if (entries.Count == 0) return new List<Song>();
+
+        var songIds = entries.Select(e => e.SongId).ToList();
+        var songs = await _database.Table<Song>().Where(s => songIds.Contains(s.Id)).ToListAsync();
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var albums = await _database.Table<Album>().ToListAsync();
+        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
+        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+
+        var songMap = songs.ToDictionary(s => s.Id);
+        var sorted = new List<Song>();
+        foreach (var entry in entries)
+        {
+            if (songMap.TryGetValue(entry.SongId, out var song))
+            {
+                song.Artist = artistDict.TryGetValue(song.ArtistId, out var an) ? an : "未知艺术家";
+                song.Album = albumDict.TryGetValue(song.AlbumId, out var al) ? al : "未知专辑";
+                sorted.Add(song);
+            }
+        }
+        return sorted;
+    }
+
+    public async Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition)
+    {
+        await EnsureInitializedAsync();
+        var entry = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId)
+            .FirstOrDefaultAsync();
+        if (entry == null) return;
+
+        entry.Position = newPosition;
+        await _database.UpdateAsync(entry);
+    }
+
+    public async Task<int> GetPlaylistSongCountAsync(int playlistId)
+    {
+        return await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .CountAsync();
+    }
+
+    // ═══════════ CachedSong CRUD ═══════════
+
+    public async Task SaveCachedSongAsync(CachedSong cachedSong)
+    {
+        await EnsureInitializedAsync();
+        if (cachedSong.Id != 0)
+            await _database.UpdateAsync(cachedSong);
+        else
+            await _database.InsertAsync(cachedSong);
+    }
+
+    public Task<List<CachedSong>> GetCachedSongsAsync()
+    {
+        return _database.Table<CachedSong>().ToListAsync();
+    }
+
+    public Task<CachedSong?> GetCachedSongAsync(int songId)
+    {
+        return _database.Table<CachedSong>().Where(c => c.SongId == songId).FirstOrDefaultAsync();
+    }
+
+    public async Task DeleteCachedSongAsync(int songId)
+    {
+        await EnsureInitializedAsync();
+        var cached = await _database.Table<CachedSong>().Where(c => c.SongId == songId).FirstOrDefaultAsync();
+        if (cached != null)
+            await _database.DeleteAsync(cached);
+    }
+
     // ═══════════ Network Song Cache ═══════════
 
     /// <summary>替换所有网络缓存歌曲（先清除旧的，再批量写入新的）</summary>
