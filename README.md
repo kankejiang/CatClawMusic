@@ -16,6 +16,11 @@
 
 ## 📱 应用截图
 
+<details>
+<summary>🖱️ 点击展开查看应用截图</summary>
+
+<br />
+
 <div align="center">
 
 ### 播放页面
@@ -34,15 +39,9 @@
 
 ![音乐库](images/screenshot-3.jpg)
 
-###
-
-<br />
-
-<br />
-
-<br />
-
 </div>
+
+</details>
 
 ***
 
