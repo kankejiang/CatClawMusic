@@ -14,6 +14,26 @@
 
 ---
 
+## 📱 应用截图
+
+<div align="center">
+
+### 主界面 - 正在播放
+![主界面](images/screenshot-1.jpg)
+
+### 播放列表
+![播放列表](images/screenshot-2.jpg)
+
+### 音乐库
+![音乐库](images/screenshot-3.jpg)
+
+### 设置页面
+![设置页面](images/screenshot-4.jpg)
+
+</div>
+
+---
+
 ## ✨ 功能特性
 
 ### 🎵 本地音乐播放
@@ -28,8 +48,7 @@
 | 歌曲去重 | 按文件路径去重，已存在则更新 |
 | 封面懒加载 | 滚动到可见时加载，磁盘缓存，防错位 |
 
-<details>
-<summary>▶️ 音频播放 (ExoPlayer) - 点击展开</summary>
+### ▶️ 音频播放 (ExoPlayer)
 
 | 特性 | 说明 |
 |------|------|
@@ -43,10 +62,7 @@
 | WakeLock | 后台播放防 CPU 休眠 |
 | WiFi Lock | 防止锁屏断网 |
 
-</details>
-
-<details>
-<summary>🔀 播放队列与模式 - 点击展开</summary>
+### 🔀 播放队列与模式
 
 | 模式 | 说明 |
 |------|------|
@@ -57,10 +73,7 @@
 | 播放历史栈 | 支持"上一曲"回溯 |
 | 即将播放预览 | 显示接下来 3 首 |
 
-</details>
-
-<details>
-<summary>🎶 歌词系统 - 点击展开</summary>
+### 🎶 歌词系统
 
 | 特性 | 说明 |
 |------|------|
@@ -72,8 +85,6 @@
 | 歌词设置 | 拖拽开关、字体大小、对齐方式（左/中/右） |
 | 歌词缓存 | 解析结果持久化到 SQLite |
 | 远程歌词 | OpenSubsonic 结构化歌词 + 纯文本回退 |
-
-</details>
 
 ### 🖥️ 桌面悬浮歌词
 
@@ -95,8 +106,7 @@
 
 </div>
 
-<details>
-<summary>💚 收藏与播放历史 - 点击展开</summary>
+### 💚 收藏与播放历史
 
 | 特性 | 说明 |
 |------|------|
@@ -106,10 +116,7 @@
 | 播放历史 | 自动记录，去重计次 |
 | 历史上限 | 保留最近 20 条 |
 
-</details>
-
-<details>
-<summary>🔔 通知栏 / MediaSession - 点击展开</summary>
+### 🔔 通知栏 / MediaSession
 
 | 特性 | 说明 |
 |------|------|
@@ -119,8 +126,6 @@
 | 锁屏显示 | 封面/标题/控制按钮 |
 | 高优先级 | 播放通道可绕过勿扰模式 |
 | 前台 Service | TypeMediaPlayback 保活 |
-
-</details>
 
 ### 🎨 主题与配色
 
@@ -135,8 +140,7 @@
 
 </div>
 
-<details>
-<summary>☁️ 网络协议 - 点击展开</summary>
+### ☁️ 网络协议
 
 **Navidrome (Subsonic API)**
 
@@ -159,8 +163,6 @@
 | Basic 认证 | 用户名/密码 |
 | SSL 证书 | 支持跳过验证 |
 | 连接测试 | Depth=0 PROPFIND 验证 |
-
-</details>
 
 ### 📱 页面导航
 
