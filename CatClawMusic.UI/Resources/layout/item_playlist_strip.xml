@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/CatClawCardSmall"
+    android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:layout_marginEnd="8dp" android:clickable="true" android:focusable="true"
+    app:cardCornerRadius="12dp" android:foreground="?attr/selectableItemBackground">
+
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="12dp"
+        android:gravity="center_horizontal" android:minWidth="80dp">
+
+        <TextView android:id="@+id/playlist_strip_name" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:textSize="13sp"
+            android:textColor="?attr/catClawTextPrimary" android:fontFamily="sans-serif-medium"
+            android:maxLines="1" android:ellipsize="end" android:gravity="center"
+            android:text="歌单名" />
+
+        <TextView android:id="@+id/playlist_strip_count" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:textSize="11sp"
+            android:textColor="?attr/catClawTextHint" android:layout_marginTop="4dp"
+            android:text="0首" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

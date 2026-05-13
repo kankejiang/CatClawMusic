@@ -22,6 +22,7 @@ public class SongAdapter : RecyclerView.Adapter
     private static readonly SemaphoreSlim _coverLoadSemaphore = new(4, 4); // 最多 4 个并发
 
     public event EventHandler<Song>? SongClicked;
+    public event EventHandler<Song>? SongLongClicked;
 
     public SongAdapter(INetworkMusicService? networkMusic = null)
     {
@@ -56,7 +57,7 @@ public class SongAdapter : RecyclerView.Adapter
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
     {
         var view = LayoutInflater.From(parent.Context)!.Inflate(Resource.Layout.item_song, parent, false)!;
-        return new SongViewHolder(view, OnSongClick);
+        return new SongViewHolder(view, OnSongClick, OnSongLongClick);
     }
 
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
@@ -71,6 +72,7 @@ public class SongAdapter : RecyclerView.Adapter
     }
 
     private void OnSongClick(int position) => SongClicked?.Invoke(this, _songs[position]);
+    private void OnSongLongClick(int position) => SongLongClicked?.Invoke(this, _songs[position]);
 
     internal async Task<ConnectionProfile?> GetNetworkProfileAsync(ProtocolType protocol)
     {
@@ -97,13 +99,15 @@ public class SongAdapter : RecyclerView.Adapter
         private string? _loadedCoverPath; // 记录上次加载的封面路径，避免重复 SetImageURI
         private static readonly Handler _mainHandler = new(Looper.MainLooper!);
 
-        public SongViewHolder(View view, Action<int> onClick) : base(view)
+        public SongViewHolder(View view, Action<int> onClick, Action<int>? onLongClick) : base(view)
         {
             _title = view.FindViewById<TextView>(Resource.Id.song_title)!;
             _artist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
             _album = view.FindViewById<TextView>(Resource.Id.song_album)!;
             _cover = view.FindViewById<ImageView>(Resource.Id.song_cover)!;
             view.Click += (s, e) => onClick(BindingAdapterPosition);
+            if (onLongClick != null)
+                view.LongClick += (s, e) => { onLongClick(BindingAdapterPosition); };
         }
 
         public void Bind(Song song, SongAdapter adapter)

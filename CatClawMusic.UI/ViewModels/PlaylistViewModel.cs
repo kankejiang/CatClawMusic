@@ -13,8 +13,10 @@ public partial class PlaylistViewModel : ObservableObject
     private readonly IAudioPlayerService? _audioPlayer;
     private readonly Core.Services.PlayQueue? _playQueue;
     private readonly IServiceProvider? _serviceProvider;
+    private Data.MusicDatabase? _db;
 
     public ObservableCollection<Song> Songs { get; } = new();
+    public ObservableCollection<Playlist> Playlists { get; } = new();
 
     [ObservableProperty]
     private string _statusText = "";
@@ -36,6 +38,14 @@ public partial class PlaylistViewModel : ObservableObject
         _audioPlayer = audioPlayer;
         _playQueue = playQueue;
         _serviceProvider = serviceProvider;
+    }
+
+    private Data.MusicDatabase GetDb()
+    {
+        if (_db == null)
+            _db = (_serviceProvider ?? MainApplication.Services).GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase
+                ?? MainApplication.Services.GetService(typeof(Data.MusicDatabase)) as Data.MusicDatabase;
+        return _db!;
     }
 
     public async Task LoadAllSongsAsync()
@@ -128,7 +138,7 @@ public partial class PlaylistViewModel : ObservableObject
     /// <summary>批量替换歌曲列表，先清空再一次性填充</summary>
     private void BatchReplaceSongs(List<Song> songs)
     {
-        Songs.Clear(); // 单次 Reset 事件
+        Songs.Clear();
         var sorted = SortKey switch
         {
             "artist" => SortDescending
@@ -143,5 +153,55 @@ public partial class PlaylistViewModel : ObservableObject
         };
         foreach (var s in sorted)
             Songs.Add(s);
+    }
+
+    public async Task LoadPlaylistsAsync()
+    {
+        try
+        {
+            var playlists = await _musicLibrary.GetAllPlaylistsAsync();
+            Playlists.Clear();
+            foreach (var p in playlists) Playlists.Add(p);
+        }
+        catch { }
+    }
+
+    public async Task<int> CreatePlaylistAsync(string name)
+    {
+        int id = await _musicLibrary.CreatePlaylistAsync(name);
+        await LoadPlaylistsAsync();
+        return id;
+    }
+
+    public async Task DeletePlaylistAsync(int playlistId)
+    {
+        await _musicLibrary.DeletePlaylistAsync(playlistId);
+        await LoadPlaylistsAsync();
+    }
+
+    public async Task AddSongToPlaylistAsync(int playlistId, int songId)
+    {
+        await _musicLibrary.AddSongToPlaylistAsync(playlistId, songId);
+        await LoadPlaylistsAsync();
+    }
+
+    public async Task<bool> IsFavoriteAsync(int songId)
+    {
+        try { return await GetDb().IsFavoriteAsync(songId); }
+        catch { return false; }
+    }
+
+    public async Task ToggleFavoriteAsync(int songId, bool isFav)
+    {
+        await GetDb().SetFavoriteAsync(songId, isFav);
+    }
+
+    public void NavigateToPlaylist(int playlistId, string name)
+    {
+        _navigationService.PushFragment("PlaylistDetail", new Dictionary<string, object>
+        {
+            ["playlistId"] = playlistId,
+            ["playlistName"] = name
+        });
     }
 }

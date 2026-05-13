@@ -128,8 +128,28 @@ public class PlayQueue
         }
         else
         {
-            _currentIndex = -1; // 歌曲不在列表中
+            _currentIndex = -1;
         }
+    }
+
+    /// <summary>
+    /// 将一首歌插入到当前播放位置之后（下一首播放）
+    /// </summary>
+    public void AddNext(Song song)
+    {
+        if (_currentIndex >= 0 && _currentIndex + 1 < _originalList.Count)
+        {
+            _originalList.Insert(_currentIndex + 1, song);
+        }
+        else
+        {
+            _originalList.Add(song);
+        }
+        if (_shuffledList.Count > 0)
+        {
+            _shuffledList.Insert(_currentIndex + 1, song);
+        }
+        RebuildIndex();
     }
     
     /// <summary>
