@@ -1,1 +1,6 @@
-{"sdk": {"version": "9.0.313", "rollForward": "latestFeature"}}
+{
+  "sdk": {
+    "version": "9.0.313",
+    "rollForward": "disable"
+  }
+}
