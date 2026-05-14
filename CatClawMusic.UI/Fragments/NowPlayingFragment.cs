@@ -185,6 +185,8 @@ public class NowPlayingFragment : Fragment
         });
     }
 
+    private int _lastLyricIdx = -1; // 跟踪上次歌词索引
+
     private void UpdateLyrics()
     {
         var prev2 = _viewModel.PrevLyricLine2;
@@ -192,12 +194,56 @@ public class NowPlayingFragment : Fragment
         var curr = _viewModel.CurrentLyricLine;
         var next = _viewModel.NextLyricLine;
         var next2 = _viewModel.NextLyricLine2;
-        
+
+        var idx = _viewModel.CurrentLyricIndex;
+        var isLineChanged = idx != _lastLyricIdx && _lastLyricIdx != -1 && !string.IsNullOrEmpty(curr);
+        _lastLyricIdx = idx;
+
+        if (!isLineChanged)
+        {
+            // 首次加载或切歌 → 直接设置
+            _lyricPrev2.Text = prev2;  _lyricPrev2.TranslationY = 0f; _lyricPrev2.Alpha = 0.6f;
+            _lyricPrev.Text = prev;    _lyricPrev.TranslationY = 0f;   _lyricPrev.Alpha = 1f;
+            _lyricCurrent.Text = curr; _lyricCurrent.TranslationY = 0f; _lyricCurrent.Alpha = 1f;
+            _lyricNext.Text = next;    _lyricNext.TranslationY = 0f;   _lyricNext.Alpha = 1f;
+            _lyricNext2.Text = next2;  _lyricNext2.TranslationY = 0f; _lyricNext2.Alpha = 0.6f;
+            return;
+        }
+
+        // ── 零延迟滚动动画：文字立即更新，动画只做视觉过渡 ──
+        // 核心原则：文字先到位，动画从"偏移位置"滑回正常位置
+
+        // 1. 立即更新所有文字
         _lyricPrev2.Text = prev2;
         _lyricPrev.Text = prev;
         _lyricCurrent.Text = curr;
         _lyricNext.Text = next;
         _lyricNext2.Text = next2;
+
+        // 2. 将每行设到"刚滚入"的起始偏移位置
+        float[] startY = { -8f, -10f, 14f, 10f, 8f }; // 上方行从微上偏→归位，下方行从微下偏→归位
+        float[] startAlpha = { 0.4f, 0.6f, 0f, 0.6f, 0.4f };
+        float[] endAlpha = { 0.6f, 1f, 1f, 1f, 0.6f };
+        long[] durations = { 180, 200, 250, 200, 180 };
+        var views = new[] { _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2 };
+
+        for (int i = 0; i < 5; i++)
+        {
+            var v = views[i];
+            v.Animate().Cancel(); // 取消进行中的动画
+
+            // 设起始位
+            v.TranslationY = startY[i];
+            v.Alpha = startAlpha[i];
+
+            // 动画滑回正常位置
+            v.Animate()
+                .TranslationY(0f)
+                .Alpha(endAlpha[i])
+                .SetDuration(durations[i])
+                .SetInterpolator(new Android.Views.Animations.DecelerateInterpolator(1.5f))
+                .Start();
+        }
     }
 
     private void UpdateTimeDisplay()

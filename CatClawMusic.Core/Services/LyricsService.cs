@@ -10,6 +10,9 @@ namespace CatClawMusic.Core.Services;
 /// </summary>
 public class LyricsService : ILyricsService
 {
+    /// <summary>插件管理器（可选，由 UI 层设置）</summary>
+    public IPluginManager? PluginManager { get; set; }
+
     // 正则静态化，避免每次 ParseLrc 重新编译
     private static readonly Regex TimeRegex = new(@"\[(\d+):(\d+)(?:\.(\d+))?\]", RegexOptions.Compiled);
     private static readonly Regex TagRegex = new(@"\[(ti|ar|al|by|re|ve):(.+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -23,7 +26,24 @@ public class LyricsService : ILyricsService
         var lyrics = await GetLocalLyricsAsync(song);
         if (lyrics != null) return lyrics;
 
-        // TODO: 尝试网络歌词提供者（插件体系预留）
+        // 插件降级链：依次尝试已启用的歌词插件
+        if (PluginManager != null)
+        {
+            var providers = PluginManager.GetEnabledPlugins<ILyricsProviderPlugin>();
+            foreach (var provider in providers)
+            {
+                try
+                {
+                    if (!provider.IsAvailable) continue;
+                    lyrics = await provider.GetLyricsAsync(song);
+                    if (lyrics != null) return lyrics;
+                }
+                catch
+                {
+                    // 单个插件失败不影响后续插件尝试
+                }
+            }
+        }
 
         return null;
     }

@@ -599,6 +599,42 @@ public class FullLyricsFragment : Fragment
     public override void OnResume() { base.OnResume(); SyncUI(); }
 
     /// <summary>
+    /// 从外部通知 Fragment 需要滚动到当前歌词位置。
+    /// 用于 Tab 切换时立即定位到当前播放位置，忽略用户之前的滚动状态。
+    /// 重置 _userScrolling / _isDragging 状态，确保自动滚动不被跳过。
+    /// </summary>
+    public void ScrollToCurrentPosition()
+    {
+        // 清除用户滚动和拖拽状态，确保自动滚动可以执行
+        _userScrolling = false;
+        _isDragging = false;
+        _draggedLyricIndex = -1;
+
+        // 取消所有待执行的恢复回调，避免与本次滚动冲突
+        _scrollResumeHandler.RemoveCallbacksAndMessages(null);
+        _dragResumeHandler.RemoveCallbacksAndMessages(null);
+
+        // 隐藏拖拽指示器（如果正在显示）
+        HideDragIndicator();
+
+        // 强制 HighlightCurrentLine 执行完整逻辑（否则 idx == _lastLyricIndex 时会跳过滚动）
+        _lastLyricIndex = -1;
+
+        // 延迟执行：ViewPager2 切换页面时视图可能尚未完成布局，
+        // ScrollView.Height 可能为 0 或 SmoothScrollTo 被后续布局覆盖。
+        // 等待 300ms 让布局稳定后再滚动。
+        new Handler(Looper.MainLooper!).PostDelayed(() =>
+        {
+            // 再次确保状态正确（延迟期间可能有其他事件修改了状态）
+            _userScrolling = false;
+            _lastLyricIndex = -1;
+            HighlightCurrentLine();
+            // 兜底：直接调用 ScrollToCurrentLyric，确保滚动一定执行
+            ScrollToCurrentLyric();
+        }, 300);
+    }
+
+    /// <summary>
     /// Fragment销毁时清理资源
     /// </summary>
     public override void OnDestroyView() 

@@ -3,6 +3,7 @@ using Android.Runtime;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.Data.Plugins;
 using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.Fragments;
 using CatClawMusic.UI.Helpers;
@@ -42,6 +43,18 @@ public class MainApplication : Application
         services.AddSingleton<INetworkMusicService, NetworkMusicService>();
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
+        services.AddSingleton<IPlugin, NetEaseLyricsPlugin>();
+        services.AddSingleton<IPluginManager>(sp =>
+        {
+            var allPlugins = sp.GetServices<IPlugin>();
+            var prefs = global::Android.App.Application.Context.GetSharedPreferences(
+                "catclaw_plugins", global::Android.Content.FileCreationMode.Private);
+            return new PluginManager(
+                allPlugins,
+                typeId => prefs.GetBoolean($"plugin_enabled_{typeId}", true),
+                (typeId, enabled) => prefs.Edit().PutBoolean($"plugin_enabled_{typeId}", enabled).Apply()
+            );
+        });
         LyricsService.ContentUriReader = async uri =>
         {
             try
@@ -87,6 +100,7 @@ public class MainApplication : Application
         services.AddTransient<MusicFolderSettingsFragment>();
         services.AddTransient<GeneralSettingsFragment>();
         services.AddTransient<DesktopLyricFragment>();
+        services.AddTransient<PluginManagementFragment>();
 
         // Adapters
         services.AddTransient<SongAdapter>();
@@ -94,5 +108,15 @@ public class MainApplication : Application
         services.AddTransient<UpcomingSongAdapter>();
 
         Services = services.BuildServiceProvider();
+
+        // 设置 LyricsService 的 PluginManager（属性注入，避免循环依赖）
+        var lyricsService = Services.GetRequiredService<ILyricsService>() as LyricsService;
+        if (lyricsService != null)
+        {
+            lyricsService.PluginManager = Services.GetRequiredService<IPluginManager>();
+        }
+
+        // 初始化所有已启用的插件
+        _ = Services.GetRequiredService<IPluginManager>().InitializeAllAsync();
     }
 }

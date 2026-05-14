@@ -360,7 +360,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Timers.Timer(500);
+        _positionTimer = new System.Timers.Timer(200);
         _positionTimer.Elapsed += OnPositionTimerElapsed;
         _positionTimer.AutoReset = true;
         _positionTimer.Start();
@@ -471,11 +471,37 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         {
             _current = _httpFactory.CreateDataSource();
         }
-        return _current.Open(dataSpec);
+        try
+        {
+            return _current.Open(dataSpec);
+        }
+        catch (Java.IO.InterruptedIOException)
+        {
+            return -1; // 被中断，返回无效长度
+        }
+        catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException)
+        {
+            return -1;
+        }
     }
 
     public int Read(byte[]? buffer, int offset, int length)
-        => _current?.Read(buffer, offset, length) ?? 0;
+    {
+        try
+        {
+            return _current?.Read(buffer, offset, length) ?? 0;
+        }
+        catch (Java.IO.InterruptedIOException)
+        {
+            // 切歌/停止时 ExoPlayer 中断正在进行的 HTTP 流，属于正常行为
+            return -1; // CRLF_EOF
+        }
+        catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException)
+        {
+            // HttpDataSource 包装了 InterruptedIOException，同属正常中断
+            return -1;
+        }
+    }
 
     public global::Android.Net.Uri? Uri => _current?.Uri;
 

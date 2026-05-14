@@ -29,6 +29,7 @@ public class MainActivity : AppCompatActivity
     private ImageButton _btnMenu = null!;
     private int _currentTab;
     private bool _isUserSwipe;
+    private TabPagerAdapter _tabAdapter = null!;
     private bool _suppressNavListener;
     private bool _overlayOpen;
 
@@ -116,7 +117,8 @@ public class MainActivity : AppCompatActivity
         FitSystemBars();
 
         // ViewPager2：保活全部 Fragment，避免滑动时反复销毁重建
-        _viewPager.Adapter = new TabPagerAdapter(this);
+        _tabAdapter = new TabPagerAdapter(this);
+        _viewPager.Adapter = _tabAdapter;
         _viewPager.OffscreenPageLimit = 4;
         _viewPager.UserInputEnabled = true;
         _viewPager.RegisterOnPageChangeCallback(new PageChangeCallback(index =>
@@ -125,6 +127,12 @@ public class MainActivity : AppCompatActivity
             _currentTab = index;
             UpdateNavSelection(index);
             UpdateTabUI(index);
+
+            // 切换到歌词页(Tab0)时，通知 FullLyricsFragment 立即滚动到当前歌词位置
+            if (index == 0)
+            {
+                _tabAdapter.FullLyricsFragment?.ScrollToCurrentPosition();
+            }
         }));
 
         // BottomNav ↔ ViewPager 双向绑定
@@ -223,6 +231,12 @@ public class MainActivity : AppCompatActivity
             _currentTab = index;
             UpdateNavSelection(index);
             UpdateTabUI(index);
+
+            // 切换到歌词页(Tab0)时，通知 FullLyricsFragment 立即滚动到当前歌词位置
+            if (index == 0)
+            {
+                _tabAdapter.FullLyricsFragment?.ScrollToCurrentPosition();
+            }
         }
     }
 

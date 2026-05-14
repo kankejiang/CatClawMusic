@@ -342,7 +342,6 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
-        global::Android.Util.Log.Debug("CatClaw", $"[CatClaw] PositionChanged: {position.TotalSeconds:F1}s");
         _dispatcher.Post(() =>
         {
             _isPositionUpdating = true;
@@ -364,8 +363,8 @@ public partial class NowPlayingViewModel : ObservableObject
                 }
             }
             _isPositionUpdating = false;
-            // 每 ~5 秒保存一次播放位置（500ms 定时器 × 10）
-            if (++_saveCounter % 10 == 0)
+            // 每 ~5 秒保存一次播放位置（200ms 定时器 × 25）
+            if (++_saveCounter % 25 == 0)
                 CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer);
         });
     }
