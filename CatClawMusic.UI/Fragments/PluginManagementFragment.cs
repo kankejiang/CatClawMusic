@@ -2,6 +2,7 @@ using Android.OS;
 using Android.Views;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.UI.Adapters;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
