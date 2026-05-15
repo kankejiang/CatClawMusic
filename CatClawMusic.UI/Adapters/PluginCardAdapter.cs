@@ -1,3 +1,4 @@
+using Android.App;
 using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
@@ -7,17 +8,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Adapters;
 
-/// <summary>
-/// 插件卡片 RecyclerView 适配器
-/// </summary>
 public class PluginCardAdapter : RecyclerView.Adapter
 {
     private List<PluginInfo> _plugins = new();
+    private readonly HashSet<int> _expandedPositions = new();
+    public event EventHandler<string>? UninstallClicked;
 
-    /// <summary>更新插件列表数据</summary>
     public void UpdatePlugins(List<PluginInfo> plugins)
     {
         _plugins = plugins ?? new List<PluginInfo>();
+        _expandedPositions.Clear();
         NotifyDataSetChanged();
     }
 
@@ -42,24 +42,77 @@ public class PluginCardAdapter : RecyclerView.Adapter
         vh.Desc.Text = plugin.Description;
         vh.Version.Text = $"v{plugin.Version}";
 
-        // 防止 Switch 切换时触发监听器，先移除再设置
+        vh.SourceTag.Text = plugin.Source switch
+        {
+            PluginSource.BuiltIn => "内置",
+            PluginSource.Installed => "已安装",
+            _ => ""
+        };
+        vh.SourceTag.Visibility = ViewStates.Visible;
+
         vh.EnabledSwitch.SetOnCheckedChangeListener(null);
         vh.EnabledSwitch.Checked = plugin.IsEnabled;
 
         var pluginTypeId = plugin.PluginTypeId;
         vh.EnabledSwitch.SetOnCheckedChangeListener(new SwitchListener(pluginTypeId));
+
+        vh.BtnUninstall.Visibility = plugin.CanUninstall ? ViewStates.Visible : ViewStates.Gone;
+        var typeId = pluginTypeId;
+        vh.BtnUninstall.Click += (s, e) => OnUninstallClick(typeId);
+
+        var expanded = _expandedPositions.Contains(position);
+        vh.LayoutCapabilities.Visibility = expanded ? ViewStates.Visible : ViewStates.Gone;
+        if (expanded)
+        {
+            var caps = plugin.Capabilities;
+            vh.TvCapabilities.Text = caps.Count > 0
+                ? "📋 可用功能:\n" + string.Join("\n", caps.Select(c => $"  • {c}"))
+                : "";
+        }
+
+        var pos = position;
+        vh.ItemView.Click += (s, e) =>
+        {
+            if (_expandedPositions.Contains(pos))
+                _expandedPositions.Remove(pos);
+            else
+                _expandedPositions.Add(pos);
+            NotifyItemChanged(pos);
+        };
     }
 
-    /// <summary>
-    /// 插件卡片 ViewHolder
-    /// </summary>
+    private async void OnUninstallClick(string pluginTypeId)
+    {
+        var ctx = global::Android.App.Application.Context;
+        var pluginManager = MainApplication.Services.GetRequiredService<IPluginManager>();
+        var plugin = pluginManager.GetAllPlugins().FirstOrDefault(p => p.PluginTypeId == pluginTypeId);
+        if (plugin == null) return;
+
+        new AlertDialog.Builder(MainActivity.Instance ?? ctx)
+            .SetTitle("卸载插件")
+            .SetMessage($"确定要卸载「{plugin.DisplayName}」吗？")
+            .SetPositiveButton("卸载", async (s, e) =>
+            {
+                var success = await pluginManager.UninstallPluginAsync(pluginTypeId);
+                var msg = success ? "已卸载" : "卸载失败";
+                Toast.MakeText(ctx, msg, ToastLength.Short)?.Show();
+                UninstallClicked?.Invoke(this, pluginTypeId);
+            })
+            .SetNegativeButton("取消", (s, e) => { })
+            .Show();
+    }
+
     private class PluginCardViewHolder : RecyclerView.ViewHolder
     {
         public TextView Icon { get; }
         public TextView Name { get; }
         public TextView Desc { get; }
         public TextView Version { get; }
+        public TextView SourceTag { get; }
         public Switch EnabledSwitch { get; }
+        public ImageButton BtnUninstall { get; }
+        public LinearLayout LayoutCapabilities { get; }
+        public TextView TvCapabilities { get; }
 
         public PluginCardViewHolder(View itemView) : base(itemView)
         {
@@ -67,13 +120,14 @@ public class PluginCardAdapter : RecyclerView.Adapter
             Name = itemView.FindViewById<TextView>(Resource.Id.tv_plugin_name)!;
             Desc = itemView.FindViewById<TextView>(Resource.Id.tv_plugin_desc)!;
             Version = itemView.FindViewById<TextView>(Resource.Id.tv_plugin_version)!;
+            SourceTag = itemView.FindViewById<TextView>(Resource.Id.tv_plugin_source)!;
             EnabledSwitch = itemView.FindViewById<Switch>(Resource.Id.switch_plugin_enabled)!;
+            BtnUninstall = itemView.FindViewById<ImageButton>(Resource.Id.btn_uninstall)!;
+            LayoutCapabilities = itemView.FindViewById<LinearLayout>(Resource.Id.layout_capabilities)!;
+            TvCapabilities = itemView.FindViewById<TextView>(Resource.Id.tv_capabilities)!;
         }
     }
 
-    /// <summary>
-    /// Switch 切换监听器 — 调用 IPluginManager 更新状态 + Toast 提示
-    /// </summary>
     private class SwitchListener : Java.Lang.Object, CompoundButton.IOnCheckedChangeListener
     {
         private readonly string _pluginTypeId;

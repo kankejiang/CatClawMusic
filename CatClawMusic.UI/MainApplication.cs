@@ -3,7 +3,6 @@ using Android.Runtime;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
-using CatClawMusic.Data.Plugins;
 using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.Fragments;
 using CatClawMusic.UI.Helpers;
@@ -43,16 +42,18 @@ public class MainApplication : Application
         services.AddSingleton<INetworkMusicService, NetworkMusicService>();
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
-        services.AddSingleton<IPlugin, NetEaseLyricsPlugin>();
         services.AddSingleton<IPluginManager>(sp =>
         {
             var allPlugins = sp.GetServices<IPlugin>();
             var prefs = global::Android.App.Application.Context.GetSharedPreferences(
                 "catclaw_plugins", global::Android.Content.FileCreationMode.Private);
+            var pluginsDir = System.IO.Path.Combine(
+                global::Android.App.Application.Context.FilesDir!.AbsolutePath, "plugins");
             return new PluginManager(
                 allPlugins,
                 typeId => prefs.GetBoolean($"plugin_enabled_{typeId}", true),
-                (typeId, enabled) => prefs.Edit().PutBoolean($"plugin_enabled_{typeId}", enabled).Apply()
+                (typeId, enabled) => prefs.Edit().PutBoolean($"plugin_enabled_{typeId}", enabled).Apply(),
+                pluginsDir
             );
         });
         LyricsService.ContentUriReader = async uri =>

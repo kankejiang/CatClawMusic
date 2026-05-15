@@ -9,39 +9,68 @@
     app:cardBackgroundColor="?attr/catClawCardBackground">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:padding="16dp"
-        android:gravity="center_vertical">
+        android:orientation="vertical" android:padding="16dp">
 
-        <!-- 插件图标 emoji -->
-        <TextView android:id="@+id/tv_plugin_icon"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:textSize="24sp"
-            android:text="🧩" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
 
-        <!-- 插件信息 -->
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:orientation="vertical"
-            android:layout_marginStart="12dp">
-            <TextView android:id="@+id/tv_plugin_name"
+            <TextView android:id="@+id/tv_plugin_icon"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
-                android:fontFamily="sans-serif-medium" />
-            <TextView android:id="@+id/tv_plugin_desc"
+                android:textSize="24sp" android:text="🧩" />
+
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical"
+                android:layout_marginStart="12dp" android:layout_marginEnd="8dp">
+                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:id="@+id/tv_plugin_name"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_plugin_source"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:textSize="10sp" android:textColor="#9B7ED8"
+                        android:background="#209B7ED8"
+                        android:paddingHorizontal="6dp" android:paddingVertical="1dp"
+                        android:visibility="gone" />
+                </LinearLayout>
+                <TextView android:id="@+id/tv_plugin_desc"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+                    android:layout_marginTop="2dp"
+                    android:maxLines="2" android:ellipsize="end" />
+            </LinearLayout>
+
+            <TextView android:id="@+id/tv_plugin_version"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textSize="12sp" android:textColor="?attr/catClawTextHint"
-                android:layout_marginTop="2dp"
-                android:maxLines="2" android:ellipsize="end" />
+                android:textSize="11sp" android:textColor="?attr/catClawTextHint"
+                android:layout_marginEnd="8dp" />
+
+            <Switch android:id="@+id/switch_plugin_enabled"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+            <ImageButton android:id="@+id/btn_uninstall"
+                android:layout_width="32dp" android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="#E04040"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="卸载"
+                android:rotation="90"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- 版本号 -->
-        <TextView android:id="@+id/tv_plugin_version"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:textSize="12sp" android:textColor="?attr/catClawTextHint"
-            android:layout_marginEnd="8dp" />
-
-        <!-- 启用开关 -->
-        <Switch android:id="@+id/switch_plugin_enabled"
-            android:layout_width="wrap_content" android:layout_height="wrap_content" />
+        <LinearLayout android:id="@+id/layout_capabilities"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+            <TextView android:id="@+id/tv_capabilities"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textColor="?attr/catClawTextHint"
+                android:lineSpacingExtra="2dp" />
+        </LinearLayout>
 
     </LinearLayout>
 
