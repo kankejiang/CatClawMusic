@@ -209,6 +209,49 @@ public class TagReader
         }
     }
 
+    public static bool WriteMetadata(string filePath, string? title, string? artist, string? album, uint? year, uint? trackNumber, string? genre)
+    {
+        if (!IOFile.Exists(filePath)) return false;
+        try
+        {
+            using var file = TagLib.File.Create(filePath);
+            if (title != null) file.Tag.Title = title;
+            if (artist != null) file.Tag.Performers = new[] { artist };
+            if (album != null) file.Tag.Album = album;
+            if (year.HasValue) file.Tag.Year = year.Value;
+            if (trackNumber.HasValue) file.Tag.Track = trackNumber.Value;
+            if (genre != null) file.Tag.Genres = new[] { genre };
+            file.Save();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static bool WriteCoverToFile(string filePath, byte[] coverBytes)
+    {
+        if (!IOFile.Exists(filePath)) return false;
+        try
+        {
+            using var file = TagLib.File.Create(filePath);
+            var picture = new TagLib.Picture(new TagLib.ByteVector(coverBytes))
+            {
+                Type = TagLib.PictureType.FrontCover,
+                MimeType = "image/jpeg",
+                Description = "Cover"
+            };
+            file.Tag.Pictures = new[] { picture };
+            file.Save();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static byte[]? ExtractCoverFromStream(Stream stream, string name)
     {
         try

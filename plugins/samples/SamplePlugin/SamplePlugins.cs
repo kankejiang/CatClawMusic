@@ -19,15 +19,9 @@ public class SampleLyricsPlugin : ILyricsProviderPlugin
         "时间轴解析: 支持[mm:ss.xx]格式LRC时间轴"
     };
 
-    public Task InitializeAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task InitializeAsync() => Task.CompletedTask;
 
-    public Task ShutdownAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task ShutdownAsync() => Task.CompletedTask;
 
     public async Task<LrcLyrics?> GetLyricsAsync(Song song)
     {
@@ -53,15 +47,9 @@ public class SampleProtocolPlugin : IProtocolProviderPlugin
         "连接测试: 测试远程服务器连接状态"
     };
 
-    public Task InitializeAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task InitializeAsync() => Task.CompletedTask;
 
-    public Task ShutdownAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task ShutdownAsync() => Task.CompletedTask;
 
     public Task<List<RemoteFile>> ListFilesAsync(string path)
     {
@@ -95,15 +83,9 @@ public class SampleCoverPlugin : ICoverProviderPlugin
         "多源支持: 支持多个封面API源"
     };
 
-    public Task InitializeAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task InitializeAsync() => Task.CompletedTask;
 
-    public Task ShutdownAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task ShutdownAsync() => Task.CompletedTask;
 
     public async Task<byte[]?> GetCoverAsync(Song song)
     {
@@ -128,15 +110,9 @@ public class SampleAudioEnhancerPlugin : IAudioEnhancerPlugin
         "状态重置: 切换歌曲时重置处理状态"
     };
 
-    public Task InitializeAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task InitializeAsync() => Task.CompletedTask;
 
-    public Task ShutdownAsync()
-    {
-        return Task.CompletedTask;
-    }
+    public Task ShutdownAsync() => Task.CompletedTask;
 
     public float[] ProcessSamples(float[] samples, int sampleRate, int channels)
     {

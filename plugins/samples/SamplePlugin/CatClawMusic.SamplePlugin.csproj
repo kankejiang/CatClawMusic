@@ -4,9 +4,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>CatClawMusic.SamplePlugin</AssemblyName>
+    <Description>猫爪音乐示例插件 - 展示所有可用插件接口的实现模板</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
+    <ProjectReference Include="..\..\..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
   </ItemGroup>
 </Project>

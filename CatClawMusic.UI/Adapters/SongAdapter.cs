@@ -250,6 +250,30 @@ public class SongAdapter : RecyclerView.Adapter
                     }
                 }
 
+                if (coverBytes == null)
+                {
+                    try
+                    {
+                        var pluginManager = MainApplication.Services.GetService(typeof(CatClawMusic.Core.Interfaces.IPluginManager)) as CatClawMusic.Core.Interfaces.IPluginManager;
+                        if (pluginManager != null)
+                        {
+                            var coverProviders = pluginManager.GetEnabledPlugins<CatClawMusic.Core.Interfaces.ICoverProviderPlugin>();
+                            foreach (var provider in coverProviders)
+                            {
+                                ct.ThrowIfCancellationRequested();
+                                try
+                                {
+                                    if (!provider.IsAvailable) continue;
+                                    coverBytes = await provider.GetCoverAsync(song);
+                                    if (coverBytes != null) break;
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
                 ct.ThrowIfCancellationRequested();
                 if (coverBytes != null)
                 {

@@ -93,27 +93,110 @@ public class PluginManager : IPluginManager
         }
     }
 
-    public async Task<PluginInfo?> InstallPluginAsync(string url, IProgress<(string, int)>? progress = null)
+    public async Task<PluginInfo?> InstallFromLocalFileAsync(string filePath, IProgress<(string, int)>? progress = null)
     {
         try
         {
-            progress?.Report(("正在下载插件...", 10));
+            progress?.Report(("正在读取插件文件...", 10));
 
-            var fileName = Path.GetFileName(new Uri(url).LocalPath);
-            if (!fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-                && !fileName.EndsWith(".catclaw-plugin", StringComparison.OrdinalIgnoreCase))
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException("未找到插件文件", filePath);
+
+            var fileName = Path.GetFileName(filePath);
+            if (!fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("仅支持 .dll 格式的插件文件");
+
+            var destPath = Path.Combine(_pluginsDir, fileName);
+            if (File.Exists(destPath))
             {
-                fileName = "plugin.dll";
+                destPath = Path.Combine(_pluginsDir,
+                    $"{Path.GetFileNameWithoutExtension(fileName)}_{DateTime.Now:yyyyMMddHHmmss}.dll");
             }
 
-            var localPath = Path.Combine(_pluginsDir, fileName);
+            progress?.Report(("正在复制插件...", 30));
+            File.Copy(filePath, destPath);
 
-            using var response = await _httpClient.GetAsync(url);
+            progress?.Report(("正在加载插件...", 60));
+
+            return await LoadAndRegisterPluginAsync(destPath, destPath, progress);
+        }
+        catch (Exception ex)
+        {
+            progress?.Report(($"安装失败: {ex.Message}", 100));
+            return null;
+        }
+    }
+
+    public async Task<PluginInfo?> InstallFromGitHubAsync(string repoUrl, IProgress<(string, int)>? progress = null)
+    {
+        try
+        {
+            progress?.Report(("正在解析仓库地址...", 5));
+
+            string owner, repo;
+            try
+            {
+                var uri = new Uri(repoUrl);
+                var segs = uri.AbsolutePath.Trim('/').Split('/');
+                if (segs.Length < 2)
+                    throw new Exception();
+                owner = segs[0];
+                repo = segs[1];
+            }
+            catch
+            {
+                throw new InvalidOperationException("无法解析 GitHub 仓库地址，请使用格式: https://github.com/用户名/仓库名");
+            }
+
+            progress?.Report(("正在获取 Release 信息...", 15));
+
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CatClawMusic/1.0");
+            _httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github.v3+json");
+
+            var releasesUrl = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
+            var releasesJson = await _httpClient.GetStringAsync(releasesUrl);
+
+            using var doc = System.Text.Json.JsonDocument.Parse(releasesJson);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("assets", out var assets) || assets.GetArrayLength() == 0)
+            {
+                throw new InvalidOperationException(
+                    $"仓库 {owner}/{repo} 的最新 Release 没有包含附件。\n" +
+                    "请先在 GitHub 上创建 Release 并上传编译好的 .dll 文件。\n" +
+                    "或使用「从本地安装」导入已编译的 DLL。");
+            }
+
+            string? dllUrl = null;
+            string? dllName = null;
+            foreach (var asset in assets.EnumerateArray())
+            {
+                var name = asset.GetProperty("name").GetString() ?? "";
+                if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                {
+                    dllUrl = asset.GetProperty("browser_download_url").GetString();
+                    dllName = name;
+                    break;
+                }
+            }
+
+            if (dllUrl == null)
+            {
+                throw new InvalidOperationException(
+                    $"仓库 {owner}/{repo} 的 Release 中没有找到 .dll 文件。\n" +
+                    "请上传编译好的插件 DLL 到 Release Assets。");
+            }
+
+            progress?.Report(("正在下载插件...", 30));
+
+            var destPath = Path.Combine(_pluginsDir, dllName ?? "plugin.dll");
+
+            var response = await _httpClient.GetAsync(dllUrl);
             response.EnsureSuccessStatusCode();
             var totalBytes = response.Content.Headers.ContentLength ?? -1;
 
             using var remoteStream = await response.Content.ReadAsStreamAsync();
-            using var fileStream = new FileStream(localPath, FileMode.Create, FileAccess.Write);
+            using var fileStream = new FileStream(destPath, FileMode.Create, FileAccess.Write);
             var buffer = new byte[8192];
             long totalRead = 0;
             int bytesRead;
@@ -123,64 +206,73 @@ public class PluginManager : IPluginManager
                 totalRead += bytesRead;
                 if (totalBytes > 0)
                 {
-                    var pct = (int)(50 + totalRead * 50 / totalBytes);
+                    var pct = (int)(30 + totalRead * 40 / totalBytes);
                     progress?.Report(("正在下载插件...", pct));
                 }
             }
 
-            progress?.Report(("正在加载插件...", 80));
+            progress?.Report(("正在加载插件...", 75));
 
-            var loadContext = new PluginLoadContext(localPath);
-            var assembly = loadContext.LoadFromAssemblyPath(localPath);
-            _loadContexts[fileName] = loadContext;
-
-            var pluginTypes = assembly.GetTypes()
-                .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
-                .ToList();
-
-            if (pluginTypes.Count == 0)
-            {
-                loadContext.Unload();
-                _loadContexts.Remove(fileName);
-                File.Delete(localPath);
-                throw new InvalidOperationException("插件程序集中未找到有效的IPlugin实现");
-            }
-
-            PluginInfo? addedInfo = null;
-            foreach (var type in pluginTypes)
-            {
-                if (Activator.CreateInstance(type) is not IPlugin pluginInstance) continue;
-
-                var info = CreatePluginInfo(pluginInstance);
-                info.Source = PluginSource.Installed;
-                info.AssemblyPath = localPath;
-                info.InstallUrl = url;
-                info.IsEnabled = true;
-                _plugins.Add(info);
-                addedInfo = info;
-
-                _setPrefFunc($"plugin_enabled_{info.PluginTypeId}", true);
-
-                if (info.IsEnabled)
-                {
-                    await pluginInstance.InitializeAsync();
-                }
-            }
-
-            if (addedInfo != null)
-            {
-                _installedPluginIds.Add(addedInfo.PluginTypeId);
-                SaveInstalledIndex();
-            }
-
-            progress?.Report(("安装完成", 100));
-            return addedInfo;
+            return await LoadAndRegisterPluginAsync(destPath, repoUrl, progress);
         }
         catch (Exception ex)
         {
             progress?.Report(($"安装失败: {ex.Message}", 100));
             return null;
         }
+    }
+
+    private async Task<PluginInfo?> LoadAndRegisterPluginAsync(string localPath, string sourceUrl, IProgress<(string, int)>? progress)
+    {
+        var fileName = Path.GetFileName(localPath);
+
+        var loadContext = new PluginLoadContext(localPath);
+        var assembly = loadContext.LoadFromAssemblyPath(localPath);
+        _loadContexts[fileName] = loadContext;
+
+        var pluginTypes = assembly.GetTypes()
+            .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
+            .ToList();
+
+        if (pluginTypes.Count == 0)
+        {
+            loadContext.Unload();
+            _loadContexts.Remove(fileName);
+            File.Delete(localPath);
+            throw new InvalidOperationException("插件程序集中未找到有效的IPlugin实现");
+        }
+
+        progress?.Report(("正在初始化插件...", 85));
+
+        PluginInfo? addedInfo = null;
+        foreach (var type in pluginTypes)
+        {
+            if (Activator.CreateInstance(type) is not IPlugin pluginInstance) continue;
+
+            var info = CreatePluginInfo(pluginInstance);
+            info.Source = PluginSource.Installed;
+            info.AssemblyPath = localPath;
+            info.InstallUrl = sourceUrl;
+            info.IsEnabled = true;
+            _plugins.Add(info);
+            addedInfo = info;
+
+            _setPrefFunc($"plugin_enabled_{info.PluginTypeId}", true);
+
+            if (info.IsEnabled)
+            {
+                await pluginInstance.InitializeAsync();
+            }
+        }
+
+        if (addedInfo != null)
+        {
+            _installedPluginIds.Add(addedInfo.PluginTypeId);
+            SaveInstalledIndex();
+        }
+
+        progress?.Report(("安装完成", 100));
+        return addedInfo;
     }
 
     public async Task<bool> UninstallPluginAsync(string pluginTypeId)

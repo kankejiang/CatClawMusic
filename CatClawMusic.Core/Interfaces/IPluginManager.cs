@@ -10,6 +10,7 @@ public interface IPluginManager
     void SetPluginEnabled(string pluginTypeId, bool enabled);
     Task InitializeAllAsync();
     Task ShutdownAllAsync();
-    Task<PluginInfo?> InstallPluginAsync(string url, IProgress<(string, int)>? progress = null);
+    Task<PluginInfo?> InstallFromLocalFileAsync(string filePath, IProgress<(string, int)>? progress = null);
+    Task<PluginInfo?> InstallFromGitHubAsync(string repoUrl, IProgress<(string, int)>? progress = null);
     Task<bool> UninstallPluginAsync(string pluginTypeId);
 }
