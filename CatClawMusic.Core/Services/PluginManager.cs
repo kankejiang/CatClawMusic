@@ -103,14 +103,16 @@ public class PluginManager : IPluginManager
                 throw new FileNotFoundException("未找到插件文件", filePath);
 
             var fileName = Path.GetFileName(filePath);
-            if (!fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("仅支持 .dll 格式的插件文件");
+            if (!fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                && !fileName.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("仅支持 .dll 或 .ccp 格式的插件文件");
 
             var destPath = Path.Combine(_pluginsDir, fileName);
             if (File.Exists(destPath))
             {
+                var ext = Path.GetExtension(fileName);
                 destPath = Path.Combine(_pluginsDir,
-                    $"{Path.GetFileNameWithoutExtension(fileName)}_{DateTime.Now:yyyyMMddHHmmss}.dll");
+                    $"{Path.GetFileNameWithoutExtension(fileName)}_{DateTime.Now:yyyyMMddHHmmss}{ext}");
             }
 
             progress?.Report(("正在复制插件...", 30));
@@ -172,7 +174,8 @@ public class PluginManager : IPluginManager
             foreach (var asset in assets.EnumerateArray())
             {
                 var name = asset.GetProperty("name").GetString() ?? "";
-                if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                    || name.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
                 {
                     dllUrl = asset.GetProperty("browser_download_url").GetString();
                     dllName = name;

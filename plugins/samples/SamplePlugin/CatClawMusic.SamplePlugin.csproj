@@ -10,4 +10,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
   </ItemGroup>
+
+  <Target Name="CopyToCatClawPlugin" AfterTargets="Build">
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
+          DestinationFiles="$(OutputPath)$(AssemblyName).ccp"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

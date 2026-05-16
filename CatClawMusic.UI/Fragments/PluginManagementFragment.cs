@@ -65,9 +65,6 @@ public class PluginManagementFragment : Fragment
             var intent = new Intent(Intent.ActionOpenDocument);
             intent.AddCategory(Intent.CategoryOpenable);
             intent.SetType("*/*");
-            var mimeTypes = new[] { "application/octet-stream", "application/x-msdownload" };
-            intent.PutExtra(Intent.ExtraMimeTypes, mimeTypes);
-            intent.PutExtra(Intent.ExtraAllowMultiple, false);
             StartActivityForResult(intent, PickPluginFile);
         }
         catch (Exception ex)
@@ -122,9 +119,10 @@ public class PluginManagementFragment : Fragment
             return;
         }
 
-        if (!tempPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+        if (!tempPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+            && !tempPath.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
         {
-            Toast.MakeText(ctx, "请选择 .dll 格式的插件文件", ToastLength.Short)?.Show();
+            Toast.MakeText(ctx, "请选择 .dll 或 .ccp 格式的插件文件", ToastLength.Short)?.Show();
             return;
         }
 
@@ -176,7 +174,7 @@ public class PluginManagementFragment : Fragment
 
         var hintText = new TextView(ctx)
         {
-            Text = "输入 GitHub 仓库地址，应用将自动从最新 Release 下载编译好的 .dll 插件。\n\n" +
+            Text = "输入 GitHub 仓库地址，应用将自动从最新 Release 下载编译好的 .dll 或 .ccp 插件。\n\n" +
                    "格式示例: https://github.com/用户名/仓库名"
         };
         hintText.SetTextColor(Android.Graphics.Color.ParseColor("#B0A8BA"));
