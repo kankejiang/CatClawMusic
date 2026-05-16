@@ -8,7 +8,8 @@ public class PluginInfo
     public IPlugin Plugin { get; set; } = null!;
     public List<IPlugin> SubPlugins { get; set; } = new();
     public bool IsEnabled { get; set; } = true;
-    public string DisplayName => Plugin.Name;
+    public string? DisplayNameOverride { get; set; }
+    public string DisplayName => DisplayNameOverride ?? Plugin.Name;
     public string Version => Plugin.Version;
     public string Author => Plugin.Author;
     public string Description { get; set; } = string.Empty;

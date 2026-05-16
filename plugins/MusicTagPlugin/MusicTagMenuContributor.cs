@@ -9,16 +9,16 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
     private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
 
     public string PluginId => "musictag.menu";
-    public string Name => "MusicTag 元数据编辑";
+    public string Name => "MusicTag 元数据编�?;
     public string Version => "1.0.0";
     public string Author => "CatClawMusic";
-    public string Description => "提供歌曲元数据编辑功能，支持编辑标题、艺术家、专辑，以及联网搜索歌词和封面图片。参考 music-tag-web 设计。";
+    public string Description => "提供歌曲元数据编辑功能，支持编辑标题、艺术家、专辑，以及联网搜索歌词和封面图片。参�?music-tag-web 设计�?;
 
     public List<string> Capabilities => new()
     {
-        "元数据编辑: 修改歌曲标题、艺术家、专辑信息",
-        "歌词搜索: 一键搜索并嵌入歌词到文件",
-        "封面搜索: 一键搜索并嵌入封面到文件",
+        "元数据编�? 修改歌曲标题、艺术家、专辑信�?,
+        "歌词搜索: 一键搜索并嵌入歌词到文�?,
+        "封面搜索: 一键搜索并嵌入封面到文�?,
         "TagLibSharp 写入: 直接写入音频文件 ID3/Vorbis 标签"
     };
 
@@ -34,7 +34,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
     {
         return new List<MenuItemEntry>
         {
-            new(MenuEditMetadata, "编辑元数据")
+            new(MenuEditMetadata, "编辑元数�?)
         };
     }
 
@@ -42,20 +42,22 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
     {
         if (itemId == MenuEditMetadata && fragment is global::Android.App.Fragment frag)
         {
-            var activity = frag.Activity;
-            if (activity != null)
+            var ctx = frag.Context ?? frag.Activity;
+            if (ctx != null)
             {
-                activity.RunOnUiThread(() => ShowEditMetadataDialog(frag, song));
+                if (ctx is global::Android.App.Activity activity)
+                    activity.RunOnUiThread(() => ShowEditMetadataDialog(ctx, song));
+                else
+                    ShowEditMetadataDialog(ctx, song);
             }
         }
 
         return Task.CompletedTask;
     }
 
-    private void ShowEditMetadataDialog(global::Android.App.Fragment fragment, Song song)
+    private void ShowEditMetadataDialog(global::Android.Content.Context ctx, Song song)
     {
-        var ctx = fragment.Context;
-        if (ctx == null) return;
+        var activity = ctx as global::Android.App.Activity;
 
         var isLocalFile = song.Source == SongSource.Local
             && !string.IsNullOrEmpty(song.FilePath)
@@ -74,7 +76,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
 
         layout.AddView(CreateLabel(ctx, "标题"));
         layout.AddView(etTitle);
-        layout.AddView(CreateLabel(ctx, "艺术家"));
+        layout.AddView(CreateLabel(ctx, "艺术�?));
         layout.AddView(etArtist);
         layout.AddView(CreateLabel(ctx, "专辑"));
         layout.AddView(etAlbum);
@@ -104,7 +106,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
 
         btnSearchLyrics.Click += async (s, e) =>
         {
-            btnSearchLyrics.Text = "搜索中...";
+            btnSearchLyrics.Text = "搜索�?..";
             btnSearchLyrics.Enabled = false;
 
             try
@@ -112,29 +114,29 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
                 var lyricsPlugin = new MusicTagLyricsPlugin();
                 var lrc = await lyricsPlugin.GetLyricsAsync(song);
 
-                fragment.Activity?.RunOnUiThread(() =>
+                activity?.RunOnUiThread(() =>
                 {
                     btnSearchLyrics.Text = "🔍 搜索歌词";
                     btnSearchLyrics.Enabled = true;
                     if (lrc != null && lrc.Lines.Count > 0)
                     {
-                        tvLyricsResult.Text = $"✅ 已找到 {lrc.Lines.Count} 行歌词";
+                        tvLyricsResult.Text = $"�?已找�?{lrc.Lines.Count} 行歌�?;
                         tvLyricsResult.Visibility = global::Android.Views.ViewStates.Visible;
                     }
                     else
                     {
-                        tvLyricsResult.Text = "❌ 未找到歌词";
+                        tvLyricsResult.Text = "�?未找到歌�?;
                         tvLyricsResult.Visibility = global::Android.Views.ViewStates.Visible;
                     }
                 });
             }
             catch
             {
-                fragment.Activity?.RunOnUiThread(() =>
+                activity?.RunOnUiThread(() =>
                 {
                     btnSearchLyrics.Text = "🔍 搜索歌词";
                     btnSearchLyrics.Enabled = true;
-                    tvLyricsResult.Text = "❌ 搜索失败";
+                    tvLyricsResult.Text = "�?搜索失败";
                     tvLyricsResult.Visibility = global::Android.Views.ViewStates.Visible;
                 });
             }
@@ -142,7 +144,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
 
         var btnSearchCover = new global::Android.Widget.Button(ctx)
         {
-            Text = "🖼️ 搜索封面"
+            Text = "🖼�?搜索封面"
         };
         btnSearchCover.SetTextColor(global::Android.Graphics.Color.ParseColor("#D87E9B"));
         btnSearchCover.SetBackgroundColor(global::Android.Graphics.Color.ParseColor("#20D87E9B"));
@@ -167,7 +169,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
 
         btnSearchCover.Click += async (s, e) =>
         {
-            btnSearchCover.Text = "搜索中...";
+            btnSearchCover.Text = "搜索�?..";
             btnSearchCover.Enabled = false;
 
             try
@@ -177,30 +179,30 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
                     ? await coverPlugin.GetCoverAsync(song)
                     : null;
 
-                fragment.Activity?.RunOnUiThread(() =>
+                activity?.RunOnUiThread(() =>
                 {
-                    btnSearchCover.Text = "🖼️ 搜索封面";
+                    btnSearchCover.Text = "🖼�?搜索封面";
                     btnSearchCover.Enabled = true;
                     if (coverBytes != null)
                     {
                         foundCoverBytes = coverBytes;
-                        tvCoverResult.Text = $"✅ 已找到封面 ({coverBytes.Length / 1024}KB)";
+                        tvCoverResult.Text = $"�?已找到封�?({coverBytes.Length / 1024}KB)";
                         tvCoverResult.Visibility = global::Android.Views.ViewStates.Visible;
                     }
                     else
                     {
-                        tvCoverResult.Text = "❌ 未找到封面";
+                        tvCoverResult.Text = "�?未找到封�?;
                         tvCoverResult.Visibility = global::Android.Views.ViewStates.Visible;
                     }
                 });
             }
             catch
             {
-                fragment.Activity?.RunOnUiThread(() =>
+                activity?.RunOnUiThread(() =>
                 {
-                    btnSearchCover.Text = "🖼️ 搜索封面";
+                    btnSearchCover.Text = "🖼�?搜索封面";
                     btnSearchCover.Enabled = true;
-                    tvCoverResult.Text = "❌ 搜索失败";
+                    tvCoverResult.Text = "�?搜索失败";
                     tvCoverResult.Visibility = global::Android.Views.ViewStates.Visible;
                 });
             }
@@ -209,7 +211,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
         scrollView.AddView(layout);
 
         new global::Android.App.AlertDialog.Builder(ctx)
-            .SetTitle($"编辑元数据 - {song.Title}")
+            .SetTitle($"编辑元数�?- {song.Title}")
             .SetView(scrollView)
             .SetPositiveButton("保存", async (d, args) =>
             {
@@ -226,13 +228,13 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
                         CatClawMusic.Core.Services.TagReader.WriteCoverToFile(song.FilePath, foundCoverBytes);
                     }
 
-                    var msg = saved ? "元数据已保存" : "保存失败（文件可能被占用）";
-                    fragment.Activity?.RunOnUiThread(() =>
+                    var msg = saved ? "元数据已保存" : "保存失败（文件可能被占用�?;
+                    activity?.RunOnUiThread(() =>
                         global::Android.Widget.Toast.MakeText(ctx, msg, global::Android.Widget.ToastLength.Short)?.Show());
                 }
                 else
                 {
-                    fragment.Activity?.RunOnUiThread(() =>
+                    activity?.RunOnUiThread(() =>
                         global::Android.Widget.Toast.MakeText(ctx, "网络歌曲暂不支持编辑标签，已应用缓存信息",
                             global::Android.Widget.ToastLength.Short)?.Show());
                 }

@@ -268,6 +268,7 @@ public class PluginManager : IPluginManager
 
         var primary = instances[0];
         var info = CreatePluginInfo(primary);
+        info.DisplayNameOverride = Path.GetFileNameWithoutExtension(localPath);
         info.Source = PluginSource.Installed;
         info.AssemblyPath = localPath;
         info.InstallUrl = sourceUrl;
@@ -411,6 +412,7 @@ public class PluginManager : IPluginManager
 
                     var primary = instances[0];
                     var info = CreatePluginInfo(primary);
+                    info.DisplayNameOverride = Path.GetFileNameWithoutExtension(entry.AssemblyPath);
                     info.Source = PluginSource.Installed;
                     info.AssemblyPath = entry.AssemblyPath;
                     info.InstallUrl = entry.InstallUrl;
