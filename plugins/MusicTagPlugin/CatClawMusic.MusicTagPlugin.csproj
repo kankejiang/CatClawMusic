@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net9.0-android</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>CatClawMusic.MusicTagPlugin</AssemblyName>
@@ -8,6 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
+    <ProjectReference Include="..\..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
   </ItemGroup>
 </Project>

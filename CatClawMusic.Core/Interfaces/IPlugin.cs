@@ -40,3 +40,23 @@ public interface IAudioEnhancerPlugin : IPlugin
     float[] ProcessSamples(float[] samples, int sampleRate, int channels);
     void Reset();
 }
+
+public interface IMenuContributorPlugin : IPlugin
+{
+    List<MenuItemEntry> GetMenuItems(Song song);
+    Task OnMenuItemClicked(int itemId, Song song, object fragment);
+}
+
+public class MenuItemEntry
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+
+    public MenuItemEntry() { }
+
+    public MenuItemEntry(int id, string title)
+    {
+        Id = id;
+        Title = title;
+    }
+}

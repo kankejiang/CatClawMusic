@@ -4,6 +4,5 @@
     <item android:id="@+id/action_play_next" android:title="下一首播放" />
     <item android:id="@+id/action_add_to_playlist" android:title="添加到歌单" />
     <item android:id="@+id/action_favorite" android:title="收藏" />
-    <item android:id="@+id/action_edit_metadata" android:title="编辑元数据" />
     <item android:id="@+id/action_song_info" android:title="歌曲详情" />
 </menu>

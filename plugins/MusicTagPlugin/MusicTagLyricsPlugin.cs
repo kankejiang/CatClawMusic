@@ -41,11 +41,9 @@ public class MusicTagLyricsPlugin : ILyricsProviderPlugin
     {
         if (string.IsNullOrWhiteSpace(song.Title)) return null;
 
-        // 尝试 LRCLIB API
         var lyrics = await TryLrcLibAsync(song);
         if (lyrics != null) return lyrics;
 
-        // 尝试网易云歌词
         lyrics = await TryNeteaseAsync(song);
         if (lyrics != null) return lyrics;
 

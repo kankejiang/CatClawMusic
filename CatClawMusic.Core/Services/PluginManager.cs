@@ -431,6 +431,12 @@ public class PluginManager : IPluginManager
             category = PluginCategory.AudioEnhancer;
             iconEmoji = "🎛️";
         }
+        else if (plugin is IMenuContributorPlugin)
+        {
+            pluginTypeId = $"MenuContributor.{plugin.PluginId}";
+            category = PluginCategory.MenuContributor;
+            iconEmoji = "📋";
+        }
         else
         {
             pluginTypeId = $"Other.{plugin.PluginId}";

@@ -26,6 +26,7 @@ public enum PluginCategory
     ProtocolProvider,
     CoverProvider,
     AudioEnhancer,
+    MenuContributor,
     Other
 }
 
