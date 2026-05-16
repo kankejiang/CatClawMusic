@@ -12,6 +12,7 @@ using System.ComponentModel;
 
 namespace CatClawMusic.UI.Services;
 
+/// <summary>桌面歌词悬浮窗服务，管理悬浮窗的显示/隐藏、拖拽、样式设置和歌词同步</summary>
 public class DesktopLyricService : Java.Lang.Object, IDisposable
 {
     private const string PrefKey = "desktop_lyric";
@@ -26,6 +27,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     private const string PrefKeyPosY = "desktop_lyric_pos_y";
 
     private static DesktopLyricService? _instance;
+    /// <summary>获取单例实例</summary>
     public static DesktopLyricService Instance => _instance ??= new DesktopLyricService();
 
     private IWindowManager? _windowManager;
@@ -66,12 +68,14 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
 
     private DesktopLyricService() { }
 
+    /// <summary>获取 SharedPreferences 实例</summary>
     private static ISharedPreferences? GetPrefs()
     {
         var ctx = global::Android.App.Application.Context;
         return ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
     }
 
+    /// <summary>初始化服务，绑定上下文、获取播放器和 ViewModel 依赖、加载偏好设置并订阅事件</summary>
     public void Initialize(Context context)
     {
         Android.Util.Log.Info("DesktopLyricService", "Initialize called");
@@ -112,6 +116,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>从 SharedPreferences 加载用户偏好设置</summary>
     private void LoadPreferences()
     {
         var prefs = GetPrefs();
@@ -127,6 +132,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         _fontBold = prefs.GetBoolean(PrefKeyFontBold, false);
     }
 
+    /// <summary>显示桌面歌词悬浮窗</summary>
     public void Show(Context context)
     {
         Android.Util.Log.Info("DesktopLyricService", $"Show called, _isShowing={_isShowing}");
@@ -210,12 +216,14 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>添加悬浮窗的结果结构</summary>
     private struct AddResult
     {
         public bool success;
         public View? view;
     }
 
+    /// <summary>尝试以指定窗口类型添加悬浮窗 View</summary>
     private AddResult TryAddOverlayWindow(Context context, int y, bool fallback = false)
     {
         try
@@ -391,6 +399,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>尝试获取 WindowManager，优先使用缓存实例</summary>
     private IWindowManager? AcquireWindowManager(Context context)
     {
         if (_windowManager != null)
@@ -440,6 +449,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         return null;
     }
 
+    /// <summary>隐藏桌面歌词悬浮窗</summary>
     public void Hide()
     {
         if (!_isShowing || _windowManager == null || _lyricView == null) return;
@@ -707,6 +717,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>设置字体大小（单位 sp）</summary>
     public void SetFontSize(float fontSizeSp)
     {
         _fontSize = fontSizeSp;
@@ -717,6 +728,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>设置字体颜色（十六进制格式，如 #FFFFFF）</summary>
     public void SetFontColor(string colorHex)
     {
         _fontColor = colorHex;
@@ -727,6 +739,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>设置字体是否加粗</summary>
     public void SetFontBold(bool bold)
     {
         _fontBold = bold;
@@ -737,6 +750,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>设置背景不透明度（0~1）</summary>
     public void SetBackgroundAlpha(float alpha)
     {
         _bgAlpha = alpha;
@@ -758,6 +772,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>设置显示模式（0=单行，1=双行）</summary>
     public void SetDisplayMode(int mode)
     {
         _displayMode = mode;
@@ -768,6 +783,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>设置是否显示边框</summary>
     public void SetShowBorder(bool show)
     {
         _showBorder = show;
@@ -784,9 +800,12 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     public float GetBackgroundAlpha() => _bgAlpha;
     public int GetDisplayMode() => _displayMode;
     public bool GetShowBorder() => _showBorder;
+    /// <summary>是否处于锁定状态</summary>
     public bool IsLocked => _isLocked;
+    /// <summary>悬浮窗是否正在显示</summary>
     public bool IsShowing => _isShowing;
 
+    /// <summary>切换悬浮窗锁定状态</summary>
     public void ToggleLock()
     {
         _isLocked = !_isLocked;
@@ -794,6 +813,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             ApplyLockFlags();
     }
 
+    /// <summary>保存悬浮窗位置到 SharedPreferences</summary>
     private void SavePosition()
     {
         var prefs = GetPrefs();
@@ -803,30 +823,35 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         editor?.Apply();
     }
 
+    /// <summary>保存 float 类型偏好值</summary>
     private void SavePreference(string key, float value)
     {
         var prefs = GetPrefs();
         prefs?.Edit()?.PutFloat(key, value)?.Apply();
     }
 
+    /// <summary>保存 string 类型偏好值</summary>
     private void SavePreference(string key, string value)
     {
         var prefs = GetPrefs();
         prefs?.Edit()?.PutString(key, value)?.Apply();
     }
 
+    /// <summary>保存 bool 类型偏好值</summary>
     private void SavePreference(string key, bool value)
     {
         var prefs = GetPrefs();
         prefs?.Edit()?.PutBoolean(key, value)?.Apply();
     }
 
+    /// <summary>保存 int 类型偏好值</summary>
     private void SavePreference(string key, int value)
     {
         var prefs = GetPrefs();
         prefs?.Edit()?.PutInt(key, value)?.Apply();
     }
 
+    /// <summary>释放资源，取消事件订阅并隐藏悬浮窗</summary>
     public new void Dispose()
     {
         if (_audioPlayer != null)
@@ -845,6 +870,7 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         base.Dispose();
     }
 
+    /// <summary>解析十六进制颜色字符串为 Color，支持透明度倍乘</summary>
     private static Color ParseColor(string hex, float alphaMultiplier = 1.0f)
     {
         try

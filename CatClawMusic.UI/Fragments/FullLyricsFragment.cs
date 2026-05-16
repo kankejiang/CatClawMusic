@@ -333,6 +333,9 @@ public class FullLyricsFragment : Fragment
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
+    /// <summary>
+    /// 解绑ViewModel属性变化事件
+    /// </summary>
     private void UnbindViewModel()
     {
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;

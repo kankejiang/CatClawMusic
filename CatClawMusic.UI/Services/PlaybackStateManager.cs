@@ -7,6 +7,7 @@ using CatClawMusic.UI.ViewModels;
 
 namespace CatClawMusic.UI.Services;
 
+/// <summary>播放状态持久化管理器，保存/恢复播放进度和播放模式</summary>
 public static class PlaybackStateManager
 {
     private const string PrefKey = "playback_state";
@@ -14,12 +15,14 @@ public static class PlaybackStateManager
     private const string PrefPosition = "position_seconds";
     private const string PrefPlayMode = "play_mode";
 
+    /// <summary>获取 SharedPreferences 实例</summary>
     private static ISharedPreferences? GetPrefs()
     {
         var ctx = global::Android.App.Application.Context;
         return ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
     }
 
+    /// <summary>保存当前播放歌曲路径和播放位置</summary>
     public static void Save(IAudioPlayerService player)
     {
         var prefs = GetPrefs();
@@ -48,6 +51,7 @@ public static class PlaybackStateManager
         }
     }
 
+    /// <summary>清除所有保存的播放状态</summary>
     public static void Clear()
     {
         var prefs = GetPrefs();
@@ -70,6 +74,7 @@ public static class PlaybackStateManager
         System.Diagnostics.Debug.WriteLine($"[CatClaw] RestorePrefs: path={(path?.Substring(0, Math.Min(50, path?.Length ?? 0)) ?? "null")}, mode={savedMode}");
     }
 
+    /// <summary>异步恢复上次播放状态：加载歌曲、恢复队列和播放模式、Seek 到上次位置</summary>
     public static async Task RestoreAsync(IAudioPlayerService player, MusicDatabase db, PlayQueue queue, NowPlayingViewModel vm)
     {
         var prefs = GetPrefs();

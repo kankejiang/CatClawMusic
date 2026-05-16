@@ -7,15 +7,30 @@ using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.UI.Adapters;
 
+/// <summary>
+/// 歌单列表适配器，最后一项为"新建歌单"入口
+/// </summary>
 public class PlaylistAdapter : RecyclerView.Adapter
 {
     private List<Playlist> _playlists = new();
+    /// <summary>
+    /// 歌单点击事件
+    /// </summary>
     public event EventHandler<Playlist>? PlaylistClicked;
+    /// <summary>
+    /// 歌单长按事件
+    /// </summary>
     public event EventHandler<Playlist>? PlaylistLongClicked;
+    /// <summary>
+    /// 新建歌单点击事件
+    /// </summary>
     public event EventHandler? NewPlaylistClicked;
 
     private static BitmapDrawable? _addIconDrawable;
 
+    /// <summary>
+    /// 获取或创建"新建歌单"的加号图标
+    /// </summary>
     private static BitmapDrawable GetAddIconDrawable(Android.Content.Context ctx)
     {
         if (_addIconDrawable != null) return _addIconDrawable;
@@ -42,14 +57,23 @@ public class PlaylistAdapter : RecyclerView.Adapter
         return _addIconDrawable;
     }
 
+    /// <summary>
+    /// 更新歌单列表数据
+    /// </summary>
     public void UpdatePlaylists(IEnumerable<Playlist> playlists)
     {
         _playlists = playlists.ToList();
         NotifyDataSetChanged();
     }
 
+    /// <summary>
+    /// 列表项总数（含最后的"新建歌单"项）
+    /// </summary>
     public override int ItemCount => _playlists.Count + 1;
 
+    /// <summary>
+    /// 创建歌单项ViewHolder实例
+    /// </summary>
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
     {
         var view = LayoutInflater.From(parent.Context)!.Inflate(Resource.Layout.item_playlist, parent, false)!;
@@ -70,6 +94,9 @@ public class PlaylistAdapter : RecyclerView.Adapter
             PlaylistLongClicked?.Invoke(this, _playlists[position]);
     }
 
+    /// <summary>
+    /// 绑定歌单数据到ViewHolder，最后一项显示新建歌单入口
+    /// </summary>
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         var vh = (VH)holder;
@@ -102,11 +129,23 @@ public class PlaylistAdapter : RecyclerView.Adapter
         }
     }
 
+    /// <summary>
+    /// 歌单项ViewHolder，持有名称、数量、封面视图引用
+    /// </summary>
     private class VH : RecyclerView.ViewHolder
     {
+        /// <summary>
+        /// 歌单名称文本
+        /// </summary>
         public TextView Name, Count;
+        /// <summary>
+        /// 歌单封面图片
+        /// </summary>
         public ImageView Cover;
 
+        /// <summary>
+        /// 初始化ViewHolder，查找子视图并绑定点击事件
+        /// </summary>
         public VH(View view, Action<int> onClick, Action<int>? onLongClick) : base(view)
         {
             Name = view.FindViewById<TextView>(Resource.Id.playlist_name)!;

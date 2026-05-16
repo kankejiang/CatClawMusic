@@ -7,10 +7,12 @@ using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
+/// <summary>Android 权限服务，管理存储权限和悬浮窗权限的检查与申请，适配各厂商 ROM</summary>
 public class PermissionService : IPermissionService
 {
     private static TaskCompletionSource<bool>? _pendingTcs;
 
+    /// <summary>检查存储权限是否已授予</summary>
     public Task<bool> CheckStoragePermissionAsync()
     {
         var ctx = global::Android.App.Application.Context;
@@ -21,6 +23,7 @@ public class PermissionService : IPermissionService
         return Task.FromResult(ctx.CheckSelfPermission(permission) == Permission.Granted);
     }
 
+    /// <summary>请求存储权限</summary>
     public Task<bool> RequestStoragePermissionAsync()
     {
         var activity = MainActivity.Instance;
@@ -39,6 +42,7 @@ public class PermissionService : IPermissionService
         return tcs.Task;
     }
 
+    /// <summary>处理权限请求结果回调</summary>
     public static void HandlePermissionResult(int requestCode, Permission[] grantResults)
     {
         if (requestCode == 1001 && _pendingTcs != null)
@@ -49,6 +53,7 @@ public class PermissionService : IPermissionService
         }
     }
 
+    /// <summary>获取当前权限状态描述文本</summary>
     public string GetPermissionStatus()
     {
         var ctx = global::Android.App.Application.Context;
@@ -60,6 +65,7 @@ public class PermissionService : IPermissionService
         return granted ? "已授权" : $"需要{label}权限来访问音乐文件夹";
     }
 
+    /// <summary>检查权限是否被永久拒绝</summary>
     public bool IsPermanentlyDenied()
     {
         var activity = MainActivity.Instance;
@@ -73,6 +79,7 @@ public class PermissionService : IPermissionService
                && !activity.ShouldShowRequestPermissionRationale(permission);
     }
 
+    /// <summary>打开应用详细设置页面</summary>
     public void OpenAppSettings()
     {
         var activity = MainActivity.Instance;
@@ -85,6 +92,7 @@ public class PermissionService : IPermissionService
         activity.StartActivity(intent);
     }
 
+    /// <summary>检查"所有文件访问"权限（Android 11+）</summary>
     public Task<bool> CheckManageStoragePermissionAsync()
     {
         if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
@@ -92,6 +100,7 @@ public class PermissionService : IPermissionService
         return Task.FromResult(true);
     }
 
+    /// <summary>请求"所有文件访问"权限</summary>
     public Task<bool> RequestManageStoragePermissionAsync()
     {
         var activity = MainActivity.Instance;
@@ -119,6 +128,7 @@ public class PermissionService : IPermissionService
     //  悬浮窗权限 — 全厂商适配
     // ═══════════════════════════════════════════════════════════
 
+    /// <summary>检查悬浮窗权限（含厂商 AppOps 适配）</summary>
     public Task<bool> CheckOverlayPermissionAsync()
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.M)
@@ -141,6 +151,7 @@ public class PermissionService : IPermissionService
         return Task.FromResult(appOpsGranted);
     }
 
+    /// <summary>通过 AppOps 更精确地检查悬浮窗权限</summary>
     private static bool CheckAppOpsOverlayPermission(Context ctx)
     {
         try
@@ -184,6 +195,7 @@ public class PermissionService : IPermissionService
         }
     }
 
+    /// <summary>华为设备 AppOps 悬浮窗权限检查</summary>
     private static bool CheckHuaweiAppOps(Context ctx, AppOpsManager appOps)
     {
         try
@@ -215,6 +227,7 @@ public class PermissionService : IPermissionService
         }
     }
 
+    /// <summary>vivo 设备 AppOps 悬浮窗权限检查</summary>
     private static bool CheckVivoAppOps(Context ctx, AppOpsManager appOps)
     {
         try
@@ -241,6 +254,7 @@ public class PermissionService : IPermissionService
         return true;
     }
 
+    /// <summary>请求悬浮窗权限，尝试跳转到各厂商权限设置页面</summary>
     public Task<bool> RequestOverlayPermissionAsync()
     {
         var activity = MainActivity.Instance;
@@ -253,6 +267,7 @@ public class PermissionService : IPermissionService
         return Task.FromResult(false);
     }
 
+    /// <summary>尝试打开各厂商 OEM 悬浮窗权限页面</summary>
     private static void TryOpenOemPermissionPage(Activity activity)
     {
         if (IsXiaomi() && TryXiaomiPage(activity)) return;
@@ -269,6 +284,7 @@ public class PermissionService : IPermissionService
     //  设备识别
     // ═══════════════════════════════════════════════════════════
 
+    /// <summary>设备信息描述文本</summary>
     private static string DeviceInfo =>
         $"{Build.Manufacturer}/{Build.Brand} SDK{Build.VERSION.SdkInt}";
 
@@ -290,6 +306,7 @@ public class PermissionService : IPermissionService
     private static bool IsMeizu() =>
         Matches("meizu");
 
+    /// <summary>根据关键字匹配当前设备厂商</summary>
     private static bool Matches(string keyword)
     {
         var m = Build.Manufacturer?.ToLowerInvariant() ?? "";
@@ -301,12 +318,14 @@ public class PermissionService : IPermissionService
     //  各厂商权限页跳转
     // ═══════════════════════════════════════════════════════════
 
+    /// <summary>尝试打开小米安全中心权限页</summary>
     private static bool TryXiaomiPage(Activity activity) =>
         TryIntent(activity, "com.miui.securitycenter",
             "com.miui.permcenter.permissions.AppPermissionsEditorActivity")
         || TryIntent(activity, "com.miui.securitycenter",
             "com.miui.permcenter.permissions.PermissionsEditorActivity");
 
+    /// <summary>尝试打开华为悬浮窗管理页</summary>
     private static bool TryHuaweiPage(Activity activity) =>
         TryIntent(activity, "com.huawei.systemmanager",
             "com.huawei.systemmanager.addviewmonitor.AddViewMonitorActivity")
@@ -315,11 +334,13 @@ public class PermissionService : IPermissionService
         || TryIntent(activity, "com.huawei.systemmanager",
             "com.huawei.permissionmanager.ui.MainActivity");
 
+    /// <summary>尝试打开荣耀悬浮窗管理页</summary>
     private static bool TryHonorPage(Activity activity) =>
         TryIntent(activity, "com.hihonor.systemmanager",
             "com.hihonor.systemmanager.addviewmonitor.AddViewMonitorActivity")
         || TryHuaweiPage(activity);
 
+    /// <summary>尝试打开 OPPO 悬浮窗管理页</summary>
     private static bool TryOppoPage(Activity activity) =>
         TryIntent(activity, "com.coloros.safecenter",
             "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity")
@@ -328,12 +349,14 @@ public class PermissionService : IPermissionService
         || TryIntent(activity, "com.coloros.safecenter",
             "com.coloros.safecenter.permission.permissionlist.PermissionListActivity");
 
+    /// <summary>尝试打开 vivo 悬浮窗管理页</summary>
     private static bool TryVivoPage(Activity activity) =>
         TryIntent(activity, "com.vivo.permissionmanager",
             "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity")
         || TryIntent(activity, "com.iqoo.secure",
             "com.iqoo.secure.MainActivity");
 
+    /// <summary>尝试打开魅族悬浮窗管理页</summary>
     private static bool TryMeizuPage(Activity activity)
     {
         try
@@ -354,6 +377,7 @@ public class PermissionService : IPermissionService
             "com.meizu.safe.security.AppSecActivity");
     }
 
+    /// <summary>尝试打开通用悬浮窗权限设置页</summary>
     private static void TryGenericOverlayPage(Activity activity)
     {
         try
@@ -372,6 +396,7 @@ public class PermissionService : IPermissionService
         }
     }
 
+    /// <summary>尝试通过指定包名/类名打开 Activity</summary>
     private static bool TryIntent(Activity activity, string pkg, string cls)
     {
         try
@@ -391,6 +416,7 @@ public class PermissionService : IPermissionService
         }
     }
 
+    /// <summary>打开应用详情设置页（静态方法）</summary>
     private static void OpenAppSettingsStatic(Activity activity)
     {
         var intent = new global::Android.Content.Intent(

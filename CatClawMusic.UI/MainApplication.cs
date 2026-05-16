@@ -13,13 +13,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI;
 
+/// <summary>Android Application 入口，配置依赖注入容器并初始化所有服务</summary>
 [Application(Theme = "@style/CatClawTheme")]
 public class MainApplication : Application
 {
+    /// <summary>全局依赖注入服务提供器</summary>
     public static IServiceProvider Services { get; private set; } = null!;
 
     public MainApplication(IntPtr handle, JniHandleOwnership transfer) : base(handle, transfer) { }
 
+    /// <summary>应用启动时注册所有服务到 DI 容器，初始化数据库、播放器、歌词服务和插件管理器</summary>
     public override void OnCreate()
     {
         base.OnCreate();

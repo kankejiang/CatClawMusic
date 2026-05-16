@@ -6,8 +6,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 首页Fragment，显示歌曲数量和快速入口
+/// </summary>
 public class HomeFragment : Fragment
 {
+    /// <summary>
+    /// 创建首页视图，初始化歌曲数量显示和跳转按钮
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         var view = inflater.Inflate(Resource.Layout.fragment_home, container, false)!;
@@ -26,6 +32,9 @@ public class HomeFragment : Fragment
         return view;
     }
 
+    /// <summary>
+    /// 异步更新首页歌曲数量显示
+    /// </summary>
     private async Task UpdateSongCountAsync(TextView tv, IMusicLibraryService lib)
     {
         try
@@ -37,10 +46,19 @@ public class HomeFragment : Fragment
         catch { }
     }
 
+    /// <summary>
+    /// 通用点击监听器，封装 Action 回调
+    /// </summary>
     private class ClickListener : Java.Lang.Object, View.IOnClickListener
     {
         private readonly Action _action;
+        /// <summary>
+        /// 使用指定的操作初始化点击监听器
+        /// </summary>
         public ClickListener(Action action) => _action = action;
+        /// <summary>
+        /// 触发点击回调
+        /// </summary>
         public void OnClick(View? v) => _action();
     }
 }

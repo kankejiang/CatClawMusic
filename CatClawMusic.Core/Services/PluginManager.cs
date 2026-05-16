@@ -4,15 +4,31 @@ using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Core.Services;
 
+/// <summary>
+/// 插件管理器实现，负责插件的注册、加载、安装、卸载和生命周期管理
+/// </summary>
 public class PluginManager : IPluginManager
 {
+    /// <summary>已注册的插件列表</summary>
     private readonly List<PluginInfo> _plugins = new();
+    /// <summary>读取插件启用状态的委托</summary>
     private readonly Func<string, bool> _getPrefFunc;
+    /// <summary>写入插件启用状态的委托</summary>
     private readonly Action<string, bool> _setPrefFunc;
+    /// <summary>插件安装目录</summary>
     private readonly string _pluginsDir;
+    /// <summary>HTTP 客户端</summary>
     private readonly HttpClient _httpClient = new();
+    /// <summary>已安装插件 ID 集合</summary>
     private readonly HashSet<string> _installedPluginIds = new();
 
+    /// <summary>
+    /// 创建插件管理器实例
+    /// </summary>
+    /// <param name="plugins">内置插件列表</param>
+    /// <param name="getPrefFunc">读取偏好设置的委托</param>
+    /// <param name="setPrefFunc">写入偏好设置的委托</param>
+    /// <param name="pluginsDir">插件安装目录</param>
     public PluginManager(
         IEnumerable<IPlugin> plugins,
         Func<string, bool> getPrefFunc,
@@ -37,11 +53,13 @@ public class PluginManager : IPluginManager
         LoadInstalledPlugins();
     }
 
+    /// <summary>获取所有已注册的插件</summary>
     public List<PluginInfo> GetAllPlugins()
     {
         return _plugins.ToList();
     }
 
+    /// <summary>获取指定类型的所有已启用插件实例</summary>
     public List<T> GetEnabledPlugins<T>() where T : IPlugin
     {
         var result = new List<T>();
@@ -59,11 +77,13 @@ public class PluginManager : IPluginManager
         return result;
     }
 
+    /// <summary>判断插件是否已启用</summary>
     public bool IsPluginEnabled(string pluginTypeId)
     {
         return _plugins.FirstOrDefault(p => p.PluginTypeId == pluginTypeId)?.IsEnabled ?? false;
     }
 
+    /// <summary>设置插件的启用状态并持久化</summary>
     public void SetPluginEnabled(string pluginTypeId, bool enabled)
     {
         var plugin = _plugins.FirstOrDefault(p => p.PluginTypeId == pluginTypeId);
@@ -73,6 +93,7 @@ public class PluginManager : IPluginManager
         _setPrefFunc($"plugin_enabled_{pluginTypeId}", enabled);
     }
 
+    /// <summary>初始化所有已启用的插件</summary>
     public async Task InitializeAllAsync()
     {
         foreach (var info in _plugins.Where(p => p.IsEnabled))
@@ -92,6 +113,7 @@ public class PluginManager : IPluginManager
         }
     }
 
+    /// <summary>关闭所有已启用的插件</summary>
     public async Task ShutdownAllAsync()
     {
         foreach (var info in _plugins.Where(p => p.IsEnabled))
@@ -104,6 +126,7 @@ public class PluginManager : IPluginManager
         }
     }
 
+    /// <summary>从本地文件安装插件（.dll 或 .ccp）</summary>
     public async Task<PluginInfo?> InstallFromLocalFileAsync(string filePath, IProgress<(string, int)>? progress = null)
     {
         try
@@ -140,6 +163,7 @@ public class PluginManager : IPluginManager
         }
     }
 
+    /// <summary>从 GitHub Release 安装插件</summary>
     public async Task<PluginInfo?> InstallFromGitHubAsync(string repoUrl, IProgress<(string, int)>? progress = null)
     {
         try
@@ -236,6 +260,7 @@ public class PluginManager : IPluginManager
         }
     }
 
+    /// <summary>加载并注册插件程序集</summary>
     private async Task<PluginInfo?> LoadAndRegisterPluginAsync(string localPath, string sourceUrl, IProgress<(string, int)>? progress)
     {
         var fileBytes = File.ReadAllBytes(localPath);
@@ -299,6 +324,7 @@ public class PluginManager : IPluginManager
         return info;
     }
 
+    /// <summary>卸载插件并删除程序集文件</summary>
     public async Task<bool> UninstallPluginAsync(string pluginTypeId)
     {
         var info = _plugins.FirstOrDefault(p => p.PluginTypeId == pluginTypeId && p.CanUninstall);
@@ -332,6 +358,7 @@ public class PluginManager : IPluginManager
         return true;
     }
 
+    /// <summary>持久化已安装插件索引到 installed.json</summary>
     private void SaveInstalledIndex()
     {
         var indexPath = Path.Combine(_pluginsDir, "installed.json");
@@ -350,6 +377,7 @@ public class PluginManager : IPluginManager
         catch { }
     }
 
+    /// <summary>从 installed.json 加载已安装插件 ID 索引</summary>
     private void LoadInstalledIndex()
     {
         var indexPath = Path.Combine(_pluginsDir, "installed.json");
@@ -373,6 +401,7 @@ public class PluginManager : IPluginManager
         catch { }
     }
 
+    /// <summary>从 installed.json 加载已安装插件并注册</summary>
     private void LoadInstalledPlugins()
     {
         var indexPath = Path.Combine(_pluginsDir, "installed.json");
@@ -434,6 +463,7 @@ public class PluginManager : IPluginManager
         catch { }
     }
 
+    /// <summary>根据插件类型创建 PluginInfo 元数据</summary>
     private static PluginInfo CreatePluginInfo(IPlugin plugin)
     {
         string pluginTypeId;
@@ -488,6 +518,9 @@ public class PluginManager : IPluginManager
         };
     }
 
+    /// <summary>
+    /// 已安装插件持久化条目
+    /// </summary>
     private class InstalledPluginEntry
     {
         public string PluginTypeId { get; set; } = string.Empty;

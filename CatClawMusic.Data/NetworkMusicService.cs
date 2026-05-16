@@ -9,10 +9,24 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class NetworkMusicService : INetworkMusicService
 {
+    /// <summary>
+    /// 数据库操作实例
+    /// </summary>
     private readonly MusicDatabase _db;
+
+    /// <summary>
+    /// Subsonic/Navidrome API 客户端
+    /// </summary>
     private readonly ISubsonicService _subsonic;
+
+    /// <summary>
+    /// WebDAV 文件服务
+    /// </summary>
     private readonly INetworkFileService _webDav;
 
+    /// <summary>
+    /// 创建网络音乐服务实例
+    /// </summary>
     public NetworkMusicService(MusicDatabase db, ISubsonicService subsonic, INetworkFileService webDav)
     {
         _db = db;
@@ -20,12 +34,18 @@ public class NetworkMusicService : INetworkMusicService
         _webDav = webDav;
     }
 
+    /// <summary>
+    /// 获取所有连接配置
+    /// </summary>
     public async Task<List<ConnectionProfile>> GetProfilesAsync()
     {
         await _db.EnsureInitializedAsync();
         return await _db.GetConnectionProfilesAsync();
     }
 
+    /// <summary>
+    /// 扫描网络音乐源，按协议类型分发到 Subsonic 或 WebDAV 扫描
+    /// </summary>
     public async Task<List<Song>> ScanAsync(ConnectionProfile profile,
         IProgress<(int done, int total, string status)>? progress = null,
         Action<List<Song>>? songBatchCallback = null)
@@ -81,6 +101,9 @@ public class NetworkMusicService : INetworkMusicService
         return allSongs;
     }
 
+    /// <summary>
+    /// 按协议类型搜索网络音乐（当前仅支持 Navidrome）
+    /// </summary>
     public async Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile)
     {
         return profile.Protocol switch
@@ -90,8 +113,14 @@ public class NetworkMusicService : INetworkMusicService
         };
     }
 
+    /// <summary>
+    /// 下载文件头部数据用于读取标签信息的大小（512KB）
+    /// </summary>
     private const int TagHeadSize = 512 * 1024;
 
+    /// <summary>
+    /// 下载远程文件的头部数据用于标签解析，失败时回退到完整下载
+    /// </summary>
     private async Task<MemoryStream?> DownloadHeadAsync(string remotePath)
     {
         var head = await _webDav.OpenReadRangeAsync(remotePath, 0, TagHeadSize);
@@ -109,6 +138,9 @@ public class NetworkMusicService : INetworkMusicService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 获取歌曲封面图流，按协议类型分发
+    /// </summary>
     public async Task<Stream?> GetCoverAsync(string songId, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.Navidrome)
@@ -142,6 +174,9 @@ public class NetworkMusicService : INetworkMusicService
         return null;
     }
 
+    /// <summary>
+    /// 获取远程歌曲歌词，优先查找外部 .lrc 文件，回退到嵌入标签
+    /// </summary>
     public async Task<string?> GetLyricsAsync(string remotePath, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.WebDAV)
@@ -183,6 +218,9 @@ public class NetworkMusicService : INetworkMusicService
         return null;
     }
 
+    /// <summary>
+    /// 从远程文件头部数据中解析歌曲元数据，更新歌曲信息
+    /// </summary>
     public async Task<Song?> FetchSongMetadataAsync(Song song, ConnectionProfile profile)
     {
         if (profile.Protocol != ProtocolType.WebDAV) return null;
@@ -226,6 +264,9 @@ public class NetworkMusicService : INetworkMusicService
         return null;
     }
 
+    /// <summary>
+    /// 获取歌曲流 URL，按协议类型构建对应的播放地址
+    /// </summary>
     public Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.Navidrome)
@@ -235,6 +276,9 @@ public class NetworkMusicService : INetworkMusicService
         return Task.FromResult(song.FilePath);
     }
 
+    /// <summary>
+    /// 构建包含认证信息的 WebDAV 流媒体 URL
+    /// </summary>
     private static string BuildWebDavStreamUrl(string filePath, ConnectionProfile profile)
     {
         // 如果已经是完整 HTTP URL，直接返回
@@ -250,8 +294,14 @@ public class NetworkMusicService : INetworkMusicService
         return $"{scheme}://{auth}{profile.Host}:{profile.Port}/{path}";
     }
 
+    /// <summary>
+    /// 批量入库回调阈值
+    /// </summary>
     private const int BatchSize = 10;
 
+    /// <summary>
+    /// 递归扫描 WebDAV 目录，批量入库发现的音频文件
+    /// </summary>
     private async Task<List<Song>> ScanWebDavAsync(ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
     {
         var songs = new List<Song>();
@@ -279,6 +329,9 @@ public class NetworkMusicService : INetworkMusicService
         return songs;
     }
 
+    /// <summary>
+    /// 将批次中的歌曲批量入库并回调通知调用方
+    /// </summary>
     private async Task FlushBatchAsync(List<Song> batch, Action<List<Song>>? songBatchCallback)
     {
         if (batch.Count == 0) return;
@@ -310,14 +363,27 @@ public class NetworkMusicService : INetworkMusicService
         songBatchCallback?.Invoke(inserted);
     }
 
+    /// <summary>
+    /// WebDAV 目录扫描最大递归深度
+    /// </summary>
     private const int MaxScanDepth = 20;
+
+    /// <summary>
+    /// 支持的音频文件扩展名集合
+    /// </summary>
     private static readonly HashSet<string> AudioExtSet = new(
         new[] { ".MP3", ".WAV", ".FLAC", ".AAC", ".OGG", ".M4A", ".WMA", ".APE", ".AIFF", ".DSF" },
         StringComparer.Ordinal);
 
+    /// <summary>
+    /// 判断文件扩展名是否为支持的音频格式
+    /// </summary>
     private static bool IsAudioExtension(string ext)
         => AudioExtSet.Contains(ext);
 
+    /// <summary>
+    /// 递归扫描 WebDAV 目录，按扩展名过滤音频文件，达到批量阈值后入库
+    /// </summary>
     private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs, List<Song> batch,
         Action<List<Song>>? songBatchCallback, int depth = 0)
     {

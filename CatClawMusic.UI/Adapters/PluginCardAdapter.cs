@@ -8,12 +8,21 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Adapters;
 
+/// <summary>
+/// 插件卡片适配器，支持展开详情、启用/禁用和卸载操作
+/// </summary>
 public class PluginCardAdapter : RecyclerView.Adapter
 {
     private List<PluginInfo> _plugins = new();
     private readonly HashSet<int> _expandedPositions = new();
+    /// <summary>
+    /// 卸载插件事件
+    /// </summary>
     public event EventHandler<string>? UninstallClicked;
 
+    /// <summary>
+    /// 更新插件列表数据
+    /// </summary>
     public void UpdatePlugins(List<PluginInfo> plugins)
     {
         _plugins = plugins ?? new List<PluginInfo>();
@@ -21,8 +30,14 @@ public class PluginCardAdapter : RecyclerView.Adapter
         NotifyDataSetChanged();
     }
 
+    /// <summary>
+    /// 插件总数
+    /// </summary>
     public override int ItemCount => _plugins.Count;
 
+    /// <summary>
+    /// 创建插件卡片ViewHolder实例
+    /// </summary>
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
     {
         var view = LayoutInflater.From(parent.Context)?.Inflate(
@@ -30,6 +45,9 @@ public class PluginCardAdapter : RecyclerView.Adapter
         return new PluginCardViewHolder(view!);
     }
 
+    /// <summary>
+    /// 绑定插件数据到ViewHolder，设置点击展开/收起逻辑
+    /// </summary>
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         if (holder is not PluginCardViewHolder vh) return;
@@ -81,6 +99,9 @@ public class PluginCardAdapter : RecyclerView.Adapter
         };
     }
 
+    /// <summary>
+    /// 显示卸载确认对话框并执行卸载操作
+    /// </summary>
     private async void OnUninstallClick(string pluginTypeId)
     {
         var ctx = global::Android.App.Application.Context;
@@ -102,18 +123,51 @@ public class PluginCardAdapter : RecyclerView.Adapter
             .Show();
     }
 
+    /// <summary>
+    /// 插件卡片ViewHolder，持有所有子视图引用
+    /// </summary>
     private class PluginCardViewHolder : RecyclerView.ViewHolder
     {
+        /// <summary>
+        /// 插件图标文本
+        /// </summary>
         public TextView Icon { get; }
+        /// <summary>
+        /// 插件名称文本
+        /// </summary>
         public TextView Name { get; }
+        /// <summary>
+        /// 插件描述文本
+        /// </summary>
         public TextView Desc { get; }
+        /// <summary>
+        /// 插件版本文本
+        /// </summary>
         public TextView Version { get; }
+        /// <summary>
+        /// 插件来源标签文本
+        /// </summary>
         public TextView SourceTag { get; }
+        /// <summary>
+        /// 启用/禁用开关
+        /// </summary>
         public Switch EnabledSwitch { get; }
+        /// <summary>
+        /// 卸载按钮
+        /// </summary>
         public ImageButton BtnUninstall { get; }
+        /// <summary>
+        /// 功能列表布局容器
+        /// </summary>
         public LinearLayout LayoutCapabilities { get; }
+        /// <summary>
+        /// 功能列表文本
+        /// </summary>
         public TextView TvCapabilities { get; }
 
+        /// <summary>
+        /// 初始化ViewHolder，查找所有子视图引用
+        /// </summary>
         public PluginCardViewHolder(View itemView) : base(itemView)
         {
             Icon = itemView.FindViewById<TextView>(Resource.Id.tv_plugin_icon)!;
@@ -128,15 +182,24 @@ public class PluginCardAdapter : RecyclerView.Adapter
         }
     }
 
+    /// <summary>
+    /// 插件启用开关监听器，处理开关状态变化
+    /// </summary>
     private class SwitchListener : Java.Lang.Object, CompoundButton.IOnCheckedChangeListener
     {
         private readonly string _pluginTypeId;
 
+        /// <summary>
+        /// 使用插件类型ID初始化开关监听器
+        /// </summary>
         public SwitchListener(string pluginTypeId)
         {
             _pluginTypeId = pluginTypeId;
         }
 
+        /// <summary>
+        /// 开关状态变化时更新插件启用状态
+        /// </summary>
         public void OnCheckedChanged(CompoundButton? buttonView, bool isChecked)
         {
             var pluginManager = MainApplication.Services.GetRequiredService<IPluginManager>();

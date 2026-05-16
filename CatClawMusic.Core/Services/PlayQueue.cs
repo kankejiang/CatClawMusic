@@ -7,12 +7,18 @@ namespace CatClawMusic.Core.Services;
 /// </summary>
 public class PlayQueue
 {
-    private List<Song> _originalList = new();  // 原始列表（不变）
-    private List<Song> _shuffledList = new();  // 洗牌后的列表（随机模式使用）
+    /// <summary>原始播放列表（顺序模式使用）</summary>
+    private List<Song> _originalList = new();
+    /// <summary>洗牌后的播放列表（随机模式使用）</summary>
+    private List<Song> _shuffledList = new();
+    /// <summary>当前播放索引</summary>
     private int _currentIndex = -1;
-    private Stack<int> _history = new();  // 历史记录（支持"上一曲"）
+    /// <summary>播放历史记录栈（支持"上一曲"）</summary>
+    private Stack<int> _history = new();
+    /// <summary>当前播放模式</summary>
     private PlayMode _playMode = PlayMode.ListRepeat;
-    private Dictionary<int, int> _songIdToIndex = new(); // O(1) 查找
+    /// <summary>歌曲 ID 到索引的映射（O(1) 查找）</summary>
+    private Dictionary<int, int> _songIdToIndex = new();
 
     /// <summary>
     /// 当前播放模式
@@ -62,6 +68,9 @@ public class PlayQueue
         }
     }
 
+    /// <summary>
+    /// 重建歌曲 ID 到索引的映射
+    /// </summary>
     private void RebuildIndex()
     {
         _songIdToIndex.Clear();

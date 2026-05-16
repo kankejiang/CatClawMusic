@@ -209,6 +209,9 @@ public class TagReader
         }
     }
 
+    /// <summary>
+    /// 将元数据写入音频文件
+    /// </summary>
     public static bool WriteMetadata(string filePath, string? title, string? artist, string? album, uint? year, uint? trackNumber, string? genre)
     {
         if (!IOFile.Exists(filePath)) return false;
@@ -230,6 +233,9 @@ public class TagReader
         }
     }
 
+    /// <summary>
+    /// 将封面图写入音频文件
+    /// </summary>
     public static bool WriteCoverToFile(string filePath, byte[] coverBytes)
     {
         if (!IOFile.Exists(filePath)) return false;
@@ -252,6 +258,9 @@ public class TagReader
         }
     }
 
+    /// <summary>
+    /// 从流中提取封面图片
+    /// </summary>
     public static byte[]? ExtractCoverFromStream(Stream stream, string name)
     {
         try
@@ -265,6 +274,9 @@ public class TagReader
         return null;
     }
 
+    /// <summary>
+    /// 从流中读取嵌入歌词
+    /// </summary>
     public static string? ReadEmbeddedLyricsFromStream(Stream stream, string name)
     {
         try
@@ -303,20 +315,27 @@ public class TagReader
 /// </summary>
 public class ReadOnlyFileAbstraction : TagLib.File.IFileAbstraction
 {
+    /// <summary>只读流</summary>
     private readonly Stream _stream;
 
+    /// <summary>文件名</summary>
     public string Name { get; }
+    /// <summary>读取流</summary>
     public Stream ReadStream => _stream;
+    /// <summary>写入流（不支持）</summary>
     public Stream WriteStream => throw new NotSupportedException();
 
+    /// <summary>
+    /// 创建只读文件抽象
+    /// </summary>
     public ReadOnlyFileAbstraction(string name, Stream stream)
     {
         Name = name;
         _stream = stream;
     }
 
+    /// <summary>关闭流（由调用方管理生命周期）</summary>
     public void CloseStream(Stream stream)
     {
-        // 由调用方管理 Stream 生命周期
     }
 }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI;
 
+/// <summary>ViewPager2 的 Fragment 适配器，管理 5 个主 Tab 页面的创建和缓存</summary>
 public class TabPagerAdapter : FragmentStateAdapter
 {
     private readonly FragmentActivity _activity;
@@ -21,6 +22,7 @@ public class TabPagerAdapter : FragmentStateAdapter
         _activity = activity;
     }
 
+    /// <summary>根据 Tab 位置创建并缓存对应的 Fragment</summary>
     public override Fragment CreateFragment(int position) => position switch
     {
         0 => _fullLyricsFragment ??= MainApplication.Services.GetRequiredService<FullLyricsFragment>(),
@@ -31,10 +33,13 @@ public class TabPagerAdapter : FragmentStateAdapter
         _ => throw new ArgumentOutOfRangeException(nameof(position))
     };
 
+    /// <summary>Tab 页总数</summary>
     public override int ItemCount => 5;
 
     // 稳定 ID，避免 FragmentStateAdapter 误判重复
+    /// <summary>返回稳定 ID（即 Tab 位置）</summary>
     public override long GetItemId(int position) => position;
+    /// <summary>判断指定的 itemId 是否有效</summary>
     public override bool ContainsItem(long itemId) => itemId >= 0 && itemId < ItemCount;
 
     /// <summary>

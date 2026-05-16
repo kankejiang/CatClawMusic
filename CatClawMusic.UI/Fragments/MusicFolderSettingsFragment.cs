@@ -8,6 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 音乐文件夹设置Fragment，管理本地音乐文件夹的添加、删除和扫描
+/// </summary>
 public class MusicFolderSettingsFragment : SettingsSubPageFragment
 {
     private SettingsViewModel _viewModel = null!;
@@ -17,9 +20,15 @@ public class MusicFolderSettingsFragment : SettingsSubPageFragment
 
     protected override string GetTitle() => "音乐文件夹";
 
+    /// <summary>
+    /// 创建音乐文件夹设置视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_music_folders, container, false)!;
 
+    /// <summary>
+    /// 子视图创建完成后初始化控件，设置添加和扫描按钮事件
+    /// </summary>
     protected override void OnSubViewCreated(View view, Bundle? state)
     {
         _viewModel = MainApplication.Services.GetRequiredService<SettingsViewModel>();
@@ -42,6 +51,9 @@ public class MusicFolderSettingsFragment : SettingsSubPageFragment
         RefreshList();
     }
 
+    /// <summary>
+    /// 开始扫描音乐文件夹，显示进度条和状态文本
+    /// </summary>
     private async Task StartScanAsync()
     {
         var libVm = MainApplication.Services.GetRequiredService<LibraryViewModel>();
@@ -71,6 +83,9 @@ public class MusicFolderSettingsFragment : SettingsSubPageFragment
         _scanStatus.Visibility = ViewStates.Gone;
     }
 
+    /// <summary>
+    /// 扫描进度变化时更新进度条和状态文本
+    /// </summary>
     private void OnScanProgressChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is not (nameof(LibraryViewModel.ScanProgress) or nameof(LibraryViewModel.ScanStatus))) return;
@@ -83,6 +98,9 @@ public class MusicFolderSettingsFragment : SettingsSubPageFragment
         });
     }
 
+    /// <summary>
+    /// 刷新文件夹列表UI，为每个文件夹创建带删除按钮的行视图
+    /// </summary>
     private void RefreshList()
     {
         _folderListContainer.RemoveAllViews();

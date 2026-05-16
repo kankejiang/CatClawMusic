@@ -11,11 +11,17 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 通用设置Fragment，包含省电策略、通知权限、桌面歌词等设置项
+/// </summary>
 public class GeneralSettingsFragment : Fragment
 {
     private TextView? _tvBatteryStatus;
     private TextView? _tvNotificationStatus;
 
+    /// <summary>
+    /// 创建通用设置视图，初始化各项设置入口和返回按钮
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         var view = inflater.Inflate(Resource.Layout.fragment_general_settings, container, false)!;
@@ -46,6 +52,9 @@ public class GeneralSettingsFragment : Fragment
         return view;
     }
 
+    /// <summary>
+    /// Fragment恢复时重新检查电池优化和通知权限状态
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
@@ -54,6 +63,9 @@ public class GeneralSettingsFragment : Fragment
         CheckNotificationStatus();
     }
 
+    /// <summary>
+    /// 检查并显示通知权限状态
+    /// </summary>
     private void CheckNotificationStatus()
     {
         if (Context == null) return;
@@ -80,6 +92,9 @@ public class GeneralSettingsFragment : Fragment
         });
     }
 
+    /// <summary>
+    /// 检查是否已开启通知权限
+    /// </summary>
     private bool AreNotificationsEnabled()
     {
         if (Context == null) return false;
@@ -97,6 +112,9 @@ public class GeneralSettingsFragment : Fragment
         return true;
     }
 
+    /// <summary>
+    /// 打开系统通知设置页面，引导用户开启通知权限
+    /// </summary>
     private void OpenNotificationSettings()
     {
         if (Context == null) return;
@@ -138,6 +156,9 @@ public class GeneralSettingsFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 检查并显示电池优化状态
+    /// </summary>
     private void CheckBatteryOptimizationStatus()
     {
         if (Context == null) return;
@@ -164,6 +185,9 @@ public class GeneralSettingsFragment : Fragment
         });
     }
 
+    /// <summary>
+    /// 检查当前应用是否已忽略电池优化（即设置为无限制）
+    /// </summary>
     private bool IsIgnoringBatteryOptimizations()
     {
         if (Context == null) return false;
@@ -177,6 +201,9 @@ public class GeneralSettingsFragment : Fragment
         return powerManager.IsIgnoringBatteryOptimizations(packageName);
     }
 
+    /// <summary>
+    /// 打开电池优化设置页面，引导用户设置为无限制
+    /// </summary>
     private void OpenBatteryOptimizationSettings()
     {
         if (Context == null) return;

@@ -13,14 +13,23 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class SubsonicService : ISubsonicService
 {
+    /// <summary>
+    /// HTTP 客户端，超时 15 秒
+    /// </summary>
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
+    /// <summary>
+    /// 计算字符串的 MD5 哈希值
+    /// </summary>
     private static string Md5(string input)
     {
         var hash = MD5.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    /// <summary>
+    /// 构建 Subsonic API 认证参数（salt + token）
+    /// </summary>
     private string AuthParams(ConnectionProfile profile)
     {
         var salt = Guid.NewGuid().ToString("N")[..12];
@@ -30,6 +39,9 @@ public class SubsonicService : ISubsonicService
                $"&v={profile.ApiVersion}&c={HttpUtility.UrlEncode(profile.ClientName)}&f=json";
     }
 
+    /// <summary>
+    /// 构建完整的 Subsonic API 请求 URL
+    /// </summary>
     private string ApiUrl(string endpoint, ConnectionProfile profile)
     {
         var baseUrl = profile.GetBaseUrl();
@@ -37,6 +49,9 @@ public class SubsonicService : ISubsonicService
         return $"{baseUrl}/rest/{endpoint}{sep}{AuthParams(profile)}";
     }
 
+    /// <summary>
+    /// 测试 Subsonic 服务器连接（ping.view）
+    /// </summary>
     public async Task<(bool Success, string Message)> PingAsync(ConnectionProfile profile)
     {
         try
@@ -67,6 +82,9 @@ public class SubsonicService : ISubsonicService
         }
     }
 
+    /// <summary>
+    /// 通过 Subsonic search3 API 搜索歌曲
+    /// </summary>
     public async Task<List<Song>> SearchAsync(string query, ConnectionProfile profile)
     {
         try
@@ -91,6 +109,9 @@ public class SubsonicService : ISubsonicService
         catch { return new List<Song>(); }
     }
 
+    /// <summary>
+    /// 获取专辑列表并逐张拉取歌曲详情，支持增量回调
+    /// </summary>
     public async Task<List<Song>> GetSongsAsync(ConnectionProfile profile,
         IProgress<(int done, int total, string status)>? progress = null,
         Func<List<Song>, Task>? songCallback = null)
@@ -217,6 +238,9 @@ public class SubsonicService : ISubsonicService
         return songs;
     }
 
+    /// <summary>
+    /// 获取最新专辑列表
+    /// </summary>
     public async Task<List<Album>> GetAlbumsAsync(ConnectionProfile profile)
     {
         var albums = new List<Album>();
@@ -244,17 +268,26 @@ public class SubsonicService : ISubsonicService
         return albums;
     }
 
+    /// <summary>
+    /// 构建歌曲流播放 URL
+    /// </summary>
     public string GetStreamUrl(string songId, ConnectionProfile profile)
     {
         return ApiUrl($"stream.view?id={HttpUtility.UrlEncode(songId)}", profile);
     }
 
+    /// <summary>
+    /// 构建封面图 URL
+    /// </summary>
     public string GetCoverArtUrl(string coverArtId, ConnectionProfile profile)
     {
         var baseUrl = profile.GetBaseUrl();
         return $"{baseUrl}/rest/getCoverArt.view?{AuthParams(profile)}&id={HttpUtility.UrlEncode(coverArtId)}";
     }
 
+    /// <summary>
+    /// 异步获取封面图字节数据
+    /// </summary>
     public async Task<byte[]?> GetCoverArtAsync(string coverArtId, ConnectionProfile profile)
     {
         try
@@ -265,6 +298,9 @@ public class SubsonicService : ISubsonicService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 获取歌词，支持 OpenSubsonic 结构化歌词和旧版简单歌词格式
+    /// </summary>
     public async Task<string?> GetLyricsAsync(string songId, ConnectionProfile profile)
     {
         try
@@ -326,6 +362,9 @@ public class SubsonicService : ISubsonicService
         return null;
     }
 
+    /// <summary>
+    /// 从 JSON 元素解析为 Song 对象
+    /// </summary>
     private static Song ParseSong(JsonElement item, ConnectionProfile profile)
     {
         var songId = GetString(item, "id");
@@ -355,12 +394,21 @@ public class SubsonicService : ISubsonicService
         };
     }
 
+    /// <summary>
+    /// 安全获取 JSON 字符串属性
+    /// </summary>
     private static string GetString(JsonElement el, string name) =>
         el.TryGetProperty(name, out var v) ? v.GetString() ?? "" : "";
 
+    /// <summary>
+    /// 安全获取 JSON 整数属性
+    /// </summary>
     private static int GetInt(JsonElement el, string name) =>
         el.TryGetProperty(name, out var v) && v.TryGetInt32(out var i) ? i : 0;
 
+    /// <summary>
+    /// 安全获取 JSON 长整数属性
+    /// </summary>
     private static long GetLong(JsonElement el, string name) =>
         el.TryGetProperty(name, out var v) && v.TryGetInt64(out var l) ? l : 0;
 

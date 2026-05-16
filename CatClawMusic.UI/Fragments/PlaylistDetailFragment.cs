@@ -11,6 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 歌单详情Fragment，显示歌单中的歌曲列表，支持播放、上下文菜单等操作
+/// </summary>
 public class PlaylistDetailFragment : Fragment
 {
     private PlaylistDetailViewModel _viewModel = null!;
@@ -21,9 +24,15 @@ public class PlaylistDetailFragment : Fragment
     private TextView _titleText = null!, _statusText = null!;
     private SongAdapter _adapter = null!;
 
+    /// <summary>
+    /// 创建歌单详情视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_playlist_detail, container, false)!;
 
+    /// <summary>
+    /// 视图创建完成后初始化控件，加载歌单数据并绑定事件
+    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -71,37 +80,22 @@ public class PlaylistDetailFragment : Fragment
         };
     }
 
+    /// <summary>
+    /// 显示歌曲右键上下文菜单，包含播放、添加、收藏等选项
+    /// </summary>
     private void ShowSongContextMenu(View anchor, Song song)
     {
         var popup = new AndroidX.AppCompat.Widget.PopupMenu(Context!, anchor);
         popup.MenuInflater!.Inflate(Resource.Menu.menu_song_context, popup.Menu!);
 
-        var pluginMenuItems = new List<(int AndroidMenuItemId, int PluginEntryId, IMenuContributorPlugin Plugin)>();
-        var pluginManager = MainApplication.Services.GetService<IPluginManager>();
-        if (pluginManager != null)
-        {
-            var contributors = pluginManager.GetEnabledPlugins<IMenuContributorPlugin>();
-            foreach (var contributor in contributors)
-            {
-                try
-                {
-                    foreach (var entry in contributor.GetMenuItems(song))
-                    {
-                        if (string.IsNullOrEmpty(entry.Title)) continue;
-                        var menuItem = popup.Menu!.Add(entry.Title);
-                        menuItem.SetShowAsAction(Android.Views.ShowAsAction.Never);
-                        pluginMenuItems.Add((menuItem.ItemId, entry.Id, contributor));
-                    }
-                }
-                catch { }
-            }
-        }
-
-        popup.MenuItemClick += (s, e) => HandleContextMenuClick(e.Item!.ItemId, song, pluginMenuItems);
+        popup.MenuItemClick += (s, e) => HandleContextMenuClick(e.Item!.ItemId, song);
         popup.Show();
     }
 
-    private async void HandleContextMenuClick(int itemId, Song song, List<(int AndroidMenuItemId, int PluginEntryId, IMenuContributorPlugin Plugin)> pluginItems)
+    /// <summary>
+    /// 处理上下文菜单点击事件，分发到不同的操作逻辑
+    /// </summary>
+    private async void HandleContextMenuClick(int itemId, Song song)
     {
         switch (itemId)
         {
@@ -128,19 +122,12 @@ public class PlaylistDetailFragment : Fragment
             case Resource.Id.action_song_info:
                 ShowSongInfoDialog(song);
                 break;
-            default:
-                foreach (var (androidMenuItemId, pluginEntryId, plugin) in pluginItems)
-                {
-                    if (itemId == androidMenuItemId)
-                    {
-                        await plugin.OnMenuItemClicked(pluginEntryId, song, this);
-                        return;
-                    }
-                }
-                break;
         }
     }
 
+    /// <summary>
+    /// 显示"添加到歌单"对话框，列出所有可用歌单供用户选择
+    /// </summary>
     private async void ShowAddToPlaylistDialog(Song song)
     {
         var musicLibrary = MainApplication.Services.GetRequiredService<Core.Interfaces.IMusicLibraryService>();
@@ -164,6 +151,9 @@ public class PlaylistDetailFragment : Fragment
             .Show();
     }
 
+    /// <summary>
+    /// 显示歌曲详情对话框，包含标题、艺术家、专辑、时长等信息
+    /// </summary>
     private void ShowSongInfoDialog(Song song)
     {
         var durationStr = TimeSpan.FromMilliseconds(song.Duration).ToString(@"mm\:ss");
@@ -190,6 +180,9 @@ public class PlaylistDetailFragment : Fragment
             .Show();
     }
 
+    /// <summary>
+    /// 格式化文件大小为可读字符串（B/KB/MB）
+    /// </summary>
     private static string FormatFileSize(long bytes)
     {
         if (bytes < 1024) return $"{bytes} B";
@@ -197,11 +190,17 @@ public class PlaylistDetailFragment : Fragment
         return $"{bytes / (1024.0 * 1024.0):F1} MB";
     }
 
+    /// <summary>
+    /// 音频播放器状态变化时刷新播放状态UI
+    /// </summary>
     private void OnAudioPlayerStateChanged(object? sender, PlaybackStateChangedEventArgs e)
     {
         Activity?.RunOnUiThread(UpdatePlayState);
     }
 
+    /// <summary>
+    /// 更新当前播放状态，高亮当前播放歌曲
+    /// </summary>
     private void UpdatePlayState()
     {
         var currentSong = _playQueue?.CurrentSong;
@@ -210,6 +209,9 @@ public class PlaylistDetailFragment : Fragment
         _adapter.UpdatePlayState(currentSongId, isPlaying);
     }
 
+    /// <summary>
+    /// Fragment销毁时解绑播放器状态变化事件
+    /// </summary>
     public override void OnDestroyView()
     {
         base.OnDestroyView();

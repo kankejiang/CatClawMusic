@@ -8,6 +8,7 @@ using Android.Widget;
 
 namespace CatClawMusic.UI.Helpers;
 
+/// <summary>音频波形动画视图，显示三根跳动的竖条表示播放状态</summary>
 public class WaveformView : LinearLayout
 {
     private readonly View[] _bars = new View[3];
@@ -19,6 +20,7 @@ public class WaveformView : LinearLayout
     public WaveformView(Context context, IAttributeSet attrs) : base(context, attrs) { Init(context); }
     public WaveformView(Context context, IAttributeSet attrs, int defStyleAttr) : base(context, attrs, defStyleAttr) { Init(context); }
 
+    /// <summary>初始化波形视图，创建三根彩色竖条</summary>
     private void Init(Context context)
     {
         Orientation = Android.Widget.Orientation.Horizontal;
@@ -40,6 +42,7 @@ public class WaveformView : LinearLayout
         }
     }
 
+    /// <summary>尺寸确定后创建属性动画，设置交替弹跳效果</summary>
     protected override void OnSizeChanged(int w, int h, int oldw, int oldh)
     {
         base.OnSizeChanged(w, h, oldw, oldh);
@@ -66,6 +69,7 @@ public class WaveformView : LinearLayout
         if (_isPlaying) StartAnimations();
     }
 
+    /// <summary>设置播放状态，控制动画启停和视图可见性</summary>
     public void SetPlaying(bool isPlaying)
     {
         if (_isPlaying == isPlaying) return;
@@ -83,11 +87,13 @@ public class WaveformView : LinearLayout
         }
     }
 
+    /// <summary>启动所有竖条的弹跳动画</summary>
     private void StartAnimations()
     {
         foreach (var a in _animators) a.Start();
     }
 
+    /// <summary>停止所有动画并重置竖条比例</summary>
     private void StopAnimations()
     {
         foreach (var a in _animators)
@@ -100,6 +106,7 @@ public class WaveformView : LinearLayout
         }
     }
 
+    /// <summary>从窗口分离时取消并释放所有动画资源</summary>
     protected override void OnDetachedFromWindow()
     {
         base.OnDetachedFromWindow();

@@ -14,6 +14,9 @@ using CoreModels = CatClawMusic.Core.Models;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 音乐库Fragment，显示本地/网络歌曲列表，支持协议切换和刷新
+/// </summary>
 public class LibraryFragment : Fragment
 {
     private LibraryViewModel _viewModel = null!;
@@ -27,11 +30,17 @@ public class LibraryFragment : Fragment
     private ArrayAdapter<string>? _protocolAdapter = null!;
     private SongAdapter _adapter = null!;
 
+    /// <summary>
+    /// 创建音乐库视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         return inflater.Inflate(Resource.Layout.fragment_library, container, false)!;
     }
 
+    /// <summary>
+    /// 视图创建完成后初始化控件，绑定ViewModel和事件处理器
+    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -49,6 +58,7 @@ public class LibraryFragment : Fragment
 
         _adapter = sp.GetRequiredService<SongAdapter>();
         _adapter.SongClicked += OnSongClicked;
+        _adapter.SongLongClicked += OnSongLongClicked;
         _songList.SetAdapter(_adapter);
 
         // 初始化 Spinner
@@ -68,6 +78,9 @@ public class LibraryFragment : Fragment
             _adapter.UpdateSongs(_viewModel.Songs);
     }
 
+    /// <summary>
+    /// 绑定ViewModel属性变化事件和集合变化事件
+    /// </summary>
     private void BindViews()
     {
         BindingHelper.BindText(_statusText, _viewModel, nameof(_viewModel.StatusText), _ => _viewModel.StatusText);
@@ -79,6 +92,9 @@ public class LibraryFragment : Fragment
         UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, false);
     }
 
+    /// <summary>
+    /// 解绑ViewModel事件，防止内存泄漏
+    /// </summary>
     private void UnbindViews()
     {
         _viewModel.Songs.CollectionChanged -= OnSongsCollectionChanged;
@@ -86,6 +102,9 @@ public class LibraryFragment : Fragment
         _protocolSpinner.ItemSelected -= OnProtocolSelected;
     }
 
+    /// <summary>
+    /// ViewModel属性变化时更新Tab按钮颜色和协议选择区域可见性
+    /// </summary>
     private void OnViewModelPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(_viewModel.LocalTabColor))
@@ -102,6 +121,9 @@ public class LibraryFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 协议选择变化时重新加载网络歌曲列表
+    /// </summary>
     private void OnProtocolSelected(object? sender, AdapterView.ItemSelectedEventArgs e)
     {
         if (_viewModel.SelectedProtocolIndex != e.Position)
@@ -116,12 +138,18 @@ public class LibraryFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// Fragment销毁时解绑事件
+    /// </summary>
     public override void OnDestroyView()
     {
         UnbindViews();
         base.OnDestroyView();
     }
 
+    /// <summary>
+    /// 歌曲列表集合变化时增量更新适配器
+    /// </summary>
     private void OnSongsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         var a = Activity;
@@ -152,6 +180,9 @@ public class LibraryFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 更新Tab按钮的背景色和文字颜色
+    /// </summary>
     private static void UpdateTabButtonColor(Button btn, string hexColor, bool isActive)
     {
         var color = Android.Graphics.Color.ParseColor(hexColor);
@@ -162,15 +193,160 @@ public class LibraryFragment : Fragment
                 Android.Graphics.Color.ParseColor("#4A0072"))); // primaryDark
     }
 
+    /// <summary>
+    /// 歌曲点击时设置播放队列并开始播放
+    /// </summary>
     private void OnSongClicked(object? sender, CoreModels.Song song)
     {
         var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
         queue.SetSongs(_viewModel.Songs);
         queue.SelectSong(song.Id);
         _ = MainApplication.Services.GetRequiredService<IAudioPlayerService>().PlayAsync(song.FilePath);
-        // 同步迷你播放器
         MainApplication.Services.GetRequiredService<NowPlayingViewModel>().SetCurrentSong(song);
-        // 记录播放历史
         _ = MainApplication.Services.GetRequiredService<MusicDatabase>().RecordPlayAsync(song.Id);
     }
+
+    /// <summary>
+    /// 歌曲长按时显示上下文菜单，包含插件菜单项（如匹配元数据）
+    /// </summary>
+    private void OnSongLongClicked(object? sender, CoreModels.Song song)
+    {
+        var anchor = _adapter.LastLongClickedView ?? _songList;
+        ShowSongContextMenu(anchor, song);
+    }
+
+    /// <summary>
+    /// 显示歌曲右键上下文菜单，毛玻璃圆角卡片风格
+    /// </summary>
+    private void ShowSongContextMenu(View anchor, CoreModels.Song song)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var density = ctx.Resources!.DisplayMetrics!.Density;
+        var dp = (int)density;
+
+        var menuItems = new List<(string Title, Action Action)>();
+
+        menuItems.Add(("▶  播放", () => OnSongClicked(this, song)));
+        menuItems.Add(("⏭  下一首播放", () =>
+        {
+            var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
+            queue.AddNext(song);
+            Activity?.RunOnUiThread(() =>
+                Toast.MakeText(ctx, $"已添加: {song.Title}", ToastLength.Short)?.Show());
+        }));
+        menuItems.Add(("📋  添加到歌单", () => { }));
+        menuItems.Add(("❤  收藏", () => { }));
+        menuItems.Add(("ℹ  歌曲详情", () => { }));
+
+        var pluginManager = MainApplication.Services.GetService<IPluginManager>();
+        if (pluginManager != null)
+        {
+            var contributors = pluginManager.GetEnabledPlugins<IMenuContributorPlugin>();
+            foreach (var contributor in contributors)
+            {
+                try
+                {
+                    foreach (var entry in contributor.GetMenuItems(song))
+                    {
+                        if (string.IsNullOrEmpty(entry.Title)) continue;
+                        var plugin = contributor;
+                        var entryId = entry.Id;
+                        menuItems.Add(("🏷  " + entry.Title, async () =>
+                        {
+                            await plugin.OnMenuItemClicked(entryId, song, this);
+                        }));
+                    }
+                }
+                catch { }
+            }
+        }
+
+        var cardLayout = new LinearLayout(ctx)
+        { Orientation = Orientation.Vertical };
+        cardLayout.SetPadding(dp * 6, dp * 8, dp * 6, dp * 8);
+
+        var bgDrawable = new Android.Graphics.Drawables.GradientDrawable();
+        bgDrawable.SetShape(Android.Graphics.Drawables.ShapeType.Rectangle);
+        bgDrawable.SetCornerRadius(24 * density);
+        bgDrawable.SetColor(Android.Graphics.Color.ParseColor("#E6281E36"));
+        bgDrawable.SetStroke(dp, Android.Graphics.Color.ParseColor("#44FFFFFF"));
+        cardLayout.Background = bgDrawable;
+
+        var titleTv = new TextView(ctx) { Text = song.Title ?? "未知歌曲" };
+        titleTv.SetTextSize(Android.Util.ComplexUnitType.Sp, 14f);
+        titleTv.SetTextColor(Android.Graphics.Color.ParseColor("#E8E0F0"));
+        titleTv.SetTypeface(null, Android.Graphics.TypefaceStyle.Bold);
+        titleTv.SetPadding(dp * 14, dp * 10, dp * 14, dp * 4);
+        titleTv.SetSingleLine(true);
+        titleTv.Ellipsize = Android.Text.TextUtils.TruncateAt.End;
+        cardLayout.AddView(titleTv);
+
+        var subtitleTv = new TextView(ctx) { Text = song.Artist ?? "未知艺术家" };
+        subtitleTv.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+        subtitleTv.SetTextColor(Android.Graphics.Color.ParseColor("#B0A8BA"));
+        subtitleTv.SetPadding(dp * 14, 0, dp * 14, dp * 10);
+        subtitleTv.SetSingleLine(true);
+        subtitleTv.Ellipsize = Android.Text.TextUtils.TruncateAt.End;
+        cardLayout.AddView(subtitleTv);
+
+        var divider = new View(ctx);
+        divider.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 1);
+        divider.SetBackgroundColor(Android.Graphics.Color.ParseColor("#20FFFFFF"));
+        cardLayout.AddView(divider);
+
+        foreach (var item in menuItems)
+        {
+            var itemLayout = new LinearLayout(ctx)
+            { Orientation = Orientation.Horizontal };
+            itemLayout.SetGravity(Android.Views.GravityFlags.CenterVertical);
+            itemLayout.SetPadding(dp * 8, dp * 6, dp * 8, dp * 6);
+            itemLayout.SetBackgroundColor(Android.Graphics.Color.Transparent);
+
+            var tv = new TextView(ctx) { Text = item.Title };
+            tv.SetTextSize(Android.Util.ComplexUnitType.Sp, 14f);
+            tv.SetTextColor(Android.Graphics.Color.ParseColor("#E0D8E8"));
+            tv.LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
+
+            itemLayout.AddView(tv);
+            itemLayout.Clickable = true;
+            itemLayout.Focusable = true;
+
+            var pressedColor = Android.Graphics.Color.ParseColor("#1A9B7ED8").ToArgb();
+            var normalColor = Android.Graphics.Color.Transparent.ToArgb();
+            var stateList = new Android.Content.Res.ColorStateList(
+                new[] { new[] { Android.Resource.Attribute.StatePressed } , new int[] { } },
+                new[] { pressedColor, normalColor }
+            );
+
+            var rippleDrawable = new Android.Graphics.Drawables.RippleDrawable(stateList,
+                null, new Android.Graphics.Drawables.ShapeDrawable(
+                    new Android.Graphics.Drawables.Shapes.RoundRectShape(
+                        Enumerable.Repeat(12f * density, 8).ToArray(), null, null)));
+            itemLayout.Background = rippleDrawable;
+
+            var capturedAction = item.Action;
+            itemLayout.Click += (s, e) =>
+            {
+                capturedAction();
+                _contextMenuDialog?.Dismiss();
+            };
+
+            cardLayout.AddView(itemLayout);
+        }
+
+        var dialog = new Android.App.Dialog(ctx, Android.Resource.Style.ThemeDeviceDefaultLightNoActionBar);
+        dialog.RequestWindowFeature((int)Android.Views.WindowFeatures.NoTitle);
+        dialog.SetContentView(cardLayout);
+        dialog.Window?.SetBackgroundDrawable(new Android.Graphics.Drawables.ColorDrawable(Android.Graphics.Color.Transparent));
+        dialog.Window?.SetDimAmount(0.4f);
+        dialog.Window?.SetGravity(Android.Views.GravityFlags.Center);
+        dialog.Window?.SetLayout(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent);
+
+        _contextMenuDialog = dialog;
+        dialog.Show();
+    }
+
+    private Android.App.Dialog? _contextMenuDialog;
 }

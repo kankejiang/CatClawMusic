@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Services;
 
+/// <summary>页面导航服务，管理 Fragment 推入/弹出与底部导航栏联动</summary>
 public class NavigationService : INavigationService
 {
     private FragmentManager? _fm;
@@ -14,6 +15,7 @@ public class NavigationService : INavigationService
     private BottomNavigationView? _bottomNav;
     private int? _sidePanelContainerId;
 
+    /// <summary>初始化导航服务，绑定 FragmentManager、主页面容器和底部导航</summary>
     public void Initialize(FragmentManager fm, int overlayContainerId, BottomNavigationView bottomNav)
     {
         _fm = fm;
@@ -33,6 +35,7 @@ public class NavigationService : INavigationService
         _sidePanelContainerId = null;
     }
 
+    /// <summary>根据路由名称推入对应的 Fragment 页面，主区推入时隐藏底部导航栏和工具栏</summary>
     public void PushFragment(string route, Dictionary<string, object>? parameters = null)
     {
         if (_fm == null) return;
@@ -88,6 +91,7 @@ public class NavigationService : INavigationService
         return fragment;
     }
 
+    /// <summary>弹出当前页面，返回上一级。当返回栈清空时恢复底部导航栏和工具栏</summary>
     public void GoBack()
     {
         if (_fm == null) return;
@@ -104,6 +108,7 @@ public class NavigationService : INavigationService
         }
     }
 
+    /// <summary>切换到指定 Tab 页</summary>
     public void SwitchTab(int tabIndex)
     {
         MainActivity.Instance?.SwitchTab(tabIndex);

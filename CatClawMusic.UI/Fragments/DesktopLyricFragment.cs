@@ -9,6 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 桌面歌词设置Fragment，配置悬浮歌词的显示样式、字体大小、颜色等
+/// </summary>
 public class DesktopLyricFragment : Fragment
 {
     private const string PrefKey = "desktop_lyric";
@@ -48,6 +51,9 @@ public class DesktopLyricFragment : Fragment
         return ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
     }
 
+    /// <summary>
+    /// 创建桌面歌词设置视图，初始化所有设置控件和事件处理器
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? savedInstanceState)
     {
         var view = inflater.Inflate(Resource.Layout.fragment_desktop_lyric, container, false)!;
@@ -133,6 +139,9 @@ public class DesktopLyricFragment : Fragment
         return view;
     }
 
+    /// <summary>
+    /// 设置各控件的事件处理器（开关、滑块、模式选择等）
+    /// </summary>
     private void SetupEventHandlers(DesktopLyricService service, INavigationService nav, IPermissionService permissionService)
     {
         if (_swDesktopLyric != null)
@@ -215,18 +224,27 @@ public class DesktopLyricFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 更新字体大小数值标签
+    /// </summary>
     private void UpdateFontSizeLabel(float sizeSp)
     {
         if (_tvFontSizeValue != null)
             _tvFontSizeValue.Text = $"{sizeSp:F0}sp";
     }
 
+    /// <summary>
+    /// 更新背景透明度数值标签
+    /// </summary>
     private void UpdateBgAlphaLabel(float alpha)
     {
         if (_tvBgAlphaValue != null)
             _tvBgAlphaValue.Text = $"{(int)(alpha * 100)}%";
     }
 
+    /// <summary>
+    /// 更新颜色预览视图和颜色名称标签
+    /// </summary>
     private void UpdateColorPreview(string hex)
     {
         if (_colorPreview != null)
@@ -250,6 +268,9 @@ public class DesktopLyricFragment : Fragment
 
     private Android.App.Dialog? _colorDialog;
 
+    /// <summary>
+    /// 显示颜色选择器对话框，提供预设颜色供用户选择
+    /// </summary>
     private void ShowColorPickerDialog()
     {
         if (Context == null) return;
@@ -301,6 +322,9 @@ public class DesktopLyricFragment : Fragment
         _colorDialog?.Show();
     }
 
+    /// <summary>
+    /// 根据颜色十六进制值获取预设颜色名称
+    /// </summary>
     private static string GetColorName(string hex)
     {
         foreach (var (h, name) in PresetColors)
@@ -311,12 +335,18 @@ public class DesktopLyricFragment : Fragment
         return hex;
     }
 
+    /// <summary>
+    /// Fragment恢复时检查悬浮窗权限状态
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
         CheckOverlayPermissionStatusAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 异步检查悬浮窗权限状态并更新UI
+    /// </summary>
     private async Task CheckOverlayPermissionStatusAsync()
     {
         if (Context == null) return;

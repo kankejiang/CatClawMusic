@@ -7,6 +7,7 @@ using AUri = Android.Net.Uri;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
+/// <summary>SAF（Storage Access Framework）内容扫描器，通过 content:// URI 遍历文件夹并读取音频文件元数据</summary>
 public static class SafeContentScanner
 {
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -14,6 +15,7 @@ public static class SafeContentScanner
         ".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".wma", ".opus", ".ape", ".aiff"
     };
 
+    /// <summary>扫描所有已保存的 SAF 文件夹，返回歌曲列表</summary>
     public static async Task<List<Song>> ScanSavedFolderAsync()
     {
         var uris = FolderPicker.GetSavedFolderUris();
@@ -40,11 +42,13 @@ public static class SafeContentScanner
         return allSongs;
     }
 
+    /// <summary>异步扫描单个 content:// 树 URI</summary>
     public static Task<List<Song>> ScanTreeUriAsync(AUri treeUri)
     {
         return Task.Run(() => ScanTreeUri(treeUri));
     }
 
+    /// <summary>扫描单个 content:// 树 URI，递归遍历所有子目录</summary>
     private static List<Song> ScanTreeUri(AUri treeUri)
     {
         var songs = new List<Song>();
@@ -62,6 +66,7 @@ public static class SafeContentScanner
         return songs;
     }
 
+    /// <summary>递归遍历 DocumentsProvider 文档树</summary>
     private static void WalkDocuments(Context ctx, AUri treeUri, string docId, List<Song> songs)
     {
         var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, docId);
@@ -112,6 +117,7 @@ public static class SafeContentScanner
         }
     }
 
+    /// <summary>从 content:// URI 读取音频文件元数据</summary>
     private static Song? ReadSongFromUri(Context ctx, AUri uri, string displayName, long size)
     {
         try
@@ -129,6 +135,7 @@ public static class SafeContentScanner
         }
     }
 
+    /// <summary>根据扩展名判断是否为支持的音频文件</summary>
     private static bool IsAudioFile(string fileName)
     {
         var ext = Path.GetExtension(fileName);

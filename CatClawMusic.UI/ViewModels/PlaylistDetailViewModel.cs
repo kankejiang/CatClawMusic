@@ -6,6 +6,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatClawMusic.UI.ViewModels;
 
+/// <summary>
+/// 歌单详情ViewModel，管理歌单歌曲列表和播放操作
+/// </summary>
 public partial class PlaylistDetailViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -22,6 +25,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
     private int _playlistId;
 
+    /// <summary>
+    /// 初始化歌单详情ViewModel
+    /// </summary>
     public PlaylistDetailViewModel(IMusicLibraryService musicLibrary, IAudioPlayerService? audioPlayer = null,
         PlayQueue? playQueue = null, INavigationService? navigationService = null, IServiceProvider? serviceProvider = null)
     {
@@ -32,6 +38,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
         _serviceProvider = serviceProvider;
     }
 
+    /// <summary>
+    /// 获取数据库实例（延迟初始化）
+    /// </summary>
     private Data.MusicDatabase GetDb()
     {
         if (_db == null)
@@ -40,6 +49,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
         return _db!;
     }
 
+    /// <summary>
+    /// 根据歌单ID加载歌曲列表
+    /// </summary>
     public async Task LoadAsync(int playlistId, string name)
     {
         _playlistId = playlistId;
@@ -72,6 +84,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
         catch { StatusText = "加载失败"; }
     }
 
+    /// <summary>
+    /// 播放指定歌曲，如果已在播放中则切换暂停/恢复
+    /// </summary>
     public async Task PlaySongAsync(Song song)
     {
         if (_audioPlayer == null || _playQueue == null) return;
@@ -98,17 +113,26 @@ public partial class PlaylistDetailViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 检查歌曲是否已收藏
+    /// </summary>
     public async Task<bool> IsFavoriteAsync(int songId)
     {
         try { return await GetDb().IsFavoriteAsync(songId); }
         catch { return false; }
     }
 
+    /// <summary>
+    /// 切换歌曲收藏状态
+    /// </summary>
     public async Task ToggleFavoriteAsync(int songId, bool isFav)
     {
         await GetDb().SetFavoriteAsync(songId, isFav);
     }
 
+    /// <summary>
+    /// 将歌曲添加到指定歌单
+    /// </summary>
     public async Task AddSongToPlaylistAsync(int targetPlaylistId, int songId)
     {
         await _musicLibrary.AddSongToPlaylistAsync(targetPlaylistId, songId);

@@ -5,12 +5,16 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatClawMusic.UI.ViewModels;
 
+/// <summary>
+/// 搜索ViewModel，使用防抖机制处理用户输入并异步搜索歌曲
+/// </summary>
 public partial class SearchViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
 
     public ObservableCollection<Song> SearchResults { get; } = new();
 
+    [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private bool _isSearching;
     [ObservableProperty] private string _resultCount = "";
 
@@ -18,11 +22,22 @@ public partial class SearchViewModel : ObservableObject
     private CancellationTokenSource? _searchCts;
     private const int DebounceDelayMs = 300;
 
+    /// <summary>
+    /// 搜索文本变化时触发，使用防抖机制调用SearchAsync
+    /// </summary>
+    partial void OnSearchTextChanged(string value) => _ = SearchAsync(value);
+
+    /// <summary>
+    /// 初始化搜索ViewModel
+    /// </summary>
     public SearchViewModel(IMusicLibraryService musicLibrary)
     {
         _musicLibrary = musicLibrary;
     }
 
+    /// <summary>
+    /// 执行搜索，使用防抖机制避免频繁查询
+    /// </summary>
     public async Task SearchAsync(string keyword)
     {
         // 取消之前的搜索任务

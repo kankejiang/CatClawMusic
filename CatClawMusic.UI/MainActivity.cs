@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI;
 
+/// <summary>应用主 Activity，管理 Tab 导航、迷你播放器、侧面板和系统栏适配</summary>
 [Activity(Theme = "@style/CatClaw.Splash", MainLauncher = true,
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation)]
 public class MainActivity : AppCompatActivity
@@ -33,6 +34,7 @@ public class MainActivity : AppCompatActivity
     private bool _suppressNavListener;
     private bool _overlayOpen;
 
+    /// <summary>设置 Overlay 打开状态</summary>
     public void SetOverlayOpen(bool open) => _overlayOpen = open;
 
     // 迷你播放器
@@ -59,11 +61,14 @@ public class MainActivity : AppCompatActivity
     private LibraryViewModel? _libVm;
     private NowPlayingViewModel? _miniVm;
 
+    /// <summary>MainActivity 单例实例</summary>
     public static MainActivity Instance { get; private set; } = null!;
 
+    /// <summary>导航服务实例</summary>
     public NavigationService NavigationService =>
         (NavigationService)MainApplication.Services.GetRequiredService<INavigationService>();
 
+    /// <summary>Activity 创建时的初始化：应用主题、初始化歌词服务、绑定迷你播放器和 ViewPager</summary>
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         // 应用保存的主题
@@ -166,6 +171,7 @@ public class MainActivity : AppCompatActivity
         UpdateTabUI(1);
     }
 
+    /// <summary>程序化更新底部导航选中项，抑制导航监听器避免循环触发</summary>
     private void UpdateNavSelection(int index)
     {
         _suppressNavListener = true;
@@ -178,6 +184,7 @@ public class MainActivity : AppCompatActivity
         _suppressNavListener = false;
     }
 
+    /// <summary>根据当前 Tab 更新工具栏、底部导航和迷你播放器的可见性</summary>
     private void UpdateTabUI(int index)
     {
         // 歌词页(Tab0) + 播放页(Tab1)：隐藏工具栏 + 底部导航 + 迷你播放器
@@ -187,12 +194,15 @@ public class MainActivity : AppCompatActivity
         SetMiniPlayerVisible(!hideNav);
     }
 
+    /// <summary>设置底部导航栏可见性</summary>
     public void SetBottomNavVisible(bool visible)
         => _bottomNav.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
 
+    /// <summary>设置工具栏可见性</summary>
     public void SetToolbarVisible(bool visible)
         => _toolbar.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
 
+    /// <summary>设置迷你播放器可见性</summary>
     public void SetMiniPlayerVisible(bool visible)
     {
         if (_overlayOpen) { _miniPlayerWrapper.Visibility = ViewStates.Gone; return; }
@@ -201,6 +211,7 @@ public class MainActivity : AppCompatActivity
             ? ViewStates.Visible : ViewStates.Gone;
     }
 
+    /// <summary>处理返回键：优先关闭侧面板，然后处理子页面回退栈</summary>
     public override void OnBackPressed()
     {
         if (_panelOpen) { CloseSidePanel(); return; }
@@ -221,6 +232,7 @@ public class MainActivity : AppCompatActivity
         else base.OnBackPressed();
     }
 
+    /// <summary>切换到指定 Tab 页</summary>
     public void SwitchTab(int index)
     {
         if (index >= 0 && index < 5) // 5 tabs
@@ -240,6 +252,7 @@ public class MainActivity : AppCompatActivity
         }
     }
 
+    /// <summary>Activity 销毁时停止定时器、取消事件订阅、释放桌面歌词</summary>
     protected override void OnDestroy()
     {
         _miniProgressTimer?.Stop();
@@ -255,12 +268,14 @@ public class MainActivity : AppCompatActivity
         base.OnDestroy();
     }
 
+    /// <summary>权限请求结果回调</summary>
     public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
     {
         base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
         PermissionService.HandlePermissionResult(requestCode, grantResults);
     }
 
+    /// <summary>Activity 结果回调（SAF 文件夹选择器）</summary>
     protected override void OnActivityResult(int requestCode, Result resultCode, Android.Content.Intent? data)
     {
         base.OnActivityResult(requestCode, resultCode, data);
@@ -269,11 +284,13 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 侧面板 ═══════════
 
+    /// <summary>切换侧面板打开/关闭状态</summary>
     private void ToggleSidePanel()
     {
         if (_panelOpen) CloseSidePanel(); else OpenSidePanel();
     }
 
+    /// <summary>打开侧面板，设置动画滑入</summary>
     private void OpenSidePanel()
     {
         _panelOpen = true;
@@ -293,6 +310,7 @@ public class MainActivity : AppCompatActivity
         NavigationService.EnterSidePanelMode(Resource.Id.side_panel_content);
     }
 
+    /// <summary>关闭侧面板，设置动画滑出</summary>
     private void CloseSidePanel()
     {
         if (!_panelOpen) return;
@@ -304,6 +322,7 @@ public class MainActivity : AppCompatActivity
             .WithEndAction(new Java.Lang.Runnable(() => _sidePanelOverlay.Visibility = ViewStates.Gone)).Start();
     }
 
+    /// <summary>处理侧面板上的触摸事件，支持滑动关闭手势</summary>
     private void OnSidePanelTouch(object? sender, View.TouchEventArgs e)
     {
         if (!_panelOpen || e?.Event == null) return;
@@ -328,6 +347,7 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 迷你播放器 ═══════════
 
+    /// <summary>初始化迷你播放器控件并绑定事件和数据</summary>
     private void BindMiniPlayer()
     {
         _miniPlayer = FindViewById<MaterialCardView>(Resource.Id.mini_player)!;
@@ -358,6 +378,7 @@ public class MainActivity : AppCompatActivity
         _miniVm.PropertyChanged += OnMiniPlayerPropertyChanged;
     }
 
+    /// <summary>Library ViewModel 属性变化回调，更新扫描进度条</summary>
     private void OnLibraryPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         RunOnUiThread(() =>
@@ -376,6 +397,7 @@ public class MainActivity : AppCompatActivity
         });
     }
 
+    /// <summary>迷你播放器 ViewModel 属性变化回调，按需更新歌曲信息和播放状态</summary>
     private void OnMiniPlayerPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         RunOnUiThread(() =>
@@ -420,6 +442,7 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 系统栏适配 ═══════════
 
+    /// <summary>适配系统状态栏和导航栏，防止内容被遮挡</summary>
     private void FitSystemBars()
     {
         var root = FindViewById<View>(Android.Resource.Id.Content)!;
@@ -480,6 +503,7 @@ public class MainActivity : AppCompatActivity
         public void OnClick(View? v) => _action();
     }
 
+    /// <summary>从 SharedPreferences 加载并应用保存的主题和深色模式设置</summary>
     private void ApplySavedTheme()
     {
         try

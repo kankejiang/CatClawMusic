@@ -13,9 +13,19 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class WebDavService : INetworkFileService, IDisposable
 {
+    /// <summary>
+    /// HTTP 客户端实例
+    /// </summary>
     private HttpClient? _client;
+
+    /// <summary>
+    /// 当前连接配置
+    /// </summary>
     private ConnectionProfile? _profile;
 
+    /// <summary>
+    /// 获取已配置的 HTTP 客户端，未配置时抛出异常
+    /// </summary>
     private HttpClient GetClient()
     {
         if (_client == null || _profile == null)
@@ -23,6 +33,9 @@ public class WebDavService : INetworkFileService, IDisposable
         return _client;
     }
 
+    /// <summary>
+    /// 确保 HTTP 客户端已按指定配置初始化，复用已有连接
+    /// </summary>
     private void EnsureClient(ConnectionProfile profile)
     {
         if (_client != null && _profile?.Host == profile.Host && _profile?.Port == profile.Port)
@@ -56,6 +69,9 @@ public class WebDavService : INetworkFileService, IDisposable
         System.Diagnostics.Debug.WriteLine($"[WebDAV] 创建 HttpClient: {profile.Host}:{profile.Port}");
     }
 
+    /// <summary>
+    /// 根据路径构建完整的请求 URL
+    /// </summary>
     private string BuildUrl(string path)
     {
         var profile = _profile ?? throw new InvalidOperationException("未配置连接");
@@ -132,6 +148,9 @@ public class WebDavService : INetworkFileService, IDisposable
         return XDocument.Parse(content);
     }
 
+    /// <summary>
+    /// 测试 WebDAV 服务器连接
+    /// </summary>
     public async Task<(bool Success, string Message)> TestConnectionAsync(ConnectionProfile profile)
     {
         try
@@ -172,6 +191,9 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 列出指定路径下的文件和目录
+    /// </summary>
     public async Task<List<RemoteFile>> ListFilesAsync(string path)
     {
         try
@@ -235,11 +257,17 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 使用指定配置初始化 WebDAV 连接
+    /// </summary>
     public void Configure(ConnectionProfile profile)
     {
         EnsureClient(profile);
     }
 
+    /// <summary>
+    /// 以流的方式打开远程文件读取
+    /// </summary>
     public async Task<Stream> OpenReadAsync(string filePath)
     {
         try
@@ -256,6 +284,9 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 按字节范围读取远程文件的指定片段
+    /// </summary>
     public async Task<byte[]> OpenReadRangeAsync(string filePath, long offset, long length)
     {
         try
@@ -274,6 +305,9 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 获取远程文件的元数据信息
+    /// </summary>
     public async Task<RemoteFile?> GetFileInfoAsync(string filePath)
     {
         try
@@ -310,6 +344,46 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 上传文件到远程路径
+    /// </summary>
+    public async Task<(bool Success, string Message)> UploadFileAsync(string remotePath, byte[] content, string? contentType = null)
+    {
+        try
+        {
+            var url = BuildUrl(remotePath);
+            var ct = contentType ?? "application/octet-stream";
+            var requestContent = new ByteArrayContent(content);
+            requestContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(ct);
+
+            var request = new HttpRequestMessage(HttpMethod.Put, url)
+            {
+                Content = requestContent
+            };
+
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 上传: {url}, 大小={content.Length} bytes");
+
+            var response = await GetClient().SendAsync(request);
+            if (response.IsSuccessStatusCode || (int)response.StatusCode == 201 || (int)response.StatusCode == 204)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 成功: {(int)response.StatusCode}");
+                return (true, "上传成功");
+            }
+
+            var errorMsg = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 失败: {errorMsg}");
+            return (false, errorMsg);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 异常: {ex.Message}");
+            return (false, $"上传失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 释放 HTTP 客户端资源
+    /// </summary>
     public void Dispose()
     {
         _client?.Dispose();

@@ -14,6 +14,7 @@ using ALog = Android.Util.Log;
 
 namespace CatClawMusic.UI.Services;
 
+/// <summary>前台播放服务，提供通知栏播放控制、MediaSession 集成和桌面歌词快捷操作</summary>
 [Service(
     Name = "com.catclaw.music.ForegroundPlayerService",
     Exported = true,
@@ -34,8 +35,10 @@ public class ForegroundPlayerService : Service
     private Handler? _progressHandler;
     private bool _started;
 
+    /// <summary>返回 null，此服务不绑定</summary>
     public override IBinder? OnBind(Intent? intent) => null;
 
+    /// <summary>服务创建时初始化播放器、通知频道、WiFi 锁和 MediaSession，并订阅事件</summary>
     public override void OnCreate()
     {
         base.OnCreate();
@@ -54,6 +57,7 @@ public class ForegroundPlayerService : Service
             _nowPlayingVm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
+    /// <summary>处理启动命令：首次启动时进入前台模式并显示通知，或根据 Intent Action 执行播放控制</summary>
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
         var action = intent?.Action;
@@ -77,6 +81,7 @@ public class ForegroundPlayerService : Service
         return StartCommandResult.Sticky;
     }
 
+    /// <summary>服务销毁时取消事件订阅、停止前台通知、释放 WiFi 锁和 MediaSession</summary>
     public override void OnDestroy()
     {
         if (_audioPlayer is not null)
@@ -95,6 +100,7 @@ public class ForegroundPlayerService : Service
         base.OnDestroy();
     }
 
+    /// <summary>启动前台播放服务，Android O+ 使用 StartForegroundService</summary>
     public static void Start(Context context)
     {
         try
@@ -115,6 +121,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>停止前台播放服务</summary>
     public static void Stop(Context context)
     {
         var intent = new Intent(context, typeof(ForegroundPlayerService));
@@ -123,6 +130,7 @@ public class ForegroundPlayerService : Service
 
     #region Progress Timer
 
+    /// <summary>启动进度更新定时器，每秒更新 MediaSession 播放状态</summary>
     private void StartProgressUpdates()
     {
         if (_progressHandler != null) return;
@@ -130,6 +138,7 @@ public class ForegroundPlayerService : Service
         _progressHandler.Post(ProgressTick);
     }
 
+    /// <summary>停止进度更新定时器</summary>
     private void StopProgressUpdates()
     {
         if (_progressHandler != null)
@@ -139,6 +148,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>进度定时器回调，更新播放状态并延时递归调用</summary>
     private void ProgressTick()
     {
         if (_progressHandler == null) return;
@@ -150,6 +160,7 @@ public class ForegroundPlayerService : Service
 
     #region MediaSession
 
+    /// <summary>初始化 MediaSession，支持系统播控、锁屏信息和蓝牙/耳机线控</summary>
     private void InitMediaSession()
     {
         try
@@ -169,6 +180,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>MediaSession 回调，处理系统播控和耳机/蓝牙按钮事件</summary>
     private class MediaSessionCallback : MediaSession.Callback
     {
         private readonly ForegroundPlayerService _service;
@@ -180,6 +192,7 @@ public class ForegroundPlayerService : Service
         public override void OnSkipToPrevious() => _service._nowPlayingVm?.PreviousCommand.Execute(null);
         public override void OnSeekTo(long pos) => _service._audioPlayer?.SeekAsync(TimeSpan.FromMilliseconds(pos));
 
+        /// <summary>处理媒体按钮事件，支持耳机线控（播放/暂停/上一曲/下一曲/快进/快退）</summary>
         public override bool OnMediaButtonEvent(Intent? mediaButtonIntent)
         {
             if (mediaButtonIntent?.Action != Intent.ActionMediaButton)
@@ -237,6 +250,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>释放 MediaSession 资源</summary>
     private void ReleaseMediaSession()
     {
         try
@@ -251,6 +265,7 @@ public class ForegroundPlayerService : Service
         catch { }
     }
 
+    /// <summary>更新 MediaSession 播放状态（播放/暂停/进度位置）</summary>
     private void UpdateMediaSessionPlaybackState()
     {
         if (_mediaSession == null) return;
@@ -278,6 +293,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>更新 MediaSession 元数据（歌名、艺术家、专辑、封面）</summary>
     private void UpdateMediaSessionMetadata()
     {
         if (_mediaSession == null) return;
@@ -310,6 +326,7 @@ public class ForegroundPlayerService : Service
 
     #region Notification Channels
 
+    /// <summary>创建通知频道（Android O+）</summary>
     private void CreateNotificationChannels()
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
@@ -331,6 +348,7 @@ public class ForegroundPlayerService : Service
 
     #region Notifications
 
+    /// <summary>构建主通知（媒体风格，包含上一曲/播放暂停/下一曲按钮）</summary>
     private Notification BuildMainNotification()
     {
         var song = _nowPlayingVm?.CurrentSong;
@@ -365,6 +383,7 @@ public class ForegroundPlayerService : Service
         return builder.Build();
     }
 
+    /// <summary>发送快捷操作工具通知</summary>
     private void NotifyTools()
     {
         try
@@ -378,6 +397,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>取消快捷操作工具通知</summary>
     private void CancelToolsNotification()
     {
         try
@@ -388,6 +408,7 @@ public class ForegroundPlayerService : Service
         catch { }
     }
 
+    /// <summary>构建快捷操作工具通知（收藏/桌面歌词开关/锁定/模式切换）</summary>
     private Notification BuildToolsNotification()
     {
         var isLiked = _nowPlayingVm?.IsLiked ?? false;
@@ -426,6 +447,7 @@ public class ForegroundPlayerService : Service
 
     #region Helpers
 
+    /// <summary>构建通知 Action（图标+标题+PendingIntent）</summary>
     private Notification.Action BuildAction(int iconRes, string title, string action)
     {
         var icon = Icon.CreateWithResource(this, iconRes);
@@ -433,6 +455,7 @@ public class ForegroundPlayerService : Service
         return new Notification.Action.Builder(icon, title, pendingIntent).Build();
     }
 
+    /// <summary>从当前歌曲封面路径加载 Bitmap</summary>
     private Bitmap? LoadCoverBitmap()
     {
         try
@@ -451,6 +474,7 @@ public class ForegroundPlayerService : Service
         return prefs?.GetBoolean(PrefKeyDesktopLyricEnabled, false) ?? false;
     }
 
+    /// <summary>切换桌面歌词开关状态并相应显示/隐藏桌面歌词</summary>
     private void ToggleDesktopLyric()
     {
         var currentEnabled = IsDesktopLyricEnabled();
@@ -470,6 +494,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>构建指向本服务的 PendingIntent（通过 Action 区分操作）</summary>
     private PendingIntent BuildActionIntent(string action)
     {
         var intent = new Intent(this, typeof(ForegroundPlayerService));
@@ -478,6 +503,7 @@ public class ForegroundPlayerService : Service
             PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
     }
 
+    /// <summary>构建点击通知打开 MainActivity 的 PendingIntent</summary>
     private PendingIntent BuildContentPendingIntent()
     {
         var intent = new Intent(this, typeof(MainActivity));
@@ -492,6 +518,7 @@ public class ForegroundPlayerService : Service
 
     #region Actions + Update
 
+    /// <summary>刷新主通知和快捷操作通知</summary>
     private void UpdateNotification()
     {
         try
@@ -506,6 +533,7 @@ public class ForegroundPlayerService : Service
         }
     }
 
+    /// <summary>根据 Action 字符串执行对应的播放控制或快捷操作</summary>
     private void HandleAction(string action)
     {
         switch (action)
@@ -553,6 +581,7 @@ public class ForegroundPlayerService : Service
 
     #region WiFi Lock
 
+    /// <summary>获取 WiFi 锁，防止网络播放时 WiFi 休眠</summary>
     private void AcquireWifiLock()
     {
         try
@@ -565,6 +594,7 @@ public class ForegroundPlayerService : Service
         catch { }
     }
 
+    /// <summary>释放 WiFi 锁</summary>
     private void ReleaseWifiLock()
     {
         try
@@ -579,12 +609,14 @@ public class ForegroundPlayerService : Service
 
     #region Events
 
+    /// <summary>播放状态变化时更新 MediaSession 和通知</summary>
     private void OnPlaybackStateChanged(object? sender, PlaybackStateChangedEventArgs e)
     {
         UpdateMediaSessionPlaybackState();
         UpdateNotification();
     }
 
+    /// <summary>ViewModel 属性变化时按需更新 MediaSession 元数据和通知</summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(NowPlayingViewModel.IsLiked))

@@ -8,6 +8,9 @@ using CoreProfile = CatClawMusic.Core.Models.ConnectionProfile;
 
 namespace CatClawMusic.UI.ViewModels;
 
+/// <summary>
+/// WebDAV设置ViewModel，管理WebDAV连接配置的加载、测试和保存
+/// </summary>
 public partial class WebDavSettingsViewModel : ObservableObject
 {
     private readonly INetworkFileService? _networkService;
@@ -24,9 +27,14 @@ public partial class WebDavSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusText = "";
 
-    private CoreProfile? _loadedProfile; // 已保存的配置（有 Id）
+    /// <summary>
+    /// 已保存的配置（有数据库Id）
+    /// </summary>
+    private CoreProfile? _loadedProfile;
 
-    // 无参构造函数给 DI 兜底
+    /// <summary>
+    /// 无参构造函数，从DI容器解析依赖
+    /// </summary>
     public WebDavSettingsViewModel()
         : this(
             MainApplication.Services.GetService(typeof(INetworkFileService)) as INetworkFileService,
@@ -34,6 +42,9 @@ public partial class WebDavSettingsViewModel : ObservableObject
             MainApplication.Services.GetRequiredService<IDialogService>())
     { }
 
+    /// <summary>
+    /// 使用依赖注入初始化WebDAV设置ViewModel
+    /// </summary>
     public WebDavSettingsViewModel(INetworkFileService? networkService, MusicDatabase? database, IDialogService dialogService)
     {
         _networkService = networkService;
@@ -67,6 +78,9 @@ public partial class WebDavSettingsViewModel : ObservableObject
         catch { }
     }
 
+    /// <summary>
+    /// 测试WebDAV服务器连接
+    /// </summary>
     [RelayCommand]
     private async Task TestAsync()
     {
@@ -86,6 +100,9 @@ public partial class WebDavSettingsViewModel : ObservableObject
         finally { IsBusy = false; }
     }
 
+    /// <summary>
+    /// 保存WebDAV配置到数据库
+    /// </summary>
     [RelayCommand]
     private async Task SaveAsync()
     {
@@ -108,6 +125,9 @@ public partial class WebDavSettingsViewModel : ObservableObject
         finally { IsBusy = false; }
     }
 
+    /// <summary>
+    /// 根据当前输入构建WebDAV连接配置对象
+    /// </summary>
     private CoreProfile BuildProfile() => new()
     {
         Name = Name, Protocol = ProtocolType.WebDAV, Host = Host.Trim(),

@@ -8,6 +8,9 @@ using CoreModels = CatClawMusic.Core.Models;
 
 namespace CatClawMusic.UI.ViewModels;
 
+/// <summary>
+/// 音乐库ViewModel，管理本地和网络歌曲的加载、扫描和协议切换
+/// </summary>
 public partial class LibraryViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -36,6 +39,9 @@ public partial class LibraryViewModel : ObservableObject
     private bool _hasLoadedLocal;
     private bool _suppressCollectionChanged; // 批量添加时抑制逐首通知
 
+    /// <summary>
+    /// 初始化音乐库ViewModel，设置协议选项
+    /// </summary>
     public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null,
         IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null, MusicDatabase? database = null)
     {
@@ -59,6 +65,9 @@ public partial class LibraryViewModel : ObservableObject
             Songs.Add(s);
     }
 
+    /// <summary>
+    /// 切换本地/网络标签页
+    /// </summary>
     [RelayCommand]
     private void SwitchTab(string tab)
     {
@@ -72,6 +81,9 @@ public partial class LibraryViewModel : ObservableObject
             _ = LoadNetworkAsync();
     }
 
+    /// <summary>
+    /// 强制刷新当前标签页的歌曲列表
+    /// </summary>
     [RelayCommand]
     private async Task Refresh()
     {
@@ -81,6 +93,9 @@ public partial class LibraryViewModel : ObservableObject
             await LoadNetworkAsync(forceRefresh: true);
     }
 
+    /// <summary>
+    /// 打开系统文件夹选择器选择音乐目录
+    /// </summary>
     [RelayCommand]
     private async Task PickMusicFolder()
     {
@@ -94,6 +109,9 @@ public partial class LibraryViewModel : ObservableObject
 #endif
     }
 
+    /// <summary>
+    /// 加载本地音乐，支持缓存读取和增量扫描
+    /// </summary>
     public async Task LoadLocalAsync(bool forceReload = false)
     {
         var validFolders = FolderPicker.ValidateSavedFolders();
@@ -181,6 +199,9 @@ public partial class LibraryViewModel : ObservableObject
         catch (Exception ex) { StatusText = $"加载出错: {ex.Message}"; IsLoading = false; }
     }
 
+    /// <summary>
+    /// 后台扫描音乐文件夹，增量入库并更新UI
+    /// </summary>
     private async Task BackgroundScanAsync(bool forceReload)
     {
         try
@@ -251,11 +272,17 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 在主线程更新扫描进度
+    /// </summary>
     private void ReportProgress(int pct, string status)
     {
         _dispatcher.Post(() => { ScanProgress = pct; ScanStatus = status; });
     }
 
+    /// <summary>
+    /// 加载网络歌曲，支持缓存读取和强制刷新
+    /// </summary>
     public async Task LoadNetworkAsync(bool forceRefresh = false)
     {
         ShowPermissionPrompt = false; IsLoading = true;
@@ -338,6 +365,9 @@ public partial class LibraryViewModel : ObservableObject
         finally { IsLoading = false; if (!forceRefresh) IsScanning = false; }
     }
 
+    /// <summary>
+    /// 根据当前选择的协议类型过滤歌曲列表
+    /// </summary>
     private List<CoreModels.Song> FilterSongsByProtocol(List<CoreModels.Song> songs)
     {
         if (_selectedProtocolIndex >= ProtocolTypes.Count)
@@ -347,6 +377,9 @@ public partial class LibraryViewModel : ObservableObject
         return songs.Where(s => s.Protocol == selectedProtocol).ToList();
     }
 
+    /// <summary>
+    /// 获取用户自定义的音乐文件夹列表
+    /// </summary>
     private List<string>? GetCustomFolders()
     {
         return CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUris();

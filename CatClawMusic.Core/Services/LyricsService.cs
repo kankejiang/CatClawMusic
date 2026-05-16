@@ -13,9 +13,11 @@ public class LyricsService : ILyricsService
     /// <summary>插件管理器（可选，由 UI 层设置）</summary>
     public IPluginManager? PluginManager { get; set; }
 
-    // 正则静态化，避免每次 ParseLrc 重新编译
+    /// <summary>时间戳正则 [mm:ss.xx]</summary>
     private static readonly Regex TimeRegex = new(@"\[(\d+):(\d+)(?:\.(\d+))?\]", RegexOptions.Compiled);
+    /// <summary>元数据标签正则 [ti:...] 等</summary>
     private static readonly Regex TagRegex = new(@"\[(ti|ar|al|by|re|ve):(.+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    /// <summary>文件扩展名正则</summary>
     private static readonly Regex ExtensionRegex = new(@"\.\w+$", RegexOptions.Compiled);
 
     /// <summary>
@@ -117,6 +119,7 @@ public class LyricsService : ILyricsService
     /// <summary>读取 content:// URI 文本（由平台层注入）</summary>
     public static Func<string, Task<string?>>? ContentUriReader { get; set; }
 
+    /// <summary>通过注入的 ContentUriReader 读取 content URI 内容</summary>
     private static async Task<string?> ReadContentUriAsync(string uri)
     {
         if (ContentUriReader != null)
@@ -124,7 +127,7 @@ public class LyricsService : ILyricsService
         return null;
     }
 
-    /// <summary>SAF content:// URI → 真实文件系统路径</summary>
+    /// <summary>尝试将 SAF content:// URI 转换为真实文件系统路径</summary>
     private static string? TryConvertContentUriToPath(string uri)
     {
         try

@@ -35,9 +35,15 @@ public class RemoteMusicFragment : SettingsSubPageFragment
 
     protected override string GetTitle() => "远程音乐服务";
 
+    /// <summary>
+    /// 创建远程音乐服务视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_remote_music, container, false)!;
 
+    /// <summary>
+    /// 子视图创建完成后初始化控件引用和事件绑定
+    /// </summary>
     protected override void OnSubViewCreated(View view, Bundle? state)
     {
         var nav = MainApplication.Services.GetRequiredService<INavigationService>();
@@ -70,6 +76,9 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         _ = LoadProfilesAsync();
     }
 
+    /// <summary>
+    /// 异步加载连接配置并更新UI状态
+    /// </summary>
     private async Task LoadProfilesAsync()
     {
         _isLoading = true;
@@ -141,6 +150,9 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         finally { _isLoading = false; }
     }
 
+    /// <summary>
+    /// Navidrome开关切换时保存启用状态并刷新UI
+    /// </summary>
     private async void OnNavidromeSwitchChanged(object? sender, CompoundButton.CheckedChangeEventArgs e)
     {
         if (_isLoading || _navidromeProfile == null) return;
@@ -149,6 +161,9 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         await LoadProfilesAsync();
     }
 
+    /// <summary>
+    /// WebDAV开关切换时保存启用状态并刷新UI
+    /// </summary>
     private async void OnWebdavSwitchChanged(object? sender, CompoundButton.CheckedChangeEventArgs e)
     {
         if (_isLoading || _webdavProfile == null) return;
@@ -157,6 +172,9 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         await LoadProfilesAsync();
     }
 
+    /// <summary>
+    /// 保存连接配置到数据库
+    /// </summary>
     private static async Task SaveProfileAsync(ConnectionProfile profile)
     {
         try
@@ -167,6 +185,9 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         catch { }
     }
 
+    /// <summary>
+    /// 设置圆点视图的颜色
+    /// </summary>
     private static void SetDotColor(View? dot, Color color)
     {
         if (dot == null) return;
@@ -176,10 +197,19 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         dot.Background = bg;
     }
 
+    /// <summary>
+    /// 通用点击监听器，封装 Action 回调
+    /// </summary>
     private class ClickListener : Java.Lang.Object, View.IOnClickListener
     {
         private readonly Action _action;
+        /// <summary>
+        /// 使用指定的操作初始化点击监听器
+        /// </summary>
         public ClickListener(Action action) => _action = action;
+        /// <summary>
+        /// 触发点击回调
+        /// </summary>
         public void OnClick(View? v) => _action();
     }
 }

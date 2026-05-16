@@ -3,8 +3,10 @@ using Android.Graphics;
 
 namespace CatClawMusic.UI.Helpers;
 
+/// <summary>字体加载辅助类</summary>
 public static class FontHelper
 {
+    /// <summary>根据字体名称加载对应的 Typeface 资源</summary>
     public static Typeface? LoadFont(Context context, string fontName)
     {
         int resId = fontName switch

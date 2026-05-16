@@ -62,6 +62,7 @@ public static class FolderPicker
         return uris.Count > 0 ? uris[0] : null;
     }
 
+    /// <summary>移除指定的已保存文件夹</summary>
     public static void RemoveSavedFolder(string uri)
     {
         var ctx = global::Android.App.Application.Context;

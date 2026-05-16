@@ -6,6 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// Navidrome设置Fragment，配置Navidrome服务器连接参数
+/// </summary>
 public class NavidromeSettingsFragment : SettingsSubPageFragment
 {
     private NavidromeSettingsViewModel _viewModel = null!;
@@ -16,9 +19,15 @@ public class NavidromeSettingsFragment : SettingsSubPageFragment
 
     protected override string GetTitle() => "Navidrome 设置";
 
+    /// <summary>
+    /// 创建Navidrome设置视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_navidrome_settings, container, false)!;
 
+    /// <summary>
+    /// 子视图创建完成后初始化控件，绑定ViewModel和事件处理器
+    /// </summary>
     protected override void OnSubViewCreated(View view, Bundle? state)
     {
         _viewModel = MainApplication.Services.GetRequiredService<NavidromeSettingsViewModel>();

@@ -11,10 +11,19 @@ namespace CatClawMusic.UI.Fragments;
 /// </summary>
 public abstract class SettingsSubPageFragment : Fragment
 {
+    /// <summary>
+    /// 设置工具栏布局资源ID
+    /// </summary>
     protected const int ToolbarLayoutRes = Resource.Layout.include_settings_toolbar;
 
+    /// <summary>
+    /// 导航服务，用于处理返回操作
+    /// </summary>
     protected INavigationService? Nav { get; private set; }
 
+    /// <summary>
+    /// 视图创建后自动绑定返回按钮和标题文本
+    /// </summary>
     public sealed override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -31,6 +40,12 @@ public abstract class SettingsSubPageFragment : Fragment
         OnSubViewCreated(view, state);
     }
 
+    /// <summary>
+    /// 获取页面标题文本
+    /// </summary>
     protected abstract string GetTitle();
+    /// <summary>
+    /// 子视图创建完成后的回调，子类在此方法中初始化自己的控件
+    /// </summary>
     protected abstract void OnSubViewCreated(View view, Bundle? state);
 }

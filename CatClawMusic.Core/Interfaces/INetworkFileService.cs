@@ -31,6 +31,11 @@ public interface INetworkFileService
     Task<RemoteFile?> GetFileInfoAsync(string filePath);
 
     /// <summary>
+    /// 上传文件到远程路径（WebDAV PUT）
+    /// </summary>
+    Task<(bool Success, string Message)> UploadFileAsync(string remotePath, byte[] content, string? contentType = null);
+
+    /// <summary>
     /// 配置连接（初始化 HttpClient），在调用其他方法前使用
     /// </summary>
     void Configure(Models.ConnectionProfile profile);

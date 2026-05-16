@@ -6,6 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// WebDAV设置Fragment，配置WebDAV服务器连接参数
+/// </summary>
 public class WebDavSettingsFragment : SettingsSubPageFragment
 {
     private WebDavSettingsViewModel _viewModel = null!;
@@ -17,9 +20,15 @@ public class WebDavSettingsFragment : SettingsSubPageFragment
 
     protected override string GetTitle() => "WebDAV 设置";
 
+    /// <summary>
+    /// 创建WebDAV设置视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_webdav_settings, container, false)!;
 
+    /// <summary>
+    /// 子视图创建完成后初始化控件，绑定ViewModel和事件处理器
+    /// </summary>
     protected override void OnSubViewCreated(View view, Bundle? state)
     {
         _viewModel = MainApplication.Services.GetRequiredService<WebDavSettingsViewModel>();

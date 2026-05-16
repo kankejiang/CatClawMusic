@@ -8,6 +8,7 @@ using Am = Android.Media.AudioManager;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
+/// <summary>基于 ExoPlayer 的 Android 音频播放服务，支持本地文件、网络流、音频焦点管理和唤醒锁</summary>
 #pragma warning disable CS0618
 public class AudioPlayerService : IAudioPlayerService, IDisposable
 {
@@ -26,17 +27,22 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private Am? _audioManager;
     private bool _pausedByFocusLoss;
     private int _preFocusVolume = 100;
+    /// <summary>是否正在播放</summary>
     public bool IsPlaying => _player?.IsPlaying ?? false;
+    /// <summary>当前播放歌曲的文件路径</summary>
     public string? CurrentSongFilePath => _currentPath;
     public int AudioSessionId => 0;
 
+    /// <summary>当前播放位置</summary>
     public TimeSpan CurrentPosition => _cachedPositionMs > 0
         ? TimeSpan.FromMilliseconds(_cachedPositionMs)
         : TimeSpan.Zero;
+    /// <summary>当前歌曲总时长</summary>
     public TimeSpan Duration => _player != null && _player.Duration > 0
         ? TimeSpan.FromMilliseconds(_player.Duration)
         : TimeSpan.Zero;
 
+    /// <summary>播放音量（0~100）</summary>
     public int Volume
     {
         get => _volume;
@@ -47,7 +53,9 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
+    /// <summary>播放状态变化事件</summary>
     public event EventHandler<CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs>? StateChanged;
+    /// <summary>播放位置变化事件</summary>
     public event EventHandler<TimeSpan>? PositionChanged;
 #pragma warning disable CS0067
     public event Action<byte[]>? PcmDataAvailable;
@@ -62,6 +70,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         _focusListener = new AudioFocusChangeListener(this);
     }
 
+    /// <summary>音频焦点变化监听器</summary>
     private class AudioFocusChangeListener : Java.Lang.Object, Am.IOnAudioFocusChangeListener
     {
         private readonly WeakReference<AudioPlayerService> _serviceRef;
@@ -73,6 +82,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
+    /// <summary>处理音频焦点变化（丢失/临时丢失/降低音量/恢复）</summary>
     private void HandleFocusChange(global::Android.Media.AudioFocus focusChange)
     {
         ALog.Debug("CatClaw", $"[CatClaw] AudioFocus: {focusChange}");
@@ -107,6 +117,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
+    /// <summary>请求音频焦点</summary>
     private void RequestAudioFocus()
     {
         try
@@ -124,6 +135,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
+    /// <summary>放弃音频焦点</summary>
     private void AbandonAudioFocus()
     {
         try
@@ -138,6 +150,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
+    /// <summary>异步播放指定路径的音频文件或网络流</summary>
     public async Task PlayAsync(string filePathOrUrl)
     {
         _isPrepared = false;
@@ -245,6 +258,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
+    /// <summary>暂停播放</summary>
     public Task PauseAsync()
     {
         if (_player != null)
@@ -256,6 +270,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>恢复播放</summary>
     public Task ResumeAsync()
     {
         if (_player != null)
@@ -267,6 +282,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>停止播放并释放资源</summary>
     public Task StopAsync()
     {
         if (_player != null)
@@ -282,6 +298,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>跳转到指定播放位置</summary>
     public Task SeekAsync(TimeSpan position)
     {
         if (_player != null)
@@ -289,6 +306,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>获取唤醒锁，防止 CPU 在播放时休眠</summary>
     private void AcquireWakeLock()
     {
         if (_wakeLock == null)
@@ -300,11 +318,13 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         if (!_wakeLock.IsHeld) _wakeLock.Acquire();
     }
 
+    /// <summary>释放唤醒锁</summary>
     private void ReleaseWakeLock()
     {
         if (_wakeLock != null && _wakeLock.IsHeld) { _wakeLock.Release(); _wakeLock = null; }
     }
 
+    /// <summary>在主线程执行操作（返回 Task）</summary>
     private Task RunOnMainThreadAsync(Action action)
     {
         if (Looper.MyLooper() == Looper.MainLooper) { action(); return Task.CompletedTask; }
@@ -313,6 +333,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return tcs.Task;
     }
 
+    /// <summary>在主线程执行带返回值的操作</summary>
     private Task<T> RunOnMainThreadAsync<T>(Func<T> func)
     {
         if (Looper.MyLooper() == Looper.MainLooper) return Task.FromResult(func());
@@ -321,6 +342,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return tcs.Task;
     }
 
+    /// <summary>确保 ExoPlayer 实例已创建，支持 Basic Auth 认证头</summary>
     private void EnsurePlayer(string? authHeader = null)
     {
         var ctx = global::Android.App.Application.Context;
@@ -357,6 +379,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         _lastPlaybackState = _player.PlaybackState;
     }
 
+    /// <summary>启动播放位置定时器（200ms 间隔）</summary>
     private void StartPositionTimer()
     {
         StopPositionTimer();
@@ -366,6 +389,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         _positionTimer.Start();
     }
 
+    /// <summary>停止播放位置定时器</summary>
     private void StopPositionTimer()
     {
         if (_positionTimer != null)
@@ -377,6 +401,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
+    /// <summary>播放位置定时器回调，更新缓存位置并检测播放结束/错误</summary>
     private void OnPositionTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         _mainHandler.Post(() =>
@@ -414,6 +439,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         });
     }
 
+    /// <summary>释放播放器资源</summary>
     public void Dispose()
     {
         StopPositionTimer();
@@ -427,6 +453,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     }
 }
 
+/// <summary>自定义数据源工厂，支持 HTTP 和 content:// 协议切换</summary>
 internal class CatClawDataSourceFactory : Java.Lang.Object, AndroidX.Media3.DataSource.IDataSourceFactory
 {
     private readonly AndroidX.Media3.DataSource.IDataSourceFactory _httpFactory;
@@ -446,6 +473,7 @@ internal class CatClawDataSourceFactory : Java.Lang.Object, AndroidX.Media3.Data
     }
 }
 
+/// <summary>自定义数据源，根据 URI scheme 动态选择 HTTP 或 content 数据源</summary>
 internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.IDataSource
 {
     private readonly AndroidX.Media3.DataSource.IDataSourceFactory _httpFactory;

@@ -9,6 +9,9 @@ using TagLibFile = TagLib.File;
 
 namespace CatClawMusic.UI.Adapters;
 
+/// <summary>
+/// 歌曲列表适配器，支持封面加载、播放状态高亮和增量更新
+/// </summary>
 public class SongAdapter : RecyclerView.Adapter
 {
     private List<Song> _songs = new();
@@ -23,21 +26,39 @@ public class SongAdapter : RecyclerView.Adapter
     private static readonly ConcurrentDictionary<string, Task> _loadingCovers = new();
     private static readonly SemaphoreSlim _coverLoadSemaphore = new(4, 4); // 最多 4 个并发
 
+    /// <summary>
+    /// 歌曲点击事件
+    /// </summary>
     public event EventHandler<Song>? SongClicked;
+    /// <summary>
+    /// 歌曲长按事件
+    /// </summary>
     public event EventHandler<Song>? SongLongClicked;
+    /// <summary>
+    /// 最后一次长按时对应的锚点视图
+    /// </summary>
     public View? LastLongClickedView { get; private set; }
 
+    /// <summary>
+    /// 创建歌曲适配器实例
+    /// </summary>
     public SongAdapter(INetworkMusicService? networkMusic = null)
     {
         _networkMusic = networkMusic;
     }
 
+    /// <summary>
+    /// 全量更新歌曲列表
+    /// </summary>
     public void UpdateSongs(IEnumerable<Song> songs)
     {
         _songs = songs.ToList();
         NotifyDataSetChanged();
     }
 
+    /// <summary>
+    /// 更新当前播放状态，高亮正在播放的歌曲
+    /// </summary>
     public void UpdatePlayState(int currentSongId, bool isPlaying)
     {
         _currentPlayingSongId = currentSongId;
@@ -62,19 +83,31 @@ public class SongAdapter : RecyclerView.Adapter
         if (count > 0) NotifyItemRangeRemoved(0, count);
     }
 
+    /// <summary>
+    /// 歌曲总数
+    /// </summary>
     public override int ItemCount => _songs.Count;
 
+    /// <summary>
+    /// 创建歌曲列表项ViewHolder实例
+    /// </summary>
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
     {
         var view = LayoutInflater.From(parent.Context)!.Inflate(Resource.Layout.item_song, parent, false)!;
         return new SongViewHolder(view, OnSongClick, OnSongLongClick);
     }
 
+    /// <summary>
+    /// 绑定歌曲数据到ViewHolder
+    /// </summary>
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         ((SongViewHolder)holder).Bind(_songs[position], this);
     }
 
+    /// <summary>
+    /// ViewHolder回收时取消正在进行的加载任务
+    /// </summary>
     public override void OnViewRecycled(Java.Lang.Object holder)
     {
         ((SongViewHolder)holder).CancelLoad();
@@ -88,6 +121,9 @@ public class SongAdapter : RecyclerView.Adapter
         SongLongClicked?.Invoke(this, _songs[position]);
     }
 
+    /// <summary>
+    /// 根据协议类型获取已启用的网络连接配置
+    /// </summary>
     internal async Task<ConnectionProfile?> GetNetworkProfileAsync(ProtocolType protocol)
     {
         if (protocol == ProtocolType.Navidrome && _cachedNavidromeProfile != null) return _cachedNavidromeProfile;

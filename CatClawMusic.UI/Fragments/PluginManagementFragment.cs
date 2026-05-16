@@ -10,11 +10,17 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 插件管理Fragment，显示已安装插件列表，支持本地安装和从GitHub安装
+/// </summary>
 public class PluginManagementFragment : Fragment
 {
     private const int PickPluginFile = 9001;
     private PluginCardAdapter? _adapter;
 
+    /// <summary>
+    /// 创建插件管理视图，初始化返回按钮、插件列表和安装按钮
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         var view = inflater.Inflate(Resource.Layout.fragment_plugin_management, container, false)!;
@@ -44,12 +50,18 @@ public class PluginManagementFragment : Fragment
         return view;
     }
 
+    /// <summary>
+    /// Fragment恢复时刷新插件列表
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
         RefreshPluginList();
     }
 
+    /// <summary>
+    /// 刷新插件列表数据
+    /// </summary>
     private void RefreshPluginList()
     {
         if (_adapter == null) return;
@@ -58,6 +70,9 @@ public class PluginManagementFragment : Fragment
         _adapter.UpdatePlugins(plugins);
     }
 
+    /// <summary>
+    /// 打开系统文件选择器，选择本地插件文件
+    /// </summary>
     private void PickLocalPluginFile()
     {
         try
@@ -73,6 +88,9 @@ public class PluginManagementFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 处理文件选择结果，复制文件到临时目录并执行安装
+    /// </summary>
     public override async void OnActivityResult(int requestCode, int resultCode, Intent? data)
     {
         base.OnActivityResult(requestCode, resultCode, data);
@@ -161,6 +179,9 @@ public class PluginManagementFragment : Fragment
         try { System.IO.File.Delete(tempPath); } catch { }
     }
 
+    /// <summary>
+    /// 显示从GitHub安装插件的对话框，输入仓库地址后自动下载最新Release
+    /// </summary>
     private void ShowGitHubInstallDialog()
     {
         var ctx = Context;

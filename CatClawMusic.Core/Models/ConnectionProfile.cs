@@ -21,6 +21,7 @@ public enum ProtocolType
 [Table("ConnectionProfiles")]
 public class ConnectionProfile
 {
+    /// <summary>主键，自增</summary>
     [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
 

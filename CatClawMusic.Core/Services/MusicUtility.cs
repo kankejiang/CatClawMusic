@@ -5,7 +5,9 @@ namespace CatClawMusic.Core.Services;
 /// </summary>
 public static class MusicUtility
 {
+    /// <summary>支持的音频文件扩展名列表</summary>
     private static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a" };
+    /// <summary>音频扩展名哈希集合（大写形式，用于 O(1) 查找）</summary>
     private static readonly HashSet<string> AudioExtensionSet = new(
         AudioExtensions.Select(e => e.ToUpperInvariant()), StringComparer.Ordinal);
 
@@ -112,6 +114,9 @@ public static class MusicUtility
         return null;
     }
 
+    /// <summary>
+    /// 递归扫描目录和子目录下的音频文件
+    /// </summary>
     private static void ScanDirectoryRecursive(DirectoryInfo dir, HashSet<string> results)
     {
         if (!dir.Exists) return;

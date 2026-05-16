@@ -3,17 +3,37 @@ using SQLite;
 
 namespace CatClawMusic.Data;
 
+/// <summary>
+/// SQLite 数据库操作层，管理歌曲、艺术家、专辑、播放列表、收藏等数据的持久化
+/// </summary>
 public class MusicDatabase
 {
+    /// <summary>
+    /// SQLite 异步数据库连接
+    /// </summary>
     private readonly SQLiteAsyncConnection _database;
+
+    /// <summary>
+    /// 数据库是否已完成初始化
+    /// </summary>
     private bool _isInitialized;
+
+    /// <summary>
+    /// 初始化信号量，确保并发安全
+    /// </summary>
     private readonly SemaphoreSlim _initSemaphore = new(1, 1);
 
+    /// <summary>
+    /// 使用指定的数据库路径创建 MusicDatabase 实例
+    /// </summary>
     public MusicDatabase(string dbPath)
     {
         _database = new SQLiteAsyncConnection(dbPath);
     }
 
+    /// <summary>
+    /// 确保数据库表已创建并完成迁移，多次调用安全
+    /// </summary>
     public async Task EnsureInitializedAsync()
     {
         if (_isInitialized) return;
@@ -50,6 +70,9 @@ public class MusicDatabase
         }
     }
 
+    /// <summary>
+    /// 创建数据库查询索引以提升搜索和关联查询性能
+    /// </summary>
     private async Task CreateIndexesAsync()
     {
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_artist ON Songs(ArtistId)"); } catch { }
@@ -61,8 +84,14 @@ public class MusicDatabase
 
     // ═══════════ Song CRUD ═══════════
 
+    /// <summary>
+    /// 获取所有本地歌曲（含艺术家和专辑详情）
+    /// </summary>
     public Task<List<Song>> GetSongsAsync() => GetSongsWithDetailsAsync();
 
+    /// <summary>
+    /// 获取所有本地歌曲，并预加载艺术家和专辑名称
+    /// </summary>
     public async Task<List<Song>> GetSongsWithDetailsAsync()
     {
         var songs = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).ToListAsync();
@@ -79,6 +108,9 @@ public class MusicDatabase
         return songs;
     }
 
+    /// <summary>
+    /// 根据 ID 获取单首歌曲
+    /// </summary>
     public Task<Song?> GetSongByIdAsync(int id) =>
         _database.Table<Song>().Where(s => s.Id == id).FirstOrDefaultAsync();
 
@@ -126,6 +158,9 @@ public class MusicDatabase
         return await _database.QueryAsync<Song>(sql, album);
     }
 
+    /// <summary>
+    /// 保存或更新歌曲（基于 FilePath 去重）
+    /// </summary>
     public async Task<int> SaveSongAsync(Song song)
     {
         await EnsureInitializedAsync();
@@ -142,6 +177,9 @@ public class MusicDatabase
         return await _database.InsertAsync(song);
     }
 
+    /// <summary>
+    /// 删除指定歌曲
+    /// </summary>
     public Task<int> DeleteSongAsync(Song song)
         => EnsureInitializedAsync().ContinueWith(_ => _database.DeleteAsync(song)).Unwrap();
 
@@ -156,6 +194,9 @@ public class MusicDatabase
 
     // ═══════════ Artist / Album ═══════════
 
+    /// <summary>
+    /// 根据名称查找或创建艺术家，返回艺术家 ID
+    /// </summary>
     public async Task<int> EnsureArtistAsync(string name)
     {
         await EnsureInitializedAsync();
@@ -167,6 +208,9 @@ public class MusicDatabase
         return newArtist.Id;
     }
 
+    /// <summary>
+    /// 根据标题和艺术家 ID 查找或创建专辑，返回专辑 ID
+    /// </summary>
     public async Task<int> EnsureAlbumAsync(string title, int artistId)
     {
         await EnsureInitializedAsync();
@@ -178,11 +222,21 @@ public class MusicDatabase
         return newAlbum.Id;
     }
 
+    /// <summary>
+    /// 获取所有艺术家
+    /// </summary>
     public Task<List<Artist>> GetAllArtistsAsync() => _database.Table<Artist>().ToListAsync();
+
+    /// <summary>
+    /// 获取所有专辑
+    /// </summary>
     public Task<List<Album>> GetAllAlbumsAsync() => _database.Table<Album>().ToListAsync();
 
     // ═══════════ Play History ═══════════
 
+    /// <summary>
+    /// 记录播放历史，已存在的记录会更新播放时间和次数
+    /// </summary>
     public async Task RecordPlayAsync(int songId)
     {
         await EnsureInitializedAsync();
@@ -204,6 +258,9 @@ public class MusicDatabase
         await TrimHistoryAsync(20);
     }
 
+    /// <summary>
+    /// 裁剪播放历史，仅保留指定数量记录
+    /// </summary>
     private async Task TrimHistoryAsync(int keepCount)
     {
         try
@@ -217,6 +274,9 @@ public class MusicDatabase
         catch { }
     }
 
+    /// <summary>
+    /// 获取最近的播放历史记录
+    /// </summary>
     public Task<List<PlayHistory>> GetRecentPlaysAsync(int limit = 20) =>
         _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(limit).ToListAsync();
 
@@ -248,6 +308,9 @@ public class MusicDatabase
 
     // ═══════════ Favorites ═══════════
 
+    /// <summary>
+    /// 设置或取消收藏指定歌曲
+    /// </summary>
     public async Task SetFavoriteAsync(int songId, bool isFav)
     {
         await EnsureInitializedAsync();
@@ -258,12 +321,18 @@ public class MusicDatabase
             await _database.DeleteAsync(fav);
     }
 
+    /// <summary>
+    /// 检查歌曲是否已收藏
+    /// </summary>
     public async Task<bool> IsFavoriteAsync(int songId)
     {
         await EnsureInitializedAsync();
         return await _database.Table<Favorite>().Where(f => f.SongId == songId).CountAsync() > 0;
     }
 
+    /// <summary>
+    /// 获取所有收藏记录
+    /// </summary>
     public Task<List<Favorite>> GetFavoritesAsync()
         => _database.Table<Favorite>().ToListAsync();
 
@@ -298,6 +367,9 @@ public class MusicDatabase
 
     // ═══════════ Lyric ═══════════
 
+    /// <summary>
+    /// 保存或更新歌词信息
+    /// </summary>
     public async Task SaveLyricAsync(int songId, string? lrcPath, string? content)
     {
         await EnsureInitializedAsync();
@@ -306,11 +378,17 @@ public class MusicDatabase
         else await _database.InsertAsync(new Lyric { SongId = songId, LrcPath = lrcPath, Content = content });
     }
 
+    /// <summary>
+    /// 获取指定歌曲的歌词信息
+    /// </summary>
     public Task<Lyric?> GetLyricAsync(int songId) =>
         _database.Table<Lyric>().Where(x => x.SongId == songId).FirstOrDefaultAsync();
 
     // ═══════════ Connection Profile ═══════════
 
+    /// <summary>
+    /// 保存或更新连接配置
+    /// </summary>
     public async Task<int> SaveConnectionProfileAsync(ConnectionProfile profile)
     {
         await EnsureInitializedAsync();
@@ -318,21 +396,33 @@ public class MusicDatabase
         return await _database.InsertAsync(profile);
     }
 
+    /// <summary>
+    /// 获取所有连接配置
+    /// </summary>
     public Task<List<ConnectionProfile>> GetConnectionProfilesAsync()
         => _database.Table<ConnectionProfile>().ToListAsync();
 
     // ═══════════ Playlist CRUD ═══════════
 
+    /// <summary>
+    /// 获取所有播放列表
+    /// </summary>
     public Task<List<Playlist>> GetAllPlaylistsAsync()
     {
         return _database.Table<Playlist>().ToListAsync();
     }
 
+    /// <summary>
+    /// 根据 ID 获取播放列表
+    /// </summary>
     public Task<Playlist?> GetPlaylistByIdAsync(int id)
     {
         return _database.Table<Playlist>().Where(p => p.Id == id).FirstOrDefaultAsync();
     }
 
+    /// <summary>
+    /// 创建新的播放列表
+    /// </summary>
     public async Task<int> CreatePlaylistAsync(string name)
     {
         await EnsureInitializedAsync();
@@ -341,6 +431,9 @@ public class MusicDatabase
         return await _database.InsertAsync(playlist);
     }
 
+    /// <summary>
+    /// 更新播放列表信息（自动刷新更新时间）
+    /// </summary>
     public async Task UpdatePlaylistAsync(Playlist playlist)
     {
         await EnsureInitializedAsync();
@@ -348,6 +441,9 @@ public class MusicDatabase
         await _database.UpdateAsync(playlist);
     }
 
+    /// <summary>
+    /// 删除播放列表及其所有关联歌曲
+    /// </summary>
     public async Task DeletePlaylistAsync(int playlistId)
     {
         await EnsureInitializedAsync();
@@ -355,6 +451,9 @@ public class MusicDatabase
         await _database.DeleteAsync<Playlist>(playlistId);
     }
 
+    /// <summary>
+    /// 将歌曲添加到播放列表末尾（重复则忽略）
+    /// </summary>
     public async Task AddSongToPlaylistAsync(int playlistId, int songId)
     {
         await EnsureInitializedAsync();
@@ -381,6 +480,9 @@ public class MusicDatabase
         }
     }
 
+    /// <summary>
+    /// 从播放列表中移除歌曲并重新调整位置
+    /// </summary>
     public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId)
     {
         await EnsureInitializedAsync();
@@ -409,6 +511,9 @@ public class MusicDatabase
         }
     }
 
+    /// <summary>
+    /// 获取播放列表中的所有歌曲（按位置排序，含艺术家和专辑信息）
+    /// </summary>
     public async Task<List<Song>> GetPlaylistSongsAsync(int playlistId)
     {
         await EnsureInitializedAsync();
@@ -439,6 +544,9 @@ public class MusicDatabase
         return sorted;
     }
 
+    /// <summary>
+    /// 更新播放列表中歌曲的位置
+    /// </summary>
     public async Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition)
     {
         await EnsureInitializedAsync();
@@ -451,6 +559,9 @@ public class MusicDatabase
         await _database.UpdateAsync(entry);
     }
 
+    /// <summary>
+    /// 获取播放列表中的歌曲数量
+    /// </summary>
     public async Task<int> GetPlaylistSongCountAsync(int playlistId)
     {
         return await _database.Table<PlaylistSong>()
@@ -458,6 +569,9 @@ public class MusicDatabase
             .CountAsync();
     }
 
+    /// <summary>
+    /// 获取播放列表中的第一首歌曲
+    /// </summary>
     public async Task<Song?> GetFirstSongInPlaylistAsync(int playlistId)
     {
         await EnsureInitializedAsync();
@@ -479,6 +593,9 @@ public class MusicDatabase
 
     // ═══════════ CachedSong CRUD ═══════════
 
+    /// <summary>
+    /// 保存或更新缓存歌曲信息
+    /// </summary>
     public async Task SaveCachedSongAsync(CachedSong cachedSong)
     {
         await EnsureInitializedAsync();
@@ -488,16 +605,25 @@ public class MusicDatabase
             await _database.InsertAsync(cachedSong);
     }
 
+    /// <summary>
+    /// 获取所有已缓存的歌曲
+    /// </summary>
     public Task<List<CachedSong>> GetCachedSongsAsync()
     {
         return _database.Table<CachedSong>().ToListAsync();
     }
 
+    /// <summary>
+    /// 根据歌曲 ID 获取缓存歌曲信息
+    /// </summary>
     public Task<CachedSong?> GetCachedSongAsync(int songId)
     {
         return _database.Table<CachedSong>().Where(c => c.SongId == songId).FirstOrDefaultAsync();
     }
 
+    /// <summary>
+    /// 删除指定歌曲的缓存记录
+    /// </summary>
     public async Task DeleteCachedSongAsync(int songId)
     {
         await EnsureInitializedAsync();
@@ -619,8 +745,14 @@ public class MusicDatabase
         catch { /* 表可能为空 */ }
     }
 
+    /// <summary>
+    /// 待恢复的网络歌曲收藏映射（RemoteId -> AddedAt）
+    /// </summary>
     private readonly Dictionary<string, long> _pendingNetworkFavs = new();
 
+    /// <summary>
+    /// 保存当前网络歌曲的收藏引用，用于后续恢复
+    /// </summary>
     private async Task SaveNetworkFavoriteRefsAsync()
     {
         _pendingNetworkFavs.Clear();
@@ -640,6 +772,9 @@ public class MusicDatabase
         }
     }
 
+    /// <summary>
+    /// 在重新扫描后恢复网络歌曲的收藏状态
+    /// </summary>
     public async Task RestoreNetworkFavoritesAsync()
     {
         if (_pendingNetworkFavs.Count == 0) return;
@@ -704,6 +839,9 @@ public class MusicDatabase
         }
     }
 
+    /// <summary>
+    /// 迁移旧版 Playlist 表到新版 Playlists 表
+    /// </summary>
     private async Task MigratePlaylistsTableAsync()
     {
         try
@@ -734,6 +872,9 @@ public class MusicDatabase
         catch { }
     }
 
+    /// <summary>
+    /// 迁移 PlaylistSongs 表结构，确保包含自增主键
+    /// </summary>
     private async Task MigratePlaylistSongsTableAsync()
     {
         try
@@ -754,6 +895,9 @@ public class MusicDatabase
         catch { }
     }
 
+    /// <summary>
+    /// 检查指定表是否存在于数据库中
+    /// </summary>
     private async Task<bool> TableExistsAsync(string tableName)
     {
         var count = await _database.ExecuteScalarAsync<int>(
@@ -761,13 +905,39 @@ public class MusicDatabase
         return count > 0;
     }
 
+    /// <summary>
+    /// SQLite PRAGMA table_info 返回的列信息
+    /// </summary>
     private class TableColumn
     {
+        /// <summary>
+        /// 列序号
+        /// </summary>
         public int cid { get; set; }
+
+        /// <summary>
+        /// 列名
+        /// </summary>
         public string name { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 列类型
+        /// </summary>
         public string type { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 是否非空约束
+        /// </summary>
         public int notnull { get; set; }
+
+        /// <summary>
+        /// 默认值
+        /// </summary>
         public string dflt_value { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 是否主键
+        /// </summary>
         public int pk { get; set; }
     }
 }

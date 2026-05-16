@@ -6,6 +6,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatClawMusic.UI.ViewModels;
 
+/// <summary>
+/// 歌单列表ViewModel，管理系统歌单和用户歌单的加载、创建和删除
+/// </summary>
 public partial class PlaylistViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -20,6 +23,9 @@ public partial class PlaylistViewModel : ObservableObject
 
     private static readonly long _epoch = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
 
+    /// <summary>
+    /// 初始化歌单列表ViewModel
+    /// </summary>
     public PlaylistViewModel(IMusicLibraryService musicLibrary, INavigationService navigationService,
         IServiceProvider? serviceProvider = null)
     {
@@ -28,6 +34,9 @@ public partial class PlaylistViewModel : ObservableObject
         _serviceProvider = serviceProvider;
     }
 
+    /// <summary>
+    /// 获取数据库实例（延迟初始化）
+    /// </summary>
     private Data.MusicDatabase GetDb()
     {
         if (_db == null)
@@ -36,6 +45,9 @@ public partial class PlaylistViewModel : ObservableObject
         return _db!;
     }
 
+    /// <summary>
+    /// 异步加载所有歌单（系统歌单 + 用户歌单）
+    /// </summary>
     public async Task LoadPlaylistsAsync()
     {
         StatusText = "加载中...";
@@ -89,6 +101,9 @@ public partial class PlaylistViewModel : ObservableObject
         catch { StatusText = "加载失败"; }
     }
 
+    /// <summary>
+    /// 创建新歌单并刷新列表
+    /// </summary>
     public async Task<int> CreatePlaylistAsync(string name)
     {
         int id = await _musicLibrary.CreatePlaylistAsync(name);
@@ -96,6 +111,9 @@ public partial class PlaylistViewModel : ObservableObject
         return id;
     }
 
+    /// <summary>
+    /// 删除指定歌单并刷新列表
+    /// </summary>
     public async Task DeletePlaylistAsync(int playlistId)
     {
         await _musicLibrary.DeletePlaylistAsync(playlistId);
@@ -119,6 +137,9 @@ public partial class PlaylistViewModel : ObservableObject
         await GetDb().SetFavoriteAsync(songId, isFav);
     }
 
+    /// <summary>
+    /// 导航到歌单详情页面
+    /// </summary>
     public void NavigateToPlaylist(int playlistId, string name)
     {
         _navigationService.PushFragment("PlaylistDetail", new Dictionary<string, object>

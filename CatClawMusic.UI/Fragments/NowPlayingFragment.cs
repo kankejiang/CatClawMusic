@@ -12,6 +12,9 @@ using GoogleSlider = Google.Android.Material.Slider.Slider;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 正在播放Fragment，显示专辑封面、歌曲信息、歌词预览和播放控制
+/// </summary>
 public class NowPlayingFragment : Fragment
 {
     private NowPlayingViewModel _viewModel = null!;
@@ -23,9 +26,15 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
     private GoogleSlider _progressSlider = null!;
 
+    /// <summary>
+    /// 创建正在播放视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_now_playing, container, false)!;
 
+    /// <summary>
+    /// 视图创建完成后初始化所有控件引用、绑定事件和ViewModel
+    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -94,6 +103,9 @@ public class NowPlayingFragment : Fragment
         BindViewModel();
     }
 
+    /// <summary>
+    /// 从ViewModel同步所有UI状态（封面、标题、艺术家、时间、歌词等）
+    /// </summary>
     private void SyncUIFromViewModel()
     {
         try
@@ -127,16 +139,25 @@ public class NowPlayingFragment : Fragment
         catch { /* Hide/Show 后视图可能短暂无效，忽略 */ }
     }
 
+    /// <summary>
+    /// 绑定ViewModel属性变化事件
+    /// </summary>
     private void BindViewModel()
     {
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
+    /// <summary>
+    /// 解绑ViewModel属性变化事件
+    /// </summary>
     private void UnbindViewModel()
     {
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
     }
 
+    /// <summary>
+    /// ViewModel属性变化时更新对应的UI控件
+    /// </summary>
     private void OnViewModelPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         var act = Activity;
@@ -187,6 +208,9 @@ public class NowPlayingFragment : Fragment
 
     private int _lastLyricIdx = -1; // 跟踪上次歌词索引
 
+    /// <summary>
+    /// 更新歌词预览区域，支持滚动动画过渡
+    /// </summary>
     private void UpdateLyrics()
     {
         var prev2 = _viewModel.PrevLyricLine2;
@@ -246,12 +270,18 @@ public class NowPlayingFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 更新当前播放时间和总时长显示
+    /// </summary>
     private void UpdateTimeDisplay()
     {
         _timeCurrent.Text = $"{_viewModel.CurrentPosition.Minutes}:{_viewModel.CurrentPosition.Seconds:D2}";
         _timeTotal.Text = $"{_viewModel.TotalDuration.Minutes}:{_viewModel.TotalDuration.Seconds:D2}";
     }
 
+    /// <summary>
+    /// 更新进度条滑块位置
+    /// </summary>
     private void UpdateSlider()
     {
         var dur = (float)_viewModel.TotalDurationSeconds;
@@ -263,12 +293,18 @@ public class NowPlayingFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 更新播放/暂停按钮图标
+    /// </summary>
     private void UpdatePlayPauseIcon()
     {
         _btnPlayPause.SetImageResource(
             _viewModel.PlayPauseIcon == "⏸" ? Resource.Drawable.ic_pause : Resource.Drawable.ic_play);
     }
 
+    /// <summary>
+    /// 更新收藏按钮图标
+    /// </summary>
     private void UpdateLikeIcon()
     {
         _btnLike.SetImageResource(
@@ -350,6 +386,9 @@ public class NowPlayingFragment : Fragment
         Task.Delay(500).ContinueWith(_ => Activity?.RunOnUiThread(SyncUIFromViewModel));
     }
 
+    /// <summary>
+    /// 更新播放模式图标和颜色
+    /// </summary>
     private void UpdateModeIcon()
     {
         _btnModeCycle.SetImageResource(
@@ -366,6 +405,9 @@ public class NowPlayingFragment : Fragment
                 : Android.Graphics.Color.ParseColor("#B0A8BA"));
     }
 
+    /// <summary>
+    /// Fragment显示/隐藏时同步UI状态
+    /// </summary>
     public override void OnHiddenChanged(bool hidden)
     {
         base.OnHiddenChanged(hidden);
@@ -373,6 +415,9 @@ public class NowPlayingFragment : Fragment
             SyncUIFromViewModel();
     }
 
+    /// <summary>
+    /// Fragment恢复可见时同步播放队列状态并刷新UI
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
@@ -395,6 +440,9 @@ public class NowPlayingFragment : Fragment
         base.OnPause();
     }
 
+    /// <summary>
+    /// Fragment销毁时清理资源，解绑事件，关闭对话框
+    /// </summary>
     public override void OnDestroyView()
     {
         UnbindViewModel();
@@ -403,10 +451,19 @@ public class NowPlayingFragment : Fragment
         base.OnDestroyView();
     }
 
+    /// <summary>
+    /// 进度条触摸监听器，在用户手指抬起时执行Seek操作
+    /// </summary>
     internal class SliderTouchListener : Java.Lang.Object, View.IOnTouchListener
     {
         private readonly Action<float> _onEnd;
+        /// <summary>
+        /// 使用拖动结束回调初始化监听器
+        /// </summary>
         public SliderTouchListener(Action<float> onEnd) => _onEnd = onEnd;
+        /// <summary>
+        /// 处理触摸事件，手指抬起时回调进度值
+        /// </summary>
         public bool OnTouch(View? v, Android.Views.MotionEvent? e)
         {
             if (e?.Action == MotionEventActions.Up && v is Google.Android.Material.Slider.Slider slider)
@@ -415,8 +472,14 @@ public class NowPlayingFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 控制区域触摸监听器，阻止父ViewPager2拦截控制区域的触摸事件
+    /// </summary>
     internal class ControlsTouchListener : Java.Lang.Object, View.IOnTouchListener
     {
+        /// <summary>
+        /// 处理触摸事件，按下时请求父视图不要拦截，抬起时恢复
+        /// </summary>
         public bool OnTouch(View? v, Android.Views.MotionEvent? e)
         {
             if (e == null || v == null) return false;

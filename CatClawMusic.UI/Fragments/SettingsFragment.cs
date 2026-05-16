@@ -10,6 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 设置主页面Fragment，显示主题选择、深浅色模式、本地音乐、远程服务和插件管理入口
+/// </summary>
 public class SettingsFragment : Fragment
 {
     private TextView? _tvLocalStatus;
@@ -27,6 +30,9 @@ public class SettingsFragment : Fragment
         DarkModeSetting.FollowSystem
     };
 
+    /// <summary>
+    /// 创建设置页面视图，初始化主题选择器、深浅色切换按钮和各类设置入口
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         var view = inflater.Inflate(Resource.Layout.fragment_settings, container, false)!;
@@ -74,12 +80,18 @@ public class SettingsFragment : Fragment
         return view;
     }
 
+    /// <summary>
+    /// 视图创建完成后异步加载状态信息
+    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
         _ = LoadStatusAsync();
     }
 
+    /// <summary>
+    /// Fragment恢复可见时更新深浅色模式图标
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
@@ -87,6 +99,9 @@ public class SettingsFragment : Fragment
         UpdateDarkModeIcon();
     }
 
+    /// <summary>
+    /// 初始化主题选择下拉框，加载主题列表并设置当前选中项
+    /// </summary>
     private void SetupThemeSpinner()
     {
         if (_themeService == null || _spinnerTheme == null) return;
@@ -128,6 +143,9 @@ public class SettingsFragment : Fragment
         };
     }
 
+    /// <summary>
+    /// 深浅色模式切换按钮点击，循环切换Light/Dark/FollowSystem
+    /// </summary>
     private void OnDarkModeToggleClick(object? sender, EventArgs e)
     {
         if (_themeService == null) return;
@@ -152,6 +170,9 @@ public class SettingsFragment : Fragment
         Toast.MakeText(Context, $"已切换为{modeText}", ToastLength.Short)?.Show();
     }
 
+    /// <summary>
+    /// 根据当前深浅色模式设置更新切换按钮图标
+    /// </summary>
     private void UpdateDarkModeIcon()
     {
         if (_btnDarkModeToggle == null || _themeService == null) return;
@@ -168,6 +189,9 @@ public class SettingsFragment : Fragment
         _btnDarkModeToggle.SetImageResource(iconRes);
     }
 
+    /// <summary>
+    /// 主题切换后重启Activity以应用新主题
+    /// </summary>
     private void RestartActivityForTheme()
     {
         if (Activity == null) return;
@@ -177,6 +201,9 @@ public class SettingsFragment : Fragment
         StartActivity(intent);
     }
 
+    /// <summary>
+    /// 异步加载本地音乐、远程服务和插件的状态信息
+    /// </summary>
     private async Task LoadStatusAsync()
     {
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
@@ -227,10 +254,19 @@ public class SettingsFragment : Fragment
         }
     }
 
+    /// <summary>
+    /// 通用点击监听器，封装 Action 回调
+    /// </summary>
     private class ClickListener : Java.Lang.Object, View.IOnClickListener
     {
         private readonly Action _action;
+        /// <summary>
+        /// 使用指定的操作初始化点击监听器
+        /// </summary>
         public ClickListener(Action action) => _action = action;
+        /// <summary>
+        /// 触发点击回调
+        /// </summary>
         public void OnClick(View? v) => _action();
     }
 }

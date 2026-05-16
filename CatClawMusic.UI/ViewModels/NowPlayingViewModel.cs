@@ -8,6 +8,9 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace CatClawMusic.UI.ViewModels;
 
+/// <summary>
+/// 正在播放ViewModel，管理播放状态、歌词、封面、播放队列和收藏状态
+/// </summary>
 public partial class NowPlayingViewModel : ObservableObject
 {
     private readonly IAudioPlayerService _audioPlayer;
@@ -45,15 +48,27 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private bool _isLiked;
     [ObservableProperty] private int _volume = 80;
     [ObservableProperty] private string _queueHint = "";
+    /// <summary>
+    /// 即将播放的歌曲列表
+    /// </summary>
     public ObservableCollection<Song> UpcomingSongs { get; } = new();
 
+    /// <summary>
+    /// 当前播放位置（秒），设置时会触发Seek操作
+    /// </summary>
     public double CurrentPositionSeconds
     {
         get => CurrentPosition.TotalSeconds;
         set { if (!_isPositionUpdating) _ = _audioPlayer.SeekAsync(TimeSpan.FromSeconds(value)); }
     }
+    /// <summary>
+    /// 总时长（秒）
+    /// </summary>
     public double TotalDurationSeconds => TotalDuration.TotalSeconds;
 
+    /// <summary>
+    /// 当前歌曲变化时加载歌词、封面、检查收藏状态并解析歌曲详情
+    /// </summary>
     partial void OnCurrentSongChanged(Song? value)
     {
         _songLoadCts?.Cancel();
@@ -65,8 +80,14 @@ public partial class NowPlayingViewModel : ObservableObject
         _ = CheckFavoriteAsync();
         _ = ResolveSongDetails(value);
     }
+    /// <summary>
+    /// 收藏状态变化时更新图标
+    /// </summary>
     partial void OnIsLikedChanged(bool value) { LikeIcon = value ? "❤️" : "🤍"; }
 
+    /// <summary>
+    /// 初始化NowPlayingViewModel，绑定播放器状态和位置变化事件
+    /// </summary>
     public NowPlayingViewModel(IAudioPlayerService audioPlayer, ILyricsService lyricsService,
         IMusicLibraryService musicLibrary, PlayQueue playQueue, MusicDatabase? database = null,
         IMainThreadDispatcher? dispatcher = null, INetworkMusicService? networkMusic = null,
@@ -101,6 +122,9 @@ public partial class NowPlayingViewModel : ObservableObject
         UpdateQueuePeek();
     }
 
+    /// <summary>
+    /// 播放/暂停切换
+    /// </summary>
     [RelayCommand]
     private void PlayPause()
     {
@@ -116,12 +140,21 @@ public partial class NowPlayingViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 播放下一首
+    /// </summary>
     [RelayCommand]
     private void Next() { _isSwitchingSong = true; var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
+    /// <summary>
+    /// 播放上一首
+    /// </summary>
     [RelayCommand]
     private void Previous() { _isSwitchingSong = true; var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
+    /// <summary>
+    /// 循环切换播放模式：列表循环 → 随机播放 → 单曲循环
+    /// </summary>
     [RelayCommand]
     private void CyclePlayMode()
     {
@@ -146,9 +179,15 @@ public partial class NowPlayingViewModel : ObservableObject
         CatClawMusic.UI.Services.PlaybackStateManager.SavePlayMode(_playQueue.PlayMode);
     }
 
+    /// <summary>
+    /// 切换收藏状态
+    /// </summary>
     [RelayCommand]
     private void ToggleLike() { IsLiked = !IsLiked; _ = SaveFavoriteAsync(); }
 
+    /// <summary>
+    /// 处理滑动手势，左滑切下一首、右滑切上一首
+    /// </summary>
     [RelayCommand]
     private void Swipe(string direction)
     {
@@ -159,6 +198,9 @@ public partial class NowPlayingViewModel : ObservableObject
     private void OnNext() { var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
     private void OnPrevious() { var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
+    /// <summary>
+    /// 与播放队列同步当前歌曲状态
+    /// </summary>
     public void SyncWithQueue()
     {
         var queueSong = _playQueue.CurrentSong;
@@ -186,6 +228,9 @@ public partial class NowPlayingViewModel : ObservableObject
         };
     }
 
+    /// <summary>
+    /// 异步加载歌曲封面图片并缓存到本地
+    /// </summary>
     public async Task LoadCoverAsync(Song? song, CancellationToken ct = default)
     {
         CoverSource = "";
@@ -224,6 +269,9 @@ public partial class NowPlayingViewModel : ObservableObject
         catch { }
     }
 
+    /// <summary>
+    /// 从Content URI提取内嵌封面
+    /// </summary>
     private static byte[]? ExtractCoverFromContentUri(string uri)
     {
         try
@@ -243,6 +291,9 @@ public partial class NowPlayingViewModel : ObservableObject
         return null;
     }
 
+    /// <summary>
+    /// 更新即将播放歌曲预览列表
+    /// </summary>
     private void UpdateQueuePeek()
     {
         UpcomingSongs.Clear();
@@ -251,6 +302,9 @@ public partial class NowPlayingViewModel : ObservableObject
         OnPropertyChanged(nameof(UpcomingSongs));
     }
 
+    /// <summary>
+    /// 播放器状态变化回调，处理播放、暂停、停止和错误状态
+    /// </summary>
     private void OnPlaybackStateChanged(object? sender, PlaybackStateChangedEventArgs e)
     {
         _dispatcher.Post(() =>
@@ -340,6 +394,9 @@ public partial class NowPlayingViewModel : ObservableObject
         catch { }
     }
 
+    /// <summary>
+    /// 播放位置变化回调，更新歌词索引和当前位置
+    /// </summary>
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
         _dispatcher.Post(() =>
@@ -369,6 +426,9 @@ public partial class NowPlayingViewModel : ObservableObject
         });
     }
 
+    /// <summary>
+    /// 异步加载歌词，支持本地文件和远程歌词源
+    /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
         if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; return; }

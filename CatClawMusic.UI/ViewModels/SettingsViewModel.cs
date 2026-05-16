@@ -9,6 +9,9 @@ using CoreConnectionProfile = CatClawMusic.Core.Models.ConnectionProfile;
 
 namespace CatClawMusic.UI.ViewModels;
 
+/// <summary>
+/// 设置ViewModel，管理WebDAV连接配置和音乐文件夹路径
+/// </summary>
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly INetworkFileService? _networkService;
@@ -29,12 +32,24 @@ public partial class SettingsViewModel : ObservableObject
     /// <summary>已选择的音乐文件夹列表（显示名）</summary>
     public ObservableCollection<string> MusicFolders { get; } = new();
 
+    /// <summary>
+    /// 缓存大小显示文本（如 "1 GB"）
+    /// </summary>
     public string CacheSizeText => $"{CacheSizeGB:F0} GB";
 
+    /// <summary>
+    /// 缓存大小变化时同步更新显示文本
+    /// </summary>
     partial void OnCacheSizeGBChanged(double value) => OnPropertyChanged(nameof(CacheSizeText));
 
+    /// <summary>
+    /// 无参构造函数
+    /// </summary>
     public SettingsViewModel() : this(null, null, null!) { }
 
+    /// <summary>
+    /// 初始化设置ViewModel，从SharedPreferences加载音乐文件夹
+    /// </summary>
     public SettingsViewModel(INetworkFileService? networkService, MusicDatabase? database, IDialogService dialogService)
     {
         _networkService = networkService;
@@ -50,6 +65,9 @@ public partial class SettingsViewModel : ObservableObject
             MusicFolders.Add(GetFolderDisplayName(uri));
     }
 
+    /// <summary>
+    /// 从文件夹URI中提取显示名称
+    /// </summary>
     private static string GetFolderDisplayName(string uri)
     {
         try
@@ -89,6 +107,9 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(MusicFolder));
     }
 
+    /// <summary>
+    /// 测试WebDAV服务器连接
+    /// </summary>
     [RelayCommand]
     private async Task TestConnection()
     {
@@ -105,6 +126,9 @@ public partial class SettingsViewModel : ObservableObject
         finally { IsTesting = false; }
     }
 
+    /// <summary>
+    /// 保存WebDAV连接配置到数据库
+    /// </summary>
     [RelayCommand]
     private async Task SaveConnection()
     {
@@ -119,6 +143,9 @@ public partial class SettingsViewModel : ObservableObject
         catch (Exception ex) { StatusText = "保存失败"; await _dialogService.ShowAlertAsync("错误", $"保存失败: {ex.Message}"); }
     }
 
+    /// <summary>
+    /// 清除音乐缓存目录
+    /// </summary>
     [RelayCommand]
     private async Task ClearCache()
     {

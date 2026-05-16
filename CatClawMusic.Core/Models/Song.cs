@@ -2,12 +2,17 @@ using SQLite;
 
 namespace CatClawMusic.Core.Models;
 
+/// <summary>
+/// 歌曲模型，对应数据库 Songs 表
+/// </summary>
 [Table("Songs")]
 public class Song
 {
+    /// <summary>主键，自增</summary>
     [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
 
+    /// <summary>歌曲标题</summary>
     [NotNull]
     public string Title { get; set; } = string.Empty;
 
@@ -26,7 +31,10 @@ public class Song
     [Unique, NotNull]
     public string FilePath { get; set; } = string.Empty;
 
+    /// <summary>文件大小（字节）</summary>
     public long FileSize { get; set; }
+
+    /// <summary>比特率（kbps）</summary>
     public int Bitrate { get; set; }
 
     /// <summary>专辑内曲目序号</summary>
@@ -50,6 +58,7 @@ public class Song
     /// <summary>歌词文件路径</summary>
     public string? LyricsPath { get; set; }
 
+    /// <summary>歌曲来源类型（本地 / WebDAV / 缓存）</summary>
     public SongSource Source { get; set; } = SongSource.Local;
 
     /// <summary>远程协议类型，用于区分 WebDAV 和 Navidrome</summary>
@@ -60,16 +69,24 @@ public class Song
 
     // ── 以下为兼容查询的运行时字段，不存储 ──
 
+    /// <summary>艺术家名称（运行时赋值，不持久化）</summary>
     [Ignore]
     public string Artist { get; set; } = string.Empty;
 
+    /// <summary>专辑名称（运行时赋值，不持久化）</summary>
     [Ignore]
     public string Album { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// 歌曲来源类型
+/// </summary>
 public enum SongSource
 {
+    /// <summary>本地文件</summary>
     Local,
+    /// <summary>WebDAV 远程</summary>
     WebDAV,
+    /// <summary>本地缓存</summary>
     Cache
 }
