@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.Loader;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 
@@ -11,7 +10,6 @@ public class PluginManager : IPluginManager
     private readonly Func<string, bool> _getPrefFunc;
     private readonly Action<string, bool> _setPrefFunc;
     private readonly string _pluginsDir;
-    private readonly Dictionary<string, AssemblyLoadContext> _loadContexts = new();
     private readonly HttpClient _httpClient = new();
     private readonly HashSet<string> _installedPluginIds = new();
 
@@ -46,10 +44,19 @@ public class PluginManager : IPluginManager
 
     public List<T> GetEnabledPlugins<T>() where T : IPlugin
     {
-        return _plugins
-            .Where(p => p.IsEnabled && p.Plugin is T)
-            .Select(p => (T)p.Plugin)
-            .ToList();
+        var result = new List<T>();
+        foreach (var p in _plugins)
+        {
+            if (!p.IsEnabled) continue;
+            if (p.Plugin is T t)
+                result.Add(t);
+            foreach (var sub in p.SubPlugins)
+            {
+                if (sub is T st)
+                    result.Add(st);
+            }
+        }
+        return result;
     }
 
     public bool IsPluginEnabled(string pluginTypeId)
@@ -78,6 +85,10 @@ public class PluginManager : IPluginManager
             {
                 info.IsEnabled = false;
             }
+            foreach (var sub in info.SubPlugins)
+            {
+                try { await sub.InitializeAsync(); } catch { }
+            }
         }
     }
 
@@ -85,11 +96,11 @@ public class PluginManager : IPluginManager
     {
         foreach (var info in _plugins.Where(p => p.IsEnabled))
         {
-            try
+            try { await info.Plugin.ShutdownAsync(); } catch { }
+            foreach (var sub in info.SubPlugins)
             {
-                await info.Plugin.ShutdownAsync();
+                try { await sub.ShutdownAsync(); } catch { }
             }
-            catch { }
         }
     }
 
@@ -227,11 +238,8 @@ public class PluginManager : IPluginManager
 
     private async Task<PluginInfo?> LoadAndRegisterPluginAsync(string localPath, string sourceUrl, IProgress<(string, int)>? progress)
     {
-        var fileName = Path.GetFileName(localPath);
-
-        var loadContext = new PluginLoadContext(localPath);
-        var assembly = loadContext.LoadFromAssemblyPath(localPath);
-        _loadContexts[fileName] = loadContext;
+        var fileBytes = File.ReadAllBytes(localPath);
+        var assembly = Assembly.Load(fileBytes);
 
         var pluginTypes = assembly.GetTypes()
             .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
@@ -239,43 +247,55 @@ public class PluginManager : IPluginManager
 
         if (pluginTypes.Count == 0)
         {
-            loadContext.Unload();
-            _loadContexts.Remove(fileName);
             File.Delete(localPath);
             throw new InvalidOperationException("插件程序集中未找到有效的IPlugin实现");
         }
 
         progress?.Report(("正在初始化插件...", 85));
 
-        PluginInfo? addedInfo = null;
+        List<IPlugin> instances = new();
         foreach (var type in pluginTypes)
         {
-            if (Activator.CreateInstance(type) is not IPlugin pluginInstance) continue;
+            if (Activator.CreateInstance(type) is IPlugin pluginInstance)
+                instances.Add(pluginInstance);
+        }
 
-            var info = CreatePluginInfo(pluginInstance);
-            info.Source = PluginSource.Installed;
-            info.AssemblyPath = localPath;
-            info.InstallUrl = sourceUrl;
-            info.IsEnabled = true;
-            _plugins.Add(info);
-            addedInfo = info;
+        if (instances.Count == 0)
+        {
+            File.Delete(localPath);
+            throw new InvalidOperationException("无法创建插件实例");
+        }
 
-            _setPrefFunc($"plugin_enabled_{info.PluginTypeId}", true);
+        var primary = instances[0];
+        var info = CreatePluginInfo(primary);
+        info.Source = PluginSource.Installed;
+        info.AssemblyPath = localPath;
+        info.InstallUrl = sourceUrl;
+        info.IsEnabled = true;
 
-            if (info.IsEnabled)
+        for (int i = 1; i < instances.Count; i++)
+        {
+            info.SubPlugins.Add(instances[i]);
+        }
+
+        _plugins.Add(info);
+
+        _setPrefFunc($"plugin_enabled_{info.PluginTypeId}", true);
+
+        if (info.IsEnabled)
+        {
+            await primary.InitializeAsync();
+            foreach (var sub in info.SubPlugins)
             {
-                await pluginInstance.InitializeAsync();
+                try { await sub.InitializeAsync(); } catch { }
             }
         }
 
-        if (addedInfo != null)
-        {
-            _installedPluginIds.Add(addedInfo.PluginTypeId);
-            SaveInstalledIndex();
-        }
+        _installedPluginIds.Add(info.PluginTypeId);
+        SaveInstalledIndex();
 
         progress?.Report(("安装完成", 100));
-        return addedInfo;
+        return info;
     }
 
     public async Task<bool> UninstallPluginAsync(string pluginTypeId)
@@ -288,20 +308,16 @@ public class PluginManager : IPluginManager
             if (info.IsEnabled)
             {
                 await info.Plugin.ShutdownAsync();
+                foreach (var sub in info.SubPlugins)
+                {
+                    try { await sub.ShutdownAsync(); } catch { }
+                }
             }
         }
         catch { }
 
         if (info.AssemblyPath != null)
         {
-            var fileName = Path.GetFileName(info.AssemblyPath);
-
-            if (_loadContexts.TryGetValue(fileName, out var ctx))
-            {
-                ctx.Unload();
-                _loadContexts.Remove(fileName);
-            }
-
             try
             {
                 File.Delete(info.AssemblyPath);
@@ -361,6 +377,8 @@ public class PluginManager : IPluginManager
         var indexPath = Path.Combine(_pluginsDir, "installed.json");
         if (!File.Exists(indexPath)) return;
 
+        var loadedAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         try
         {
             var data = System.Text.Json.JsonSerializer.Deserialize<List<InstalledPluginEntry>>(
@@ -370,30 +388,40 @@ public class PluginManager : IPluginManager
             foreach (var entry in data)
             {
                 if (entry.AssemblyPath == null || !File.Exists(entry.AssemblyPath)) continue;
-
-                var fileName = Path.GetFileName(entry.AssemblyPath);
-                if (_loadContexts.ContainsKey(fileName)) continue;
+                if (loadedAssemblies.Contains(entry.AssemblyPath)) continue;
+                loadedAssemblies.Add(entry.AssemblyPath);
 
                 try
                 {
-                    var loadContext = new PluginLoadContext(entry.AssemblyPath);
-                    var assembly = loadContext.LoadFromAssemblyPath(entry.AssemblyPath);
-                    _loadContexts[fileName] = loadContext;
+                    var fileBytes = File.ReadAllBytes(entry.AssemblyPath);
+                    var assembly = Assembly.Load(fileBytes);
 
                     var pluginTypes = assembly.GetTypes()
-                        .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface);
+                        .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
+                        .ToList();
 
+                    List<IPlugin> instances = new();
                     foreach (var type in pluginTypes)
                     {
-                        if (Activator.CreateInstance(type) is not IPlugin pluginInstance) continue;
-
-                        var info = CreatePluginInfo(pluginInstance);
-                        info.Source = PluginSource.Installed;
-                        info.AssemblyPath = entry.AssemblyPath;
-                        info.InstallUrl = entry.InstallUrl;
-                        info.IsEnabled = _getPrefFunc($"plugin_enabled_{info.PluginTypeId}");
-                        _plugins.Add(info);
+                        if (Activator.CreateInstance(type) is IPlugin pluginInstance)
+                            instances.Add(pluginInstance);
                     }
+
+                    if (instances.Count == 0) continue;
+
+                    var primary = instances[0];
+                    var info = CreatePluginInfo(primary);
+                    info.Source = PluginSource.Installed;
+                    info.AssemblyPath = entry.AssemblyPath;
+                    info.InstallUrl = entry.InstallUrl;
+                    info.IsEnabled = _getPrefFunc($"plugin_enabled_{info.PluginTypeId}");
+
+                    for (int i = 1; i < instances.Count; i++)
+                    {
+                        info.SubPlugins.Add(instances[i]);
+                    }
+
+                    _plugins.Add(info);
                 }
                 catch
                 {
@@ -464,27 +492,5 @@ public class PluginManager : IPluginManager
         public string? AssemblyPath { get; set; }
         public string? InstallUrl { get; set; }
         public string? PluginName { get; set; }
-    }
-
-    private class PluginLoadContext : AssemblyLoadContext
-    {
-        private readonly AssemblyDependencyResolver _resolver;
-
-        public PluginLoadContext(string pluginPath)
-            : base(isCollectible: true)
-        {
-            _resolver = new AssemblyDependencyResolver(pluginPath);
-        }
-
-        protected override Assembly? Load(AssemblyName assemblyName)
-        {
-            var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-            if (assemblyPath != null)
-            {
-                return LoadFromAssemblyPath(assemblyPath);
-            }
-
-            return null;
-        }
     }
 }

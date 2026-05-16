@@ -6,6 +6,7 @@ public class PluginInfo
 {
     public string PluginTypeId { get; set; } = string.Empty;
     public IPlugin Plugin { get; set; } = null!;
+    public List<IPlugin> SubPlugins { get; set; } = new();
     public bool IsEnabled { get; set; } = true;
     public string DisplayName => Plugin.Name;
     public string Version => Plugin.Version;

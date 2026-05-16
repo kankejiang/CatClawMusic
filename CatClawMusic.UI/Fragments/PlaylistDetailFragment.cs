@@ -76,7 +76,7 @@ public class PlaylistDetailFragment : Fragment
         var popup = new AndroidX.AppCompat.Widget.PopupMenu(Context!, anchor);
         popup.MenuInflater!.Inflate(Resource.Menu.menu_song_context, popup.Menu!);
 
-        var pluginMenuItems = new List<(int MenuItemId, IMenuContributorPlugin Plugin)>();
+        var pluginMenuItems = new List<(int AndroidMenuItemId, int PluginEntryId, IMenuContributorPlugin Plugin)>();
         var pluginManager = MainApplication.Services.GetService<IPluginManager>();
         if (pluginManager != null)
         {
@@ -90,7 +90,7 @@ public class PlaylistDetailFragment : Fragment
                         if (string.IsNullOrEmpty(entry.Title)) continue;
                         var menuItem = popup.Menu!.Add(entry.Title);
                         menuItem.SetShowAsAction(Android.Views.ShowAsAction.Never);
-                        pluginMenuItems.Add((menuItem.ItemId, contributor));
+                        pluginMenuItems.Add((menuItem.ItemId, entry.Id, contributor));
                     }
                 }
                 catch { }
@@ -101,7 +101,7 @@ public class PlaylistDetailFragment : Fragment
         popup.Show();
     }
 
-    private async void HandleContextMenuClick(int itemId, Song song, List<(int MenuItemId, IMenuContributorPlugin Plugin)> pluginItems)
+    private async void HandleContextMenuClick(int itemId, Song song, List<(int AndroidMenuItemId, int PluginEntryId, IMenuContributorPlugin Plugin)> pluginItems)
     {
         switch (itemId)
         {
@@ -129,11 +129,11 @@ public class PlaylistDetailFragment : Fragment
                 ShowSongInfoDialog(song);
                 break;
             default:
-                foreach (var (menuItemId, plugin) in pluginItems)
+                foreach (var (androidMenuItemId, pluginEntryId, plugin) in pluginItems)
                 {
-                    if (itemId == menuItemId)
+                    if (itemId == androidMenuItemId)
                     {
-                        await plugin.OnMenuItemClicked(0, song, this);
+                        await plugin.OnMenuItemClicked(pluginEntryId, song, this);
                         return;
                     }
                 }

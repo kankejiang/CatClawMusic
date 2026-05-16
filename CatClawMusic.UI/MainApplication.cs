@@ -47,8 +47,9 @@ public class MainApplication : Application
             var allPlugins = sp.GetServices<IPlugin>();
             var prefs = global::Android.App.Application.Context.GetSharedPreferences(
                 "catclaw_plugins", global::Android.Content.FileCreationMode.Private);
+            var externalFilesDir = global::Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath;
             var pluginsDir = System.IO.Path.Combine(
-                global::Android.App.Application.Context.FilesDir!.AbsolutePath, "plugins");
+                System.IO.Path.GetDirectoryName(externalFilesDir)!, "Plugin");
             return new PluginManager(
                 allPlugins,
                 typeId => prefs.GetBoolean($"plugin_enabled_{typeId}", true),
