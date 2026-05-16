@@ -51,13 +51,13 @@
                 android:layout_width="wrap_content" android:layout_height="wrap_content" />
 
             <ImageButton android:id="@+id/btn_uninstall"
-                android:layout_width="32dp" android:layout_height="32dp"
-                android:layout_marginStart="4dp"
-                android:src="@drawable/ic_arrow_back"
+                android:layout_width="36dp" android:layout_height="36dp"
+                android:layout_marginStart="2dp"
+                android:src="@drawable/ic_close"
                 android:tint="#E04040"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="卸载"
-                android:rotation="90"
+                android:scaleType="centerInside"
                 android:visibility="gone" />
         </LinearLayout>
 
