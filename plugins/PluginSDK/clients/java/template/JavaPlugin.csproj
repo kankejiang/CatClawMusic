@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>JavaHelloPlugin</AssemblyName>
+    <Description>Java → .NET DLL 示例插件模板 (IKVM.NET)</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 编译前先通过 IKVM 编译 Java → .NET DLL
+       javac MyPlugin.java
+       jar cf myplugin.jar *.class
+       ikvmc -target:library myplugin.jar -out:MyPlugin.dll
+       
+       MyPlugin.dll 编译完成后，通过下面的 Reference 引用：
+  <ItemGroup>
+    <Reference Include="MyPlugin">
+      <HintPath>MyPlugin.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  -->
+
+  <Target Name="CopyToCcp" AfterTargets="Build">
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
+          DestinationFiles="$(OutputPath)$(AssemblyName).ccp"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

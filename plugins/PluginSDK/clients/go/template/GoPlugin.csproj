@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>GoHelloPlugin</AssemblyName>
+    <Description>Go → .NET DLL 示例插件模板 (cgo c-shared + P/Invoke)</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    编译步骤:
+      1. 编译 Go 原生库:
+         Android ARM64:  GOOS=android GOARCH=arm64 CGO_ENABLED=1         go build -buildmode=c-shared -o libgoplugin.so
+         Android ARM32:  GOOS=android GOARCH=arm   CGO_ENABLED=1         go build -buildmode=c-shared -o libgoplugin.so
+         Android x86_64: GOOS=android GOARCH=amd64 CGO_ENABLED=1         go build -buildmode=c-shared -o libgoplugin.so
+         Windows (dev):  go build -buildmode=c-shared -o goplugin.dll
+
+      2. 将生成的 .so 文件放入 Android 项目的 lib/ 对应架构目录,
+         或作为 NativeLibrary 嵌入。
+
+      3. dotnet build → GoPlugin.dll → GoPlugin.ccp
+         (本 csproj 只编译 C# 适配器，Go 原生库作为外部依赖)
+  -->
+
+  <Target Name="CopyToCcp" AfterTargets="Build">
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
+          DestinationFiles="$(OutputPath)$(AssemblyName).ccp"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>
