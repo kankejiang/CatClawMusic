@@ -275,13 +275,19 @@ CatClawMusic/
 
 ***
 
-## 🔌 插件体系（预留）
+## 🔌 插件体系
 
 | 接口 | 说明 |
 |------|------|
 | IPlugin | 插件基类：Name / Version / Author / InitializeAsync / ShutdownAsync |
 | ILyricsProviderPlugin | 歌词提供者插件：GetLyricsAsync / IsAvailable |
 | IProtocolProviderPlugin | 协议提供者插件：ProtocolName / ListFilesAsync / OpenReadAsync / TestConnectionAsync |
+
+### 📦 已发布插件
+
+| 插件 | 说明 | 地址 |
+|------|------|------|
+| **猫爪标签 (CatClawTag)** | 歌词/封面多源搜索、匹配元数据、标签读写 | [GitHub](https://github.com/kankejiang/MusicTagPlugin) |
 
 ***
 
