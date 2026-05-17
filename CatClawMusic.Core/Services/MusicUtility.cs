@@ -6,7 +6,12 @@ namespace CatClawMusic.Core.Services;
 public static class MusicUtility
 {
     /// <summary>支持的音频文件扩展名列表</summary>
-    private static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a" };
+    private static readonly string[] AudioExtensions =
+    {
+        ".mp3", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".mp4", ".aac", ".wma",
+        ".wav", ".aiff", ".aifc", ".ape", ".wv", ".tta", ".mka", ".dsf", ".dff",
+        ".mid", ".midi", ".rmi", ".spx", ".amr", ".3gp", ".mkv", ".webm"
+    };
     /// <summary>音频扩展名哈希集合（大写形式，用于 O(1) 查找）</summary>
     private static readonly HashSet<string> AudioExtensionSet = new(
         AudioExtensions.Select(e => e.ToUpperInvariant()), StringComparer.Ordinal);
