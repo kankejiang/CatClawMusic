@@ -287,7 +287,7 @@ CatClawMusic/
 
 | 插件 | 说明 | 地址 |
 |------|------|------|
-| **猫爪标签 (CatClawTag)** | 歌词/封面多源搜索、匹配元数据、标签读写 | [GitHub](https://github.com/kankejiang/MusicTagPlugin) |
+| **猫爪标签 (CatClawTag)** | 歌词/封面多源搜索、匹配元数据、标签读写 | [GitHub](https://github.com/kankejiang/CatClawTagPlugin) |
 
 ***
 
