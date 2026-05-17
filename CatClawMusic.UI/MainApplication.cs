@@ -1,4 +1,5 @@
 using Android.App;
+using Android.Content;
 using Android.Runtime;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
@@ -29,12 +30,20 @@ public class MainApplication : Application
 
         var services = new ServiceCollection();
 
-        // Database（v4：新增 RemoteId 列用于网络歌曲去重）
-        string dbPath = Path.Combine(CacheDir!.AbsolutePath, "catclaw.db");
-        if (!File.Exists(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v4.marker")))
+        // Database（v5：迁移到 ExternalFilesDir 规范路径）
+        var externalDir = global::Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath;
+        string dbPath = Path.Combine(externalDir, "catclaw.db");
+        string oldDbPath = Path.Combine(CacheDir!.AbsolutePath, "catclaw.db");
+
+        if (!File.Exists(Path.Combine(externalDir, "catclaw_v5.marker")))
         {
-            try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { }
-            File.WriteAllText(Path.Combine(CacheDir!.AbsolutePath, "catclaw_v4.marker"), "1");
+            if (File.Exists(oldDbPath))
+            {
+                try { File.Copy(oldDbPath, dbPath, overwrite: true); } catch { }
+                try { File.Delete(oldDbPath); } catch { }
+                Android.Util.Log.Info("CatClaw", $"Database migrated: {oldDbPath} -> {dbPath}");
+            }
+            File.WriteAllText(Path.Combine(externalDir, "catclaw_v5.marker"), "1");
         }
         var database = new MusicDatabase(dbPath);
         services.AddSingleton(database);
@@ -80,6 +89,7 @@ public class MainApplication : Application
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
         services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<ILogService, LogService>();
 
         // ViewModels
         services.AddSingleton<LibraryViewModel>();       // 单例——Fragment 重建时不丢缓存
@@ -123,5 +133,70 @@ public class MainApplication : Application
 
         // 初始化所有已启用的插件
         _ = Services.GetRequiredService<IPluginManager>().InitializeAllAsync();
+
+        RegisterRescanReceiver();
+    }
+
+    /// <summary>注册插件请求的音乐库重新扫描广播接收器</summary>
+    private void RegisterRescanReceiver()
+    {
+        try
+        {
+            var receiver = new RescanLibraryReceiver();
+            var filter = new global::Android.Content.IntentFilter("catclawmusic.action.RESCAN_LIBRARY");
+            RegisterReceiver(receiver, filter);
+            Android.Util.Log.Info("CatClaw", "RescanLibraryReceiver registered ✅");
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("CatClaw", $"RegisterRescanReceiver failed: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>接收插件发送的音乐库重新扫描请求广播，触发数据库+UI完整刷新</summary>
+public class RescanLibraryReceiver : BroadcastReceiver
+{
+    public override void OnReceive(Context? context, Intent? intent)
+    {
+        try
+        {
+            var source = intent?.GetStringExtra("source") ?? "unknown";
+            Android.Util.Log.Info("CatClaw", $"RescanLibraryReceiver: received from {source}, triggering full library reload...");
+
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    var libVm = MainApplication.Services?.GetService<LibraryViewModel>();
+                    if (libVm != null)
+                    {
+                        var loadMethod = libVm.GetType().GetMethod("LoadLocalAsync",
+                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (loadMethod != null)
+                        {
+                            var task = loadMethod.Invoke(libVm, new object[] { true }) as System.Threading.Tasks.Task;
+                            if (task != null) await task;
+                            Android.Util.Log.Info("CatClaw", $"RescanLibraryReceiver: LoadLocalAsync(forceReload=true) completed ✅");
+                        }
+                        else
+                        {
+                            var refreshMethod = libVm.GetType().GetMethod("Refresh",
+                                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            refreshMethod?.Invoke(libVm, Array.Empty<object>());
+                            Android.Util.Log.Info("CatClaw", $"RescanLibraryReceiver: Refresh() completed ✅");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Android.Util.Log.Error("CatClaw", $"RescanLibraryReceiver refresh failed: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Error("CatClaw", $"RescanLibraryReceiver.OnReceive error: {ex.Message}");
+        }
     }
 }

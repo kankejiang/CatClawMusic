@@ -48,7 +48,7 @@ public class CoverSearchResult
 
 /// <summary>
 /// MusicTag 封面插件，实现 <see cref="ICoverProviderPlugin"/> 接口，
-/// 通过 iTunes API 和 Deezer API 多源搜索并获取专辑封面图片。
+/// 通过 iTunes、Deezer、QQ音乐、酷狗、酷我、网易云音乐等多源搜索并获取专辑封面图片。
 /// </summary>
 public class MusicTagCoverPlugin : ICoverProviderPlugin
 {
@@ -91,6 +91,10 @@ public class MusicTagCoverPlugin : ICoverProviderPlugin
     {
         "iTunes Search: 通过 Apple Music 数据库匹配专辑封面",
         "Deezer Search: 通过 Deezer 音乐数据库获取高清封面",
+        "QQ音乐: 通过QQ音乐API获取专辑封面",
+        "酷狗: 通过酷狗API获取专辑封面",
+        "酷我: 通过酷我API获取专辑封面",
+        "网易云音乐: 通过网易云API获取专辑封面",
         "智能匹配: 优先按专辑名 + 艺术家匹配，回退到仅标题匹配",
         "高清封面: 优先获取 1000x1000 以上分辨率"
     };
@@ -139,11 +143,24 @@ public class MusicTagCoverPlugin : ICoverProviderPlugin
 
         if (string.IsNullOrWhiteSpace(song.Title)) return allResults;
 
-        var iTunesResults = await SearchiTunesAsync(song);
-        allResults.AddRange(iTunesResults);
+        var searchMethods = new Func<Task<List<CoverSearchResult>>>[]
+        {
+            () => SearchiTunesAsync(song),
+            () => SearchDeezerAsync(song),
+            () => SearchQQMusicCoverAsync(song),
+            () => SearchKugouCoverAsync(song),
+            () => SearchKuwoCoverAsync(song),
+            () => SearchNeteaseCoverAsync(song)
+        };
 
-        var deezerResults = await SearchDeezerAsync(song);
-        allResults.AddRange(deezerResults);
+        var tasks = searchMethods.Select(async method =>
+        {
+            try { return await method(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MusicTagCover] Search failed: {ex.Message}"); return new List<CoverSearchResult>(); }
+        });
+
+        var results = await Task.WhenAll(tasks);
+        foreach (var r in results) allResults.AddRange(r);
 
         return allResults;
     }
@@ -198,6 +215,164 @@ public class MusicTagCoverPlugin : ICoverProviderPlugin
         catch
         {
         }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 通过 QQ 音乐 API 搜索专辑封面
+    /// </summary>
+    public async Task<List<CoverSearchResult>> SearchQQMusicCoverAsync(Song song)
+    {
+        var results = new List<CoverSearchResult>();
+        try
+        {
+            var query = !string.IsNullOrWhiteSpace(song.Album) ? $"{song.Album} {song.Artist}" : $"{song.Title} {song.Artist}";
+            var url = $"https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w={Uri.EscapeDataString(query ?? "")}&format=json&n=5&t=0";
+
+            _client.DefaultRequestHeaders.Referrer = new Uri("https://y.qq.com/");
+            _client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+            var response = await _client.GetStringAsync(url);
+            using var doc = JsonDocument.Parse(response);
+
+            if (!doc.RootElement.TryGetProperty("data", out var data)) return results;
+            if (!data.TryGetProperty("song", out var songList)) return results;
+            if (!songList.TryGetProperty("list", out var list)) return results;
+
+            foreach (var item in list.EnumerateArray())
+            {
+                if (results.Count >= 3) break;
+                var mid = item.TryGetProperty("albummid", out var am) ? am.GetString() : "";
+                if (string.IsNullOrEmpty(mid)) continue;
+
+                var coverUrl = $"https://y.gtimg.cn/music/photo_new/T002R500x500M000{mid}.jpg";
+                var result = new CoverSearchResult { Source = "QQ音乐" };
+                result.ImageUrl = coverUrl;
+                result.Width = 500; result.Height = 500;
+                if (item.TryGetProperty("name", out var sn)) result.AlbumName = sn.GetString() ?? "";
+                if (item.TryGetProperty("singer", out var singers))
+                    result.ArtistName = string.Join(", ", singers.EnumerateArray().Select(s => s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "").Where(n => !string.IsNullOrEmpty(n)));
+                results.Add(result);
+            }
+        }
+        catch { }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 通过酷狗 API 搜索专辑封面
+    /// </summary>
+    public async Task<List<CoverSearchResult>> SearchKugouCoverAsync(Song song)
+    {
+        var results = new List<CoverSearchResult>();
+        try
+        {
+            var query = !string.IsNullOrWhiteSpace(song.Album) ? $"{song.Album} {song.Artist}" : $"{song.Title} {song.Artist}";
+            var url = $"https://complexsearch.kugou.com/v2/search/song?keyword={Uri.EscapeDataString(query ?? "")}&page=1&pagesize=5";
+
+            var response = await _client.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return results;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.TryGetProperty("data", out var data)) return results;
+            if (!data.TryGetProperty("lists", out var lists)) return results;
+
+            foreach (var item in lists.EnumerateArray())
+            {
+                if (results.Count >= 3) break;
+                var albumId = item.TryGetProperty("AlbumID", out var aid) ? aid.GetInt32() : 0;
+                if (albumId <= 0) continue;
+
+                var hash = item.TryGetProperty("FileHash", out var fh) ? fh.GetString() : "";
+                var coverUrl = $"https://img1.krcdn.com/kugou_mobile/mssrc/{hash}";
+                var result = new CoverSearchResult { Source = "酷狗" };
+                result.ImageUrl = coverUrl;
+                result.Width = 500; result.Height = 500;
+                if (item.TryGetProperty("AlbumName", out var an)) result.AlbumName = an.GetString() ?? "";
+                if (item.TryGetProperty("SingerName", out var sn)) result.ArtistName = sn.GetString() ?? "";
+                results.Add(result);
+            }
+        }
+        catch { }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 通过酷我音乐 API 搜索专辑封面
+    /// </summary>
+    public async Task<List<CoverSearchResult>> SearchKuwoCoverAsync(Song song)
+    {
+        var results = new List<CoverSearchResult>();
+        try
+        {
+            var query = !string.IsNullOrWhiteSpace(song.Album) ? $"{song.Album} {song.Artist}" : $"{song.Title} {song.Artist}";
+            var url = $"https://search.kuwo.cn/r.s?all={Uri.EscapeDataString(query)}&ft=music&rn=5&encoding=utf8";
+
+            var response = await _client.GetStringAsync(url);
+            if (string.IsNullOrWhiteSpace(response) || response.Contains("NO_RESULT")) return results;
+
+            var match = System.Text.RegularExpressions.Regex.Match(response, @"pic=""([^""]+)""");
+            if (!match.Success) return results;
+
+            var picPath = match.Groups[1].Value;
+            if (string.IsNullOrEmpty(picPath)) return results;
+
+            var coverUrl = picPath.StartsWith("http") ? picPath : $"https://img2.kuwo.cn/star/albumcover/500{picPath}";
+            var result = new CoverSearchResult { Source = "酷我" };
+            result.ImageUrl = coverUrl;
+            result.Width = 500; result.Height = 500;
+            result.AlbumName = song.Album ?? song.Title ?? "";
+            result.ArtistName = song.Artist ?? "";
+            results.Add(result);
+        }
+        catch { }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 通过网易云音乐 API 搜索专辑封面
+    /// </summary>
+    public async Task<List<CoverSearchResult>> SearchNeteaseCoverAsync(Song song)
+    {
+        var results = new List<CoverSearchResult>();
+        try
+        {
+            var query = $"{song.Title} {song.Artist}";
+            var searchUrl = $"https://music.163.com/api/search/get?s={Uri.EscapeDataString(query)}&type=1&limit=5";
+
+            _client.DefaultRequestHeaders.Referrer = new Uri("https://music.163.com/");
+            var response = await _client.GetStringAsync(searchUrl);
+            using var doc = JsonDocument.Parse(response);
+
+            if (!doc.RootElement.TryGetProperty("result", out var searchResult)) return results;
+            if (!searchResult.TryGetProperty("songs", out var songs)) return results;
+
+            int count = 0;
+            foreach (var songItem in songs.EnumerateArray())
+            {
+                if (count >= 3) break;
+                if (!songItem.TryGetProperty("album", out var albumObj) || albumObj.ValueKind != JsonValueKind.Object) continue;
+
+                var picUrl = albumObj.TryGetProperty("picUrl", out var pic) ? pic.GetString() : null;
+                if (string.IsNullOrEmpty(picUrl)) continue;
+
+                var result = new CoverSearchResult { Source = "网易云音乐" };
+                result.ImageUrl = picUrl;
+                result.Width = 500; result.Height = 500;
+                if (albumObj.TryGetProperty("name", out var an)) result.AlbumName = an.GetString() ?? "";
+                if (songItem.TryGetProperty("artists", out var artists))
+                    result.ArtistName = string.Join(", ", artists.EnumerateArray().Select(a => a.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "").Where(n => !string.IsNullOrEmpty(n)));
+
+                results.Add(result);
+                count++;
+            }
+        }
+        catch { }
 
         return results;
     }

@@ -203,8 +203,9 @@ public class TagReader
             file.Save();
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[TagReader] WriteMetadata failed: {ex}");
             return false;
         }
     }
@@ -227,8 +228,9 @@ public class TagReader
             file.Save();
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[TagReader] WriteEmbeddedLyrics failed: {ex}");
             return false;
         }
     }
@@ -252,8 +254,9 @@ public class TagReader
             file.Save();
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[TagReader] WriteCoverToFile failed: {ex}");
             return false;
         }
     }

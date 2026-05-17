@@ -18,6 +18,58 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
 
     /// <summary>插件唯一标识符</summary>
     public string PluginId => "musictag.menu";
+
+    private static void MTLogInfo(string msg)
+    {
+        try
+        {
+            var logService = typeof(CatClawMusic.Core.Interfaces.ILogService).Assembly
+                .GetType("CatClawMusic.UI.Services.LogService")?.GetProperty("Instance")?.GetValue(null);
+            if (logService is CatClawMusic.Core.Interfaces.ILogService svc) { svc.Info("MusicTag", msg); return; }
+        }
+        catch { }
+        global::Android.Util.Log.Info("MusicTag", msg);
+    }
+
+    private static void MTLogWarn(string msg)
+    {
+        try
+        {
+            var logService = typeof(CatClawMusic.Core.Interfaces.ILogService).Assembly
+                .GetType("CatClawMusic.UI.Services.LogService")?.GetProperty("Instance")?.GetValue(null);
+            if (logService is CatClawMusic.Core.Interfaces.ILogService svc) { svc.Warn("MusicTag", msg); return; }
+        }
+        catch { }
+        global::Android.Util.Log.Warn("MusicTag", msg);
+    }
+
+    private static void MTLogError(string msg)
+    {
+        try
+        {
+            var logService = typeof(CatClawMusic.Core.Interfaces.ILogService).Assembly
+                .GetType("CatClawMusic.UI.Services.LogService")?.GetProperty("Instance")?.GetValue(null);
+            if (logService is CatClawMusic.Core.Interfaces.ILogService svc) { svc.Error("MusicTag", msg); return; }
+        }
+        catch { }
+        global::Android.Util.Log.Error("MusicTag", msg);
+    }
+
+    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp3", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".mp4", ".aac", ".wma",
+        ".wav", ".aiff", ".aifc", ".ape", ".wv", ".tta", ".mka", ".dsf", ".dff",
+        ".mid", ".midi", ".rmi", ".spx", ".amr", ".3gp", ".mkv", ".webm"
+    };
+
+    /// <summary>从路径提取音频扩展名，如果不在已知列表中则根据内容推断</summary>
+    private static string ResolveAudioExtension(string pathOrUri)
+    {
+        var ext = System.IO.Path.GetExtension(pathOrUri);
+        if (!string.IsNullOrEmpty(ext) && ext.Length >= 2 && AudioExtensions.Contains(ext))
+            return ext;
+        return ".flac";
+    }
     /// <summary>插件显示名称</summary>
     public string Name => "MusicTag 元数据编辑";
     /// <summary>插件版本号</summary>
@@ -31,7 +83,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
     public List<string> Capabilities => new()
     {
         "元数据匹配: 标题、艺术家、专辑、年份、音轨号、流派",
-        "歌词搜索: LRCLIB / 网易云音乐",
+        "歌词搜索: LRCLIB / 网易云音乐 / QQ音乐 / 酷狗 / 酷我",
         "封面搜索: iTunes / Deezer 高清封面",
         "MusicBrainz: 智能匹配元数据",
         "WebDAV 支持: 下载-编辑-上传回服务器"
@@ -119,19 +171,6 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
         { Orientation = global::Android.Widget.Orientation.Vertical };
         layout.SetPadding(dp * 16, dp * 10, dp * 16, dp * 10);
 
-        var sourceLabel = new global::Android.Widget.TextView(ctx) { Text = "歌词搜索源" };
-        sourceLabel.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 13f);
-        sourceLabel.SetTextColor(global::Android.Graphics.Color.ParseColor("#B0A8BA"));
-        layout.AddView(sourceLabel);
-
-        var spSource = new global::Android.Widget.Spinner(ctx);
-        var sourceAdapter = new global::Android.Widget.ArrayAdapter<string>(ctx,
-            global::Android.Resource.Layout.SimpleSpinnerItem,
-            new[] { "LRCLIB", "网易云音乐" });
-        sourceAdapter.SetDropDownViewResource(global::Android.Resource.Layout.SimpleSpinnerDropDownItem);
-        spSource.Adapter = sourceAdapter;
-        layout.AddView(spSource);
-
         var keywordRow = new global::Android.Widget.LinearLayout(ctx)
         { Orientation = global::Android.Widget.Orientation.Horizontal };
         keywordRow.SetGravity(global::Android.Views.GravityFlags.CenterVertical);
@@ -167,10 +206,48 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
         cbAll.SetTextColor(global::Android.Graphics.Color.ParseColor("#E8E0F0"));
         layout.AddView(cbAll);
 
-        var fieldDefs = new[]
+        var cbLyrics = new global::Android.Widget.CheckBox(ctx)
+        { Text = "歌词", Checked = true };
+        cbLyrics.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 13f);
+        cbLyrics.SetTextColor(global::Android.Graphics.Color.ParseColor("#9B7ED8"));
+
+        var spLyricsMode = new global::Android.Widget.Spinner(ctx);
+        var lyricsModeAdapter = new global::Android.Widget.ArrayAdapter<string>(ctx,
+            global::Android.Resource.Layout.SimpleSpinnerItem,
+            new[] { "存到标签", "存到文件", "标签和文件" });
+        lyricsModeAdapter.SetDropDownViewResource(global::Android.Resource.Layout.SimpleSpinnerDropDownItem);
+        spLyricsMode.Adapter = lyricsModeAdapter;
+
+        var lyricsRow = new global::Android.Widget.LinearLayout(ctx)
+        { Orientation = global::Android.Widget.Orientation.Horizontal };
+        lyricsRow.SetGravity(global::Android.Views.GravityFlags.CenterVertical);
+        lyricsRow.SetPadding(0, dp * 2, 0, dp * 2);
+        lyricsRow.AddView(cbLyrics, new global::Android.Widget.LinearLayout.LayoutParams(0, wrap) { Weight = 1 });
+        lyricsRow.AddView(spLyricsMode, new global::Android.Widget.LinearLayout.LayoutParams(wrap, wrap));
+        layout.AddView(lyricsRow);
+
+        var cbCover = new global::Android.Widget.CheckBox(ctx)
+        { Text = "封面", Checked = true };
+        cbCover.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 13f);
+        cbCover.SetTextColor(global::Android.Graphics.Color.ParseColor("#D87E9B"));
+
+        var spCoverMode = new global::Android.Widget.Spinner(ctx);
+        var coverModeAdapter = new global::Android.Widget.ArrayAdapter<string>(ctx,
+            global::Android.Resource.Layout.SimpleSpinnerItem,
+            new[] { "存到标签", "存到文件", "标签和文件" });
+        coverModeAdapter.SetDropDownViewResource(global::Android.Resource.Layout.SimpleSpinnerDropDownItem);
+        spCoverMode.Adapter = coverModeAdapter;
+
+        var coverRow = new global::Android.Widget.LinearLayout(ctx)
+        { Orientation = global::Android.Widget.Orientation.Horizontal };
+        coverRow.SetGravity(global::Android.Views.GravityFlags.CenterVertical);
+        coverRow.SetPadding(0, dp * 2, 0, dp * 2);
+        coverRow.AddView(cbCover, new global::Android.Widget.LinearLayout.LayoutParams(0, wrap) { Weight = 1 });
+        coverRow.AddView(spCoverMode, new global::Android.Widget.LinearLayout.LayoutParams(wrap, wrap));
+        layout.AddView(coverRow);
+
+        var otherFieldDefs = new[]
         {
-            ("lyrics", "歌词", true, global::Android.Graphics.Color.ParseColor("#9B7ED8")),
-            ("cover", "封面", true, global::Android.Graphics.Color.ParseColor("#D87E9B")),
             ("title", "标题", false, global::Android.Graphics.Color.ParseColor("#E8E0F0")),
             ("artist", "艺术家", true, global::Android.Graphics.Color.ParseColor("#E8E0F0")),
             ("album", "专辑", true, global::Android.Graphics.Color.ParseColor("#E8E0F0")),
@@ -180,8 +257,10 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
         };
 
         var checkboxes = new Dictionary<string, global::Android.Widget.CheckBox>();
+        checkboxes["lyrics"] = cbLyrics;
+        checkboxes["cover"] = cbCover;
 
-        foreach (var (key, label, defaultChecked, color) in fieldDefs)
+        foreach (var (key, label, defaultChecked, color) in otherFieldDefs)
         {
             var cb = new global::Android.Widget.CheckBox(ctx)
             { Text = label, Checked = defaultChecked };
@@ -215,99 +294,80 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
         scrollView.AddView(layout);
 
         btnSearch.Click += async (s, e) =>
-        {
-            var keyword = etKeyword.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(keyword))
             {
-                activity?.RunOnUiThread(() => ShowToast(ctx, "请输入搜索关键字", activity));
-                return;
-            }
-
-            btnSearch.Text = "搜索中...";
-            btnSearch.Enabled = false;
-            resultTv.Text = "⏳ 正在搜索...";
-            resultTv.Visibility = global::Android.Views.ViewStates.Visible;
-
-            var selectedSource = spSource.SelectedItemPosition == 0 ? "LRCLIB" : "网易云音乐";
-
-            var needMeta = checkboxes["title"].Checked || checkboxes["artist"].Checked ||
-                           checkboxes["album"].Checked || checkboxes["year"].Checked ||
-                           checkboxes["track"].Checked || checkboxes["genre"].Checked;
-            var needLyrics = checkboxes["lyrics"].Checked;
-            var needCover = checkboxes["cover"].Checked;
-
-            try
-            {
-                var parts = keyword.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
-                var searchTitle = parts[0];
-                var searchArtist = parts.Length > 1 ? parts[1] : song.Artist ?? "";
-
-                var searchSong = new Song
+                var keyword = etKeyword.Text?.Trim();
+                if (string.IsNullOrWhiteSpace(keyword))
                 {
-                    Title = searchTitle,
-                    Artist = searchArtist,
-                    Album = song.Album ?? "",
-                    Duration = song.Duration,
-                    Year = song.Year
-                };
-
-                var searchTasks = new List<Task>();
-                List<MetadataMatchResult> metaRes = new();
-                List<LrcSearchResult> lyricsRes = new();
-                List<CoverSearchResult> coverRes = new();
-
-                if (needMeta)
-                {
-                    searchTasks.Add(Task.Run(async () =>
-                    {
-                        try
-                        {
-                            var r = await new MusicBrainzMetadataPlugin().SearchMetadataAsync(searchSong);
-                            lock (metaRes) metaRes.AddRange(r);
-                        }
-                        catch { }
-                    }));
+                    activity?.RunOnUiThread(() => ShowToast(ctx, "请输入搜索关键字", activity));
+                    return;
                 }
 
-                if (needLyrics)
-                {
-                    searchTasks.Add(Task.Run(async () =>
-                    {
-                        try
-                        {
-                            if (selectedSource == "LRCLIB")
-                            {
-                                var r = await new MusicTagLyricsPlugin().SearchLrcLibAsync(searchSong);
-                                lock (lyricsRes) lyricsRes.AddRange(r);
-                            }
-                            else
-                            {
-                                var r = await new MusicTagLyricsPlugin().SearchNeteaseAsync(searchSong);
-                                lock (lyricsRes) lyricsRes.AddRange(r);
-                            }
-                        }
-                        catch { }
-                    }));
-                }
+                btnSearch.Text = "搜索中...";
+                btnSearch.Enabled = false;
+                resultTv.Text = "⏳ 正在搜索全部数据源...";
+                resultTv.Visibility = global::Android.Views.ViewStates.Visible;
 
-                if (needCover)
+                var needMeta = checkboxes["title"].Checked || checkboxes["artist"].Checked ||
+                               checkboxes["album"].Checked || checkboxes["year"].Checked ||
+                               checkboxes["track"].Checked || checkboxes["genre"].Checked;
+                var needLyrics = checkboxes["lyrics"].Checked;
+                var needCover = checkboxes["cover"].Checked;
+
+                try
                 {
-                    searchTasks.Add(Task.Run(async () =>
+                    var parts = keyword.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                    var searchTitle = parts[0];
+                    var searchArtist = parts.Length > 1 ? parts[1] : song.Artist ?? "";
+
+                    var searchSong = new Song
                     {
-                        try
+                        Title = searchTitle,
+                        Artist = searchArtist,
+                        Album = song.Album ?? "",
+                        Duration = song.Duration,
+                        Year = song.Year
+                    };
+
+                    var searchTasks = new List<Task>();
+                    List<MetadataMatchResult> metaRes = new();
+                    List<LrcSearchResult> lyricsRes = new();
+                    List<CoverSearchResult> coverRes = new();
+
+                    if (needMeta)
+                    {
+                        searchTasks.Add(Task.Run(async () =>
                         {
-                            var iTunesTask = new MusicTagCoverPlugin().SearchiTunesAsync(searchSong);
-                            var deezerTask = new MusicTagCoverPlugin().SearchDeezerAsync(searchSong);
-                            await Task.WhenAll(iTunesTask, deezerTask);
-                            lock (coverRes)
+                            try { var r = await new MusicBrainzMetadataPlugin().SearchMetadataAsync(searchSong); lock (metaRes) metaRes.AddRange(r); } catch { }
+                        }));
+                    }
+
+                    if (needLyrics)
+                    {
+                        var lyricsPlugin = new MusicTagLyricsPlugin();
+                        foreach (var sourceTask in new Func<Task<List<LrcSearchResult>>>[]
+                        {
+                            () => lyricsPlugin.SearchLrcLibAsync(searchSong),
+                            () => lyricsPlugin.SearchNeteaseAsync(searchSong),
+                            () => lyricsPlugin.SearchQQMusicAsync(searchSong),
+                            () => lyricsPlugin.SearchKugouAsync(searchSong),
+                            () => lyricsPlugin.SearchKuwoAsync(searchSong)
+                        })
+                        {
+                            searchTasks.Add(Task.Run(async () =>
                             {
-                                coverRes.AddRange(iTunesTask.Result);
-                                coverRes.AddRange(deezerTask.Result);
-                            }
+                                try { var r = await sourceTask(); lock (lyricsRes) lyricsRes.AddRange(r); } catch { }
+                            }));
                         }
-                        catch { }
-                    }));
-                }
+                    }
+
+                    if (needCover)
+                    {
+                        var coverPlugin = new MusicTagCoverPlugin();
+                        searchTasks.Add(Task.Run(async () =>
+                        {
+                            try { var r = await coverPlugin.SearchCoversAsync(searchSong); lock (coverRes) coverRes.AddRange(r); } catch { }
+                        }));
+                    }
 
                 if (searchTasks.Count > 0)
                     await Task.WhenAll(searchTasks);
@@ -341,23 +401,25 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
 
                     if (needLyrics)
                     {
+                        var lyricsSources = allLyricsResults.Select(r => r.Source).Distinct();
                         if (matchedLyrics != null)
                         {
                             var lineCount = matchedLyrics.Lyrics?.Lines.Count ?? 0;
-                            sb.AppendLine($"📝 歌词({allLyricsResults.Count}条): {matchedLyrics.Source} ({lineCount}行)");
+                            sb.AppendLine($"📝 歌词({allLyricsResults.Count}条, 来源: {string.Join("/", lyricsSources)}): {matchedLyrics.Source} ({lineCount}行)");
                             if (allLyricsResults.Count > 1)
-                                sb.AppendLine($"   💡 点击此处选择其他版本");
+                                sb.AppendLine($"   💡 点击此处选择其他版本/来源");
                         }
                         else
-                            sb.AppendLine($"📝 歌词: {selectedSource} 未找到");
+                            sb.AppendLine($"📝 歌词: {string.Join("/", lyricsSources)} 均未找到");
                     }
 
                     if (needCover)
                     {
+                        var coverSources = allCoverResults.Select(r => r.Source).Distinct();
                         if (matchedCover != null)
-                            sb.AppendLine($"🖼 封面({allCoverResults.Count}条): {matchedCover.Source} ({matchedCover.Width}x{matchedCover.Height})");
+                            sb.AppendLine($"🖼 封面({allCoverResults.Count}条, 来源: {string.Join("/", coverSources)}): {matchedCover.Source} ({matchedCover.Width}x{matchedCover.Height})");
                         else
-                            sb.AppendLine("🖼 封面: 未找到");
+                            sb.AppendLine($"🖼 封面: {string.Join("/", coverSources)} 均未找到");
                     }
 
                     resultTv.Text = sb.ToString();
@@ -471,13 +533,30 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
                 uint? track = checkboxes["track"].Checked && matchedMeta?.TrackNumber > 0 ? matchedMeta.TrackNumber : null;
                 string? genre = checkboxes["genre"].Checked && matchedMeta != null ? matchedMeta.Genre : null;
 
-                byte[]? coverBytes = checkboxes["cover"].Checked ? matchedCover?.ImageBytes : null;
+                int coverSaveMode = checkboxes["cover"].Checked ? spCoverMode.SelectedItemPosition : -1;
+                int lyricsSaveMode = checkboxes["lyrics"].Checked ? spLyricsMode.SelectedItemPosition : -1;
+
+                byte[]? coverBytes = null;
+                if (checkboxes["cover"].Checked && matchedCover != null)
+                {
+                    coverBytes = matchedCover.ImageBytes;
+                    if (coverBytes == null && !string.IsNullOrEmpty(matchedCover.ImageUrl))
+                    {
+                        try
+                        {
+                            using var httpClient = new System.Net.Http.HttpClient();
+                            httpClient.Timeout = TimeSpan.FromSeconds(15);
+                            coverBytes = await httpClient.GetByteArrayAsync(matchedCover.ImageUrl);
+                        }
+                        catch { }
+                    }
+                }
                 string? lrcText = null;
                 if (checkboxes["lyrics"].Checked && matchedLyrics?.Lyrics != null && matchedLyrics.Lyrics.Lines.Count > 0)
                     lrcText = string.Join("\n", matchedLyrics.Lyrics.Lines.Select(l => $"[{l.Timestamp:mm\\:ss\\.ff}]{l.Text}"));
 
                 var success = await SaveSongMetadataAsync(ctx, song, title, artist, album,
-                    year, track, genre, coverBytes, lrcText, 0, 0, activity);
+                    year, track, genre, coverBytes, lrcText, lyricsSaveMode, coverSaveMode, activity);
 
                 ShowToast(ctx, success ? "✅ 元数据已保存" : "❌ 保存失败", activity);
             })
@@ -497,7 +576,7 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
         return song.Source is SongSource.Local or SongSource.Cache or SongSource.WebDAV;
     }
 
-    /// <summary>保存歌曲元数据到文件，支持写入标题/艺术家/专辑/年份/音轨号/流派、封面和歌词，WebDAV 歌曲会先下载再上传</summary>
+    /// <summary>保存歌曲元数据到文件，支持写入标题/艺术家/专辑/年份/音轨号/流派、封面和歌词</summary>
     /// <param name="ctx">Android Context</param>
     /// <param name="song">要保存的歌曲</param>
     /// <param name="title">新标题（null 不修改）</param>
@@ -519,70 +598,468 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
     {
         try
         {
-            string? localPath = null;
-            bool needUploadBack = false;
+            bool isContentUri = false;
+            string? contentUriString = null;
             string? webDavRemotePath = null;
+            string? originalFilePath = null;
 
-            if (song.Source == SongSource.Local)
+            if (song.FilePath.StartsWith("content://"))
             {
-                localPath = song.FilePath;
-            }
-            else if (song.Source == SongSource.Cache)
-            {
-                localPath = song.FilePath;
+                isContentUri = true;
+                contentUriString = song.FilePath;
             }
             else if (song.Source == SongSource.WebDAV)
             {
-                localPath = await DownloadToLocalAsync(ctx, song);
-                if (localPath == null) return false;
-                needUploadBack = true;
                 webDavRemotePath = song.RemoteId ?? ExtractWebDavPath(song.FilePath);
+                originalFilePath = song.FilePath;
             }
             else
             {
-                return false;
+                originalFilePath = song.FilePath;
             }
 
+            var localPath = await PrepareEditableCopyAsync(ctx, song);
             if (string.IsNullOrEmpty(localPath) || !System.IO.File.Exists(localPath))
                 return false;
 
-            // 写入元数据
+            var sizeBefore = new System.IO.FileInfo(localPath).Length;
+            MTLogInfo($"SaveMetadata start: tempPath={localPath}, sizeBefore={sizeBefore}, ext={System.IO.Path.GetExtension(localPath)}");
+
             bool hasMetaChanges = title != null || artist != null || album != null || year.HasValue || trackNum.HasValue || genre != null;
+            bool tagLibSuccess = true;
             if (hasMetaChanges)
             {
-                TagReader.WriteMetadata(localPath, title, artist, album, year, trackNum, genre);
+                MTLogInfo($"TagLib WriteMetadata: title={title}, artist={artist}, album={album}");
+                tagLibSuccess = TagReader.WriteMetadata(localPath, title, artist, album, year, trackNum, genre);
+                var sizeAfterMeta = new System.IO.FileInfo(localPath).Length;
+                MTLogInfo($"TagLib WriteMetadata done: success={tagLibSuccess}, sizeAfter={sizeAfterMeta}, changed={sizeAfterMeta != sizeBefore}");
             }
 
-            // 写入封面
             if (coverBytes != null && coverSaveMode >= 0)
             {
+                MTLogInfo($"TagLib WriteCover: bytes={coverBytes.Length}, mode={coverSaveMode}");
                 if (coverSaveMode == 0 || coverSaveMode == 2)
-                    TagReader.WriteCoverToFile(localPath, coverBytes);
+                {
+                    var coverOk = TagReader.WriteCoverToFile(localPath, coverBytes);
+                    MTLogInfo($"TagLib WriteCoverToFile result: {coverOk}");
+                    tagLibSuccess = tagLibSuccess && coverOk;
+                }
                 if (coverSaveMode == 1 || coverSaveMode == 2)
                     SaveCoverAsFile(localPath, coverBytes);
             }
 
-            // 写入歌词
             if (!string.IsNullOrEmpty(lrcText) && lyricsSaveMode >= 0)
             {
+                MTLogInfo($"TagLib WriteLyrics: len={lrcText.Length}, mode={lyricsSaveMode}");
                 if (lyricsSaveMode == 0 || lyricsSaveMode == 2)
-                    TagReader.WriteEmbeddedLyrics(localPath, lrcText);
+                {
+                    var lrcOk = TagReader.WriteEmbeddedLyrics(localPath, lrcText);
+                    MTLogInfo($"TagLib WriteEmbeddedLyrics result: {lrcOk}");
+                    tagLibSuccess = tagLibSuccess && lrcOk;
+                }
                 if (lyricsSaveMode == 1 || lyricsSaveMode == 2)
                     SaveLyricsAsFile(localPath, lrcText);
             }
 
-            // WebDAV 上传回服务器
-            if (needUploadBack && !string.IsNullOrEmpty(webDavRemotePath))
+            var sizeFinal = new System.IO.FileInfo(localPath).Length;
+            MTLogInfo($"All edits complete: finalSize={sizeFinal}, totalDelta={sizeFinal - sizeBefore}, tagLibSuccess={tagLibSuccess}");
+
+            if (!tagLibSuccess)
+            {
+                MTLogError("TagLib writes FAILED - file may not be modified!");
+                try { System.IO.File.Delete(localPath); } catch { }
+                return false;
+            }
+
+            bool replaceOk;
+            if (isContentUri && !string.IsNullOrEmpty(contentUriString))
+            {
+                replaceOk = await WriteBackContentUriAsync(ctx, contentUriString, localPath);
+                if (replaceOk) RefreshMediaStore(ctx, contentUriString);
+            }
+            else if (!string.IsNullOrEmpty(webDavRemotePath))
             {
                 await UploadBackToWebDavAsync(ctx, localPath, webDavRemotePath);
+                replaceOk = true;
             }
+            else if (!string.IsNullOrEmpty(originalFilePath))
+            {
+                replaceOk = ReplaceLocalFile(localPath, originalFilePath);
+                if (replaceOk) RefreshMediaStore(ctx, originalFilePath);
+            }
+            else
+            {
+                replaceOk = true;
+            }
+
+            if (!replaceOk)
+            {
+                MTLogError("Replace/WriteBack FAILED");
+                return false;
+            }
+
+            InvalidateSongCache(song.Id);
+
+            TriggerLibraryRescan(ctx);
 
             return true;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MusicTag] SaveMetadata failed: {ex.Message}");
+            MTLogError($"SaveMetadata failed: {ex.Message}");
             return false;
+        }
+    }
+
+    /// <summary>准备可编辑的本地副本（始终使用正确的音频扩展名）</summary>
+    private static async Task<string?> PrepareEditableCopyAsync(global::Android.Content.Context ctx, Song song)
+    {
+        if (song.FilePath.StartsWith("content://"))
+            return await CopyContentUriToTempAsync(ctx, song.FilePath, song.Id);
+
+        if (song.Source == SongSource.WebDAV)
+            return await DownloadToLocalAsync(ctx, song);
+
+        if (System.IO.File.Exists(song.FilePath))
+        {
+            var cacheDir = global::Android.App.Application.Context!.CacheDir!.AbsolutePath;
+            var tempDir = System.IO.Path.Combine(cacheDir, "musictag_temp");
+            System.IO.Directory.CreateDirectory(tempDir);
+
+            var originalExt = ResolveAudioExtension(song.FilePath);
+            var tempPath = System.IO.Path.Combine(tempDir, $"edit_{song.Id}_{Guid.NewGuid():N}{originalExt}");
+
+            System.IO.File.Copy(song.FilePath, tempPath, overwrite: true);
+            MTLogInfo($"Local file copied to temp: {song.FilePath} -> {tempPath}");
+            return tempPath;
+        }
+
+        return null;
+    }
+
+    /// <summary>用编辑后的临时文件替换原始本地文件（删除原文件 + 移动临时文件）</summary>
+    private static bool ReplaceLocalFile(string tempPath, string originalPath)
+    {
+        try
+        {
+            if (!System.IO.File.Exists(tempPath))
+            {
+                MTLogError($"ReplaceLocalFile: temp file not found: {tempPath}");
+                return false;
+            }
+
+            var tempSize = new System.IO.FileInfo(tempPath).Length;
+            MTLogInfo($"ReplaceLocalFile: replacing {originalPath} with edited temp ({tempSize} bytes)");
+
+            if (System.IO.File.Exists(originalPath))
+            {
+                System.IO.File.SetAttributes(originalPath, System.IO.FileAttributes.Normal);
+                System.IO.File.Delete(originalPath);
+                MTLogInfo($"ReplaceLocalFile: original deleted: {originalPath}");
+            }
+
+            System.IO.File.Move(tempPath, originalPath, overwrite: true);
+            MTLogInfo($"ReplaceLocalFile: temp moved to original: {originalPath} ({new System.IO.FileInfo(originalPath).Length} bytes)");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            MTLogError($"ReplaceLocalFile failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>触发音乐库重新扫描（多级策略：反射→MediaStore更新→广播→自定义Intent）</summary>
+    private static void TriggerLibraryRescan(global::Android.Content.Context ctx)
+    {
+        bool anySuccess = false;
+
+        var uiAssembly = System.AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "CatClawMusic.UI");
+        if (uiAssembly != null)
+        {
+            try
+            {
+                var scannerType = uiAssembly.GetType("CatClawMusic.UI.Platforms.Android.AndroidMediaScanner");
+                if (scannerType != null)
+                {
+                    var scanMethod = scannerType.GetMethod("ScanFromMediaStore",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    if (scanMethod != null)
+                    {
+                        scanMethod.Invoke(null, Array.Empty<object>());
+                        MTLogInfo("TriggerLibraryRescan: ScanFromMediaStore invoked via AppDomain assembly ✅");
+                        anySuccess = true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MTLogWarn($"TriggerLibraryRescan: AppDomain reflection failed: {ex.Message}");
+            }
+        }
+
+        ForceRefreshMediaStore(ctx);
+
+        ScanSpecificFileBroadcast(ctx);
+
+        RequestAppReload(ctx);
+
+        if (!anySuccess)
+            MTLogInfo("TriggerLibraryRescan: used fallback strategies (MediaStore + Broadcast + AppReload)");
+    }
+
+    /// <summary>强制刷新 MediaStore（通过更新 DateModified 触发缓存失效）</summary>
+    private static void ForceRefreshMediaStore(global::Android.Content.Context ctx)
+    {
+        try
+        {
+            var values = new global::Android.Content.ContentValues();
+            values.Put(global::Android.Provider.MediaStore.MediaColumns.DateModified, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var uri = global::Android.Provider.MediaStore.Audio.Media.ExternalContentUri;
+            ctx.ContentResolver?.Update(uri, values, null, null);
+            MTLogInfo("ForceRefreshMediaStore: DateModified updated on Audio MediaStore ✅");
+        }
+        catch (Exception ex)
+        {
+            MTLogWarn($"ForceRefreshMediaStore failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>发送文件级 MediaScanner 广播</summary>
+    private static void ScanSpecificFileBroadcast(global::Android.Content.Context ctx)
+    {
+        try
+        {
+            var intent = new global::Android.Content.Intent(global::Android.Content.Intent.ActionMediaScannerScanFile);
+            intent.SetData(global::Android.Net.Uri.Parse("file:///sdcard/Music"));
+            intent.AddFlags(global::Android.Content.ActivityFlags.GrantReadUriPermission |
+                           global::Android.Content.ActivityFlags.NewTask |
+                           global::Android.Content.ActivityFlags.IncludeStoppedPackages);
+            ctx.SendBroadcast(intent);
+            MTLogInfo("ScanSpecificFileBroadcast: sent for /sdcard/Music with GRANT_READ_URI_PERMISSION ✅");
+        }
+        catch (Exception ex)
+        {
+            MTLogWarn($"ScanSpecificFileBroadcast failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>请求 App 重新加载音乐库（通过自定义 Intent）</summary>
+    private static void RequestAppReload(global::Android.Content.Context ctx)
+    {
+        try
+        {
+            var intent = new global::Android.Content.Intent("catclawmusic.action.RESCAN_LIBRARY");
+            intent.SetPackage(ctx.PackageName);
+            intent.PutExtra("source", "MusicTagPlugin");
+            intent.PutExtra("timestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            ctx.SendBroadcast(intent);
+            MTLogInfo("RequestAppReload: custom RESCAN_LIBRARY intent sent ✅");
+        }
+        catch (Exception ex)
+        {
+            MTLogWarn($"RequestAppReload failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>清除指定歌曲的封面和歌词缓存，使Adapter重新从修改后的音频文件提取</summary>
+    private static void InvalidateSongCache(int songId)
+    {
+        try
+        {
+            var cacheDir = global::Android.App.Application.Context!.CacheDir!.AbsolutePath;
+            var coverCachePath = System.IO.Path.Combine(cacheDir, "covers", $"cover_{songId}.jpg");
+            if (System.IO.File.Exists(coverCachePath))
+            {
+                System.IO.File.Delete(coverCachePath);
+                MTLogInfo($"InvalidateSongCache: deleted cover cache: {coverCachePath}");
+            }
+
+            var lyricsCacheDir = System.IO.Path.Combine(cacheDir, "lyrics");
+            if (System.IO.Directory.Exists(lyricsCacheDir))
+            {
+                foreach (var file in System.IO.Directory.GetFiles(lyricsCacheDir, $"*{songId}*"))
+                {
+                    try
+                    {
+                        System.IO.File.Delete(file);
+                        MTLogInfo($"InvalidateSongCache: deleted lyric cache: {file}");
+                    }
+                    catch { }
+                }
+            }
+
+            var lrcFile = System.IO.Path.Combine(
+                System.IO.Path.GetDirectoryName(global::Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath) ?? "",
+                "Music", $"{songId}.lrc");
+            if (System.IO.File.Exists(lrcFile))
+            {
+                System.IO.File.Delete(lrcFile);
+                MTLogInfo($"InvalidateSongCache: deleted lrc file: {lrcFile}");
+            }
+        }
+        catch (Exception ex)
+        {
+            MTLogWarn($"InvalidateSongCache failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>将 content:// URI 的文件复制到本地临时文件</summary>
+    private static async Task<string?> CopyContentUriToTempAsync(global::Android.Content.Context ctx, string contentUri, int songId)
+    {
+        try
+        {
+            var cacheDir = global::Android.App.Application.Context!.CacheDir!.AbsolutePath;
+            var tempDir = System.IO.Path.Combine(cacheDir, "musictag_temp");
+            System.IO.Directory.CreateDirectory(tempDir);
+
+            var originalExt = ResolveAudioExtension(contentUri);
+            var tempPath = System.IO.Path.Combine(tempDir, $"edit_{songId}_{Guid.NewGuid():N}{originalExt}");
+
+            var uri = global::Android.Net.Uri.Parse(contentUri)!;
+            await using var inputStream = ctx.ContentResolver!.OpenInputStream(uri);
+            if (inputStream == null) return null;
+
+            using var fs = new System.IO.FileStream(tempPath, System.IO.FileMode.Create, System.IO.FileAccess.Write);
+            await inputStream.CopyToAsync(fs);
+            return tempPath;
+        }
+        catch (Exception ex)
+        {
+            MTLogError($"CopyContentUri failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>将编辑后的本地文件写回 content:// URI（通过 OpenOutputStream / tree URI / DocumentFile 三级策略）</summary>
+    private static async Task<bool> WriteBackContentUriAsync(global::Android.Content.Context ctx, string contentUri, string localPath)
+    {
+        try
+        {
+            var bytes = await System.IO.File.ReadAllBytesAsync(localPath);
+            var uri = global::Android.Net.Uri.Parse(contentUri)!;
+
+            bool written = false;
+
+            try
+            {
+                await using var outputStream = ctx.ContentResolver!.OpenOutputStream(uri, "wt");
+                if (outputStream != null)
+                {
+                    await outputStream.WriteAsync(bytes, 0, bytes.Length);
+                    await outputStream.FlushAsync();
+                    written = true;
+                    MTLogInfo($"WriteBack via OpenOutputStream(wt) success, {bytes.Length} bytes");
+                }
+            }
+            catch (Exception ex1)
+            {
+                MTLogWarn($"OpenOutputStream(wt) failed: {ex1.Message}");
+            }
+
+            if (!written)
+            {
+                try
+                {
+                    var docId = global::Android.Provider.DocumentsContract.GetDocumentId(uri);
+                    var authority = uri.Authority;
+
+                    var persistedUris = ctx.ContentResolver!.PersistedUriPermissions;
+                    foreach (var perm in persistedUris)
+                    {
+                        if (perm.Uri.Authority != authority) continue;
+                        try
+                        {
+                            var docUri = global::Android.Provider.DocumentsContract.BuildDocumentUriUsingTree(perm.Uri, docId);
+                            await using var os = ctx.ContentResolver.OpenOutputStream(docUri, "wt");
+                            if (os != null)
+                            {
+                                await os.WriteAsync(bytes, 0, bytes.Length);
+                                await os.FlushAsync();
+                                written = true;
+                                MTLogInfo($"WriteBack via tree URI success, {bytes.Length} bytes");
+                                break;
+                            }
+                        }
+                        catch (Exception exTree)
+                        {
+                            MTLogWarn($"Tree URI attempt failed: {exTree.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex2)
+                {
+                    MTLogWarn($"Tree URI fallback failed: {ex2.Message}");
+                }
+            }
+
+            if (!written)
+            {
+                try
+                {
+                    var docFile = global::AndroidX.DocumentFile.Provider.DocumentFile.FromSingleUri(ctx, uri);
+                    if (docFile != null && docFile.CanWrite())
+                    {
+                        using var os = ctx.ContentResolver!.OpenOutputStream(uri, "wt");
+                        if (os != null)
+                        {
+                            await os.WriteAsync(bytes, 0, bytes.Length);
+                            await os.FlushAsync();
+                            written = true;
+                            MTLogInfo($"WriteBack via DocumentFile success, {bytes.Length} bytes");
+                        }
+                    }
+                    else
+                    {
+                        MTLogWarn($"DocumentFile.CanWrite() = false for {contentUri}");
+                    }
+                }
+                catch (Exception ex3)
+                {
+                    MTLogWarn($"DocumentFile fallback failed: {ex3.Message}");
+                }
+            }
+
+            if (!written)
+                MTLogError("WriteBack FAILED, all methods exhausted");
+
+            return written;
+        }
+        catch (Exception ex)
+        {
+            MTLogError($"WriteBack error: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>刷新 MediaStore 缓存，使修改后的元数据立即生效</summary>
+    /// <param name="ctx">Android Context</param>
+    /// <param name="filePath">文件路径或 content:// URI</param>
+    private static void RefreshMediaStore(global::Android.Content.Context ctx, string filePath)
+    {
+        try
+        {
+            if (filePath.StartsWith("content://"))
+            {
+                MTLogInfo($"RefreshMediaStore: content:// URI written via OpenOutputStream, ContentProvider should auto-refresh: {filePath}");
+            }
+            else
+            {
+                var file = new Java.IO.File(filePath);
+                if (file.Exists())
+                {
+                    var intent = new global::Android.Content.Intent(global::Android.Content.Intent.ActionMediaScannerScanFile);
+                    intent.SetData(global::Android.Net.Uri.FromFile(file));
+                    intent.AddFlags(global::Android.Content.ActivityFlags.GrantReadUriPermission);
+                    ctx.SendBroadcast(intent);
+                    MTLogInfo($"MediaScanner broadcast sent for local file: {filePath}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MTLogWarn($"RefreshMediaStore failed: {ex.Message}");
         }
     }
 
@@ -597,7 +1074,9 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
             var cacheDir = global::Android.App.Application.Context!.CacheDir!.AbsolutePath;
             var tempDir = System.IO.Path.Combine(cacheDir, "musictag_temp");
             System.IO.Directory.CreateDirectory(tempDir);
-            var tempPath = System.IO.Path.Combine(tempDir, $"edit_{song.Id}_{Guid.NewGuid():N}.tmp");
+
+            var webDavExt = ResolveAudioExtension(song.FilePath ?? song.Title ?? "");
+            var tempPath = System.IO.Path.Combine(tempDir, $"edit_{song.Id}_{Guid.NewGuid():N}{webDavExt}");
 
             if (song.Source == SongSource.WebDAV && !string.IsNullOrEmpty(song.FilePath))
             {
@@ -629,12 +1108,12 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
             if (netFileService != null)
             {
                 var result = await netFileService.UploadFileAsync(remotePath, bytes, "audio/mpeg");
-                System.Diagnostics.Debug.WriteLine($"[MusicTag] WebDAV upload back: {result.Message}");
+                MTLogInfo($"WebDAV upload back: {result.Message}");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MusicTag] WebDAV upload failed: {ex.Message}");
+            MTLogError($"WebDAV upload failed: {ex.Message}");
         }
     }
 
@@ -731,62 +1210,131 @@ public class MusicTagMenuContributor : IMenuContributorPlugin
         var scrollView = new global::Android.Widget.ScrollView(ctx);
         var gridLayout = new global::Android.Widget.LinearLayout(ctx)
         { Orientation = global::Android.Widget.Orientation.Vertical };
-        gridLayout.SetPadding(dpToPx(ctx, 8), dpToPx(ctx, 8), dpToPx(ctx, 8), dpToPx(ctx, 8));
+        gridLayout.SetPadding(dpToPx(ctx, 12), dpToPx(ctx, 12), dpToPx(ctx, 12), dpToPx(ctx, 12));
 
         CoverSearchResult? chosenResult = null;
+        var imageViews = new List<global::Android.Widget.ImageView>();
+        var coverSize = dpToPx(ctx, 200);
 
-        int cols = Math.Max(1, Math.Min(3, results.Count));
         int idx = 0;
         foreach (var r in results)
         {
-            var card = new global::Android.Widget.LinearLayout(ctx)
-            { Orientation = global::Android.Widget.Orientation.Vertical };
-            card.SetGravity(global::Android.Views.GravityFlags.CenterHorizontal);
-            card.SetPadding(dpToPx(ctx, 4), dpToPx(ctx, 4), dpToPx(ctx, 4), dpToPx(ctx, 4));
-            card.SetBackgroundColor(global::Android.Graphics.Color.ParseColor("#2A2438"));
+            var row = new global::Android.Widget.LinearLayout(ctx)
+            { Orientation = global::Android.Widget.Orientation.Horizontal };
+            row.SetGravity(global::Android.Views.GravityFlags.CenterVertical);
+            row.SetPadding(0, dpToPx(ctx, 6), 0, dpToPx(ctx, 6));
+
+            var bgDrawable = new global::Android.Graphics.Drawables.GradientDrawable();
+            bgDrawable.SetShape(global::Android.Graphics.Drawables.ShapeType.Rectangle);
+            bgDrawable.SetCornerRadius(dpToPx(ctx, 12));
+            bgDrawable.SetColor(global::Android.Graphics.Color.ParseColor("#2A2438"));
+            bgDrawable.SetStroke(1, global::Android.Graphics.Color.ParseColor("#44FFFFFF"));
+            row.Background = bgDrawable;
 
             var iv = new global::Android.Widget.ImageView(ctx);
-            iv.LayoutParameters = new global::Android.Views.ViewGroup.LayoutParams(
-                dpToPx(ctx, 160), dpToPx(ctx, 160));
-            iv.SetScaleType(global::Android.Widget.ImageView.ScaleType.FitCenter);
-            if (r.ImageBytes != null)
-                iv.SetImageBitmap(global::Android.Graphics.BitmapFactory.DecodeByteArray(r.ImageBytes, 0, r.ImageBytes.Length));
+            iv.LayoutParameters = new global::Android.Views.ViewGroup.LayoutParams(coverSize, coverSize);
+            iv.SetScaleType(global::Android.Widget.ImageView.ScaleType.CenterCrop);
+            iv.SetImageResource(global::Android.Resource.Color.Transparent);
 
-            var tvLabel = new global::Android.Widget.TextView(ctx);
-            tvLabel.Text = $"[{idx + 1}] {r.Source}\n{r.AlbumName}\n{r.Width}x{r.Height}";
-            tvLabel.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 10f);
-            tvLabel.SetTextColor(global::Android.Graphics.Color.ParseColor("#B0A8BA"));
-            tvLabel.Gravity = global::Android.Views.GravityFlags.CenterHorizontal;
-            tvLabel.SetPadding(0, dpToPx(ctx, 4), 0, 0);
+            var textLayout = new global::Android.Widget.LinearLayout(ctx)
+            { Orientation = global::Android.Widget.Orientation.Vertical };
+            textLayout.LayoutParameters = new global::Android.Widget.LinearLayout.LayoutParams(0, wrap) { Weight = 1 };
+            textLayout.SetPadding(dpToPx(ctx, 12), 0, dpToPx(ctx, 12), 0);
 
-            card.AddView(iv);
-            card.AddView(tvLabel);
+            var tvTitle = new global::Android.Widget.TextView(ctx)
+            { Text = $"[{idx + 1}] {r.Source}" };
+            tvTitle.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 14f);
+            tvTitle.SetTextColor(global::Android.Graphics.Color.ParseColor("#E8E0F0"));
+            tvTitle.SetTypeface(null, global::Android.Graphics.TypefaceStyle.Bold);
+            textLayout.AddView(tvTitle);
+
+            var tvAlbum = new global::Android.Widget.TextView(ctx)
+            { Text = r.AlbumName ?? "" };
+            tvAlbum.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 12f);
+            tvAlbum.SetTextColor(global::Android.Graphics.Color.ParseColor("#B0A8BA"));
+            textLayout.AddView(tvAlbum);
+
+            var tvSize = new global::Android.Widget.TextView(ctx)
+            { Text = $"{r.Width}x{r.Height}" };
+            tvSize.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 11f);
+            tvSize.SetTextColor(global::Android.Graphics.Color.ParseColor("#808080"));
+            textLayout.AddView(tvSize);
+
+            row.AddView(iv);
+            row.AddView(textLayout);
 
             var cardIdx = idx;
-            card.Click += (s, e) =>
+            row.Click += (s, e) =>
             {
                 for (int ci = 0; ci < gridLayout.ChildCount; ci++)
-                    if (gridLayout.GetChildAt(ci) is global::Android.Widget.LinearLayout ll)
-                        ll.SetBackgroundColor(global::Android.Graphics.Color.ParseColor("#2A2438"));
-                card.SetBackgroundColor(global::Android.Graphics.Color.ParseColor("#9B7ED8"));
+                {
+                    var child = gridLayout.GetChildAt(ci);
+                    if (child?.Background is global::Android.Graphics.Drawables.GradientDrawable gd)
+                        gd.SetColor(global::Android.Graphics.Color.ParseColor("#2A2438"));
+                }
+                if (row.Background is global::Android.Graphics.Drawables.GradientDrawable selGd)
+                    selGd.SetColor(global::Android.Graphics.Color.ParseColor("#3D2A50"));
                 chosenResult = results[cardIdx];
             };
 
-            card.LayoutParameters = new global::Android.Widget.LinearLayout.LayoutParams(0, wrap) { Weight = 1 };
-            gridLayout.AddView(card);
+            row.LayoutParameters = new global::Android.Widget.LinearLayout.LayoutParams(matchParent, wrap);
+            gridLayout.AddView(row);
+            imageViews.Add(iv);
             idx++;
         }
 
-        // 默认选中第一个
-        if (gridLayout.ChildCount > 0 && gridLayout.GetChildAt(0) is global::Android.Widget.LinearLayout firstCard)
-            firstCard.SetBackgroundColor(global::Android.Graphics.Color.ParseColor("#9B7ED8"));
+        if (gridLayout.ChildCount > 0)
+        {
+            var firstRow = gridLayout.GetChildAt(0);
+            if (firstRow?.Background is global::Android.Graphics.Drawables.GradientDrawable fgd)
+                fgd.SetColor(global::Android.Graphics.Color.ParseColor("#3D2A50"));
+        }
         if (results.Count > 0) chosenResult = results[0];
 
         scrollView.AddView(gridLayout);
 
+        _ = Task.Run(async () =>
+        {
+            using var httpClient = new System.Net.Http.HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+            for (int i = 0; i < results.Count; i++)
+            {
+                var r = results[i];
+                if (r.ImageBytes != null) continue;
+                if (string.IsNullOrEmpty(r.ImageUrl)) continue;
+
+                try
+                {
+                    var bytes = await httpClient.GetByteArrayAsync(r.ImageUrl);
+                    r.ImageBytes = bytes;
+                    var bitmap = global::Android.Graphics.BitmapFactory.DecodeByteArray(bytes, 0, bytes.Length);
+                    if (bitmap != null)
+                    {
+                        var capturedIv = imageViews[i];
+                        if (activity != null)
+                        {
+                            activity.RunOnUiThread(() =>
+                            {
+                                try { capturedIv.SetImageBitmap(bitmap); } catch { }
+                            });
+                        }
+                        else
+                        {
+                            var handler = new global::Android.OS.Handler(global::Android.OS.Looper.MainLooper!);
+                            handler.Post(() =>
+                            {
+                                try { capturedIv.SetImageBitmap(bitmap); } catch { }
+                            });
+                        }
+                    }
+                }
+                catch { }
+            }
+        });
+
         new global::Android.App.AlertDialog.Builder(ctx)
             .SetTitle($"选择封面版本（共{results.Count}张）")
-            .SetMessage("点击图片选中，然后点确定")
             .SetView(scrollView)
             .SetPositiveButton("确定", (d, args) =>
             {

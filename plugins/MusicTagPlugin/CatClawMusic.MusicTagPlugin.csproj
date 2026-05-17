@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Xamarin.AndroidX.DocumentFile" Version="1.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
   </ItemGroup>
 

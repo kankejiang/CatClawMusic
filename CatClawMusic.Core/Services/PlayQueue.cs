@@ -28,10 +28,20 @@ public class PlayQueue
         get => _playMode;
         set
         {
+            var oldMode = _playMode;
             _playMode = value;
+
             if (_playMode == PlayMode.Shuffle && _shuffledList.Count == 0)
             {
                 EnableShuffle();
+            }
+            else if (oldMode == PlayMode.Shuffle && _playMode != PlayMode.Shuffle && _currentIndex >= 0)
+            {
+                var currentSong = _shuffledList.ElementAtOrDefault(_currentIndex);
+                if (currentSong != null && _songIdToIndex.TryGetValue(currentSong.Id, out var idx))
+                {
+                    _currentIndex = idx;
+                }
             }
         }
     }
@@ -79,13 +89,28 @@ public class PlayQueue
     }
     
     /// <summary>
-    /// 开启随机播放（洗牌）
+    /// 开启随机播放（洗牌），保持当前歌曲在洗牌列表中的位置
     /// </summary>
     public void EnableShuffle()
     {
+        var currentSong = _currentIndex >= 0 ? _originalList.ElementAtOrDefault(_currentIndex) : null;
         _shuffledList = ShuffleService.Shuffle(_originalList);
-        _currentIndex = 0;
         _history.Clear();
+
+        if (currentSong != null)
+        {
+            var idx = _shuffledList.FindIndex(s => s.Id == currentSong.Id);
+            if (idx >= 0)
+            {
+                _shuffledList.RemoveAt(idx);
+                _shuffledList.Insert(0, currentSong);
+            }
+            _currentIndex = 0;
+        }
+        else
+        {
+            _currentIndex = 0;
+        }
     }
     
     /// <summary>
@@ -131,13 +156,21 @@ public class PlayQueue
             _history.Push(_currentIndex);
         }
 
-        if (_songIdToIndex.TryGetValue(songId, out var idx))
+        if (PlayMode == PlayMode.Shuffle && _shuffledList.Count > 0)
         {
-            _currentIndex = idx;
+            var idx = _shuffledList.FindIndex(s => s.Id == songId);
+            _currentIndex = idx >= 0 ? idx : -1;
         }
         else
         {
-            _currentIndex = -1;
+            if (_songIdToIndex.TryGetValue(songId, out var idx))
+            {
+                _currentIndex = idx;
+            }
+            else
+            {
+                _currentIndex = -1;
+            }
         }
     }
 

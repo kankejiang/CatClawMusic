@@ -45,6 +45,7 @@ public class LrcSearchResult
 
 /// <summary>
 /// 多源歌词搜索插件，依次通过 LRCLIB 开放 API 和网易云音乐 API 获取 LRC 格式歌词
+/// 支持 QQ音乐、酷狗、酷我等国内主流音乐平台歌词搜索
 /// </summary>
 public class MusicTagLyricsPlugin : ILyricsProviderPlugin
 {
@@ -100,6 +101,9 @@ public class MusicTagLyricsPlugin : ILyricsProviderPlugin
     {
         "LRCLIB: 全球最大的开放歌词数据库，支持中英日韩等多语言",
         "网易云音乐: 通过歌曲信息匹配网易云歌词",
+        "QQ音乐: 通过QQ音乐API搜索歌词",
+        "酷狗: 通过酷狗KRC API搜索歌词",
+        "酷我: 通过酷我API搜索歌词",
         "自动解析: 支持 [mm:ss.xx] 和 [mm:ss] 格式 LRC 时间轴",
         "翻译歌词: 自动合并双语歌词（如有）"
     };
@@ -205,6 +209,211 @@ public class MusicTagLyricsPlugin : ILyricsProviderPlugin
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// 通过 QQ 音乐 API 搜索歌词
+    /// </summary>
+    /// <param name="song">要搜索的歌曲对象</param>
+    /// <returns>QQ音乐来源的歌词搜索结果列表</returns>
+    public async Task<List<LrcSearchResult>> SearchQQMusicAsync(Song song)
+    {
+        var results = new List<LrcSearchResult>();
+        try
+        {
+            var artist = Sanitize(song.Artist);
+            var title = Sanitize(song.Title);
+            var searchUrl = $"https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w={Uri.EscapeDataString($"{title} {artist}")}&format=json&n=5&t=0";
+
+            _client.DefaultRequestHeaders.Referrer = new Uri("https://y.qq.com/");
+            _client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+            var response = await _client.GetStringAsync(searchUrl);
+            using var doc = JsonDocument.Parse(response);
+
+            if (!doc.RootElement.TryGetProperty("data", out var data)) return results;
+            if (!data.TryGetProperty("song", out var songList)) return results;
+            if (!songList.TryGetProperty("list", out var list)) return results;
+
+            int count = 0;
+            foreach (var songItem in list.EnumerateArray())
+            {
+                if (count >= 3) break;
+
+                var mid = songItem.TryGetProperty("mid", out var m) ? m.GetString() : "";
+                if (string.IsNullOrEmpty(mid)) continue;
+
+                var lyricUrl = $"https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid={Uri.EscapeDataString(mid)}&format=json&nobase64=1";
+
+                try
+                {
+                    var lyricResp = await _client.GetStringAsync(lyricUrl);
+                    using var lyricDoc = JsonDocument.Parse(lyricResp);
+
+                    var lrcText = lyricDoc.RootElement.TryGetProperty("lyric", out var lrc) && lrc.ValueKind == JsonValueKind.String
+                        ? lrc.GetString()
+                        : null;
+
+                    if (string.IsNullOrWhiteSpace(lrcText)) continue;
+
+                    var result = new LrcSearchResult { Source = "QQ音乐" };
+                    if (songItem.TryGetProperty("name", out var sn)) result.Title = sn.GetString() ?? "";
+                    if (songItem.TryGetProperty("singer", out var singers))
+                    {
+                        var singerNames = singers.EnumerateArray().Select(s => s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "").Where(n => !string.IsNullOrEmpty(n));
+                        result.Artist = string.Join(", ", singerNames);
+                    }
+                    if (songItem.TryGetProperty("album", out var albumObj) && albumObj.TryGetProperty("name", out var albumName))
+                        result.Album = albumName.GetString() ?? "";
+
+                    result.Lyrics = ParseLrc(lrcText);
+                    results.Add(result);
+                    count++;
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 通过酷狗 API 搜索歌词（KRC 格式转 LRC）
+    /// </summary>
+    /// <param name="song">要搜索的歌曲对象</param>
+    /// <returns>酷狗来源的歌词搜索结果列表</returns>
+    public async Task<List<LrcSearchResult>> SearchKugouAsync(Song song)
+    {
+        var results = new List<LrcSearchResult>();
+        try
+        {
+            var artist = Sanitize(song.Artist);
+            var title = Sanitize(song.Title);
+            var hash = ComputeKugouHash(title, artist);
+
+            var searchUrl = $"https://krcapi.kugou.com/lyric_search?ver=1&man=yes&client=pc&hash={hash}&keyword={Uri.EscapeDataString($"{title} {artist}")}&duration={(song.Duration / 1000)}";
+
+            _client.DefaultRequestHeaders.Referrer = new Uri("https://www.kugou.com/");
+            var response = await _client.GetAsync(searchUrl);
+            if (!response.IsSuccessStatusCode) return results;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.TryGetProperty("candidates", out var candidates)) return results;
+
+            int count = 0;
+            foreach (var item in candidates.EnumerateArray())
+            {
+                if (count >= 3) break;
+
+                var id = item.TryGetProperty("id", out var idProp) ? idProp.GetInt32().ToString() : "";
+                var accesskey = item.TryGetProperty("accesskey", out var ak) ? ak.GetString() : "";
+                if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(accesskey)) continue;
+
+                var lyricUrl = $"https://lyrics.kugou.com/download?ver=1&client=pc&id={id}&accesskey={accesskey}&fmt=lrc&charset=utf8";
+
+                try
+                {
+                    var lyricResp = await _client.GetStringAsync(lyricUrl);
+                    using var lyricDoc = JsonDocument.Parse(lyricResp);
+
+                    var lrcContent = lyricDoc.RootElement.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String
+                        ? content.GetString()
+                        : null;
+
+                    if (string.IsNullOrWhiteSpace(lrcContent)) continue;
+
+                    var decodedLrc = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(lrcContent));
+
+                    var result = new LrcSearchResult { Source = "酷狗" };
+                    if (item.TryGetProperty("song", out var s)) result.Title = s.GetString() ?? "";
+                    if (item.TryGetProperty("singername", out var sn)) result.Artist = sn.GetString() ?? "";
+
+                    result.Lyrics = ParseLrc(decodedLrc);
+                    results.Add(result);
+                    count++;
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 通过酷我音乐 API 搜索歌词
+    /// </summary>
+    /// <param name="song">要搜索的歌曲对象</param>
+    /// <returns>酷我来源的歌词搜索结果列表</returns>
+    public async Task<List<LrcSearchResult>> SearchKuwoAsync(Song song)
+    {
+        var results = new List<LrcSearchResult>();
+        try
+        {
+            var artist = Sanitize(song.Artist);
+            var title = Sanitize(song.Title);
+            var searchUrl = $"https://search.kuwo.cn/r.s?all={Uri.EscapeDataString($"{title} {artist}")}&ft=music&rn=5&encoding=utf8";
+
+            var response = await _client.GetStringAsync(searchUrl);
+            if (string.IsNullOrWhiteSpace(response) || response.Contains("NO_RESULT")) return results;
+
+            var match = System.Text.RegularExpressions.Regex.Match(response, @"MUSICRID=(\d+)");
+            if (!match.Success) return results;
+
+            var rid = match.Groups[1].Value;
+            var lyricUrl = $"https://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId={rid}";
+
+            try
+            {
+                var lyricResp = await _client.GetStringAsync(lyricUrl);
+                using var lyricDoc = JsonDocument.Parse(lyricResp);
+
+                var lrcText = lyricDoc.RootElement.TryGetProperty("lrclist", out var lrclist) && lrclist.ValueKind == JsonValueKind.Array
+                    ? (lrclist.EnumerateArray()
+                        .Select(l => l.TryGetProperty("lineLyric", out var line) ? line.GetString() : "")
+                        .Where(l => !string.IsNullOrEmpty(l))
+                        .Aggregate((a, b) => $"{a}\n{b}"))
+                    : null;
+
+                if (string.IsNullOrWhiteSpace(lrcText)) return results;
+
+                var result = new LrcSearchResult { Source = "酷我" };
+                result.Title = title ?? "";
+                result.Artist = artist ?? "";
+
+                result.Lyrics = ParseLrc(lrcText);
+                results.Add(result);
+            }
+            catch
+            {
+            }
+        }
+        catch
+        {
+        }
+
+        return results;
+    }
+
+    /// <summary>计算酷狗歌曲哈希值用于歌词搜索</summary>
+    private static string ComputeKugouHash(string? title, string? artist)
+    {
+        var input = $"{title ?? ""}{artist ?? ""}";
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        var bytes = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(bytes).ToLower();
     }
 
     /// <summary>

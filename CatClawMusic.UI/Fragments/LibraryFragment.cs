@@ -202,7 +202,7 @@ public class LibraryFragment : Fragment
         queue.SetSongs(_viewModel.Songs);
         queue.SelectSong(song.Id);
         _ = MainApplication.Services.GetRequiredService<IAudioPlayerService>().PlayAsync(song.FilePath);
-        MainApplication.Services.GetRequiredService<NowPlayingViewModel>().SetCurrentSong(song);
+        MainApplication.Services.GetRequiredService<NowPlayingViewModel>().SyncWithQueue();
         _ = MainApplication.Services.GetRequiredService<MusicDatabase>().RecordPlayAsync(song.Id);
     }
 
