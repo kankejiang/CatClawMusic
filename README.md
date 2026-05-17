@@ -1,6 +1,8 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
 > 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、桌面悬浮歌词（可拖拽/锁定/双行KTV）、LRC 歌词同步滚动、全屏歌词体验、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复。
+>
+> 📢 **QQ 交流群**: [855383639](https://qm.qq.com/q/Fhu3IEzqa4) 点击链接加入群聊【₍˄·͈༝·͈˄*₎◞ ̑̑】
 
 <div align="center">
 
@@ -307,24 +309,6 @@ CatClawMusic/
 | 插件 | 说明 | 地址 |
 |------|------|------|
 | **猫爪标签 (CatClawTag)** | 歌词/封面多源搜索、匹配元数据、标签读写 | [GitHub](https://github.com/kankejiang/CatClawTagPlugin) |
-
-***
-
-## 🛠️ 构建与发布
-
-```bash
-# 前置条件
-# - .NET 9 SDK
-# - Android SDK (API 35)
-# - JDK 21
-
-# 构建 Release APK
-cd CatClawMusic.UI
-dotnet build -c Release
-
-# APK 输出路径
-# bin/Release/net9.0-android/android/CatClawMusic.UI-Signed.apk
-```
 
 ***
 
