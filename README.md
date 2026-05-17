@@ -84,7 +84,7 @@ CatClawMusic/
 | MediaStore 扫描 | Android 10+ 无需存储权限即可扫描设备音频 |
 | 三路径扫描策略 | SAF Picker(优先) → MANAGE_EXTERNAL_STORAGE + MediaStore → MediaStore 只读 |
 | 递归扫描 | DocumentsContract.BuildChildDocumentsUriUsingTree 递归遍历 |
-| 音频格式 | .mp3 .flac .wav .ogg .m4a .aac .wma .opus .ape .aiff |
+| 音频格式 | .mp3 .flac .wav .ogg .oga .opus .m4a .mp4 .aac .wma .aiff .aifc .ape .wv .tta .mka .dsf .dff .mid .midi .rmi .spx .amr .3gp .mkv .webm（共26种） |
 | Tag 读取 | TagLibSharp 解析标题/艺术家/专辑/时长/比特率/年份/音轨/流派/封面/嵌入歌词 |
 | 增量式扫描 | 每 20 首一批回调入库 + 列表实时刷新，进度条动画 |
 | 缓存歌曲批量加载 | 每 50 首一批加载，30ms 间隔给主线程喘息 |
