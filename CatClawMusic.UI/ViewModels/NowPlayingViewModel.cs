@@ -422,7 +422,7 @@ public partial class NowPlayingViewModel : ObservableObject
             _isPositionUpdating = false;
             // 每 ~5 秒保存一次播放位置（200ms 定时器 × 25）
             if (++_saveCounter % 25 == 0)
-                CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer);
+                CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer, CurrentSong);
         });
     }
 

@@ -14,6 +14,8 @@ public static class PlaybackStateManager
     private const string PrefSongPath = "song_path";
     private const string PrefPosition = "position_seconds";
     private const string PrefPlayMode = "play_mode";
+    private const string PrefSongSource = "song_source";
+    private const string PrefSongRemoteId = "song_remote_id";
 
     /// <summary>获取 SharedPreferences 实例</summary>
     private static ISharedPreferences? GetPrefs()
@@ -23,7 +25,7 @@ public static class PlaybackStateManager
     }
 
     /// <summary>保存当前播放歌曲路径和播放位置</summary>
-    public static void Save(IAudioPlayerService player)
+    public static void Save(IAudioPlayerService player, Song? currentSong = null)
     {
         var prefs = GetPrefs();
         if (prefs == null) return;
@@ -34,6 +36,8 @@ public static class PlaybackStateManager
         {
             editor.PutString(PrefSongPath, song);
             editor.PutFloat(PrefPosition, (float)player.CurrentPosition.TotalSeconds);
+            editor.PutInt(PrefSongSource, currentSong != null ? (int)currentSong.Source : (int)SongSource.Local);
+            editor.PutString(PrefSongRemoteId, currentSong?.RemoteId ?? "");
             editor.Apply();
         }
     }
@@ -83,22 +87,31 @@ public static class PlaybackStateManager
         if (string.IsNullOrEmpty(path)) return;
 
         var position = TimeSpan.FromSeconds(prefs.GetFloat(PrefPosition, 0));
+        var savedSource = (SongSource)prefs.GetInt(PrefSongSource, (int)SongSource.Local);
+        var savedRemoteId = prefs.GetString(PrefSongRemoteId, null);
 
         try
         {
             var songs = await db.GetSongsAsync();
-            var song = songs.FirstOrDefault(s => s.FilePath == path);
+            Song? song;
+
+            if (savedSource == SongSource.WebDAV && !string.IsNullOrEmpty(savedRemoteId))
+            {
+                song = songs.FirstOrDefault(s => s.Source == SongSource.WebDAV && s.RemoteId == savedRemoteId);
+            }
+            else
+            {
+                song = songs.FirstOrDefault(s => s.FilePath == path);
+            }
+
             if (song == null) { Clear(); return; }
 
-            // 恢复播放队列（所有歌曲）
             queue.SetSongs(songs);
             queue.SelectSong(song.Id);
 
-            // 恢复播放模式
             var savedMode = prefs.GetInt(PrefPlayMode, (int)PlayMode.ListRepeat);
             queue.PlayMode = (PlayMode)savedMode;
             vm.SetCurrentSong(song);
-            // 同步播放模式图标和进度条位置到 UI
             vm.SyncPlayMode();
             vm.CurrentPosition = position;
 
