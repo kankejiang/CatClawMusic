@@ -1,7 +1,15 @@
 # 🐾 猫爪音乐插件 SDK (CatClawMusic Plugin SDK)
 
-猫爪音乐官方插件开发工具包，支持五种主流编程语言开发插件。
-**所有语言的插件最终都编译成统一的 `.ccp` / `.dll` 格式。**
+猫爪音乐官方插件开发工具包，支持 **5 种主流编程语言** 开发插件。
+**所有语言的插件最终都编译成统一的 `.ccp` / `.dll` 格式，通过 `Assembly.Load()` 加载，零 HTTP、零 Bridge。**
+
+| 语言 | 编译验证 | 原理 |
+|------|---------|------|
+| C# | ✅ | 进程内直接执行 |
+| Java | ✅ | IKVM.NET 转 CIL |
+| Python | ✅ | IronPython 嵌入 |
+| JavaScript | ✅ | Jint 引擎嵌入 |
+| Go | ✅ | cgo c-shared → P/Invoke |
 
 ## 架构
 

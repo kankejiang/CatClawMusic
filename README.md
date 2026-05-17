@@ -277,11 +277,30 @@ CatClawMusic/
 
 ## 🔌 插件体系
 
+猫爪音乐支持通过插件系统扩展功能，**插件 SDK 支持 5 种主流编程语言**，所有语言编译为统一的 `.ccp` 格式。
+
+### 插件 SDK
+
+| 语言 | 编译方式 | 说明 |
+|------|---------|------|
+| **C#** | `dotnet` 直接编译 | 进程内原生执行 |
+| **Java** | IKVM.NET → CIL | `.java` → `javac` → `ikvmc` → `.dll` |
+| **Python** | IronPython 嵌入 | `.py` → EmbeddedResource → `.dll` |
+| **JavaScript** | Jint 引擎嵌入 | `.js` → EmbeddedResource → `.dll` |
+| **Go** | cgo c-shared + P/Invoke | `main.go` → `go build` → `.so` → `DllImport` |
+
+> SDK 源码位于 `plugins/PluginSDK/`，含完整模板和编译脚本。
+
+### 插件接口
+
 | 接口 | 说明 |
 |------|------|
-| IPlugin | 插件基类：Name / Version / Author / InitializeAsync / ShutdownAsync |
-| ILyricsProviderPlugin | 歌词提供者插件：GetLyricsAsync / IsAvailable |
-| IProtocolProviderPlugin | 协议提供者插件：ProtocolName / ListFilesAsync / OpenReadAsync / TestConnectionAsync |
+| IPlugin | 插件基类：Name / Version / Author / Capabilities / InitializeAsync / ShutdownAsync |
+| ILyricsProviderPlugin | 歌词提供者：GetLyricsAsync / IsAvailable |
+| ICoverProviderPlugin | 封面提供者：GetCoverAsync / IsAvailable |
+| IProtocolProviderPlugin | 协议提供者：ProtocolName / ListFilesAsync / OpenReadAsync / TestConnectionAsync |
+| IAudioEnhancerPlugin | 音频增强器：ProcessSamples / Reset |
+| IMenuContributorPlugin | 菜单贡献者：GetMenuItems / OnMenuItemClicked |
 
 ### 📦 已发布插件
 
