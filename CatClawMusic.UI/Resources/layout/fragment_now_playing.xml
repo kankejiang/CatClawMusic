@@ -110,11 +110,12 @@
                         android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:layout_marginHorizontal="8dp"
                         android:valueFrom="0" android:valueTo="100" android:value="0"
-                        app:thumbIcon="@drawable/slider_thumb"
+                        app:thumbRadius="9dp"
+                        app:thumbColor="#9B7ED8"
                         app:haloColor="#309B7ED8"
                         app:trackColorActive="#9B7ED8"
                         app:trackColorInactive="#30FFFFFF"
-                        app:trackHeight="3dp" />
+                        app:trackHeight="2dp" />
                     <TextView android:id="@+id/time_total" android:layout_width="36dp"
                         android:layout_height="wrap_content" android:text="0:00"
                         android:textColor="#DDFFFFFF" android:textSize="11sp"
