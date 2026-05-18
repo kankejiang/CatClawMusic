@@ -25,8 +25,6 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IMainThreadDispatcher _dispatcher;
     [ObservableProperty] private LrcLyrics? _currentLyrics;
     [ObservableProperty] private int _currentLyricIndex = -1;
-    /// <summary>上一次的逐字索引，用于去重避免重复刷新 Spannable</summary>
-    private int _lastWordIndex = -2;
     private bool _isPositionUpdating;
     private int _saveCounter;
     private ConnectionProfile? _cachedNavidromeProfile;
@@ -62,74 +60,127 @@ public partial class NowPlayingViewModel : ObservableObject
 
     /// <summary>
     /// 根据当前播放位置生成逐字着色的 SpannableString
-    /// 优先使用 LRC 内嵌的 &lt;mm:ss.xx&gt; 逐字时间戳，否则自动拆字估算时序
+    /// 优先使用 LRC 内嵌 &lt;mm:ss.xx&gt; 逐字时间戳，否则实时动态映射播放进度到字符
     /// </summary>
     public void UpdateLyricSpannable()
     {
         var lines = CurrentLyrics?.Lines;
         var idx = CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx >= lines.Count)
-        {
-            ClearSpannable();
-            return;
-        }
+        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); return; }
 
         var line = lines[idx];
         var text = line.Text;
-        if (string.IsNullOrEmpty(text))
-        {
-            ClearSpannable();
-            return;
-        }
-
-        // 获取或自动生成逐字时间戳
-        var wordTimestamps = line.WordTimestamps;
-        if (wordTimestamps == null || wordTimestamps.Count == 0)
-        {
-            // 自动拆字 fallback：将文本按字符拆分，根据前后行的间隔均匀分配时间
-            var lineDuration = GetLineDuration(lines, idx);
-            wordTimestamps = AutoSplitText(text, line.Timestamp, lineDuration);
-        }
-
-        if (wordTimestamps == null || wordTimestamps.Count == 0)
-        {
-            ClearSpannable();
-            return;
-        }
-
-        // 在本地 wordTimestamps 列表中查找当前字索引（支持自动拆字生成的时序）
-        var wordIdx = -1;
-        for (int i = wordTimestamps.Count - 1; i >= 0; i--)
-        {
-            if (wordTimestamps[i].Start <= CurrentPosition)
-            { wordIdx = i; break; }
-        }
-        if (wordIdx == _lastWordIndex) return;
-        _lastWordIndex = wordIdx;
+        if (string.IsNullOrEmpty(text)) { ClearSpannable(); return; }
 
         var ss = new SpannableString(text);
-        if (wordIdx >= 0 && wordIdx < wordTimestamps.Count)
-        {
-            // 累积高亮：从第一个字到当前字全部着色为当前主题色
-            var highlightedLength = 0;
-            for (int i = 0; i <= wordIdx; i++)
-                highlightedLength += wordTimestamps[i].Word.Length;
+        var baseGray = Android.Graphics.Color.Argb(0xDD, 0xBB, 0xBB, 0xBB);
+        ss.SetSpan(new ForegroundColorSpan(baseGray), 0, text.Length, SpanTypes.ExclusiveExclusive);
 
-            if (highlightedLength > 0 && highlightedLength <= text.Length)
-            {
-                var accentColor = GetThemeAccentColor();
-                ss.SetSpan(new ForegroundColorSpan(accentColor), 0, highlightedLength, SpanTypes.ExclusiveExclusive);
-                ss.SetSpan(new RelativeSizeSpan(1.12f), 0, highlightedLength, SpanTypes.ExclusiveExclusive);
-            }
+        if (line.WordTimestamps is { Count: > 0 })
+        {
+            ApplyExactWordTimestamps(ss, line.WordTimestamps);
         }
+        else
+        {
+            var lineDuration = GetLineDuration(lines, idx);
+            ApplyDynamicProgress(ss, text, line.Timestamp, lineDuration);
+        }
+
         CurrentLyricSpannable = ss;
         OnPropertyChanged(nameof(CurrentLyricSpannable));
     }
 
+    private void ApplyExactWordTimestamps(SpannableString ss, List<WordTimestamp> wts)
+    {
+        var wordIdx = -1;
+        for (int i = wts.Count - 1; i >= 0; i--)
+            if (wts[i].Start <= CurrentPosition) { wordIdx = i; break; }
+        if (wordIdx < 0) return;
+
+        ApplyWordSpans(ss, wts, wordIdx, (i, w) =>
+        {
+            if (i == wordIdx)
+                return Math.Clamp((float)((CurrentPosition - w.Start).TotalMilliseconds / w.Duration.TotalMilliseconds), 0f, 1f);
+            return i < wordIdx ? 1f : 0f;
+        });
+    }
+
+    private void ApplyDynamicProgress(SpannableString ss, string text, TimeSpan lineStart, TimeSpan duration)
+    {
+        var units = SplitTextUnits(text);
+        if (units.Count == 0) return;
+        if (duration.TotalMilliseconds <= 0) return;
+
+        var progress = Math.Clamp((CurrentPosition - lineStart).TotalMilliseconds / duration.TotalMilliseconds, 0.0, 1.0);
+        var unitProgress = progress * units.Count;
+        var activeIdx = (int)unitProgress;
+        var activeFrac = (float)(unitProgress - activeIdx);
+
+        var fakeTimestamps = new List<WordTimestamp>();
+        for (int i = 0; i < units.Count; i++)
+            fakeTimestamps.Add(new WordTimestamp { Word = units[i], Start = TimeSpan.Zero, Duration = TimeSpan.Zero });
+
+        ApplyWordSpans(ss, fakeTimestamps, activeIdx, (i, _) =>
+        {
+            if (i < activeIdx) return 1f;
+            if (i == activeIdx) return activeFrac;
+            return 0f;
+        });
+    }
+
+    private void ApplyWordSpans(SpannableString ss, List<WordTimestamp> wts, int highlightIdx, Func<int, WordTimestamp, float> getAlpha)
+    {
+        var offset = 0;
+        for (int i = 0; i < wts.Count; i++)
+        {
+            var wlen = wts[i].Word.Length;
+            var alpha = getAlpha(i, wts[i]);
+
+            if (alpha > 0.01f && offset + wlen <= ss.Length())
+            {
+                var r = (int)(0xBB + (0xFF - 0xBB) * alpha);
+                var g = (int)(0xBB + (0xFF - 0xBB) * alpha);
+                var b = (int)(0xBB + (0xFF - 0xBB) * alpha);
+                ss.SetSpan(new ForegroundColorSpan(Android.Graphics.Color.Rgb(r, g, b)),
+                    offset, offset + wlen, SpanTypes.ExclusiveExclusive);
+            }
+            offset += wlen;
+        }
+    }
+
+    private static List<string> SplitTextUnits(string text)
+    {
+        var units = new List<string>();
+        var currentWord = "";
+        foreach (var ch in text)
+        {
+            if (ch >= 0x4E00 && ch <= 0x9FFF || ch >= 0x3400 && ch <= 0x4DBF)
+            {
+                if (currentWord.Length > 0) { units.Add(currentWord); currentWord = ""; }
+                units.Add(ch.ToString());
+            }
+            else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
+            {
+                if (currentWord.Length > 0) { units.Add(currentWord); currentWord = ""; }
+            }
+            else if (char.IsLetterOrDigit(ch))
+            {
+                currentWord += ch;
+            }
+            else
+            {
+                if (currentWord.Length > 0) { units.Add(currentWord); currentWord = ""; }
+                units.Add(ch.ToString());
+            }
+        }
+        if (currentWord.Length > 0) units.Add(currentWord);
+        return units;
+    }
+    
+
     /// <summary>清除逐字高亮状态</summary>
     private void ClearSpannable()
     {
-        _lastWordIndex = -2;
         if (CurrentLyricSpannable != null)
         {
             CurrentLyricSpannable = null;
@@ -149,85 +200,6 @@ public partial class NowPlayingViewModel : ObservableObject
                 return gap;
         }
         return TimeSpan.FromSeconds(5);
-    }
-
-    /// <summary>
-    /// 将文本自动按字符拆分，均匀分配时间戳
-    /// 中文字/英文单词各占一个单位，跳过空格/标点
-    /// </summary>
-    private static List<WordTimestamp> AutoSplitText(string text, TimeSpan startTime, TimeSpan duration)
-    {
-        var result = new List<WordTimestamp>();
-
-        // 提取有效字符单元：中文字单独拆分，英文/数字按词拆分
-        var units = new List<string>();
-        var currentWord = "";
-        foreach (var ch in text)
-        {
-            if (ch >= 0x4E00 && ch <= 0x9FFF || ch >= 0x3400 && ch <= 0x4DBF)
-            {
-                // 中文字
-                if (currentWord.Length > 0)
-                {
-                    units.Add(currentWord);
-                    currentWord = "";
-                }
-                units.Add(ch.ToString());
-            }
-            else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
-            {
-                if (currentWord.Length > 0)
-                {
-                    units.Add(currentWord);
-                    currentWord = "";
-                }
-            }
-            else if (char.IsLetterOrDigit(ch))
-            {
-                currentWord += ch;
-            }
-            else
-            {
-                if (currentWord.Length > 0)
-                {
-                    units.Add(currentWord);
-                    currentWord = "";
-                }
-                units.Add(ch.ToString());
-            }
-        }
-        if (currentWord.Length > 0)
-            units.Add(currentWord);
-
-        if (units.Count == 0)
-            return result;
-
-        var perUnit = TimeSpan.FromTicks(duration.Ticks / units.Count);
-        for (int i = 0; i < units.Count; i++)
-        {
-            result.Add(new WordTimestamp
-            {
-                Word = units[i],
-                Start = startTime + TimeSpan.FromTicks(perUnit.Ticks * i),
-                Duration = i + 1 < units.Count ? perUnit : duration - TimeSpan.FromTicks(perUnit.Ticks * i)
-            });
-        }
-
-        return result;
-    }
-
-    /// <summary>获取当前主题色，用于逐字高亮</summary>
-    private static Android.Graphics.Color GetThemeAccentColor()
-    {
-        try
-        {
-            var ctx = global::Android.App.Application.Context;
-            var typedValue = new Android.Util.TypedValue();
-            if (ctx.Theme?.ResolveAttribute(Resource.Attribute.catClawAccentColor, typedValue, true) == true)
-                return new Android.Graphics.Color(typedValue.Data);
-        }
-        catch { }
-        return Android.Graphics.Color.ParseColor("#FF80AB");
     }
 
     /// <summary>

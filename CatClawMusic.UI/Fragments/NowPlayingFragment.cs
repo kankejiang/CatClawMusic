@@ -28,7 +28,11 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
     private GoogleSlider _progressSlider = null!;
-    private View _gradientBackground = null!, _coverGlow = null!;
+    private View _gradientBackground = null!;
+    private View _glow1 = null!, _glow2 = null!, _glow3 = null!;
+    private View _glow4 = null!, _glow5 = null!, _glow6 = null!;
+    private View _reflectionMaskBottom = null!, _coverFog = null!;
+    private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
 
     /// <summary>
     /// 创建正在播放视图
@@ -63,7 +67,15 @@ public class NowPlayingFragment : Fragment
         _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
         _gradientBackground = view.FindViewById<View>(Resource.Id.gradient_background)!;
-        _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
+        _glow1 = view.FindViewById<View>(Resource.Id.glow_1)!;
+        _glow2 = view.FindViewById<View>(Resource.Id.glow_2)!;
+        _glow3 = view.FindViewById<View>(Resource.Id.glow_3)!;
+        _glow4 = view.FindViewById<View>(Resource.Id.glow_4)!;
+        _glow5 = view.FindViewById<View>(Resource.Id.glow_5)!;
+        _glow6 = view.FindViewById<View>(Resource.Id.glow_6)!;
+        _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
+        _coverFog = view.FindViewById<View>(Resource.Id.cover_fog)!;
+        _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
@@ -138,66 +150,126 @@ public class NowPlayingFragment : Fragment
     }
 
     /// <summary>
-    /// 将提取的颜色应用到渐变背景和封面发光视图，颜色加半透明增强通透感
+    /// 应用 Material You 色调方案：背景、光晕、控件卡片、文字图标全部统一配色
     /// </summary>
-    private void ApplyColorsToBackground(List<int> colors)
+    private void ApplyColorsToBackground(List<ColorEntry> entries)
     {
-        if (_gradientBackground == null || colors.Count == 0) return;
+        if (_gradientBackground == null || entries.Count == 0) return;
 
-        var color1 = colors[0];
-        var color2 = colors.Count > 1 ? colors[1] : DarkenColorInt(color1, 0.7f);
-        var color3 = colors.Count > 2 ? colors[2] : DarkenColorInt(color1, 0.4f);
+        var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
 
-        // 降低不透明度（~55%），让底层深色透出，形成通透的毛玻璃感
-        color1 = BlendAlpha(color1, 0x8C);
-        color2 = BlendAlpha(color2, 0x8C);
-        color3 = BlendAlpha(color3, 0x8C);
+        _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(palette.Background));
 
-        var gradient = new GradientDrawable(
-            GradientDrawable.Orientation.TlBr,
-            new int[] { color1, color2, color3 });
-        gradient.SetGradientType(GradientType.LinearGradient);
-        _gradientBackground.Background = gradient;
+        var screenW = Resources.DisplayMetrics.WidthPixels;
+        var density = Resources.DisplayMetrics.Density;
+        var transparent = Android.Graphics.Color.Argb(0, 0, 0, 0);
 
-        if (_coverGlow != null)
+        var glowViews = new[] { _glow1, _glow2, _glow3, _glow4, _glow5, _glow6 };
+        var radii     = new[] { 220f, 280f, 180f, 320f, 200f, 260f };
+        var alphas    = new[] { 0x66, 0x55, 0x5A, 0x48, 0x4C, 0x50 };
+        var widthsDp  = new[] { 220, 280, 180, 320, 200, 260 };
+        var jitter    = new[] { -0.08f, 0.06f, -0.12f, 0.10f, -0.04f, 0.08f };
+
+        var seedHsv = new float[3];
+        Color.RGBToHSV(
+            Color.GetRedComponent(entries[0].Color),
+            Color.GetGreenComponent(entries[0].Color),
+            Color.GetBlueComponent(entries[0].Color), seedHsv);
+
+        for (int i = 0; i < glowViews.Length; i++)
         {
-            var r = Android.Graphics.Color.GetRedComponent(colors[0]);
-            var g = Android.Graphics.Color.GetGreenComponent(colors[0]);
-            var b = Android.Graphics.Color.GetBlueComponent(colors[0]);
-            var glowColor = Android.Graphics.Color.Argb(55, r, g, b);
-            var glow = new GradientDrawable(
-                GradientDrawable.Orientation.TlBr,
-                new int[] { glowColor, glowColor });
-            glow.SetGradientType(GradientType.RadialGradient);
-            glow.SetGradientRadius(360f);
-            _coverGlow.Background = glow;
-        }
-    }
-
-    /// <summary>
-    /// 恢复默认深紫色半透明背景
-    /// </summary>
-    private void ApplyDefaultBackground()
-    {
-        if (_gradientBackground == null) return;
-        var gradient = new GradientDrawable(
-            GradientDrawable.Orientation.TlBr,
-            new int[] {
-                Android.Graphics.Color.ParseColor("#8C1A0E28"),
-                Android.Graphics.Color.ParseColor("#8C0E0818"),
-                Android.Graphics.Color.ParseColor("#8C1A0E28")
+            if (glowViews[i] == null) continue;
+            var entry = entries[i % entries.Count];
+            var glowColor = Color.HSVToColor(new[] {
+                seedHsv[0],
+                Math.Min(seedHsv[1] * 0.7f, 0.35f),
+                Math.Min(seedHsv[2] * 0.8f + 0.15f, 0.85f)
             });
-        gradient.SetGradientType(GradientType.LinearGradient);
-        _gradientBackground.Background = gradient;
+            ApplyGlow(glowViews[i], ToAlpha(glowColor, alphas[i]), transparent, radii[i]);
 
-        if (_coverGlow != null)
-            _coverGlow.Background = null;
+            var glowPx = (int)(widthsDp[i] * density + 0.5f);
+            var x = entry.CenterX * (screenW - glowPx) + jitter[i] * screenW;
+            x = Math.Max(-glowPx * 0.3f, Math.Min(screenW - glowPx * 0.7f, x));
+            glowViews[i].TranslationX = x;
+        }
+
+        if (_reflectionMaskBottom != null)
+            _reflectionMaskBottom.Background = null;
+
+        // 封面底部雾化过渡：封面底边 → 背景色
+        ApplyFogToCover(palette.Background);
+
+        // 控件卡片：Surface 色 + Outline 描边
+        ApplyCardTheme(palette);
+
+        // 文字颜色
+        var onSurfaceColor = new Android.Graphics.Color(palette.OnSurface);
+        _songTitle.SetTextColor(onSurfaceColor);
+        _songArtist.SetTextColor(new Android.Graphics.Color(palette.OnSurfaceVariant));
+
+        // 歌词颜色
+        var onSurfaceVariant = new Android.Graphics.Color(palette.OnSurfaceVariant);
+        var onSurfaceLight = Android.Graphics.Color.Argb(
+            (int)(0x90 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant),
+            Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
+        var onSurfaceLighter = Android.Graphics.Color.Argb(
+            (int)(0xB0 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant),
+            Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
+        _lyricCurrent.SetTextColor(onSurfaceColor);
+        _lyricPrev.SetTextColor(onSurfaceLighter);
+        _lyricNext.SetTextColor(onSurfaceLighter);
+        _lyricPrev2.SetTextColor(onSurfaceLight);
+        _lyricNext2.SetTextColor(onSurfaceLight);
     }
 
-    /// <summary>
-    /// 将 RGB 颜色配上指定的 alpha 值
-    /// </summary>
-    private static int BlendAlpha(int color, int alpha)
+    private void ApplyFogToCover(int backgroundColor)
+    {
+        if (_coverFog == null) return;
+        var fog = new GradientDrawable(
+            GradientDrawable.Orientation.TopBottom,
+            new int[] {
+                Android.Graphics.Color.Argb(0, 0, 0, 0),
+                backgroundColor
+            });
+        fog.SetGradientType(GradientType.LinearGradient);
+        _coverFog.Background = fog;
+    }
+
+    private void ApplyCardTheme(MaterialYouPalette palette)
+    {
+        if (_controlsCard == null) return;
+
+        var surfaceColor = new Android.Graphics.Color(palette.Surface);
+        _controlsCard.SetCardBackgroundColor(Android.Graphics.Color.Argb(
+            0x30, surfaceColor.R, surfaceColor.G, surfaceColor.B));
+        _controlsCard.StrokeColor = palette.Outline;
+
+        var onSurfaceColor = new Android.Graphics.Color(palette.OnSurface);
+        var onSurfaceSemi = Android.Graphics.Color.Argb(
+            (int)(0xEE * 255f / 0xFF), onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B);
+        var onSurfaceLight = Android.Graphics.Color.Argb(
+            (int)(0xAA * 255f / 0xFF), onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B);
+
+        _timeCurrent.SetTextColor(onSurfaceSemi);
+        _timeTotal.SetTextColor(onSurfaceSemi);
+
+        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(new Android.Graphics.Color(palette.Primary));
+        _progressSlider.ThumbTintList = sliderCs;
+        _progressSlider.TrackActiveTintList = sliderCs;
+        _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(
+            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B)));
+        _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(
+            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x40, onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B)));
+
+        _btnPlayPause.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceColor);
+        _btnNext.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceSemi);
+        _btnPrev.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceSemi);
+        _btnLike.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceLight);
+        _btnModeCycle.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceLight);
+        _btnPlaylist.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceSemi);
+    }
+
+    private static int ToAlpha(int color, int alpha)
     {
         return Android.Graphics.Color.Argb(alpha,
             Android.Graphics.Color.GetRedComponent(color),
@@ -205,16 +277,78 @@ public class NowPlayingFragment : Fragment
             Android.Graphics.Color.GetBlueComponent(color));
     }
 
-    /// <summary>
-    /// 将颜色 int 值变暗指定倍率
-    /// </summary>
-    private static int DarkenColorInt(int color, float factor)
+    private static void ApplyGlow(View view, int centerColor, int edgeColor, float radius)
     {
-        return Android.Graphics.Color.Rgb(
-            (int)(Android.Graphics.Color.GetRedComponent(color) * factor),
-            (int)(Android.Graphics.Color.GetGreenComponent(color) * factor),
-            (int)(Android.Graphics.Color.GetBlueComponent(color) * factor));
+        if (view == null) return;
+        var gd = new GradientDrawable();
+        gd.SetGradientType(GradientType.RadialGradient);
+        gd.SetGradientCenter(0.5f, 0.5f);
+        gd.SetGradientRadius(radius);
+        gd.SetColors(new int[] { centerColor, edgeColor });
+        view.Background = gd;
     }
+
+    /// <summary>
+    /// 恢复默认深色背景及控件配色
+    /// </summary>
+    private void ApplyDefaultBackground()
+    {
+        if (_gradientBackground == null) return;
+        var defaultBg = Android.Graphics.Color.ParseColor("#1A0E28");
+        _gradientBackground.SetBackgroundColor(defaultBg);
+
+        // 清除光晕
+        if (_glow1 != null) _glow1.Background = null;
+        if (_glow2 != null) _glow2.Background = null;
+        if (_glow3 != null) _glow3.Background = null;
+        if (_glow4 != null) _glow4.Background = null;
+        if (_glow5 != null) _glow5.Background = null;
+        if (_glow6 != null) _glow6.Background = null;
+        if (_reflectionMaskBottom != null) _reflectionMaskBottom.Background = null;
+
+        // 清除雾化
+        if (_coverFog != null) _coverFog.Background = null;
+
+        // 恢复卡片和控件默认配色
+        if (_controlsCard != null)
+        {
+            var defaultSurface = Android.Graphics.Color.ParseColor("#26000000");
+            _controlsCard.SetCardBackgroundColor(defaultSurface);
+            _controlsCard.StrokeColor = Android.Graphics.Color.ParseColor("#15CCCCCC");
+        }
+
+        var defaultWhite = Android.Graphics.Color.ParseColor("#EEEEEE");
+        var defaultBright = Android.Graphics.Color.ParseColor("#FFFFFF");
+        var defaultLight = Android.Graphics.Color.ParseColor("#DDFFFFFF");
+
+        _timeCurrent.SetTextColor(defaultLight);
+        _timeTotal.SetTextColor(defaultLight);
+        _btnPlayPause.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultBright);
+        _btnNext.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
+        _btnPrev.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
+        _btnLike.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultBright);
+        _btnModeCycle.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultBright);
+        _btnPlaylist.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultLight);
+
+        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        _progressSlider.ThumbTintList = sliderCs;
+        _progressSlider.TrackActiveTintList = sliderCs;
+        _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(
+            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
+        _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(
+            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
+
+        var defaultText = Android.Graphics.Color.ParseColor("#333333");
+        var defaultGray = Android.Graphics.Color.ParseColor("#888888");
+        _songTitle.SetTextColor(defaultText);
+        _songArtist.SetTextColor(defaultGray);
+        _lyricCurrent.SetTextColor(Android.Graphics.Color.ParseColor("#FF444444"));
+        _lyricPrev.SetTextColor(Android.Graphics.Color.ParseColor("#B0999999"));
+        _lyricNext.SetTextColor(Android.Graphics.Color.ParseColor("#B0999999"));
+        _lyricPrev2.SetTextColor(Android.Graphics.Color.ParseColor("#90999999"));
+        _lyricNext2.SetTextColor(Android.Graphics.Color.ParseColor("#90999999"));
+    }
+
     private void SyncUIFromViewModel()
     {
         try
@@ -235,7 +369,9 @@ public class NowPlayingFragment : Fragment
                 UpdateGradientBackground();
             }
             else
+            {
                 _albumCover.SetImageResource(Resource.Drawable.cover_default);
+            }
             _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
             if (_viewModel.CurrentSong?.Source == SongSource.WebDAV && _viewModel.CurrentSong.Artist == "未知艺术家")
                 _songArtist.Text = "正在加载...";
@@ -285,7 +421,9 @@ public class NowPlayingFragment : Fragment
                         UpdateGradientBackground();
                     }
                     else
+                    {
                         _albumCover.SetImageResource(Resource.Drawable.cover_default);
+                    }
                     break;
                 case nameof(_viewModel.CurrentPosition):
                     UpdateTimeDisplay();
@@ -408,9 +546,9 @@ public class NowPlayingFragment : Fragment
         else if (plainText != null)
         {
             _lyricCurrent.Text = plainText;
+            _lyricCurrent.Alpha = 1f;
         }
         _lyricCurrent.TranslationY = 0f;
-        _lyricCurrent.Alpha = 1f;
     }
 
     /// <summary>

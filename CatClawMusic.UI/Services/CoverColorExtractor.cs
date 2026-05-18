@@ -2,33 +2,33 @@ using Android.Graphics;
 
 namespace CatClawMusic.UI.Services;
 
+public class ColorEntry
+{
+    public int Color { get; set; }
+    public float CenterX { get; set; }
+}
+
 /// <summary>
-/// 从专辑封面位图中提取 1-3 种主色调，用于生成动态渐变背景
+/// 从专辑封面位图中提取 1-6 种主色调及其水平位置，用于生成动态渐变背景
 /// 采用色彩量化 + 频率统计 + 饱和度/亮度加权筛选算法
 /// </summary>
 public static class CoverColorExtractor
 {
-    /// <summary>量化精度：将每个通道划分为 32 个色阶，共 32768 个可能的量化颜色</summary>
     private const int QuantizeLevels = 32;
-
-    /// <summary>排除接近纯黑/纯白的颜色：明度在 [VMin, VMax] 范围之外的颜色将被过滤</summary>
     private const float VMin = 0.12f;
     private const float VMax = 0.92f;
-
-    /// <summary>最大采样尺寸：缩小位图以减少处理时间</summary>
     private const int MaxSampleSize = 120;
 
     /// <summary>
-    /// 从位图提取主色调，返回 1-3 个 Android.Graphics.Color 值
+    /// 从位图提取主色调及水平位置，返回 1-6 个 ColorEntry
     /// </summary>
-    public static List<int> Extract(Bitmap bitmap)
+    public static List<ColorEntry> Extract(Bitmap bitmap)
     {
-        var colors = new List<int>();
-        if (bitmap == null || bitmap.IsRecycled) return colors;
+        var result = new List<ColorEntry>();
+        if (bitmap == null || bitmap.IsRecycled) return result;
 
         try
         {
-            // 缩放到固定尺寸采样
             Bitmap? sampled = null;
             if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)
             {
@@ -42,40 +42,43 @@ public static class CoverColorExtractor
                 sampled = bitmap;
             }
 
-            // 色彩频率统计
             var colorFreq = new Dictionary<int, int>();
+            var xSumPerKey = new Dictionary<int, long>();
+
             for (int y = 0; y < sampled.Height; y++)
             {
                 for (int x = 0; x < sampled.Width; x++)
                 {
                     var pixel = new Color(sampled.GetPixel(x, y));
-                    // 过滤透明像素
                     if (pixel.A < 128) continue;
 
-                    // 过滤过暗/过亮的颜色（避免黑底白字图片的极端值）
                     float[] hsv = { 0, 0, 0 };
                     Android.Graphics.Color.RGBToHSV(pixel.R, pixel.G, pixel.B, hsv);
                     if (hsv[2] < VMin || hsv[2] > VMax) continue;
 
-                    // 色彩量化
                     var r = pixel.R / QuantizeLevels;
                     var g = pixel.G / QuantizeLevels;
                     var b = pixel.B / QuantizeLevels;
                     var key = (r << 10) | (g << 5) | b;
 
                     if (colorFreq.ContainsKey(key))
+                    {
                         colorFreq[key]++;
+                        xSumPerKey[key] += x;
+                    }
                     else
+                    {
                         colorFreq[key] = 1;
+                        xSumPerKey[key] = x;
+                    }
                 }
             }
 
             if (sampled != bitmap && sampled != null)
                 sampled.Recycle();
 
-            if (colorFreq.Count == 0) return colors;
+            if (colorFreq.Count == 0) return result;
 
-            // 按加权分数排序：频率 × 饱和度系数，优先选择鲜艳且频繁的颜色
             var scored = colorFreq
                 .Select(kv =>
                 {
@@ -84,14 +87,17 @@ public static class CoverColorExtractor
                     var b = (kv.Key & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     float[] hsv = { 0, 0, 0 };
                     Android.Graphics.Color.RGBToHSV(r, g, b, hsv);
-                    // 分数 = 频率 × (0.5 + 饱和度) 以提升鲜艳颜色的权重
                     var score = kv.Value * (0.5f + hsv[1]);
-                    return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: score);
+                    var avgX = (float)xSumPerKey[kv.Key] / kv.Value;
+                    return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: score, AvgX: avgX);
                 })
                 .OrderByDescending(x => x.Score)
                 .ToList();
 
-            // 选取最多 3 个颜色，跳过色相过于接近的重复色
+            var colors = new List<int>();
+            var xPositions = new List<float>();
+            var minHueDist = 30f;
+
             foreach (var entry in scored)
             {
                 var c = entry.Color;
@@ -101,7 +107,6 @@ public static class CoverColorExtractor
                 var cb = Android.Graphics.Color.GetBlueComponent(c);
                 Android.Graphics.Color.RGBToHSV(cr, cg, cb, hsv1);
 
-                // 检查与已选颜色的色相距离，避免重复
                 bool isDuplicate = false;
                 foreach (var existing in colors)
                 {
@@ -111,7 +116,7 @@ public static class CoverColorExtractor
                     var eb = Android.Graphics.Color.GetBlueComponent(existing);
                     Android.Graphics.Color.RGBToHSV(er, eg, eb, hsv2);
                     var hueDist = Math.Abs(hsv1[0] - hsv2[0]);
-                    if (hueDist < 30 || hueDist > 330)
+                    if (hueDist < minHueDist || hueDist > 360f - minHueDist)
                     {
                         isDuplicate = true;
                         break;
@@ -120,11 +125,32 @@ public static class CoverColorExtractor
                 if (isDuplicate) continue;
 
                 colors.Add(c);
-                if (colors.Count >= 3) break;
+                xPositions.Add(entry.AvgX);
+                result.Add(new ColorEntry { Color = c, CenterX = entry.AvgX });
+
+                if (result.Count >= 6) break;
+                if (result.Count >= 3) minHueDist = 18f;
             }
 
-            // 兜底：量化过滤太严格导致没有结果时，使用采样图的简单平均色
-            if (colors.Count == 0)
+            // 归一化到 0~1
+            if (result.Count > 0)
+            {
+                var maxX = xPositions.Max();
+                var minX = xPositions.Min();
+                var xRange = maxX - minX;
+                if (xRange > 0)
+                {
+                    foreach (var entry in result)
+                        entry.CenterX = (entry.CenterX - minX) / xRange;
+                }
+                else
+                {
+                    for (int i = 0; i < result.Count; i++)
+                        result[i].CenterX = (float)i / (result.Count - 1 > 0 ? result.Count - 1 : 1);
+                }
+            }
+
+            if (result.Count == 0)
             {
                 long rSum = 0, gSum = 0, bSum = 0;
                 int count = 0;
@@ -143,30 +169,33 @@ public static class CoverColorExtractor
                     }
                 }
                 if (count > 0)
-                    colors.Add(Android.Graphics.Color.Rgb(
-                        (int)(rSum / count), (int)(gSum / count), (int)(bSum / count)));
+                    result.Add(new ColorEntry
+                    {
+                        Color = Android.Graphics.Color.Rgb((int)(rSum / count), (int)(gSum / count), (int)(bSum / count)),
+                        CenterX = 0.5f
+                    });
             }
         }
         catch { }
 
-        return colors;
+        return result;
     }
 
     /// <summary>
     /// 从图片文件路径提取主色调（封装了 Bitmap 的加载与回收）
     /// </summary>
-    public static List<int> ExtractFromFile(string filePath)
+    public static List<ColorEntry> ExtractFromFile(string filePath)
     {
-        var colors = new List<int>();
+        var entries = new List<ColorEntry>();
         try
         {
             using var bitmap = BitmapFactory.DecodeFile(filePath);
             if (bitmap != null)
             {
-                colors = Extract(bitmap);
+                entries = Extract(bitmap);
             }
         }
         catch { }
-        return colors;
+        return entries;
     }
 }
