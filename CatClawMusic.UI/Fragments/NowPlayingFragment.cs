@@ -7,6 +7,7 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +23,7 @@ public class NowPlayingFragment : Fragment
     private NowPlayingViewModel _viewModel = null!;
     private ImageView _albumCover = null!;
     private TextView _songTitle = null!, _songArtist = null!;
-    private TextView _lyricPrev2 = null!, _lyricPrev = null!, _lyricCurrent = null!, _lyricNext = null!, _lyricNext2 = null!;
+    private StrokeTextView _lyricPrev2 = null!, _lyricPrev = null!, _lyricCurrent = null!, _lyricNext = null!, _lyricNext2 = null!;
     private TextView _timeCurrent = null!, _timeTotal = null!;
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
@@ -47,11 +48,11 @@ public class NowPlayingFragment : Fragment
         _albumCover = view.FindViewById<ImageView>(Resource.Id.album_cover)!;
         _songTitle = view.FindViewById<TextView>(Resource.Id.song_title)!;
         _songArtist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
-        _lyricPrev2 = view.FindViewById<TextView>(Resource.Id.lyric_prev2)!;
-        _lyricPrev = view.FindViewById<TextView>(Resource.Id.lyric_prev)!;
-        _lyricCurrent = view.FindViewById<TextView>(Resource.Id.lyric_current)!;
-        _lyricNext = view.FindViewById<TextView>(Resource.Id.lyric_next)!;
-        _lyricNext2 = view.FindViewById<TextView>(Resource.Id.lyric_next2)!;
+        _lyricPrev2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev2)!;
+        _lyricPrev = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev)!;
+        _lyricCurrent = (StrokeTextView)view.FindViewById(Resource.Id.lyric_current)!;
+        _lyricNext = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next)!;
+        _lyricNext2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next2)!;
         _timeCurrent = view.FindViewById<TextView>(Resource.Id.time_current)!;
         _timeTotal = view.FindViewById<TextView>(Resource.Id.time_total)!;
         _btnPlayPause = view.FindViewById<ImageButton>(Resource.Id.btn_play_pause)!;
@@ -90,8 +91,8 @@ public class NowPlayingFragment : Fragment
         }
 
         // 控制区域拦截 ViewPager2 的横向滑动
-        var controlsCard = view.FindViewById<View>(Resource.Id.controls_card)!;
-        controlsCard.SetOnTouchListener(new ControlsTouchListener());
+        var controlsArea = view.FindViewById<View>(Resource.Id.controls_area)!;
+        controlsArea.SetOnTouchListener(new ControlsTouchListener());
 
         // 播放控制（Click -=/+= 防止 ViewPager 重建时重复绑定）
         _btnPlayPause.Click -= OnPlayPause; _btnPlayPause.Click += OnPlayPause;
@@ -137,7 +138,7 @@ public class NowPlayingFragment : Fragment
     }
 
     /// <summary>
-    /// 将提取的颜色应用到渐变背景和封面发光视图
+    /// 将提取的颜色应用到渐变背景和封面发光视图，颜色加半透明增强通透感
     /// </summary>
     private void ApplyColorsToBackground(List<int> colors)
     {
@@ -147,6 +148,11 @@ public class NowPlayingFragment : Fragment
         var color2 = colors.Count > 1 ? colors[1] : DarkenColorInt(color1, 0.7f);
         var color3 = colors.Count > 2 ? colors[2] : DarkenColorInt(color1, 0.4f);
 
+        // 降低不透明度（~55%），让底层深色透出，形成通透的毛玻璃感
+        color1 = BlendAlpha(color1, 0x8C);
+        color2 = BlendAlpha(color2, 0x8C);
+        color3 = BlendAlpha(color3, 0x8C);
+
         var gradient = new GradientDrawable(
             GradientDrawable.Orientation.TlBr,
             new int[] { color1, color2, color3 });
@@ -155,21 +161,21 @@ public class NowPlayingFragment : Fragment
 
         if (_coverGlow != null)
         {
-            var r = Android.Graphics.Color.GetRedComponent(color1);
-            var g = Android.Graphics.Color.GetGreenComponent(color1);
-            var b = Android.Graphics.Color.GetBlueComponent(color1);
-            var glowColor = Android.Graphics.Color.Argb(50, r, g, b);
+            var r = Android.Graphics.Color.GetRedComponent(colors[0]);
+            var g = Android.Graphics.Color.GetGreenComponent(colors[0]);
+            var b = Android.Graphics.Color.GetBlueComponent(colors[0]);
+            var glowColor = Android.Graphics.Color.Argb(55, r, g, b);
             var glow = new GradientDrawable(
                 GradientDrawable.Orientation.TlBr,
                 new int[] { glowColor, glowColor });
             glow.SetGradientType(GradientType.RadialGradient);
-            glow.SetGradientRadius(240f);
+            glow.SetGradientRadius(360f);
             _coverGlow.Background = glow;
         }
     }
 
     /// <summary>
-    /// 恢复默认深色背景
+    /// 恢复默认深紫色半透明背景
     /// </summary>
     private void ApplyDefaultBackground()
     {
@@ -177,15 +183,26 @@ public class NowPlayingFragment : Fragment
         var gradient = new GradientDrawable(
             GradientDrawable.Orientation.TlBr,
             new int[] {
-                Android.Graphics.Color.ParseColor("#1A1128"),
-                Android.Graphics.Color.ParseColor("#0E0818"),
-                Android.Graphics.Color.ParseColor("#1A1128")
+                Android.Graphics.Color.ParseColor("#8C1A0E28"),
+                Android.Graphics.Color.ParseColor("#8C0E0818"),
+                Android.Graphics.Color.ParseColor("#8C1A0E28")
             });
         gradient.SetGradientType(GradientType.LinearGradient);
         _gradientBackground.Background = gradient;
 
         if (_coverGlow != null)
             _coverGlow.Background = null;
+    }
+
+    /// <summary>
+    /// 将 RGB 颜色配上指定的 alpha 值
+    /// </summary>
+    private static int BlendAlpha(int color, int alpha)
+    {
+        return Android.Graphics.Color.Argb(alpha,
+            Android.Graphics.Color.GetRedComponent(color),
+            Android.Graphics.Color.GetGreenComponent(color),
+            Android.Graphics.Color.GetBlueComponent(color));
     }
 
     /// <summary>
@@ -300,6 +317,9 @@ public class NowPlayingFragment : Fragment
                 case nameof(_viewModel.NextLyricLine2):
                     UpdateLyrics();
                     break;
+                case nameof(_viewModel.CurrentLyricSpannable):
+                    ApplyLyricSpannable();
+                    break;
             }
         });
     }
@@ -326,21 +346,19 @@ public class NowPlayingFragment : Fragment
             // 首次加载或切歌 → 直接设置
             _lyricPrev2.Text = prev2;  _lyricPrev2.TranslationY = 0f; _lyricPrev2.Alpha = 0.6f;
             _lyricPrev.Text = prev;    _lyricPrev.TranslationY = 0f;   _lyricPrev.Alpha = 1f;
-            _lyricCurrent.Text = curr; _lyricCurrent.TranslationY = 0f; _lyricCurrent.Alpha = 1f;
             _lyricNext.Text = next;    _lyricNext.TranslationY = 0f;   _lyricNext.Alpha = 1f;
             _lyricNext2.Text = next2;  _lyricNext2.TranslationY = 0f; _lyricNext2.Alpha = 0.6f;
+            ApplyCurrentLineWithSpannable(curr);
             return;
         }
 
         // ── 零延迟滚动动画：文字立即更新，动画只做视觉过渡 ──
-        // 核心原则：文字先到位，动画从"偏移位置"滑回正常位置
-
         // 1. 立即更新所有文字
         _lyricPrev2.Text = prev2;
         _lyricPrev.Text = prev;
-        _lyricCurrent.Text = curr;
         _lyricNext.Text = next;
         _lyricNext2.Text = next2;
+        ApplyCurrentLineWithSpannable(curr);
 
         // 2. 将每行设到"刚滚入"的起始偏移位置
         float[] startY = { -8f, -10f, 14f, 10f, 8f }; // 上方行从微上偏→归位，下方行从微下偏→归位
@@ -366,6 +384,33 @@ public class NowPlayingFragment : Fragment
                 .SetInterpolator(new Android.Views.Animations.DecelerateInterpolator(1.5f))
                 .Start();
         }
+    }
+
+    /// <summary>
+    /// 将逐字着色的 Spannable 应用到当前歌词行 StrokeTextView
+    /// </summary>
+    private void ApplyLyricSpannable()
+    {
+        ApplyCurrentLineWithSpannable(null);
+    }
+
+    /// <summary>
+    /// 设当前歌词文本，优先用 ViewModel 生成的逐字 Spannable
+    /// </summary>
+    private void ApplyCurrentLineWithSpannable(string? plainText)
+    {
+        if (_lyricCurrent == null) return;
+        var spannable = _viewModel.CurrentLyricSpannable;
+        if (spannable != null)
+        {
+            _lyricCurrent.SetText(spannable, TextView.BufferType.Spannable);
+        }
+        else if (plainText != null)
+        {
+            _lyricCurrent.Text = plainText;
+        }
+        _lyricCurrent.TranslationY = 0f;
+        _lyricCurrent.Alpha = 1f;
     }
 
     /// <summary>

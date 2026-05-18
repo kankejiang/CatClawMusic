@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using Android.Text;
+using Android.Text.Style;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
@@ -23,6 +25,8 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IMainThreadDispatcher _dispatcher;
     [ObservableProperty] private LrcLyrics? _currentLyrics;
     [ObservableProperty] private int _currentLyricIndex = -1;
+    /// <summary>上一次的逐字索引，用于去重避免重复刷新 Spannable</summary>
+    private int _lastWordIndex = -2;
     private bool _isPositionUpdating;
     private int _saveCounter;
     private ConnectionProfile? _cachedNavidromeProfile;
@@ -52,6 +56,180 @@ public partial class NowPlayingViewModel : ObservableObject
     /// 即将播放的歌曲列表
     /// </summary>
     public ObservableCollection<Song> UpcomingSongs { get; } = new();
+
+    /// <summary>逐字歌词 Spannable，当前字高亮为主题色，供 Fragment 直接设置到 TextView</summary>
+    public ISpannable? CurrentLyricSpannable { get; private set; }
+
+    /// <summary>
+    /// 根据当前播放位置生成逐字着色的 SpannableString
+    /// 优先使用 LRC 内嵌的 &lt;mm:ss.xx&gt; 逐字时间戳，否则自动拆字估算时序
+    /// </summary>
+    public void UpdateLyricSpannable()
+    {
+        var lines = CurrentLyrics?.Lines;
+        var idx = CurrentLyricIndex;
+        if (lines == null || idx < 0 || idx >= lines.Count)
+        {
+            ClearSpannable();
+            return;
+        }
+
+        var line = lines[idx];
+        var text = line.Text;
+        if (string.IsNullOrEmpty(text))
+        {
+            ClearSpannable();
+            return;
+        }
+
+        // 获取或自动生成逐字时间戳
+        var wordTimestamps = line.WordTimestamps;
+        if (wordTimestamps == null || wordTimestamps.Count == 0)
+        {
+            // 自动拆字 fallback：将文本按字符拆分，根据前后行的间隔均匀分配时间
+            var lineDuration = GetLineDuration(lines, idx);
+            wordTimestamps = AutoSplitText(text, line.Timestamp, lineDuration);
+        }
+
+        if (wordTimestamps == null || wordTimestamps.Count == 0)
+        {
+            ClearSpannable();
+            return;
+        }
+
+        // 在本地 wordTimestamps 列表中查找当前字索引（支持自动拆字生成的时序）
+        var wordIdx = -1;
+        for (int i = wordTimestamps.Count - 1; i >= 0; i--)
+        {
+            if (wordTimestamps[i].Start <= CurrentPosition)
+            { wordIdx = i; break; }
+        }
+        if (wordIdx == _lastWordIndex) return;
+        _lastWordIndex = wordIdx;
+
+        var ss = new SpannableString(text);
+        if (wordIdx >= 0 && wordIdx < wordTimestamps.Count)
+        {
+            var wt = wordTimestamps[wordIdx];
+            var wordStart = 0;
+            for (int i = 0; i < wordIdx; i++)
+                wordStart += wordTimestamps[i].Word.Length;
+            var wordEnd = Math.Min(wordStart + wt.Word.Length, text.Length);
+
+            if (wordEnd > wordStart)
+            {
+                var accentColor = GetThemeAccentColor();
+                ss.SetSpan(new ForegroundColorSpan(accentColor), wordStart, wordEnd, SpanTypes.ExclusiveExclusive);
+                ss.SetSpan(new StyleSpan(Android.Graphics.TypefaceStyle.Bold), wordStart, wordEnd, SpanTypes.ExclusiveExclusive);
+            }
+        }
+        CurrentLyricSpannable = ss;
+        OnPropertyChanged(nameof(CurrentLyricSpannable));
+    }
+
+    /// <summary>清除逐字高亮状态</summary>
+    private void ClearSpannable()
+    {
+        _lastWordIndex = -2;
+        if (CurrentLyricSpannable != null)
+        {
+            CurrentLyricSpannable = null;
+            OnPropertyChanged(nameof(CurrentLyricSpannable));
+        }
+    }
+
+    /// <summary>
+    /// 获取当前歌词行的持续时间（下一行时间 - 本行时间，最后一行默认 5 秒）
+    /// </summary>
+    private static TimeSpan GetLineDuration(List<LrcLyricLine> lines, int idx)
+    {
+        if (idx + 1 < lines.Count)
+        {
+            var gap = lines[idx + 1].Timestamp - lines[idx].Timestamp;
+            if (gap.TotalSeconds > 0 && gap.TotalSeconds < 30)
+                return gap;
+        }
+        return TimeSpan.FromSeconds(5);
+    }
+
+    /// <summary>
+    /// 将文本自动按字符拆分，均匀分配时间戳
+    /// 中文字/英文单词各占一个单位，跳过空格/标点
+    /// </summary>
+    private static List<WordTimestamp> AutoSplitText(string text, TimeSpan startTime, TimeSpan duration)
+    {
+        var result = new List<WordTimestamp>();
+
+        // 提取有效字符单元：中文字单独拆分，英文/数字按词拆分
+        var units = new List<string>();
+        var currentWord = "";
+        foreach (var ch in text)
+        {
+            if (ch >= 0x4E00 && ch <= 0x9FFF || ch >= 0x3400 && ch <= 0x4DBF)
+            {
+                // 中文字
+                if (currentWord.Length > 0)
+                {
+                    units.Add(currentWord);
+                    currentWord = "";
+                }
+                units.Add(ch.ToString());
+            }
+            else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
+            {
+                if (currentWord.Length > 0)
+                {
+                    units.Add(currentWord);
+                    currentWord = "";
+                }
+            }
+            else if (char.IsLetterOrDigit(ch))
+            {
+                currentWord += ch;
+            }
+            else
+            {
+                if (currentWord.Length > 0)
+                {
+                    units.Add(currentWord);
+                    currentWord = "";
+                }
+                units.Add(ch.ToString());
+            }
+        }
+        if (currentWord.Length > 0)
+            units.Add(currentWord);
+
+        if (units.Count == 0)
+            return result;
+
+        var perUnit = TimeSpan.FromTicks(duration.Ticks / units.Count);
+        for (int i = 0; i < units.Count; i++)
+        {
+            result.Add(new WordTimestamp
+            {
+                Word = units[i],
+                Start = startTime + TimeSpan.FromTicks(perUnit.Ticks * i),
+                Duration = i + 1 < units.Count ? perUnit : duration - TimeSpan.FromTicks(perUnit.Ticks * i)
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>获取当前主题色，用于逐字高亮</summary>
+    private static Android.Graphics.Color GetThemeAccentColor()
+    {
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            var typedValue = new Android.Util.TypedValue();
+            if (ctx.Theme?.ResolveAttribute(Resource.Attribute.catClawAccentColor, typedValue, true) == true)
+                return new Android.Graphics.Color(typedValue.Data);
+        }
+        catch { }
+        return Android.Graphics.Color.ParseColor("#FF80AB");
+    }
 
     /// <summary>
     /// 当前播放位置（秒），设置时会触发Seek操作
@@ -417,6 +595,7 @@ public partial class NowPlayingViewModel : ObservableObject
                     NextLyricLine2 = idx + 2 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 2].Text : "";
                     CurrentLyricLine = CurrentLyrics.Lines[idx].Text; // 最后设，触发 UI 刷新
                     CurrentLyricIndex = idx;
+                    UpdateLyricSpannable(); // 更新逐字高亮
                 }
             }
             _isPositionUpdating = false;

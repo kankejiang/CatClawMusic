@@ -26,4 +26,9 @@ public interface ILyricsService
     /// 根据播放位置获取当前歌词行索引
     /// </summary>
     int GetCurrentLyricIndex(LrcLyrics? lyrics, TimeSpan position);
+
+    /// <summary>
+    /// 根据播放位置获取当前行内的逐字歌词索引（-1 表示无逐字数据）
+    /// </summary>
+    int GetCurrentWordIndex(LrcLyricLine? line, TimeSpan position);
 }

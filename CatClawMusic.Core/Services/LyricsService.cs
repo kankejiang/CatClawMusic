@@ -15,6 +15,8 @@ public class LyricsService : ILyricsService
 
     /// <summary>时间戳正则 [mm:ss.xx]</summary>
     private static readonly Regex TimeRegex = new(@"\[(\d+):(\d+)(?:\.(\d+))?\]", RegexOptions.Compiled);
+    /// <summary>逐字时间戳正则 &lt;mm:ss.xx&gt;</summary>
+    private static readonly Regex WordTimeRegex = new(@"<(\d+):(\d+)(?:\.(\d+))?>", RegexOptions.Compiled);
     /// <summary>元数据标签正则 [ti:...] 等</summary>
     private static readonly Regex TagRegex = new(@"\[(ti|ar|al|by|re|ve):(.+)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     /// <summary>文件扩展名正则</summary>
@@ -212,10 +214,14 @@ public class LyricsService : ILyricsService
 
                 var timestamp = new TimeSpan(0, 0, minutes, seconds, millis);
 
+                // 解析逐字时间戳（如果有 <mm:ss.xx>word 格式）
+                var wordTimestamps = ParseWordTimestamps(text, timestamp);
+
                 lyrics.Lines.Add(new LrcLyricLine
                 {
                     Timestamp = timestamp,
-                    Text = text
+                    Text = wordTimestamps != null ? string.Join("", wordTimestamps.Select(w => w.Word)) : text,
+                    WordTimestamps = wordTimestamps
                 });
             }
         }
@@ -244,5 +250,78 @@ public class LyricsService : ILyricsService
                 hi = mid - 1;
         }
         return hi;
+    }
+
+    /// <summary>
+    /// 根据播放位置获取当前行内的逐字歌词索引（遍历查找，O(n)）
+    /// </summary>
+    /// <returns>当前高亮字的索引，-1 表示无逐字数据</returns>
+    public int GetCurrentWordIndex(LrcLyricLine? line, TimeSpan position)
+    {
+        if (line?.WordTimestamps == null || line.WordTimestamps.Count == 0) return -1;
+        for (int i = line.WordTimestamps.Count - 1; i >= 0; i--)
+        {
+            if (line.WordTimestamps[i].Start <= position)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// 解析行内逐字时间戳（格式：&lt;mm:ss.xx&gt;word &lt;mm:ss.xx&gt;word ...）
+    /// </summary>
+    private List<WordTimestamp>? ParseWordTimestamps(string text, TimeSpan lineTimestamp)
+    {
+        if (string.IsNullOrEmpty(text)) return null;
+
+        var matches = WordTimeRegex.Matches(text);
+        if (matches.Count == 0) return null;
+
+        var result = new List<WordTimestamp>();
+        var lastIndex = 0;
+
+        for (int i = 0; i < matches.Count; i++)
+        {
+            var m = matches[i];
+            var wordStart = m.Index + m.Length;
+            var nextTagIndex = i + 1 < matches.Count ? matches[i + 1].Index : text.Length;
+            var word = text.Substring(wordStart, nextTagIndex - wordStart).Trim();
+
+            if (string.IsNullOrEmpty(word)) continue;
+
+            var minutes = int.Parse(m.Groups[1].Value);
+            var seconds = int.Parse(m.Groups[2].Value);
+            var millis = m.Groups[3].Success
+                ? int.Parse(m.Groups[3].Value.PadRight(3, '0').Substring(0, 3))
+                : 0;
+            var start = new TimeSpan(0, 0, minutes, seconds, millis);
+
+            TimeSpan duration;
+            if (i + 1 < matches.Count)
+            {
+                var nextM = matches[i + 1];
+                var nm = int.Parse(nextM.Groups[1].Value);
+                var ns = int.Parse(nextM.Groups[2].Value);
+                var nms = nextM.Groups[3].Success
+                    ? int.Parse(nextM.Groups[3].Value.PadRight(3, '0').Substring(0, 3))
+                    : 0;
+                var nextStart = new TimeSpan(0, 0, nm, ns, nms);
+                duration = nextStart - start;
+            }
+            else
+            {
+                duration = TimeSpan.FromMilliseconds(500);
+            }
+
+            result.Add(new WordTimestamp
+            {
+                Word = word,
+                Start = start,
+                Duration = duration
+            });
+            lastIndex = nextTagIndex;
+        }
+
+        return result.Count > 0 ? result : null;
     }
 }
