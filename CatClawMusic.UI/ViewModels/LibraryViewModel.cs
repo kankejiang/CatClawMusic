@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Android.Content;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Platforms.Android;
@@ -37,7 +38,9 @@ public partial class LibraryViewModel : ObservableObject
     public List<CoreModels.ProtocolType> ProtocolTypes { get; } = new();
 
     private bool _hasLoadedLocal;
-    private bool _suppressCollectionChanged; // 批量添加时抑制逐首通知
+    private bool _suppressCollectionChanged;
+    private const string PrefKey = "library_state";
+    private const string PrefProtocolIndex = "protocol_index";
 
     /// <summary>
     /// 初始化音乐库ViewModel，设置协议选项
@@ -51,11 +54,21 @@ public partial class LibraryViewModel : ObservableObject
         _database = database;
         _dispatcher = dispatcher!;
 
-        // 初始化协议选项
         ProtocolOptions.Add("WebDAV");
         ProtocolTypes.Add(CoreModels.ProtocolType.WebDAV);
         ProtocolOptions.Add("Navidrome");
         ProtocolTypes.Add(CoreModels.ProtocolType.Navidrome);
+
+#if ANDROID
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
+            _selectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
+            if (_selectedProtocolIndex >= ProtocolTypes.Count) _selectedProtocolIndex = 0;
+        }
+        catch { }
+#endif
     }
 
     /// <summary>批量添加歌曲到 Songs，减少 CollectionChanged 触发次数</summary>
@@ -383,5 +396,18 @@ public partial class LibraryViewModel : ObservableObject
     private List<string>? GetCustomFolders()
     {
         return CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUris();
+    }
+
+    partial void OnSelectedProtocolIndexChanged(int value)
+    {
+#if ANDROID
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
+            prefs.Edit().PutInt(PrefProtocolIndex, value).Apply();
+        }
+        catch { }
+#endif
     }
 }
