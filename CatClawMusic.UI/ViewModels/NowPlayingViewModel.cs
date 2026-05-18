@@ -110,17 +110,16 @@ public partial class NowPlayingViewModel : ObservableObject
         var ss = new SpannableString(text);
         if (wordIdx >= 0 && wordIdx < wordTimestamps.Count)
         {
-            var wt = wordTimestamps[wordIdx];
-            var wordStart = 0;
-            for (int i = 0; i < wordIdx; i++)
-                wordStart += wordTimestamps[i].Word.Length;
-            var wordEnd = Math.Min(wordStart + wt.Word.Length, text.Length);
+            // 累积高亮：从第一个字到当前字全部着色为当前主题色
+            var highlightedLength = 0;
+            for (int i = 0; i <= wordIdx; i++)
+                highlightedLength += wordTimestamps[i].Word.Length;
 
-            if (wordEnd > wordStart)
+            if (highlightedLength > 0 && highlightedLength <= text.Length)
             {
                 var accentColor = GetThemeAccentColor();
-                ss.SetSpan(new ForegroundColorSpan(accentColor), wordStart, wordEnd, SpanTypes.ExclusiveExclusive);
-                ss.SetSpan(new StyleSpan(Android.Graphics.TypefaceStyle.Bold), wordStart, wordEnd, SpanTypes.ExclusiveExclusive);
+                ss.SetSpan(new ForegroundColorSpan(accentColor), 0, highlightedLength, SpanTypes.ExclusiveExclusive);
+                ss.SetSpan(new RelativeSizeSpan(1.12f), 0, highlightedLength, SpanTypes.ExclusiveExclusive);
             }
         }
         CurrentLyricSpannable = ss;

@@ -85,13 +85,13 @@
                 android:lineSpacingMultiplier="1.7" android:alpha="0.55" />
         </LinearLayout>
 
-        <!-- 控制区：白色毛玻璃卡片，无阴影 -->
+        <!-- 控制区 -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginHorizontal="12dp" android:layout_marginBottom="16dp"
             app:cardCornerRadius="24dp" app:cardElevation="0dp"
-            app:strokeColor="#30FFFFFF" app:strokeWidth="1dp"
-            app:cardBackgroundColor="#22FFFFFF">
+            app:strokeColor="#10FFFFFF" app:strokeWidth="1dp"
+            app:cardBackgroundColor="#33000000">
 
             <LinearLayout android:id="@+id/controls_area"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -103,20 +103,21 @@
                     android:orientation="horizontal" android:gravity="center_vertical">
                     <TextView android:id="@+id/time_current" android:layout_width="36dp"
                         android:layout_height="wrap_content" android:text="0:00"
-                        android:textColor="#B0FFFFFF" android:textSize="11sp"
+                        android:textColor="#DDFFFFFF" android:textSize="11sp"
                         android:gravity="center" />
                     <com.google.android.material.slider.Slider
                         android:id="@+id/progress_slider"
                         android:layout_width="0dp" android:layout_height="wrap_content"
                         android:layout_weight="1" android:layout_marginHorizontal="8dp"
                         android:valueFrom="0" android:valueTo="100" android:value="0"
-                        app:thumbColor="#9B7ED8"
+                        android:thumb="@drawable/slider_thumb"
+                        app:haloColor="#309B7ED8"
                         app:trackColorActive="#9B7ED8"
                         app:trackColorInactive="#30FFFFFF"
-                        app:thumbRadius="8dp" app:trackHeight="2dp" />
+                        app:trackHeight="3dp" />
                     <TextView android:id="@+id/time_total" android:layout_width="36dp"
                         android:layout_height="wrap_content" android:text="0:00"
-                        android:textColor="#B0FFFFFF" android:textSize="11sp"
+                        android:textColor="#DDFFFFFF" android:textSize="11sp"
                         android:gravity="center" />
                 </LinearLayout>
 
@@ -126,7 +127,7 @@
                     <ImageButton android:id="@+id/btn_playlist" android:layout_width="28dp"
                         android:layout_height="28dp" android:src="@drawable/ic_playlist"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:tint="#A0FFFFFF" android:padding="2dp" />
+                        android:tint="#D0FFFFFF" android:padding="2dp" />
                 </LinearLayout>
 
                 <!-- 控制按钮 -->
@@ -137,7 +138,7 @@
                     <ImageButton android:id="@+id/btn_like" android:layout_width="44dp"
                         android:layout_height="44dp" android:src="@drawable/ic_favorite_border"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:layout_marginEnd="4dp" android:tint="#C0FFFFFF" />
+                        android:layout_marginEnd="4dp" android:tint="#EEFFFF" />
 
                     <ImageButton android:id="@+id/btn_prev" android:layout_width="48dp"
                         android:layout_height="48dp" android:src="@drawable/ic_skip_previous"
@@ -158,7 +159,7 @@
                     <ImageButton android:id="@+id/btn_mode_cycle" android:layout_width="44dp"
                         android:layout_height="44dp" android:src="@drawable/ic_repeat"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:layout_marginStart="4dp" android:tint="#C0FFFFFF" />
+                        android:layout_marginStart="4dp" android:tint="#EEFFFF" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
