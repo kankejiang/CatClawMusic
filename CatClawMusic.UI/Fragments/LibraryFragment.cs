@@ -61,11 +61,14 @@ public class LibraryFragment : Fragment
         _adapter.SongLongClicked += OnSongLongClicked;
         _songList.SetAdapter(_adapter);
 
-        // 初始化 Spinner
+        // 初始化 Spinner，先同步 ViewModel 已恢复的协议选择再绑定事件
+        // 顺序很重要：如果 ItemSelected 事件先于 SetSelection 绑定，
+        // Spinner 默认 position=0 的事件会将 ViewModel 中已恢复的正确值覆盖
         _protocolAdapter = new ArrayAdapter<string>(Context!,
             Android.Resource.Layout.SimpleSpinnerItem, _viewModel.ProtocolOptions);
         _protocolAdapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
         _protocolSpinner.Adapter = _protocolAdapter;
+        _protocolSpinner.SetSelection(_viewModel.SelectedProtocolIndex);
         _protocolSpinner.ItemSelected += OnProtocolSelected;
 
         _btnLocal.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Local");

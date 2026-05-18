@@ -421,6 +421,7 @@ public partial class NowPlayingViewModel : ObservableObject
             }
             _isPositionUpdating = false;
             // 每 ~5 秒保存一次播放位置（200ms 定时器 × 25）
+            // 传入 CurrentSong 以保存 Source/RemoteId，解决网络歌曲 URL 动态 token 导致恢复失败的问题
             if (++_saveCounter % 25 == 0)
                 CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer, CurrentSong);
         });

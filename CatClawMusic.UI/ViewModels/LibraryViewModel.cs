@@ -39,11 +39,13 @@ public partial class LibraryViewModel : ObservableObject
 
     private bool _hasLoadedLocal;
     private bool _suppressCollectionChanged;
+    /// <summary>SharedPreferences 键名，用于持久化音乐库界面状态</summary>
     private const string PrefKey = "library_state";
+    /// <summary>协议选择索引（0=WebDAV, 1=Navidrome）</summary>
     private const string PrefProtocolIndex = "protocol_index";
 
     /// <summary>
-    /// 初始化音乐库ViewModel，设置协议选项
+    /// 初始化音乐库ViewModel，设置协议选项并恢复上次保存的协议偏好
     /// </summary>
     public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null,
         IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null, MusicDatabase? database = null)
@@ -59,12 +61,14 @@ public partial class LibraryViewModel : ObservableObject
         ProtocolOptions.Add("Navidrome");
         ProtocolTypes.Add(CoreModels.ProtocolType.Navidrome);
 
+        // 从 SharedPreferences 恢复上次选择的协议，避免每次启动重置为 WebDAV
 #if ANDROID
         try
         {
             var ctx = global::Android.App.Application.Context;
             var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
             _selectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
+            // 安全边界：防止存储的索引超出当前协议列表范围
             if (_selectedProtocolIndex >= ProtocolTypes.Count) _selectedProtocolIndex = 0;
         }
         catch { }
@@ -398,6 +402,9 @@ public partial class LibraryViewModel : ObservableObject
         return CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUris();
     }
 
+    /// <summary>
+    /// 协议选择变化时自动持久化到 SharedPreferences，确保下次启动恢复选择
+    /// </summary>
     partial void OnSelectedProtocolIndexChanged(int value)
     {
 #if ANDROID
