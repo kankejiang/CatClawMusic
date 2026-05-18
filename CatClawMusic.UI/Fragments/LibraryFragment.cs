@@ -1,6 +1,8 @@
 using System.Collections.Specialized;
 using Android.OS;
+using Android.Text;
 using Android.Views;
+using Android.Views.InputMethods;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
@@ -28,6 +30,7 @@ public class LibraryFragment : Fragment
     private LinearLayout _networkProtocolRow = null!;
     private Spinner _protocolSpinner = null!;
     private ArrayAdapter<string>? _protocolAdapter = null!;
+    private EditText _searchBox = null!;
     private SongAdapter _adapter = null!;
 
     /// <summary>
@@ -53,6 +56,7 @@ public class LibraryFragment : Fragment
         _btnLocal = view.FindViewById<Button>(Resource.Id.btn_local)!;
         _btnNetwork = view.FindViewById<Button>(Resource.Id.btn_network)!;
         _btnRefresh = view.FindViewById<ImageButton>(Resource.Id.btn_refresh)!;
+        _searchBox = view.FindViewById<EditText>(Resource.Id.search_box)!;
         _networkProtocolRow = view.FindViewById<LinearLayout>(Resource.Id.network_protocol_row)!;
         _protocolSpinner = view.FindViewById<Spinner>(Resource.Id.spinner_protocol)!;
 
@@ -70,6 +74,22 @@ public class LibraryFragment : Fragment
         _protocolSpinner.Adapter = _protocolAdapter;
         _protocolSpinner.SetSelection(_viewModel.SelectedProtocolIndex);
         _protocolSpinner.ItemSelected += OnProtocolSelected;
+
+        // 搜索框文本变化时同步到 ViewModel，由 OnSearchQueryChanged 触发列表过滤
+        _searchBox.TextChanged += (s, e) =>
+        {
+            _viewModel.SearchQuery = e.Text?.ToString() ?? "";
+        };
+        // 键盘搜索键：收起键盘
+        _searchBox.EditorAction += (s, e) =>
+        {
+            if (e.ActionId == Android.Views.InputMethods.ImeAction.Search)
+            {
+                var imm = (InputMethodManager?)Context?.GetSystemService(
+                    Android.Content.Context.InputMethodService);
+                imm?.HideSoftInputFromWindow(_searchBox.WindowToken, 0);
+            }
+        };
 
         _btnLocal.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Local");
         _btnNetwork.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Network");
@@ -90,6 +110,15 @@ public class LibraryFragment : Fragment
 
         _viewModel.Songs.CollectionChanged += OnSongsCollectionChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+        // 搜索过滤变化时全量刷新列表
+        _viewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(_viewModel.FilteredSongs))
+            {
+                Activity?.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.FilteredSongs));
+            }
+        };
 
         UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, true);
         UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, false);
@@ -151,12 +180,19 @@ public class LibraryFragment : Fragment
     }
 
     /// <summary>
-    /// 歌曲列表集合变化时增量更新适配器
+    /// 歌曲列表集合变化时增量更新适配器，有搜索过滤时使用过滤结果
     /// </summary>
     private void OnSongsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         var a = Activity;
         if (a == null) return;
+
+        // 搜索激活时使用过滤列表全量刷新，确保显示正确
+        if (!string.IsNullOrWhiteSpace(_viewModel.SearchQuery))
+        {
+            a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.FilteredSongs));
+            return;
+        }
 
         switch (e.Action)
         {
@@ -173,7 +209,6 @@ public class LibraryFragment : Fragment
                 break;
 
             case NotifyCollectionChangedAction.Remove:
-                // 简单处理：删除后全量刷新
                 a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
                 break;
 

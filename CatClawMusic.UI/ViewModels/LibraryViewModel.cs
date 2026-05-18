@@ -33,9 +33,21 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string _scanStatus = "";
     [ObservableProperty] private bool _isScanning;
     [ObservableProperty] private int _selectedProtocolIndex = 0;
+    [ObservableProperty] private string _searchQuery = "";
 
     public ObservableCollection<string> ProtocolOptions { get; } = new();
     public List<CoreModels.ProtocolType> ProtocolTypes { get; } = new();
+
+    /// <summary>
+    /// 根据搜索框关键字过滤后的歌曲列表，空关键字时返回全部
+    /// </summary>
+    public List<CoreModels.Song> FilteredSongs => string.IsNullOrWhiteSpace(_searchQuery)
+        ? Songs.ToList()
+        : Songs.Where(s =>
+            (s.Title?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) == true) ||
+            (s.Artist?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) == true) ||
+            (s.Album?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) == true)
+        ).ToList();
 
     private bool _hasLoadedLocal;
     private bool _suppressCollectionChanged;
@@ -417,4 +429,9 @@ public partial class LibraryViewModel : ObservableObject
         catch { }
 #endif
     }
+
+    /// <summary>
+    /// 搜索关键字变化时通知 UI 刷新过滤后的歌曲列表
+    /// </summary>
+    partial void OnSearchQueryChanged(string value) => OnPropertyChanged(nameof(FilteredSongs));
 }
