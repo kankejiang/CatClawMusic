@@ -17,19 +17,20 @@
 
         <!-- 专辑封面区域：撑满上半部分 -->
         <FrameLayout android:layout_width="match_parent" android:layout_height="0dp"
-            android:layout_weight="1.7" android:gravity="center"
-            android:paddingHorizontal="32dp" android:paddingTop="20dp"
-            android:paddingBottom="8dp">
+            android:layout_weight="2.2" android:gravity="center"
+            android:paddingHorizontal="24dp" android:paddingTop="16dp"
+            android:paddingBottom="4dp">
 
             <!-- 封面发光效果 -->
-            <View android:id="@+id/cover_glow" android:layout_width="280dp"
-                android:layout_height="280dp" android:layout_gravity="center"
-                android:alpha="0.25" />
+            <View android:id="@+id/cover_glow" android:layout_width="match_parent"
+                android:layout_height="match_parent" android:layout_gravity="center"
+                android:alpha="0.20" />
 
             <com.google.android.material.card.MaterialCardView
-                android:layout_width="260dp" android:layout_height="260dp"
+                android:layout_width="match_parent" android:layout_height="match_parent"
                 android:layout_gravity="center"
-                app:cardCornerRadius="24dp" app:cardElevation="8dp"
+                android:layout_margin="12dp"
+                app:cardCornerRadius="20dp" app:cardElevation="8dp"
                 app:cardBackgroundColor="@android:color/transparent"
                 app:strokeWidth="0dp">
                 <ImageView android:id="@+id/album_cover" android:layout_width="match_parent"
@@ -100,15 +101,15 @@
                 android:shadowColor="#40000000" android:shadowRadius="2" />
         </LinearLayout>
 
-        <!-- 控制区域 -->
+        <!-- 控制区域：半透明 -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/controls_card"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginHorizontal="16dp" android:layout_marginBottom="16dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="2dp"
             app:cardCornerRadius="20dp" app:cardElevation="2dp"
-            app:strokeColor="#20FFFFFF" app:strokeWidth="1dp"
-            app:cardBackgroundColor="#CC1A1128">
+            app:strokeColor="#18FFFFFF" app:strokeWidth="1dp"
+            app:cardBackgroundColor="#4D1A1128">
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:paddingHorizontal="20dp"

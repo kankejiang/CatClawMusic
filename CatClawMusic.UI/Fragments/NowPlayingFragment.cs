@@ -159,12 +159,11 @@ public class NowPlayingFragment : Fragment
             var g = Android.Graphics.Color.GetGreenComponent(color1);
             var b = Android.Graphics.Color.GetBlueComponent(color1);
             var glowColor = Android.Graphics.Color.Argb(50, r, g, b);
-            var glowRadius = 140f;
             var glow = new GradientDrawable(
                 GradientDrawable.Orientation.TlBr,
                 new int[] { glowColor, glowColor });
             glow.SetGradientType(GradientType.RadialGradient);
-            glow.SetGradientRadius(glowRadius);
+            glow.SetGradientRadius(240f);
             _coverGlow.Background = glow;
         }
     }
