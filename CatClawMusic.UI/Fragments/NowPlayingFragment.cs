@@ -1,4 +1,5 @@
 using Android.App;
+using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.OS;
 using Android.Views;
@@ -6,6 +7,7 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using GoogleSlider = Google.Android.Material.Slider.Slider;
@@ -25,6 +27,7 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
     private GoogleSlider _progressSlider = null!;
+    private View _gradientBackground = null!, _coverGlow = null!;
 
     /// <summary>
     /// 创建正在播放视图
@@ -58,6 +61,8 @@ public class NowPlayingFragment : Fragment
         _btnModeCycle = view.FindViewById<ImageButton>(Resource.Id.btn_mode_cycle)!;
         _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
+        _gradientBackground = view.FindViewById<View>(Resource.Id.gradient_background)!;
+        _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
@@ -104,8 +109,96 @@ public class NowPlayingFragment : Fragment
     }
 
     /// <summary>
-    /// 从ViewModel同步所有UI状态（封面、标题、艺术家、时间、歌词等）
+    /// 从封面文件提取主色调并更新渐变背景和发光效果
     /// </summary>
+    private void UpdateGradientBackground()
+    {
+        if (_gradientBackground == null) return;
+
+        var coverPath = _viewModel.CoverSource;
+        if (string.IsNullOrEmpty(coverPath) || !System.IO.File.Exists(coverPath))
+        {
+            // 无封面时恢复默认背景
+            ApplyDefaultBackground();
+            return;
+        }
+
+        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                var colors = CoverColorExtractor.ExtractFromFile(coverPath);
+                if (colors.Count == 0) return;
+
+                Activity?.RunOnUiThread(() => ApplyColorsToBackground(colors));
+            }
+            catch { }
+        });
+    }
+
+    /// <summary>
+    /// 将提取的颜色应用到渐变背景和封面发光视图
+    /// </summary>
+    private void ApplyColorsToBackground(List<int> colors)
+    {
+        if (_gradientBackground == null || colors.Count == 0) return;
+
+        var color1 = colors[0];
+        var color2 = colors.Count > 1 ? colors[1] : DarkenColorInt(color1, 0.7f);
+        var color3 = colors.Count > 2 ? colors[2] : DarkenColorInt(color1, 0.4f);
+
+        var gradient = new GradientDrawable(
+            GradientDrawable.Orientation.TlBr,
+            new int[] { color1, color2, color3 });
+        gradient.SetGradientType(GradientType.LinearGradient);
+        _gradientBackground.Background = gradient;
+
+        if (_coverGlow != null)
+        {
+            var r = Android.Graphics.Color.GetRedComponent(color1);
+            var g = Android.Graphics.Color.GetGreenComponent(color1);
+            var b = Android.Graphics.Color.GetBlueComponent(color1);
+            var glowColor = Android.Graphics.Color.Argb(50, r, g, b);
+            var glowRadius = 140f;
+            var glow = new GradientDrawable(
+                GradientDrawable.Orientation.TlBr,
+                new int[] { glowColor, glowColor });
+            glow.SetGradientType(GradientType.RadialGradient);
+            glow.SetGradientRadius(glowRadius);
+            _coverGlow.Background = glow;
+        }
+    }
+
+    /// <summary>
+    /// 恢复默认深色背景
+    /// </summary>
+    private void ApplyDefaultBackground()
+    {
+        if (_gradientBackground == null) return;
+        var gradient = new GradientDrawable(
+            GradientDrawable.Orientation.TlBr,
+            new int[] {
+                Android.Graphics.Color.ParseColor("#1A1128"),
+                Android.Graphics.Color.ParseColor("#0E0818"),
+                Android.Graphics.Color.ParseColor("#1A1128")
+            });
+        gradient.SetGradientType(GradientType.LinearGradient);
+        _gradientBackground.Background = gradient;
+
+        if (_coverGlow != null)
+            _coverGlow.Background = null;
+    }
+
+    /// <summary>
+    /// 将颜色 int 值变暗指定倍率
+    /// </summary>
+    private static int DarkenColorInt(int color, float factor)
+    {
+        return Android.Graphics.Color.Rgb(
+            (int)(Android.Graphics.Color.GetRedComponent(color) * factor),
+            (int)(Android.Graphics.Color.GetGreenComponent(color) * factor),
+            (int)(Android.Graphics.Color.GetBlueComponent(color) * factor));
+    }
     private void SyncUIFromViewModel()
     {
         try
@@ -121,7 +214,10 @@ public class NowPlayingFragment : Fragment
             }
 
             if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+            {
                 _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
+                UpdateGradientBackground();
+            }
             else
                 _albumCover.SetImageResource(Resource.Drawable.cover_default);
             _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
@@ -168,7 +264,10 @@ public class NowPlayingFragment : Fragment
             {
                 case nameof(_viewModel.CoverSource):
                     if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+                    {
                         _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
+                        UpdateGradientBackground();
+                    }
                     else
                         _albumCover.SetImageResource(Resource.Drawable.cover_default);
                     break;

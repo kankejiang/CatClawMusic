@@ -41,12 +41,12 @@ public partial class LibraryViewModel : ObservableObject
     /// <summary>
     /// 根据搜索框关键字过滤后的歌曲列表，空关键字时返回全部
     /// </summary>
-    public List<CoreModels.Song> FilteredSongs => string.IsNullOrWhiteSpace(_searchQuery)
+    public List<CoreModels.Song> FilteredSongs => string.IsNullOrWhiteSpace(SearchQuery)
         ? Songs.ToList()
         : Songs.Where(s =>
-            (s.Title?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) == true) ||
-            (s.Artist?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) == true) ||
-            (s.Album?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) == true)
+            (s.Title?.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) == true) ||
+            (s.Artist?.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) == true) ||
+            (s.Album?.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) == true)
         ).ToList();
 
     private bool _hasLoadedLocal;
