@@ -4,6 +4,7 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.ViewModels;
+using System.Linq;
 
 namespace CatClawMusic.UI.Services;
 
@@ -18,6 +19,8 @@ public static class PlaybackStateManager
     private const string PrefSongSource = "song_source";
     /// <summary>网络歌曲远程唯一标识（RemoteId），避免带动态 token 的 URL 无法匹配</summary>
     private const string PrefSongRemoteId = "song_remote_id";
+    /// <summary>远程协议类型（ProtocolType 枚举值），用于恢复时重新生成 stream URL</summary>
+    private const string PrefSongProtocol = "song_protocol";
 
     /// <summary>获取 SharedPreferences 实例</summary>
     private static ISharedPreferences? GetPrefs()
@@ -28,7 +31,7 @@ public static class PlaybackStateManager
 
     /// <summary>保存当前播放歌曲路径、来源和播放位置</summary>
     /// <param name="player">播放器实例</param>
-    /// <param name="currentSong">当前歌曲对象，用于保存 Source 和 RemoteId 以支持网络歌曲恢复</param>
+    /// <param name="currentSong">当前歌曲对象，用于保存 Source、RemoteId 和 Protocol 以支持网络歌曲恢复</param>
     public static void Save(IAudioPlayerService player, Song? currentSong = null)
     {
         var prefs = GetPrefs();
@@ -40,9 +43,9 @@ public static class PlaybackStateManager
         {
             editor.PutString(PrefSongPath, song);
             editor.PutFloat(PrefPosition, (float)player.CurrentPosition.TotalSeconds);
-            // 同时保存歌曲来源和远程ID，避免网络歌曲的带 token URL 下次无法匹配
             editor.PutInt(PrefSongSource, currentSong != null ? (int)currentSong.Source : (int)SongSource.Local);
             editor.PutString(PrefSongRemoteId, currentSong?.RemoteId ?? "");
+            editor.PutInt(PrefSongProtocol, currentSong != null ? (int)currentSong.Protocol : (int)ProtocolType.WebDAV);
             editor.Apply();
         }
     }
@@ -99,7 +102,6 @@ public static class PlaybackStateManager
         var savedMode = prefs.GetInt(PrefPlayMode, (int)PlayMode.ListRepeat);
         queue.PlayMode = (PlayMode)savedMode;
         vm.SyncPlayMode();
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] RestorePrefs: path={(path?.Substring(0, Math.Min(50, path?.Length ?? 0)) ?? "null")}, mode={savedMode}");
     }
 
     /// <summary>异步恢复上次播放状态：加载歌曲、恢复队列和播放模式、Seek 到上次位置</summary>
@@ -108,8 +110,10 @@ public static class PlaybackStateManager
     ///   1. 有 Source+RemoteId → 按 RemoteId 精确匹配（网络歌曲，绕过动态 token）
     ///   2. song_path 是 HTTP URL → 兼容旧数据，尝试从 URL 提取 id 参数匹配 RemoteId
     ///   3. 其他 → 按 FilePath 精确匹配（本地文件）
+    /// 网络歌曲恢复时会重新生成新鲜的 stream URL，避免旧 URL 中 token 过期导致播放失败
     /// </remarks>
-    public static async Task RestoreAsync(IAudioPlayerService player, MusicDatabase db, PlayQueue queue, NowPlayingViewModel vm)
+    public static async Task RestoreAsync(IAudioPlayerService player, MusicDatabase db, PlayQueue queue, NowPlayingViewModel vm,
+        INetworkMusicService? networkMusic = null, ISubsonicService? subsonic = null)
     {
         var prefs = GetPrefs();
         if (prefs == null) return;
@@ -117,22 +121,23 @@ public static class PlaybackStateManager
         if (string.IsNullOrEmpty(path)) return;
 
         var position = TimeSpan.FromSeconds(prefs.GetFloat(PrefPosition, 0));
-        // 读取上次退出时保存的歌曲来源和远程唯一标识
         var savedSource = (SongSource)prefs.GetInt(PrefSongSource, (int)SongSource.Local);
         var savedRemoteId = prefs.GetString(PrefSongRemoteId, null);
+        var savedProtocol = (ProtocolType)prefs.GetInt(PrefSongProtocol, (int)ProtocolType.WebDAV);
 
+        vm.BeginRestore();
         try
         {
-            var songs = await db.GetSongsAsync();
+            await db.EnsureInitializedAsync();
+            var localSongs = await db.GetSongsAsync();
+            var networkSongs = await db.GetCachedNetworkSongsAsync();
+            var songs = localSongs.Concat(networkSongs).ToList();
             Song? song;
 
-            // 策略1：网络歌曲 + 有 RemoteId → 精确匹配，绕过 URL 动态 token 问题
             if (savedSource == SongSource.WebDAV && !string.IsNullOrEmpty(savedRemoteId))
             {
                 song = songs.FirstOrDefault(s => s.Source == SongSource.WebDAV && s.RemoteId == savedRemoteId);
             }
-            // 策略2：旧数据兼容 —— song_path 是 HTTP URL 但没有 Source/RemoteId 字段
-            // 从 URL 中提取 id 参数作为 RemoteId 进行匹配
             else if (path.StartsWith("http://") || path.StartsWith("https://"))
             {
                 var idParam = ExtractQueryParam(path, "id");
@@ -142,13 +147,17 @@ public static class PlaybackStateManager
                 else
                     song = songs.FirstOrDefault(s => s.FilePath == path);
             }
-            // 策略3：本地文件 → 直接按 FilePath 匹配
             else
             {
                 song = songs.FirstOrDefault(s => s.FilePath == path);
             }
 
-            if (song == null) { Clear(); return; }
+            if (song == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[CatClaw] RestoreAsync: 歌曲未在数据库中找到，保留状态等待后续加载");
+                vm.EndRestore();
+                return;
+            }
 
             queue.SetSongs(songs);
             queue.SelectSong(song.Id);
@@ -159,15 +168,49 @@ public static class PlaybackStateManager
             vm.SyncPlayMode();
             vm.CurrentPosition = position;
 
-            await player.PlayAsync(song.FilePath);
-            await Task.Delay(300);
-            await player.PauseAsync();
-            if (position.TotalSeconds > 0)
-                await player.SeekAsync(position);
+            var playUrl = song.FilePath;
+
+            if (savedSource == SongSource.WebDAV && networkMusic != null)
+            {
+                try
+                {
+                    var profiles = await networkMusic.GetProfilesAsync();
+                    var profile = profiles.FirstOrDefault(p => p.Protocol == savedProtocol && p.IsEnabled);
+                    if (profile != null)
+                    {
+                        var freshUrl = await networkMusic.GetStreamUrlAsync(song, profile);
+                        if (!string.IsNullOrEmpty(freshUrl))
+                        {
+                            playUrl = freshUrl;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] RestoreAsync: 生成 stream URL 失败，使用原始路径: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                await player.PlayAsync(playUrl);
+                await Task.Delay(300);
+                await player.PauseAsync();
+                if (position.TotalSeconds > 0)
+                    await player.SeekAsync(position);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] RestoreAsync: 播放恢复失败（静默）: {ex.Message}");
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            Clear();
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] RestoreAsync: 恢复播放状态失败: {ex.Message}");
+        }
+        finally
+        {
+            vm.EndRestore();
         }
     }
 }

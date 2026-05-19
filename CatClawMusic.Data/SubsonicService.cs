@@ -163,7 +163,6 @@ public class SubsonicService : ISubsonicService
                 offset += pageSize;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 共获取 {albums.Count} 张专辑");
             progress?.Report((0, albums.Count, $"共 {albums.Count} 张专辑，开始拉取歌曲..."));
 
             // 2. 逐个专辑获取歌曲（完整元数据）——每处理完一个专辑即回调
@@ -234,7 +233,6 @@ public class SubsonicService : ISubsonicService
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 失败: {ex.GetType().Name}: {ex.Message}");
         }
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 总计返回 {songs.Count} 首歌曲");
         return songs;
     }
 
@@ -307,9 +305,7 @@ public class SubsonicService : ISubsonicService
         {
             // OpenSubsonic: getLyricsBySongId.view
             var url = ApiUrl($"getLyricsBySongId.view?id={HttpUtility.UrlEncode(songId)}", profile);
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics URL: {url}");
             var json = await _http.GetStringAsync(url);
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics 响应: {(json.Length > 300 ? json[..300] : json)}");
             using var doc = JsonDocument.Parse(json);
             var resp = doc.RootElement.GetProperty("subsonic-response");
 
@@ -331,7 +327,6 @@ public class SubsonicService : ISubsonicService
                             lrcBuilder.AppendLine($"[{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}]{text}");
                         }
                         var lrcText = lrcBuilder.ToString();
-                        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics 结构化歌词 {lrcText.Length} 字符");
                         return lrcText;
                     }
                 }
@@ -343,7 +338,6 @@ public class SubsonicService : ISubsonicService
                 lrcById.TryGetProperty("value", out var val))
             {
                 var text = val.GetString();
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics lyricsBySongId {text?.Length ?? 0} 字符");
                 return text;
             }
 

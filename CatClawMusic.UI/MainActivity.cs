@@ -111,7 +111,9 @@ public class MainActivity : AppCompatActivity
         });
         _miniProgressTimer.Start();
         // 后台异步：查找歌曲、恢复播放队列、播放并 seek 到上次位置（无延迟、不阻塞 UI）
-        _ = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm));
+        var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
+        var subsonic = MainApplication.Services.GetService<ISubsonicService>();
+        _ = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm, networkMusic, subsonic));
 
         _toolbar = FindViewById<View>(Resource.Id.toolbar)!;
         _btnMenu = FindViewById<ImageButton>(Resource.Id.btn_menu)!;
@@ -255,6 +257,11 @@ public class MainActivity : AppCompatActivity
     /// <summary>Activity 销毁时停止定时器、取消事件订阅、释放桌面歌词</summary>
     protected override void OnDestroy()
     {
+        var player = MainApplication.Services.GetService<IAudioPlayerService>();
+        var npVm = MainApplication.Services.GetService<NowPlayingViewModel>();
+        if (player != null && npVm != null)
+            PlaybackStateManager.Save(player, npVm.CurrentSong);
+
         _miniProgressTimer?.Stop();
         _miniProgressTimer?.Dispose();
 

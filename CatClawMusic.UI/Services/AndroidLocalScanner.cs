@@ -35,7 +35,6 @@ public class AndroidLocalScanner
             // ── SAF 模式：只扫描用户选择的文件夹 ──
             // 跳过 MediaStore 全设备扫描，避免扫到未选择的文件夹
             progress?.Report((0, 1, "扫描选中的文件夹..."));
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 模式：扫描 {customFolders!.Count} 个用户选择的文件夹");
             try
             {
                 var safSongs = await SafeContentScanner.ScanSavedFolderAsync();
@@ -72,7 +71,6 @@ public class AndroidLocalScanner
             try
             {
                 var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] MediaStore 返回 {mediaSongs.Count} 首");
                 foreach (var s in mediaSongs)
                 {
                     if (existingPaths.Add(s.FilePath))
@@ -136,7 +134,6 @@ public class AndroidLocalScanner
             try
             {
                 var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] MediaStore 返回 {mediaSongs.Count} 首");
                 foreach (var s in mediaSongs)
                 {
                     if (existingPaths.Add(s.FilePath))

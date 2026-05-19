@@ -10,6 +10,7 @@ using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
+using CatClawMusic.UI.Platforms.Android;
 using Microsoft.Extensions.DependencyInjection;
 using GoogleSlider = Google.Android.Material.Slider.Slider;
 
@@ -33,6 +34,8 @@ public class NowPlayingFragment : Fragment
     private View _glow4 = null!, _glow5 = null!, _glow6 = null!;
     private View _reflectionMaskBottom = null!, _coverFog = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
+    private AudioVisualizerView _audioVisualizer = null!;
+    private Android.OS.Handler? _mainHandler;
 
     /// <summary>
     /// 创建正在播放视图
@@ -76,6 +79,18 @@ public class NowPlayingFragment : Fragment
         _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
         _coverFog = view.FindViewById<View>(Resource.Id.cover_fog)!;
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
+        _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
+
+        var playerService = player as AudioPlayerService;
+        var teeProcessor = playerService?.TeeProcessor;
+        if (teeProcessor != null)
+        {
+            teeProcessor.SpectrumUpdated += spectrum =>
+            {
+                _mainHandler ??= new Handler(Looper.MainLooper!);
+                _mainHandler.Post(() => _audioVisualizer?.UpdateSpectrum(spectrum));
+            };
+        }
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
@@ -354,7 +369,6 @@ public class NowPlayingFragment : Fragment
         try
         {
             if (_albumCover == null) return;
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] SyncUI: song={_viewModel.CurrentSong?.Title}(Id={_viewModel.CurrentSong?.Id}), cover={_viewModel.CoverSource?.Substring(0, Math.Min(50, _viewModel.CoverSource?.Length ?? 0))}");
 
             // 如果 CurrentSong 有值但封面/歌词还没加载过，重新触发加载
             if (_viewModel.CurrentSong != null && string.IsNullOrEmpty(_viewModel.CoverSource))

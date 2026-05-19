@@ -134,7 +134,6 @@ public static class FolderPicker
             }
         }
 
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 验证: {uris.Count} → {valid.Count} 个有效 URI");
         return valid.Count;
     }
 
@@ -168,7 +167,6 @@ public static class FolderPicker
                     !.PutString(PrefKey, uriStr) // 兼容
                     !.Commit();
 
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF folder added: {uri} (total: {uris.Count})");
             }
             catch (Exception ex)
             {

@@ -41,7 +41,6 @@ public class WebDavBrowserDialog : Dialog
     {
         _profile = profile;
         _webDav = MainApplication.Services.GetRequiredService<INetworkFileService>();
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 创建对话框: {profile.Host}:{profile.Port}");
     }
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -66,27 +65,19 @@ public class WebDavBrowserDialog : Dialog
             Dismiss();
         };
 
-        System.Diagnostics.Debug.WriteLine("[WebDAV Browser] 开始初始化连接...");
-        // 在后台线程初始化连接并加载根目录
         _ = InitializeAndLoadAsync();
     }
 
     private async Task InitializeAndLoadAsync()
     {
         ShowLoading("正在连接...");
-        System.Diagnostics.Debug.WriteLine("[WebDAV Browser] InitializeAndLoadAsync 开始");
 
         try
         {
-            // 使用 async lambda 确保正确 await
-            System.Diagnostics.Debug.WriteLine("[WebDAV Browser] 调用 TestConnectionAsync...");
             var result = await Task.Run(async () =>
             {
-                System.Diagnostics.Debug.WriteLine("[WebDAV Browser] 在后台线程执行 TestConnectionAsync");
                 return await _webDav.TestConnectionAsync(_profile);
             });
-
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 连接结果: Success={result.Success}, Message={result.Message}");
 
             if (!result.Success)
             {
@@ -156,20 +147,14 @@ public class WebDavBrowserDialog : Dialog
 
         _currentPath = path;
         ShowLoading($"📁 {path}");
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 加载目录: {path}");
 
         try
         {
-            // 使用 async lambda 确保正确 await
             var files = await Task.Run(async () =>
             {
-                System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 在后台线程执行 ListFilesAsync: {path}");
                 return await _webDav.ListFilesAsync(path);
             });
 
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 获取到 {files.Count} 个文件/目录");
-
-            // 只显示目录，按名称排序
             var dirs = files.Where(f => f.IsDirectory).OrderBy(f => f.Name).ToList();
 
             _items.Clear();

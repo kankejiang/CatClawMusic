@@ -50,6 +50,11 @@ public interface IAudioPlayerService
     TimeSpan CurrentPosition { get; }
     
     /// <summary>
+    /// 直接从播放器读取实时位置（毫秒），不依赖定时器缓存，适用于通知栏/锁屏进度同步
+    /// </summary>
+    long RealtimePositionMs { get; }
+    
+    /// <summary>
     /// 歌曲总时长
     /// </summary>
     TimeSpan Duration { get; }

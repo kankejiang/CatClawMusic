@@ -34,6 +34,7 @@ public class ForegroundPlayerService : Service
     private MediaSession? _mediaSession;
     private Handler? _progressHandler;
     private bool _started;
+    private ScreenOnReceiver? _screenOnReceiver;
 
     /// <summary>返回 null，此服务不绑定</summary>
     public override IBinder? OnBind(Intent? intent) => null;
@@ -55,6 +56,12 @@ public class ForegroundPlayerService : Service
 
         if (_nowPlayingVm is not null)
             _nowPlayingVm.PropertyChanged += OnViewModelPropertyChanged;
+
+        _screenOnReceiver = new ScreenOnReceiver(this);
+        var filter = new IntentFilter();
+        filter.AddAction(Intent.ActionScreenOn);
+        filter.AddAction(Intent.ActionUserPresent);
+        RegisterReceiver(_screenOnReceiver, filter);
     }
 
     /// <summary>处理启动命令：首次启动时进入前台模式并显示通知，或根据 Intent Action 执行播放控制</summary>
@@ -84,6 +91,12 @@ public class ForegroundPlayerService : Service
     /// <summary>服务销毁时取消事件订阅、停止前台通知、释放 WiFi 锁和 MediaSession</summary>
     public override void OnDestroy()
     {
+        if (_screenOnReceiver != null)
+        {
+            try { UnregisterReceiver(_screenOnReceiver); } catch { }
+            _screenOnReceiver = null;
+        }
+
         if (_audioPlayer is not null)
             _audioPlayer.StateChanged -= OnPlaybackStateChanged;
 
@@ -265,7 +278,7 @@ public class ForegroundPlayerService : Service
         catch { }
     }
 
-    /// <summary>更新 MediaSession 播放状态（播放/暂停/进度位置）</summary>
+    /// <summary>更新 MediaSession 播放状态（播放/暂停/进度位置），使用实时位置确保锁屏/通知栏进度同步</summary>
     private void UpdateMediaSessionPlaybackState()
     {
         if (_mediaSession == null) return;
@@ -273,7 +286,7 @@ public class ForegroundPlayerService : Service
         {
             var isPlaying = _audioPlayer?.IsPlaying ?? false;
             var state = isPlaying ? PlaybackStateCode.Playing : PlaybackStateCode.Paused;
-            var positionMs = (long)(_audioPlayer?.CurrentPosition.TotalMilliseconds ?? 0);
+            var positionMs = _audioPlayer?.RealtimePositionMs ?? 0;
 
             var playbackState = new Android.Media.Session.PlaybackState.Builder()
                 .SetState(state, positionMs, 1.0f)
@@ -632,4 +645,19 @@ public class ForegroundPlayerService : Service
     }
 
     #endregion
+
+    /// <summary>屏幕亮起/用户解锁时立即同步 MediaSession 进度，修复息屏后通知栏/锁屏进度条不同步</summary>
+    private class ScreenOnReceiver : BroadcastReceiver
+    {
+        private readonly WeakReference<ForegroundPlayerService> _serviceRef;
+        public ScreenOnReceiver(ForegroundPlayerService service) => _serviceRef = new(service);
+        public override void OnReceive(global::Android.Content.Context? context, Intent? intent)
+        {
+            if (_serviceRef.TryGetTarget(out var service))
+            {
+                service.UpdateMediaSessionPlaybackState();
+                service.UpdateNotification();
+            }
+        }
+    }
 }

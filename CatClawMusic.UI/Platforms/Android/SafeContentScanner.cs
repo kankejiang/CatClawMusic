@@ -21,7 +21,6 @@ public static class SafeContentScanner
     public static async Task<List<Song>> ScanSavedFolderAsync()
     {
         var uris = FolderPicker.GetSavedFolderUris();
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF ScanSavedFolder: {uris.Count} folder(s)");
         if (uris.Count == 0) return new List<Song>();
 
         var allSongs = new List<Song>();
@@ -40,7 +39,6 @@ public static class SafeContentScanner
             }
         }
 
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 多文件夹扫描完成: 共 {allSongs.Count} 首");
         return allSongs;
     }
 
@@ -59,7 +57,6 @@ public static class SafeContentScanner
             var ctx = global::Android.App.Application.Context;
             var docId = DocumentsContract.GetTreeDocumentId(treeUri);
             WalkDocuments(ctx, treeUri, docId, songs);
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 扫描完成: {songs.Count} 首");
         }
         catch (Exception ex)
         {
@@ -109,9 +106,8 @@ public static class SafeContentScanner
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF walk error: {ex.Message}");
         }
         finally
         {

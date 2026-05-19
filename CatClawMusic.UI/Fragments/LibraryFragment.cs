@@ -96,7 +96,19 @@ public class LibraryFragment : Fragment
         _btnRefresh.Click += (s, e) => _viewModel.RefreshCommand.Execute(null);
 
         BindViews();
-        _ = _viewModel.LoadLocalAsync();
+        if (_viewModel.CurrentTab == "Network")
+        {
+            _btnLocal.SetTextColor(Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#4A0072")));
+            _btnNetwork.SetTextColor(Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White));
+            _btnLocal.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#C0B8CA"));
+            _btnNetwork.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#9B7ED8"));
+            _networkProtocolRow.Visibility = ViewStates.Visible;
+            _ = _viewModel.LoadNetworkAsync();
+        }
+        else
+        {
+            _ = _viewModel.LoadLocalAsync();
+        }
         if (_viewModel.Songs.Count > 0)
             _adapter.UpdateSongs(_viewModel.Songs);
     }

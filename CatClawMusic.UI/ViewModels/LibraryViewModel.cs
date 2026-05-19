@@ -55,6 +55,8 @@ public partial class LibraryViewModel : ObservableObject
     private const string PrefKey = "library_state";
     /// <summary>协议选择索引（0=WebDAV, 1=Navidrome）</summary>
     private const string PrefProtocolIndex = "protocol_index";
+    /// <summary>当前标签页（Local / Network）</summary>
+    private const string PrefCurrentTab = "current_tab";
 
     /// <summary>
     /// 初始化音乐库ViewModel，设置协议选项并恢复上次保存的协议偏好
@@ -80,8 +82,9 @@ public partial class LibraryViewModel : ObservableObject
             var ctx = global::Android.App.Application.Context;
             var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
             _selectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
-            // 安全边界：防止存储的索引超出当前协议列表范围
             if (_selectedProtocolIndex >= ProtocolTypes.Count) _selectedProtocolIndex = 0;
+            var savedTab = prefs.GetString(PrefCurrentTab, "Local");
+            if (savedTab == "Network") _currentTab = "Network";
         }
         catch { }
 #endif
@@ -108,6 +111,15 @@ public partial class LibraryViewModel : ObservableObject
             _ = LoadLocalAsync();
         else if (tab == "Network")
             _ = LoadNetworkAsync();
+#if ANDROID
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
+            prefs.Edit().PutString(PrefCurrentTab, tab).Apply();
+        }
+        catch { }
+#endif
     }
 
     /// <summary>
@@ -160,7 +172,6 @@ public partial class LibraryViewModel : ObservableObject
 
         if (!forceReload && _hasLoadedLocal && Songs.Count > 0)
         {
-            System.Diagnostics.Debug.WriteLine("[CatClaw] 跳过重复扫描");
             return;
         }
 

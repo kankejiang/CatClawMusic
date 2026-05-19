@@ -27,16 +27,38 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private Am? _audioManager;
     private bool _pausedByFocusLoss;
     private int _preFocusVolume = 100;
+    private TeeAudioProcessor? _teeProcessor;
     /// <summary>是否正在播放</summary>
     public bool IsPlaying => _player?.IsPlaying ?? false;
     /// <summary>当前播放歌曲的文件路径</summary>
     public string? CurrentSongFilePath => _currentPath;
-    public int AudioSessionId => 0;
+    public int AudioSessionId
+    {
+        get { try { return 0; } catch { return 0; } }
+    }
+
+    public TeeAudioProcessor? TeeProcessor => _teeProcessor;
 
     /// <summary>当前播放位置</summary>
     public TimeSpan CurrentPosition => _cachedPositionMs > 0
         ? TimeSpan.FromMilliseconds(_cachedPositionMs)
         : TimeSpan.Zero;
+
+    /// <summary>直接从 ExoPlayer 读取实时位置（毫秒），不依赖定时器缓存</summary>
+    public long RealtimePositionMs
+    {
+        get
+        {
+            try
+            {
+                if (_player != null && _isPrepared)
+                    return _player.CurrentPosition;
+            }
+            catch { }
+            return _cachedPositionMs;
+        }
+    }
+
     /// <summary>当前歌曲总时长</summary>
     public TimeSpan Duration => _player != null && _player.Duration > 0
         ? TimeSpan.FromMilliseconds(_player.Duration)
@@ -85,7 +107,6 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>处理音频焦点变化（丢失/临时丢失/降低音量/恢复）</summary>
     private void HandleFocusChange(global::Android.Media.AudioFocus focusChange)
     {
-        ALog.Debug("CatClaw", $"[CatClaw] AudioFocus: {focusChange}");
         switch (focusChange)
         {
             case global::Android.Media.AudioFocus.Gain:
@@ -127,7 +148,6 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                 _focusListener,
                 global::Android.Media.Stream.Music,
                 global::Android.Media.AudioFocus.Gain);
-            ALog.Debug("CatClaw", $"[CatClaw] RequestAudioFocus: {result}");
         }
         catch (Exception ex)
         {
@@ -156,8 +176,6 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         _isPrepared = false;
         _lastPlaybackState = 1;
         _cachedPositionMs = 0;
-
-        ALog.Debug("CatClaw", $"[CatClaw] PlayAsync: path={filePathOrUrl?.Substring(0, Math.Min(120, filePathOrUrl?.Length ?? 0))}");
 
         try
         {
@@ -188,13 +206,10 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                             Password = ""
                         };
                         playUrl = cleanUri.Uri.AbsoluteUri;
-
-                        ALog.Debug("CatClaw", $"[CatClaw] PlayAsync: 提取 Basic Auth，剥离后 URL={playUrl.Substring(0, Math.Min(80, playUrl.Length))}...");
                     }
                 }
                 catch (Exception ex)
                 {
-                    ALog.Debug("CatClaw", $"[CatClaw] PlayAsync: URL 解析异常: {ex.Message}");
                 }
             }
 
@@ -250,10 +265,10 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
             StartPositionTimer();
             ForegroundPlayerService.Start(global::Android.App.Application.Context);
         }
-        catch (System.OperationCanceledException) { ALog.Debug("CatClaw", "[CatClaw] PlayAsync 被取消"); }
+        catch (System.OperationCanceledException) { ALog.Warn("CatClaw", "[CatClaw] PlayAsync 被取消"); }
         catch (Exception ex)
         {
-            ALog.Debug("CatClaw", $"[CatClaw] PlayAsync 失败: {ex.Message}");
+            ALog.Warn("CatClaw", $"[CatClaw] PlayAsync 失败: {ex.Message}");
             StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Error, ErrorMessage = $"播放失败: {ex.Message}" });
         }
     }
@@ -372,9 +387,54 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var mediaSourceFactory = new AndroidX.Media3.ExoPlayer.Source.DefaultMediaSourceFactory(ctx)
             .SetDataSourceFactory(new CatClawDataSourceFactory(httpFactory, ctx));
 
-        _player = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-            .SetMediaSourceFactory(mediaSourceFactory)
-            .Build();
+        _teeProcessor = new TeeAudioProcessor();
+
+        try
+        {
+            var audioSink = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
+                .SetAudioProcessors(new AndroidX.Media3.Common.Audio.IAudioProcessor[] { _teeProcessor })
+                .Build();
+
+            var renderersFactory = new AndroidX.Media3.ExoPlayer.DefaultRenderersFactory(ctx);
+            var rfMethods = renderersFactory.Class.GetMethods();
+            foreach (var m in rfMethods)
+            {
+                if (m.Name == "setAudioSink" && m.GetParameterTypes().Length == 1)
+                {
+                    m.Invoke(renderersFactory, audioSink);
+                    break;
+                }
+            }
+
+            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+                .SetMediaSourceFactory(mediaSourceFactory);
+            var bMethods = builder.Class.GetMethods();
+            foreach (var m in bMethods)
+            {
+                if (m.Name == "setRenderersFactory" && m.GetParameterTypes().Length == 1)
+                {
+                    m.Invoke(builder, renderersFactory);
+                    break;
+                }
+            }
+            _player = builder.Build();
+        }
+        catch
+        {
+            _player = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+                .SetMediaSourceFactory(mediaSourceFactory)
+                .Build();
+        }
+
+        try
+        {
+            var logClass = Java.Lang.Class.ForName("androidx.media3.common.util.Log");
+            var setLogLevel = logClass.GetMethod("setLogLevel", Java.Lang.Integer.Type);
+            var logLevelError = logClass.GetField("LOG_LEVEL_ERROR");
+            if (setLogLevel != null && logLevelError != null)
+                setLogLevel.Invoke(null, logLevelError.Get(null));
+        }
+        catch { }
 
         _lastPlaybackState = _player.PlaybackState;
     }
@@ -435,7 +495,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
                 _lastPlaybackState = state;
             }
-            catch (Exception ex) { ALog.Debug("CatClaw", $"[CatClaw] Timer 异常: {ex.Message}"); }
+            catch (Exception ex) { ALog.Warn("CatClaw", $"[CatClaw] Timer 异常: {ex.Message}"); }
         });
     }
 

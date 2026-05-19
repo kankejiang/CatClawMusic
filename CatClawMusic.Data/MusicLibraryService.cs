@@ -102,7 +102,6 @@ public class MusicLibraryService : IMusicLibraryService
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 保存歌曲失败: {song.FilePath}, {ex.Message}"); }
         }
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] 扫描完成: {distinct.Count} 首入库");
         return distinct;
     }
 

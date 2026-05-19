@@ -66,7 +66,6 @@ public class WebDavService : INetworkFileService, IDisposable
         }
 
         _profile = profile;
-        System.Diagnostics.Debug.WriteLine($"[WebDAV] 创建 HttpClient: {profile.Host}:{profile.Port}");
     }
 
     /// <summary>
@@ -111,8 +110,6 @@ public class WebDavService : INetworkFileService, IDisposable
                                  allowHeader.Contains("MKCOL", StringComparison.OrdinalIgnoreCase) ||
                                  allowHeader.Contains("COPY", StringComparison.OrdinalIgnoreCase);
 
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] OPTIONS 响应: Allow={allowHeader}, WebDAV={supportsWebDav}");
-
             return (supportsWebDav, allowHeader, "");
         }
         catch (Exception ex)
@@ -127,8 +124,6 @@ public class WebDavService : INetworkFileService, IDisposable
     /// </summary>
     private async Task<XDocument?> PropFindAsync(string url, int depth = 1)
     {
-        System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 请求: {url}, Depth={depth}");
-
         var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), url);
         request.Headers.Add("Depth", depth.ToString());
 
@@ -140,7 +135,6 @@ public class WebDavService : INetworkFileService, IDisposable
         request.Content = new StringContent(body, Encoding.UTF8, "application/xml");
 
         var response = await GetClient().SendAsync(request);
-        System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 响应: {(int)response.StatusCode} {response.ReasonPhrase}");
 
         response.EnsureSuccessStatusCode();
 
@@ -157,8 +151,6 @@ public class WebDavService : INetworkFileService, IDisposable
         {
             EnsureClient(profile);
             var url = BuildUrl(profile.BasePath ?? "/");
-
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试连接: {url}");
 
             // 直接尝试 PROPFIND（跳过 OPTIONS，避免 Android 上 Allow 头读取问题）
             await PropFindAsync(url, 0);
@@ -247,7 +239,6 @@ public class WebDavService : INetworkFileService, IDisposable
                 });
             }
 
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListFiles({path}) 返回 {files.Count} 个项目 (Dirs={files.Count(f => f.IsDirectory)}, Files={files.Count(f => !f.IsDirectory)})");
             return files;
         }
         catch (Exception ex)
@@ -361,17 +352,13 @@ public class WebDavService : INetworkFileService, IDisposable
                 Content = requestContent
             };
 
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 上传: {url}, 大小={content.Length} bytes");
-
             var response = await GetClient().SendAsync(request);
             if (response.IsSuccessStatusCode || (int)response.StatusCode == 201 || (int)response.StatusCode == 204)
             {
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 成功: {(int)response.StatusCode}");
                 return (true, "上传成功");
             }
 
             var errorMsg = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 失败: {errorMsg}");
             return (false, errorMsg);
         }
         catch (Exception ex)

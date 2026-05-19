@@ -22,17 +22,19 @@ public class LogService : ILogService
         Instance = this;
     }
 
-    public void Info(string tag, string message) => Write("I", tag, message);
-    public void Warn(string tag, string message) => Write("W", tag, message);
-    public void Error(string tag, string message) => Write("E", tag, message);
+    public void Info(string tag, string message) => Write("I", tag, message, fileOnly: false);
+    public void Warn(string tag, string message) => Write("W", tag, message, fileOnly: true);
+    public void Error(string tag, string message) => Write("E", tag, message, fileOnly: true);
 
-    private void Write(string level, string tag, string message)
+    private void Write(string level, string tag, string message, bool fileOnly = false)
     {
         try
         {
-            var line = $"{DateTime.Now:HH:mm:ss.fff}\t[{level}][{tag}] {message}";
             global::Android.Util.Log.WriteLine(level switch { "I" => global::Android.Util.LogPriority.Info, "W" => global::Android.Util.LogPriority.Warn, _ => global::Android.Util.LogPriority.Error }, tag, message);
 
+            if (!fileOnly) return;
+
+            var line = $"{DateTime.Now:HH:mm:ss.fff}\t[{level}][{tag}] {message}";
             lock (_lock)
             {
                 var dir = System.IO.Path.GetDirectoryName(_logFilePath);

@@ -95,7 +95,6 @@ public class NetworkMusicService : INetworkMusicService
             // 入库已在 ScanWebDavAsync 内部按批次完成
         }
 
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] ScanAsync 总计 {allSongs.Count} 首网络歌曲");
         try { await _db.RestoreNetworkFavoritesAsync(); }
         catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 恢复收藏失败: {ex.Message}"); }
         return allSongs;
@@ -270,7 +269,7 @@ public class NetworkMusicService : INetworkMusicService
     public Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.Navidrome)
-            return Task.FromResult(_subsonic.GetStreamUrl(song.FilePath, profile));
+            return Task.FromResult(_subsonic.GetStreamUrl(song.RemoteId ?? song.FilePath, profile));
         if (profile.Protocol == ProtocolType.WebDAV)
             return Task.FromResult(BuildWebDavStreamUrl(song.RemoteId ?? song.FilePath, profile));
         return Task.FromResult(song.FilePath);
@@ -309,23 +308,19 @@ public class NetworkMusicService : INetworkMusicService
         if (string.IsNullOrEmpty(basePath)) basePath = "/";
 
         // 先初始化 WebDAV 连接
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 初始化连接: {profile.Host}:{profile.Port}");
         var connResult = await _webDav.TestConnectionAsync(profile);
         if (!connResult.Success)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 连接失败: {connResult.Message}");
             return songs;
         }
 
         // 累积批次，满了就回调
         var batch = new List<Song>();
 
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 开始扫描: {basePath}");
         await ScanWebDavDirectoryAsync(basePath, profile, songs, batch, songBatchCallback);
         // 最后一批（不满 BatchSize 的残量）
         await FlushBatchAsync(batch, songBatchCallback);
 
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 发现 {songs.Count} 首歌曲");
         return songs;
     }
 
@@ -389,7 +384,6 @@ public class NetworkMusicService : INetworkMusicService
     {
         if (depth > MaxScanDepth)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 达到最大深度 {MaxScanDepth}，跳过: {path}");
             return;
         }
 

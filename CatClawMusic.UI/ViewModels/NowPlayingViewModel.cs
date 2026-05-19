@@ -34,6 +34,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private CancellationTokenSource? _songLoadCts;
     private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
     private volatile bool _isSwitchingSong; // 用户主动切歌时设置，阻止 Stopped 事件错误调用 Next()
+    private volatile bool _isRestoring; // 恢复播放状态期间设置，抑制错误对话框和自动切歌
 
     [ObservableProperty] private Song? _currentSong;
     [ObservableProperty] private string _coverSource = "";
@@ -271,6 +272,12 @@ public partial class NowPlayingViewModel : ObservableObject
         UpdateQueuePeek();
     }
 
+    /// <summary>标记开始恢复播放状态，抑制错误对话框和自动切歌</summary>
+    public void BeginRestore() => _isRestoring = true;
+
+    /// <summary>标记恢复结束</summary>
+    public void EndRestore() => _isRestoring = false;
+
     /// <summary>
     /// 播放/暂停切换
     /// </summary>
@@ -344,8 +351,8 @@ public partial class NowPlayingViewModel : ObservableObject
         else if (direction == "Right") OnPrevious();
     }
 
-    private void OnNext() { var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
-    private void OnPrevious() { var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void OnNext() { _isSwitchingSong = true; var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void OnPrevious() { _isSwitchingSong = true; var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
 
     /// <summary>
     /// 与播放队列同步当前歌曲状态
@@ -353,7 +360,6 @@ public partial class NowPlayingViewModel : ObservableObject
     public void SyncWithQueue()
     {
         var queueSong = _playQueue.CurrentSong;
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] SyncWithQueue: CurrentSong={CurrentSong?.Title}(Id={CurrentSong?.Id}), queueSong={queueSong?.Title}(Id={queueSong?.Id})");
         if (queueSong != null && (CurrentSong == null || CurrentSong.Id != queueSong.Id))
         {
             CurrentSong = queueSong;
@@ -460,24 +466,18 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             if (e.State == PlaybackState.Stopped)
             {
-                if (!_isSwitchingSong)
+                if (!_isSwitchingSong && !_isRestoring)
                     Next();
             }
             else if (e.State == PlaybackState.Playing)
             {
                 _isSwitchingSong = false;
-                // 检查当前显示的歌曲和实际播放的队列歌曲是否一致
+                _isRestoring = false;
                 var queueSong = _playQueue.CurrentSong;
                 if (queueSong != null && (CurrentSong == null || CurrentSong.Id != queueSong.Id))
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CatClaw] Playing 同步: {queueSong.Title}(Id={queueSong.Id})");
                     CurrentSong = queueSong;
-                    var ct = _songLoadCts?.Token ?? CancellationToken.None;
-                    _ = LoadLyricsAsync(queueSong, ct);
-                    _ = LoadCoverAsync(queueSong, ct);
-                    UpdateQueuePeek();
                 }
-                // 记录此次成功播放的歌曲，取消待显示的报错对话框
                 _lastActiveSong = CurrentSong;
                 _errorDialogCts?.Cancel();
                 _errorDialogCts = null;
@@ -487,19 +487,27 @@ public partial class NowPlayingViewModel : ObservableObject
             {
                 _isSwitchingSong = false;
                 PlayPauseIcon = "▶";
-                // 播放失败时，如果当前显示的歌曲和实际播放的不一致，回退到上一首
                 if (e.State == PlaybackState.Error)
                 {
+                    if (_isRestoring)
+                    {
+                        _isRestoring = false;
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] 恢复播放失败（静默）: {e.ErrorMessage}");
+                        return;
+                    }
                     var actualPath = _audioPlayer.CurrentSongFilePath;
                     if (!string.IsNullOrEmpty(actualPath) && CurrentSong != null
                         && CurrentSong.FilePath != actualPath && _lastActiveSong != null)
                     {
                         System.Diagnostics.Debug.WriteLine($"[CatClaw] 播放失败，回退到: {_lastActiveSong.Title}");
                         CurrentSong = _lastActiveSong;
-                        // 不手动调用 LoadCover/LoadLyrics，OnCurrentSongChanged 会自动触发
                     }
                     if (!string.IsNullOrEmpty(e.ErrorMessage))
                         ShowErrorDialogDelayed(e.ErrorMessage);
+                }
+                else if (e.State == PlaybackState.Paused && _isRestoring)
+                {
+                    _isRestoring = false;
                 }
             }
         });
@@ -564,9 +572,19 @@ public partial class NowPlayingViewModel : ObservableObject
                     PrevLyricLine = idx > 0 ? CurrentLyrics.Lines[idx - 1].Text : "";
                     NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
                     NextLyricLine2 = idx + 2 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 2].Text : "";
-                    CurrentLyricLine = CurrentLyrics.Lines[idx].Text; // 最后设，触发 UI 刷新
+                    CurrentLyricLine = CurrentLyrics.Lines[idx].Text;
                     CurrentLyricIndex = idx;
-                    UpdateLyricSpannable(); // 更新逐字高亮
+                    UpdateLyricSpannable();
+                }
+                else if (idx < 0)
+                {
+                    PrevLyricLine2 = "";
+                    PrevLyricLine = "";
+                    CurrentLyricLine = "";
+                    NextLyricLine = CurrentLyrics.Lines[0].Text;
+                    NextLyricLine2 = CurrentLyrics.Lines.Count > 1 ? CurrentLyrics.Lines[1].Text : "";
+                    CurrentLyricIndex = -1;
+                    ClearSpannable();
                 }
             }
             _isPositionUpdating = false;
@@ -582,26 +600,31 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; ClearSpannable(); return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; return; }
         var songId = song.Id;
-        CurrentLyricLine = "正在加载歌词..."; NextLyricLine = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = "";
+        CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = "";
         CurrentLyrics = null;
+        CurrentLyricIndex = -1;
         ClearSpannable();
-        CurrentLyrics = await _lyricsService.GetLyricsAsync(song);
-        ct.ThrowIfCancellationRequested();
-
+        try
+        {
+            CurrentLyrics = await _lyricsService.GetLyricsAsync(song);
+        }
+        catch (OperationCanceledException) { return; }
+        catch { }
+        if (ct.IsCancellationRequested) return;
         if (CurrentSong?.Id != songId) return;
 
         if (CurrentLyrics == null && song.Source == SongSource.WebDAV)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 网络歌曲, Source={song.Source}, 尝试远程歌词");
-            CurrentLyrics = await GetNetworkLyricsAsync(song);
-            ct.ThrowIfCancellationRequested();
+            try
+            {
+                CurrentLyrics = await GetNetworkLyricsAsync(song);
+            }
+            catch (OperationCanceledException) { return; }
+            catch { }
+            if (ct.IsCancellationRequested) return;
             if (CurrentSong?.Id != songId) return;
-        }
-        else if (CurrentLyrics == null)
-        {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadLyrics: 本地无歌词, Source={song.Source}, 跳过远程");
         }
 
         if (CurrentSong?.Id != songId) return;
@@ -609,7 +632,6 @@ public partial class NowPlayingViewModel : ObservableObject
         if (CurrentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
         else if (CurrentLyrics.Lines.Count > 0)
         {
-            // 根据当前播放位置显示初始歌词行
             var pos = _audioPlayer.CurrentPosition;
             var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, pos);
             if (idx >= 0 && idx < CurrentLyrics!.Lines.Count)
@@ -619,6 +641,14 @@ public partial class NowPlayingViewModel : ObservableObject
                 NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
                 NextLyricLine2 = idx + 2 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 2].Text : "";
                 CurrentLyricLine = CurrentLyrics.Lines[idx].Text;
+            }
+            else
+            {
+                PrevLyricLine2 = "";
+                PrevLyricLine = "";
+                CurrentLyricLine = "";
+                NextLyricLine = CurrentLyrics.Lines[0].Text;
+                NextLyricLine2 = CurrentLyrics.Lines.Count > 1 ? CurrentLyrics.Lines[1].Text : "";
             }
         }
     }
