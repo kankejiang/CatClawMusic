@@ -19,9 +19,14 @@ public class TeeAudioProcessor : BaseAudioProcessor
         if (inputBuffer == null) return;
         var remaining = inputBuffer.Remaining();
         var outputBuffer = ReplaceOutputBuffer(remaining);
-        ProcessAudioData(inputBuffer, remaining);
-        outputBuffer?.Put(inputBuffer);
-        outputBuffer?.Flip();
+        if (outputBuffer != null)
+        {
+            var pos = inputBuffer.Position();
+            ProcessAudioData(inputBuffer, remaining);
+            inputBuffer.Position(pos);
+            outputBuffer.Put(inputBuffer);
+            outputBuffer.Flip();
+        }
     }
 
     private void ProcessAudioData(Java.Nio.ByteBuffer buffer, int size)

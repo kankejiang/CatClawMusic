@@ -391,36 +391,32 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
         try
         {
-            var audioSink = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
+            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+                .SetMediaSourceFactory(mediaSourceFactory);
+
+            var audioSinkObj = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
                 .SetAudioProcessors(new AndroidX.Media3.Common.Audio.IAudioProcessor[] { _teeProcessor })
                 .Build();
 
-            var renderersFactory = new AndroidX.Media3.ExoPlayer.DefaultRenderersFactory(ctx);
-            var rfMethods = renderersFactory.Class.GetMethods();
-            foreach (var m in rfMethods)
+            var builderClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.ExoPlayer$Builder");
+            var setAudioSinkMethod = builderClass?.GetMethod("setAudioSink", new[] {
+                Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink")
+            });
+            if (setAudioSinkMethod != null)
             {
-                if (m.Name == "setAudioSink" && m.GetParameterTypes().Length == 1)
-                {
-                    m.Invoke(renderersFactory, audioSink);
-                    break;
-                }
+                setAudioSinkMethod.Invoke(builder, new Java.Lang.Object[] { audioSinkObj });
+                System.Diagnostics.Debug.WriteLine("[CatClaw] TeeAudioProcessor wired via JNI setAudioSink on Builder");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[CatClaw] TeeAudioProcessor: setAudioSink not found on Builder, wiring skipped");
             }
 
-            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-                .SetMediaSourceFactory(mediaSourceFactory);
-            var bMethods = builder.Class.GetMethods();
-            foreach (var m in bMethods)
-            {
-                if (m.Name == "setRenderersFactory" && m.GetParameterTypes().Length == 1)
-                {
-                    m.Invoke(builder, renderersFactory);
-                    break;
-                }
-            }
             _player = builder.Build();
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] TeeAudioProcessor wiring failed: {ex.Message}");
             _player = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
                 .SetMediaSourceFactory(mediaSourceFactory)
                 .Build();
