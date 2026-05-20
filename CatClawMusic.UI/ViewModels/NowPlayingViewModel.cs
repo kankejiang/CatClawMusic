@@ -608,7 +608,8 @@ public partial class NowPlayingViewModel : ObservableObject
         ClearSpannable();
         try
         {
-            CurrentLyrics = await _lyricsService.GetLyricsAsync(song);
+            var skipEmbedded = song.Source == SongSource.WebDAV;
+            CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, skipEmbedded);
         }
         catch (OperationCanceledException) { return; }
         catch { }
@@ -625,6 +626,12 @@ public partial class NowPlayingViewModel : ObservableObject
             catch { }
             if (ct.IsCancellationRequested) return;
             if (CurrentSong?.Id != songId) return;
+
+            if (CurrentLyrics == null)
+            {
+                try { CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, false); }
+                catch { }
+            }
         }
 
         if (CurrentSong?.Id != songId) return;

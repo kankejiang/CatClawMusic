@@ -459,6 +459,7 @@ public class NowPlayingFragment : Fragment
                     break;
                 case nameof(_viewModel.PlayPauseIcon):
                     UpdatePlayPauseIcon();
+                    TryStartVisualizer();
                     break;
                 case nameof(_viewModel.PlayModeIcon):
                     UpdateModeIcon();

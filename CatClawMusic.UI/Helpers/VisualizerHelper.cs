@@ -84,20 +84,12 @@ public class VisualizerHelper : Java.Lang.Object
             magnitudes[k - 1] = (float)Math.Sqrt(real * real + imag * imag);
         }
 
-        const float minFreq = 20f;
-        const float maxFreq = 20000f;
-        float logMin = (float)Math.Log10(minFreq);
-        float logMax = (float)Math.Log10(maxFreq);
+        float[] bandFreqs = BuildBandEdges(bands, binHz, n);
 
         for (int b = 0; b < bands; b++)
         {
-            float logLo = logMin + (logMax - logMin) * b / bands;
-            float logHi = logMin + (logMax - logMin) * (b + 1) / bands;
-            float freqLo = (float)Math.Pow(10, logLo);
-            float freqHi = (float)Math.Pow(10, logHi);
-
-            int binLo = Math.Max(1, (int)Math.Floor(freqLo / binHz));
-            int binHi = Math.Min(n - 2, (int)Math.Ceiling(freqHi / binHz));
+            int binLo = Math.Max(1, (int)Math.Floor(bandFreqs[b] / binHz));
+            int binHi = Math.Min(n - 2, (int)Math.Ceiling(bandFreqs[b + 1] / binHz));
             if (binHi < binLo) binHi = binLo;
 
             float peak = 0;
@@ -110,9 +102,9 @@ public class VisualizerHelper : Java.Lang.Object
             float normalized = Math.Clamp(peak / 120f, 0f, 1f);
 
             if (normalized > _smoothed[b])
-                _smoothed[b] = _smoothed[b] * 0.2f + normalized * 0.8f;
+                _smoothed[b] = normalized;
             else
-                _smoothed[b] = _smoothed[b] * 0.75f + normalized * 0.25f;
+                _smoothed[b] = _smoothed[b] * 0.6f + normalized * 0.4f;
 
             spectrum[b] = _smoothed[b];
         }
@@ -123,6 +115,29 @@ public class VisualizerHelper : Java.Lang.Object
         }
 
         SpectrumUpdated?.Invoke(spectrum);
+    }
+
+    private static float[] BuildBandEdges(int bands, float binHz, int n)
+    {
+        float nyquist = binHz * n;
+        int linearBands = Math.Min(bands, (int)(200f / binHz));
+        int logBands = bands - linearBands;
+
+        var edges = new float[bands + 1];
+
+        for (int b = 0; b <= linearBands; b++)
+            edges[b] = binHz + b * (200f - binHz) / linearBands;
+
+        float logMin = (float)Math.Log10(200f);
+        float logMax = (float)Math.Log10(Math.Min(nyquist, 20000f));
+
+        for (int b = 1; b <= logBands; b++)
+        {
+            float logF = logMin + (logMax - logMin) * b / logBands;
+            edges[linearBands + b] = (float)Math.Pow(10, logF);
+        }
+
+        return edges;
     }
 
     private class CaptureListener : Java.Lang.Object, Visualizer.IOnDataCaptureListener

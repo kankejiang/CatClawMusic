@@ -1,5 +1,59 @@
 # 更新日志 (CHANGELOG)
 
+## [1.0.8] - 2025-05-21
+
+### 🎵 音频频谱可视化（全新功能）
+
+播放界面新增实时音频频谱可视化，32 频段条形图跟随音乐节拍跳动。
+
+#### 核心实现
+- 采用 Android 原生 `Visualizer` API，通过 `AudioSessionId` 绑定 ExoPlayer 音频输出
+- FFT 频谱数据实时捕获，32 频段映射到人耳可听范围（20Hz~20kHz）
+- 混合频段分布：低频线性 + 中高频对数，确保每根柱条拥有独立数据源
+- 首次使用自动请求 `RECORD_AUDIO` 权限（Android Visualizer API 硬性要求）
+
+#### 视觉效果
+- **峰值指示器（Peak Hold）**：每根柱条顶部悬浮小横线，快速上升、重力缓降
+- **快攻慢放动画**：柱条上升速度 0.9（近即时），下落速度 0.45（自然回落）
+- **颜色跟随主题**：频谱颜色与进度条滑块同步（Material You 模式取 `palette.Primary`，默认模式取白色）
+- 低能量态显示半透明底色，高能量态渐变至主题色
+
+### 🎨 播放界面布局优化
+
+| 调整项 | 修改前 | 修改后 |
+|--------|--------|--------|
+| 歌名/艺术家位置 | 封面下方独立区域 | 移入封面底部雾化渐变区域，白色文字+阴影 |
+| 雾化渐变高度 | 60dp | 90dp（容纳歌名文字） |
+| 歌词区域 | 权重 1 | 权重 1.2（吸收原歌名区域空间） |
+| 播放控件底部间距 | 30dp | 8dp（贴近屏幕底部） |
+| 频谱与控件间距 | -4dp（重叠） | 0dp（自然衔接） |
+
+### 📝 歌词加载优先级调整
+
+歌词获取优先级从「内嵌歌词 > 外置 .lrc」改为「外置同名 .lrc > 内嵌歌词」，优先使用更完整的外置歌词文件。
+
+### 🔧 Bug 修复
+
+| 问题 | 修复方案 |
+|------|---------|
+| 频谱完全不跳动 | 从 TeeAudioProcessor（反射注入 ExoPlayer 管道）切换到 Android 原生 Visualizer API |
+| 频谱只有1根条跳动 | FFT 数据格式错误：Android 返回 `[R0,I0,R1,I1,...]` 复数对，需计算 `sqrt(R²+I²)` |
+| 频谱全部为0 | `samplingRate` 单位是 milliHertz 而非 Hz，需除以 1000 |
+| 低频段柱条不跳动 | 纯对数分布下低频段映射到同一 FFT bin，改为混合线性+对数分布 |
+| 切歌后频谱停跳 | 监听 `PlayPauseIcon` 变化重新绑定 Visualizer 到新 `AudioSessionId` |
+| 频谱启动延迟 | 播放状态变化时立即触发 `TryStartVisualizer` |
+| `LinearGradient` 崩溃 | Xamarin 绑定把 ARGB int 当成资源 ID，删除未使用的 LinearGradient |
+| 浅色背景频谱不可见 | 颜色改为与进度条同色（`palette.Primary` / 白色） |
+
+### 🏗️ 架构变更
+
+- **移除** `TeeAudioProcessor` 及其反射注入逻辑（不可靠的 ExoPlayer 管道注入方案）
+- **新增** `VisualizerHelper`：封装 Android Visualizer API 生命周期管理
+- **新增** `AudioVisualizerView`：自定义 View，支持峰值保持 + 重力下落 + 快攻慢放动画
+- **实现** `AudioSessionId`：通过反射 `getAudioSessionId()` 从 ExoPlayer 获取真实音频会话 ID
+
+---
+
 ## [1.0.7] - 2025-05-17
 
 ### 🎉 猫爪标签 (CatClawTag) 插件（重大更新）

@@ -50,16 +50,12 @@ public class LyricsService : ILyricsService
         return null;
     }
 
-    /// <summary>
-    /// 从本地获取歌词（优先级：同名 .lrc > 嵌入歌词）
-    /// </summary>
-    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song)
+    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false)
     {
         var songPath = song.FilePath;
 
         bool isContentUri = !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
 
-        // 1. 查找同名 .lrc（外置歌词优先）
         if (isContentUri)
         {
             var lrcUri = ConstructLrcUri(songPath);
@@ -84,8 +80,7 @@ public class LyricsService : ILyricsService
             }
         }
 
-        // 2. 读取嵌入歌词（内嵌歌词降级）
-        if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+        if (!skipEmbedded && !isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
         {
             var embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
