@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:fitsSystemWindows="true">
+    android:layout_width="match_parent" android:layout_height="match_parent">
 
     <!-- 纯色背景层（代码设置为封面主色调） -->
     <View android:id="@+id/gradient_background" android:layout_width="match_parent"
@@ -147,9 +146,24 @@
                         android:gravity="center" />
                 </LinearLayout>
 
-                <!-- 播放列表 -->
+                <!-- 频谱开关 + 睡眠定时 + 播放列表 -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:gravity="right" android:layout_marginTop="2dp">
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginTop="2dp">
+                    <ImageButton android:id="@+id/btn_visualizer_toggle" android:layout_width="28dp"
+                        android:layout_height="28dp" android:src="@drawable/ic_equalizer"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="2dp" />
+                    <ImageButton android:id="@+id/btn_sleep_timer" android:layout_width="28dp"
+                        android:layout_height="28dp" android:src="@drawable/ic_sleep"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="2dp" android:layout_marginStart="4dp" />
+                    <TextView android:id="@+id/sleep_timer_text" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:textColor="#DDFFFFFF"
+                        android:textSize="10sp" android:visibility="gone"
+                        android:layout_marginStart="2dp" />
+                    <View android:layout_width="0dp" android:layout_height="0dp"
+                        android:layout_weight="1" />
                     <ImageButton android:id="@+id/btn_playlist" android:layout_width="28dp"
                         android:layout_height="28dp" android:src="@drawable/ic_playlist"
                         android:background="?attr/selectableItemBackgroundBorderless"
@@ -164,12 +178,12 @@
                     <ImageButton android:id="@+id/btn_like" android:layout_width="44dp"
                         android:layout_height="44dp" android:src="@drawable/ic_favorite_border"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:layout_marginEnd="4dp" android:tint="#EEFFFFFF" />
+                        android:layout_marginEnd="4dp" android:tint="#FFFFFF" />
 
                     <ImageButton android:id="@+id/btn_prev" android:layout_width="48dp"
                         android:layout_height="48dp" android:src="@drawable/ic_skip_previous"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:layout_marginEnd="4dp" android:tint="#EEEEEE" />
+                        android:layout_marginEnd="4dp" android:tint="#FFFFFF" />
 
                     <ImageButton android:id="@+id/btn_play_pause"
                         android:layout_width="64dp" android:layout_height="64dp"
@@ -180,12 +194,12 @@
                     <ImageButton android:id="@+id/btn_next" android:layout_width="48dp"
                         android:layout_height="48dp" android:src="@drawable/ic_skip_next"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:layout_marginEnd="4dp" android:tint="#EEEEEE" />
+                        android:layout_marginEnd="4dp" android:tint="#FFFFFF" />
 
                     <ImageButton android:id="@+id/btn_mode_cycle" android:layout_width="44dp"
                         android:layout_height="44dp" android:src="@drawable/ic_repeat"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:layout_marginStart="4dp" android:tint="#EEFFFFFF" />
+                        android:layout_marginStart="4dp" android:tint="#FFFFFF" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

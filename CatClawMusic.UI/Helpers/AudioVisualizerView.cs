@@ -17,13 +17,14 @@ public class AudioVisualizerView : View
     private int _inactiveColor = Color.Argb(0x30, 0xFF, 0xFF, 0xFF);
     private int _activeColor = Color.Argb(0xCC, 0xFF, 0xFF, 0xFF);
 
-    private const int BarCount = 32;
-    private const float BarRadius = 2.5f;
-    private const float MaxBarHeightRatio = 0.85f;
-    private const float AttackSpeed = 0.9f;
-    private const float DecaySpeed = 0.45f;
+    private const int BarCount = 64;
+    private const float BarRadius = 2f;
+    private const float MaxBarHeightRatio = 0.88f;
+    private const float AttackSpeed = 0.95f;
+    private const float DecaySpeed = 0.28f;
     private const float PeakGravity = 0.003f;
-    private const float MinBarRatio = 0.03f;
+    private const float PeakBounce = 0.15f;
+    private const float MinBarRatio = 0.01f;
 
     public AudioVisualizerView(Context context) : base(context) => Init();
     public AudioVisualizerView(Context context, IAttributeSet attrs) : base(context, attrs) => Init();
@@ -112,9 +113,11 @@ public class AudioVisualizerView : View
                 if (_peakLevel[i] < current)
                 {
                     _peakLevel[i] = current;
-                    _peakVelocity[i] = 0f;
+                    _peakVelocity[i] = -_peakVelocity[i] * PeakBounce;
                 }
             }
+
+            if (_peakLevel[i] > 1f) _peakLevel[i] = 1f;
 
             var barH = Math.Max(minBarH, current * maxBarH);
             var left = i * totalBarWidth + gap * 0.5f;
@@ -127,11 +130,11 @@ public class AudioVisualizerView : View
 
             float peakY = bottom - _peakLevel[i] * maxBarH;
             _peakPaint.Color = InterpolateColor(_inactiveColor, _activeColor, 1f);
-            canvas.DrawRoundRect(new RectF(left, peakY - 2f, right, peakY + 1f), 1f, 1f, _peakPaint);
+            canvas.DrawRoundRect(new RectF(left, peakY - 1.5f, right, peakY + 0.5f), 0.5f, 0.5f, _peakPaint);
         }
 
         if (_isAttached)
-            PostInvalidateDelayed(25);
+            PostInvalidateDelayed(16);
     }
 
     private static Color InterpolateColor(int from, int to, float ratio)

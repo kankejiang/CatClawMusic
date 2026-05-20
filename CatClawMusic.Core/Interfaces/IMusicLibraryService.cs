@@ -69,8 +69,11 @@ public interface IMusicLibraryService
     /// <summary>获取收藏歌曲列表</summary>
     Task<List<Song>> GetFavoriteSongsAsync();
 
-    /// <summary>获取最近播放歌曲列表（保留 20 条）</summary>
+    /// <summary>获取最近播放歌曲列表</summary>
     Task<List<Song>> GetRecentSongsAsync();
+
+    /// <summary>获取播放次数最多的歌曲列表</summary>
+    Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50);
 
     // ── Playlist CRUD ──
 

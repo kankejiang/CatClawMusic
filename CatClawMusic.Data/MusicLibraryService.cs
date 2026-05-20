@@ -275,6 +275,11 @@ public class MusicLibraryService : IMusicLibraryService
     /// </summary>
     public async Task<List<Song>> GetRecentSongsAsync() { await _db.EnsureInitializedAsync(); return await _db.GetRecentSongsAsync(); }
 
+    /// <summary>
+    /// 委托：获取播放次数最多的歌曲列表
+    /// </summary>
+    public async Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50) { await _db.EnsureInitializedAsync(); return await _db.GetTopPlayedSongsAsync(limit); }
+
     // ── Playlist CRUD ──
 
     /// <summary>

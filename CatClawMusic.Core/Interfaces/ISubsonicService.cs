@@ -36,4 +36,7 @@ public interface ISubsonicService
 
     /// <summary>获取歌词</summary>
     Task<string?> GetLyricsAsync(string songId, ConnectionProfile profile);
+
+    /// <summary>获取单首歌曲完整元数据（通过 getSong API）</summary>
+    Task<Song?> GetSongAsync(string songId, ConnectionProfile profile);
 }

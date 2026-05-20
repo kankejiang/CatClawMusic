@@ -50,29 +50,20 @@ public class NetworkMusicService : INetworkMusicService
         IProgress<(int done, int total, string status)>? progress = null,
         Action<List<Song>>? songBatchCallback = null)
     {
-        // 先清除旧的网络缓存
-        try
-        {
-            await _db.EnsureInitializedAsync();
-            await _db.ReplaceNetworkSongsBeginAsync();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] 清除旧网络歌曲失败: {ex.Message}");
-        }
+        try { await _db.EnsureInitializedAsync(); } catch { }
 
-        // 增量式拉取：每个专辑完成后立即入库 + 回调通知 UI
+        var scannedRemoteIds = new HashSet<string>();
         var allSongs = new List<Song>();
 
         if (profile.Protocol == ProtocolType.Navidrome)
         {
             allSongs = await _subsonic.GetSongsAsync(profile, progress, async (batch) =>
             {
-                // 每个专辑的歌曲立即入库
                 try
                 {
                     foreach (var s in batch)
                     {
+                        if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
                         if (!string.IsNullOrEmpty(s.Artist))
                             s.ArtistId = await _db.EnsureArtistAsync(s.Artist);
                         if (!string.IsNullOrEmpty(s.Album))
@@ -85,18 +76,26 @@ public class NetworkMusicService : INetworkMusicService
                 {
                     System.Diagnostics.Debug.WriteLine($"[CatClaw] 增量入库失败: {ex.Message}");
                 }
-                // 通知 ViewModel 增量刷新列表
                 songBatchCallback?.Invoke(batch);
             });
         }
         else if (profile.Protocol == ProtocolType.WebDAV)
         {
             allSongs = await ScanWebDavAsync(profile, songBatchCallback);
-            // 入库已在 ScanWebDavAsync 内部按批次完成
+            foreach (var s in allSongs)
+            {
+                if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
+            }
         }
 
-        try { await _db.RestoreNetworkFavoritesAsync(); }
-        catch (System.Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 恢复收藏失败: {ex.Message}"); }
+        try
+        {
+            var removed = await _db.RemoveStaleSongsAsync(SongSource.WebDAV, new HashSet<string>(), scannedRemoteIds);
+            if (removed > 0)
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理 {removed} 首已移除的网络歌曲");
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理旧网络歌曲失败: {ex.Message}"); }
+
         return allSongs;
     }
 

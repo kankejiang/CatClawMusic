@@ -30,6 +30,8 @@ public class NowPlayingFragment : Fragment
     private TextView _timeCurrent = null!, _timeTotal = null!;
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
+    private ImageButton _btnVisualizerToggle = null!;
+    private ImageButton _btnSleepTimer = null!;
     private GoogleSlider _progressSlider = null!;
     private View _gradientBackground = null!;
     private View _glow1 = null!, _glow2 = null!, _glow3 = null!;
@@ -40,6 +42,12 @@ public class NowPlayingFragment : Fragment
     private VisualizerHelper? _visualizerHelper;
     private Android.OS.Handler? _mainHandler;
     private ActivityResultLauncher? _recordAudioLauncher;
+    private int _modeActiveColor;
+    private bool _visualizerEnabled = true;
+    private CancellationTokenSource? _sleepCts;
+    private int _sleepRemainingSeconds;
+    private bool _sleepFinishSong;
+    private EventHandler<PlaybackStateChangedEventArgs>? _sleepStateHandler;
 
     /// <summary>
     /// 创建正在播放视图
@@ -72,6 +80,8 @@ public class NowPlayingFragment : Fragment
         _btnLike = view.FindViewById<ImageButton>(Resource.Id.btn_like)!;
         _btnModeCycle = view.FindViewById<ImageButton>(Resource.Id.btn_mode_cycle)!;
         _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
+        _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
+        _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
         _gradientBackground = view.FindViewById<View>(Resource.Id.gradient_background)!;
         _glow1 = view.FindViewById<View>(Resource.Id.glow_1)!;
@@ -136,6 +146,8 @@ public class NowPlayingFragment : Fragment
         _btnLike.Click -= OnLikeClick; _btnLike.Click += OnLikeClick;
         _btnModeCycle.Click -= OnModeClick; _btnModeCycle.Click += OnModeClick;
         _btnPlaylist.Click -= OnPlaylistClick; _btnPlaylist.Click += OnPlaylistClick;
+        _btnVisualizerToggle.Click -= OnVisualizerToggleClick; _btnVisualizerToggle.Click += OnVisualizerToggleClick;
+        _btnSleepTimer.Click -= OnSleepTimerClick; _btnSleepTimer.Click += OnSleepTimerClick;
 
         // 进度条：Touch 松开时 seek（SetOnTouchListener 不影响原生拖动）
         _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
@@ -285,12 +297,21 @@ public class NowPlayingFragment : Fragment
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(
             new Android.Graphics.Color(Android.Graphics.Color.Argb(0x40, onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B)));
 
-        _btnPlayPause.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceColor);
-        _btnNext.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceSemi);
-        _btnPrev.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceSemi);
-        _btnLike.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceLight);
-        _btnModeCycle.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceLight);
-        _btnPlaylist.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(onSurfaceSemi);
+        _modeActiveColor = onSurfaceColor;
+
+        var white = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        var whiteSemi = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#DDFFFFFF"));
+        _btnPlayPause.ImageTintList = white;
+        _btnNext.ImageTintList = white;
+        _btnPrev.ImageTintList = white;
+        _btnLike.ImageTintList = white;
+        _btnModeCycle.ImageTintList = white;
+        _btnPlaylist.ImageTintList = whiteSemi;
+
+        var visWhite = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        var visGray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
+        _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
+        _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
     }
 
     private static int ToAlpha(int color, int alpha)
@@ -341,18 +362,24 @@ public class NowPlayingFragment : Fragment
             _controlsCard.StrokeColor = Android.Graphics.Color.ParseColor("#15CCCCCC");
         }
 
-        var defaultWhite = Android.Graphics.Color.ParseColor("#EEEEEE");
-        var defaultBright = Android.Graphics.Color.ParseColor("#FFFFFF");
+        var defaultWhite = Android.Graphics.Color.ParseColor("#FFFFFF");
         var defaultLight = Android.Graphics.Color.ParseColor("#DDFFFFFF");
+
+        _modeActiveColor = defaultWhite;
 
         _timeCurrent.SetTextColor(defaultLight);
         _timeTotal.SetTextColor(defaultLight);
-        _btnPlayPause.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultBright);
+        _btnPlayPause.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
         _btnNext.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
         _btnPrev.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
-        _btnLike.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultBright);
-        _btnModeCycle.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultBright);
+        _btnLike.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
+        _btnModeCycle.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
         _btnPlaylist.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultLight);
+
+        var visWhite = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        var visGray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
+        _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
+        _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
 
         var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.ThumbTintList = sliderCs;
@@ -401,7 +428,10 @@ public class NowPlayingFragment : Fragment
                 _songArtist.Text = "正在加载...";
             else
                 _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
-            TryStartVisualizer();
+            var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+            var visualizerEnabled = prefs?.GetBoolean("visualizer_enabled", true) ?? true;
+            ApplyVisualizerState(visualizerEnabled);
+            if (visualizerEnabled) TryStartVisualizer();
             UpdateTimeDisplay();
             UpdateSlider();
             UpdatePlayPauseIcon();
@@ -625,6 +655,246 @@ public class NowPlayingFragment : Fragment
     private void OnModeClick(object? s, EventArgs e) => _viewModel.CyclePlayModeCommand.Execute(null);
     private void OnPlaylistClick(object? s, EventArgs e) => ShowPlaylistDialog();
 
+    private void OnVisualizerToggleClick(object? s, EventArgs e)
+    {
+        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        var enabled = !(prefs?.GetBoolean("visualizer_enabled", true) ?? true);
+        prefs?.Edit().PutBoolean("visualizer_enabled", enabled).Apply();
+        ApplyVisualizerState(enabled);
+    }
+
+    private void OnSleepTimerClick(object? s, EventArgs e)
+    {
+        if (_sleepCts != null)
+        {
+            StopSleepTimer();
+            return;
+        }
+        ShowSleepTimerDialog();
+    }
+
+    private void ShowSleepTimerDialog()
+    {
+        var act = Activity;
+        if (act == null) return;
+
+        var view = LayoutInflater.From(act)!.Inflate(Resource.Layout.dialog_sleep_timer, null)!;
+        var dialog = new Android.App.Dialog(act, Android.Resource.Style.ThemeTranslucentNoTitleBar);
+        dialog.SetContentView(view);
+        dialog.SetCancelable(true);
+        dialog.SetCanceledOnTouchOutside(true);
+
+        var root = view.FindViewById<FrameLayout>(Resource.Id.sleep_timer_root)!;
+        var cancelBtn = view.FindViewById<TextView>(Resource.Id.sleep_cancel)!;
+        var confirmBtn = view.FindViewById<TextView>(Resource.Id.sleep_confirm)!;
+        var finishSongCheck = view.FindViewById<CheckBox>(Resource.Id.sleep_finish_song)!;
+
+        var selectedMinutes = 0;
+        var timeOptions = new[]
+        {
+            (Resource.Id.sleep_10min, 10),
+            (Resource.Id.sleep_20min, 20),
+            (Resource.Id.sleep_30min, 30),
+            (Resource.Id.sleep_45min, 45),
+            (Resource.Id.sleep_60min, 60),
+            (Resource.Id.sleep_90min, 90),
+        };
+
+        foreach (var (id, mins) in timeOptions)
+        {
+            var tv = view.FindViewById<TextView>(id)!;
+            tv.Click += (s, e) =>
+            {
+                selectedMinutes = mins;
+                foreach (var (oid, _) in timeOptions)
+                    ResetOptionStyle(view, oid);
+                tv.SetTextColor(Android.Graphics.Color.ParseColor("#FFFFFF"));
+                tv.SetBackgroundColor(Android.Graphics.Color.Argb(0x30, 0xFF, 0xFF, 0xFF));
+            };
+        }
+
+        var customBtn = view.FindViewById<TextView>(Resource.Id.sleep_custom)!;
+        customBtn.Click += (s, e) =>
+        {
+            ShowSleepCustomDialog(finishSongCheck.Checked, dialog);
+        };
+
+        root.Click += (s, e) => dialog.Dismiss();
+
+        confirmBtn.Click += (s, e) =>
+        {
+            if (selectedMinutes > 0)
+            {
+                dialog.Dismiss();
+                StartSleepTimer(selectedMinutes * 60, finishSongCheck.Checked);
+            }
+            else
+            {
+                ShowSleepCustomDialog(finishSongCheck.Checked, dialog);
+            }
+        };
+
+        cancelBtn.Click += (s, e) => dialog.Dismiss();
+
+        dialog.Show();
+    }
+
+    private static void ResetOptionStyle(View view, int id)
+    {
+        var tv = view.FindViewById<TextView>(id);
+        if (tv != null)
+        {
+            tv.SetTextColor(Android.Graphics.Color.ParseColor("#DDFFFFFF"));
+            tv.SetBackgroundColor(Android.Graphics.Color.Transparent);
+        }
+    }
+
+    private void ShowSleepCustomDialog(bool finishSong, Android.App.Dialog? parentDialog)
+    {
+        var act = Activity;
+        if (act == null) return;
+
+        var view = LayoutInflater.From(act)!.Inflate(Resource.Layout.dialog_sleep_custom, null)!;
+        var dialog = new Android.App.Dialog(act, Android.Resource.Style.ThemeTranslucentNoTitleBar);
+        dialog.SetContentView(view);
+        dialog.SetCancelable(false);
+        dialog.SetCanceledOnTouchOutside(false);
+
+        var root = view.FindViewById<FrameLayout>(Resource.Id.sleep_custom_root)!;
+        var input = view.FindViewById<EditText>(Resource.Id.sleep_custom_input)!;
+        var cancelBtn = view.FindViewById<TextView>(Resource.Id.sleep_custom_cancel)!;
+        var confirmBtn = view.FindViewById<TextView>(Resource.Id.sleep_custom_confirm)!;
+
+        root.Click += (s, e) => { };
+        cancelBtn.Click += (s, e) => dialog.Dismiss();
+        confirmBtn.Click += (s, e) =>
+        {
+            dialog.Dismiss();
+            if (int.TryParse(input.Text, out var mins) && mins > 0)
+            {
+                parentDialog?.Dismiss();
+                StartSleepTimer(mins * 60, finishSong);
+            }
+        };
+
+        dialog.Show();
+    }
+
+    private void StartSleepTimer(int totalSeconds, bool finishSong)
+    {
+        StopSleepTimer();
+        _sleepCts = new CancellationTokenSource();
+        _sleepRemainingSeconds = totalSeconds;
+        _sleepFinishSong = finishSong;
+        UpdateSleepDisplay();
+        UpdateSleepButtonColor();
+
+        var token = _sleepCts.Token;
+        Task.Run(async () =>
+        {
+            try
+            {
+                while (_sleepRemainingSeconds > 0 && !token.IsCancellationRequested)
+                {
+                    await Task.Delay(1000, token);
+                    _sleepRemainingSeconds--;
+                    Activity?.RunOnUiThread(UpdateSleepDisplay);
+                }
+
+                if (!token.IsCancellationRequested)
+                {
+                    Activity?.RunOnUiThread(ExecuteSleepStop);
+                }
+            }
+            catch (TaskCanceledException) { }
+        }, token);
+    }
+
+    private void ExecuteSleepStop()
+    {
+        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+        if (_sleepFinishSong)
+        {
+            _sleepStateHandler = (s, e) =>
+            {
+                if (e.State == PlaybackState.Stopped)
+                {
+                    player.StateChanged -= _sleepStateHandler;
+                    _sleepStateHandler = null;
+                    StopSleepTimer();
+                    _ = player.PauseAsync();
+                }
+            };
+            player.StateChanged += _sleepStateHandler;
+        }
+        else
+        {
+            _ = player.PauseAsync();
+            StopSleepTimer();
+        }
+    }
+
+    private void StopSleepTimer()
+    {
+        _sleepCts?.Cancel();
+        _sleepCts?.Dispose();
+        _sleepCts = null;
+        _sleepRemainingSeconds = 0;
+        _sleepFinishSong = false;
+        if (_sleepStateHandler != null)
+        {
+            var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+            player.StateChanged -= _sleepStateHandler;
+            _sleepStateHandler = null;
+        }
+        var textView = Activity?.FindViewById<TextView>(Resource.Id.sleep_timer_text);
+        if (textView != null) textView.Visibility = ViewStates.Gone;
+        UpdateSleepButtonColor();
+    }
+
+    private void UpdateSleepDisplay()
+    {
+        var textView = Activity?.FindViewById<TextView>(Resource.Id.sleep_timer_text);
+        if (textView == null) return;
+        if (_sleepRemainingSeconds > 0)
+        {
+            textView.Visibility = ViewStates.Visible;
+            var ts = TimeSpan.FromSeconds(_sleepRemainingSeconds);
+            textView.Text = ts.Hours > 0 ? $"{ts.Hours}:{ts.Minutes:D2}" : $"{ts.Minutes}";
+        }
+        else
+        {
+            textView.Visibility = ViewStates.Gone;
+        }
+    }
+
+    private void UpdateSleepButtonColor()
+    {
+        var white = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        var gray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
+        _btnSleepTimer.ImageTintList = _sleepCts != null ? white : gray;
+    }
+
+    private void ApplyVisualizerState(bool enabled)
+    {
+        _visualizerEnabled = enabled;
+        var white = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        var gray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
+        _btnVisualizerToggle.ImageTintList = enabled ? white : gray;
+        if (enabled)
+        {
+            _audioVisualizer.Visibility = ViewStates.Visible;
+            TryStartVisualizer();
+        }
+        else
+        {
+            _visualizerHelper?.Stop();
+            _visualizerHelper = null;
+            _audioVisualizer.Clear();
+            _audioVisualizer.Visibility = ViewStates.Gone;
+        }
+    }
+
     /// <summary>弹出当前播放列表悬浮窗（毛玻璃圆角卡片风格）</summary>
     private void ShowPlaylistDialog()
     {
@@ -708,8 +978,8 @@ public class NowPlayingFragment : Fragment
             });
         _btnModeCycle.SetColorFilter(
             _viewModel.PlayModeIcon is "🔀" or "🔂" or "🔁"
-                ? Android.Graphics.Color.ParseColor("#9B7ED8")
-                : Android.Graphics.Color.ParseColor("#B0A8BA"));
+                ? Android.Graphics.Color.ParseColor("#FFFFFF")
+                : Android.Graphics.Color.ParseColor("#88FFFFFF"));
     }
 
     /// <summary>
@@ -894,7 +1164,7 @@ public class NowPlayingFragment : Fragment
 
             // 高亮当前歌曲
             view.SetBackgroundColor(isCurrent
-                ? Android.Graphics.Color.Argb(40, 155, 126, 216)  // 淡紫色高亮
+                ? Android.Graphics.Color.Argb(40, 155, 126, 216)
                 : Android.Graphics.Color.Transparent);
 
             text1.SetTextColor(isCurrent

@@ -76,6 +76,10 @@ public class Song
     /// <summary>专辑名称（运行时赋值，不持久化）</summary>
     [Ignore]
     public string Album { get; set; } = string.Empty;
+
+    /// <summary>播放次数（运行时赋值，不持久化，来自 PlayHistory）</summary>
+    [Ignore]
+    public int PlayCount { get; set; }
 }
 
 /// <summary>

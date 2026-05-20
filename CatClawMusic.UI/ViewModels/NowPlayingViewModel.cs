@@ -694,34 +694,74 @@ public partial class NowPlayingViewModel : ObservableObject
 
         if (song.Source == SongSource.WebDAV
             && (song.Artist == "未知艺术家" || song.Album == "未知专辑" || song.Duration == 0)
-            && _networkMusic != null
             && !_metadataFetchAttempted.Contains(song.Id))
         {
             _metadataFetchAttempted.Add(song.Id);
-            var profile = await GetNetworkProfileAsync(ProtocolType.WebDAV);
-            if (profile != null)
+
+            if (IsNavidromeSong(song) && _subsonic != null)
             {
-                try
+                var songId = ExtractSubsonicSongId(song);
+                if (!string.IsNullOrEmpty(songId))
                 {
-                    var updated = await _networkMusic.FetchSongMetadataAsync(song, profile);
-                    if (updated != null)
+                    var navProfile = await GetNetworkProfileAsync(ProtocolType.Navidrome);
+                    if (navProfile != null)
                     {
-                        if (!string.IsNullOrEmpty(updated.Artist))
-                            updated.ArtistId = await _database.EnsureArtistAsync(updated.Artist);
-                        if (!string.IsNullOrEmpty(updated.Album))
-                            updated.AlbumId = await _database.EnsureAlbumAsync(updated.Album, updated.ArtistId);
-                        await _database.SaveSongAsync(updated);
-                        _dispatcher.Post(() =>
+                        try
                         {
-                            if (CurrentSong?.Id == updated.Id)
+                            var resolved = await _subsonic.GetSongAsync(songId, navProfile);
+                            if (resolved != null)
                             {
-                                OnPropertyChanged(nameof(CurrentSong));
+                                if (!string.IsNullOrEmpty(resolved.Artist))
+                                    song.Artist = resolved.Artist;
+                                if (!string.IsNullOrEmpty(resolved.Album))
+                                    song.Album = resolved.Album;
+                                if (resolved.Duration > 0)
+                                    song.Duration = resolved.Duration;
+                                if (!string.IsNullOrEmpty(resolved.Artist))
+                                    song.ArtistId = await _database.EnsureArtistAsync(resolved.Artist);
+                                if (!string.IsNullOrEmpty(resolved.Album))
+                                    song.AlbumId = await _database.EnsureAlbumAsync(resolved.Album, song.ArtistId);
+                                await _database.SaveSongAsync(song);
+                                _dispatcher.Post(() =>
+                                {
+                                    if (CurrentSong?.Id == song.Id)
+                                        OnPropertyChanged(nameof(CurrentSong));
+                                });
+                                return;
                             }
-                        });
-                        return;
+                        }
+                        catch { }
                     }
                 }
-                catch { }
+            }
+
+            if (_networkMusic != null)
+            {
+                var profile = await GetNetworkProfileAsync(ProtocolType.WebDAV);
+                if (profile != null)
+                {
+                    try
+                    {
+                        var updated = await _networkMusic.FetchSongMetadataAsync(song, profile);
+                        if (updated != null)
+                        {
+                            if (!string.IsNullOrEmpty(updated.Artist))
+                                updated.ArtistId = await _database.EnsureArtistAsync(updated.Artist);
+                            if (!string.IsNullOrEmpty(updated.Album))
+                                updated.AlbumId = await _database.EnsureAlbumAsync(updated.Album, updated.ArtistId);
+                            await _database.SaveSongAsync(updated);
+                            _dispatcher.Post(() =>
+                            {
+                                if (CurrentSong?.Id == updated.Id)
+                                {
+                                    OnPropertyChanged(nameof(CurrentSong));
+                                }
+                            });
+                            return;
+                        }
+                    }
+                    catch { }
+                }
             }
         }
 

@@ -30,7 +30,7 @@ public static class SafeContentScanner
             {
                 var treeUri = AUri.Parse(uriStr);
                 if (treeUri == null) continue;
-                var songs = ScanTreeUri(treeUri);
+                var songs = await ScanTreeUriAsync(treeUri);
                 allSongs.AddRange(songs);
             }
             catch (Exception ex)

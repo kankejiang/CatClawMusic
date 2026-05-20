@@ -192,6 +192,47 @@ public class MusicDatabase
         try { await _database.ExecuteAsync("DELETE FROM Albums"); } catch { }
     }
 
+    /// <summary>删除指定来源中不在保留路径集合内的歌曲，并清理孤立艺术家/专辑</summary>
+    public async Task<int> RemoveStaleSongsAsync(SongSource source, HashSet<string> retainPaths, HashSet<string>? retainRemoteIds = null)
+    {
+        await EnsureInitializedAsync();
+        var all = await _database.Table<Song>().Where(s => s.Source == source).ToListAsync();
+        var toDelete = new List<Song>();
+        foreach (var s in all)
+        {
+            bool keep = source == SongSource.Local
+                ? retainPaths.Contains(s.FilePath)
+                : (retainRemoteIds != null && !string.IsNullOrEmpty(s.RemoteId) && retainRemoteIds.Contains(s.RemoteId));
+            if (!keep) toDelete.Add(s);
+        }
+        foreach (var s in toDelete)
+        {
+            try { await _database.DeleteAsync(s); } catch { }
+            try { await _database.ExecuteAsync("DELETE FROM PlayHistory WHERE SongId = ?", s.Id); } catch { }
+            try { await _database.ExecuteAsync("DELETE FROM Favorites WHERE SongId = ?", s.Id); } catch { }
+        }
+        await CleanupOrphanedArtistsAndAlbumsAsync();
+        return toDelete.Count;
+    }
+
+    /// <summary>清理没有关联歌曲的孤立艺术家和专辑</summary>
+    public async Task CleanupOrphanedArtistsAndAlbumsAsync()
+    {
+        await EnsureInitializedAsync();
+        try
+        {
+            await _database.ExecuteAsync(
+                "DELETE FROM Artists WHERE Id NOT IN (SELECT DISTINCT ArtistId FROM Songs WHERE ArtistId != 0)");
+        }
+        catch { }
+        try
+        {
+            await _database.ExecuteAsync(
+                "DELETE FROM Albums WHERE Id NOT IN (SELECT DISTINCT AlbumId FROM Songs WHERE AlbumId != 0)");
+        }
+        catch { }
+    }
+
     // ═══════════ Artist / Album ═══════════
 
     /// <summary>
@@ -254,8 +295,8 @@ public class MusicDatabase
         {
             await _database.InsertAsync(new PlayHistory { SongId = songId, PlayedAt = now });
         }
-        // 只保留最近 20 条历史
-        await TrimHistoryAsync(20);
+        // 只保留最近 200 条历史
+        await TrimHistoryAsync(200);
     }
 
     /// <summary>
@@ -277,14 +318,14 @@ public class MusicDatabase
     /// <summary>
     /// 获取最近的播放历史记录
     /// </summary>
-    public Task<List<PlayHistory>> GetRecentPlaysAsync(int limit = 20) =>
+    public Task<List<PlayHistory>> GetRecentPlaysAsync(int limit = 200) =>
         _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(limit).ToListAsync();
 
     /// <summary>获取最近播放的歌曲（含艺术家/专辑名）</summary>
     public async Task<List<Song>> GetRecentSongsAsync()
     {
         await EnsureInitializedAsync();
-        var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(20).ToListAsync();
+        var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(200).ToListAsync();
         if (history.Count == 0) return new List<Song>();
 
         var songIds = history.Select(h => h.SongId).ToList();
@@ -300,10 +341,38 @@ public class MusicDatabase
         {
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
+            s.PlayCount = history.FirstOrDefault(h => h.SongId == s.Id)?.PlayCount ?? 0;
         }
 
         var playTimeDict = history.ToDictionary(h => h.SongId, h => h.PlayedAt);
         return songs.OrderByDescending(s => playTimeDict.TryGetValue(s.Id, out var t) ? t : 0).ToList();
+    }
+
+    /// <summary>获取播放次数最多的歌曲（含艺术家/专辑名和播放计数）</summary>
+    public async Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50)
+    {
+        await EnsureInitializedAsync();
+        var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayCount).Take(limit).ToListAsync();
+        if (history.Count == 0) return new List<Song>();
+
+        var songIds = history.Select(h => h.SongId).ToList();
+        var songs = await _database.Table<Song>().Where(s => songIds.Contains(s.Id)).ToListAsync();
+        if (songs.Count == 0) return new List<Song>();
+
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var albums = await _database.Table<Album>().ToListAsync();
+        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
+        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+
+        foreach (var s in songs)
+        {
+            s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
+            s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
+            s.PlayCount = history.FirstOrDefault(h => h.SongId == s.Id)?.PlayCount ?? 0;
+        }
+
+        var playCountDict = history.ToDictionary(h => h.SongId, h => h.PlayCount);
+        return songs.OrderByDescending(s => playCountDict.TryGetValue(s.Id, out var c) ? c : 0).ToList();
     }
 
     // ═══════════ Favorites ═══════════

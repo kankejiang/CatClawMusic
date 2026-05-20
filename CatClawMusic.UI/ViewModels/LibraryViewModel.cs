@@ -84,7 +84,12 @@ public partial class LibraryViewModel : ObservableObject
             _selectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
             if (_selectedProtocolIndex >= ProtocolTypes.Count) _selectedProtocolIndex = 0;
             var savedTab = prefs.GetString(PrefCurrentTab, "Local");
-            if (savedTab == "Network") _currentTab = "Network";
+        if (savedTab == "Network")
+            {
+                _currentTab = "Network";
+                _localTabColor = "#C0B8CA";
+                _networkTabColor = "#9B7ED8";
+            }
         }
         catch { }
 #endif
@@ -248,29 +253,25 @@ public partial class LibraryViewModel : ObservableObject
         {
             _dispatcher.Post(() => { StatusText = "正在准备扫描..."; IsScanning = true; ScanProgress = 0; ScanStatus = "遍历文件夹..."; });
 
-            // 清除旧的本地歌曲缓存（重新扫描）
             if (_database != null)
             {
-                try { await _database.EnsureInitializedAsync(); await _database.ClearLocalSongsAsync(); } catch { }
+                try { await _database.EnsureInitializedAsync(); } catch { }
             }
 
-            // 增量扫描：每发现一批歌曲立即入库 + 更新 UI
-            var existingPaths = new HashSet<string>();
+            var scannedPaths = new HashSet<string>();
 
             var progress = new Progress<(int done, int total, string status)>(p =>
             {
-                int pct = p.total > 0 ? (int)(90.0 * p.done / p.total) : 0;
+                int pct = p.total > 0 ? (int)(85.0 * p.done / p.total) : 0;
                 ReportProgress(pct, p.status);
             });
 
             await CatClawMusic.UI.Services.AndroidLocalScanner.ScanAsync(
                 GetCustomFolders(), progress, async (batch) =>
                 {
-                    // 去重
-                    var newSongs = batch.Where(s => existingPaths.Add(s.FilePath)).ToList();
+                    var newSongs = batch.Where(s => scannedPaths.Add(s.FilePath)).ToList();
                     if (newSongs.Count == 0) return;
 
-                    // 逐首入库（后台线程）
                     foreach (var song in newSongs)
                     {
                         try
@@ -283,7 +284,6 @@ public partial class LibraryViewModel : ObservableObject
                         catch { }
                     }
 
-                    // 增量更新 UI（一次 post 一批，减少主线程压力）
                     var songsToAdd = newSongs
                         .Where(s => !Songs.Any(existing => existing.FilePath == s.FilePath))
                         .ToList();
@@ -296,6 +296,28 @@ public partial class LibraryViewModel : ObservableObject
                         });
                     }
                 });
+
+            if (_database != null)
+            {
+                try
+                {
+                    _dispatcher.Post(() => { ScanStatus = "清理已删除歌曲..."; ScanProgress = 90; });
+                    var removed = await _database.RemoveStaleSongsAsync(CoreModels.SongSource.Local, scannedPaths);
+                    if (removed > 0)
+                    {
+                        var stalePaths = Songs.Where(s => !scannedPaths.Contains(s.FilePath)).ToList();
+                        if (stalePaths.Count > 0)
+                        {
+                            _dispatcher.Post(() =>
+                            {
+                                foreach (var s in stalePaths) Songs.Remove(s);
+                                StatusText = $"🐱 共 {Songs.Count} 首歌曲（清理 {removed} 首）";
+                            });
+                        }
+                    }
+                }
+                catch { }
+            }
 
             _dispatcher.Post(() =>
             {

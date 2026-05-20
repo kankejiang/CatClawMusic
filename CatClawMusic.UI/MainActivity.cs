@@ -71,10 +71,12 @@ public class MainActivity : AppCompatActivity
     /// <summary>Activity 创建时的初始化：应用主题、初始化歌词服务、绑定迷你播放器和 ViewPager</summary>
     protected override void OnCreate(Bundle? savedInstanceState)
     {
-        // 应用保存的主题
+        LockFontScale();
         ApplySavedTheme();
         base.OnCreate(savedInstanceState);
         Instance = this;
+
+        WindowCompat.SetDecorFitsSystemWindows(Window!, true);
 
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
         _ = db.EnsureInitializedAsync();
@@ -549,5 +551,22 @@ public class MainActivity : AppCompatActivity
         {
             SetTheme(Resource.Style.CatClawTheme);
         }
+    }
+
+    private void LockFontScale()
+    {
+        var config = new Android.Content.Res.Configuration(Resources!.Configuration);
+        if (Math.Abs(config.FontScale - 1.0f) > 0.001f)
+        {
+            config.FontScale = 1.0f;
+            var metrics = Resources.DisplayMetrics;
+            Resources.UpdateConfiguration(config, metrics);
+        }
+    }
+
+    public override void OnConfigurationChanged(Android.Content.Res.Configuration newConfig)
+    {
+        base.OnConfigurationChanged(newConfig);
+        LockFontScale();
     }
 }

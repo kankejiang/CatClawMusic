@@ -25,10 +25,10 @@ public class VisualizerHelper : Java.Lang.Object
         try
         {
             _visualizer = new Visualizer(audioSessionId);
-            _visualizer.SetCaptureSize(Visualizer.GetCaptureSizeRange()[1]);
+            _visualizer.SetCaptureSize(1024);
             _visualizer.SetDataCaptureListener(
                 new CaptureListener(this),
-                Visualizer.MaxCaptureRate / 2,
+                Visualizer.MaxCaptureRate,
                 false,
                 true);
             _visualizer.SetEnabled(true);
@@ -64,77 +64,107 @@ public class VisualizerHelper : Java.Lang.Object
 
     private int _samplingRate;
     private int _fftCount;
-    private readonly float[] _smoothed = new float[32];
+    private const int Bands = 64;
+    private readonly float[] _smoothed = new float[Bands];
+    private readonly float[] _prevSmoothed = new float[Bands];
 
     private void OnFftData(byte[] fft)
     {
-        const int bands = 32;
-        var spectrum = new float[bands];
-        var n = fft.Length / 2;
+        int n = fft.Length / 2;
         if (n < 2) return;
 
         int sr = _samplingRate > 0 ? _samplingRate / 1000 : 44100;
-        float binHz = sr / (float)fft.Length;
+        float binHz = (float)sr / fft.Length;
+        float nyquist = sr / 2f;
 
-        float[] magnitudes = new float[n - 1];
+        var mags = new float[n];
         for (int k = 1; k < n; k++)
         {
             float real = (sbyte)fft[2 * k];
             float imag = (sbyte)fft[2 * k + 1];
-            magnitudes[k - 1] = (float)Math.Sqrt(real * real + imag * imag);
+            mags[k] = (float)Math.Sqrt(real * real + imag * imag);
         }
 
-        float[] bandFreqs = BuildBandEdges(bands, binHz, n);
-
-        for (int b = 0; b < bands; b++)
+        var smoothedMags = new float[n];
+        for (int k = 1; k < n - 1; k++)
         {
-            int binLo = Math.Max(1, (int)Math.Floor(bandFreqs[b] / binHz));
-            int binHi = Math.Min(n - 2, (int)Math.Ceiling(bandFreqs[b + 1] / binHz));
+            smoothedMags[k] = mags[k - 1] * 0.25f + mags[k] * 0.5f + mags[k + 1] * 0.25f;
+        }
+        smoothedMags[1] = mags[1] * 0.75f + mags[2] * 0.25f;
+        smoothedMags[n - 1] = mags[n - 2] * 0.25f + mags[n - 1] * 0.75f;
+
+        float fMin = binHz;
+        float fMax = Math.Min(nyquist, 14000f);
+
+        var bandEdges = BuildBandEdges(fMin, fMax, Bands, binHz, n);
+
+        for (int b = 0; b < Bands; b++)
+        {
+            int binLo = bandEdges[b];
+            int binHi = bandEdges[b + 1];
             if (binHi < binLo) binHi = binLo;
 
-            float peak = 0;
-            for (int i = binLo; i <= binHi && i < magnitudes.Length; i++)
+            float sumSq = 0;
+            int count = 0;
+            for (int i = binLo; i <= binHi && i < n; i++)
             {
-                if (magnitudes[i - 1] > peak)
-                    peak = magnitudes[i - 1];
+                sumSq += smoothedMags[i] * smoothedMags[i];
+                count++;
             }
 
-            float normalized = Math.Clamp(peak / 120f, 0f, 1f);
+            float rms = count > 0 ? (float)Math.Sqrt(sumSq / count) : 0;
+            if (rms < 3f) rms = 0f;
 
+            float normalized = Math.Clamp(rms / 60f, 0f, 1f);
+
+            _prevSmoothed[b] = _smoothed[b];
             if (normalized > _smoothed[b])
-                _smoothed[b] = normalized;
+                _smoothed[b] += (normalized - _smoothed[b]) * 0.8f;
             else
-                _smoothed[b] = _smoothed[b] * 0.6f + normalized * 0.4f;
+                _smoothed[b] += (normalized - _smoothed[b]) * 0.35f;
+        }
 
-            spectrum[b] = _smoothed[b];
+        for (int b = 1; b < Bands - 1; b++)
+        {
+            _smoothed[b] = _smoothed[b] * 0.6f
+                + (_prevSmoothed[b - 1] + _prevSmoothed[b] + _prevSmoothed[b + 1]) / 3f * 0.4f;
         }
 
         if (++_fftCount % 300 == 1)
         {
-            ALog.Debug("CatClaw", $"[CatClaw] FFT diag: sr={sr}, binHz={binHz:F1}, sum={spectrum.Sum():F2}, max={spectrum.Max():F2}");
+            ALog.Debug("CatClaw", $"[CatClaw] FFT diag: sr={sr}, binHz={binHz:F1}, bands={Bands}");
         }
 
-        SpectrumUpdated?.Invoke(spectrum);
+        SpectrumUpdated?.Invoke((float[])_smoothed.Clone());
     }
 
-    private static float[] BuildBandEdges(int bands, float binHz, int n)
+    private static int[] BuildBandEdges(float fMin, float fMax, int bands, float binHz, int n)
     {
-        float nyquist = binHz * n;
-        int linearBands = Math.Min(bands, (int)(200f / binHz));
-        int logBands = bands - linearBands;
+        var edges = new int[bands + 1];
+        int linearBands = Math.Max(8, bands / 2);
+        float linearMax = 500f;
 
-        var edges = new float[bands + 1];
-
-        for (int b = 0; b <= linearBands; b++)
-            edges[b] = binHz + b * (200f - binHz) / linearBands;
-
-        float logMin = (float)Math.Log10(200f);
-        float logMax = (float)Math.Log10(Math.Min(nyquist, 20000f));
-
-        for (int b = 1; b <= logBands; b++)
+        for (int b = 0; b <= bands; b++)
         {
-            float logF = logMin + (logMax - logMin) * b / logBands;
-            edges[linearBands + b] = (float)Math.Pow(10, logF);
+            float freq;
+            if (b <= linearBands)
+            {
+                freq = fMin + (linearMax - fMin) * b / linearBands;
+            }
+            else
+            {
+                float logMin = (float)Math.Log10(linearMax);
+                float logMax = (float)Math.Log10(fMax);
+                float t = (float)(b - linearBands) / (bands - linearBands);
+                freq = (float)Math.Pow(10, logMin + t * (logMax - logMin));
+            }
+            edges[b] = Math.Clamp((int)Math.Round(freq / binHz), 1, n - 1);
+        }
+
+        for (int b = 0; b < bands; b++)
+        {
+            if (edges[b + 1] <= edges[b])
+                edges[b + 1] = edges[b] + 1;
         }
 
         return edges;

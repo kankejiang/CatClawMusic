@@ -13,15 +13,15 @@
         android:layout_gravity="center"
         app:cardCornerRadius="24dp"
         app:cardElevation="8dp"
-        app:cardBackgroundColor="#E6281E36"
-        app:strokeColor="#44FFFFFF"
+        app:cardBackgroundColor="#33000000"
+        app:strokeColor="#30FFFFFF"
         app:strokeWidth="0.5dp">
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" android:padding="16dp">
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="播放列表" android:textColor="#FFFFFF"
+                android:text="播放列表" android:textColor="#DDFFFFFF"
                 android:textSize="18sp" android:fontFamily="sans-serif-medium"
                 android:layout_marginBottom="12dp" android:layout_marginStart="4dp" />
 

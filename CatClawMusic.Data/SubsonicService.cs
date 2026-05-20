@@ -356,6 +356,29 @@ public class SubsonicService : ISubsonicService
         return null;
     }
 
+    public async Task<Song?> GetSongAsync(string songId, ConnectionProfile profile)
+    {
+        try
+        {
+            var url = ApiUrl($"getSong.view?id={HttpUtility.UrlEncode(songId)}", profile);
+            var json = await _http.GetStringAsync(url);
+            using var doc = JsonDocument.Parse(json);
+            var resp = doc.RootElement.GetProperty("subsonic-response");
+            if (resp.TryGetProperty("song", out var songElem))
+            {
+                var song = ParseSong(songElem, profile);
+                song.FilePath = GetStreamUrl(songId, profile);
+                song.Protocol = ProtocolType.Navidrome;
+                return song;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongAsync 失败: {ex.Message}");
+        }
+        return null;
+    }
+
     /// <summary>
     /// 从 JSON 元素解析为 Song 对象
     /// </summary>

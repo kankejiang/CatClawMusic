@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CatClawMusic.UI.Fragments;
 
 /// <summary>
-/// 搜索Fragment，提供歌曲搜索输入框和搜索结果列表
+/// 探索Fragment，提供歌曲搜索输入框和搜索结果列表
 /// </summary>
 public class SearchFragment : Fragment
 {
@@ -24,13 +24,13 @@ public class SearchFragment : Fragment
     private SongAdapter _adapter = null!;
 
     /// <summary>
-    /// 创建搜索视图
+    /// 创建探索视图
     /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_search, container, false)!;
 
     /// <summary>
-    /// 视图创建完成后初始化搜索控件，绑定搜索事件和结果点击事件
+    /// 视图创建完成后初始化探索控件，绑定搜索事件和结果点击事件
     /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {

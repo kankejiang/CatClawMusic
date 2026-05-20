@@ -107,6 +107,7 @@ public class LibraryFragment : Fragment
         }
         else
         {
+            _networkProtocolRow.Visibility = ViewStates.Gone;
             _ = _viewModel.LoadLocalAsync();
         }
         if (_viewModel.Songs.Count > 0)
@@ -132,8 +133,8 @@ public class LibraryFragment : Fragment
             }
         };
 
-        UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, true);
-        UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, false);
+        UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, _viewModel.CurrentTab == "Local");
+        UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, _viewModel.CurrentTab == "Network");
     }
 
     /// <summary>
