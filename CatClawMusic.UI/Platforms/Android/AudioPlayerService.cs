@@ -391,32 +391,63 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
         try
         {
-            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-                .SetMediaSourceFactory(mediaSourceFactory);
-
             var audioSinkObj = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
                 .SetAudioProcessors(new AndroidX.Media3.Common.Audio.IAudioProcessor[] { _teeProcessor })
                 .Build();
 
-            var builderClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.ExoPlayer$Builder");
-            var setAudioSinkMethod = builderClass?.GetMethod("setAudioSink", new[] {
-                Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink")
-            });
-            if (setAudioSinkMethod != null)
+            var rf = new AndroidX.Media3.ExoPlayer.DefaultRenderersFactory(ctx);
+            var rfClass = rf.Class;
+            var rfMethods = rfClass.GetMethods();
+            Java.Lang.Reflect.Method? rfSetAudioSink = null;
+            foreach (var m in rfMethods)
             {
-                setAudioSinkMethod.Invoke(builder, new Java.Lang.Object[] { audioSinkObj });
-                System.Diagnostics.Debug.WriteLine("[CatClaw] TeeAudioProcessor wired via JNI setAudioSink on Builder");
+                if (m.Name == "setAudioSink")
+                {
+                    rfSetAudioSink = m;
+                    break;
+                }
+            }
+
+            if (rfSetAudioSink != null)
+            {
+                rfSetAudioSink.Invoke(rf, new Java.Lang.Object[] { audioSinkObj });
+                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor wired via DefaultRenderersFactory.setAudioSink");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("[CatClaw] TeeAudioProcessor: setAudioSink not found on Builder, wiring skipped");
+                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor: setAudioSink not found on DefaultRenderersFactory");
+            }
+
+            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+                .SetMediaSourceFactory(mediaSourceFactory);
+
+            var bClass = builder.Class;
+            var bMethods = bClass.GetMethods();
+            Java.Lang.Reflect.Method? bSetRenderersFactory = null;
+            foreach (var m in bMethods)
+            {
+                if (m.Name == "setRenderersFactory")
+                {
+                    bSetRenderersFactory = m;
+                    break;
+                }
+            }
+
+            if (bSetRenderersFactory != null)
+            {
+                bSetRenderersFactory.Invoke(builder, new Java.Lang.Object[] { rf });
+                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor wired via Builder.setRenderersFactory");
+            }
+            else
+            {
+                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor: setRenderersFactory not found on Builder");
             }
 
             _player = builder.Build();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] TeeAudioProcessor wiring failed: {ex.Message}");
+            ALog.Warn("CatClaw", $"[CatClaw] TeeAudioProcessor wiring failed: {ex.Message}");
             _player = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
                 .SetMediaSourceFactory(mediaSourceFactory)
                 .Build();

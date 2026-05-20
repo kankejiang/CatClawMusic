@@ -85,11 +85,22 @@ public class NowPlayingFragment : Fragment
         var teeProcessor = playerService?.TeeProcessor;
         if (teeProcessor != null)
         {
+            var spectrumCounter = 0;
             teeProcessor.SpectrumUpdated += spectrum =>
             {
                 _mainHandler ??= new Handler(Looper.MainLooper!);
-                _mainHandler.Post(() => _audioVisualizer?.UpdateSpectrum(spectrum));
+                _mainHandler.Post(() =>
+                {
+                    _audioVisualizer?.UpdateSpectrum(spectrum);
+                    if (++spectrumCounter % 30 == 0)
+                        Android.Util.Log.Debug("CatClaw", $"[CatClaw] SpectrumUpdated x{spectrumCounter}, sum={spectrum.Sum():F2}");
+                });
             };
+            Android.Util.Log.Debug("CatClaw", "[CatClaw] TeeAudioProcessor SpectrumUpdated event hooked");
+        }
+        else
+        {
+            Android.Util.Log.Warn("CatClaw", "[CatClaw] TeeAudioProcessor is null! Spectrum will not animate.");
         }
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
