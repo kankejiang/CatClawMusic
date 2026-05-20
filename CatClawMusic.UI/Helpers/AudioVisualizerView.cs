@@ -8,18 +8,22 @@ namespace CatClawMusic.UI.Helpers;
 public class AudioVisualizerView : View
 {
     private readonly Paint _barPaint = new(PaintFlags.AntiAlias);
+    private readonly Paint _peakPaint = new(PaintFlags.AntiAlias);
     private float[] _spectrum = Array.Empty<float>();
     private float[] _targetSpectrum = Array.Empty<float>();
-    private float[] _velocity = Array.Empty<float>();
+    private float[] _peakLevel = Array.Empty<float>();
+    private float[] _peakVelocity = Array.Empty<float>();
     private bool _isAttached;
     private int _inactiveColor = Color.Argb(0x30, 0xFF, 0xFF, 0xFF);
     private int _activeColor = Color.Argb(0xCC, 0xFF, 0xFF, 0xFF);
-    private LinearGradient? _gradient;
 
     private const int BarCount = 32;
     private const float BarRadius = 2.5f;
     private const float MaxBarHeightRatio = 0.85f;
-    private const float Smoothing = 0.15f;
+    private const float AttackSpeed = 0.55f;
+    private const float DecaySpeed = 0.18f;
+    private const float PeakGravity = 0.006f;
+    private const float MinBarRatio = 0.03f;
 
     public AudioVisualizerView(Context context) : base(context) => Init();
     public AudioVisualizerView(Context context, IAttributeSet attrs) : base(context, attrs) => Init();
@@ -28,9 +32,11 @@ public class AudioVisualizerView : View
     private void Init()
     {
         _barPaint.SetStyle(Paint.Style.Fill);
+        _peakPaint.SetStyle(Paint.Style.Fill);
         _spectrum = new float[BarCount];
         _targetSpectrum = new float[BarCount];
-        _velocity = new float[BarCount];
+        _peakLevel = new float[BarCount];
+        _peakVelocity = new float[BarCount];
     }
 
     public void SetColors(int activeColor)
@@ -40,7 +46,6 @@ public class AudioVisualizerView : View
         int g = Color.GetGreenComponent(activeColor);
         int b = Color.GetBlueComponent(activeColor);
         _inactiveColor = Color.Argb(0x30, r, g, b);
-        _gradient = null;
     }
 
     public void UpdateSpectrum(float[] spectrum)
@@ -79,34 +84,54 @@ public class AudioVisualizerView : View
         var barWidth = totalBarWidth * 0.6f;
         var gap = totalBarWidth * 0.4f;
         var maxBarH = h * MaxBarHeightRatio;
-
-        if (_gradient == null)
-        {
-            _gradient = new LinearGradient(0, h, 0, h - maxBarH,
-                _inactiveColor, _activeColor, Shader.TileMode.Clamp);
-        }
+        var minBarH = h * MinBarRatio;
 
         for (int i = 0; i < BarCount; i++)
         {
-            _velocity[i] = (_targetSpectrum[i] - _spectrum[i]) * Smoothing;
-            _spectrum[i] += _velocity[i];
-            if (_spectrum[i] < 0.01f) _spectrum[i] = 0.01f;
-            if (_spectrum[i] > 1f) _spectrum[i] = 1f;
+            float target = _targetSpectrum[i];
+            float current = _spectrum[i];
 
-            var barH = Math.Max(2f, _spectrum[i] * maxBarH);
+            if (target > current)
+                current += (target - current) * AttackSpeed;
+            else
+                current += (target - current) * DecaySpeed;
+
+            current = Math.Max(current, MinBarRatio);
+            if (current > 1f) current = 1f;
+            _spectrum[i] = current;
+
+            if (current > _peakLevel[i])
+            {
+                _peakLevel[i] = current;
+                _peakVelocity[i] = 0f;
+            }
+            else
+            {
+                _peakVelocity[i] += PeakGravity;
+                _peakLevel[i] -= _peakVelocity[i];
+                if (_peakLevel[i] < current)
+                {
+                    _peakLevel[i] = current;
+                    _peakVelocity[i] = 0f;
+                }
+            }
+
+            var barH = Math.Max(minBarH, current * maxBarH);
             var left = i * totalBarWidth + gap * 0.5f;
             var bottom = h;
             var top = bottom - barH;
             var right = left + barWidth;
 
-            _barPaint.Color = InterpolateColor(_inactiveColor, _activeColor, _spectrum[i]);
+            _barPaint.Color = InterpolateColor(_inactiveColor, _activeColor, current);
+            canvas.DrawRoundRect(new RectF(left, top, right, bottom), BarRadius, BarRadius, _barPaint);
 
-            var rect = new RectF(left, top, right, bottom);
-            canvas.DrawRoundRect(rect, BarRadius, BarRadius, _barPaint);
+            float peakY = bottom - _peakLevel[i] * maxBarH;
+            _peakPaint.Color = InterpolateColor(_inactiveColor, _activeColor, 1f);
+            canvas.DrawRoundRect(new RectF(left, peakY - 2f, right, peakY + 1f), 1f, 1f, _peakPaint);
         }
 
         if (_isAttached)
-            PostInvalidateDelayed(30);
+            PostInvalidateDelayed(25);
     }
 
     private static Color InterpolateColor(int from, int to, float ratio)

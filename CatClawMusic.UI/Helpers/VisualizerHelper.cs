@@ -64,6 +64,7 @@ public class VisualizerHelper : Java.Lang.Object
 
     private int _samplingRate;
     private int _fftCount;
+    private readonly float[] _smoothed = new float[32];
 
     private void OnFftData(byte[] fft)
     {
@@ -76,8 +77,12 @@ public class VisualizerHelper : Java.Lang.Object
         float binHz = sr / (float)fft.Length;
 
         float[] magnitudes = new float[n - 1];
-        for (int i = 1; i < n; i++)
-            magnitudes[i - 1] = (fft[i] & 0xFF) / 255f;
+        for (int k = 1; k < n; k++)
+        {
+            float real = (sbyte)fft[2 * k];
+            float imag = (sbyte)fft[2 * k + 1];
+            magnitudes[k - 1] = (float)Math.Sqrt(real * real + imag * imag);
+        }
 
         const float minFreq = 20f;
         const float maxFreq = 20000f;
@@ -91,42 +96,33 @@ public class VisualizerHelper : Java.Lang.Object
             float freqLo = (float)Math.Pow(10, logLo);
             float freqHi = (float)Math.Pow(10, logHi);
 
-            int binLo = Math.Max(1, (int)(freqLo / binHz));
-            int binHi = Math.Min(n - 1, (int)(freqHi / binHz));
-            if (binLo >= binHi) continue;
+            int binLo = Math.Max(1, (int)Math.Floor(freqLo / binHz));
+            int binHi = Math.Min(n - 2, (int)Math.Ceiling(freqHi / binHz));
+            if (binHi < binLo) binHi = binLo;
 
             float peak = 0;
-            for (int i = binLo; i <= binHi; i++)
+            for (int i = binLo; i <= binHi && i < magnitudes.Length; i++)
             {
                 if (magnitudes[i - 1] > peak)
                     peak = magnitudes[i - 1];
             }
 
-            float centerFreq = (float)Math.Sqrt(freqLo * freqHi);
-            float aWeight = ComputeAWeight(centerFreq);
+            float normalized = Math.Clamp(peak / 120f, 0f, 1f);
 
-            float rawDb = peak > 0.0001f ? 20f * (float)Math.Log10(peak) : -80f;
-            float weightedDb = rawDb + aWeight;
-            spectrum[b] = Math.Clamp((weightedDb + 60f) / 80f, 0f, 1f);
+            if (normalized > _smoothed[b])
+                _smoothed[b] = _smoothed[b] * 0.2f + normalized * 0.8f;
+            else
+                _smoothed[b] = _smoothed[b] * 0.75f + normalized * 0.25f;
+
+            spectrum[b] = _smoothed[b];
         }
 
         if (++_fftCount % 300 == 1)
         {
-            ALog.Debug("CatClaw", $"[CatClaw] FFT diag: sr={sr}, binHz={binHz:F1}, n={n}, fftLen={fft.Length}, sum={spectrum.Sum():F2}, max={spectrum.Max():F2}");
+            ALog.Debug("CatClaw", $"[CatClaw] FFT diag: sr={sr}, binHz={binHz:F1}, sum={spectrum.Sum():F2}, max={spectrum.Max():F2}");
         }
 
         SpectrumUpdated?.Invoke(spectrum);
-    }
-
-    private static float ComputeAWeight(float freq)
-    {
-        float f2 = freq * freq;
-        float f4 = f2 * f2;
-        float num = 12194f * 12194f * f4;
-        float den = (f2 + 20.6f * 20.6f) * (float)Math.Sqrt((f2 + 107.7f * 107.7f) * (f2 + 737.9f * 737.9f)) * (f2 + 12194f * 12194f);
-        float ratio = num / den;
-        float db = 20f * (float)Math.Log10(ratio) + 2f;
-        return db;
     }
 
     private class CaptureListener : Java.Lang.Object, Visualizer.IOnDataCaptureListener
