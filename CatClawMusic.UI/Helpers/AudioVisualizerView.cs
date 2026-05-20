@@ -84,7 +84,8 @@ public class AudioVisualizerView : View
 
             var barH = Math.Max(2f, _spectrum[i] * maxBarH);
             var left = i * totalBarWidth + gap * 0.5f;
-            var top = (h - barH) * 0.5f;
+            var bottom = h;
+            var top = bottom - barH;
             var right = left + barWidth;
 
             var ratio = _spectrum[i];

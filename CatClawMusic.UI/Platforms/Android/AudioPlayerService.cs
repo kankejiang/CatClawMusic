@@ -27,17 +27,32 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private Am? _audioManager;
     private bool _pausedByFocusLoss;
     private int _preFocusVolume = 100;
-    private TeeAudioProcessor? _teeProcessor;
     /// <summary>是否正在播放</summary>
     public bool IsPlaying => _player?.IsPlaying ?? false;
     /// <summary>当前播放歌曲的文件路径</summary>
     public string? CurrentSongFilePath => _currentPath;
     public int AudioSessionId
     {
-        get { try { return 0; } catch { return 0; } }
+        get
+        {
+            try
+            {
+                if (_player == null) return 0;
+                var method = _player.Class.GetMethod("getAudioSessionId");
+                if (method != null)
+                {
+                    var result = method.Invoke(_player);
+                    if (result is Java.Lang.Integer ji)
+                        return ji.IntValue();
+                    if (result is Java.Lang.Number jn)
+                        return jn.IntValue();
+                    return 0;
+                }
+                return 0;
+            }
+            catch { return 0; }
+        }
     }
-
-    public TeeAudioProcessor? TeeProcessor => _teeProcessor;
 
     /// <summary>当前播放位置</summary>
     public TimeSpan CurrentPosition => _cachedPositionMs > 0
@@ -387,71 +402,9 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var mediaSourceFactory = new AndroidX.Media3.ExoPlayer.Source.DefaultMediaSourceFactory(ctx)
             .SetDataSourceFactory(new CatClawDataSourceFactory(httpFactory, ctx));
 
-        _teeProcessor = new TeeAudioProcessor();
-
-        try
-        {
-            var audioSinkObj = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
-                .SetAudioProcessors(new AndroidX.Media3.Common.Audio.IAudioProcessor[] { _teeProcessor })
-                .Build();
-
-            var rf = new AndroidX.Media3.ExoPlayer.DefaultRenderersFactory(ctx);
-            var rfClass = rf.Class;
-            var rfMethods = rfClass.GetMethods();
-            Java.Lang.Reflect.Method? rfSetAudioSink = null;
-            foreach (var m in rfMethods)
-            {
-                if (m.Name == "setAudioSink")
-                {
-                    rfSetAudioSink = m;
-                    break;
-                }
-            }
-
-            if (rfSetAudioSink != null)
-            {
-                rfSetAudioSink.Invoke(rf, new Java.Lang.Object[] { audioSinkObj });
-                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor wired via DefaultRenderersFactory.setAudioSink");
-            }
-            else
-            {
-                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor: setAudioSink not found on DefaultRenderersFactory");
-            }
-
-            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-                .SetMediaSourceFactory(mediaSourceFactory);
-
-            var bClass = builder.Class;
-            var bMethods = bClass.GetMethods();
-            Java.Lang.Reflect.Method? bSetRenderersFactory = null;
-            foreach (var m in bMethods)
-            {
-                if (m.Name == "setRenderersFactory")
-                {
-                    bSetRenderersFactory = m;
-                    break;
-                }
-            }
-
-            if (bSetRenderersFactory != null)
-            {
-                bSetRenderersFactory.Invoke(builder, new Java.Lang.Object[] { rf });
-                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor wired via Builder.setRenderersFactory");
-            }
-            else
-            {
-                ALog.Warn("CatClaw", "[CatClaw] TeeAudioProcessor: setRenderersFactory not found on Builder");
-            }
-
-            _player = builder.Build();
-        }
-        catch (Exception ex)
-        {
-            ALog.Warn("CatClaw", $"[CatClaw] TeeAudioProcessor wiring failed: {ex.Message}");
-            _player = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-                .SetMediaSourceFactory(mediaSourceFactory)
-                .Build();
-        }
+        _player = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+            .SetMediaSourceFactory(mediaSourceFactory)
+            .Build();
 
         try
         {
@@ -464,6 +417,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         catch { }
 
         _lastPlaybackState = _player.PlaybackState;
+        ALog.Debug("CatClaw", $"[CatClaw] Player created, AudioSessionId={AudioSessionId}");
     }
 
     /// <summary>启动播放位置定时器（200ms 间隔）</summary>

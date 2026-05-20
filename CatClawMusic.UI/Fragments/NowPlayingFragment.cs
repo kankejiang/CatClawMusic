@@ -12,6 +12,8 @@ using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using CatClawMusic.UI.Platforms.Android;
 using Microsoft.Extensions.DependencyInjection;
+using AndroidX.Activity.Result;
+using AndroidX.Activity.Result.Contract;
 using GoogleSlider = Google.Android.Material.Slider.Slider;
 
 namespace CatClawMusic.UI.Fragments;
@@ -35,7 +37,9 @@ public class NowPlayingFragment : Fragment
     private View _reflectionMaskBottom = null!, _coverFog = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
     private AudioVisualizerView _audioVisualizer = null!;
+    private VisualizerHelper? _visualizerHelper;
     private Android.OS.Handler? _mainHandler;
+    private ActivityResultLauncher? _recordAudioLauncher;
 
     /// <summary>
     /// 创建正在播放视图
@@ -81,27 +85,20 @@ public class NowPlayingFragment : Fragment
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
 
-        var playerService = player as AudioPlayerService;
-        var teeProcessor = playerService?.TeeProcessor;
-        if (teeProcessor != null)
-        {
-            var spectrumCounter = 0;
-            teeProcessor.SpectrumUpdated += spectrum =>
+        _recordAudioLauncher = RegisterForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            new RecordAudioCallback(granted =>
             {
-                _mainHandler ??= new Handler(Looper.MainLooper!);
-                _mainHandler.Post(() =>
+                if (granted)
                 {
-                    _audioVisualizer?.UpdateSpectrum(spectrum);
-                    if (++spectrumCounter % 30 == 0)
-                        Android.Util.Log.Debug("CatClaw", $"[CatClaw] SpectrumUpdated x{spectrumCounter}, sum={spectrum.Sum():F2}");
-                });
-            };
-            Android.Util.Log.Debug("CatClaw", "[CatClaw] TeeAudioProcessor SpectrumUpdated event hooked");
-        }
-        else
-        {
-            Android.Util.Log.Warn("CatClaw", "[CatClaw] TeeAudioProcessor is null! Spectrum will not animate.");
-        }
+                    var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+                    var sessionId = playerService.AudioSessionId;
+                    if (sessionId != 0)
+                        StartVisualizerWithSession(sessionId);
+                }
+            }));
+
+        TryStartVisualizer();
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
@@ -364,8 +361,8 @@ public class NowPlayingFragment : Fragment
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(
             new Android.Graphics.Color(Android.Graphics.Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
 
-        var defaultText = Android.Graphics.Color.ParseColor("#333333");
-        var defaultGray = Android.Graphics.Color.ParseColor("#888888");
+        var defaultText = Android.Graphics.Color.ParseColor("#FFFFFF");
+        var defaultGray = Android.Graphics.Color.ParseColor("#CCFFFFFF");
         _songTitle.SetTextColor(defaultText);
         _songArtist.SetTextColor(defaultGray);
         _lyricCurrent.SetTextColor(Android.Graphics.Color.ParseColor("#FF444444"));
@@ -733,6 +730,7 @@ public class NowPlayingFragment : Fragment
             _viewModel.SyncWithQueue();
             SyncUIFromViewModel();
         }
+        TryStartVisualizer();
         View?.PostDelayed(() =>
         {
             UpdateSlider();
@@ -751,10 +749,54 @@ public class NowPlayingFragment : Fragment
     /// </summary>
     public override void OnDestroyView()
     {
+        _visualizerHelper?.Stop();
+        _visualizerHelper = null;
         UnbindViewModel();
         _playlistDialog?.Dismiss();
         _playlistDialog = null;
         base.OnDestroyView();
+    }
+
+    private void TryStartVisualizer()
+    {
+        if (_visualizerHelper != null && _visualizerHelper.IsEnabled) return;
+
+        var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+        var sessionId = playerService.AudioSessionId;
+        if (sessionId == 0) return;
+
+        if (Activity?.CheckSelfPermission(Android.Manifest.Permission.RecordAudio) != Android.Content.PM.Permission.Granted)
+        {
+            _recordAudioLauncher?.Launch(Android.Manifest.Permission.RecordAudio);
+            return;
+        }
+
+        StartVisualizerWithSession(sessionId);
+    }
+
+    private void StartVisualizerWithSession(int sessionId)
+    {
+        _visualizerHelper?.Stop();
+        _visualizerHelper = new VisualizerHelper();
+        _mainHandler ??= new Handler(Looper.MainLooper!);
+        var spectrumCounter = 0;
+        _visualizerHelper.SpectrumUpdated += spectrum =>
+        {
+            _mainHandler.Post(() =>
+            {
+                _audioVisualizer?.UpdateSpectrum(spectrum);
+                if (++spectrumCounter % 30 == 0)
+                    Android.Util.Log.Debug("CatClaw", $"[CatClaw] SpectrumUpdated x{spectrumCounter}, sum={spectrum.Sum():F2}");
+            });
+        };
+        _visualizerHelper.Start(sessionId);
+    }
+
+    internal class RecordAudioCallback : Java.Lang.Object, AndroidX.Activity.Result.IActivityResultCallback
+    {
+        private readonly Action<Java.Lang.Object> _callback;
+        public RecordAudioCallback(Action<bool> callback) => _callback = result => callback((bool)result);
+        public void OnActivityResult(Java.Lang.Object result) => _callback(result);
     }
 
     /// <summary>

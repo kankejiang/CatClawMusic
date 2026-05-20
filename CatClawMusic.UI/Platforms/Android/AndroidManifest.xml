@@ -52,6 +52,9 @@
     <!-- 悬浮窗权限（桌面歌词） -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- 音频可视化（频谱分析需要捕获音频输出） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application 
         android:label="猫爪音乐"
         android:icon="@mipmap/ic_launcher"
