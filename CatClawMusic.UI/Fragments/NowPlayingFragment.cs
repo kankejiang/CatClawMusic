@@ -279,6 +279,7 @@ public class NowPlayingFragment : Fragment
         var sliderCs = Android.Content.Res.ColorStateList.ValueOf(new Android.Graphics.Color(palette.Primary));
         _progressSlider.ThumbTintList = sliderCs;
         _progressSlider.TrackActiveTintList = sliderCs;
+        _audioVisualizer.SetColors(palette.Primary);
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(
             new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B)));
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(
@@ -356,6 +357,7 @@ public class NowPlayingFragment : Fragment
         var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.ThumbTintList = sliderCs;
         _progressSlider.TrackActiveTintList = sliderCs;
+        _audioVisualizer.SetColors(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(
             new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(
@@ -399,6 +401,7 @@ public class NowPlayingFragment : Fragment
                 _songArtist.Text = "正在加载...";
             else
                 _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
+            TryStartVisualizer();
             UpdateTimeDisplay();
             UpdateSlider();
             UpdatePlayPauseIcon();
@@ -757,13 +760,16 @@ public class NowPlayingFragment : Fragment
         base.OnDestroyView();
     }
 
+    private int _lastVisualizerSessionId;
+
     private void TryStartVisualizer()
     {
-        if (_visualizerHelper != null && _visualizerHelper.IsEnabled) return;
-
         var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         var sessionId = playerService.AudioSessionId;
         if (sessionId == 0) return;
+
+        if (_visualizerHelper != null && _visualizerHelper.IsEnabled && sessionId == _lastVisualizerSessionId)
+            return;
 
         if (Activity?.CheckSelfPermission(Android.Manifest.Permission.RecordAudio) != Android.Content.PM.Permission.Granted)
         {
@@ -771,6 +777,7 @@ public class NowPlayingFragment : Fragment
             return;
         }
 
+        _lastVisualizerSessionId = sessionId;
         StartVisualizerWithSession(sessionId);
     }
 

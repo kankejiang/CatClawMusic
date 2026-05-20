@@ -12,8 +12,9 @@ public class AudioVisualizerView : View
     private float[] _targetSpectrum = Array.Empty<float>();
     private float[] _velocity = Array.Empty<float>();
     private bool _isAttached;
-    private int _barColor = Color.Argb(0x60, 0xFF, 0xFF, 0xFF);
-    private int _activeColor = Color.Argb(0x99, 0xBB, 0x7E, 0xD8);
+    private int _inactiveColor = Color.Argb(0x30, 0xFF, 0xFF, 0xFF);
+    private int _activeColor = Color.Argb(0xCC, 0xFF, 0xFF, 0xFF);
+    private LinearGradient? _gradient;
 
     private const int BarCount = 32;
     private const float BarRadius = 2.5f;
@@ -32,10 +33,14 @@ public class AudioVisualizerView : View
         _velocity = new float[BarCount];
     }
 
-    public void SetColors(int barColor, int activeColor)
+    public void SetColors(int activeColor)
     {
-        _barColor = barColor;
         _activeColor = activeColor;
+        int r = Color.GetRedComponent(activeColor);
+        int g = Color.GetGreenComponent(activeColor);
+        int b = Color.GetBlueComponent(activeColor);
+        _inactiveColor = Color.Argb(0x30, r, g, b);
+        _gradient = null;
     }
 
     public void UpdateSpectrum(float[] spectrum)
@@ -75,6 +80,12 @@ public class AudioVisualizerView : View
         var gap = totalBarWidth * 0.4f;
         var maxBarH = h * MaxBarHeightRatio;
 
+        if (_gradient == null)
+        {
+            _gradient = new LinearGradient(0, h, 0, h - maxBarH,
+                _inactiveColor, _activeColor, Shader.TileMode.Clamp);
+        }
+
         for (int i = 0; i < BarCount; i++)
         {
             _velocity[i] = (_targetSpectrum[i] - _spectrum[i]) * Smoothing;
@@ -88,10 +99,9 @@ public class AudioVisualizerView : View
             var top = bottom - barH;
             var right = left + barWidth;
 
-            var ratio = _spectrum[i];
-            _barPaint.Color = InterpolateColor(_barColor, _activeColor, ratio);
+            _barPaint.Color = InterpolateColor(_inactiveColor, _activeColor, _spectrum[i]);
 
-            var rect = new RectF(left, top, right, top + barH);
+            var rect = new RectF(left, top, right, bottom);
             canvas.DrawRoundRect(rect, BarRadius, BarRadius, _barPaint);
         }
 

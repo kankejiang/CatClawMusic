@@ -23,14 +23,13 @@ public class LyricsService : ILyricsService
     private static readonly Regex ExtensionRegex = new(@"\.\w+$", RegexOptions.Compiled);
 
     /// <summary>
-    /// 获取歌词（优先级：嵌入歌词 > 用户目录 > 同名 .lrc > 网络）
+    /// 获取歌词（优先级：同名 .lrc > 嵌入歌词 > 插件）
     /// </summary>
     public async Task<LrcLyrics?> GetLyricsAsync(Song song)
     {
         var lyrics = await GetLocalLyricsAsync(song);
         if (lyrics != null) return lyrics;
 
-        // 插件降级链：依次尝试已启用的歌词插件
         if (PluginManager != null)
         {
             var providers = PluginManager.GetEnabledPlugins<ILyricsProviderPlugin>();
@@ -44,7 +43,6 @@ public class LyricsService : ILyricsService
                 }
                 catch
                 {
-                    // 单个插件失败不影响后续插件尝试
                 }
             }
         }
@@ -53,7 +51,7 @@ public class LyricsService : ILyricsService
     }
 
     /// <summary>
-    /// 从本地获取歌词（多源查找）
+    /// 从本地获取歌词（优先级：同名 .lrc > 嵌入歌词）
     /// </summary>
     public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song)
     {
@@ -61,21 +59,9 @@ public class LyricsService : ILyricsService
 
         bool isContentUri = !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
 
-        // 1. 读取嵌入歌词（需要真实路径文件访问）
-        if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
-        {
-            var embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
-            if (!string.IsNullOrWhiteSpace(embeddedLyrics))
-            {
-                var parsed = ParseLrc(embeddedLyrics);
-                if (parsed != null) return parsed;
-            }
-        }
-
-        // 2. 查找同名 .lrc
+        // 1. 查找同名 .lrc（外置歌词优先）
         if (isContentUri)
         {
-            // SAF content URI → 构造同路径 .lrc URI
             var lrcUri = ConstructLrcUri(songPath);
             if (lrcUri != null)
             {
@@ -85,7 +71,6 @@ public class LyricsService : ILyricsService
         }
         else
         {
-            // 文件系统路径
             if (File.Exists(songPath))
             {
                 var dir = Path.GetDirectoryName(songPath) ?? "";
@@ -96,6 +81,17 @@ public class LyricsService : ILyricsService
                     try { return ParseLrc(await File.ReadAllTextAsync(lrcPath)); }
                     catch { }
                 }
+            }
+        }
+
+        // 2. 读取嵌入歌词（内嵌歌词降级）
+        if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+        {
+            var embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
+            if (!string.IsNullOrWhiteSpace(embeddedLyrics))
+            {
+                var parsed = ParseLrc(embeddedLyrics);
+                if (parsed != null) return parsed;
             }
         }
 
