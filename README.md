@@ -1,6 +1,6 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
-> 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、桌面悬浮歌词（可拖拽/锁定/双行KTV）、LRC 歌词同步滚动、全屏歌词体验、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复。
+> 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、桌面悬浮歌词（可拖拽/锁定/双行KTV）、LRC 歌词同步滚动、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复。
 >
 > 📢 **QQ 交流群**: [855383639](https://qm.qq.com/q/Fhu3IEzqa4) 点击链接加入群聊【₍˄·͈༝·͈˄*₎◞ ̑̑】
 
@@ -66,12 +66,13 @@ CatClawMusic/
     ├── MainActivity.cs         # ViewPager2 + BottomNav + 侧滑面板 + 迷你播放器
     ├── Fragments/              # 12 个 Fragment
     ├── ViewModels/             # MVVM（CommunityToolkit.Mvvm 源生成器）
+    ├── Helpers/                # VisualizerHelper / AudioVisualizerView
     ├── Services/               # 桌面歌词 / 导航 / 播放状态 / 前台服务
     ├── Adapters/               # 歌曲列表 / 播放列表 适配器
     └── Platforms/Android/      # ExoPlayer / SAF / 主题
 ```
 
-**技术栈**：.NET 9 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | Material 3
+**技术栈**：.NET 9 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | Material 3 | Android Visualizer API
 
 ***
 
@@ -112,6 +113,11 @@ CatClawMusic/
 | 播放状态持久化 | 每 ~5 秒自动保存位置/模式，启动时同步恢复模式 + 异步恢复队列和位置 |
 | 播放失败处理 | 延迟 1 秒显示错误对话框，期间若恢复播放则取消 |
 | 歌曲切换防竞态 | _isSwitchingSong 标志阻止 Stopped 事件误触发 Next() |
+| 音频频谱可视化 | Android Visualizer API + FFT，64 频段实时跳动 |
+| 频谱算法 | 混合线性-对数频段分布、汉宁窗平滑、RMS 能量计算 |
+| 频谱开关 | 控制区一键开启/关闭频谱显示 |
+| 睡眠定时 | 10/20/30/45/60/90 分钟 + 自定义时间倒计时 |
+| 播完再停 | 可选播完当前歌曲后再暂停 |
 
 ### 🔀 播放队列与模式
 
@@ -170,8 +176,8 @@ CatClawMusic/
 | 收藏/取消 | ♥ 实时写入 SQLite |
 | 收藏列表 | 播放列表→收藏歌曲 Tab |
 | 通知栏收藏 | 工具通知一键收藏/取消 |
-| 播放历史 | 自动记录，去重计次（PlayCount 字段） |
-| 历史上限 | 保留最近 20 条（TrimHistoryAsync） |
+| 播放历史 | 自动记录全部历史，去重计次（PlayCount 字段） |
+| 播放计数 | 每播放一次自动 +1，数据库持久化 |
 | 收藏保留 | 网络重新扫描前保存 RemoteId→AddedAt 映射，扫描后按 RemoteId 恢复收藏 |
 
 ### 🔔 通知栏 / MediaSession
@@ -195,7 +201,7 @@ CatClawMusic/
 | 27 个自定义属性 | catClawPageBackground / PrimaryColor / TextPrimary / GradientStart 等 |
 | 毛玻璃风格卡片 | CatClawCard(20dp圆角) / CatClawCardSmall(16dp) / CatClawCardImage(24dp) |
 | 自定义按钮 | CatClawButtonPrimary(16dp圆角) / CatClawButtonSecondary |
-| 萌系字体 | @font/happy_zcool_2016(标题) + sans-serif(正文) |
+| 规范字体 | sans-serif / sans-serif-medium 中文字体 |
 | 主题持久化 | SharedPreferences 保存，运行时 AppCompatDelegate 切换 |
 
 ### ☁️ 网络协议
@@ -230,7 +236,7 @@ CatClawMusic/
 | 连接测试 | Depth=0 PROPFIND 验证 |
 | SocketsHttpHandler | 绕过 Android 网络栈对 HTTP 方法的限制 |
 
-### 🔍 搜索
+### 🔍 探索搜索
 
 | 特性 | 说明 |
 |------|------|
@@ -245,12 +251,12 @@ CatClawMusic/
 | Tab 0 | 全屏歌词 | 毛玻璃背景，拖拽定位，5 行歌词 |
 | Tab 1 | 正在播放 | 封面/歌词/控制/播放列表弹窗 |
 | Tab 2 | 播放列表 | 全部/收藏/最近 三个子 Tab |
-| Tab 3 | 搜索 | 实时搜索标题/艺术家/专辑 |
+| Tab 3 | 探索 | 实时搜索标题/艺术家/专辑 |
 | Tab 4 | 音乐库 | 本地/网络 Tab 切换 |
 
 **侧滑面板**：80% 宽度设置面板 + 20% 遮罩(60% 黑)，手势拖拽关闭(阈值 100px)，alpha 动画 250ms
 
-**子页面**（Fragment 路由）：设置、通用设置、音乐文件夹、远程音乐、Navidrome 设置、WebDAV 设置、桌面歌词设置、播放列表详情
+**子页面**（Fragment 路由）：设置、通用设置、音乐文件夹、远程音乐、Navidrome 设置、WebDAV 设置、桌面歌词设置、播放列表详情、探索搜索
 
 ***
 
