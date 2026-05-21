@@ -424,7 +424,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Timers.Timer(200);
+        _positionTimer = new System.Timers.Timer(100);
         _positionTimer.Elapsed += OnPositionTimerElapsed;
         _positionTimer.AutoReset = true;
         _positionTimer.Start();
@@ -520,6 +520,12 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
     private readonly AndroidX.Media3.DataSource.IDataSourceFactory _httpFactory;
     private readonly global::Android.Content.Context _ctx;
     private AndroidX.Media3.DataSource.IDataSource? _current;
+    private global::Android.Net.Uri? _contentUri;
+    private System.IO.Stream? _contentStream;
+    private long _contentLength = -1;
+    private long _contentPosition;
+    private static readonly IDictionary<string, IList<string>> _contentResponseHeaders =
+        new Dictionary<string, IList<string>>();
 
     public CatClawDataSource(
         AndroidX.Media3.DataSource.IDataSourceFactory httpFactory,
@@ -534,7 +540,27 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         var scheme = dataSpec?.Uri?.Scheme ?? "";
         if (scheme == "content")
         {
-            _current = new AndroidX.Media3.DataSource.ContentDataSource(_ctx);
+            _contentUri = dataSpec!.Uri;
+            try
+            {
+                _contentStream = _ctx.ContentResolver!.OpenInputStream(_contentUri);
+                if (_contentStream == null)
+                    throw new Java.IO.IOException($"Cannot open content URI: {_contentUri}");
+
+                _contentLength = _contentStream.Length > 0 ? _contentStream.Length : -1;
+                _contentPosition = 0;
+
+                if (dataSpec.Position > 0 && _contentStream.CanSeek)
+                {
+                    _contentStream.Seek((long)dataSpec.Position, System.IO.SeekOrigin.Begin);
+                    _contentPosition = (long)dataSpec.Position;
+                }
+
+                return _contentLength >= 0 ? _contentLength : -1;
+            }
+            catch (Java.IO.InterruptedIOException) { return -1; }
+            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }
+            catch (System.IO.IOException ex) { throw new Java.IO.IOException(ex.Message); }
         }
         else
         {
@@ -546,7 +572,7 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         }
         catch (Java.IO.InterruptedIOException)
         {
-            return -1; // 被中断，返回无效长度
+            return -1;
         }
         catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException)
         {
@@ -556,28 +582,45 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
 
     public int Read(byte[]? buffer, int offset, int length)
     {
+        if (_contentStream != null)
+        {
+            try
+            {
+                int read = _contentStream.Read(buffer!, offset, length);
+                if (read <= 0) return -1;
+                _contentPosition += read;
+                return read;
+            }
+            catch (System.IO.IOException) { return -1; }
+        }
         try
         {
             return _current?.Read(buffer, offset, length) ?? 0;
         }
         catch (Java.IO.InterruptedIOException)
         {
-            // 切歌/停止时 ExoPlayer 中断正在进行的 HTTP 流，属于正常行为
-            return -1; // CRLF_EOF
+            return -1;
         }
         catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException)
         {
-            // HttpDataSource 包装了 InterruptedIOException，同属正常中断
             return -1;
         }
     }
 
-    public global::Android.Net.Uri? Uri => _current?.Uri;
+    public global::Android.Net.Uri? Uri => _contentUri ?? _current?.Uri;
 
     public IDictionary<string, IList<string>>? ResponseHeaders
-        => _current?.ResponseHeaders;
+        => _contentUri != null ? _contentResponseHeaders : _current?.ResponseHeaders;
 
-    public void Close() => _current?.Close();
+    public void Close()
+    {
+        try { _contentStream?.Close(); } catch { }
+        _contentStream = null;
+        _contentUri = null;
+        _contentLength = -1;
+        _contentPosition = 0;
+        _current?.Close();
+    }
 
     public void AddTransferListener(AndroidX.Media3.DataSource.ITransferListener? transferListener)
     {

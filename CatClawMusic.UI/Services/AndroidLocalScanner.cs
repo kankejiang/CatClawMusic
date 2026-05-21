@@ -4,16 +4,8 @@ using CatClawMusic.UI.Platforms.Android;
 
 namespace CatClawMusic.UI.Services;
 
-/// <summary>
-/// Android 端本地音乐扫描器
-/// 放在 UI 项目里是因为 TargetFramework=net9.0-android，#if ANDROID 才生效
-/// </summary>
 public class AndroidLocalScanner
 {
-    /// <summary>本地扫描：只扫描用户选择的文件夹</summary>
-    /// <param name="customFolders">用户通过 SAF 选择的文件夹 URI 列表</param>
-    /// <param name="progress">进度回调 (done, total, status)</param>
-    /// <param name="songCallback">每扫描完一个批次后的回调，用于增量更新 UI</param>
     public static async Task<List<Song>> ScanAsync(
         List<string>? customFolders = null,
         IProgress<(int done, int total, string status)>? progress = null,
@@ -21,43 +13,27 @@ public class AndroidLocalScanner
     {
         var allSongs = new List<Song>();
         var existingPaths = new HashSet<string>();
+        var locker = new object();
 
-        // 判断扫描模式
         bool hasManageStorage = global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.R
             && global::Android.OS.Environment.IsExternalStorageManager;
 
-        // SAF 文件夹是否存在（用户通过文件选择器选的）
         bool hasSafFolders = customFolders != null && customFolders.Count > 0
             && customFolders.Any(f => f.StartsWith("content://", StringComparison.OrdinalIgnoreCase));
 
         if (hasSafFolders)
         {
-            // ── SAF 模式：只扫描用户选择的文件夹 ──
-            // 跳过 MediaStore 全设备扫描，避免扫到未选择的文件夹
             progress?.Report((0, 1, "扫描选中的文件夹..."));
             try
             {
-                var safSongs = await SafeContentScanner.ScanSavedFolderAsync();
-                var batch = new List<Song>();
-                foreach (var s in safSongs)
+                await SafeContentScanner.ScanSavedFolderAsync(async (songs) =>
                 {
-                    if (existingPaths.Add(s.FilePath))
-                    {
-                        batch.Add(s);
-                        if (batch.Count >= 20 && songCallback != null)
-                        {
-                            allSongs.AddRange(batch);
-                            await songCallback(batch);
-                            batch = new List<Song>();
-                        }
-                    }
-                }
-                if (batch.Count > 0)
-                {
-                    allSongs.AddRange(batch);
+                    var newSongs = songs.Where(s => existingPaths.Add(s.FilePath)).ToList();
+                    if (newSongs.Count == 0) return;
+                    lock (locker) allSongs.AddRange(newSongs);
                     if (songCallback != null)
-                        await songCallback(batch);
-                }
+                        await songCallback(newSongs);
+                }, progress);
             }
             catch (Exception ex)
             {

@@ -6,14 +6,12 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Adapters;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
-/// <summary>
-/// 歌单详情Fragment，显示歌单中的歌曲列表，支持播放、上下文菜单等操作
-/// </summary>
 public class PlaylistDetailFragment : Fragment
 {
     private PlaylistDetailViewModel _viewModel = null!;
@@ -23,16 +21,12 @@ public class PlaylistDetailFragment : Fragment
     private RecyclerView _songList = null!;
     private TextView _titleText = null!, _statusText = null!;
     private SongAdapter _adapter = null!;
+    private int _playlistId;
+    private bool _isUserPlaylist;
 
-    /// <summary>
-    /// 创建歌单详情视图
-    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_playlist_detail, container, false)!;
 
-    /// <summary>
-    /// 视图创建完成后初始化控件，加载歌单数据并绑定事件
-    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -50,7 +44,7 @@ public class PlaylistDetailFragment : Fragment
 
         _adapter = MainApplication.Services.GetRequiredService<SongAdapter>();
         _adapter.SongClicked += (s, song) => _ = _viewModel.PlaySongAsync(song);
-        _adapter.SongLongClicked += (s, song) => ShowSongContextMenu(_adapter.LastLongClickedView ?? _songList, song);
+        _adapter.SongLongClicked += (s, song) => ShowSongContextMenu(song);
         _songList.SetAdapter(_adapter);
 
         if (_audioPlayer != null)
@@ -61,10 +55,11 @@ public class PlaylistDetailFragment : Fragment
         var args = Arguments;
         if (args != null)
         {
-            int playlistId = args.GetInt("playlistId", 0);
+            _playlistId = args.GetInt("playlistId", 0);
+            _isUserPlaylist = _playlistId > 0;
             string name = args.GetString("playlistName") ?? "歌单";
             _titleText.Text = name;
-            _ = _viewModel.LoadAsync(playlistId, name);
+            _ = _viewModel.LoadAsync(_playlistId, name);
         }
 
         _viewModel.Songs.CollectionChanged += (s, e) =>
@@ -80,82 +75,82 @@ public class PlaylistDetailFragment : Fragment
         };
     }
 
-    /// <summary>
-    /// 显示歌曲右键上下文菜单，包含播放、添加、收藏等选项
-    /// </summary>
-    private void ShowSongContextMenu(View anchor, Song song)
+    private void ShowSongContextMenu(Song song)
     {
-        var popup = new AndroidX.AppCompat.Widget.PopupMenu(Context!, anchor);
-        popup.MenuInflater!.Inflate(Resource.Menu.menu_song_context, popup.Menu!);
+        var ctx = Context;
+        if (ctx == null) return;
 
-        popup.MenuItemClick += (s, e) => HandleContextMenuClick(e.Item!.ItemId, song);
-        popup.Show();
-    }
+        var dialog = new GlassDialog(ctx)
+            .SetTitle(song.Title ?? "未知歌曲", song.Artist ?? "未知艺术家");
 
-    /// <summary>
-    /// 处理上下文菜单点击事件，分发到不同的操作逻辑
-    /// </summary>
-    private async void HandleContextMenuClick(int itemId, Song song)
-    {
-        switch (itemId)
+        dialog.AddItem("▶  播放", () => _ = _viewModel.PlaySongAsync(song));
+        dialog.AddItem("⏭  下一首播放", () =>
         {
-            case Resource.Id.action_play:
-                await _viewModel.PlaySongAsync(song);
-                break;
-            case Resource.Id.action_play_next:
-                var queue = MainApplication.Services.GetRequiredService<Core.Services.PlayQueue>();
-                queue.AddNext(song);
-                var a = Activity;
-                if (a != null) a.RunOnUiThread(() =>
-                    Toast.MakeText(Context, $"已添加: {song.Title}", ToastLength.Short)!.Show());
-                break;
-            case Resource.Id.action_add_to_playlist:
-                ShowAddToPlaylistDialog(song);
-                break;
-            case Resource.Id.action_favorite:
-                bool isFav = await _viewModel.IsFavoriteAsync(song.Id);
-                await _viewModel.ToggleFavoriteAsync(song.Id, !isFav);
-                var favA = Activity;
-                if (favA != null) favA.RunOnUiThread(() =>
-                    Toast.MakeText(Context, isFav ? "已取消收藏" : "已收藏", ToastLength.Short)!.Show());
-                break;
-            case Resource.Id.action_song_info:
-                ShowSongInfoDialog(song);
-                break;
+            var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
+            queue.AddNext(song);
+            Activity?.RunOnUiThread(() =>
+                Toast.MakeText(ctx, $"已添加: {song.Title}", ToastLength.Short)?.Show());
+        });
+        dialog.AddItem("📋  添加到歌单", () => ShowAddToPlaylistDialog(song));
+
+        if (_isUserPlaylist)
+        {
+            dialog.AddItem("🗑  从歌单移除", async () =>
+            {
+                await _viewModel.RemoveSongFromPlaylistAsync(song.Id);
+                Activity?.RunOnUiThread(() =>
+                {
+                    Toast.MakeText(ctx, "已从歌单移除", ToastLength.Short)?.Show();
+                    _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName);
+                });
+            });
         }
+
+        dialog.AddItem("❤  收藏", async () =>
+        {
+            bool isFav = await _viewModel.IsFavoriteAsync(song.Id);
+            await _viewModel.ToggleFavoriteAsync(song.Id, !isFav);
+            Activity?.RunOnUiThread(() =>
+                Toast.MakeText(ctx, isFav ? "已取消收藏" : "已收藏", ToastLength.Short)?.Show());
+        });
+        dialog.AddItem("ℹ  歌曲详情", () => ShowSongInfoDialog(song));
+
+        dialog.Show();
     }
 
-    /// <summary>
-    /// 显示"添加到歌单"对话框，列出所有可用歌单供用户选择
-    /// </summary>
     private async void ShowAddToPlaylistDialog(Song song)
     {
-        var musicLibrary = MainApplication.Services.GetRequiredService<Core.Interfaces.IMusicLibraryService>();
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var musicLibrary = MainApplication.Services.GetRequiredService<IMusicLibraryService>();
         var playlists = await musicLibrary.GetAllPlaylistsAsync();
         if (playlists.Count == 0)
         {
-            Toast.MakeText(Context, "暂无歌单，请先创建歌单", ToastLength.Short)!.Show();
+            Toast.MakeText(ctx, "暂无歌单，请先创建歌单", ToastLength.Short)!.Show();
             return;
         }
 
-        var names = playlists.Select(p => p.Name).ToArray();
-        new Android.App.AlertDialog.Builder(Context!)
-            .SetTitle($"添加到歌单")
-            .SetItems(names, async (s, e) =>
+        var dialog = new GlassDialog(ctx).SetTitle("添加到歌单");
+        foreach (var p in playlists)
+        {
+            var playlistId = p.Id;
+            dialog.AddItem(p.Name, async () =>
             {
-                var selected = playlists[e.Which];
-                await _viewModel.AddSongToPlaylistAsync(selected.Id, song.Id);
-                Toast.MakeText(Context, $"已添加到「{selected.Name}」", ToastLength.Short)!.Show();
-            })
-            .SetNegativeButton("取消", (s, e) => { })
-            .Show();
+                await _viewModel.AddSongToPlaylistAsync(playlistId, song.Id);
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(ctx, $"已添加到「{p.Name}」", ToastLength.Short)?.Show());
+            });
+        }
+        dialog.AddNegativeButton("取消");
+        dialog.Show();
     }
 
-    /// <summary>
-    /// 显示歌曲详情对话框，包含标题、艺术家、专辑、时长等信息
-    /// </summary>
     private void ShowSongInfoDialog(Song song)
     {
+        var ctx = Context;
+        if (ctx == null) return;
+
         var durationStr = TimeSpan.FromMilliseconds(song.Duration).ToString(@"mm\:ss");
         var sourceStr = song.Source switch
         {
@@ -164,8 +159,7 @@ public class PlaylistDetailFragment : Fragment
             SongSource.Cache => "缓存",
             _ => "未知"
         };
-        var info = $"标题：{song.Title}\n"
-            + $"艺术家：{song.Artist}\n"
+        var info = $"艺术家：{song.Artist}\n"
             + $"专辑：{song.Album}\n"
             + $"时长：{durationStr}\n"
             + $"来源：{sourceStr}\n"
@@ -173,16 +167,13 @@ public class PlaylistDetailFragment : Fragment
             + $"文件大小：{FormatFileSize(song.FileSize)}\n"
             + $"路径：{song.FilePath}";
 
-        new Android.App.AlertDialog.Builder(Context!)
-            .SetTitle("歌曲详情")
-            .SetMessage(info)
-            .SetPositiveButton("确定", (s, e) => { })
+        new GlassDialog(ctx)
+            .SetTitle(song.Title ?? "未知歌曲")
+            .AddMessage(info)
+            .AddNegativeButton("确定")
             .Show();
     }
 
-    /// <summary>
-    /// 格式化文件大小为可读字符串（B/KB/MB）
-    /// </summary>
     private static string FormatFileSize(long bytes)
     {
         if (bytes < 1024) return $"{bytes} B";
@@ -190,17 +181,11 @@ public class PlaylistDetailFragment : Fragment
         return $"{bytes / (1024.0 * 1024.0):F1} MB";
     }
 
-    /// <summary>
-    /// 音频播放器状态变化时刷新播放状态UI
-    /// </summary>
     private void OnAudioPlayerStateChanged(object? sender, PlaybackStateChangedEventArgs e)
     {
         Activity?.RunOnUiThread(UpdatePlayState);
     }
 
-    /// <summary>
-    /// 更新当前播放状态，高亮当前播放歌曲
-    /// </summary>
     private void UpdatePlayState()
     {
         var currentSong = _playQueue?.CurrentSong;
@@ -209,9 +194,13 @@ public class PlaylistDetailFragment : Fragment
         _adapter.UpdatePlayState(currentSongId, isPlaying);
     }
 
-    /// <summary>
-    /// Fragment销毁时解绑播放器状态变化事件
-    /// </summary>
+    public override void OnResume()
+    {
+        base.OnResume();
+        if (_viewModel.Songs.Count > 0 && _isUserPlaylist)
+            _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName);
+    }
+
     public override void OnDestroyView()
     {
         base.OnDestroyView();

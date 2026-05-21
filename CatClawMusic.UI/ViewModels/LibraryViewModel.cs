@@ -113,9 +113,13 @@ public partial class LibraryViewModel : ObservableObject
         NetworkTabColor = tab == "Network" ? "#9B7ED8" : "#C0B8CA";
         Songs.Clear();
         if (tab == "Local")
+        {
             _ = LoadLocalAsync();
+        }
         else if (tab == "Network")
+        {
             _ = LoadNetworkAsync();
+        }
 #if ANDROID
         try
         {
@@ -133,8 +137,12 @@ public partial class LibraryViewModel : ObservableObject
     [RelayCommand]
     private async Task Refresh()
     {
+        Songs.Clear();
         if (CurrentTab == "Local")
+        {
+            _hasLoadedLocal = false;
             await LoadLocalAsync(forceReload: true);
+        }
         else
             await LoadNetworkAsync(forceRefresh: true);
     }
@@ -163,6 +171,19 @@ public partial class LibraryViewModel : ObservableObject
         var validFolders = FolderPicker.ValidateSavedFolders();
         if (validFolders == 0 && FolderPicker.GetSavedFolderUris().Count > 0)
         {
+            var cachedSongs = await _musicLibrary.GetAllSongsAsync();
+            if (cachedSongs.Count > 0)
+            {
+                Songs.Clear();
+                AddSongsBatch(cachedSongs);
+                StatusText = $"🐱 共 {Songs.Count} 首歌曲（缓存 · 权限已过期，下拉刷新重新扫描）";
+                _hasLoadedLocal = true;
+                ShowPermissionPrompt = true;
+                PermissionPromptText = "存储权限已过期，请重新选择音乐文件夹\n\n（使用系统文件管理器，无需额外权限）";
+                IsLoading = false;
+                return;
+            }
+
             if (_database != null)
             {
                 try { await _database.EnsureInitializedAsync(); await _database.ClearLocalSongsAsync(); } catch { }
@@ -226,13 +247,11 @@ public partial class LibraryViewModel : ObservableObject
                 {
                     PermissionPromptText = "点击下方按钮，选择手机上的音乐文件夹\n\n（使用系统文件管理器，无需额外权限）";
                     StatusText = "未选择音乐文件夹";
+                    ShowPermissionPrompt = true;
+                    IsLoading = false;
+                    return;
                 }
-                else
-                {
-                    StatusText = "下拉刷新扫描音乐";
-                }
-                ShowPermissionPrompt = true;
-                IsLoading = false;
+                _ = BackgroundScanAsync(false);
                 return;
             }
 

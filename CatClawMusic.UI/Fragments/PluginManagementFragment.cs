@@ -214,7 +214,7 @@ public class PluginManagementFragment : Fragment
 
         var noteText = new TextView(ctx)
         {
-            Text = "\n⚠ 请先在 GitHub 仓库创建 Release 并上传编译好的 .dll 文件"
+            Text = "\n⚠ 请先在 GitHub 仓库创建 Release 并上传编译好的 .dll 或 .ccp 文件"
         };
         noteText.SetTextColor(Android.Graphics.Color.ParseColor("#E0A040"));
         noteText.TextSize = 11;
@@ -267,7 +267,7 @@ public class PluginManagementFragment : Fragment
                 }
                 else
                 {
-                    Toast.MakeText(ctx, "安装失败，请确保仓库有包含 .dll 的 Release", ToastLength.Long)?.Show();
+                    Toast.MakeText(ctx, "安装失败，请确保仓库有包含 .dll 或 .ccp 的 Release", ToastLength.Long)?.Show();
                 }
             })
             .SetNegativeButton("取消", (s, e) => { })

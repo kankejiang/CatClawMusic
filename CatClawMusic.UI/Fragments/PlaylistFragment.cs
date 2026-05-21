@@ -4,14 +4,12 @@ using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Models;
 using CatClawMusic.UI.Adapters;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
-/// <summary>
-/// 歌单列表Fragment，显示系统歌单和用户创建的歌单
-/// </summary>
 public class PlaylistFragment : Fragment
 {
     private PlaylistViewModel _viewModel = null!;
@@ -19,17 +17,11 @@ public class PlaylistFragment : Fragment
     private RecyclerView _playlistList = null!;
     private TextView _statusText = null!;
 
-    /// <summary>
-    /// 创建歌单列表视图
-    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         return inflater.Inflate(Resource.Layout.fragment_playlist, container, false)!;
     }
 
-    /// <summary>
-    /// 视图创建完成后初始化控件，绑定歌单点击和长按事件
-    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -67,55 +59,47 @@ public class PlaylistFragment : Fragment
 
         _adapter.NewPlaylistClicked += (s, e) => ShowCreatePlaylistDialog();
 
-        _ = _viewModel.LoadPlaylistsAsync();
+        if (_viewModel.Playlists.Count > 0)
+            _adapter.UpdatePlaylists(_viewModel.Playlists);
+        else
+            _ = _viewModel.LoadPlaylistsAsync();
     }
 
-    /// <summary>
-    /// 显示新建歌单对话框
-    /// </summary>
     private void ShowCreatePlaylistDialog()
     {
-        var editText = new EditText(Context!)
-        {
-            Hint = "请输入歌单名称",
-            InputType = Android.Text.InputTypes.TextFlagCapSentences
-        };
+        var ctx = Context;
+        if (ctx == null) return;
 
-        new Android.App.AlertDialog.Builder(Context!)
+        new GlassDialog(ctx)
             .SetTitle("新建歌单")
-            .SetView(editText)
-            .SetPositiveButton("创建", async (s, e) =>
+            .AddInput("请输入歌单名称")
+            .AddPositiveButton("创建", async (name) =>
             {
-                var name = editText.Text?.Trim();
                 if (!string.IsNullOrEmpty(name))
                     await _viewModel.CreatePlaylistAsync(name);
             })
-            .SetNegativeButton("取消", (s, e) => { })
+            .AddNegativeButton("取消")
             .Show();
     }
 
-    /// <summary>
-    /// 显示删除歌单确认对话框
-    /// </summary>
     private void ShowDeletePlaylistDialog(Playlist playlist)
     {
-        new Android.App.AlertDialog.Builder(Context!)
+        var ctx = Context;
+        if (ctx == null) return;
+
+        new GlassDialog(ctx)
             .SetTitle("删除歌单")
-            .SetMessage($"确定要删除歌单「{playlist.Name}」吗？\n歌单中的歌曲不会被删除。")
-            .SetPositiveButton("删除", async (s, e) =>
+            .AddMessage($"确定要删除歌单「{playlist.Name}」吗？\n歌单中的歌曲不会被删除。")
+            .AddItem("🗑  确认删除", async () =>
             {
                 await _viewModel.DeletePlaylistAsync(playlist.Id);
             })
-            .SetNegativeButton("取消", (s, e) => { })
+            .AddNegativeButton("取消")
             .Show();
     }
 
-    /// <summary>
-    /// Fragment恢复可见时重新加载歌单列表
-    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
-        _ = _viewModel.LoadPlaylistsAsync();
     }
 }

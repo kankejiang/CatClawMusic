@@ -47,7 +47,6 @@ public class NowPlayingFragment : Fragment
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
     private bool _sleepFinishSong;
-    private EventHandler<PlaybackStateChangedEventArgs>? _sleepStateHandler;
 
     /// <summary>
     /// 创建正在播放视图
@@ -537,9 +536,8 @@ public class NowPlayingFragment : Fragment
 
         if (!isLineChanged)
         {
-            // 首次加载或切歌 → 直接设置
-            _lyricPrev2.Text = prev2;  _lyricPrev2.TranslationY = 0f; _lyricPrev2.Alpha = 0.6f;
-            _lyricPrev.Text = prev;    _lyricPrev.TranslationY = 0f;   _lyricPrev.Alpha = 1f;
+            _lyricPrev2.Text = prev2;  _lyricPrev2.TranslationY = 0f; _lyricPrev2.Alpha = 0.35f;
+            _lyricPrev.Text = prev;    _lyricPrev.TranslationY = 0f;   _lyricPrev.Alpha = 0.45f;
             _lyricNext.Text = next;    _lyricNext.TranslationY = 0f;   _lyricNext.Alpha = 1f;
             _lyricNext2.Text = next2;  _lyricNext2.TranslationY = 0f; _lyricNext2.Alpha = 0.6f;
             ApplyCurrentLineWithSpannable(curr);
@@ -555,9 +553,9 @@ public class NowPlayingFragment : Fragment
         ApplyCurrentLineWithSpannable(curr);
 
         // 2. 将每行设到"刚滚入"的起始偏移位置
-        float[] startY = { -8f, -10f, 14f, 10f, 8f }; // 上方行从微上偏→归位，下方行从微下偏→归位
-        float[] startAlpha = { 0.4f, 0.6f, 0f, 0.6f, 0.4f };
-        float[] endAlpha = { 0.6f, 1f, 1f, 1f, 0.6f };
+        float[] startY = { -8f, -10f, 14f, 10f, 8f };
+        float[] startAlpha = { 0.2f, 0.3f, 0f, 0.6f, 0.4f };
+        float[] endAlpha = { 0.35f, 0.45f, 1f, 1f, 0.6f };
         long[] durations = { 180, 200, 250, 200, 180 };
         var views = new[] { _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2 };
 
@@ -678,106 +676,185 @@ public class NowPlayingFragment : Fragment
         var act = Activity;
         if (act == null) return;
 
-        var view = LayoutInflater.From(act)!.Inflate(Resource.Layout.dialog_sleep_timer, null)!;
-        var dialog = new Android.App.Dialog(act, Android.Resource.Style.ThemeTranslucentNoTitleBar);
-        dialog.SetContentView(view);
-        dialog.SetCancelable(true);
-        dialog.SetCanceledOnTouchOutside(true);
+        var dp = (int)act.Resources!.DisplayMetrics!.Density;
+        var tv = new Android.Util.TypedValue();
+        var themeColor = act.Theme?.ResolveAttribute(global::Android.Resource.Attribute.ColorPrimary, tv, true) == true
+            ? new Color(tv.Data) : Color.ParseColor("#9B7ED8");
 
-        var root = view.FindViewById<FrameLayout>(Resource.Id.sleep_timer_root)!;
-        var cancelBtn = view.FindViewById<TextView>(Resource.Id.sleep_cancel)!;
-        var confirmBtn = view.FindViewById<TextView>(Resource.Id.sleep_confirm)!;
-        var finishSongCheck = view.FindViewById<CheckBox>(Resource.Id.sleep_finish_song)!;
+        int selectedMinutes = 0;
+        bool finishSong = false;
 
-        var selectedMinutes = 0;
-        var timeOptions = new[]
+        var content = new LinearLayout(act) { Orientation = Orientation.Vertical };
+
+        var timerToggleRow = new LinearLayout(act) { Orientation = Orientation.Horizontal };
+        timerToggleRow.SetGravity(GravityFlags.CenterVertical);
+        timerToggleRow.SetPadding(dp * 14, dp * 4, dp * 14, dp * 8);
+        var timerLabel = new TextView(act) { Text = "定时关闭" };
+        timerLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+        timerLabel.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        timerLabel.LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
+        var timerToggle = new Android.Widget.Switch(act) { Checked = true };
+        timerToggle.TrackTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        timerToggle.ThumbTintList = Android.Content.Res.ColorStateList.ValueOf(Color.White);
+        timerToggleRow.AddView(timerLabel);
+        timerToggleRow.AddView(timerToggle);
+        content.AddView(timerToggleRow);
+
+        var timeGrid = new GridLayout(act);
+        timeGrid.ColumnCount = 3;
+        timeGrid.RowCount = 2;
+        timeGrid.SetPadding(dp * 8, dp * 4, dp * 8, dp * 4);
+
+        var timeButtons = new List<TextView>();
+        foreach (var mins in new[] { 10, 20, 30, 45, 60, 90 })
         {
-            (Resource.Id.sleep_10min, 10),
-            (Resource.Id.sleep_20min, 20),
-            (Resource.Id.sleep_30min, 30),
-            (Resource.Id.sleep_45min, 45),
-            (Resource.Id.sleep_60min, 60),
-            (Resource.Id.sleep_90min, 90),
-        };
+            var btn = new TextView(act) { Text = $"{mins}" };
+            btn.SetTextSize(Android.Util.ComplexUnitType.Sp, 14f);
+            btn.Gravity = GravityFlags.Center;
+            btn.SetPadding(dp * 4, dp * 10, dp * 4, dp * 10);
 
-        foreach (var (id, mins) in timeOptions)
-        {
-            var tv = view.FindViewById<TextView>(id)!;
-            tv.Click += (s, e) =>
+            var btnSize = (int)(52 * dp);
+            btn.LayoutParameters = new GridLayout.LayoutParams()
             {
-                selectedMinutes = mins;
-                foreach (var (oid, _) in timeOptions)
-                    ResetOptionStyle(view, oid);
-                tv.SetTextColor(Android.Graphics.Color.ParseColor("#FFFFFF"));
-                tv.SetBackgroundColor(Android.Graphics.Color.Argb(0x30, 0xFF, 0xFF, 0xFF));
+                Width = btnSize,
+                Height = btnSize,
+                MarginStart = dp * 6,
+                MarginEnd = dp * 6,
+                TopMargin = dp * 4,
+                BottomMargin = dp * 4,
+                ColumnSpec = GridLayout.InvokeSpec(GridLayout.Undefined),
+                RowSpec = GridLayout.InvokeSpec(GridLayout.Undefined)
             };
-        }
 
-        var customBtn = view.FindViewById<TextView>(Resource.Id.sleep_custom)!;
+            var btnBg = new GradientDrawable();
+            btnBg.SetShape(ShapeType.Rectangle);
+            btnBg.SetCornerRadius(btnSize / 2f);
+            btnBg.SetColor(Color.ParseColor("#1AFFFFFF"));
+            btnBg.SetStroke(1, Color.ParseColor("#30FFFFFF"));
+            btn.Background = btnBg;
+            btn.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+            btn.Clickable = true;
+            btn.Focusable = true;
+
+            var capturedMins = mins;
+            btn.Click += (s, e) =>
+            {
+                selectedMinutes = capturedMins;
+                foreach (var b in timeButtons)
+                {
+                    b.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+                    var bg = new GradientDrawable();
+                    bg.SetShape(ShapeType.Rectangle);
+                    bg.SetCornerRadius(btnSize / 2f);
+                    bg.SetColor(Color.ParseColor("#1AFFFFFF"));
+                    bg.SetStroke(1, Color.ParseColor("#30FFFFFF"));
+                    b.Background = bg;
+                }
+                var selBg = new GradientDrawable();
+                selBg.SetShape(ShapeType.Rectangle);
+                selBg.SetCornerRadius(btnSize / 2f);
+                selBg.SetColor(themeColor);
+                selBg.SetStroke(0, Color.Transparent);
+                btn.Background = selBg;
+                btn.SetTextColor(Color.White);
+            };
+
+            timeButtons.Add(btn);
+            timeGrid.AddView(btn);
+        }
+        content.AddView(timeGrid);
+
+        var customRow = new LinearLayout(act) { Orientation = Orientation.Horizontal };
+        customRow.SetGravity(GravityFlags.Center);
+        customRow.SetPadding(dp * 14, dp * 4, dp * 14, dp * 8);
+        var customBtn = new TextView(act) { Text = "自定义" };
+        customBtn.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+        customBtn.SetTextColor(themeColor);
+        customBtn.SetPadding(dp * 12, dp * 6, dp * 12, dp * 6);
+        var customBg = new GradientDrawable();
+        customBg.SetShape(ShapeType.Rectangle);
+        customBg.SetCornerRadius(16 * dp);
+        customBg.SetColor(Color.Transparent);
+        customBg.SetStroke(1, themeColor);
+        customBtn.Background = customBg;
+        customBtn.Clickable = true;
+        customBtn.Focusable = true;
+        customRow.AddView(customBtn);
+        content.AddView(customRow);
+
+        var smartDivider = new View(act);
+        smartDivider.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 1);
+        smartDivider.SetBackgroundColor(Color.ParseColor("#20FFFFFF"));
+        content.AddView(smartDivider);
+
+        var smartCard = new LinearLayout(act) { Orientation = Orientation.Vertical };
+        smartCard.SetPadding(dp * 14, dp * 12, dp * 14, dp * 8);
+        var smartToggleRow = new LinearLayout(act) { Orientation = Orientation.Horizontal };
+        smartToggleRow.SetGravity(GravityFlags.CenterVertical);
+        var smartLabel = new TextView(act) { Text = "智能关闭" };
+        smartLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+        smartLabel.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        smartLabel.LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
+        var smartToggle = new Android.Widget.Switch(act) { Checked = false };
+        smartToggle.TrackTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        smartToggle.ThumbTintList = Android.Content.Res.ColorStateList.ValueOf(Color.White);
+        smartToggleRow.AddView(smartLabel);
+        smartToggleRow.AddView(smartToggle);
+        smartCard.AddView(smartToggleRow);
+        var smartDesc = new TextView(act) { Text = "根据睡眠状况动态调整定时" };
+        smartDesc.SetTextSize(Android.Util.ComplexUnitType.Sp, 11f);
+        smartDesc.SetTextColor(Color.ParseColor("#80FFFFFF"));
+        smartDesc.SetPadding(0, dp * 4, 0, 0);
+        smartCard.AddView(smartDesc);
+        content.AddView(smartCard);
+
+        var finishRow = new LinearLayout(act) { Orientation = Orientation.Horizontal };
+        finishRow.SetGravity(GravityFlags.CenterVertical);
+        finishRow.SetPadding(dp * 14, dp * 8, dp * 14, dp * 8);
+        var finishCheck = new CheckBox(act) { Text = "播完整首歌再停止播放", Checked = false };
+        finishCheck.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        finishCheck.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+        finishCheck.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        finishCheck.CheckedChange += (s, e) => finishSong = e.IsChecked;
+        finishRow.AddView(finishCheck);
+        content.AddView(finishRow);
+
+        var sleepDialog = new GlassDialog(act)
+            .SetTitle("定时关闭")
+            .AddCustomView(content)
+            .AddPositiveButton("开始", (input) =>
+            {
+                if (!timerToggle.Checked) return;
+                if (selectedMinutes > 0)
+                    StartSleepTimer(selectedMinutes * 60, finishSong);
+                else
+                    ShowSleepCustomDialog(finishSong);
+            })
+            .AddNegativeButton("取消");
+        sleepDialog.Show();
+
         customBtn.Click += (s, e) =>
         {
-            ShowSleepCustomDialog(finishSongCheck.Checked, dialog);
+            sleepDialog.Dismiss();
+            ShowSleepCustomDialog(finishSong);
         };
-
-        root.Click += (s, e) => dialog.Dismiss();
-
-        confirmBtn.Click += (s, e) =>
-        {
-            if (selectedMinutes > 0)
-            {
-                dialog.Dismiss();
-                StartSleepTimer(selectedMinutes * 60, finishSongCheck.Checked);
-            }
-            else
-            {
-                ShowSleepCustomDialog(finishSongCheck.Checked, dialog);
-            }
-        };
-
-        cancelBtn.Click += (s, e) => dialog.Dismiss();
-
-        dialog.Show();
     }
 
-    private static void ResetOptionStyle(View view, int id)
-    {
-        var tv = view.FindViewById<TextView>(id);
-        if (tv != null)
-        {
-            tv.SetTextColor(Android.Graphics.Color.ParseColor("#DDFFFFFF"));
-            tv.SetBackgroundColor(Android.Graphics.Color.Transparent);
-        }
-    }
-
-    private void ShowSleepCustomDialog(bool finishSong, Android.App.Dialog? parentDialog)
+    private void ShowSleepCustomDialog(bool finishSong)
     {
         var act = Activity;
         if (act == null) return;
 
-        var view = LayoutInflater.From(act)!.Inflate(Resource.Layout.dialog_sleep_custom, null)!;
-        var dialog = new Android.App.Dialog(act, Android.Resource.Style.ThemeTranslucentNoTitleBar);
-        dialog.SetContentView(view);
-        dialog.SetCancelable(false);
-        dialog.SetCanceledOnTouchOutside(false);
-
-        var root = view.FindViewById<FrameLayout>(Resource.Id.sleep_custom_root)!;
-        var input = view.FindViewById<EditText>(Resource.Id.sleep_custom_input)!;
-        var cancelBtn = view.FindViewById<TextView>(Resource.Id.sleep_custom_cancel)!;
-        var confirmBtn = view.FindViewById<TextView>(Resource.Id.sleep_custom_confirm)!;
-
-        root.Click += (s, e) => { };
-        cancelBtn.Click += (s, e) => dialog.Dismiss();
-        confirmBtn.Click += (s, e) =>
-        {
-            dialog.Dismiss();
-            if (int.TryParse(input.Text, out var mins) && mins > 0)
+        new GlassDialog(act)
+            .SetTitle("自定义定时", "输入分钟数")
+            .AddInput("请输入分钟数")
+            .AddPositiveButton("确定", (input) =>
             {
-                parentDialog?.Dismiss();
-                StartSleepTimer(mins * 60, finishSong);
-            }
-        };
-
-        dialog.Show();
+                if (int.TryParse(input, out var mins) && mins > 0)
+                    StartSleepTimer(mins * 60, finishSong);
+            })
+            .AddNegativeButton("取消")
+            .Show();
     }
 
     private void StartSleepTimer(int totalSeconds, bool finishSong)
@@ -815,17 +892,8 @@ public class NowPlayingFragment : Fragment
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         if (_sleepFinishSong)
         {
-            _sleepStateHandler = (s, e) =>
-            {
-                if (e.State == PlaybackState.Stopped)
-                {
-                    player.StateChanged -= _sleepStateHandler;
-                    _sleepStateHandler = null;
-                    StopSleepTimer();
-                    _ = player.PauseAsync();
-                }
-            };
-            player.StateChanged += _sleepStateHandler;
+            _viewModel.StopAfterCurrentSong = true;
+            StopSleepTimer();
         }
         else
         {
@@ -906,45 +974,72 @@ public class NowPlayingFragment : Fragment
         if (allSongs.Count == 0) return;
 
         var currentSong = queue.CurrentSong;
+        var dp = (int)act.Resources!.DisplayMetrics!.Density;
 
-        // 加载自定义布局
-        var view = LayoutInflater.From(act)!.Inflate(Resource.Layout.dialog_playlist, null)!;
-        var listView = view.FindViewById<ListView>(Resource.Id.playlist_list)!;
-
-        // 构建适配器数据
-        var adapter = new PlaylistSongAdapter(act, allSongs, currentSong);
-        listView.Adapter = adapter;
-
-        // 点击歌曲播放
-        listView.ItemClick += (s, e) =>
+        var scrollView = new ScrollView(act);
+        var maxH = (int)(act.Resources!.DisplayMetrics!.HeightPixels * 0.5);
+        scrollView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
         {
-            var song = allSongs[e.Position];
-            PlaySong(song);
-            _playlistDialog?.Dismiss();
+            Height = ViewGroup.LayoutParams.WrapContent
         };
-
-        // 创建半透明 Dialog
-        var dialog = new Android.App.Dialog(act, Android.Resource.Style.ThemeTranslucentNoTitleBar);
-        dialog.SetContentView(view);
-        dialog.SetCancelable(true);
-        dialog.SetCanceledOnTouchOutside(true);
-
-        // 点击背景关闭
-        var root = view.FindViewById<FrameLayout>(Resource.Id.playlist_root)!;
-        root.Click += (s, e) => dialog.Dismiss();
-
-        // 自动滚到当前播放歌曲
-        if (currentSong != null)
+        scrollView.Post(() =>
         {
-            var idx = allSongs.IndexOf(currentSong);
-            if (idx >= 0)
+            if (scrollView.Height > maxH)
+                scrollView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, maxH);
+        });
+        var listContainer = new LinearLayout(act) { Orientation = Orientation.Vertical };
+        listContainer.SetPadding(0, dp * 4, 0, dp * 4);
+
+        var songViews = new List<View>();
+        for (int i = 0; i < allSongs.Count; i++)
+        {
+            var song = allSongs[i];
+            var isCurrent = currentSong != null && song.Id == currentSong.Id;
+
+            var item = new TextView(act)
             {
-                listView.Post(() => listView.SetSelection(idx));
-            }
+                Text = $"{(isCurrent ? "▶  " : "    ")}{song.Title ?? "未知歌曲"} - {song.Artist ?? "未知艺术家"}"
+            };
+            item.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+            item.SetTextColor(isCurrent ? Color.White : Color.ParseColor("#CCFFFFFF"));
+            item.SetPadding(dp * 14, dp * 8, dp * 14, dp * 8);
+            item.SetSingleLine(true);
+            item.Ellipsize = Android.Text.TextUtils.TruncateAt.End;
+            item.Clickable = true;
+            item.Focusable = true;
+
+            var idx = i;
+            item.Click += (s, e) =>
+            {
+                PlaySong(allSongs[idx]);
+                _playlistDialog?.Dismiss();
+            };
+
+            listContainer.AddView(item);
+            if (isCurrent) songViews.Add(item);
         }
 
-        _playlistDialog = dialog;
+        scrollView.AddView(listContainer);
+        scrollView.ScrollBarStyle = ScrollbarStyles.InsideOverlay;
+
+        var dialog = new GlassDialog(act)
+            .SetTitle("播放列表", $"{allSongs.Count} 首歌曲")
+            .AddCustomView(scrollView)
+            .AddNegativeButton("关闭");
+
         dialog.Show();
+
+        if (songViews.Count > 0)
+        {
+            scrollView.Post(() =>
+            {
+                var target = songViews[0];
+                var scrollY = target.Top - scrollView.Height / 2 + target.Height / 2;
+                scrollView.SmoothScrollTo(0, Math.Max(0, scrollY));
+            });
+        }
+
+        _playlistDialog = null;
     }
 
     private Android.App.Dialog? _playlistDialog;

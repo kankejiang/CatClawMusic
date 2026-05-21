@@ -137,4 +137,10 @@ public partial class PlaylistDetailViewModel : ObservableObject
     {
         await _musicLibrary.AddSongToPlaylistAsync(targetPlaylistId, songId);
     }
+
+    public async Task RemoveSongFromPlaylistAsync(int songId)
+    {
+        if (_playlistId > 0)
+            await _musicLibrary.RemoveSongFromPlaylistAsync(_playlistId, songId);
+    }
 }

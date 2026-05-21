@@ -33,8 +33,9 @@ public partial class NowPlayingViewModel : ObservableObject
     private CancellationTokenSource? _errorDialogCts;
     private CancellationTokenSource? _songLoadCts;
     private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
-    private volatile bool _isSwitchingSong; // 用户主动切歌时设置，阻止 Stopped 事件错误调用 Next()
-    private volatile bool _isRestoring; // 恢复播放状态期间设置，抑制错误对话框和自动切歌
+    private volatile bool _isSwitchingSong;
+    private volatile bool _isRestoring;
+    public volatile bool StopAfterCurrentSong;
 
     [ObservableProperty] private Song? _currentSong;
     [ObservableProperty] private string _coverSource = "";
@@ -98,12 +99,28 @@ public partial class NowPlayingViewModel : ObservableObject
             if (wts[i].Start <= CurrentPosition) { wordIdx = i; break; }
         if (wordIdx < 0) return;
 
+        var lineEnd = wts[wordIdx].Start + wts[wordIdx].Duration;
+        var nextLineStart = GetNextLineStart();
+        var nearEnd = nextLineStart.HasValue && (nextLineStart.Value - CurrentPosition).TotalMilliseconds < 200;
+
         ApplyWordSpans(ss, wts, wordIdx, (i, w) =>
         {
             if (i == wordIdx)
+            {
+                if (nearEnd || i == wts.Count - 1)
+                    return 1f;
                 return Math.Clamp((float)((CurrentPosition - w.Start).TotalMilliseconds / w.Duration.TotalMilliseconds), 0f, 1f);
+            }
             return i < wordIdx ? 1f : 0f;
         });
+    }
+
+    private TimeSpan? GetNextLineStart()
+    {
+        var lines = CurrentLyrics?.Lines;
+        var idx = CurrentLyricIndex;
+        if (lines == null || idx < 0 || idx + 1 >= lines.Count) return null;
+        return lines[idx + 1].Timestamp;
     }
 
     private void ApplyDynamicProgress(SpannableString ss, string text, TimeSpan lineStart, TimeSpan duration)
@@ -113,6 +130,11 @@ public partial class NowPlayingViewModel : ObservableObject
         if (duration.TotalMilliseconds <= 0) return;
 
         var progress = Math.Clamp((CurrentPosition - lineStart).TotalMilliseconds / duration.TotalMilliseconds, 0.0, 1.0);
+
+        var nextLineStart = GetNextLineStart();
+        var nearEnd = nextLineStart.HasValue && (nextLineStart.Value - CurrentPosition).TotalMilliseconds < 200;
+        if (nearEnd) progress = 1.0;
+
         var unitProgress = progress * units.Count;
         var activeIdx = (int)unitProgress;
         var activeFrac = (float)(unitProgress - activeIdx);
@@ -466,6 +488,12 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             if (e.State == PlaybackState.Stopped)
             {
+                if (StopAfterCurrentSong)
+                {
+                    StopAfterCurrentSong = false;
+                    _ = _audioPlayer.PauseAsync();
+                    return;
+                }
                 if (!_isSwitchingSong && !_isRestoring)
                     Next();
             }

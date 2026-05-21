@@ -9,6 +9,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Adapters;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using CatClawMusic.UI.Helpers;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,6 +65,10 @@ public class LibraryFragment : Fragment
         _adapter.SongClicked += OnSongClicked;
         _adapter.SongLongClicked += OnSongLongClicked;
         _songList.SetAdapter(_adapter);
+        _songList.SetRecycledViewPool(new RecyclerView.RecycledViewPool());
+        _songList.GetRecycledViewPool()!.SetMaxRecycledViews(0, 30);
+        (_songList.GetItemAnimator() as DefaultItemAnimator)!.SupportsChangeAnimations = false;
+        _songList.SetItemViewCacheSize(20);
 
         // 初始化 Spinner，先同步 ViewModel 已恢复的协议选择再绑定事件
         // 顺序很重要：如果 ItemSelected 事件先于 SetSelection 绑定，
@@ -103,15 +108,18 @@ public class LibraryFragment : Fragment
             _btnLocal.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#C0B8CA"));
             _btnNetwork.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#9B7ED8"));
             _networkProtocolRow.Visibility = ViewStates.Visible;
-            _ = _viewModel.LoadNetworkAsync();
         }
         else
         {
             _networkProtocolRow.Visibility = ViewStates.Gone;
-            _ = _viewModel.LoadLocalAsync();
         }
         if (_viewModel.Songs.Count > 0)
             _adapter.UpdateSongs(_viewModel.Songs);
+
+        if (_viewModel.CurrentTab == "Local" && _viewModel.Songs.Count == 0)
+            _ = _viewModel.LoadLocalAsync();
+        else if (_viewModel.CurrentTab == "Network" && _viewModel.Songs.Count == 0)
+            _ = _viewModel.LoadNetworkAsync();
     }
 
     /// <summary>
@@ -274,22 +282,27 @@ public class LibraryFragment : Fragment
         var ctx = Context;
         if (ctx == null) return;
 
-        var density = ctx.Resources!.DisplayMetrics!.Density;
-        var dp = (int)density;
+        var dialog = new GlassDialog(ctx)
+            .SetTitle(song.Title ?? "未知歌曲", song.Artist ?? "未知艺术家");
 
-        var menuItems = new List<(string Title, Action Action)>();
-
-        menuItems.Add(("▶  播放", () => OnSongClicked(this, song)));
-        menuItems.Add(("⏭  下一首播放", () =>
+        dialog.AddItem("▶  播放", () => OnSongClicked(this, song));
+        dialog.AddItem("⏭  下一首播放", () =>
         {
             var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
             queue.AddNext(song);
             Activity?.RunOnUiThread(() =>
                 Toast.MakeText(ctx, $"已添加: {song.Title}", ToastLength.Short)?.Show());
-        }));
-        menuItems.Add(("📋  添加到歌单", () => { }));
-        menuItems.Add(("❤  收藏", () => { }));
-        menuItems.Add(("ℹ  歌曲详情", () => { }));
+        });
+        dialog.AddItem("📋  添加到歌单", () => ShowAddToPlaylistDialog(song));
+        dialog.AddItem("❤  收藏", async () =>
+        {
+            var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+            bool isFav = await db.IsFavoriteAsync(song.Id);
+            await db.SetFavoriteAsync(song.Id, !isFav);
+            Activity?.RunOnUiThread(() =>
+                Toast.MakeText(ctx, isFav ? "已取消收藏" : "已收藏", ToastLength.Short)?.Show());
+        });
+        dialog.AddItem("ℹ  歌曲详情", () => ShowSongInfoDialog(song));
 
         var pluginManager = MainApplication.Services.GetService<IPluginManager>();
         if (pluginManager != null)
@@ -304,99 +317,80 @@ public class LibraryFragment : Fragment
                         if (string.IsNullOrEmpty(entry.Title)) continue;
                         var plugin = contributor;
                         var entryId = entry.Id;
-                        menuItems.Add(("🏷  " + entry.Title, async () =>
+                        dialog.AddItem("🏷  " + entry.Title, async () =>
                         {
                             await plugin.OnMenuItemClicked(entryId, song, this);
-                        }));
+                        });
                     }
                 }
                 catch { }
             }
         }
 
-        var cardLayout = new LinearLayout(ctx)
-        { Orientation = Orientation.Vertical };
-        cardLayout.SetPadding(dp * 6, dp * 8, dp * 6, dp * 8);
+        dialog.Show();
+    }
 
-        var bgDrawable = new Android.Graphics.Drawables.GradientDrawable();
-        bgDrawable.SetShape(Android.Graphics.Drawables.ShapeType.Rectangle);
-        bgDrawable.SetCornerRadius(24 * density);
-        bgDrawable.SetColor(Android.Graphics.Color.ParseColor("#E6281E36"));
-        bgDrawable.SetStroke(dp, Android.Graphics.Color.ParseColor("#44FFFFFF"));
-        cardLayout.Background = bgDrawable;
+    private async void ShowAddToPlaylistDialog(CoreModels.Song song)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
 
-        var titleTv = new TextView(ctx) { Text = song.Title ?? "未知歌曲" };
-        titleTv.SetTextSize(Android.Util.ComplexUnitType.Sp, 14f);
-        titleTv.SetTextColor(Android.Graphics.Color.ParseColor("#E8E0F0"));
-        titleTv.SetTypeface(null, Android.Graphics.TypefaceStyle.Bold);
-        titleTv.SetPadding(dp * 14, dp * 10, dp * 14, dp * 4);
-        titleTv.SetSingleLine(true);
-        titleTv.Ellipsize = Android.Text.TextUtils.TruncateAt.End;
-        cardLayout.AddView(titleTv);
-
-        var subtitleTv = new TextView(ctx) { Text = song.Artist ?? "未知艺术家" };
-        subtitleTv.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
-        subtitleTv.SetTextColor(Android.Graphics.Color.ParseColor("#B0A8BA"));
-        subtitleTv.SetPadding(dp * 14, 0, dp * 14, dp * 10);
-        subtitleTv.SetSingleLine(true);
-        subtitleTv.Ellipsize = Android.Text.TextUtils.TruncateAt.End;
-        cardLayout.AddView(subtitleTv);
-
-        var divider = new View(ctx);
-        divider.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 1);
-        divider.SetBackgroundColor(Android.Graphics.Color.ParseColor("#20FFFFFF"));
-        cardLayout.AddView(divider);
-
-        foreach (var item in menuItems)
+        var musicLibrary = MainApplication.Services.GetRequiredService<IMusicLibraryService>();
+        var playlists = await musicLibrary.GetAllPlaylistsAsync();
+        if (playlists.Count == 0)
         {
-            var itemLayout = new LinearLayout(ctx)
-            { Orientation = Orientation.Horizontal };
-            itemLayout.SetGravity(Android.Views.GravityFlags.CenterVertical);
-            itemLayout.SetPadding(dp * 8, dp * 6, dp * 8, dp * 6);
-            itemLayout.SetBackgroundColor(Android.Graphics.Color.Transparent);
-
-            var tv = new TextView(ctx) { Text = item.Title };
-            tv.SetTextSize(Android.Util.ComplexUnitType.Sp, 14f);
-            tv.SetTextColor(Android.Graphics.Color.ParseColor("#E0D8E8"));
-            tv.LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
-
-            itemLayout.AddView(tv);
-            itemLayout.Clickable = true;
-            itemLayout.Focusable = true;
-
-            var pressedColor = Android.Graphics.Color.ParseColor("#1A9B7ED8").ToArgb();
-            var normalColor = Android.Graphics.Color.Transparent.ToArgb();
-            var stateList = new Android.Content.Res.ColorStateList(
-                new[] { new[] { Android.Resource.Attribute.StatePressed } , new int[] { } },
-                new[] { pressedColor, normalColor }
-            );
-
-            var rippleDrawable = new Android.Graphics.Drawables.RippleDrawable(stateList,
-                null, new Android.Graphics.Drawables.ShapeDrawable(
-                    new Android.Graphics.Drawables.Shapes.RoundRectShape(
-                        Enumerable.Repeat(12f * density, 8).ToArray(), null, null)));
-            itemLayout.Background = rippleDrawable;
-
-            var capturedAction = item.Action;
-            itemLayout.Click += (s, e) =>
-            {
-                capturedAction();
-                _contextMenuDialog?.Dismiss();
-            };
-
-            cardLayout.AddView(itemLayout);
+            Toast.MakeText(ctx, "暂无歌单，请先创建歌单", ToastLength.Short)!.Show();
+            return;
         }
 
-        var dialog = new Android.App.Dialog(ctx, Android.Resource.Style.ThemeDeviceDefaultLightNoActionBar);
-        dialog.RequestWindowFeature((int)Android.Views.WindowFeatures.NoTitle);
-        dialog.SetContentView(cardLayout);
-        dialog.Window?.SetBackgroundDrawable(new Android.Graphics.Drawables.ColorDrawable(Android.Graphics.Color.Transparent));
-        dialog.Window?.SetDimAmount(0.4f);
-        dialog.Window?.SetGravity(Android.Views.GravityFlags.Center);
-        dialog.Window?.SetLayout(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent);
-
-        _contextMenuDialog = dialog;
+        var dialog = new GlassDialog(ctx).SetTitle("添加到歌单");
+        foreach (var p in playlists)
+        {
+            var playlistId = p.Id;
+            dialog.AddItem(p.Name, async () =>
+            {
+                await musicLibrary.AddSongToPlaylistAsync(playlistId, song.Id);
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(ctx, $"已添加到「{p.Name}」", ToastLength.Short)?.Show());
+            });
+        }
+        dialog.AddNegativeButton("取消");
         dialog.Show();
+    }
+
+    private void ShowSongInfoDialog(CoreModels.Song song)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var durationStr = TimeSpan.FromMilliseconds(song.Duration).ToString(@"mm\:ss");
+        var sourceStr = song.Source switch
+        {
+            CoreModels.SongSource.Local => "本地",
+            CoreModels.SongSource.WebDAV => "网络",
+            CoreModels.SongSource.Cache => "缓存",
+            _ => "未知"
+        };
+        var info = $"艺术家：{song.Artist}\n"
+            + $"专辑：{song.Album}\n"
+            + $"时长：{durationStr}\n"
+            + $"来源：{sourceStr}\n"
+            + $"比特率：{(song.Bitrate > 0 ? $"{song.Bitrate / 1000}kbps" : "未知")}\n"
+            + $"文件大小：{FormatFileSize(song.FileSize)}\n"
+            + $"路径：{song.FilePath}";
+
+        new GlassDialog(ctx)
+            .SetTitle(song.Title ?? "未知歌曲")
+            .AddMessage(info)
+            .AddNegativeButton("确定")
+            .Show();
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
     }
 
     private Android.App.Dialog? _contextMenuDialog;

@@ -2,12 +2,10 @@ using Android.Content;
 using Android.Database;
 using Android.Provider;
 using CatClawMusic.Core.Models;
-using CatClawMusic.Core.Services;
 using AUri = Android.Net.Uri;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
-/// <summary>SAF（Storage Access Framework）内容扫描器，通过 content:// URI 遍历文件夹并读取音频文件元数据</summary>
 public static class SafeContentScanner
 {
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -17,123 +15,225 @@ public static class SafeContentScanner
         ".mid", ".midi", ".rmi", ".spx", ".amr", ".3gp", ".mkv", ".webm"
     };
 
-    /// <summary>扫描所有已保存的 SAF 文件夹，返回歌曲列表</summary>
-    public static async Task<List<Song>> ScanSavedFolderAsync()
+    private const int MdKeyTrackNumber = 0;
+    private const int MdKeyAlbum = 1;
+    private const int MdKeyArtist = 2;
+    private const int MdKeyGenre = 6;
+    private const int MdKeyTitle = 7;
+    private const int MdKeyYear = 8;
+    private const int MdKeyDuration = 9;
+    private const int MdKeyBitrate = 20;
+
+    public static async Task ScanSavedFolderAsync(
+        Func<List<Song>, Task> songCallback,
+        IProgress<(int done, int total, string status)>? progress = null)
     {
         var uris = FolderPicker.GetSavedFolderUris();
-        if (uris.Count == 0) return new List<Song>();
+        if (uris.Count == 0) return;
 
-        var allSongs = new List<Song>();
-        foreach (var uriStr in uris)
+        for (int i = 0; i < uris.Count; i++)
         {
             try
             {
-                var treeUri = AUri.Parse(uriStr);
+                var treeUri = AUri.Parse(uris[i]);
                 if (treeUri == null) continue;
-                var songs = await ScanTreeUriAsync(treeUri);
-                allSongs.AddRange(songs);
+                progress?.Report((i, uris.Count, $"遍历文件夹 {i + 1}/{uris.Count}..."));
+                await ScanTreeUriAsync(treeUri, songCallback, progress);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF scan error for {uriStr}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF scan error: {ex.Message}");
             }
         }
-
-        return allSongs;
     }
 
-    /// <summary>异步扫描单个 content:// 树 URI</summary>
-    public static Task<List<Song>> ScanTreeUriAsync(AUri treeUri)
+    private static async Task ScanTreeUriAsync(AUri treeUri, Func<List<Song>, Task> songCallback,
+        IProgress<(int done, int total, string status)>? progress)
     {
-        return Task.Run(() => ScanTreeUri(treeUri));
-    }
+        var ctx = global::Android.App.Application.Context;
+        var docId = DocumentsContract.GetTreeDocumentId(treeUri);
 
-    /// <summary>扫描单个 content:// 树 URI，递归遍历所有子目录</summary>
-    private static List<Song> ScanTreeUri(AUri treeUri)
-    {
-        var songs = new List<Song>();
-        try
+        var audioFiles = new List<(AUri uri, string name, long size, long lastModified)>();
+        await Task.Run(() => CollectAudioFiles(ctx, treeUri, docId, audioFiles));
+
+        if (audioFiles.Count == 0) return;
+
+        var total = audioFiles.Count;
+        progress?.Report((0, total, $"发现 {total} 个音频文件，读取元数据..."));
+
+        var songQueue = new System.Collections.Concurrent.BlockingCollection<Song>(200);
+        var processed = 0;
+
+        var producerTask = Task.Run(() =>
         {
-            var ctx = global::Android.App.Application.Context;
-            var docId = DocumentsContract.GetTreeDocumentId(treeUri);
-            WalkDocuments(ctx, treeUri, docId, songs);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 扫描异常: {ex.Message}");
-        }
-        return songs;
-    }
-
-    /// <summary>递归遍历 DocumentsProvider 文档树</summary>
-    private static void WalkDocuments(Context ctx, AUri treeUri, string docId, List<Song> songs)
-    {
-        var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, docId);
-
-        ICursor? cursor = null;
-        try
-        {
-            cursor = ctx.ContentResolver!.Query(childrenUri,
-                new[]
-                {
-                    DocumentsContract.Document.ColumnDocumentId,
-                    DocumentsContract.Document.ColumnMimeType,
-                    DocumentsContract.Document.ColumnDisplayName,
-                    DocumentsContract.Document.ColumnSize,
-                    DocumentsContract.Document.ColumnLastModified,
-                }, null, null, null);
-
-            if (cursor == null) return;
-
-            while (cursor.MoveToNext())
+            try
             {
-                var childId = cursor.GetString(0);
-                var mimeType = cursor.GetString(1);
-                var displayName = cursor.GetString(2);
-                var size = cursor.GetLong(3);
-
-                if (string.IsNullOrEmpty(childId)) continue;
-
-                if (DocumentsContract.Document.MimeTypeDir.Equals(mimeType, StringComparison.OrdinalIgnoreCase))
+                Parallel.ForEach(audioFiles, new ParallelOptions
                 {
-                    WalkDocuments(ctx, treeUri, childId, songs);
-                }
-                else if (!string.IsNullOrEmpty(displayName) && IsAudioFile(displayName))
+                    MaxDegreeOfParallelism = Math.Min(4, Environment.ProcessorCount)
+                }, file =>
                 {
-                    var docUri = DocumentsContract.BuildDocumentUriUsingTree(treeUri, childId);
-                    var song = ReadSongFromUri(ctx, docUri, displayName, size);
-                    if (song != null) songs.Add(song);
+                    var song = ReadSongWithMetadataRetriever(file.uri, file.name, file.size, file.lastModified);
+                    if (song != null)
+                        songQueue.Add(song);
+                });
+            }
+            finally
+            {
+                songQueue.CompleteAdding();
+            }
+        });
+
+        await Task.Run(async () =>
+        {
+            var batch = new List<Song>();
+            foreach (var song in songQueue.GetConsumingEnumerable())
+            {
+                batch.Add(song);
+                if (batch.Count >= 30)
+                {
+                    Interlocked.Add(ref processed, batch.Count);
+                    var toSend = batch;
+                    batch = new List<Song>();
+                    await songCallback(toSend);
+                    progress?.Report((processed, total, $"读取元数据 {processed}/{total}..."));
                 }
             }
-        }
-        catch (Exception)
+            if (batch.Count > 0)
+            {
+                Interlocked.Add(ref processed, batch.Count);
+                await songCallback(batch);
+            }
+        });
+
+        await producerTask;
+    }
+
+    private static void CollectAudioFiles(Context ctx, AUri treeUri, string rootDocId,
+        List<(AUri uri, string name, long size, long lastModified)> results)
+    {
+        var stack = new Stack<string>();
+        stack.Push(rootDocId);
+
+        while (stack.Count > 0)
         {
+            var docId = stack.Pop();
+            var childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, docId);
+
+            ICursor? cursor = null;
+            try
+            {
+                cursor = ctx.ContentResolver!.Query(childrenUri,
+                    new[]
+                    {
+                        DocumentsContract.Document.ColumnDocumentId,
+                        DocumentsContract.Document.ColumnMimeType,
+                        DocumentsContract.Document.ColumnDisplayName,
+                        DocumentsContract.Document.ColumnSize,
+                        DocumentsContract.Document.ColumnLastModified,
+                    }, null, null, null);
+
+                if (cursor == null) continue;
+
+                while (cursor.MoveToNext())
+                {
+                    var childId = cursor.GetString(0);
+                    var mimeType = cursor.GetString(1);
+                    var displayName = cursor.GetString(2);
+                    var size = cursor.GetLong(3);
+                    var lastModified = cursor.GetLong(4);
+
+                    if (string.IsNullOrEmpty(childId)) continue;
+
+                    if (DocumentsContract.Document.MimeTypeDir.Equals(mimeType, StringComparison.OrdinalIgnoreCase))
+                    {
+                        stack.Push(childId);
+                    }
+                    else if (!string.IsNullOrEmpty(displayName) && IsAudioFile(displayName))
+                    {
+                        var docUri = DocumentsContract.BuildDocumentUriUsingTree(treeUri, childId);
+                        results.Add((docUri, displayName, size, lastModified));
+                    }
+                }
+            }
+            catch { }
+            finally
+            {
+                cursor?.Close();
+            }
+        }
+    }
+
+    private static Song? ReadSongWithMetadataRetriever(AUri uri, string displayName, long size, long lastModified)
+    {
+        var retriever = new global::Android.Media.MediaMetadataRetriever();
+        try
+        {
+            retriever.SetDataSource(global::Android.App.Application.Context, uri);
+
+            var title = retriever.ExtractMetadata(MdKeyTitle);
+            var artist = retriever.ExtractMetadata(MdKeyArtist);
+            var album = retriever.ExtractMetadata(MdKeyAlbum);
+            var durationStr = retriever.ExtractMetadata(MdKeyDuration);
+            var bitrateStr = retriever.ExtractMetadata(MdKeyBitrate);
+            var yearStr = retriever.ExtractMetadata(MdKeyYear);
+            var trackStr = retriever.ExtractMetadata(MdKeyTrackNumber);
+            var genre = retriever.ExtractMetadata(MdKeyGenre);
+
+            var duration = 0;
+            if (!string.IsNullOrEmpty(durationStr) && int.TryParse(durationStr, out var d))
+                duration = d / 1000;
+
+            var bitrate = 0;
+            if (!string.IsNullOrEmpty(bitrateStr) && int.TryParse(bitrateStr, out var br))
+                bitrate = br / 1000;
+
+            var year = 0;
+            if (!string.IsNullOrEmpty(yearStr) && int.TryParse(yearStr, out var y))
+                year = y;
+
+            var trackNumber = 0;
+            if (!string.IsNullOrEmpty(trackStr))
+            {
+                var trackPart = trackStr.Split('/')[0];
+                int.TryParse(trackPart, out trackNumber);
+            }
+
+            return new Song
+            {
+                Title = !string.IsNullOrWhiteSpace(title) ? title : Path.GetFileNameWithoutExtension(displayName),
+                Artist = !string.IsNullOrWhiteSpace(artist) ? artist : "未知艺术家",
+                Album = album ?? "未知专辑",
+                Duration = duration,
+                FileSize = size,
+                Bitrate = bitrate,
+                Year = year,
+                TrackNumber = trackNumber,
+                Genre = genre,
+                FilePath = uri.ToString(),
+                Source = SongSource.Local,
+                DateModified = lastModified > 0 ? lastModified / 1000 : 0
+            };
+        }
+        catch
+        {
+            return new Song
+            {
+                Title = Path.GetFileNameWithoutExtension(displayName),
+                Artist = "未知艺术家",
+                Album = "未知专辑",
+                FilePath = uri.ToString(),
+                FileSize = size,
+                Source = SongSource.Local,
+                DateModified = lastModified > 0 ? lastModified / 1000 : 0
+            };
         }
         finally
         {
-            cursor?.Close();
+            retriever.Release();
         }
     }
 
-    /// <summary>从 content:// URI 读取音频文件元数据</summary>
-    private static Song? ReadSongFromUri(Context ctx, AUri uri, string displayName, long size)
-    {
-        try
-        {
-            using var stream = ctx.ContentResolver!.OpenInputStream(uri);
-            if (stream == null) return null;
-
-            var song = TagReader.ReadFromStream(stream, uri.ToString(), displayName, size);
-            return song;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF read error: {displayName} - {ex.Message}");
-            return null;
-        }
-    }
-
-    /// <summary>根据扩展名判断是否为支持的音频文件</summary>
     private static bool IsAudioFile(string fileName)
     {
         var ext = Path.GetExtension(fileName);

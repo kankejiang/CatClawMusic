@@ -457,12 +457,11 @@ public class MainActivity : AppCompatActivity
         var root = FindViewById<View>(Android.Resource.Id.Content)!;
         ViewCompat.SetOnApplyWindowInsetsListener(root, new WindowInsetsListener((v, insets) =>
         {
-            var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars());
-            // 工具栏整体下移留出状态栏空间，内容区保持完整
+            var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()
+                | WindowInsetsCompat.Type.DisplayCutout());
             var toolbarLp = (LinearLayout.LayoutParams)_toolbar.LayoutParameters!;
             toolbarLp.TopMargin = bars.Top;
             _toolbar.LayoutParameters = toolbarLp;
-            // 底部导航底部加 padding，避免被导航栏手势条遮挡
             _bottomNav.SetPadding(
                 _bottomNav.PaddingLeft,
                 _bottomNav.PaddingTop,

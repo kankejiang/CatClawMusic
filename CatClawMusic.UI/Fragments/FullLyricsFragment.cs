@@ -2,9 +2,12 @@ using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.OS;
+using Android.Text;
+using Android.Text.Style;
 using Android.Views;
 using Android.Widget;
 using CatClawMusic.Core.Models;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,8 +43,8 @@ public class FullLyricsFragment : Fragment
     private readonly List<TextView> _lyricViews = new();
     // 上一次高亮的歌词索引
     private int _lastLyricIndex = -1;
-    // 用户是否正在手动滚动
     private bool _userScrolling;
+    // 用户是否正在手动滚动
     // 是否正在拖拽模式
     private bool _isDragging;
     // 拖拽时选中的歌词索引
@@ -61,8 +64,6 @@ public class FullLyricsFragment : Fragment
     private int _lyricFontSize = 16;
     // 歌词对齐方式：0=左，1=中，2=右
     private int _lyricAlignment = 1;
-    // 设置对话框
-    private Android.App.Dialog? _settingsDialog;
 
     /// <summary>
     /// 创建Fragment视图
@@ -353,6 +354,9 @@ public class FullLyricsFragment : Fragment
                 case nameof(_viewModel.CurrentLyricIndex): 
                     HighlightCurrentLine();
                     break;
+                case nameof(_viewModel.CurrentLyricSpannable):
+                    UpdateWordByWordLyrics();
+                    break;
                 case nameof(_viewModel.CurrentPosition):
                 case nameof(_viewModel.TotalDuration): 
                     UpdateProgress();
@@ -410,7 +414,8 @@ public class FullLyricsFragment : Fragment
             var line = lyrics.Lines[i];
             var tv = new TextView(Context) { Text = line.Text };
             tv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
-            tv.SetTextColor(Color.ParseColor("#CCCCCC"));
+            tv.SetTextColor(Color.ParseColor("#38FFFFFF"));
+            tv.SetTypeface(null, TypefaceStyle.Bold);
             tv.Gravity = GetLyricGravity();
             tv.SetLineSpacing(0, 1.4f);
             var lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
@@ -445,27 +450,39 @@ public class FullLyricsFragment : Fragment
         var idx = _viewModel.CurrentLyricIndex;
         if (idx == _lastLyricIndex || _lyricViews.Count == 0) return;
 
-        // 重置所有行的样式
         foreach (var v in _lyricViews)
         {
+            var plain = v.Text;
+            if (!string.IsNullOrEmpty(plain))
+                v.SetText(plain, TextView.BufferType.Normal);
             v.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
-            v.SetTextColor(Color.ParseColor("#CCCCCC"));
+            v.SetTextColor(Color.ParseColor("#38FFFFFF"));
+            v.SetTypeface(null, TypefaceStyle.Bold);
             v.Background = null;
         }
 
-        // 高亮当前行
         if (idx >= 0 && idx < _lyricViews.Count)
         {
             _lyricViews[idx].SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 4);
-            _lyricViews[idx].SetTextColor(Color.ParseColor("#FFFFFF"));
+            _lyricViews[idx].SetTextColor(Color.White);
         }
 
         _lastLyricIndex = idx;
 
-        // 如果用户没有在滚动或拖拽，自动滚动到当前行
         if (!_userScrolling && !_isDragging)
-        {
             ScrollToCurrentLyric();
+    }
+
+    public void UpdateWordByWordLyrics()
+    {
+        var idx = _viewModel.CurrentLyricIndex;
+        if (idx < 0 || idx >= _lyricViews.Count) return;
+
+        var spannable = _viewModel.CurrentLyricSpannable;
+        if (spannable != null)
+        {
+            _lyricViews[idx].SetText(spannable, TextView.BufferType.Spannable);
+            _lyricViews[idx].SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 4);
         }
     }
 
@@ -535,55 +552,78 @@ public class FullLyricsFragment : Fragment
     {
         if (Context == null || Activity == null) return;
 
-        // 创建对话框
-        _settingsDialog = new Android.App.Dialog(Activity);
-        _settingsDialog.RequestWindowFeature((int)WindowFeatures.NoTitle);
-        _settingsDialog.SetContentView(Resource.Layout.dialog_lyric_settings);
+        var dp = (int)Resources!.DisplayMetrics!.Density;
+        var tv = new Android.Util.TypedValue();
+        var themeColor = Activity.Theme?.ResolveAttribute(global::Android.Resource.Attribute.ColorPrimary, tv, true) == true
+            ? new Color(tv.Data) : Color.ParseColor("#9B7ED8");
 
-        // 设置窗口背景透明
-        var window = _settingsDialog.Window;
-        if (window != null)
-        {
-            window.SetBackgroundDrawable(new ColorDrawable(Color.Transparent));
-            window.SetLayout((int)(Resources.DisplayMetrics.WidthPixels * 0.85), ViewGroup.LayoutParams.WrapContent);
-        }
+        var content = new LinearLayout(Context) { Orientation = Orientation.Vertical };
+        content.SetPadding(dp * 14, dp * 8, dp * 14, dp * 8);
 
-        // 获取控件引用
-        var cbDragSeek = _settingsDialog.FindViewById<CheckBox>(Resource.Id.cb_drag_seek)!;
-        var sbFontSize = _settingsDialog.FindViewById<SeekBar>(Resource.Id.sb_font_size)!;
-        var tvFontSizeValue = _settingsDialog.FindViewById<TextView>(Resource.Id.tv_font_size_value)!;
-        var rgAlignment = _settingsDialog.FindViewById<RadioGroup>(Resource.Id.rg_alignment)!;
-        var rbLeft = _settingsDialog.FindViewById<RadioButton>(Resource.Id.rb_left)!;
-        var rbCenter = _settingsDialog.FindViewById<RadioButton>(Resource.Id.rb_center)!;
-        var rbRight = _settingsDialog.FindViewById<RadioButton>(Resource.Id.rb_right)!;
-        var btnClose = _settingsDialog.FindViewById<Button>(Resource.Id.btn_close)!;
+        var cbDragSeek = new CheckBox(Context) { Text = "允许拖拽调整进度", Checked = _allowDragSeek };
+        cbDragSeek.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        cbDragSeek.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+        cbDragSeek.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        content.AddView(cbDragSeek);
 
-        // 初始化设置值
-        cbDragSeek.Checked = _allowDragSeek;
+        var fontLabel = new TextView(Context) { Text = "字体大小" };
+        fontLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
+        fontLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+        fontLabel.SetPadding(0, dp * 12, 0, dp * 4);
+        content.AddView(fontLabel);
+
+        var fontRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal };
+        fontRow.SetGravity(GravityFlags.CenterVertical);
+        var sbFontSize = new SeekBar(Context);
+        sbFontSize.Max = 28;
         sbFontSize.Progress = _lyricFontSize;
-        tvFontSizeValue.Text = $"{_lyricFontSize}sp";
+        sbFontSize.LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
+        var tvFontSizeValue = new TextView(Context) { Text = $"{_lyricFontSize}sp" };
+        tvFontSizeValue.SetTextColor(Color.White);
+        tvFontSizeValue.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+        tvFontSizeValue.SetPadding(dp * 8, 0, 0, 0);
+        fontRow.AddView(sbFontSize);
+        fontRow.AddView(tvFontSizeValue);
+        content.AddView(fontRow);
 
-        // 初始化对齐方式
-        rbCenter.Checked = true;
-        if (_lyricAlignment == 0) rbLeft.Checked = true;
-        if (_lyricAlignment == 2) rbRight.Checked = true;
+        var alignLabel = new TextView(Context) { Text = "对齐方式" };
+        alignLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
+        alignLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+        alignLabel.SetPadding(0, dp * 12, 0, dp * 4);
+        content.AddView(alignLabel);
 
-        // 设置控件事件
+        var rgAlignment = new RadioGroup(Context) { Orientation = Orientation.Horizontal };
+        var rbLeft = new RadioButton(Context) { Text = "左" };
+        var rbCenter = new RadioButton(Context) { Text = "中" };
+        var rbRight = new RadioButton(Context) { Text = "右" };
+        rbLeft.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbCenter.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbRight.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbLeft.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rbCenter.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rbRight.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rbCenter.Checked = _lyricAlignment == 1;
+        rbLeft.Checked = _lyricAlignment == 0;
+        rbRight.Checked = _lyricAlignment == 2;
+        rgAlignment.AddView(rbLeft);
+        rgAlignment.AddView(rbCenter);
+        rgAlignment.AddView(rbRight);
+        content.AddView(rgAlignment);
+
         cbDragSeek.CheckedChange += (s, e) => { _allowDragSeek = e.IsChecked; SaveSettings(); RebuildLyrics(); };
         sbFontSize.ProgressChanged += (s, e) => { _lyricFontSize = e.Progress; tvFontSizeValue.Text = $"{_lyricFontSize}sp"; };
         sbFontSize.StopTrackingTouch += (s, e) => { SaveSettings(); RebuildLyrics(); };
         rgAlignment.CheckedChange += (s, e) =>
         {
-            _lyricAlignment = e.CheckedId switch
-            {
-                Resource.Id.rb_left => 0,
-                Resource.Id.rb_right => 2,
-                _ => 1
-            };
+            _lyricAlignment = rbLeft.Checked ? 0 : rbRight.Checked ? 2 : 1;
             SaveSettings(); RebuildLyrics();
         };
-        btnClose.Click += (s, e) => _settingsDialog.Dismiss();
-        _settingsDialog.Show();
+
+        new GlassDialog(Context)
+            .SetTitle("歌词设置")
+            .AddCustomView(content)
+            .AddNegativeButton("关闭")
+            .Show();
     }
 
     /// <summary>

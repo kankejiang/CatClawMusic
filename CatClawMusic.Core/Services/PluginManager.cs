@@ -221,8 +221,8 @@ public class PluginManager : IPluginManager
             if (dllUrl == null)
             {
                 throw new InvalidOperationException(
-                    $"仓库 {owner}/{repo} 的 Release 中没有找到 .dll 文件。\n" +
-                    "请上传编译好的插件 DLL 到 Release Assets。");
+                    $"仓库 {owner}/{repo} 的 Release 中没有找到 .dll 或 .ccp 文件。\n" +
+                    "请上传编译好的插件到 Release Assets。");
             }
 
             progress?.Report(("正在下载插件...", 30));
