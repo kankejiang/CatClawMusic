@@ -66,13 +66,24 @@
                     android:inputType="textPassword" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:hint="音乐路径（可选）" android:layout_marginBottom="12dp"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
-                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_base_path"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="\" />
-            </com.google.android.material.textfield.TextInputLayout>
+            <LinearLayout android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp"
+                android:gravity="center_vertical">
+
+                <com.google.android.material.textfield.TextInputLayout android:layout_width="0dp"
+                    android:layout_height="wrap_content" android:layout_weight="1" android:hint="音乐路径（可选）"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_base_path"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="\" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <Button android:id="@+id/btn_browse" android:layout_width="wrap_content"
+                    android:layout_height="48dp" android:text="浏览" android:layout_marginStart="8dp"
+                    style="@style/CatClawButtonSecondary" />
+            </LinearLayout>
 
             <TextView android:id="@+id/status_text" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:textColor="?attr/catClawTextHint"

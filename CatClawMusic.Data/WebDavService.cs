@@ -36,9 +36,13 @@ public class WebDavService : INetworkFileService, IDisposable
     /// <summary>
     /// 确保 HTTP 客户端已按指定配置初始化，复用已有连接
     /// </summary>
-    private void EnsureClient(ConnectionProfile profile)
+    private void EnsureClient(ConnectionProfile profile, bool forceNew = false)
     {
-        if (_client != null && _profile?.Host == profile.Host && _profile?.Port == profile.Port)
+        if (!forceNew && _client != null && _profile?.Host == profile.Host
+            && _profile?.Port == profile.Port
+            && _profile?.UserName == profile.UserName
+            && _profile?.Password == profile.Password
+            && _profile?.UseHttps == profile.UseHttps)
             return;
 
         _client?.Dispose();
@@ -149,12 +153,38 @@ public class WebDavService : INetworkFileService, IDisposable
     {
         try
         {
-            EnsureClient(profile);
-            var url = BuildUrl(profile.BasePath ?? "/");
+            EnsureClient(profile, forceNew: true);
+            var basePath = profile.BasePath?.Trim() ?? "/";
+            if (string.IsNullOrEmpty(basePath)) basePath = "/";
 
-            // 直接尝试 PROPFIND（跳过 OPTIONS，避免 Android 上 Allow 头读取问题）
-            await PropFindAsync(url, 0);
-            return (true, "连接成功");
+            try
+            {
+                var basePathUrl = BuildUrl(basePath);
+                await PropFindAsync(basePathUrl, 0);
+                return (true, "连接成功");
+            }
+            catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
+            {
+                return (false, "认证失败，请检查账号和密码");
+            }
+            catch (HttpRequestException) { }
+
+            if (basePath != "/")
+            {
+                try
+                {
+                    var rootUrl = BuildUrl("/");
+                    await PropFindAsync(rootUrl, 0);
+                    return (false, $"服务器连接成功，但路径 {basePath} 不可访问。请确认路径前缀");
+                }
+                catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
+                {
+                    return (false, "认证失败，请检查账号和密码");
+                }
+                catch { }
+            }
+
+            return (false, "无法连接到 WebDAV 服务器，请检查地址和端口");
         }
         catch (HttpRequestException ex)
         {
@@ -162,7 +192,6 @@ public class WebDavService : INetworkFileService, IDisposable
             var errorMsg = ex.Message;
             System.Diagnostics.Debug.WriteLine($"[WebDAV] HTTP 错误: {statusCode} - {errorMsg}");
 
-            // 特殊处理：HTTP 方法不支持
             if (errorMsg.Contains("PROPFIND") && errorMsg.Contains("Expected"))
                 errorMsg = "服务器不支持 WebDAV。请确认已在 NAS 设置中启用 WebDAV 服务。";
             else if ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)

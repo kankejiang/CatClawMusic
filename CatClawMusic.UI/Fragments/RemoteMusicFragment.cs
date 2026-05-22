@@ -6,6 +6,7 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidX.AppCompat.Widget;
 
@@ -202,17 +203,16 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         if (_isLoading || _navidromeProfile == null) return;
         _navidromeProfile.IsEnabled = e.IsChecked;
         await SaveProfileAsync(_navidromeProfile);
+        LibraryViewModel.NotifyProtocolChanged(this);
         await LoadProfilesAsync();
     }
 
-    /// <summary>
-    /// WebDAV开关切换时保存启用状态并刷新UI
-    /// </summary>
     private async void OnWebdavSwitchChanged(object? sender, CompoundButton.CheckedChangeEventArgs e)
     {
         if (_isLoading || _webdavProfile == null) return;
         _webdavProfile.IsEnabled = e.IsChecked;
         await SaveProfileAsync(_webdavProfile);
+        LibraryViewModel.NotifyProtocolChanged(this);
         await LoadProfilesAsync();
     }
 
@@ -221,6 +221,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         if (_isLoading || _smbProfile == null) return;
         _smbProfile.IsEnabled = e.IsChecked;
         await SaveProfileAsync(_smbProfile);
+        LibraryViewModel.NotifyProtocolChanged(this);
         await LoadProfilesAsync();
     }
 

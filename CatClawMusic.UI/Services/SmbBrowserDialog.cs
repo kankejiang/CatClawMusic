@@ -8,17 +8,13 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using Microsoft.Extensions.DependencyInjection;
-using System.Linq;
 
 namespace CatClawMusic.UI.Services;
 
-/// <summary>
-/// WebDAV 目录浏览对话框——让用户可视化选择远程路径
-/// </summary>
-public class WebDavBrowserDialog : Dialog
+public class SmbBrowserDialog : Dialog
 {
     private readonly ConnectionProfile _profile;
-    private readonly INetworkFileService _webDav;
+    private readonly SmbService _smbService;
 
     private RecyclerView _recyclerView = null!;
     private TextView _tvCurrentPath = null!;
@@ -31,28 +27,37 @@ public class WebDavBrowserDialog : Dialog
     private readonly List<RemoteFile> _items = new();
     private FileListAdapter _adapter = null!;
     private readonly Stack<string> _pathStack = new();
-    private string _currentPath = "/";
+    private string _currentPath = "\\";
     private bool _isInitialized = false;
     private bool _isLoading = false;
 
-    /// <summary>用户最终选择的路径</summary>
     public string? SelectedPath { get; private set; }
 
-    public WebDavBrowserDialog(Activity activity, ConnectionProfile profile)
+    public SmbBrowserDialog(Activity activity, ConnectionProfile profile)
         : base(activity)
     {
         _profile = profile;
-        _webDav = MainApplication.Services.GetServices<INetworkFileService>()
-            .FirstOrDefault(s => s is CatClawMusic.Data.WebDavService)
-            ?? MainApplication.Services.GetServices<INetworkFileService>().FirstOrDefault()
-            ?? throw new InvalidOperationException("WebDAV 服务不可用");
+        _smbService = (MainApplication.Services.GetService(typeof(SmbService)) as SmbService)
+            ?? (MainApplication.Services.GetServices<INetworkFileService>()
+                .FirstOrDefault(s => s is SmbService) as SmbService)
+            ?? new SmbService();
     }
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
         RequestWindowFeature((int)WindowFeatures.NoTitle);
-        SetContentView(Resource.Layout.dialog_webdav_browser);
+
+        try
+        {
+            SetContentView(Resource.Layout.dialog_webdav_browser);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] SetContentView 失败: {ex}");
+            Dismiss();
+            return;
+        }
 
         Window?.SetLayout(
             (int)(Context.Resources!.DisplayMetrics!.WidthPixels * 0.92),
@@ -70,7 +75,26 @@ public class WebDavBrowserDialog : Dialog
             Dismiss();
         };
 
-        _ = InitializeAndLoadAsync();
+        InitializeAndLoadAsync().ContinueWith(t =>
+        {
+            if (t.IsFaulted && t.Exception != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SMB Browser] 初始化异常: {t.Exception}");
+                try
+                {
+                    var owner = OwnerActivity;
+                    if (owner != null)
+                    {
+                        owner.RunOnUiThread(() =>
+                        {
+                            try { ShowError($"初始化失败: {t.Exception.InnerException?.Message ?? t.Exception.Message}"); }
+                            catch { }
+                        });
+                    }
+                }
+                catch { }
+            }
+        });
     }
 
     private async Task InitializeAndLoadAsync()
@@ -79,28 +103,31 @@ public class WebDavBrowserDialog : Dialog
 
         try
         {
-            _webDav.Configure(_profile);
+            _smbService.Configure(_profile);
             _isInitialized = true;
-            var startPath = _profile.BasePath?.Trim() ?? "/";
-            if (string.IsNullOrEmpty(startPath)) startPath = "/";
-            await LoadDirectoryAsync(startPath);
+            await LoadDirectoryAsync("");
         }
-        catch (Exception ex)
+        catch (Java.Lang.Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] Java异常: {ex.Message}");
+            ShowError($"连接异常: {ex.Message}");
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 初始化异常: {ex}");
             ShowError($"初始化失败: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 初始化异常: {ex}");
         }
     }
 
     private void InitViews()
     {
-        _recyclerView = FindViewById<RecyclerView>(Resource.Id.recycler_view)!;
-        _tvCurrentPath = FindViewById<TextView>(Resource.Id.tv_current_path)!;
-        _progressBar = FindViewById<ProgressBar>(Resource.Id.progress_bar)!;
-        _tvEmpty = FindViewById<TextView>(Resource.Id.tv_empty)!;
-        _tvError = FindViewById<TextView>(Resource.Id.tv_error)!;
-        _btnSelect = FindViewById<Button>(Resource.Id.btn_select)!;
-        _btnClose = FindViewById<ImageButton>(Resource.Id.btn_close)!;
+        _recyclerView = FindViewById<RecyclerView>(Resource.Id.recycler_view) ?? throw new InvalidOperationException("找不到 recycler_view");
+        _tvCurrentPath = FindViewById<TextView>(Resource.Id.tv_current_path) ?? throw new InvalidOperationException("找不到 tv_current_path");
+        _progressBar = FindViewById<ProgressBar>(Resource.Id.progress_bar) ?? throw new InvalidOperationException("找不到 progress_bar");
+        _tvEmpty = FindViewById<TextView>(Resource.Id.tv_empty) ?? throw new InvalidOperationException("找不到 tv_empty");
+        _tvError = FindViewById<TextView>(Resource.Id.tv_error) ?? throw new InvalidOperationException("找不到 tv_error");
+        _btnSelect = FindViewById<Button>(Resource.Id.btn_select) ?? throw new InvalidOperationException("找不到 btn_select");
+        _btnClose = FindViewById<ImageButton>(Resource.Id.btn_close) ?? throw new InvalidOperationException("找不到 btn_close");
     }
 
     private void InitRecyclerView()
@@ -118,22 +145,8 @@ public class WebDavBrowserDialog : Dialog
         var file = _items[position];
         if (!file.IsDirectory) return;
 
-        // URL 解码路径
-        var clickedPath = System.Net.WebUtility.UrlDecode(file.Path);
-        // 从完整 URL 中提取路径部分
-        var path = "/";
-        try
-        {
-            var uri = new Uri(clickedPath);
-            path = uri.AbsolutePath;
-        }
-        catch
-        {
-            path = clickedPath;
-        }
-
         _pathStack.Push(_currentPath);
-        _ = LoadDirectoryAsync(path);
+        _ = LoadDirectoryAsync(file.Path);
     }
 
     private async Task LoadDirectoryAsync(string path)
@@ -147,10 +160,7 @@ public class WebDavBrowserDialog : Dialog
 
         try
         {
-            var files = await Task.Run(async () =>
-            {
-                return await _webDav.ListFilesAsync(path);
-            });
+            var files = await _smbService.ListFilesAsync(path);
 
             var dirs = files.Where(f => f.IsDirectory).OrderBy(f => f.Name).ToList();
 
@@ -169,10 +179,15 @@ public class WebDavBrowserDialog : Dialog
                 _tvEmpty.Visibility = ViewStates.Gone;
             }
         }
-        catch (Exception ex)
+        catch (Java.Lang.Exception ex)
         {
             ShowError($"加载失败: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 加载目录异常: {ex}");
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] Java异常: {ex.Message}");
+        }
+        catch (System.Exception ex)
+        {
+            ShowError($"加载失败: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 加载目录异常: {ex}");
         }
         finally
         {
@@ -213,9 +228,6 @@ public class WebDavBrowserDialog : Dialog
         }
     }
 
-    /// <summary>
-    /// 目录列表适配器——使用 position 索引避免闭包问题
-    /// </summary>
     private class FileListAdapter : RecyclerView.Adapter
     {
         private readonly IList<RemoteFile> _files;

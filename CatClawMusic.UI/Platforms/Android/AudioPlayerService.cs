@@ -1,6 +1,7 @@
 using Android.OS;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.Services;
+using Microsoft.Extensions.DependencyInjection;
 using System.Timers;
 using AndroidHandler = Android.OS.Handler;
 using ALog = Android.Util.Log;
@@ -604,7 +605,9 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
 
     private System.IO.Stream OpenSmbStream(global::Android.Net.Uri uri)
     {
-        var smbService = MainApplication.Services.GetService(typeof(CatClawMusic.Data.SmbService)) as CatClawMusic.Data.SmbService;
+        var smbService = MainApplication.Services.GetService(typeof(CatClawMusic.Data.SmbService)) as CatClawMusic.Data.SmbService
+            ?? MainApplication.Services.GetServices<CatClawMusic.Core.Interfaces.INetworkFileService>()
+                .FirstOrDefault(s => s is CatClawMusic.Data.SmbService) as CatClawMusic.Data.SmbService;
         if (smbService == null)
             throw new System.IO.IOException("SMB 服务不可用");
 

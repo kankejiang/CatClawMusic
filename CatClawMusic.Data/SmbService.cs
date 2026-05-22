@@ -65,8 +65,7 @@ public class SmbService : INetworkFileService, IDisposable
 
     public void Configure(ConnectionProfile profile)
     {
-        try { EnsureConnected(profile); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[SMB] Configure 失败: {ex.Message}"); }
+        EnsureConnected(profile);
     }
 
     public async Task<(bool Success, string Message)> TestConnectionAsync(ConnectionProfile profile)
@@ -137,30 +136,17 @@ public class SmbService : INetworkFileService, IDisposable
             {
                 var normalizedPath = NormalizePath(path);
                 object? queryHandle;
+
                 var status = _fileStore.CreateFile(
                     out queryHandle,
                     out _,
                     normalizedPath,
                     AccessMask.GENERIC_READ,
                     SMBLibrary.FileAttributes.Directory,
-                    ShareAccess.Read,
+                    ShareAccess.Read | ShareAccess.Delete,
                     CreateDisposition.FILE_OPEN,
                     CreateOptions.FILE_DIRECTORY_FILE,
                     null);
-
-                if (status != NTStatus.STATUS_SUCCESS)
-                {
-                    status = _fileStore.CreateFile(
-                        out queryHandle,
-                        out _,
-                        normalizedPath,
-                        AccessMask.GENERIC_READ,
-                        SMBLibrary.FileAttributes.Directory,
-                        ShareAccess.Read,
-                        CreateDisposition.FILE_OPEN,
-                        CreateOptions.FILE_NON_DIRECTORY_FILE,
-                        null);
-                }
 
                 if (status != NTStatus.STATUS_SUCCESS)
                 {
@@ -169,7 +155,7 @@ public class SmbService : INetworkFileService, IDisposable
                 }
 
                 List<QueryDirectoryFileInformation>? entries;
-                status = _fileStore.QueryDirectory(
+                var queryStatus = _fileStore.QueryDirectory(
                     out entries,
                     queryHandle,
                     "*",
@@ -177,9 +163,10 @@ public class SmbService : INetworkFileService, IDisposable
 
                 _fileStore.CloseFile(queryHandle);
 
-                if (status != NTStatus.STATUS_SUCCESS || entries == null)
+                if ((queryStatus != NTStatus.STATUS_SUCCESS && queryStatus != NTStatus.STATUS_NO_MORE_FILES)
+                    || entries == null || entries.Count == 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 查询失败 {path}: {status}");
+                    System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 查询失败 {path}: {queryStatus}");
                     return files;
                 }
 
@@ -191,7 +178,7 @@ public class SmbService : INetworkFileService, IDisposable
                         if (name == "." || name == "..") continue;
 
                         var isDir = (info.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0;
-                        var entryPath = string.IsNullOrEmpty(normalizedPath) || normalizedPath == "\\"
+                        var entryPath = string.IsNullOrEmpty(normalizedPath)
                             ? $"\\{name}"
                             : $"{normalizedPath}\\{name}";
 
@@ -344,8 +331,10 @@ public class SmbService : INetworkFileService, IDisposable
 
     private static string NormalizePath(string path)
     {
-        if (string.IsNullOrEmpty(path) || path == "/") return "\\";
-        return path.Replace('/', '\\');
+        if (string.IsNullOrEmpty(path) || path == "/" || path == "\\" || path == @"\")
+            return "";
+        var p = path.Replace('/', '\\').TrimStart('\\');
+        return p;
     }
 
     private void Disconnect()

@@ -23,6 +23,13 @@ public partial class LibraryViewModel : ObservableObject
 
     public event EventHandler? ScanCompleted;
 
+    public static event EventHandler? ProtocolChanged;
+
+    public static void NotifyProtocolChanged(object sender)
+    {
+        ProtocolChanged?.Invoke(sender, EventArgs.Empty);
+    }
+
     public ObservableCollection<CoreModels.Song> Songs { get; } = new();
 
     [ObservableProperty] private bool _isLoading;

@@ -125,7 +125,6 @@ public class LibraryFragment : Fragment
         _viewModel.Songs.CollectionChanged += OnSongsCollectionChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
-        // 搜索过滤变化时全量刷新列表
         _viewModel.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(_viewModel.FilteredSongs))
@@ -134,18 +133,23 @@ public class LibraryFragment : Fragment
             }
         };
 
+        LibraryViewModel.ProtocolChanged += OnProtocolChanged;
+
         UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, _viewModel.CurrentTab == "Local");
         UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, _viewModel.CurrentTab == "Network");
     }
 
-    /// <summary>
-    /// 解绑ViewModel事件，防止内存泄漏
-    /// </summary>
     private void UnbindViews()
     {
         _viewModel.Songs.CollectionChanged -= OnSongsCollectionChanged;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _protocolSpinner.ItemSelected -= OnProtocolSelected;
+        LibraryViewModel.ProtocolChanged -= OnProtocolChanged;
+    }
+
+    private void OnProtocolChanged(object? sender, EventArgs e)
+    {
+        _ = RefreshProtocolSpinnerAsync();
     }
 
     /// <summary>

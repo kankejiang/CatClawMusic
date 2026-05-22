@@ -1,5 +1,7 @@
 using Android.Views;
 using Android.Widget;
+using CatClawMusic.Core.Models;
+using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,7 +12,7 @@ public class SmbSettingsFragment : SettingsSubPageFragment
     private SmbSettingsViewModel _viewModel = null!;
     private EditText _etName = null!, _etHost = null!, _etPort = null!, _etUser = null!, _etPass = null!;
     private EditText _etShareName = null!, _etDomainName = null!, _etBasePath = null!;
-    private Button _btnTest = null!, _btnSave = null!;
+    private Button _btnTest = null!, _btnSave = null!, _btnBrowse = null!;
     private TextView _statusText = null!;
 
     protected override string GetTitle() => "SMB 设置";
@@ -32,6 +34,7 @@ public class SmbSettingsFragment : SettingsSubPageFragment
         _etBasePath = view.FindViewById<EditText>(Resource.Id.et_base_path)!;
         _btnTest = view.FindViewById<Button>(Resource.Id.btn_test)!;
         _btnSave = view.FindViewById<Button>(Resource.Id.btn_save)!;
+        _btnBrowse = view.FindViewById<Button>(Resource.Id.btn_browse)!;
         _statusText = view.FindViewById<TextView>(Resource.Id.status_text)!;
 
         _etName.TextChanged += (s, e) => _viewModel.Name = e?.Text?.ToString() ?? "";
@@ -44,6 +47,7 @@ public class SmbSettingsFragment : SettingsSubPageFragment
         _etBasePath.TextChanged += (s, e) => _viewModel.BasePath = e?.Text?.ToString() ?? "";
         _btnTest.Click += (s, e) => _viewModel.TestCommand.Execute(null);
         _btnSave.Click += (s, e) => _viewModel.SaveCommand.Execute(null);
+        _btnBrowse.Click += OnBrowseClick;
 
         _viewModel.PropertyChanged += (s, e) =>
         {
@@ -77,5 +81,44 @@ public class SmbSettingsFragment : SettingsSubPageFragment
         };
 
         _ = _viewModel.LoadAsync();
+    }
+
+    private void OnBrowseClick(object? sender, EventArgs e)
+    {
+        var activity = Activity;
+        if (activity == null) return;
+
+        if (string.IsNullOrWhiteSpace(_viewModel.Host))
+        {
+            _viewModel.StatusText = "请先输入主机地址";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_viewModel.ShareName))
+        {
+            _viewModel.StatusText = "请先输入共享名";
+            return;
+        }
+
+        var profile = new ConnectionProfile
+        {
+            Host = _viewModel.Host.Trim(),
+            Port = int.TryParse(_viewModel.Port, out var p) ? p : 445,
+            UserName = _viewModel.UserName,
+            Password = _viewModel.Password,
+            DomainName = _viewModel.DomainName,
+            ShareName = _viewModel.ShareName,
+            BasePath = "\\",
+            IsEnabled = true
+        };
+
+        var dialog = new SmbBrowserDialog(activity, profile);
+        dialog.DismissEvent += (s, args) =>
+        {
+            if (!string.IsNullOrEmpty(dialog.SelectedPath))
+            {
+                _viewModel.BasePath = dialog.SelectedPath;
+            }
+        };
+        dialog.Show();
     }
 }

@@ -52,6 +52,9 @@ public class MainApplication : Application
         services.AddSingleton<ISubsonicService, SubsonicService>();
         services.AddSingleton<INetworkFileService, WebDavService>();
         services.AddSingleton<INetworkFileService, SmbService>();
+        services.AddSingleton<SmbService>(sp =>
+            sp.GetServices<INetworkFileService>().FirstOrDefault(s => s is SmbService) as SmbService
+            ?? new SmbService());
         services.AddSingleton<INetworkMusicService>(sp =>
         {
             var db = sp.GetRequiredService<MusicDatabase>();

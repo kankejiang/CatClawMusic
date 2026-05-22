@@ -117,7 +117,28 @@ public partial class SettingsViewModel : ObservableObject
         MusicFolders.RemoveAt(index);
         if (index < _folderUris.Count) _folderUris.RemoveAt(index);
         if (!string.IsNullOrEmpty(uri))
+        {
             FolderPicker.RemoveSavedFolder(uri);
+            _ = CleanupDeletedFolderSongsAsync();
+        }
+    }
+
+    private async Task CleanupDeletedFolderSongsAsync()
+    {
+        try
+        {
+            if (_database == null) return;
+            await _database.EnsureInitializedAsync();
+            var remainingUris = FolderPicker.GetSavedFolderUris();
+            var retainPaths = new HashSet<string>();
+            foreach (var u in remainingUris)
+                retainPaths.Add(u);
+            await _database.RemoveStaleSongsAsync(SongSource.Local, retainPaths);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Settings] 清理已删除文件夹歌曲失败: {ex.Message}");
+        }
     }
 
     /// <summary>

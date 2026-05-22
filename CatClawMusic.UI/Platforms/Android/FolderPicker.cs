@@ -69,8 +69,35 @@ public static class FolderPicker
         var prefs = ctx.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private)!;
         var list = prefs.GetString(PrefKeyList, null);
         if (string.IsNullOrEmpty(list)) return;
-        var folders = list.Split('|').Where(f => f != uri).ToList();
-        prefs.Edit()!.PutString(PrefKeyList, string.Join("|", folders))!.Apply();
+        var folders = list.Split('|', StringSplitOptions.RemoveEmptyEntries).Where(f => f != uri).ToList();
+
+        var editor = prefs.Edit()!;
+        if (folders.Count > 0)
+        {
+            editor.PutString(PrefKeyList, string.Join("|", folders));
+            editor.PutString(PrefKey, folders[0]);
+        }
+        else
+        {
+            editor.Remove(PrefKeyList);
+            editor.Remove(PrefKey);
+        }
+        editor.Commit();
+
+        try
+        {
+            var treeUri = AUri.Parse(uri);
+            if (treeUri != null)
+            {
+                var takeFlags = ActivityFlags.GrantReadUriPermission
+                              | ActivityFlags.GrantWriteUriPermission;
+                ctx.ContentResolver!.ReleasePersistableUriPermission(treeUri, takeFlags);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 释放 URI 权限失败: {ex.Message}");
+        }
     }
 
     /// <summary>清空所有文件夹</summary>
