@@ -160,7 +160,7 @@ public class WebDavService : INetworkFileService, IDisposable
             try
             {
                 var basePathUrl = BuildUrl(basePath);
-                await PropFindAsync(basePathUrl, 0);
+                await PropFindAsync(basePathUrl, 1);
                 return (true, "连接成功");
             }
             catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
@@ -174,7 +174,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 try
                 {
                     var rootUrl = BuildUrl("/");
-                    await PropFindAsync(rootUrl, 0);
+                    await PropFindAsync(rootUrl, 1);
                     return (false, $"服务器连接成功，但路径 {basePath} 不可访问。请确认路径前缀");
                 }
                 catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)

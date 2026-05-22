@@ -7,7 +7,6 @@ using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Services;
 
@@ -15,6 +14,7 @@ public class SmbBrowserDialog : Dialog
 {
     private readonly ConnectionProfile _profile;
     private readonly SmbService _smbService;
+    private readonly Activity _activity;
 
     private RecyclerView _recyclerView = null!;
     private TextView _tvCurrentPath = null!;
@@ -36,11 +36,9 @@ public class SmbBrowserDialog : Dialog
     public SmbBrowserDialog(Activity activity, ConnectionProfile profile)
         : base(activity)
     {
+        _activity = activity;
         _profile = profile;
-        _smbService = (MainApplication.Services.GetService(typeof(SmbService)) as SmbService)
-            ?? (MainApplication.Services.GetServices<INetworkFileService>()
-                .FirstOrDefault(s => s is SmbService) as SmbService)
-            ?? new SmbService();
+        _smbService = new SmbService();
     }
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -75,59 +73,40 @@ public class SmbBrowserDialog : Dialog
             Dismiss();
         };
 
-        InitializeAndLoadAsync().ContinueWith(t =>
-        {
-            if (t.IsFaulted && t.Exception != null)
-            {
-                System.Diagnostics.Debug.WriteLine($"[SMB Browser] 初始化异常: {t.Exception}");
-                try
-                {
-                    var owner = OwnerActivity;
-                    if (owner != null)
-                    {
-                        owner.RunOnUiThread(() =>
-                        {
-                            try { ShowError($"初始化失败: {t.Exception.InnerException?.Message ?? t.Exception.Message}"); }
-                            catch { }
-                        });
-                    }
-                }
-                catch { }
-            }
-        });
+        _ = InitializeAndLoadAsync();
     }
 
     private async Task InitializeAndLoadAsync()
     {
-        ShowLoading("正在连接...");
+        RunOnUiThread(() => ShowLoading("正在连接..."));
 
-        try
+        await Task.Run(async () =>
         {
-            _smbService.Configure(_profile);
-            _isInitialized = true;
-            await LoadDirectoryAsync("");
-        }
-        catch (Java.Lang.Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[SMB Browser] Java异常: {ex.Message}");
-            ShowError($"连接异常: {ex.Message}");
-        }
-        catch (System.Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 初始化异常: {ex}");
-            ShowError($"初始化失败: {ex.Message}");
-        }
+            try
+            {
+                _smbService.Configure(_profile);
+                _isInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SMB Browser] Configure 失败: {ex.Message}");
+                RunOnUiThread(() => ShowError($"连接失败: {ex.Message}"));
+                return;
+            }
+
+            await LoadDirectoryInternalAsync("");
+        });
     }
 
     private void InitViews()
     {
-        _recyclerView = FindViewById<RecyclerView>(Resource.Id.recycler_view) ?? throw new InvalidOperationException("找不到 recycler_view");
-        _tvCurrentPath = FindViewById<TextView>(Resource.Id.tv_current_path) ?? throw new InvalidOperationException("找不到 tv_current_path");
-        _progressBar = FindViewById<ProgressBar>(Resource.Id.progress_bar) ?? throw new InvalidOperationException("找不到 progress_bar");
-        _tvEmpty = FindViewById<TextView>(Resource.Id.tv_empty) ?? throw new InvalidOperationException("找不到 tv_empty");
-        _tvError = FindViewById<TextView>(Resource.Id.tv_error) ?? throw new InvalidOperationException("找不到 tv_error");
-        _btnSelect = FindViewById<Button>(Resource.Id.btn_select) ?? throw new InvalidOperationException("找不到 btn_select");
-        _btnClose = FindViewById<ImageButton>(Resource.Id.btn_close) ?? throw new InvalidOperationException("找不到 btn_close");
+        _recyclerView = FindViewById<RecyclerView>(Resource.Id.recycler_view)!;
+        _tvCurrentPath = FindViewById<TextView>(Resource.Id.tv_current_path)!;
+        _progressBar = FindViewById<ProgressBar>(Resource.Id.progress_bar)!;
+        _tvEmpty = FindViewById<TextView>(Resource.Id.tv_empty)!;
+        _tvError = FindViewById<TextView>(Resource.Id.tv_error)!;
+        _btnSelect = FindViewById<Button>(Resource.Id.btn_select)!;
+        _btnClose = FindViewById<ImageButton>(Resource.Id.btn_close)!;
     }
 
     private void InitRecyclerView()
@@ -146,17 +125,17 @@ public class SmbBrowserDialog : Dialog
         if (!file.IsDirectory) return;
 
         _pathStack.Push(_currentPath);
-        _ = LoadDirectoryAsync(file.Path);
+        _ = Task.Run(async () => await LoadDirectoryInternalAsync(file.Path));
     }
 
-    private async Task LoadDirectoryAsync(string path)
+    private async Task LoadDirectoryInternalAsync(string path)
     {
-        if (!_isInitialized) { ShowError("连接未初始化"); return; }
+        if (!_isInitialized) { RunOnUiThread(() => ShowError("连接未初始化")); return; }
         if (_isLoading) return;
         _isLoading = true;
 
         _currentPath = path;
-        ShowLoading($"📁 {path}");
+        RunOnUiThread(() => ShowLoading($"📁 {path}"));
 
         try
         {
@@ -164,36 +143,52 @@ public class SmbBrowserDialog : Dialog
 
             var dirs = files.Where(f => f.IsDirectory).OrderBy(f => f.Name).ToList();
 
-            _items.Clear();
-            _items.AddRange(dirs);
-            _adapter.NotifyDataSetChanged();
+            RunOnUiThread(() =>
+            {
+                _items.Clear();
+                _items.AddRange(dirs);
+                _adapter.NotifyDataSetChanged();
 
-            if (dirs.Count == 0)
-            {
-                _tvEmpty.Visibility = ViewStates.Visible;
-                _recyclerView.Visibility = ViewStates.Gone;
-            }
-            else
-            {
-                _recyclerView.Visibility = ViewStates.Visible;
-                _tvEmpty.Visibility = ViewStates.Gone;
-            }
+                if (dirs.Count == 0)
+                {
+                    _tvEmpty.Visibility = ViewStates.Visible;
+                    _recyclerView.Visibility = ViewStates.Gone;
+                }
+                else
+                {
+                    _recyclerView.Visibility = ViewStates.Visible;
+                    _tvEmpty.Visibility = ViewStates.Gone;
+                }
+                _progressBar.Visibility = ViewStates.Gone;
+            });
         }
         catch (Java.Lang.Exception ex)
         {
-            ShowError($"加载失败: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"[SMB Browser] Java异常: {ex.Message}");
+            RunOnUiThread(() => ShowError($"加载失败: {ex.Message}"));
         }
         catch (System.Exception ex)
         {
-            ShowError($"加载失败: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"[SMB Browser] 加载目录异常: {ex}");
+            RunOnUiThread(() => ShowError($"加载失败: {ex.Message}"));
         }
         finally
         {
-            _progressBar.Visibility = ViewStates.Gone;
             _isLoading = false;
         }
+    }
+
+    private void RunOnUiThread(Action action)
+    {
+        if (_activity.IsDestroyed || _activity.IsFinishing) return;
+        _activity.RunOnUiThread(() =>
+        {
+            try { action(); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SMB Browser] UI 线程异常: {ex}");
+            }
+        });
     }
 
     private void ShowLoading(string message)
@@ -220,7 +215,7 @@ public class SmbBrowserDialog : Dialog
         if (_pathStack.Count > 0)
         {
             var parentPath = _pathStack.Pop();
-            _ = LoadDirectoryAsync(parentPath);
+            _ = Task.Run(async () => await LoadDirectoryInternalAsync(parentPath));
         }
         else
         {

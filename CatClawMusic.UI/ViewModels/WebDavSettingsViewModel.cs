@@ -8,9 +8,6 @@ using CoreProfile = CatClawMusic.Core.Models.ConnectionProfile;
 
 namespace CatClawMusic.UI.ViewModels;
 
-/// <summary>
-/// WebDAV设置ViewModel，管理WebDAV连接配置的加载、测试和保存
-/// </summary>
 public partial class WebDavSettingsViewModel : ObservableObject
 {
     private readonly INetworkFileService? _networkService;
@@ -27,24 +24,21 @@ public partial class WebDavSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusText = "";
 
-    /// <summary>
-    /// 已保存的配置（有数据库Id）
-    /// </summary>
     private CoreProfile? _loadedProfile;
 
-    /// <summary>
-    /// 无参构造函数，从DI容器解析依赖
-    /// </summary>
     public WebDavSettingsViewModel()
         : this(
-            MainApplication.Services.GetService(typeof(INetworkFileService)) as INetworkFileService,
+            GetWebDavService(),
             MainApplication.Services.GetService(typeof(MusicDatabase)) as MusicDatabase,
             MainApplication.Services.GetRequiredService<IDialogService>())
     { }
 
-    /// <summary>
-    /// 使用依赖注入初始化WebDAV设置ViewModel
-    /// </summary>
+    private static INetworkFileService? GetWebDavService()
+    {
+        var services = MainApplication.Services.GetServices<INetworkFileService>();
+        return services.FirstOrDefault(s => s is WebDavService);
+    }
+
     public WebDavSettingsViewModel(INetworkFileService? networkService, MusicDatabase? database, IDialogService dialogService)
     {
         _networkService = networkService;

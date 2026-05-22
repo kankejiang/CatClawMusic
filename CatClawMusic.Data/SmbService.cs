@@ -8,6 +8,7 @@ namespace CatClawMusic.Data;
 
 public class SmbService : INetworkFileService, IDisposable
 {
+    private readonly object _lock = new();
     private SMB2Client? _client;
     private ConnectionProfile? _profile;
     private string? _connectedShare;
@@ -15,52 +16,57 @@ public class SmbService : INetworkFileService, IDisposable
 
     private void EnsureConnected(ConnectionProfile profile)
     {
-        if (_client != null && _profile?.Host == profile.Host && _profile?.Port == profile.Port
-            && _connectedShare == profile.ShareName)
-            return;
-
-        Disconnect();
-
-        _client = new SMB2Client();
-        var port = profile.Port > 0 ? profile.Port : 445;
-        var host = profile.Host.Trim();
-
-        bool connected;
-        try
+        lock (_lock)
         {
-            connected = _client.Connect(IPAddress.Parse(host), SMBTransportType.DirectTCPTransport);
-        }
-        catch
-        {
+            if (_client != null && _profile?.Host == profile.Host && _profile?.Port == profile.Port
+                && _connectedShare == profile.ShareName
+                && _profile?.UserName == profile.UserName
+                && _profile?.Password == profile.Password)
+                return;
+
+            DisconnectLocked();
+
+            _client = new SMB2Client();
+            var port = profile.Port > 0 ? profile.Port : 445;
+            var host = profile.Host.Trim();
+
+            bool connected;
             try
             {
-                var addresses = System.Net.Dns.GetHostAddresses(host);
-                var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                if (ipv4 == null) throw new InvalidOperationException($"无法解析主机 {host}");
-                connected = _client.Connect(ipv4, SMBTransportType.DirectTCPTransport);
+                connected = _client.Connect(IPAddress.Parse(host), SMBTransportType.DirectTCPTransport);
             }
             catch
             {
-                throw new InvalidOperationException($"无法连接到 {host}:{port}");
+                try
+                {
+                    var addresses = System.Net.Dns.GetHostAddresses(host);
+                    var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                    if (ipv4 == null) throw new InvalidOperationException($"无法解析主机 {host}");
+                    connected = _client.Connect(ipv4, SMBTransportType.DirectTCPTransport);
+                }
+                catch
+                {
+                    throw new InvalidOperationException($"无法连接到 {host}:{port}");
+                }
             }
+
+            if (!connected)
+                throw new InvalidOperationException($"无法连接到 {host}:{port}");
+
+            var shareName = string.IsNullOrEmpty(profile.ShareName) ? "share" : profile.ShareName.Trim();
+            var status = _client.Login(string.IsNullOrEmpty(profile.DomainName) ? "" : profile.DomainName,
+                profile.UserName, profile.Password);
+
+            if (status != NTStatus.STATUS_SUCCESS)
+                throw new InvalidOperationException($"SMB 登录失败: {status}");
+
+            _fileStore = _client.TreeConnect(shareName, out status);
+            if (status != NTStatus.STATUS_SUCCESS || _fileStore == null)
+                throw new InvalidOperationException($"无法连接共享 '{shareName}': {status}");
+
+            _profile = profile;
+            _connectedShare = shareName;
         }
-
-        if (!connected)
-            throw new InvalidOperationException($"无法连接到 {host}:{port}");
-
-        var shareName = string.IsNullOrEmpty(profile.ShareName) ? "share" : profile.ShareName.Trim();
-        var status = _client.Login(string.IsNullOrEmpty(profile.DomainName) ? "" : profile.DomainName,
-            profile.UserName, profile.Password);
-
-        if (status != NTStatus.STATUS_SUCCESS)
-            throw new InvalidOperationException($"SMB 登录失败: {status}");
-
-        _fileStore = _client.TreeConnect(shareName, out status);
-        if (status != NTStatus.STATUS_SUCCESS || _fileStore == null)
-            throw new InvalidOperationException($"无法连接共享 '{shareName}': {status}");
-
-        _profile = profile;
-        _connectedShare = shareName;
     }
 
     public void Configure(ConnectionProfile profile)
@@ -130,38 +136,64 @@ public class SmbService : INetworkFileService, IDisposable
         return await Task.Run(() =>
         {
             var files = new List<RemoteFile>();
-            if (_fileStore == null) return files;
+
+            ISMBFileStore? fileStore;
+            lock (_lock) { fileStore = _fileStore; }
+            if (fileStore == null) return files;
 
             try
             {
                 var normalizedPath = NormalizePath(path);
                 object? queryHandle;
 
-                var status = _fileStore.CreateFile(
-                    out queryHandle,
-                    out _,
-                    normalizedPath,
-                    AccessMask.GENERIC_READ,
-                    SMBLibrary.FileAttributes.Directory,
-                    ShareAccess.Read | ShareAccess.Delete,
-                    CreateDisposition.FILE_OPEN,
-                    CreateOptions.FILE_DIRECTORY_FILE,
-                    null);
-
-                if (status != NTStatus.STATUS_SUCCESS)
+                lock (_lock)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 打开目录失败 {path}: {status}");
-                    return files;
+                    var status = fileStore.CreateFile(
+                        out queryHandle,
+                        out _,
+                        normalizedPath,
+                        AccessMask.GENERIC_READ,
+                        SMBLibrary.FileAttributes.Directory,
+                        ShareAccess.Read | ShareAccess.Delete,
+                        CreateDisposition.FILE_OPEN,
+                        CreateOptions.FILE_DIRECTORY_FILE,
+                        null);
+
+                    if (status != NTStatus.STATUS_SUCCESS)
+                    {
+                        if (string.IsNullOrEmpty(normalizedPath))
+                        {
+                            status = fileStore.CreateFile(
+                                out queryHandle,
+                                out _,
+                                @"\",
+                                AccessMask.GENERIC_READ,
+                                SMBLibrary.FileAttributes.Directory,
+                                ShareAccess.Read | ShareAccess.Delete,
+                                CreateDisposition.FILE_OPEN,
+                                CreateOptions.FILE_DIRECTORY_FILE,
+                                null);
+                        }
+
+                        if (status != NTStatus.STATUS_SUCCESS)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 打开目录失败 {path}: {status}");
+                            return files;
+                        }
+                    }
                 }
 
                 List<QueryDirectoryFileInformation>? entries;
-                var queryStatus = _fileStore.QueryDirectory(
-                    out entries,
-                    queryHandle,
-                    "*",
-                    FileInformationClass.FileBothDirectoryInformation);
-
-                _fileStore.CloseFile(queryHandle);
+                NTStatus queryStatus;
+                lock (_lock)
+                {
+                    queryStatus = fileStore.QueryDirectory(
+                        out entries,
+                        queryHandle,
+                        "*",
+                        FileInformationClass.FileBothDirectoryInformation);
+                    fileStore.CloseFile(queryHandle);
+                }
 
                 if ((queryStatus != NTStatus.STATUS_SUCCESS && queryStatus != NTStatus.STATUS_NO_MORE_FILES)
                     || entries == null || entries.Count == 0)
@@ -206,20 +238,26 @@ public class SmbService : INetworkFileService, IDisposable
     {
         return await Task.Run(() =>
         {
-            if (_fileStore == null) throw new InvalidOperationException("SMB 未连接");
+            ISMBFileStore? fileStore;
+            lock (_lock) { fileStore = _fileStore; }
+            if (fileStore == null) throw new InvalidOperationException("SMB 未连接");
 
             var normalizedPath = NormalizePath(filePath);
             object? handle;
-            var status = _fileStore.CreateFile(
-                out handle,
-                out _,
-                normalizedPath,
-                AccessMask.GENERIC_READ,
-                SMBLibrary.FileAttributes.Normal,
-                ShareAccess.Read,
-                CreateDisposition.FILE_OPEN,
-                CreateOptions.FILE_NON_DIRECTORY_FILE,
-                null);
+            NTStatus status;
+            lock (_lock)
+            {
+                status = fileStore.CreateFile(
+                    out handle,
+                    out _,
+                    normalizedPath,
+                    AccessMask.GENERIC_READ,
+                    SMBLibrary.FileAttributes.Normal,
+                    ShareAccess.Read,
+                    CreateDisposition.FILE_OPEN,
+                    CreateOptions.FILE_NON_DIRECTORY_FILE,
+                    null);
+            }
 
             if (status != NTStatus.STATUS_SUCCESS)
                 throw new InvalidOperationException($"打开文件失败: {status}");
@@ -231,14 +269,17 @@ public class SmbService : INetworkFileService, IDisposable
             while (true)
             {
                 byte[]? data;
-                status = _fileStore.ReadFile(out data, handle, offset, bufferSize);
+                lock (_lock)
+                {
+                    status = fileStore.ReadFile(out data, handle, offset, bufferSize);
+                }
                 if (status != NTStatus.STATUS_SUCCESS || data == null || data.Length == 0)
                     break;
                 ms.Write(data, 0, data.Length);
                 offset += data.Length;
             }
 
-            _fileStore.CloseFile(handle);
+            lock (_lock) { fileStore.CloseFile(handle); }
             ms.Position = 0;
             return (Stream)ms;
         });
@@ -248,27 +289,36 @@ public class SmbService : INetworkFileService, IDisposable
     {
         return await Task.Run(() =>
         {
-            if (_fileStore == null) return Array.Empty<byte>();
+            ISMBFileStore? fileStore;
+            lock (_lock) { fileStore = _fileStore; }
+            if (fileStore == null) return Array.Empty<byte>();
 
             var normalizedPath = NormalizePath(filePath);
             object? handle;
-            var status = _fileStore.CreateFile(
-                out handle,
-                out _,
-                normalizedPath,
-                AccessMask.GENERIC_READ,
-                SMBLibrary.FileAttributes.Normal,
-                ShareAccess.Read,
-                CreateDisposition.FILE_OPEN,
-                CreateOptions.FILE_NON_DIRECTORY_FILE,
-                null);
+            NTStatus status;
+            lock (_lock)
+            {
+                status = fileStore.CreateFile(
+                    out handle,
+                    out _,
+                    normalizedPath,
+                    AccessMask.GENERIC_READ,
+                    SMBLibrary.FileAttributes.Normal,
+                    ShareAccess.Read,
+                    CreateDisposition.FILE_OPEN,
+                    CreateOptions.FILE_NON_DIRECTORY_FILE,
+                    null);
+            }
 
             if (status != NTStatus.STATUS_SUCCESS)
                 return Array.Empty<byte>();
 
             byte[]? data;
-            status = _fileStore.ReadFile(out data, handle, offset, (int)length);
-            _fileStore.CloseFile(handle);
+            lock (_lock)
+            {
+                status = fileStore.ReadFile(out data, handle, offset, (int)length);
+                fileStore.CloseFile(handle);
+            }
 
             return status == NTStatus.STATUS_SUCCESS && data != null ? data : Array.Empty<byte>();
         });
@@ -278,34 +328,43 @@ public class SmbService : INetworkFileService, IDisposable
     {
         return await Task.Run(() =>
         {
-            if (_fileStore == null) return null;
+            ISMBFileStore? fileStore;
+            lock (_lock) { fileStore = _fileStore; }
+            if (fileStore == null) return null;
 
             var normalizedPath = NormalizePath(filePath);
             object? handle;
-            var status = _fileStore.CreateFile(
-                out handle,
-                out _,
-                normalizedPath,
-                AccessMask.GENERIC_READ,
-                SMBLibrary.FileAttributes.Normal,
-                ShareAccess.Read,
-                CreateDisposition.FILE_OPEN,
-                CreateOptions.FILE_NON_DIRECTORY_FILE,
-                null);
+            NTStatus status;
+            lock (_lock)
+            {
+                status = fileStore.CreateFile(
+                    out handle,
+                    out _,
+                    normalizedPath,
+                    AccessMask.GENERIC_READ,
+                    SMBLibrary.FileAttributes.Normal,
+                    ShareAccess.Read,
+                    CreateDisposition.FILE_OPEN,
+                    CreateOptions.FILE_NON_DIRECTORY_FILE,
+                    null);
+            }
 
             if (status != NTStatus.STATUS_SUCCESS)
                 return null;
 
             List<QueryDirectoryFileInformation>? info;
-            status = _fileStore.QueryDirectory(
-                out info,
-                handle,
-                System.IO.Path.GetFileName(filePath),
-                FileInformationClass.FileBothDirectoryInformation);
+            NTStatus queryStatus;
+            lock (_lock)
+            {
+                queryStatus = fileStore.QueryDirectory(
+                    out info,
+                    handle,
+                    System.IO.Path.GetFileName(filePath),
+                    FileInformationClass.FileBothDirectoryInformation);
+                fileStore.CloseFile(handle);
+            }
 
-            _fileStore.CloseFile(handle);
-
-            if (status != NTStatus.STATUS_SUCCESS || info == null || info.Count == 0)
+            if (queryStatus != NTStatus.STATUS_SUCCESS || info == null || info.Count == 0)
                 return null;
 
             if (info[0] is FileBothDirectoryInformation fi)
@@ -337,7 +396,7 @@ public class SmbService : INetworkFileService, IDisposable
         return p;
     }
 
-    private void Disconnect()
+    private void DisconnectLocked()
     {
         if (_fileStore != null)
         {
@@ -355,6 +414,6 @@ public class SmbService : INetworkFileService, IDisposable
 
     public void Dispose()
     {
-        Disconnect();
+        lock (_lock) { DisconnectLocked(); }
     }
 }
