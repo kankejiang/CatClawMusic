@@ -59,6 +59,9 @@
 | 逐字歌词最后一两个字未高亮就切行 | 行尾 200ms 内完整高亮 |
 | 播放页已唱行高亮残留 | prev 行 Alpha 降至 0.45/0.35 |
 | 弹窗太通透看不清文字 | 背景 `#33`→`#CC`，DimAmount 0.4→0.55 |
+| WebDAV 测试连接误报失败 | 使用独立临时 HttpClient，手动处理 301/302 重定向，目录 URL 保留末尾 `/` |
+| SMB 浏览显示空文件夹 | 改用 `FileDirectoryInformation`，修正 `ShareAccess`，根目录回退用 `String.Empty` |
+| SMB 设置页 DI 解析到 WebDavService | 改用 `GetServices` + `is SmbService` 精确解析 |
 
 ### 📦 构建优化
 
