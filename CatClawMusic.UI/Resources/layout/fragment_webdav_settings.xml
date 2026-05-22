@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
@@ -109,10 +109,6 @@
                 android:layout_height="wrap_content" android:textColor="?attr/catClawTextHint"
                 android:textSize="13sp" android:padding="8dp" android:gravity="center"
                 android:visibility="gone" />
-
-            <Button android:id="@+id/btn_test" android:layout_width="match_parent"
-                android:layout_height="48dp" android:text="测试连接" android:layout_marginBottom="8dp"
-                style="@style/CatClawButtonPrimary" />
 
             <Button android:id="@+id/btn_save" android:layout_width="match_parent"
                 android:layout_height="48dp" android:text="保存连接"

@@ -10,7 +10,6 @@ namespace CatClawMusic.UI.ViewModels;
 
 public partial class WebDavSettingsViewModel : ObservableObject
 {
-    private readonly INetworkFileService? _networkService;
     private readonly MusicDatabase? _database;
     private readonly IDialogService _dialogService;
 
@@ -28,20 +27,12 @@ public partial class WebDavSettingsViewModel : ObservableObject
 
     public WebDavSettingsViewModel()
         : this(
-            GetWebDavService(),
             MainApplication.Services.GetService(typeof(MusicDatabase)) as MusicDatabase,
             MainApplication.Services.GetRequiredService<IDialogService>())
     { }
 
-    private static INetworkFileService? GetWebDavService()
+    public WebDavSettingsViewModel(MusicDatabase? database, IDialogService dialogService)
     {
-        var services = MainApplication.Services.GetServices<INetworkFileService>();
-        return services.FirstOrDefault(s => s is WebDavService);
-    }
-
-    public WebDavSettingsViewModel(INetworkFileService? networkService, MusicDatabase? database, IDialogService dialogService)
-    {
-        _networkService = networkService;
         _database = database;
         _dialogService = dialogService;
     }
@@ -70,28 +61,6 @@ public partial class WebDavSettingsViewModel : ObservableObject
             }
         }
         catch { }
-    }
-
-    /// <summary>
-    /// 测试WebDAV服务器连接
-    /// </summary>
-    [RelayCommand]
-    private async Task TestAsync()
-    {
-        if (string.IsNullOrWhiteSpace(Host)) { await _dialogService.ShowAlertAsync("提示", "请输入主机地址"); return; }
-        IsBusy = true;
-        StatusText = "正在测试...";
-        try
-        {
-            if (_networkService != null)
-            {
-                var result = await _networkService.TestConnectionAsync(BuildProfile());
-                StatusText = result.Message;
-                await _dialogService.ShowAlertAsync(result.Success ? "成功" : "失败", result.Message);
-            }
-        }
-        catch (Exception ex) { StatusText = "失败"; await _dialogService.ShowAlertAsync("错误", ex.Message); }
-        finally { IsBusy = false; }
     }
 
     /// <summary>

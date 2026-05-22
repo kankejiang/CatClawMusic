@@ -1,22 +1,13 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024"
     android:tint="?attr/catClawTextPrimary">
-    <!-- Sun + Moon merged for "follow system" auto mode -->
-    <!-- Small sun (left) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M8,7m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0" />
+        android:pathData="M919.96,512c0,-225.31 -182.65,-407.96 -407.96,-407.96 -225.31,0 -407.96,182.65 -407.96,407.96 0,225.31 182.65,407.96 407.96,407.96 225.31,0 407.96,-182.65 407.96,-407.96zM841.32,512c0,181.88 -147.44,329.32 -329.32,329.32 -181.88,0 -329.32,-147.44 -329.32,-329.32 0,-181.88 147.44,-329.32 329.32,-329.32 181.88,0 329.32,147.44 329.32,329.32z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M8,2v1.5M8,10.5V12M3.5,7H5M11,7h1.5M4.76,3.76l1.06,1.06M10.18,9.18l1.06,1.06M4.76,10.24l1.06,-1.06M10.18,4.82l1.06,-1.06"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="1.2"
-        android:strokeLineCap="round" />
-    <!-- Small crescent (right) -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M17,8a6,6 0 1,0 6,6c0,-0.31 -0.02,-0.61 -0.07,-0.91a3.6,3.6 0 0,1 -2.93,1.51a3.6,3.6 0 0,1 -2.1,-6.53C17.6,8.03 17.3,8 17,8z" />
+        android:pathData="M512,770.05c142.52,0 258.05,-115.53 258.05,-258.05 0,-142.52 -115.53,-258.05 -258.05,-258.05" />
 </vector>

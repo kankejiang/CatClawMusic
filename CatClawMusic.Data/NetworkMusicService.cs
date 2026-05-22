@@ -56,6 +56,7 @@ public class NetworkMusicService : INetworkMusicService
 
         if (profile.Protocol == ProtocolType.Navidrome)
         {
+            var scanner = new MusicScanner(_db, songBatchCallback);
             allSongs = await _subsonic.GetSongsAsync(profile, progress, async (batch) =>
             {
                 try
@@ -63,12 +64,7 @@ public class NetworkMusicService : INetworkMusicService
                     foreach (var s in batch)
                     {
                         if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
-                        if (!string.IsNullOrEmpty(s.Artist))
-                            s.ArtistId = await _db.EnsureArtistAsync(s.Artist);
-                        if (!string.IsNullOrEmpty(s.Album))
-                            s.AlbumId = await _db.EnsureAlbumAsync(s.Album, s.ArtistId);
-                        s.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                        await _db.InsertSongAsync(s);
+                        await scanner.AddSongAsync(s);
                     }
                 }
                 catch (Exception ex)
@@ -77,29 +73,33 @@ public class NetworkMusicService : INetworkMusicService
                 }
                 songBatchCallback?.Invoke(batch);
             });
+            await scanner.FlushAsync();
         }
         else if (profile.Protocol == ProtocolType.WebDAV)
         {
-            allSongs = await ScanWebDavAsync(profile, songBatchCallback);
-            foreach (var s in allSongs)
+            var (newSongs, allFoundIds) = await ScanWebDavAsync(profile, songBatchCallback);
+            allSongs = newSongs;
+            foreach (var id in allFoundIds)
             {
-                if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
+                if (!string.IsNullOrEmpty(id)) scannedRemoteIds.Add(id);
             }
         }
         else if (profile.Protocol == ProtocolType.SMB)
         {
-            allSongs = await ScanSmbAsync(profile, songBatchCallback);
-            foreach (var s in allSongs)
+            var (newSongs, allFoundIds) = await ScanSmbAsync(profile, songBatchCallback);
+            allSongs = newSongs;
+            foreach (var id in allFoundIds)
             {
-                if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
+                if (!string.IsNullOrEmpty(id)) scannedRemoteIds.Add(id);
             }
         }
 
         try
         {
-            var removed = await _db.RemoveStaleSongsAsync(SongSource.WebDAV, new HashSet<string>(), scannedRemoteIds);
+            var source = profile.Protocol == ProtocolType.SMB ? SongSource.SMB : SongSource.WebDAV;
+            var removed = await _db.RemoveStaleSongsAsync(source, new HashSet<string>(), scannedRemoteIds);
             if (removed > 0)
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理 {removed} 首已移除的网络歌曲");
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理 {removed} 首已移除的网络歌曲 ({source})");
         }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理旧网络歌曲失败: {ex.Message}"); }
 
@@ -429,76 +429,60 @@ public class NetworkMusicService : INetworkMusicService
 
         var scheme = profile.UseHttps ? "https" : "http";
         var path = filePath.TrimStart('/');
+        // 清理主机地址
+        var host = (profile.Host ?? "").TrimEnd('/');
+        if (host.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            host = host[7..];
+        else if (host.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            host = host[8..];
+        // 去掉端口（已经单独设置了 Profile.Port）
+        var colonIdx = host.LastIndexOf(':');
+        if (colonIdx > 0 && int.TryParse(host[(colonIdx + 1)..], out _))
+            host = host[..colonIdx];
         // 包含 Basic 认证信息的 URL（ExoPlayer 原生支持）
         var authUser = string.IsNullOrEmpty(profile.UserName) ? "" : Uri.EscapeDataString(profile.UserName);
         var authPass = string.IsNullOrEmpty(profile.Password) ? "" : Uri.EscapeDataString(profile.Password);
         var auth = string.IsNullOrEmpty(authUser) ? "" : $"{authUser}:{authPass}@";
-        return $"{scheme}://{auth}{profile.Host}:{profile.Port}/{path}";
+        return $"{scheme}://{auth}{host}:{profile.Port}/{path}";
     }
-
-    /// <summary>
-    /// 批量入库回调阈值
-    /// </summary>
-    private const int BatchSize = 10;
 
     /// <summary>
     /// 递归扫描 WebDAV 目录，批量入库发现的音频文件
     /// </summary>
-    private async Task<List<Song>> ScanWebDavAsync(ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
+    private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanWebDavAsync(
+        ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
     {
         var songs = new List<Song>();
         var basePath = profile.BasePath?.TrimEnd('/') ?? "/";
         if (string.IsNullOrEmpty(basePath)) basePath = "/";
 
-        // 先初始化 WebDAV 连接
         var connResult = await _webDav.TestConnectionAsync(profile);
         if (!connResult.Success)
         {
-            return songs;
+            return (songs, new HashSet<string>());
         }
 
-        // 累积批次，满了就回调
-        var batch = new List<Song>();
+        _webDav.Configure(profile);
 
-        await ScanWebDavDirectoryAsync(basePath, profile, songs, batch, songBatchCallback);
-        // 最后一批（不满 BatchSize 的残量）
-        await FlushBatchAsync(batch, songBatchCallback);
-
-        return songs;
-    }
-
-    /// <summary>
-    /// 将批次中的歌曲批量入库并回调通知调用方
-    /// </summary>
-    private async Task FlushBatchAsync(List<Song> batch, Action<List<Song>>? songBatchCallback)
-    {
-        if (batch.Count == 0) return;
-
-        var toAdd = batch.ToList();
-        batch.Clear();
-
-        var inserted = new List<Song>();
-
-        foreach (var s in toAdd)
+        var foundIds = new HashSet<string>();
+        var existingIds = new HashSet<string>();
+        try
         {
-            try
-            {
-                if (!string.IsNullOrEmpty(s.Artist))
-                    s.ArtistId = await _db.EnsureArtistAsync(s.Artist);
-                if (!string.IsNullOrEmpty(s.Album))
-                    s.AlbumId = await _db.EnsureAlbumAsync(s.Album, s.ArtistId);
-                s.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                await _db.InsertSongAsync(s);
-                if (s.Id > 0)
-                    inserted.Add(s);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 入库失败: {s.Title} - {ex.Message}");
-            }
+            var existingSongs = await _db.GetCachedNetworkSongsAsync();
+            existingIds = existingSongs
+                .Where(s => s.Source == SongSource.WebDAV && !string.IsNullOrEmpty(s.RemoteId))
+                .Select(s => s.RemoteId!)
+                .ToHashSet();
         }
+        catch { }
 
-        songBatchCallback?.Invoke(inserted);
+        var scanner = new MusicScanner(_db, songBatchCallback);
+        var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs);
+        await scanner.FlushAsync();
+
+        return (songs, foundIds);
     }
 
     /// <summary>
@@ -520,13 +504,21 @@ public class NetworkMusicService : INetworkMusicService
         => AudioExtSet.Contains(ext);
 
     /// <summary>
-    /// 递归扫描 WebDAV 目录，按扩展名过滤音频文件，达到批量阈值后入库
+    /// 递归扫描 WebDAV 目录，按扩展名过滤音频文件，通过 MusicScanner 渐进式入库
     /// </summary>
-    private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs, List<Song> batch,
-        Action<List<Song>>? songBatchCallback, int depth = 0)
+    private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
+        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
     {
         if (depth > MaxScanDepth)
         {
+            return;
+        }
+
+        var normalizedDir = path.TrimEnd('/').TrimEnd('\\');
+        if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "/";
+        if (!visitedDirs.Add(normalizedDir))
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 跳过已访问目录: {path}");
             return;
         }
 
@@ -541,19 +533,31 @@ public class NetworkMusicService : INetworkMusicService
             return;
         }
 
+        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
+
         foreach (var file in files)
         {
             if (file.IsDirectory)
             {
-                await ScanWebDavDirectoryAsync(file.Path, profile, songs, batch, songBatchCallback, depth + 1);
+                await ScanWebDavDirectoryAsync(file.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
             }
             else
             {
                 var ext = System.IO.Path.GetExtension(file.Name)?.ToUpperInvariant() ?? "";
-                if (!IsAudioExtension(ext)) continue;
+                if (string.IsNullOrEmpty(ext))
+                    ext = System.IO.Path.GetExtension(file.Path)?.ToUpperInvariant() ?? "";
+                if (!IsAudioExtension(ext))
+                    continue;
+
+                foundIds.Add(file.Path);
+
+                if (existingIds.Contains(file.Path))
+                    continue;
 
                 var streamUrl = BuildWebDavStreamUrl(file.Path, profile);
                 var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
+                if (string.IsNullOrEmpty(title))
+                    title = System.IO.Path.GetFileNameWithoutExtension(file.Path) ?? file.Path;
                 var song = new Song
                 {
                     Title = title,
@@ -570,36 +574,55 @@ public class NetworkMusicService : INetworkMusicService
                 };
 
                 songs.Add(song);
-                batch.Add(song);
-
-                if (batch.Count >= BatchSize)
-                    await FlushBatchAsync(batch, songBatchCallback);
+                await scanner.AddSongAsync(song);
             }
         }
     }
 
-    private async Task<List<Song>> ScanSmbAsync(ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
+    private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanSmbAsync(
+        ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
     {
         var songs = new List<Song>();
         var basePath = profile.BasePath?.TrimEnd('/', '\\') ?? "\\";
         if (string.IsNullOrEmpty(basePath) || basePath == "/") basePath = "\\";
 
         var connResult = await _smb.TestConnectionAsync(profile);
-        if (!connResult.Success) return songs;
+        if (!connResult.Success) return (songs, new HashSet<string>());
 
         _smb.Configure(profile);
 
-        var batch = new List<Song>();
-        await ScanSmbDirectoryAsync(basePath, profile, songs, batch, songBatchCallback);
-        await FlushBatchAsync(batch, songBatchCallback);
+        var foundIds = new HashSet<string>();
+        var existingIds = new HashSet<string>();
+        try
+        {
+            var existingSongs = await _db.GetCachedNetworkSongsAsync();
+            existingIds = existingSongs
+                .Where(s => s.Source == SongSource.SMB && !string.IsNullOrEmpty(s.RemoteId))
+                .Select(s => s.RemoteId!)
+                .ToHashSet();
+        }
+        catch { }
 
-        return songs;
+        var scanner = new MusicScanner(_db, songBatchCallback);
+        var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await ScanSmbDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs);
+        await scanner.FlushAsync();
+
+        return (songs, foundIds);
     }
 
-    private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs, List<Song> batch,
-        Action<List<Song>>? songBatchCallback, int depth = 0)
+    private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
+        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
     {
         if (depth > MaxScanDepth) return;
+
+        var normalizedDir = path.TrimEnd('/').TrimEnd('\\');
+        if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "\\";
+        if (!visitedDirs.Add(normalizedDir))
+        {
+            System.Diagnostics.Debug.WriteLine($"[SMB Scan] 跳过已访问目录: {path}");
+            return;
+        }
 
         List<RemoteFile> files;
         try
@@ -612,19 +635,29 @@ public class NetworkMusicService : INetworkMusicService
             return;
         }
 
+        System.Diagnostics.Debug.WriteLine($"[SMB Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
+
         foreach (var file in files)
         {
             if (file.IsDirectory)
             {
-                await ScanSmbDirectoryAsync(file.Path, profile, songs, batch, songBatchCallback, depth + 1);
+                await ScanSmbDirectoryAsync(file.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
             }
             else
             {
                 var ext = System.IO.Path.GetExtension(file.Name)?.ToUpperInvariant() ?? "";
+                if (string.IsNullOrEmpty(ext))
+                    ext = System.IO.Path.GetExtension(file.Path)?.ToUpperInvariant() ?? "";
                 if (!IsAudioExtension(ext)) continue;
+
+                foundIds.Add(file.Path);
+
+                if (existingIds.Contains(file.Path)) continue;
 
                 var streamUrl = BuildSmbStreamUrl(file.Path, profile);
                 var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
+                if (string.IsNullOrEmpty(title))
+                    title = System.IO.Path.GetFileNameWithoutExtension(file.Path) ?? file.Path;
                 var song = new Song
                 {
                     Title = title,
@@ -641,10 +674,7 @@ public class NetworkMusicService : INetworkMusicService
                 };
 
                 songs.Add(song);
-                batch.Add(song);
-
-                if (batch.Count >= BatchSize)
-                    await FlushBatchAsync(batch, songBatchCallback);
+                await scanner.AddSongAsync(song);
             }
         }
     }

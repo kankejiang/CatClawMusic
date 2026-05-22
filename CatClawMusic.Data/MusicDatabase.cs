@@ -781,7 +781,7 @@ public class MusicDatabase
     {
         await EnsureInitializedAsync();
         var songs = await _database.Table<Song>()
-            .Where(s => s.Source == SongSource.WebDAV)
+            .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
             .ToListAsync();
         // 填充 Artist/Album 名称
         var artists = await _database.Table<Artist>().ToListAsync();
@@ -793,12 +793,16 @@ public class MusicDatabase
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
         }
-        return songs;
+        // 同一标题+艺术家的歌曲去重，SMB 优先于 WebDAV
+        return songs
+            .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
+            .Select(g => g.FirstOrDefault(s => s.Source == SongSource.SMB) ?? g.First())
+            .ToList();
     }
 
     /// <summary>缓存网络歌曲数量</summary>
     public async Task<int> GetCachedNetworkSongCountAsync()
-        => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV).CountAsync();
+        => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB).CountAsync();
 
     /// <summary>本地歌曲数量</summary>
     public async Task<int> GetLocalSongCountAsync()
@@ -829,7 +833,7 @@ public class MusicDatabase
         if (favs.Count == 0) return;
         var favSongIds = favs.Select(f => f.SongId).ToHashSet();
         var networkSongs = await _database.Table<Song>()
-            .Where(s => s.Source == SongSource.WebDAV && favSongIds.Contains(s.Id))
+            .Where(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && favSongIds.Contains(s.Id))
             .ToListAsync();
         foreach (var ns in networkSongs)
         {
@@ -850,7 +854,7 @@ public class MusicDatabase
         await EnsureInitializedAsync();
 
         var newNetworkSongs = await _database.Table<Song>()
-            .Where(s => s.Source == SongSource.WebDAV)
+            .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
             .ToListAsync();
 
         foreach (var kv in _pendingNetworkFavs)
@@ -879,13 +883,15 @@ public class MusicDatabase
         {
             // 网络歌曲基于 RemoteId 去重，本地歌曲基于 FilePath 去重
             Song? existing = null;
-            if (song.Source == SongSource.WebDAV && !string.IsNullOrEmpty(song.RemoteId))
+            if ((song.Source == SongSource.WebDAV || song.Source == SongSource.SMB) && !string.IsNullOrEmpty(song.RemoteId))
             {
                 existing = await _database.Table<Song>()
-                    .Where(s => s.Source == SongSource.WebDAV && s.RemoteId == song.RemoteId)
+                    .Where(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && s.RemoteId == song.RemoteId)
                     .FirstOrDefaultAsync();
             }
-            else if (!string.IsNullOrEmpty(song.FilePath))
+            
+            // RemoteId 没命中时，再按 FilePath 兜底查重
+            if (existing == null && !string.IsNullOrEmpty(song.FilePath))
             {
                 existing = await _database.Table<Song>()
                     .Where(s => s.FilePath == song.FilePath)
@@ -899,7 +905,23 @@ public class MusicDatabase
             }
             else
             {
-                await _database.InsertAsync(song);
+                try
+                {
+                    await _database.InsertAsync(song);
+                }
+                catch (SQLite.SQLiteException ex) when (ex.Result == SQLite.SQLite3.Result.Constraint)
+                {
+                    // 并发或残留数据导致的 FilePath 冲突，按 FilePath 更新
+                    var conflict = await _database.Table<Song>()
+                        .Where(s => s.FilePath == song.FilePath)
+                        .FirstOrDefaultAsync();
+                    if (conflict != null)
+                    {
+                        song.Id = conflict.Id;
+                        await _database.UpdateAsync(song);
+                    }
+                    else throw;
+                }
             }
         }
         catch (Exception ex)

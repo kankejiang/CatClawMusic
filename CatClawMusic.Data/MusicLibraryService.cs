@@ -211,6 +211,8 @@ public class MusicLibraryService : IMusicLibraryService
                 if (local != null) return local;
                 var webdav = g.FirstOrDefault(s => s.Source == SongSource.WebDAV);
                 if (webdav != null) return webdav;
+                var smb = g.FirstOrDefault(s => s.Source == SongSource.SMB);
+                if (smb != null) return smb;
                 return g.First();
             })
             .OrderBy(s => s.Title)

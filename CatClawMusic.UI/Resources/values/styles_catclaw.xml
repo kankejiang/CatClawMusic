@@ -6,13 +6,14 @@
         <item name="colorPrimaryContainer">@color/primaryGlow</item>
         <item name="colorOnPrimaryContainer">@color/primaryDark</item>
         <item name="android:windowBackground">@color/pageBackground</item>
-        <item name="android:statusBarColor">@color/pageBackground</item>
-        <item name="android:navigationBarColor">@color/pageBackground</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowTranslucentStatus">false</item>
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:enforceNavigationBarContrast">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="bottomNavigationStyle">@style/CatClawBottomNav</item>
         <item name="android:fontFamily">sans-serif</item>
         <item name="fontFamily">sans-serif</item>

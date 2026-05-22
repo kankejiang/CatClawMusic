@@ -1,4 +1,5 @@
 using Android.Content.PM;
+using Android.Content.Res;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
@@ -19,9 +20,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI;
 
-/// <summary>应用主 Activity，管理 Tab 导航、迷你播放器、侧面板和系统栏适配</summary>
 [Activity(Theme = "@style/CatClaw.Splash", MainLauncher = true,
-    ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation)]
+    ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode)]
 public class MainActivity : AppCompatActivity
 {
     private ViewPager2 _viewPager = null!;
@@ -33,11 +33,10 @@ public class MainActivity : AppCompatActivity
     private TabPagerAdapter _tabAdapter = null!;
     private bool _suppressNavListener;
     private bool _overlayOpen;
+    private bool _skipNextRecreate;
 
-    /// <summary>设置 Overlay 打开状态</summary>
     public void SetOverlayOpen(bool open) => _overlayOpen = open;
 
-    // 迷你播放器
     private View _miniPlayerWrapper = null!;
     private MaterialCardView _miniPlayer = null!;
     private ImageView _miniCover = null!;
@@ -45,7 +44,6 @@ public class MainActivity : AppCompatActivity
     private ImageButton _miniPlayPause = null!, _miniPrev = null!, _miniNext = null!;
     private View _miniProgress = null!;
 
-    // 侧滑面板
     private View _sidePanelOverlay = null!;
     private View _sidePanelMask = null!;
     private View _sidePanelContent = null!;
@@ -54,21 +52,16 @@ public class MainActivity : AppCompatActivity
     private float _panelSwipeStartX, _panelStartTx;
     private const float PanelSwipeThreshold = 100f;
 
-    // 迷你进度条定时器
     private System.Timers.Timer? _miniProgressTimer;
 
-    // ViewModel 引用（用于 OnDestroy 取消订阅）
     private LibraryViewModel? _libVm;
     private NowPlayingViewModel? _miniVm;
 
-    /// <summary>MainActivity 单例实例</summary>
     public static MainActivity Instance { get; private set; } = null!;
 
-    /// <summary>导航服务实例</summary>
     public NavigationService NavigationService =>
         (NavigationService)MainApplication.Services.GetRequiredService<INavigationService>();
 
-    /// <summary>Activity 创建时的初始化：应用主题、初始化歌词服务、绑定迷你播放器和 ViewPager</summary>
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         LockFontScale();
@@ -76,29 +69,29 @@ public class MainActivity : AppCompatActivity
         base.OnCreate(savedInstanceState);
         Instance = this;
 
-        WindowCompat.SetDecorFitsSystemWindows(Window!, true);
+        WindowCompat.SetDecorFitsSystemWindows(Window!, false);
+
+        var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
+        var isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
+        insetsController.AppearanceLightStatusBars = !isDark;
+        insetsController.AppearanceLightNavigationBars = !isDark;
 
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
         _ = db.EnsureInitializedAsync();
 
         SetContentView(Resource.Layout.activity_main);
 
-        // 初始化桌面歌词服务
         DesktopLyricService.Instance.Initialize(this);
 
-        // 恢复上次播放进度（不自动播放）
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
         var npVm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
-        // 立即从缓存恢复播放模式和进度位置（同步，无需等待数据库查询）
         PlaybackStateManager.RestorePrefsToViewModel(queue, npVm);
 
-        // 迷你进度条定时更新
         _miniProgressTimer = new System.Timers.Timer(500);
         _miniProgressTimer.Elapsed += (_, _) => RunOnUiThread(() =>
         {
             if (_miniProgress == null) return;
-            // 仅在确认播放中才读取 Duration/Position，避免在 Preparing/Error/Idle 状态触发原生 MediaPlayer 错误
             if (!player.IsPlaying || player.Duration.TotalSeconds <= 0)
             {
                 _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(
@@ -112,7 +105,6 @@ public class MainActivity : AppCompatActivity
                 GravityFlags.Bottom);
         });
         _miniProgressTimer.Start();
-        // 后台异步：查找歌曲、恢复播放队列、播放并 seek 到上次位置（无延迟、不阻塞 UI）
         var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
         var subsonic = MainApplication.Services.GetService<ISubsonicService>();
         _ = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm, networkMusic, subsonic));
@@ -122,10 +114,6 @@ public class MainActivity : AppCompatActivity
         _viewPager = FindViewById<ViewPager2>(Resource.Id.view_pager)!;
         _bottomNav = FindViewById<BottomNavigationView>(Resource.Id.bottom_navigation)!;
 
-        // 适配状态栏：工具栏向下偏移状态栏高度，防止被遮挡（如 iQOO 等设备）
-        FitSystemBars();
-
-        // ViewPager2：保活全部 Fragment，避免滑动时反复销毁重建
         _tabAdapter = new TabPagerAdapter(this);
         _viewPager.Adapter = _tabAdapter;
         _viewPager.OffscreenPageLimit = 4;
@@ -136,18 +124,13 @@ public class MainActivity : AppCompatActivity
             _currentTab = index;
             UpdateNavSelection(index);
             UpdateTabUI(index);
-
-            // 切换到歌词页(Tab0)时，通知 FullLyricsFragment 立即滚动到当前歌词位置
             if (index == 0)
-            {
                 _tabAdapter.FullLyricsFragment?.ScrollToCurrentPosition();
-            }
         }));
 
-        // BottomNav ↔ ViewPager 双向绑定
         _bottomNav.SetOnItemSelectedListener(new NavListener(index =>
         {
-            if (_suppressNavListener) return; // UpdateNavSelection 程序化设置时跳过
+            if (_suppressNavListener) return;
             _isUserSwipe = false;
             _viewPager.SetCurrentItem(index, true);
             _isUserSwipe = true;
@@ -157,25 +140,180 @@ public class MainActivity : AppCompatActivity
 
         NavigationService.Initialize(SupportFragmentManager, Resource.Id.overlay_container, _bottomNav);
 
-        // ≡ 汉堡 → 左侧设置面板
         _sidePanelOverlay = FindViewById<View>(Resource.Id.side_panel_overlay)!;
         _sidePanelMask = FindViewById<View>(Resource.Id.side_panel_mask)!;
         _sidePanelContent = FindViewById<View>(Resource.Id.side_panel_content)!;
         _btnMenu.Click += (s, e) => ToggleSidePanel();
+
+        FitSystemBars();
         _sidePanelOverlay.SetOnClickListener(new ClickListener(() => CloseSidePanel()));
         _sidePanelMask.SetOnClickListener(new ClickListener(() => CloseSidePanel()));
         _sidePanelOverlay.Touch += OnSidePanelTouch;
 
         BindMiniPlayer();
 
-        // 启动 → Tab 1（播放页，Tab 0 是歌词页）
         _viewPager.SetCurrentItem(1, false);
         _currentTab = 1;
         _isUserSwipe = true;
         UpdateTabUI(1);
     }
 
-    /// <summary>程序化更新底部导航选中项，抑制导航监听器避免循环触发</summary>
+    public override void Recreate()
+    {
+        if (_skipNextRecreate)
+        {
+            _skipNextRecreate = false;
+            return;
+        }
+        base.Recreate();
+    }
+
+    public void ApplyThemeAndRefresh()
+    {
+        _skipNextRecreate = true;
+
+        var themeService = MainApplication.Services.GetRequiredService<IThemeService>() as ThemeService;
+        if (themeService == null) return;
+
+        bool isDark = themeService.IsEffectivelyDark();
+
+        var config = new Configuration(Resources!.Configuration!);
+        config.UiMode = (config.UiMode & ~UiMode.NightMask)
+            | (isDark ? UiMode.NightYes : UiMode.NightNo);
+        Resources.UpdateConfiguration(config, Resources.DisplayMetrics);
+
+        switch (themeService.DarkModeSetting)
+        {
+            case DarkModeSetting.Light:
+                AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightNo;
+                break;
+            case DarkModeSetting.Dark:
+                AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightYes;
+                break;
+            case DarkModeSetting.FollowSystem:
+                AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightFollowSystem;
+                break;
+        }
+
+        SetTheme(themeService.GetThemeResourceId());
+        RefreshThemeViews();
+        _skipNextRecreate = false;
+    }
+
+    private int ResolveColor(int attrId)
+    {
+        var ta = Theme!.ObtainStyledAttributes(new int[] { attrId });
+        var color = ta.GetColor(0, 0);
+        ta.Recycle();
+        return color;
+    }
+
+    private void RefreshThemeViews()
+    {
+        bool isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
+
+        var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
+        insetsController.AppearanceLightStatusBars = !isDark;
+        insetsController.AppearanceLightNavigationBars = !isDark;
+
+        var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
+        if (mainLayout != null)
+            mainLayout.SetBackgroundColor(new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawPageBackground)));
+
+        if (_toolbar != null)
+        {
+            var textPrimary = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawTextPrimary));
+            var title = _toolbar.FindViewById<TextView>(Resource.Id.toolbar_title);
+            if (title != null) title.SetTextColor(textPrimary);
+            if (_btnMenu != null)
+                _btnMenu.SetColorFilter(textPrimary, Android.Graphics.PorterDuff.Mode.SrcIn);
+        }
+
+        if (_miniPlayer != null)
+        {
+            _miniPlayer.CardBackgroundColor = Android.Content.Res.ColorStateList.ValueOf(
+                new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawCardBackgroundSolid)));
+        }
+        var tp = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawTextPrimary));
+        var th = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawTextHint));
+        var pc = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawPrimaryColor));
+        _miniTitle?.SetTextColor(tp);
+        _miniArtist?.SetTextColor(th);
+        _miniPrev?.SetColorFilter(tp, Android.Graphics.PorterDuff.Mode.SrcIn);
+        _miniNext?.SetColorFilter(tp, Android.Graphics.PorterDuff.Mode.SrcIn);
+        _miniPlayPause?.SetColorFilter(pc, Android.Graphics.PorterDuff.Mode.SrcIn);
+        _miniProgress?.SetBackgroundColor(pc);
+
+        if (_bottomNav != null)
+        {
+            _bottomNav.SetBackgroundColor(new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawNavBarBackground)));
+            var tabActive = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawTabActive));
+            var tabInactive = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawTabInactive));
+            var csl = new Android.Content.Res.ColorStateList(
+                new int[][] { new int[] { Android.Resource.Attribute.StateChecked }, new int[0] },
+                new int[] { tabActive.ToArgb(), tabInactive.ToArgb() });
+            _bottomNav.ItemIconTintList = csl;
+            _bottomNav.ItemTextColor = csl;
+        }
+
+        if (_sidePanelContent != null)
+            _sidePanelContent.SetBackgroundColor(new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawPageBackground)));
+
+        var scanBar = FindViewById<LinearLayout>(Resource.Id.scan_progress_bar);
+        if (scanBar != null)
+            scanBar.SetBackgroundColor(new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawPageBackground)));
+        var scanProgress = FindViewById<ProgressBar>(Resource.Id.scan_progress);
+        if (scanProgress != null)
+            scanProgress.ProgressTintList = Android.Content.Res.ColorStateList.ValueOf(pc);
+        var scanText = FindViewById<TextView>(Resource.Id.scan_status_text);
+        if (scanText != null)
+            scanText.SetTextColor(new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawTextHint)));
+
+        if (SupportFragmentManager.BackStackEntryCount > 0)
+        {
+            SupportFragmentManager.PopBackStackImmediate(null, AndroidX.Fragment.App.FragmentManager.PopBackStackInclusive);
+            SetOverlayOpen(false);
+            var overlay = FindViewById<View>(Resource.Id.overlay_container);
+            if (overlay != null) overlay.Visibility = ViewStates.Gone;
+            SetToolbarVisible(true);
+            SetBottomNavVisible(true);
+            SetMiniPlayerVisible(true);
+            UpdateNavSelection(_currentTab);
+        }
+
+        RefreshFragments();
+
+        if (_settingsFragment != null && _panelOpen)
+        {
+            SupportFragmentManager.BeginTransaction()
+                .Detach(_settingsFragment)
+                .CommitNow();
+            SupportFragmentManager.BeginTransaction()
+                .Attach(_settingsFragment)
+                .CommitNow();
+        }
+    }
+
+    private void RefreshFragments()
+    {
+        var fm = SupportFragmentManager;
+        var tx = fm.BeginTransaction();
+        foreach (var f in fm.Fragments)
+        {
+            if (f != null && f.IsAdded && f.Id != Resource.Id.side_panel_content)
+                tx.Detach(f);
+        }
+        tx.CommitNow();
+
+        var tx2 = fm.BeginTransaction();
+        foreach (var f in fm.Fragments)
+        {
+            if (f != null && !f.IsAdded && f.Id != Resource.Id.side_panel_content)
+                tx2.Attach(f);
+        }
+        tx2.CommitNow();
+    }
+
     private void UpdateNavSelection(int index)
     {
         _suppressNavListener = true;
@@ -183,30 +321,25 @@ public class MainActivity : AppCompatActivity
         {
             1 => Resource.Id.nav_playing, 2 => Resource.Id.nav_playlist,
             3 => Resource.Id.nav_search, 4 => Resource.Id.nav_library,
-            _ => Resource.Id.nav_playing // Tab 0 (歌词) 无导航项，默认高亮播放
+            _ => Resource.Id.nav_playing
         };
         _suppressNavListener = false;
     }
 
-    /// <summary>根据当前 Tab 更新工具栏、底部导航和迷你播放器的可见性</summary>
     private void UpdateTabUI(int index)
     {
-        // 歌词页(Tab0) + 播放页(Tab1)：隐藏工具栏 + 底部导航 + 迷你播放器
         bool hideNav = index is 0 or 1;
         _toolbar.Visibility = hideNav ? ViewStates.Gone : ViewStates.Visible;
         _bottomNav.Visibility = hideNav ? ViewStates.Gone : ViewStates.Visible;
         SetMiniPlayerVisible(!hideNav);
     }
 
-    /// <summary>设置底部导航栏可见性</summary>
     public void SetBottomNavVisible(bool visible)
         => _bottomNav.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
 
-    /// <summary>设置工具栏可见性</summary>
     public void SetToolbarVisible(bool visible)
         => _toolbar.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
 
-    /// <summary>设置迷你播放器可见性</summary>
     public void SetMiniPlayerVisible(bool visible)
     {
         if (_overlayOpen) { _miniPlayerWrapper.Visibility = ViewStates.Gone; return; }
@@ -215,7 +348,6 @@ public class MainActivity : AppCompatActivity
             ? ViewStates.Visible : ViewStates.Gone;
     }
 
-    /// <summary>处理返回键：优先关闭侧面板，然后处理子页面回退栈</summary>
     public override void OnBackPressed()
     {
         if (_panelOpen) { CloseSidePanel(); return; }
@@ -236,10 +368,9 @@ public class MainActivity : AppCompatActivity
         else base.OnBackPressed();
     }
 
-    /// <summary>切换到指定 Tab 页</summary>
     public void SwitchTab(int index)
     {
-        if (index >= 0 && index < 5) // 5 tabs
+        if (index >= 0 && index < 5)
         {
             _isUserSwipe = false;
             _viewPager.SetCurrentItem(index, true);
@@ -247,16 +378,11 @@ public class MainActivity : AppCompatActivity
             _currentTab = index;
             UpdateNavSelection(index);
             UpdateTabUI(index);
-
-            // 切换到歌词页(Tab0)时，通知 FullLyricsFragment 立即滚动到当前歌词位置
             if (index == 0)
-            {
                 _tabAdapter.FullLyricsFragment?.ScrollToCurrentPosition();
-            }
         }
     }
 
-    /// <summary>Activity 销毁时停止定时器、取消事件订阅、释放桌面歌词</summary>
     protected override void OnDestroy()
     {
         var player = MainApplication.Services.GetService<IAudioPlayerService>();
@@ -277,14 +403,12 @@ public class MainActivity : AppCompatActivity
         base.OnDestroy();
     }
 
-    /// <summary>权限请求结果回调</summary>
     public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
     {
         base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
         PermissionService.HandlePermissionResult(requestCode, grantResults);
     }
 
-    /// <summary>Activity 结果回调（SAF 文件夹选择器）</summary>
     protected override void OnActivityResult(int requestCode, Result resultCode, Android.Content.Intent? data)
     {
         base.OnActivityResult(requestCode, resultCode, data);
@@ -293,13 +417,11 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 侧面板 ═══════════
 
-    /// <summary>切换侧面板打开/关闭状态</summary>
     private void ToggleSidePanel()
     {
         if (_panelOpen) CloseSidePanel(); else OpenSidePanel();
     }
 
-    /// <summary>打开侧面板，设置动画滑入</summary>
     private void OpenSidePanel()
     {
         _panelOpen = true;
@@ -319,7 +441,6 @@ public class MainActivity : AppCompatActivity
         NavigationService.EnterSidePanelMode(Resource.Id.side_panel_content);
     }
 
-    /// <summary>关闭侧面板，设置动画滑出</summary>
     private void CloseSidePanel()
     {
         if (!_panelOpen) return;
@@ -331,7 +452,6 @@ public class MainActivity : AppCompatActivity
             .WithEndAction(new Java.Lang.Runnable(() => _sidePanelOverlay.Visibility = ViewStates.Gone)).Start();
     }
 
-    /// <summary>处理侧面板上的触摸事件，支持滑动关闭手势</summary>
     private void OnSidePanelTouch(object? sender, View.TouchEventArgs e)
     {
         if (!_panelOpen || e?.Event == null) return;
@@ -356,7 +476,6 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 迷你播放器 ═══════════
 
-    /// <summary>初始化迷你播放器控件并绑定事件和数据</summary>
     private void BindMiniPlayer()
     {
         _miniPlayer = FindViewById<MaterialCardView>(Resource.Id.mini_player)!;
@@ -369,7 +488,6 @@ public class MainActivity : AppCompatActivity
         _miniPrev = FindViewById<ImageButton>(Resource.Id.mini_prev)!;
         _miniNext = FindViewById<ImageButton>(Resource.Id.mini_next)!;
 
-        // 全局扫描进度条
         var _scanProgressBar = FindViewById<View>(Resource.Id.scan_progress_bar)!;
         var _scanProgress = FindViewById<ProgressBar>(Resource.Id.scan_progress)!;
         var _scanStatusText = FindViewById<TextView>(Resource.Id.scan_status_text)!;
@@ -387,7 +505,6 @@ public class MainActivity : AppCompatActivity
         _miniVm.PropertyChanged += OnMiniPlayerPropertyChanged;
     }
 
-    /// <summary>Library ViewModel 属性变化回调，更新扫描进度条</summary>
     private void OnLibraryPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         RunOnUiThread(() =>
@@ -406,7 +523,6 @@ public class MainActivity : AppCompatActivity
         });
     }
 
-    /// <summary>迷你播放器 ViewModel 属性变化回调，按需更新歌曲信息和播放状态</summary>
     private void OnMiniPlayerPropertyChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         RunOnUiThread(() =>
@@ -420,14 +536,10 @@ public class MainActivity : AppCompatActivity
                 ? ViewStates.Visible : ViewStates.Gone;
             if (!hasSong) return;
 
-            // 根据变化的属性按需更新，避免不必要的 I/O 和时序竞争
             var propName = e.PropertyName;
-            bool needUpdateIcon = propName == nameof(NowPlayingViewModel.PlayPauseIcon)
-                || propName == null;
-            bool needUpdateInfo = propName == nameof(NowPlayingViewModel.CurrentSong)
-                || propName == null;
-            bool needUpdateCover = propName == nameof(NowPlayingViewModel.CoverSource)
-                || propName == null;
+            bool needUpdateIcon = propName == nameof(NowPlayingViewModel.PlayPauseIcon) || propName == null;
+            bool needUpdateInfo = propName == nameof(NowPlayingViewModel.CurrentSong) || propName == null;
+            bool needUpdateCover = propName == nameof(NowPlayingViewModel.CoverSource) || propName == null;
 
             if (needUpdateInfo)
             {
@@ -437,8 +549,6 @@ public class MainActivity : AppCompatActivity
 
             if (needUpdateIcon)
             {
-                // 直接使用 ViewModel 的 PlayPauseIcon 状态，避免读取 IAudioPlayerService.IsPlaying
-                // 导致的时序竞争（PauseAsync 通过 Handler.Post 异步执行，IsPlaying 更新滞后）
                 bool isPlaying = _miniVm.PlayPauseIcon == "⏸";
                 _miniPlayPause.SetImageResource(
                     isPlaying ? Resource.Drawable.ic_pause : Resource.Drawable.ic_play);
@@ -451,7 +561,6 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 系统栏适配 ═══════════
 
-    /// <summary>适配系统状态栏和导航栏，防止内容被遮挡</summary>
     private void FitSystemBars()
     {
         var root = FindViewById<View>(Android.Resource.Id.Content)!;
@@ -459,14 +568,24 @@ public class MainActivity : AppCompatActivity
         {
             var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()
                 | WindowInsetsCompat.Type.DisplayCutout());
-            var toolbarLp = (LinearLayout.LayoutParams)_toolbar.LayoutParameters!;
-            toolbarLp.TopMargin = bars.Top;
-            _toolbar.LayoutParameters = toolbarLp;
+
+            var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
+            if (mainLayout != null)
+                mainLayout.SetPadding(0, bars.Top, 0, 0);
+
             _bottomNav.SetPadding(
                 _bottomNav.PaddingLeft,
                 _bottomNav.PaddingTop,
                 _bottomNav.PaddingRight,
                 bars.Bottom);
+
+            var overlay = FindViewById<View>(Resource.Id.overlay_container);
+            if (overlay != null)
+                overlay.SetPadding(0, 0, 0, bars.Bottom);
+
+            if (_sidePanelContent != null)
+                _sidePanelContent.SetPadding(0, bars.Top, 0, 0);
+
             return ViewCompat.OnApplyWindowInsets(v, insets);
         }));
     }
@@ -511,7 +630,6 @@ public class MainActivity : AppCompatActivity
         public void OnClick(View? v) => _action();
     }
 
-    /// <summary>从 SharedPreferences 加载并应用保存的主题和深色模式设置</summary>
     private void ApplySavedTheme()
     {
         try
@@ -522,7 +640,6 @@ public class MainActivity : AppCompatActivity
             var theme = (AppTheme)themeValue;
             var darkModeSetting = (DarkModeSetting)darkModeValue;
 
-            // 设置深色模式
             switch (darkModeSetting)
             {
                 case DarkModeSetting.Light:
@@ -536,7 +653,6 @@ public class MainActivity : AppCompatActivity
                     break;
             }
 
-            // 设置主题色
             SetTheme(theme switch
             {
                 AppTheme.Pink => Resource.Style.CatClawTheme_Pink,
@@ -565,7 +681,19 @@ public class MainActivity : AppCompatActivity
 
     public override void OnConfigurationChanged(Android.Content.Res.Configuration newConfig)
     {
+        var themeService = MainApplication.Services.GetRequiredService<IThemeService>();
+        bool isFollowSystem = themeService.DarkModeSetting == DarkModeSetting.FollowSystem;
+
+        if (isFollowSystem)
+            _skipNextRecreate = true;
+
         base.OnConfigurationChanged(newConfig);
         LockFontScale();
+
+        if (isFollowSystem)
+        {
+            RefreshThemeViews();
+            _skipNextRecreate = false;
+        }
     }
 }

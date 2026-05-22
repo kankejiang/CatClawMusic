@@ -311,6 +311,21 @@ public partial class LibraryViewModel : ObservableObject
 
             var scannedPaths = new HashSet<string>();
 
+            var scanner = new MusicScanner(_database!, batch =>
+            {
+                var songsToAdd = batch
+                    .Where(s => !Songs.Any(existing => existing.FilePath == s.FilePath))
+                    .ToList();
+                if (songsToAdd.Count > 0)
+                {
+                    _dispatcher.Post(() =>
+                    {
+                        AddSongsBatch(songsToAdd);
+                        StatusText = $"🐱 已扫描 {Songs.Count} 首歌曲...";
+                    });
+                }
+            });
+
             var progress = new Progress<(int done, int total, string status)>(p =>
             {
                 int pct = p.total > 0 ? (int)(85.0 * p.done / p.total) : 0;
@@ -325,28 +340,11 @@ public partial class LibraryViewModel : ObservableObject
 
                     foreach (var song in newSongs)
                     {
-                        try
-                        {
-                            song.ArtistId = await _musicLibrary.EnsureArtistAsync(song.Artist);
-                            song.AlbumId = await _musicLibrary.EnsureAlbumAsync(song.Album, song.ArtistId);
-                            song.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            await _musicLibrary.SaveSongAsync(song);
-                        }
-                        catch { }
-                    }
-
-                    var songsToAdd = newSongs
-                        .Where(s => !Songs.Any(existing => existing.FilePath == s.FilePath))
-                        .ToList();
-                    if (songsToAdd.Count > 0)
-                    {
-                        _dispatcher.Post(() =>
-                        {
-                            AddSongsBatch(songsToAdd);
-                            StatusText = $"🐱 已扫描 {Songs.Count} 首歌曲...";
-                        });
+                        await scanner.AddSongAsync(song);
                     }
                 });
+
+            await scanner.FlushAsync();
 
             if (_database != null)
             {
@@ -465,6 +463,16 @@ public partial class LibraryViewModel : ObservableObject
                     all.AddRange(scanned);
                 }
                 catch { }
+            }
+
+            // 增量扫描完成后，从数据库全量重新加载，避免新增与缓存重复
+            if (_database != null)
+            {
+                await _database.EnsureInitializedAsync();
+                var cachedSongs = await _database.GetCachedNetworkSongsAsync();
+                var cachedFiltered = FilterSongsByProtocol(cachedSongs);
+                Songs.Clear();
+                AddSongsBatch(cachedFiltered);
             }
 
             StatusText = Songs.Count > 0 ? $"☁️ 共 {Songs.Count} 首网络歌曲" : "连接成功但未找到歌曲";

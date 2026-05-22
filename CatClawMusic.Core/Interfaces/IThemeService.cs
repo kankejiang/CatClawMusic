@@ -39,6 +39,11 @@ public interface IThemeService
     /// 检测系统当前是否处于深色模式
     /// </summary>
     bool IsSystemDarkMode();
+
+    /// <summary>
+    /// 判断当前是否实际处于深色模式（综合用户设置与系统状态）
+    /// </summary>
+    bool IsEffectivelyDark();
 }
 
 /// <summary>

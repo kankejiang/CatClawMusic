@@ -138,7 +138,7 @@ public class SettingsFragment : Fragment
             if (selectedTheme != _themeService.CurrentTheme)
             {
                 _themeService.SetTheme(selectedTheme);
-                RestartActivityForTheme();
+                MainActivity.Instance?.ApplyThemeAndRefresh();
             }
         };
     }
@@ -189,21 +189,6 @@ public class SettingsFragment : Fragment
         _btnDarkModeToggle.SetImageResource(iconRes);
     }
 
-    /// <summary>
-    /// 主题切换后重启Activity以应用新主题
-    /// </summary>
-    private void RestartActivityForTheme()
-    {
-        if (Activity == null) return;
-
-        var intent = Activity.Intent;
-        Activity.Finish();
-        StartActivity(intent);
-    }
-
-    /// <summary>
-    /// 异步加载本地音乐、远程服务和插件的状态信息
-    /// </summary>
     private async Task LoadStatusAsync()
     {
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();

@@ -74,6 +74,66 @@ public class SmbService : INetworkFileService, IDisposable
         EnsureConnected(profile);
     }
 
+    /// <summary>
+    /// 列出 SMB 服务器上可用的共享名列表
+    /// </summary>
+    public async Task<(bool Success, List<string> Shares, string Message)> ListSharesAsync(ConnectionProfile profile)
+    {
+        return await Task.Run(() =>
+        {
+            var shares = new List<string>();
+            try
+            {
+                var tempClient = new SMB2Client();
+                var host = profile.Host.Trim();
+                var port = profile.Port > 0 ? profile.Port : 445;
+
+                bool connected;
+                try
+                {
+                    connected = tempClient.Connect(IPAddress.Parse(host), SMBTransportType.DirectTCPTransport);
+                }
+                catch
+                {
+                    var addresses = System.Net.Dns.GetHostAddresses(host);
+                    var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                    if (ipv4 == null) return (false, shares, $"无法解析主机 {host}");
+                    connected = tempClient.Connect(ipv4, SMBTransportType.DirectTCPTransport);
+                }
+
+                if (!connected)
+                    return (false, shares, $"无法连接到 {host}:{port}");
+
+                var status = tempClient.Login(
+                    string.IsNullOrEmpty(profile.DomainName) ? "" : profile.DomainName,
+                    profile.UserName, profile.Password);
+
+                if (status != NTStatus.STATUS_SUCCESS)
+                {
+                    tempClient.Disconnect();
+                    return (false, shares, $"认证失败: {status}");
+                }
+
+                // 列出共享（登录成功后、TreeConnect 前可调用）
+                shares = tempClient.ListShares(out NTStatus listStatus);
+                tempClient.Logoff();
+                tempClient.Disconnect();
+
+                if (listStatus != NTStatus.STATUS_SUCCESS || shares.Count == 0)
+                    return (false, shares, "未能列出共享");
+
+                // 过滤掉管理共享（$ 结尾的共享名）
+                shares = shares.Where(s => !s.EndsWith("$")).ToList();
+
+                return (true, shares, $"找到 {shares.Count} 个共享");
+            }
+            catch (Exception ex)
+            {
+                return (false, shares, $"列出共享失败: {ex.Message}");
+            }
+        });
+    }
+
     public async Task<(bool Success, string Message)> TestConnectionAsync(ConnectionProfile profile)
     {
         return await Task.Run(() =>
@@ -139,11 +199,16 @@ public class SmbService : INetworkFileService, IDisposable
 
             ISMBFileStore? fileStore;
             lock (_lock) { fileStore = _fileStore; }
-            if (fileStore == null) return files;
+            if (fileStore == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[SMB] ListFiles _fileStore 为空，未连接");
+                return files;
+            }
 
             try
             {
                 var normalizedPath = NormalizePath(path);
+                System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 开始 path={path}, normalized={normalizedPath}");
                 object? queryHandle;
 
                 lock (_lock)
@@ -159,6 +224,8 @@ public class SmbService : INetworkFileService, IDisposable
                         CreateOptions.FILE_DIRECTORY_FILE,
                         null);
 
+                    System.Diagnostics.Debug.WriteLine($"[SMB] CreateFile path='{normalizedPath}' status={status}");
+
                     if (status != NTStatus.STATUS_SUCCESS)
                     {
                         if (string.IsNullOrEmpty(normalizedPath))
@@ -173,6 +240,8 @@ public class SmbService : INetworkFileService, IDisposable
                                 CreateDisposition.FILE_OPEN,
                                 CreateOptions.FILE_DIRECTORY_FILE,
                                 null);
+
+                            System.Diagnostics.Debug.WriteLine($"[SMB] CreateFile 回退 path='\\' status={status}");
                         }
 
                         if (status != NTStatus.STATUS_SUCCESS)
@@ -195,11 +264,22 @@ public class SmbService : INetworkFileService, IDisposable
                     fileStore.CloseFile(queryHandle);
                 }
 
+                System.Diagnostics.Debug.WriteLine($"[SMB] QueryDirectory status={queryStatus}, entries={entries?.Count ?? 0}");
+
                 if ((queryStatus != NTStatus.STATUS_SUCCESS && queryStatus != NTStatus.STATUS_NO_MORE_FILES)
                     || entries == null || entries.Count == 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 查询失败 {path}: {queryStatus}");
+                    System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 查询结果为空 {path}: {queryStatus}");
                     return files;
+                }
+
+                // 诊断：打印前几条和 "." 的 FileAttributes
+                for (int i = 0; i < entries.Count && i < 5; i++)
+                {
+                    if (entries[i] is FileBothDirectoryInformation diag)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SMB] 诊断 entry[{i}]: name='{diag.FileName}' attr={diag.FileAttributes} (0x{(uint)diag.FileAttributes:X8}) isDir={(diag.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0}");
+                    }
                 }
 
                 foreach (var entry in entries)
@@ -209,7 +289,10 @@ public class SmbService : INetworkFileService, IDisposable
                         var name = info.FileName;
                         if (name == "." || name == "..") continue;
 
-                        var isDir = (info.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0;
+                        // 有些 Samba 服务器不设置 Directory 标志位（但对 "."/".." 正常）
+                        // 因此用 EndOfFile == 0 作为辅助判断
+                        var isDir = (info.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0
+                                    || (long)info.EndOfFile == 0;
                         var entryPath = string.IsNullOrEmpty(normalizedPath)
                             ? $"\\{name}"
                             : $"{normalizedPath}\\{name}";

@@ -95,9 +95,9 @@
             android:paddingBottom="32dp" android:paddingHorizontal="24dp">
             <TextView android:id="@+id/lyric_progress_text"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:textColor="#808080" android:textSize="12sp" />
+                android:textColor="?attr/catClawTextHint" android:textSize="12sp" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="← 滑动返回播放页" android:textColor="#606060"
+                android:text="← 滑动返回播放页" android:textColor="?attr/catClawTextHint"
                 android:textSize="11sp" android:layout_marginTop="4dp" />
         </LinearLayout>
     </LinearLayout>

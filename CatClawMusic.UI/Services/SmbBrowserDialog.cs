@@ -7,6 +7,7 @@ using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Services;
 
@@ -31,14 +32,23 @@ public class SmbBrowserDialog : Dialog
     private bool _isInitialized = false;
     private bool _isLoading = false;
 
+    // 两步模式：先选共享，再浏览目录
+    private bool _isShareMode = true;
+    private List<string> _shareNames = new();
+    private string _selectedShare = "";
+
     public string? SelectedPath { get; private set; }
+    public string SelectedShareName { get; private set; } = "";
 
     public SmbBrowserDialog(Activity activity, ConnectionProfile profile)
         : base(activity)
     {
         _activity = activity;
         _profile = profile;
-        _smbService = new SmbService();
+        // 使用 DI 单例，与 NetworkMusicService/AudioPlayerService 保持一致
+        _smbService = MainApplication.Services.GetServices<INetworkFileService>()
+                         .FirstOrDefault(s => s is SmbService) as SmbService
+                     ?? new SmbService();
     }
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -78,24 +88,90 @@ public class SmbBrowserDialog : Dialog
 
     private async Task InitializeAndLoadAsync()
     {
-        RunOnUiThread(() => ShowLoading("正在连接..."));
+        System.Diagnostics.Debug.WriteLine("[SMB Browser] InitializeAndLoadAsync 开始");
+        // 第一步：先列出服务器上的共享名
+        await ListSharesAndShowAsync();
+    }
 
-        await Task.Run(async () =>
+    private async Task ListSharesAndShowAsync()
+    {
+        _isShareMode = true;
+        RunOnUiThread(() =>
+        {
+            _tvCurrentPath.Text = "选择共享";
+            _btnSelect.Visibility = ViewStates.Gone;
+            ShowLoading("正在列出共享...");
+        });
+
+        (bool success, List<string> shares, string message) = await _smbService.ListSharesAsync(_profile);
+
+        if (!success || shares.Count == 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 列出共享失败: {message}");
+            RunOnUiThread(() => ShowError(message));
+            return;
+        }
+
+        _shareNames = shares;
+        System.Diagnostics.Debug.WriteLine($"[SMB Browser] 列出共享 {shares.Count} 个: {string.Join(", ", shares)}");
+
+        RunOnUiThread(() =>
+        {
+            _items.Clear();
+            foreach (var s in _shareNames)
+                _items.Add(new RemoteFile { Name = s, Path = s, IsDirectory = true });
+            _adapter.NotifyDataSetChanged();
+
+            _progressBar.Visibility = ViewStates.Gone;
+            _recyclerView.Visibility = ViewStates.Visible;
+            _tvEmpty.Visibility = ViewStates.Gone;
+            _tvError.Visibility = ViewStates.Gone;
+        });
+    }
+
+    private async Task ConnectAndBrowseShareAsync(string shareName)
+    {
+        _isShareMode = false;
+        _selectedShare = shareName;
+        SelectedShareName = shareName;
+        _profile.ShareName = shareName;
+        _pathStack.Clear();
+
+        RunOnUiThread(() =>
+        {
+            _tvCurrentPath.Text = $"📁 \\\\{shareName}";
+            _btnSelect.Visibility = ViewStates.Visible;
+            ShowLoading("正在连接共享...");
+        });
+
+        var connected = false;
+        string? errorMsg = null;
+        await Task.Run(() =>
         {
             try
             {
+                System.Diagnostics.Debug.WriteLine($"[SMB Browser] 连接共享 {shareName}...");
                 _smbService.Configure(_profile);
-                _isInitialized = true;
+                connected = true;
+                System.Diagnostics.Debug.WriteLine("[SMB Browser] 共享连接成功");
             }
             catch (Exception ex)
             {
+                errorMsg = ex.Message;
                 System.Diagnostics.Debug.WriteLine($"[SMB Browser] Configure 失败: {ex.Message}");
                 RunOnUiThread(() => ShowError($"连接失败: {ex.Message}"));
-                return;
             }
-
-            await LoadDirectoryInternalAsync("");
         });
+
+        if (!connected)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 共享连接失败，回退: {errorMsg}");
+            await ListSharesAndShowAsync();
+            return;
+        }
+
+        _isInitialized = true;
+        await LoadDirectoryInternalAsync("\\");
     }
 
     private void InitViews()
@@ -118,20 +194,46 @@ public class SmbBrowserDialog : Dialog
 
     private void OnItemClick(int position)
     {
-        if (_isLoading) return;
+        if (_isLoading)
+        {
+            System.Diagnostics.Debug.WriteLine("[SMB Browser] OnItemClick 跳过: 加载中");
+            return;
+        }
         if (position < 0 || position >= _items.Count) return;
 
         var file = _items[position];
+
+        // 共享选择模式：点击进入该共享浏览目录
+        if (_isShareMode)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 选择共享: {file.Name}");
+            _ = Task.Run(async () => await ConnectAndBrowseShareAsync(file.Name));
+            return;
+        }
+
+        // 目录浏览模式：点击进入子目录
         if (!file.IsDirectory) return;
 
+        System.Diagnostics.Debug.WriteLine($"[SMB Browser] 点击目录: {file.Name} path={file.Path}");
         _pathStack.Push(_currentPath);
         _ = Task.Run(async () => await LoadDirectoryInternalAsync(file.Path));
     }
 
     private async Task LoadDirectoryInternalAsync(string path)
     {
-        if (!_isInitialized) { RunOnUiThread(() => ShowError("连接未初始化")); return; }
-        if (_isLoading) return;
+        System.Diagnostics.Debug.WriteLine($"[SMB Browser] LoadDirectoryInternalAsync path={path}");
+
+        if (!_isInitialized)
+        {
+            System.Diagnostics.Debug.WriteLine("[SMB Browser] 未初始化，跳过");
+            RunOnUiThread(() => ShowError("连接未初始化"));
+            return;
+        }
+        if (_isLoading)
+        {
+            System.Diagnostics.Debug.WriteLine("[SMB Browser] 已在加载中，跳过");
+            return;
+        }
         _isLoading = true;
 
         _currentPath = path;
@@ -139,15 +241,24 @@ public class SmbBrowserDialog : Dialog
 
         try
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var files = await _smbService.ListFilesAsync(path);
+            sw.Stop();
+
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] ListFilesAsync 返回 {files.Count} 项, 耗时 {sw.ElapsedMilliseconds}ms");
 
             var dirs = files.Where(f => f.IsDirectory).OrderBy(f => f.Name).ToList();
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 其中目录 {dirs.Count} 个");
 
             RunOnUiThread(() =>
             {
                 _items.Clear();
                 _items.AddRange(dirs);
                 _adapter.NotifyDataSetChanged();
+
+                // 更新路径显示
+                var displayPath = string.IsNullOrEmpty(_selectedShare) ? path : $"\\\\{_selectedShare}{path}";
+                _tvCurrentPath.Text = $"📁 {displayPath}";
 
                 if (dirs.Count == 0)
                 {
@@ -211,15 +322,32 @@ public class SmbBrowserDialog : Dialog
 
     public override void OnBackPressed()
     {
-        if (_isLoading) return;
+        if (_isLoading)
+        {
+            System.Diagnostics.Debug.WriteLine("[SMB Browser] OnBackPressed 跳过: 加载中");
+            return;
+        }
+
+        // 共享选择模式：直接关闭
+        if (_isShareMode)
+        {
+            System.Diagnostics.Debug.WriteLine("[SMB Browser] 返回键关闭对话框");
+            base.OnBackPressed();
+            return;
+        }
+
+        // 目录浏览模式：有上级目录则返回，否则回到共享列表
         if (_pathStack.Count > 0)
         {
             var parentPath = _pathStack.Pop();
+            System.Diagnostics.Debug.WriteLine($"[SMB Browser] 返回上级目录: {parentPath}");
             _ = Task.Run(async () => await LoadDirectoryInternalAsync(parentPath));
         }
         else
         {
-            base.OnBackPressed();
+            // 根目录：返回共享选择
+            System.Diagnostics.Debug.WriteLine("[SMB Browser] 返回共享列表");
+            _ = Task.Run(async () => await ListSharesAndShowAsync());
         }
     }
 

@@ -134,16 +134,16 @@ public static class PlaybackStateManager
             var songs = localSongs.Concat(networkSongs).ToList();
             Song? song;
 
-            if (savedSource == SongSource.WebDAV && !string.IsNullOrEmpty(savedRemoteId))
+            if ((savedSource == SongSource.WebDAV || savedSource == SongSource.SMB) && !string.IsNullOrEmpty(savedRemoteId))
             {
-                song = songs.FirstOrDefault(s => s.Source == SongSource.WebDAV && s.RemoteId == savedRemoteId);
+                song = songs.FirstOrDefault(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && s.RemoteId == savedRemoteId);
             }
             else if (path.StartsWith("http://") || path.StartsWith("https://"))
             {
                 var idParam = ExtractQueryParam(path, "id");
                 var remoteId = savedRemoteId ?? idParam;
                 if (!string.IsNullOrEmpty(remoteId))
-                    song = songs.FirstOrDefault(s => s.Source == SongSource.WebDAV && s.RemoteId == remoteId);
+                    song = songs.FirstOrDefault(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && s.RemoteId == remoteId);
                 else
                     song = songs.FirstOrDefault(s => s.FilePath == path);
             }
@@ -170,7 +170,7 @@ public static class PlaybackStateManager
 
             var playUrl = song.FilePath;
 
-            if (savedSource == SongSource.WebDAV && networkMusic != null)
+            if ((savedSource == SongSource.WebDAV || savedSource == SongSource.SMB) && networkMusic != null)
             {
                 try
                 {

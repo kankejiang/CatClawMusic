@@ -23,6 +23,7 @@ public class PlaylistDetailFragment : Fragment
     private SongAdapter _adapter = null!;
     private int _playlistId;
     private bool _isUserPlaylist;
+    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_playlist_detail, container, false)!;
@@ -62,7 +63,7 @@ public class PlaylistDetailFragment : Fragment
             _ = _viewModel.LoadAsync(_playlistId, name);
         }
 
-        _viewModel.Songs.CollectionChanged += (s, e) =>
+        _collectionChangedHandler = (s, e) =>
         {
             var a = Activity;
             if (a != null) a.RunOnUiThread(() =>
@@ -73,6 +74,7 @@ public class PlaylistDetailFragment : Fragment
                     ? ViewStates.Visible : ViewStates.Gone;
             });
         };
+        _viewModel.Songs.CollectionChanged += _collectionChangedHandler;
     }
 
     private void ShowSongContextMenu(Song song)
@@ -203,8 +205,10 @@ public class PlaylistDetailFragment : Fragment
 
     public override void OnDestroyView()
     {
-        base.OnDestroyView();
+        if (_collectionChangedHandler != null)
+            _viewModel.Songs.CollectionChanged -= _collectionChangedHandler;
         if (_audioPlayer != null)
             _audioPlayer.StateChanged -= OnAudioPlayerStateChanged;
+        base.OnDestroyView();
     }
 }

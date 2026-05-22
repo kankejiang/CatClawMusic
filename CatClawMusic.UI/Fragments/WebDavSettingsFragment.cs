@@ -14,7 +14,7 @@ public class WebDavSettingsFragment : SettingsSubPageFragment
     private WebDavSettingsViewModel _viewModel = null!;
     private EditText _etName = null!, _etHost = null!, _etPort = null!, _etUser = null!, _etPass = null!;
     private TextView _tvBasePath = null!;
-    private Button _btnTest = null!, _btnSave = null!, _btnBrowse = null!;
+    private Button _btnSave = null!, _btnBrowse = null!;
     private TextView _statusText = null!;
     private AndroidX.AppCompat.Widget.SwitchCompat _swHttps = null!;
 
@@ -39,7 +39,6 @@ public class WebDavSettingsFragment : SettingsSubPageFragment
         _etUser = view.FindViewById<EditText>(Resource.Id.et_username)!;
         _etPass = view.FindViewById<EditText>(Resource.Id.et_password)!;
         _tvBasePath = view.FindViewById<TextView>(Resource.Id.tv_base_path)!;
-        _btnTest = view.FindViewById<Button>(Resource.Id.btn_test)!;
         _btnSave = view.FindViewById<Button>(Resource.Id.btn_save)!;
         _btnBrowse = view.FindViewById<Button>(Resource.Id.btn_browse)!;
         _statusText = view.FindViewById<TextView>(Resource.Id.status_text)!;
@@ -52,7 +51,6 @@ public class WebDavSettingsFragment : SettingsSubPageFragment
         _etPass.TextChanged += (s, e) => _viewModel.Password = e?.Text?.ToString() ?? "";
         if (_swHttps != null)
             _swHttps.CheckedChange += (s, e) => _viewModel.UseHttps = e.IsChecked;
-        _btnTest.Click += (s, e) => _viewModel.TestCommand.Execute(null);
         _btnSave.Click += (s, e) => _viewModel.SaveCommand.Execute(null);
         _btnBrowse.Click += OnBrowseClick;
 

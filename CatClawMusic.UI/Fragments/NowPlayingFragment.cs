@@ -423,7 +423,7 @@ public class NowPlayingFragment : Fragment
                 _albumCover.SetImageResource(Resource.Drawable.cover_default);
             }
             _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
-            if (_viewModel.CurrentSong?.Source == SongSource.WebDAV && _viewModel.CurrentSong.Artist == "未知艺术家")
+            if ((_viewModel.CurrentSong?.Source == SongSource.WebDAV || _viewModel.CurrentSong?.Source == SongSource.SMB) && _viewModel.CurrentSong.Artist == "未知艺术家")
                 _songArtist.Text = "正在加载...";
             else
                 _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
@@ -498,7 +498,7 @@ public class NowPlayingFragment : Fragment
                     break;
                 case nameof(_viewModel.CurrentSong):
                     _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
-                    if (_viewModel.CurrentSong?.Source == SongSource.WebDAV && _viewModel.CurrentSong.Artist == "未知艺术家")
+                    if ((_viewModel.CurrentSong?.Source == SongSource.WebDAV || _viewModel.CurrentSong?.Source == SongSource.SMB) && _viewModel.CurrentSong.Artist == "未知艺术家")
                         _songArtist.Text = "正在加载...";
                     else
                         _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;

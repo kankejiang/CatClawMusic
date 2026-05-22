@@ -17,6 +17,7 @@ public class SongAdapter : RecyclerView.Adapter
     private readonly INetworkMusicService? _networkMusic;
     private ConnectionProfile? _cachedNavidromeProfile;
     private ConnectionProfile? _cachedWebDavProfile;
+    private ConnectionProfile? _cachedSmbProfile;
     private bool _profilesLookedUp;
     private int _currentPlayingSongId = -1;
     private bool _isPlaying = false;
@@ -105,6 +106,7 @@ public class SongAdapter : RecyclerView.Adapter
     {
         if (protocol == ProtocolType.Navidrome && _cachedNavidromeProfile != null) return _cachedNavidromeProfile;
         if (protocol == ProtocolType.WebDAV && _cachedWebDavProfile != null) return _cachedWebDavProfile;
+        if (protocol == ProtocolType.SMB && _cachedSmbProfile != null) return _cachedSmbProfile;
         if (_networkMusic == null || _profilesLookedUp) return null;
         _profilesLookedUp = true;
         try
@@ -112,7 +114,9 @@ public class SongAdapter : RecyclerView.Adapter
             var profiles = await _networkMusic.GetProfilesAsync();
             _cachedNavidromeProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled);
             _cachedWebDavProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.WebDAV && p.IsEnabled);
-            return protocol == ProtocolType.Navidrome ? _cachedNavidromeProfile : _cachedWebDavProfile;
+            _cachedSmbProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.SMB && p.IsEnabled);
+            return protocol == ProtocolType.Navidrome ? _cachedNavidromeProfile
+                : protocol == ProtocolType.SMB ? _cachedSmbProfile : _cachedWebDavProfile;
         }
         catch { return null; }
     }
@@ -218,13 +222,14 @@ public class SongAdapter : RecyclerView.Adapter
                 ct.ThrowIfCancellationRequested();
                 byte[]? coverBytes = null;
 
-                if (song.Source == SongSource.WebDAV)
+                if (song.Source == SongSource.WebDAV || song.Source == SongSource.SMB)
                 {
                     var coverId = song.CoverArtPath ?? song.RemoteId;
                     if (!string.IsNullOrEmpty(coverId))
                     {
                         var isNavidrome = !string.IsNullOrEmpty(song.FilePath) && song.FilePath.Contains("stream.view?id=");
-                        var protocol = isNavidrome ? ProtocolType.Navidrome : ProtocolType.WebDAV;
+                        var protocol = isNavidrome ? ProtocolType.Navidrome
+                            : song.Source == SongSource.SMB ? ProtocolType.SMB : ProtocolType.WebDAV;
                         var profile = await adapter.GetNetworkProfileAsync(protocol);
                         if (profile != null && adapter._networkMusic != null)
                         {

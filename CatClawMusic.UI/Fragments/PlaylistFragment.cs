@@ -18,6 +18,7 @@ public class PlaylistFragment : Fragment
     private TextView _statusText = null!;
     private LibraryViewModel? _libraryVm;
     private EventHandler? _scanCompletedHandler;
+    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
@@ -47,7 +48,7 @@ public class PlaylistFragment : Fragment
         };
         _playlistList.SetAdapter(_adapter);
 
-        _viewModel.Playlists.CollectionChanged += (s, e) =>
+        _collectionChangedHandler = (s, e) =>
         {
             var a = Activity;
             if (a != null) a.RunOnUiThread(() =>
@@ -58,6 +59,7 @@ public class PlaylistFragment : Fragment
                 _statusText.Text = _viewModel.StatusText;
             });
         };
+        _viewModel.Playlists.CollectionChanged += _collectionChangedHandler;
 
         _adapter.NewPlaylistClicked += (s, e) => ShowCreatePlaylistDialog();
 
@@ -119,6 +121,8 @@ public class PlaylistFragment : Fragment
 
     public override void OnDestroyView()
     {
+        if (_collectionChangedHandler != null)
+            _viewModel.Playlists.CollectionChanged -= _collectionChangedHandler;
         if (_libraryVm != null && _scanCompletedHandler != null)
             _libraryVm.ScanCompleted -= _scanCompletedHandler;
         base.OnDestroyView();

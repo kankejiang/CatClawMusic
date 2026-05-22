@@ -29,6 +29,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private int _saveCounter;
     private ConnectionProfile? _cachedNavidromeProfile;
     private ConnectionProfile? _cachedWebDavProfile;
+    private ConnectionProfile? _cachedSmbProfile;
     private readonly HashSet<int> _metadataFetchAttempted = new();
     private CancellationTokenSource? _errorDialogCts;
     private CancellationTokenSource? _songLoadCts;
@@ -426,7 +427,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 : await _musicLibrary.GetAlbumCoverAsync(song);
             ct.ThrowIfCancellationRequested();
 
-            if (stream == null && song.Source == SongSource.WebDAV)
+            if (stream == null && (song.Source == SongSource.WebDAV || song.Source == SongSource.SMB))
             {
                 stream = await GetNetworkCoverAsync(song);
                 ct.ThrowIfCancellationRequested();
@@ -636,7 +637,7 @@ public partial class NowPlayingViewModel : ObservableObject
         ClearSpannable();
         try
         {
-            var skipEmbedded = song.Source == SongSource.WebDAV;
+            var skipEmbedded = song.Source == SongSource.WebDAV || song.Source == SongSource.SMB;
             CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, skipEmbedded);
         }
         catch (OperationCanceledException) { return; }
@@ -644,7 +645,7 @@ public partial class NowPlayingViewModel : ObservableObject
         if (ct.IsCancellationRequested) return;
         if (CurrentSong?.Id != songId) return;
 
-        if (CurrentLyrics == null && song.Source == SongSource.WebDAV)
+        if (CurrentLyrics == null && (song.Source == SongSource.WebDAV || song.Source == SongSource.SMB))
         {
             try
             {
@@ -720,7 +721,7 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         if (song == null || _database == null) return;
 
-        if (song.Source == SongSource.WebDAV
+        if ((song.Source == SongSource.WebDAV || song.Source == SongSource.SMB)
             && (song.Artist == "未知艺术家" || song.Album == "未知专辑" || song.Duration == 0)
             && !_metadataFetchAttempted.Contains(song.Id))
         {
@@ -765,7 +766,8 @@ public partial class NowPlayingViewModel : ObservableObject
 
             if (_networkMusic != null)
             {
-                var profile = await GetNetworkProfileAsync(ProtocolType.WebDAV);
+                var profile = await GetNetworkProfileAsync(
+                    song.Source == SongSource.SMB ? ProtocolType.SMB : ProtocolType.WebDAV);
                 if (profile != null)
                 {
                     try
@@ -819,13 +821,17 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         if (protocol == ProtocolType.Navidrome && _cachedNavidromeProfile != null) return _cachedNavidromeProfile;
         if (protocol == ProtocolType.WebDAV && _cachedWebDavProfile != null) return _cachedWebDavProfile;
+        if (protocol == ProtocolType.SMB && _cachedSmbProfile != null) return _cachedSmbProfile;
         if (_networkMusic == null) return null;
         try
         {
             var profiles = await _networkMusic.GetProfilesAsync();
             _cachedNavidromeProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled);
             _cachedWebDavProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.WebDAV && p.IsEnabled);
-            return protocol == ProtocolType.Navidrome ? _cachedNavidromeProfile : _cachedWebDavProfile;
+            _cachedSmbProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.SMB && p.IsEnabled);
+            return protocol == ProtocolType.Navidrome ? _cachedNavidromeProfile
+                : protocol == ProtocolType.SMB ? _cachedSmbProfile
+                : _cachedWebDavProfile;
         }
         catch { return null; }
     }
@@ -840,7 +846,8 @@ public partial class NowPlayingViewModel : ObservableObject
         if (_networkMusic == null) return null;
         var coverId = song.CoverArtPath ?? song.RemoteId;
         if (string.IsNullOrEmpty(coverId)) return null;
-        var protocol = IsNavidromeSong(song) ? ProtocolType.Navidrome : ProtocolType.WebDAV;
+        var protocol = IsNavidromeSong(song) ? ProtocolType.Navidrome
+            : song.Source == SongSource.SMB ? ProtocolType.SMB : ProtocolType.WebDAV;
         var profile = await GetNetworkProfileAsync(protocol);
         if (profile == null) return null;
         try { return await _networkMusic.GetCoverAsync(coverId, profile); }
@@ -873,7 +880,8 @@ public partial class NowPlayingViewModel : ObservableObject
         }
 
         var isNavidrome = IsNavidromeSong(song);
-        var protocol = isNavidrome ? ProtocolType.Navidrome : ProtocolType.WebDAV;
+        var protocol = isNavidrome ? ProtocolType.Navidrome
+            : song.Source == SongSource.SMB ? ProtocolType.SMB : ProtocolType.WebDAV;
         var profile = await GetNetworkProfileAsync(protocol);
         if (profile == null) return null;
 

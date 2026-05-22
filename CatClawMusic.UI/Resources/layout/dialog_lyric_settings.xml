@@ -6,17 +6,15 @@
     android:background="@drawable/bg_rounded_white"
     android:padding="20dp">
 
-    <!-- 标题 -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="歌词设置"
         android:textSize="18sp"
-        android:textColor="#333333"
+        android:textColor="?attr/catClawTextPrimary"
         android:textStyle="bold"
         android:layout_marginBottom="16dp" />
 
-    <!-- 拖拽调整进度 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -29,21 +27,19 @@
             android:layout_weight="1"
             android:text="允许拖拽歌词调整进度"
             android:textSize="15sp"
-            android:textColor="#333333" />
+            android:textColor="?attr/catClawTextPrimary" />
         <CheckBox
             android:id="@+id/cb_drag_seek"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
     </LinearLayout>
 
-    <!-- 分割线 -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E0E0E0"
+        android:background="?attr/catClawCardBorderDark"
         android:layout_marginVertical="8dp" />
 
-    <!-- 歌词字体大小 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -60,14 +56,14 @@
                 android:layout_weight="1"
                 android:text="歌词字体大小"
                 android:textSize="15sp"
-                android:textColor="#333333" />
+                android:textColor="?attr/catClawTextPrimary" />
             <TextView
                 android:id="@+id/tv_font_size_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="16sp"
                 android:textSize="14sp"
-                android:textColor="#666666"
+                android:textColor="?attr/catClawTextSecondary"
                 android:layout_marginEnd="8dp" />
         </LinearLayout>
         <SeekBar
@@ -80,14 +76,12 @@
             android:progress="16" />
     </LinearLayout>
 
-    <!-- 分割线 -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E0E0E0"
+        android:background="?attr/catClawCardBorderDark"
         android:layout_marginVertical="8dp" />
 
-    <!-- 歌词对齐方式 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -98,7 +92,7 @@
             android:layout_height="wrap_content"
             android:text="歌词对齐方式"
             android:textSize="15sp"
-            android:textColor="#333333"
+            android:textColor="?attr/catClawTextPrimary"
             android:layout_marginBottom="12dp" />
         <RadioGroup
             android:id="@+id/rg_alignment"
@@ -130,7 +124,6 @@
         </RadioGroup>
     </LinearLayout>
 
-    <!-- 关闭按钮 -->
     <Button
         android:id="@+id/btn_close"
         android:layout_width="match_parent"

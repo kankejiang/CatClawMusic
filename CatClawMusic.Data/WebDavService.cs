@@ -8,24 +8,11 @@ using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Data;
 
-/// <summary>
-/// WebDAV 网络文件服务实现（基于 HttpClient + PROPFIND 协议）
-/// </summary>
 public class WebDavService : INetworkFileService, IDisposable
 {
-    /// <summary>
-    /// HTTP 客户端实例
-    /// </summary>
     private HttpClient? _client;
-
-    /// <summary>
-    /// 当前连接配置
-    /// </summary>
     private ConnectionProfile? _profile;
 
-    /// <summary>
-    /// 获取已配置的 HTTP 客户端，未配置时抛出异常
-    /// </summary>
     private HttpClient GetClient()
     {
         if (_client == null || _profile == null)
@@ -33,9 +20,6 @@ public class WebDavService : INetworkFileService, IDisposable
         return _client;
     }
 
-    /// <summary>
-    /// 确保 HTTP 客户端已按指定配置初始化，复用已有连接
-    /// </summary>
     private void EnsureClient(ConnectionProfile profile, bool forceNew = false)
     {
         if (!forceNew && _client != null && _profile?.Host == profile.Host
@@ -47,15 +31,14 @@ public class WebDavService : INetworkFileService, IDisposable
 
         _client?.Dispose();
 
-        // 使用 SocketsHttpHandler 而不是 HttpClientHandler
-        // 这样可以避免 Android 网络栈对 HTTP 方法的限制
         var handler = new SocketsHttpHandler
         {
             SslOptions = new SslClientAuthenticationOptions
             {
                 RemoteCertificateValidationCallback = (_, _, _, _) => true
             },
-            ConnectTimeout = TimeSpan.FromSeconds(30)
+            ConnectTimeout = TimeSpan.FromSeconds(30),
+            AllowAutoRedirect = false
         };
         _client = new HttpClient(handler)
         {
@@ -72,159 +55,216 @@ public class WebDavService : INetworkFileService, IDisposable
         _profile = profile;
     }
 
-    /// <summary>
-    /// 根据路径构建完整的请求 URL
-    /// </summary>
-    private string BuildUrl(string path)
+    private string BuildUrl(string path, bool isDirectory = false)
     {
         var profile = _profile ?? throw new InvalidOperationException("未配置连接");
+        return BuildUrlForProfile(profile, path, isDirectory);
+    }
+
+    private static string BuildUrlForProfile(ConnectionProfile profile, string path, bool isDirectory = false)
+    {
         var scheme = profile.UseHttps ? "https" : "http";
         var host = profile.Host.TrimEnd('/');
+        if (host.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            host = host[7..];
+        else if (host.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            host = host[8..];
+        var colonIdx = host.LastIndexOf(':');
+        if (colonIdx > 0 && int.TryParse(host[(colonIdx + 1)..], out _))
+            host = host[..colonIdx];
         var port = profile.Port;
-        var normalizedPath = (path ?? "/").TrimStart('/');
+
+        var normalizedPath = NormalizeHrefToPath(path).TrimStart('/');
         if (string.IsNullOrEmpty(normalizedPath)) normalizedPath = "";
 
         var baseUrl = port == 80 || port == 443
             ? $"{scheme}://{host}"
             : $"{scheme}://{host}:{port}";
 
-        return $"{baseUrl}/{normalizedPath}".TrimEnd('/');
+        var url = $"{baseUrl}/{normalizedPath}";
+        if (isDirectory && !url.EndsWith("/"))
+            url += "/";
+        else if (!isDirectory)
+            url = url.TrimEnd('/');
+
+        return url;
     }
 
-    /// <summary>
-    /// 检测服务器是否支持 WebDAV（通过 OPTIONS 请求）
-    /// </summary>
-    private async Task<(bool Supported, string AllowMethods, string Error)> CheckWebDavSupportAsync(string url)
+    private static string NormalizeHrefToPath(string href)
     {
-        try
+        if (string.IsNullOrEmpty(href)) return "/";
+        if (href.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            href.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            var request = new HttpRequestMessage(HttpMethod.Options, url);
-            var response = await GetClient().SendAsync(request);
-
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                return (false, "", $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
+                return new Uri(href).AbsolutePath;
             }
-
-            var allowHeader = "";
-            if (response.Headers.TryGetValues("Allow", out var values))
-                allowHeader = string.Join(", ", values);
-
-            var supportsWebDav = allowHeader.Contains("PROPFIND", StringComparison.OrdinalIgnoreCase) ||
-                                 allowHeader.Contains("MKCOL", StringComparison.OrdinalIgnoreCase) ||
-                                 allowHeader.Contains("COPY", StringComparison.OrdinalIgnoreCase);
-
-            return (supportsWebDav, allowHeader, "");
+            catch { }
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] OPTIONS 请求失败: {ex.Message}");
-            return (false, "", ex.Message);
-        }
+        return href;
     }
 
-    /// <summary>
-    /// 发送 WebDAV PROPFIND 请求
-    /// </summary>
-    private async Task<XDocument?> PropFindAsync(string url, int depth = 1)
+    private static HttpClient CreateTestClient(ConnectionProfile profile)
     {
-        var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), url);
-        request.Headers.Add("Depth", depth.ToString());
+        var handler = new SocketsHttpHandler
+        {
+            SslOptions = new SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = (_, _, _, _) => true
+            },
+            ConnectTimeout = TimeSpan.FromSeconds(30),
+            AllowAutoRedirect = false
+        };
+        var client = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
 
-        // PROPFIND body - request all basic properties
-        var body = @"<?xml version='1.0' encoding='utf-8'?>
+        if (!string.IsNullOrEmpty(profile.UserName))
+        {
+            var byteArray = Encoding.ASCII.GetBytes($"{profile.UserName}:{profile.Password}");
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
+        }
+
+        return client;
+    }
+
+    private const string PropFindBody = @"<?xml version='1.0' encoding='utf-8'?>
 <D:propfind xmlns:D='DAV:'>
   <D:allprop/>
 </D:propfind>";
-        request.Content = new StringContent(body, Encoding.UTF8, "application/xml");
 
-        var response = await GetClient().SendAsync(request);
-
-        response.EnsureSuccessStatusCode();
-
-        var content = await response.Content.ReadAsStringAsync();
-        return XDocument.Parse(content);
+    private async Task<XDocument?> PropFindAsync(string url, int depth = 1)
+    {
+        return await PropFindWithRedirectAsync(GetClient(), url, depth);
     }
 
-    /// <summary>
-    /// 测试 WebDAV 服务器连接
-    /// </summary>
+    private static async Task<XDocument?> PropFindWithRedirectAsync(HttpClient client, string url, int depth = 1, int maxRedirects = 3)
+    {
+        var currentUrl = url;
+        for (var i = 0; i <= maxRedirects; i++)
+        {
+            var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), currentUrl);
+            request.Headers.Add("Depth", depth.ToString());
+            request.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
+
+            var response = await client.SendAsync(request);
+            var statusCode = response.StatusCode;
+
+            if ((int)statusCode == 301 || (int)statusCode == 302 || (int)statusCode == 307 || (int)statusCode == 308)
+            {
+                var location = response.Headers.Location;
+                if (location == null)
+                    throw new HttpRequestException($"服务器返回重定向 {(int)statusCode} 但缺少 Location 头");
+
+                currentUrl = location.IsAbsoluteUri
+                    ? location.ToString()
+                    : new Uri(new Uri(currentUrl), location).ToString();
+
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 重定向: {statusCode} -> {currentUrl}");
+                continue;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            return XDocument.Parse(content);
+        }
+
+        throw new HttpRequestException("重定向次数过多");
+    }
+
     public async Task<(bool Success, string Message)> TestConnectionAsync(ConnectionProfile profile)
     {
+        var hostInfo = $"{profile.Host}:{profile.Port}";
+        if (profile.UseHttps) hostInfo = "https://" + hostInfo;
+
         try
         {
             EnsureClient(profile, forceNew: true);
             var basePath = profile.BasePath?.Trim() ?? "/";
             if (string.IsNullOrEmpty(basePath)) basePath = "/";
 
+            var basePathUrl = BuildUrlForProfile(profile, basePath, isDirectory: true);
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试连接: {basePathUrl}");
+
             try
             {
-                var basePathUrl = BuildUrl(basePath);
                 await PropFindAsync(basePathUrl, 1);
-                return (true, "连接成功");
+                return (true, $"连接成功 → {hostInfo}");
             }
             catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
             {
-                return (false, "认证失败，请检查账号和密码");
+                return (false, $"认证失败：{hostInfo}，请检查账号和密码");
             }
-            catch (HttpRequestException) { }
-
-            if (basePath != "/")
+            catch (HttpRequestException ex)
             {
-                try
-                {
-                    var rootUrl = BuildUrl("/");
-                    await PropFindAsync(rootUrl, 1);
-                    return (false, $"服务器连接成功，但路径 {basePath} 不可访问。请确认路径前缀");
-                }
-                catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
-                {
-                    return (false, "认证失败，请检查账号和密码");
-                }
-                catch { }
-            }
+                var innerMsg = ex.InnerException?.Message ?? ex.Message;
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 失败 basePath: {ex.StatusCode} - {ex.Message}");
 
-            return (false, "无法连接到 WebDAV 服务器，请检查地址和端口");
+                if (basePath != "/")
+                {
+                    try
+                    {
+                        var rootUrl = BuildUrlForProfile(profile, "/", isDirectory: true);
+                        System.Diagnostics.Debug.WriteLine($"[WebDAV] 尝试根 {rootUrl}");
+                        await PropFindAsync(rootUrl, 1);
+                        return (false, $"{hostInfo} 连接成功，但路径 {basePath} 不可访问。\nURL: {basePathUrl}");
+                    }
+                    catch (HttpRequestException ex2) when ((int?)ex2.StatusCode == 401 || (int?)ex2.StatusCode == 403)
+                    {
+                        return (false, $"认证失败：{hostInfo}，请检查账号和密码");
+                    }
+                    catch (Exception ex2)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[WebDAV] 根路径也失败: {ex2.Message}");
+                    }
+                }
+
+                if (innerMsg.Contains("PROPFIND") && innerMsg.Contains("Expected"))
+                    innerMsg = "服务器不支持 WebDAV，请确认已启用 WebDAV 服务";
+                else if (innerMsg.Contains("SSL") || innerMsg.Contains("certificate") || innerMsg.Contains("TLS"))
+                    innerMsg = $"SSL/TLS 连接失败：{innerMsg}";
+                else if (innerMsg.Contains("timed out") || innerMsg.Contains("timeout"))
+                    innerMsg = "连接超时，请检查服务器地址和端口";
+                else if (innerMsg.Contains("refused"))
+                    innerMsg = $"连接被拒绝：{hostInfo}，请检查地址和端口";
+                else if (innerMsg.Contains("Name or service not known") || innerMsg.Contains("No such host"))
+                    innerMsg = $"无法解析主机名：{hostInfo}，请检查地址";
+
+                return (false, $"{hostInfo}\nURL: {basePathUrl}\n{innerMsg}");
+            }
         }
         catch (HttpRequestException ex)
         {
-            var statusCode = ex.StatusCode.HasValue ? $"{(int)ex.StatusCode} {ex.StatusCode}" : "未知";
-            var errorMsg = ex.Message;
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] HTTP 错误: {statusCode} - {errorMsg}");
-
-            if (errorMsg.Contains("PROPFIND") && errorMsg.Contains("Expected"))
-                errorMsg = "服务器不支持 WebDAV。请确认已在 NAS 设置中启用 WebDAV 服务。";
-            else if ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
-                errorMsg = "认证失败，请检查账号和密码";
-            else if ((int?)ex.StatusCode == 404)
-                errorMsg = "路径不存在，请确认路径前缀（如 /webdav/ 或 /dav/）";
-
-            return (false, $"{errorMsg}");
+            var msg = ex.Message;
+            if ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403) msg = "认证失败，请检查账号和密码";
+            else if ((int?)ex.StatusCode == 404) msg = $"路径不存在 → {hostInfo}";
+            return (false, msg);
         }
         catch (TaskCanceledException)
         {
-            return (false, "连接超时，请检查服务器地址和端口");
+            return (false, $"连接超时：{hostInfo}，请检查地址和端口");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] 连接异常: {ex}");
-            return (false, $"连接失败: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试异常: {ex}");
+            return (false, $"{hostInfo}: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// 列出指定路径下的文件和目录
-    /// </summary>
     public async Task<List<RemoteFile>> ListFilesAsync(string path)
     {
         try
         {
-            var url = BuildUrl(path);
+            var url = BuildUrl(path, isDirectory: true);
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListFiles: {url}");
             var doc = await PropFindAsync(url, 1);
             var ns = XNamespace.Get("DAV:");
             var files = new List<RemoteFile>();
 
-            // 提取 URL 的路径部分用于 self-skip 比较
             var selfPath = new Uri(url).AbsolutePath.TrimEnd('/');
             if (string.IsNullOrEmpty(selfPath)) selfPath = "/";
 
@@ -232,15 +272,15 @@ public class WebDavService : INetworkFileService, IDisposable
             {
                 var href = resp.Element(ns + "href")?.Value ?? "";
 
-                // 跳过自身（兼容相对路径和绝对路径）
                 try
                 {
-                    var hrefPath = (href.StartsWith("http://") || href.StartsWith("https://"))
+                    var hrefPath = (href.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                    href.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                         ? new Uri(href).AbsolutePath.TrimEnd('/')
                         : href.TrimEnd('/');
                     if (hrefPath == selfPath) continue;
                 }
-                catch { /* href 解析失败，跳过 self-skip */ }
+                catch { }
 
                 var propstat = resp.Element(ns + "propstat");
                 var prop = propstat?.Element(ns + "prop");
@@ -253,14 +293,16 @@ public class WebDavService : INetworkFileService, IDisposable
 
                 bool isDir = resType?.Element(ns + "collection") != null;
 
-                // 从 href 提取文件名（需要 URL 解码，因为 href 中的中文是编码后的）
                 var rawName = href.Split('/').LastOrDefault(s => !string.IsNullOrEmpty(s)) ?? href;
-                var name = !string.IsNullOrEmpty(displayName) ? displayName : Uri.UnescapeDataString(rawName);
+                var displayFromHref = Uri.UnescapeDataString(rawName);
+                var name = !string.IsNullOrEmpty(displayName) ? displayName : displayFromHref;
+
+                var normalizedPath = NormalizeHrefToPath(href);
 
                 files.Add(new RemoteFile
                 {
                     Name = name,
-                    Path = href,
+                    Path = normalizedPath,
                     IsDirectory = isDir,
                     Size = long.TryParse(contentLength, out var sz) ? sz : 0,
                     LastModified = DateTimeOffset.TryParse(lastModified, out var dt)
@@ -268,6 +310,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 });
             }
 
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListFiles 结果: {files.Count} 个条目 ({path})");
             return files;
         }
         catch (Exception ex)
@@ -277,17 +320,11 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
-    /// <summary>
-    /// 使用指定配置初始化 WebDAV 连接
-    /// </summary>
     public void Configure(ConnectionProfile profile)
     {
         EnsureClient(profile);
     }
 
-    /// <summary>
-    /// 以流的方式打开远程文件读取
-    /// </summary>
     public async Task<Stream> OpenReadAsync(string filePath)
     {
         try
@@ -304,9 +341,6 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
-    /// <summary>
-    /// 按字节范围读取远程文件的指定片段
-    /// </summary>
     public async Task<byte[]> OpenReadRangeAsync(string filePath, long offset, long length)
     {
         try
@@ -325,9 +359,6 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
-    /// <summary>
-    /// 获取远程文件的元数据信息
-    /// </summary>
     public async Task<RemoteFile?> GetFileInfoAsync(string filePath)
     {
         try
@@ -364,9 +395,6 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
-    /// <summary>
-    /// 上传文件到远程路径
-    /// </summary>
     public async Task<(bool Success, string Message)> UploadFileAsync(string remotePath, byte[] content, string? contentType = null)
     {
         try
@@ -397,9 +425,6 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
-    /// <summary>
-    /// 释放 HTTP 客户端资源
-    /// </summary>
     public void Dispose()
     {
         _client?.Dispose();

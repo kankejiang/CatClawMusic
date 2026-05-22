@@ -1,11 +1,11 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <!-- 主内容 -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+    <LinearLayout android:id="@+id/main_layout" android:layout_width="match_parent" android:layout_height="match_parent"
         android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
         <!-- 顶部工具栏 -->
@@ -67,7 +67,7 @@
             android:clickable="true"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
             app:strokeWidth="0dp"
-            app:cardBackgroundColor="#F8F4FC">
+            app:cardBackgroundColor="?attr/catClawCardBackgroundSolid">
             <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
                 android:orientation="horizontal" android:gravity="center_vertical"
                 android:paddingHorizontal="12dp">

@@ -22,6 +22,7 @@ public class SearchFragment : Fragment
     private RecyclerView _resultsList = null!;
     private TextView _statusText = null!;
     private SongAdapter _adapter = null!;
+    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
 
     /// <summary>
     /// 创建探索视图
@@ -56,6 +57,14 @@ public class SearchFragment : Fragment
         _searchInput.TextChanged += (s, e) => _ = _viewModel.SearchAsync(e?.Text?.ToString() ?? "");
 
         BindingHelper.BindText(_statusText, _viewModel, nameof(_viewModel.ResultCount), _ => _viewModel.ResultCount);
-        _viewModel.SearchResults.CollectionChanged += (s, e) => { var a = Activity; if (a != null) a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.SearchResults)); };
+        _collectionChangedHandler = (s, e) => { var a = Activity; if (a != null) a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.SearchResults)); };
+        _viewModel.SearchResults.CollectionChanged += _collectionChangedHandler;
+    }
+
+    public override void OnDestroyView()
+    {
+        if (_collectionChangedHandler != null)
+            _viewModel.SearchResults.CollectionChanged -= _collectionChangedHandler;
+        base.OnDestroyView();
     }
 }

@@ -373,6 +373,28 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         return tcs.Task;
     }
 
+    private static bool _trustAllSslConfigured;
+
+    /// <summary>配置全局 HTTPS 信任所有证书（用于自签名 NAS 服务器）</summary>
+    private static void ConfigureTrustAllSsl()
+    {
+        if (_trustAllSslConfigured) return;
+        _trustAllSslConfigured = true;
+        try
+        {
+            var trustAll = new TrustAllManager();
+            var sslContext = Javax.Net.Ssl.SSLContext.GetInstance("TLSv1.2");
+            sslContext!.Init(null, new Javax.Net.Ssl.ITrustManager[] { trustAll }, new Java.Security.SecureRandom());
+            Javax.Net.Ssl.HttpsURLConnection.DefaultSSLSocketFactory = sslContext.SocketFactory;
+            // 同时信任所有主机名
+            Javax.Net.Ssl.HttpsURLConnection.DefaultHostnameVerifier = new TrustAllHostnameVerifier();
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"SSL trust-all failed: {ex.Message}");
+        }
+    }
+
     /// <summary>确保 ExoPlayer 实例已创建，支持 Basic Auth 认证头</summary>
     private void EnsurePlayer(string? authHeader = null)
     {
@@ -391,6 +413,9 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
         var httpFactory = new AndroidX.Media3.DataSource.DefaultHttpDataSource.Factory()
             .SetAllowCrossProtocolRedirects(true);
+
+        // HTTPS 自签名证书信任 —— 设置全局 HttpsURLConnection 的 SSLSocketFactory
+        ConfigureTrustAllSsl();
 
         if (!string.IsNullOrEmpty(authHeader))
         {
@@ -689,4 +714,18 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
     public void AddTransferListener(AndroidX.Media3.DataSource.ITransferListener? transferListener)
     {
     }
+}
+
+/// <summary>信任所有服务器证书的 TrustManager，用于自签名 HTTPS 连接</summary>
+internal class TrustAllManager : Java.Lang.Object, Javax.Net.Ssl.IX509TrustManager
+{
+    public void CheckClientTrusted(Java.Security.Cert.X509Certificate[]? chain, string? authType) { }
+    public void CheckServerTrusted(Java.Security.Cert.X509Certificate[]? chain, string? authType) { }
+    public Java.Security.Cert.X509Certificate[] GetAcceptedIssuers() => Array.Empty<Java.Security.Cert.X509Certificate>();
+}
+
+/// <summary>信任所有主机名的 HostnameVerifier</summary>
+internal class TrustAllHostnameVerifier : Java.Lang.Object, Javax.Net.Ssl.IHostnameVerifier
+{
+    public bool Verify(string? hostname, Javax.Net.Ssl.ISSLSession? session) => true;
 }
