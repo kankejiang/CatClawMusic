@@ -29,8 +29,13 @@ public class RemoteMusicFragment : SettingsSubPageFragment
     private TextView? _tvWebdavStatus;
     private SwitchCompat? _swWebdav;
 
+    private View? _dotSmb;
+    private TextView? _tvSmbStatus;
+    private SwitchCompat? _swSmb;
+
     private ConnectionProfile? _navidromeProfile;
     private ConnectionProfile? _webdavProfile;
+    private ConnectionProfile? _smbProfile;
     private bool _isLoading; // 防止开关回调在加载数据时触发
 
     protected override string GetTitle() => "远程音乐服务";
@@ -72,6 +77,18 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         if (_swWebdav != null)
             _swWebdav.CheckedChange += OnWebdavSwitchChanged;
 
+        // SMB
+        _dotSmb = view.FindViewById<View>(Resource.Id.dot_smb);
+        _tvSmbStatus = view.FindViewById<TextView>(Resource.Id.tv_smb_status);
+        _swSmb = view.FindViewById<SwitchCompat>(Resource.Id.sw_smb);
+
+        var cardSmb = view.FindViewById<View>(Resource.Id.card_smb);
+        if (cardSmb != null)
+            cardSmb.SetOnClickListener(new ClickListener(() => nav.PushFragment("SmbSettings")));
+
+        if (_swSmb != null)
+            _swSmb.CheckedChange += OnSmbSwitchChanged;
+
         // 加载已保存的连接配置
         _ = LoadProfilesAsync();
     }
@@ -90,6 +107,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
 
             _navidromeProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome);
             _webdavProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.WebDAV);
+            _smbProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.SMB);
 
             Activity?.RunOnUiThread(() =>
             {
@@ -144,6 +162,32 @@ public class RemoteMusicFragment : SettingsSubPageFragment
                     _tvWebdavStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
                     if (_swWebdav != null) _swWebdav.Checked = false;
                 }
+
+                // SMB
+                if (_smbProfile != null && !string.IsNullOrWhiteSpace(_smbProfile.Host))
+                {
+                    var addr = $"{_smbProfile.Host}:{_smbProfile.Port}";
+                    if (_smbProfile.IsEnabled)
+                    {
+                        SetDotColor(_dotSmb, ColorConnected);
+                        _tvSmbStatus?.SetText($"✅ {_smbProfile.Name} | {addr}", TextView.BufferType.Normal);
+                        _tvSmbStatus?.SetTextColor(Color.ParseColor("#2D7A50"));
+                    }
+                    else
+                    {
+                        SetDotColor(_dotSmb, ColorDisconnected);
+                        _tvSmbStatus?.SetText($"{_smbProfile.Name} | {addr}", TextView.BufferType.Normal);
+                        _tvSmbStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                    }
+                    if (_swSmb != null) _swSmb.Checked = _smbProfile.IsEnabled;
+                }
+                else
+                {
+                    SetDotColor(_dotSmb, ColorDisconnected);
+                    _tvSmbStatus?.SetText("未配置", TextView.BufferType.Normal);
+                    _tvSmbStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                    if (_swSmb != null) _swSmb.Checked = false;
+                }
             });
         }
         catch { }
@@ -169,6 +213,14 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         if (_isLoading || _webdavProfile == null) return;
         _webdavProfile.IsEnabled = e.IsChecked;
         await SaveProfileAsync(_webdavProfile);
+        await LoadProfilesAsync();
+    }
+
+    private async void OnSmbSwitchChanged(object? sender, CompoundButton.CheckedChangeEventArgs e)
+    {
+        if (_isLoading || _smbProfile == null) return;
+        _smbProfile.IsEnabled = e.IsChecked;
+        await SaveProfileAsync(_smbProfile);
         await LoadProfilesAsync();
     }
 

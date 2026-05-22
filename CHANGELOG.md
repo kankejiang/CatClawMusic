@@ -1,5 +1,71 @@
 # 更新日志 (CHANGELOG)
 
+## [1.0.10] - 2026-05-22
+
+### 🎨 弹窗系统重构
+
+- **GlassDialog 统一弹窗类**：创建 `Helpers/GlassDialog.cs`，所有弹窗统一使用毛玻璃圆角卡片样式
+- **毛玻璃模糊力度加强**：`SetBackgroundBlurRadius` 从 80→300，模糊效果显著增强（Android 12+）
+- **Android 12 以下模糊后备**：新增 `ApplyPreSBlur()` 方法，使用 RenderScript `ScriptIntrinsicBlur` 对 DecorView 截图高斯模糊（15px 模糊半径）
+- **背景不透明度提升**：卡片背景从 `#33000000`（20%黑）→ `#CC000000`（80%黑），文字对比度大幅提升
+- **背景变暗加强**：`SetDimAmount` 从 0.4→0.55，突出弹窗层次感
+- **点击外部关闭**：`SetCanceledOnTouchOutside(true)`，轻触弹窗外区域自动关闭
+- **主题色集成**：弹窗按钮、CheckBox、Switch 高亮色均使用当前主题 `ColorPrimary`
+
+### 🎵 歌词系统优化
+
+#### 全屏歌词页 (FullLyricsFragment)
+- **高亮只保留当前行**：已唱过和未唱的行统一显示 `#38FFFFFF`（22% 白色），只有当前行纯白高亮 + 放大 4sp
+- **歌词字体加粗**：所有歌词行 `SetTypeface(null, TypefaceStyle.Bold)`
+- **Span 残留修复**：`HighlightCurrentLine` 中先用 `SetText(plain, BufferType.Normal)` 清除 ForegroundColorSpan，再设置颜色，解决行切换后逐字高亮残留
+- **逐字歌词行尾优化**：接近行尾 <200ms 时将当前行所有词完整高亮，避免最后一个词没亮就切行
+
+#### 播放页歌词 (NowPlayingFragment)
+- **已唱行淡化**：`_lyricPrev` Alpha 1.0→0.45，`_lyricPrev2` Alpha 0.6→0.35，播放过的行明显变暗，消除高亮残留感
+- **播放位置更新频率**：位置定时器从 200ms→100ms，逐字高亮更实时
+
+### ⏱️ 睡眠定时修复
+
+- **「播完整首歌再停止」修复**：原方案监听 `PlaybackState.Stopped` 事件与 `NowPlayingViewModel.Next()` 冲突导致继续播下一首
+  - 新方案：在 `NowPlayingViewModel` 新增 `StopAfterCurrentSong` 标志位
+  - `OnPlaybackStateChanged` 收到 `Stopped` 时先检查该标志，若为 true 则暂停而非播下一首
+  - `ExecuteSleepStop` 简化为设置标志位，移除事件监听
+
+### 📋 音乐库持久化
+
+- **重启自动加载**：`LibraryFragment.OnViewCreated` 末尾新增自动加载逻辑——若当前 Tab 歌曲列表为空，自动调用 `LoadLocalAsync`/`LoadNetworkAsync`
+- **权限过期保护**：文件夹权限过期时先加载数据库缓存数据显示，再提示权限过期（而非直接清空）
+- **首次启动自动扫描**：有文件夹 URI 但数据库无缓存时，自动触发 `BackgroundScanAsync` 扫描（而非显示"下拉刷新"提示）
+
+### 🔌 插件管理
+
+- **插件卡片布局重构**：`item_plugin_card.xml` 改为上下分层布局
+  - 上层：图标 + 插件名/版本/来源标签 + 描述
+  - 下层：右对齐「启用」Switch + 卸载按钮
+- **卡片高度大幅压缩**：padding 16→8dp，字号整体缩小（图标 24→18sp，名称 15→13sp，描述 12→11sp），高度缩减约 40~50%
+- **GitHub 安装 .ccp 格式支持**：错误提示统一更新为「.dll 或 .ccp」
+
+### ✨ CheckBox/RadioButton 主题色
+
+- 所有弹窗中 CheckBox 和 RadioButton 勾选颜色从系统默认（部分设备红色）改为应用当前主题色 `ButtonTintList`
+- 涉及：`FullLyricsFragment`（歌词设置）、`CatClawTagMenuContributor`（标签匹配）
+
+### 🔧 Bug 修复汇总
+
+| 问题 | 修复方案 |
+|------|---------|
+| 睡眠定时「播完整首歌再停止」播完继续下一首 | 新增 `StopAfterCurrentSong` 标志位 |
+| 全屏歌词行切换后 Span 残留不刷新 | `SetText(plain, Normal)` 清除 Span |
+| 逐字歌词最后一两个字未高亮就切行 | 行尾 200ms 内完整高亮 |
+| 播放页已唱行高亮残留 | prev 行 Alpha 降至 0.45/0.35 |
+| 弹窗太通透看不清文字 | 背景 `#33`→`#CC`，DimAmount 0.4→0.55 |
+
+### 📦 构建优化
+
+- 清理 `_sleepStateHandler` 残留引用，消除编译警告
+
+---
+
 ## [1.0.9] - 2026-05-21
 
 ### ⏱️ 睡眠定时（全新功能）

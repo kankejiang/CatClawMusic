@@ -562,6 +562,28 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
             catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }
             catch (System.IO.IOException ex) { throw new Java.IO.IOException(ex.Message); }
         }
+        else if (scheme == "smb")
+        {
+            _contentUri = dataSpec!.Uri;
+            try
+            {
+                _contentStream = OpenSmbStream(dataSpec.Uri!);
+                _contentLength = _contentStream.Length > 0 ? _contentStream.Length : -1;
+                _contentPosition = 0;
+
+                if (dataSpec.Position > 0 && _contentStream.CanSeek)
+                {
+                    _contentStream.Seek((long)dataSpec.Position, System.IO.SeekOrigin.Begin);
+                    _contentPosition = (long)dataSpec.Position;
+                }
+
+                return _contentLength >= 0 ? _contentLength : -1;
+            }
+            catch (Java.IO.InterruptedIOException) { return -1; }
+            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }
+            catch (System.IO.IOException ex) { throw new Java.IO.IOException(ex.Message); }
+            catch (Exception ex) { throw new Java.IO.IOException(ex.Message); }
+        }
         else
         {
             _current = _httpFactory.CreateDataSource();
@@ -578,6 +600,45 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         {
             return -1;
         }
+    }
+
+    private System.IO.Stream OpenSmbStream(global::Android.Net.Uri uri)
+    {
+        var smbService = MainApplication.Services.GetService(typeof(CatClawMusic.Data.SmbService)) as CatClawMusic.Data.SmbService;
+        if (smbService == null)
+            throw new System.IO.IOException("SMB 服务不可用");
+
+        var host = uri.Host ?? "";
+        var userInfo = uri.UserInfo ?? "";
+        var userName = "";
+        var password = "";
+        if (!string.IsNullOrEmpty(userInfo))
+        {
+            var parts = userInfo.Split(':', 2);
+            userName = System.Uri.UnescapeDataString(parts[0]);
+            if (parts.Length > 1) password = System.Uri.UnescapeDataString(parts[1]);
+        }
+
+        var pathSegments = uri.PathSegments;
+        var shareName = pathSegments.Count > 0 ? pathSegments[0] : "share";
+        var filePath = pathSegments.Count > 1
+            ? "\\" + string.Join("\\", pathSegments.Skip(1))
+            : "\\";
+
+        var profile = new CatClawMusic.Core.Models.ConnectionProfile
+        {
+            Host = host,
+            Port = 445,
+            UserName = userName,
+            Password = password,
+            ShareName = shareName,
+            IsEnabled = true
+        };
+
+        smbService.Configure(profile);
+        var streamTask = smbService.OpenReadAsync(filePath);
+        streamTask.Wait();
+        return streamTask.Result;
     }
 
     public int Read(byte[]? buffer, int offset, int length)

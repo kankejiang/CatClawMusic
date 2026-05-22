@@ -87,10 +87,8 @@ public class Song
 /// </summary>
 public enum SongSource
 {
-    /// <summary>本地文件</summary>
     Local,
-    /// <summary>WebDAV 远程</summary>
     WebDAV,
-    /// <summary>本地缓存</summary>
+    SMB,
     Cache
 }

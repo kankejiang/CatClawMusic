@@ -29,8 +29,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _isTesting;
     [ObservableProperty] private string _statusText = "";
 
-    /// <summary>已选择的音乐文件夹列表（显示名）</summary>
     public ObservableCollection<string> MusicFolders { get; } = new();
+
+    private List<string> _folderUris = new();
 
     /// <summary>
     /// 缓存大小显示文本（如 "1 GB"）
@@ -60,8 +61,8 @@ public partial class SettingsViewModel : ObservableObject
         var prefs = ctx.GetSharedPreferences("catclaw_prefs", global::Android.Content.FileCreationMode.Private)!;
         MusicFolder = prefs.GetString("music_folder", "") ?? "";
 
-        // 加载已有文件夹列表
-        foreach (var uri in FolderPicker.GetSavedFolderUris())
+        _folderUris = FolderPicker.GetSavedFolderUris();
+        foreach (var uri in _folderUris)
             MusicFolders.Add(GetFolderDisplayName(uri));
     }
 
@@ -82,7 +83,6 @@ public partial class SettingsViewModel : ObservableObject
         catch { return uri; }
     }
 
-    /// <summary>添加音乐文件夹</summary>
     [RelayCommand]
     private async Task AddMusicFolder()
     {
@@ -91,20 +91,33 @@ public partial class SettingsViewModel : ObservableObject
         {
             var name = GetFolderDisplayName(uri);
             if (!MusicFolders.Contains(name))
+            {
                 MusicFolders.Add(name);
+                _folderUris.Add(uri);
+            }
             MusicFolder = uri;
             OnPropertyChanged(nameof(MusicFolder));
         }
     }
 
-    /// <summary>清除所有音乐文件夹</summary>
     [RelayCommand]
     private void ClearMusicFolders()
     {
         FolderPicker.ClearFolders();
         MusicFolders.Clear();
+        _folderUris.Clear();
         MusicFolder = "";
         OnPropertyChanged(nameof(MusicFolder));
+    }
+
+    public void RemoveMusicFolder(int index)
+    {
+        if (index < 0 || index >= MusicFolders.Count) return;
+        var uri = index < _folderUris.Count ? _folderUris[index] : "";
+        MusicFolders.RemoveAt(index);
+        if (index < _folderUris.Count) _folderUris.RemoveAt(index);
+        if (!string.IsNullOrEmpty(uri))
+            FolderPicker.RemoveSavedFolder(uri);
     }
 
     /// <summary>

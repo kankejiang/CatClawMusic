@@ -60,6 +60,14 @@ public class ConnectionProfile
     /// <summary>是否使用 HTTPS</summary>
     public bool UseHttps { get; set; }
 
+    // — SMB 专用字段 —
+
+    /// <summary>SMB 域名（可选）</summary>
+    public string DomainName { get; set; } = "";
+
+    /// <summary>SMB 共享名</summary>
+    public string ShareName { get; set; } = "";
+
     // — 便捷方法 —
 
     /// <summary>构建完整 Base URL</summary>

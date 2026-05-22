@@ -105,8 +105,10 @@ public class MusicFolderSettingsFragment : SettingsSubPageFragment
     {
         _folderListContainer.RemoveAllViews();
 
+        var folderIndex = 0;
         foreach (var folder in _viewModel.MusicFolders)
         {
+            var currentIndex = folderIndex;
             var row = new LinearLayout(Context!)
             {
                 Orientation = Android.Widget.Orientation.Horizontal,
@@ -140,11 +142,9 @@ public class MusicFolderSettingsFragment : SettingsSubPageFragment
                 ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent)
             { Gravity = GravityFlags.CenterVertical };
             delBtn.LayoutParameters = btnLp;
-            var capturedFolder = folder;
             delBtn.Click += (s, e) =>
             {
-                _viewModel.MusicFolders.Remove(capturedFolder);
-                FolderPicker.RemoveSavedFolder(capturedFolder);
+                _viewModel.RemoveMusicFolder(currentIndex);
                 RefreshList();
             };
             row.AddView(delBtn);
@@ -154,6 +154,7 @@ public class MusicFolderSettingsFragment : SettingsSubPageFragment
             rowLp.BottomMargin = 8;
             row.LayoutParameters = rowLp;
             _folderListContainer.AddView(row);
+            folderIndex++;
         }
 
         if (_viewModel.MusicFolders.Count == 0)

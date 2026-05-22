@@ -23,15 +23,14 @@ public class NetworkMusicService : INetworkMusicService
     /// WebDAV 文件服务
     /// </summary>
     private readonly INetworkFileService _webDav;
+    private readonly INetworkFileService _smb;
 
-    /// <summary>
-    /// 创建网络音乐服务实例
-    /// </summary>
-    public NetworkMusicService(MusicDatabase db, ISubsonicService subsonic, INetworkFileService webDav)
+    public NetworkMusicService(MusicDatabase db, ISubsonicService subsonic, INetworkFileService webDav, INetworkFileService smb)
     {
         _db = db;
         _subsonic = subsonic;
         _webDav = webDav;
+        _smb = smb;
     }
 
     /// <summary>
@@ -87,6 +86,14 @@ public class NetworkMusicService : INetworkMusicService
                 if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
             }
         }
+        else if (profile.Protocol == ProtocolType.SMB)
+        {
+            allSongs = await ScanSmbAsync(profile, songBatchCallback);
+            foreach (var s in allSongs)
+            {
+                if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
+            }
+        }
 
         try
         {
@@ -136,6 +143,24 @@ public class NetworkMusicService : INetworkMusicService
         catch { return null; }
     }
 
+    private async Task<MemoryStream?> DownloadSmbHeadAsync(string remotePath, ConnectionProfile profile)
+    {
+        _smb.Configure(profile);
+        var head = await _smb.OpenReadRangeAsync(remotePath, 0, TagHeadSize);
+        if (head.Length > 0)
+            return new MemoryStream(head);
+
+        try
+        {
+            using var stream = await _smb.OpenReadAsync(remotePath);
+            var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            return ms;
+        }
+        catch { return null; }
+    }
+
     /// <summary>
     /// 获取歌曲封面图流，按协议类型分发
     /// </summary>
@@ -167,6 +192,27 @@ public class NetworkMusicService : INetworkMusicService
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 封面提取失败: {ex.Message}");
+            }
+        }
+        if (profile.Protocol == ProtocolType.SMB)
+        {
+            try
+            {
+                var ms = await DownloadSmbHeadAsync(songId, profile);
+                if (ms != null)
+                {
+                    try
+                    {
+                        var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
+                        if (coverBytes != null)
+                            return new MemoryStream(coverBytes);
+                    }
+                    finally { ms.Dispose(); }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] SMB 封面提取失败: {ex.Message}");
             }
         }
         return null;
@@ -213,6 +259,40 @@ public class NetworkMusicService : INetworkMusicService
                 System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 歌词提取失败: {ex.Message}");
             }
         }
+        if (profile.Protocol == ProtocolType.SMB)
+        {
+            _smb.Configure(profile);
+            var lastDot = remotePath.LastIndexOf('.');
+            if (lastDot > 0)
+            {
+                var lrcPath = remotePath.Substring(0, lastDot) + ".lrc";
+                try
+                {
+                    using var lrcStream = await _smb.OpenReadAsync(lrcPath);
+                    using var reader = new StreamReader(lrcStream);
+                    var lrcText = await reader.ReadToEndAsync();
+                    if (!string.IsNullOrWhiteSpace(lrcText))
+                        return lrcText;
+                }
+                catch { }
+            }
+            try
+            {
+                var ms = await DownloadSmbHeadAsync(remotePath, profile);
+                if (ms != null)
+                {
+                    try
+                    {
+                        return TagReader.ReadEmbeddedLyricsFromStream(ms, remotePath);
+                    }
+                    finally { ms.Dispose(); }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] SMB 歌词提取失败: {ex.Message}");
+            }
+        }
         return null;
     }
 
@@ -221,7 +301,21 @@ public class NetworkMusicService : INetworkMusicService
     /// </summary>
     public async Task<Song?> FetchSongMetadataAsync(Song song, ConnectionProfile profile)
     {
-        if (profile.Protocol != ProtocolType.WebDAV) return null;
+        if (profile.Protocol == ProtocolType.WebDAV)
+        {
+            var result = await FetchWebDavMetadataAsync(song, profile);
+            if (result != null) return result;
+        }
+        if (profile.Protocol == ProtocolType.SMB)
+        {
+            var result = await FetchSmbMetadataAsync(song, profile);
+            if (result != null) return result;
+        }
+        return null;
+    }
+
+    private async Task<Song?> FetchWebDavMetadataAsync(Song song, ConnectionProfile profile)
+    {
         var remotePath = song.RemoteId ?? song.CoverArtPath;
         if (string.IsNullOrEmpty(remotePath)) return null;
 
@@ -262,6 +356,44 @@ public class NetworkMusicService : INetworkMusicService
         return null;
     }
 
+    private async Task<Song?> FetchSmbMetadataAsync(Song song, ConnectionProfile profile)
+    {
+        var remotePath = song.RemoteId ?? song.CoverArtPath;
+        if (string.IsNullOrEmpty(remotePath)) return null;
+
+        _smb.Configure(profile);
+        try
+        {
+            var ms = await DownloadSmbHeadAsync(remotePath, profile);
+            if (ms != null)
+            {
+                try
+                {
+                    var tagSong = TagReader.ReadFromStream(ms, song.FilePath, remotePath, song.FileSize);
+                    if (tagSong != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(tagSong.Title) && tagSong.Title != song.Title)
+                            song.Title = tagSong.Title;
+                        song.Artist = !string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家" ? tagSong.Artist : song.Artist;
+                        song.Album = !string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑" ? tagSong.Album : song.Album;
+                        song.Duration = tagSong.Duration > 0 ? tagSong.Duration : song.Duration;
+                        song.Bitrate = tagSong.Bitrate > 0 ? tagSong.Bitrate : song.Bitrate;
+                        song.Year = tagSong.Year > 0 ? tagSong.Year : song.Year;
+                        song.TrackNumber = tagSong.TrackNumber > 0 ? tagSong.TrackNumber : song.TrackNumber;
+                        song.Genre = tagSong.Genre;
+                        return song;
+                    }
+                }
+                finally { ms.Dispose(); }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] SMB 元数据获取失败: {ex.Message}");
+        }
+        return null;
+    }
+
     /// <summary>
     /// 获取歌曲流 URL，按协议类型构建对应的播放地址
     /// </summary>
@@ -271,7 +403,19 @@ public class NetworkMusicService : INetworkMusicService
             return Task.FromResult(_subsonic.GetStreamUrl(song.RemoteId ?? song.FilePath, profile));
         if (profile.Protocol == ProtocolType.WebDAV)
             return Task.FromResult(BuildWebDavStreamUrl(song.RemoteId ?? song.FilePath, profile));
+        if (profile.Protocol == ProtocolType.SMB)
+            return Task.FromResult(BuildSmbStreamUrl(song.RemoteId ?? song.FilePath, profile));
         return Task.FromResult(song.FilePath);
+    }
+
+    private static string BuildSmbStreamUrl(string filePath, ConnectionProfile profile)
+    {
+        if (filePath.StartsWith("smb://")) return filePath;
+        var host = profile.Host.Trim();
+        var share = string.IsNullOrEmpty(profile.ShareName) ? "share" : profile.ShareName.Trim();
+        var path = filePath.Replace('\\', '/').TrimStart('/');
+        var auth = string.IsNullOrEmpty(profile.UserName) ? "" : $"{Uri.EscapeDataString(profile.UserName)}:{Uri.EscapeDataString(profile.Password)}@";
+        return $"smb://{auth}{host}/{share}/{path}";
     }
 
     /// <summary>
@@ -421,6 +565,77 @@ public class NetworkMusicService : INetworkMusicService
                     DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                     Source = SongSource.WebDAV,
                     Protocol = ProtocolType.WebDAV,
+                    RemoteId = file.Path,
+                    CoverArtPath = file.Path
+                };
+
+                songs.Add(song);
+                batch.Add(song);
+
+                if (batch.Count >= BatchSize)
+                    await FlushBatchAsync(batch, songBatchCallback);
+            }
+        }
+    }
+
+    private async Task<List<Song>> ScanSmbAsync(ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
+    {
+        var songs = new List<Song>();
+        var basePath = profile.BasePath?.TrimEnd('/', '\\') ?? "\\";
+        if (string.IsNullOrEmpty(basePath) || basePath == "/") basePath = "\\";
+
+        var connResult = await _smb.TestConnectionAsync(profile);
+        if (!connResult.Success) return songs;
+
+        _smb.Configure(profile);
+
+        var batch = new List<Song>();
+        await ScanSmbDirectoryAsync(basePath, profile, songs, batch, songBatchCallback);
+        await FlushBatchAsync(batch, songBatchCallback);
+
+        return songs;
+    }
+
+    private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs, List<Song> batch,
+        Action<List<Song>>? songBatchCallback, int depth = 0)
+    {
+        if (depth > MaxScanDepth) return;
+
+        List<RemoteFile> files;
+        try
+        {
+            files = await _smb.ListFilesAsync(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SMB Scan] 列出 {path} 失败: {ex.Message}");
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            if (file.IsDirectory)
+            {
+                await ScanSmbDirectoryAsync(file.Path, profile, songs, batch, songBatchCallback, depth + 1);
+            }
+            else
+            {
+                var ext = System.IO.Path.GetExtension(file.Name)?.ToUpperInvariant() ?? "";
+                if (!IsAudioExtension(ext)) continue;
+
+                var streamUrl = BuildSmbStreamUrl(file.Path, profile);
+                var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
+                var song = new Song
+                {
+                    Title = title,
+                    Artist = "未知艺术家",
+                    Album = "未知专辑",
+                    FilePath = streamUrl,
+                    Duration = 0,
+                    FileSize = file.Size,
+                    DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    Source = SongSource.SMB,
+                    Protocol = ProtocolType.SMB,
                     RemoteId = file.Path,
                     CoverArtPath = file.Path
                 };

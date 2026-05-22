@@ -46,6 +46,7 @@ public class NavigationService : INavigationService
             "RemoteMusic" => MainApplication.Services.GetRequiredService<RemoteMusicFragment>(),
             "WebDavSettings" => MainApplication.Services.GetRequiredService<WebDavSettingsFragment>(),
             "NavidromeSettings" => MainApplication.Services.GetRequiredService<NavidromeSettingsFragment>(),
+            "SmbSettings" => MainApplication.Services.GetRequiredService<SmbSettingsFragment>(),
             "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),
             "Settings" => MainApplication.Services.GetRequiredService<SettingsFragment>(),
             "GeneralSettings" => MainApplication.Services.GetRequiredService<GeneralSettingsFragment>(),

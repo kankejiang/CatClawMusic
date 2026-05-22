@@ -21,6 +21,8 @@ public partial class LibraryViewModel : ObservableObject
     private readonly IMainThreadDispatcher _dispatcher;
     [ObservableProperty] private string _currentTab = "Local";
 
+    public event EventHandler? ScanCompleted;
+
     public ObservableCollection<CoreModels.Song> Songs { get; } = new();
 
     [ObservableProperty] private bool _isLoading;
@@ -38,9 +40,6 @@ public partial class LibraryViewModel : ObservableObject
     public ObservableCollection<string> ProtocolOptions { get; } = new();
     public List<CoreModels.ProtocolType> ProtocolTypes { get; } = new();
 
-    /// <summary>
-    /// 根据搜索框关键字过滤后的歌曲列表，空关键字时返回全部
-    /// </summary>
     public List<CoreModels.Song> FilteredSongs => string.IsNullOrWhiteSpace(SearchQuery)
         ? Songs.ToList()
         : Songs.Where(s =>
@@ -51,16 +50,17 @@ public partial class LibraryViewModel : ObservableObject
 
     private bool _hasLoadedLocal;
     private bool _suppressCollectionChanged;
-    /// <summary>SharedPreferences 键名，用于持久化音乐库界面状态</summary>
     private const string PrefKey = "library_state";
-    /// <summary>协议选择索引（0=WebDAV, 1=Navidrome）</summary>
     private const string PrefProtocolIndex = "protocol_index";
-    /// <summary>当前标签页（Local / Network）</summary>
     private const string PrefCurrentTab = "current_tab";
 
-    /// <summary>
-    /// 初始化音乐库ViewModel，设置协议选项并恢复上次保存的协议偏好
-    /// </summary>
+    private static readonly Dictionary<CoreModels.ProtocolType, string> ProtocolDisplayNames = new()
+    {
+        { CoreModels.ProtocolType.WebDAV, "WebDAV" },
+        { CoreModels.ProtocolType.Navidrome, "Navidrome" },
+        { CoreModels.ProtocolType.SMB, "SMB" },
+    };
+
     public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null,
         IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null, MusicDatabase? database = null)
     {
@@ -70,21 +70,14 @@ public partial class LibraryViewModel : ObservableObject
         _database = database;
         _dispatcher = dispatcher!;
 
-        ProtocolOptions.Add("WebDAV");
-        ProtocolTypes.Add(CoreModels.ProtocolType.WebDAV);
-        ProtocolOptions.Add("Navidrome");
-        ProtocolTypes.Add(CoreModels.ProtocolType.Navidrome);
-
-        // 从 SharedPreferences 恢复上次选择的协议，避免每次启动重置为 WebDAV
 #if ANDROID
         try
         {
             var ctx = global::Android.App.Application.Context;
             var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
             _selectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
-            if (_selectedProtocolIndex >= ProtocolTypes.Count) _selectedProtocolIndex = 0;
             var savedTab = prefs.GetString(PrefCurrentTab, "Local");
-        if (savedTab == "Network")
+            if (savedTab == "Network")
             {
                 _currentTab = "Network";
                 _localTabColor = "#C0B8CA";
@@ -93,6 +86,38 @@ public partial class LibraryViewModel : ObservableObject
         }
         catch { }
 #endif
+    }
+
+    public async Task RefreshProtocolOptionsAsync()
+    {
+        if (_database == null) return;
+        try
+        {
+            await _database.EnsureInitializedAsync();
+            var profiles = await _database.GetConnectionProfilesAsync();
+            var enabledProtocols = profiles
+                .Where(p => p.IsEnabled && ProtocolDisplayNames.ContainsKey(p.Protocol))
+                .Select(p => p.Protocol)
+                .Distinct()
+                .OrderBy(p => (int)p)
+                .ToList();
+
+            ProtocolOptions.Clear();
+            ProtocolTypes.Clear();
+            foreach (var proto in enabledProtocols)
+            {
+                ProtocolTypes.Add(proto);
+                ProtocolOptions.Add(ProtocolDisplayNames[proto]);
+            }
+
+            if (_selectedProtocolIndex >= ProtocolTypes.Count)
+                _selectedProtocolIndex = 0;
+
+            OnPropertyChanged(nameof(ProtocolOptions));
+            OnPropertyChanged(nameof(ProtocolTypes));
+            OnPropertyChanged(nameof(SelectedProtocolIndex));
+        }
+        catch { }
     }
 
     /// <summary>批量添加歌曲到 Songs，减少 CollectionChanged 触发次数</summary>
@@ -345,6 +370,7 @@ public partial class LibraryViewModel : ObservableObject
                 IsScanning = false;
                 StatusText = $"🐱 共 {Songs.Count} 首歌曲";
                 _hasLoadedLocal = true;
+                ScanCompleted?.Invoke(this, EventArgs.Empty);
             });
         }
         catch (Exception ex)

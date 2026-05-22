@@ -51,7 +51,16 @@ public class MainApplication : Application
         // Core services
         services.AddSingleton<ISubsonicService, SubsonicService>();
         services.AddSingleton<INetworkFileService, WebDavService>();
-        services.AddSingleton<INetworkMusicService, NetworkMusicService>();
+        services.AddSingleton<INetworkFileService, SmbService>();
+        services.AddSingleton<INetworkMusicService>(sp =>
+        {
+            var db = sp.GetRequiredService<MusicDatabase>();
+            var subsonic = sp.GetRequiredService<ISubsonicService>();
+            var fileServices = sp.GetServices<INetworkFileService>().ToList();
+            var webDav = fileServices.FirstOrDefault(s => s is WebDavService) ?? fileServices.FirstOrDefault();
+            var smb = fileServices.FirstOrDefault(s => s is SmbService) ?? fileServices.LastOrDefault();
+            return new NetworkMusicService(db, subsonic, webDav!, smb!);
+        });
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
         services.AddSingleton<IPluginManager>(sp =>
@@ -99,6 +108,7 @@ public class MainApplication : Application
         services.AddTransient<PlaylistViewModel>();
         services.AddTransient<WebDavSettingsViewModel>();
         services.AddTransient<NavidromeSettingsViewModel>();
+        services.AddTransient<SmbSettingsViewModel>();
         services.AddTransient<PlaylistDetailViewModel>();
 
         // Fragments (transient)
@@ -112,6 +122,7 @@ public class MainApplication : Application
         services.AddTransient<RemoteMusicFragment>();
         services.AddTransient<WebDavSettingsFragment>();
         services.AddTransient<NavidromeSettingsFragment>();
+        services.AddTransient<SmbSettingsFragment>();
         services.AddTransient<MusicFolderSettingsFragment>();
         services.AddTransient<GeneralSettingsFragment>();
         services.AddTransient<DesktopLyricFragment>();

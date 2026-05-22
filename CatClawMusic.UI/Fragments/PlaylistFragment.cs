@@ -16,6 +16,8 @@ public class PlaylistFragment : Fragment
     private PlaylistAdapter _adapter = null!;
     private RecyclerView _playlistList = null!;
     private TextView _statusText = null!;
+    private LibraryViewModel? _libraryVm;
+    private EventHandler? _scanCompletedHandler;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
@@ -59,6 +61,17 @@ public class PlaylistFragment : Fragment
 
         _adapter.NewPlaylistClicked += (s, e) => ShowCreatePlaylistDialog();
 
+        _libraryVm = MainApplication.Services.GetService<LibraryViewModel>();
+        if (_libraryVm != null)
+        {
+            _scanCompletedHandler = (s, e) =>
+            {
+                var a = Activity;
+                if (a != null) a.RunOnUiThread(() => _ = _viewModel.LoadPlaylistsAsync());
+            };
+            _libraryVm.ScanCompleted += _scanCompletedHandler;
+        }
+
         if (_viewModel.Playlists.Count > 0)
             _adapter.UpdatePlaylists(_viewModel.Playlists);
         else
@@ -101,5 +114,13 @@ public class PlaylistFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
+        _ = _viewModel.LoadPlaylistsAsync();
+    }
+
+    public override void OnDestroyView()
+    {
+        if (_libraryVm != null && _scanCompletedHandler != null)
+            _libraryVm.ScanCompleted -= _scanCompletedHandler;
+        base.OnDestroyView();
     }
 }

@@ -71,14 +71,7 @@ public class LibraryFragment : Fragment
         _songList.SetItemViewCacheSize(20);
 
         // 初始化 Spinner，先同步 ViewModel 已恢复的协议选择再绑定事件
-        // 顺序很重要：如果 ItemSelected 事件先于 SetSelection 绑定，
-        // Spinner 默认 position=0 的事件会将 ViewModel 中已恢复的正确值覆盖
-        _protocolAdapter = new ArrayAdapter<string>(Context!,
-            Android.Resource.Layout.SimpleSpinnerItem, _viewModel.ProtocolOptions);
-        _protocolAdapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
-        _protocolSpinner.Adapter = _protocolAdapter;
-        _protocolSpinner.SetSelection(_viewModel.SelectedProtocolIndex);
-        _protocolSpinner.ItemSelected += OnProtocolSelected;
+        _ = RefreshProtocolSpinnerAsync();
 
         // 搜索框文本变化时同步到 ViewModel，由 OnSearchQueryChanged 触发列表过滤
         _searchBox.TextChanged += (s, e) =>
@@ -177,6 +170,21 @@ public class LibraryFragment : Fragment
     /// <summary>
     /// 协议选择变化时重新加载网络歌曲列表
     /// </summary>
+    private async Task RefreshProtocolSpinnerAsync()
+    {
+        await _viewModel.RefreshProtocolOptionsAsync();
+        Activity?.RunOnUiThread(() =>
+        {
+            _protocolAdapter = new ArrayAdapter<string>(Context!,
+                Android.Resource.Layout.SimpleSpinnerItem, _viewModel.ProtocolOptions);
+            _protocolAdapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
+            _protocolSpinner.Adapter = _protocolAdapter;
+            _protocolSpinner.SetSelection(_viewModel.SelectedProtocolIndex);
+            _protocolSpinner.ItemSelected -= OnProtocolSelected;
+            _protocolSpinner.ItemSelected += OnProtocolSelected;
+        });
+    }
+
     private void OnProtocolSelected(object? sender, AdapterView.ItemSelectedEventArgs e)
     {
         if (_viewModel.SelectedProtocolIndex != e.Position)
@@ -198,6 +206,13 @@ public class LibraryFragment : Fragment
     {
         UnbindViews();
         base.OnDestroyView();
+    }
+
+    public override void OnResume()
+    {
+        base.OnResume();
+        if (_viewModel.CurrentTab == "Network")
+            _ = RefreshProtocolSpinnerAsync();
     }
 
     /// <summary>
@@ -368,6 +383,7 @@ public class LibraryFragment : Fragment
         {
             CoreModels.SongSource.Local => "本地",
             CoreModels.SongSource.WebDAV => "网络",
+            CoreModels.SongSource.SMB => "SMB",
             CoreModels.SongSource.Cache => "缓存",
             _ => "未知"
         };
