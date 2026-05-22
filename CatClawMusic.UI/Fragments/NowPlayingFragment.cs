@@ -909,12 +909,6 @@ public class NowPlayingFragment : Fragment
         _sleepCts = null;
         _sleepRemainingSeconds = 0;
         _sleepFinishSong = false;
-        if (_sleepStateHandler != null)
-        {
-            var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-            player.StateChanged -= _sleepStateHandler;
-            _sleepStateHandler = null;
-        }
         var textView = Activity?.FindViewById<TextView>(Resource.Id.sleep_timer_text);
         if (textView != null) textView.Visibility = ViewStates.Gone;
         UpdateSleepButtonColor();
