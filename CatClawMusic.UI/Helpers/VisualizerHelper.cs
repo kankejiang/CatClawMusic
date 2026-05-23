@@ -121,13 +121,13 @@ public class VisualizerHelper : Java.Lang.Object
             float rms = count > 0 ? (float)Math.Sqrt(sumSq / count) : 0;
             if (rms < 3f) rms = 0f;
 
-            float normalized = Math.Clamp(rms / 60f, 0f, 1f);
+            float normalized = Math.Clamp(rms / 80f, 0f, 1f);
 
             _prevSmoothed[b] = _smoothed[b];
             if (normalized > _smoothed[b])
-                _smoothed[b] += (normalized - _smoothed[b]) * 0.8f;
+                _smoothed[b] += (normalized - _smoothed[b]) * 0.6f;
             else
-                _smoothed[b] += (normalized - _smoothed[b]) * 0.35f;
+                _smoothed[b] += (normalized - _smoothed[b]) * 0.2f;
         }
 
         for (int b = 1; b < Bands - 1; b++)

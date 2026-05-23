@@ -21,11 +21,11 @@ public class AudioVisualizerView : View
     private const int BarCount = 64;
     private const float BarRadius = 2f;
     private const float MaxBarHeightRatio = 0.88f;
-    private const float AttackSpeed = 0.95f;
-    private const float DecaySpeed = 0.28f;
-    private const float PeakGravity = 0.003f;
-    private const float PeakBounce = 0.15f;
-    private const float MinBarRatio = 0.01f;
+    private const float AttackSpeed = 0.65f;
+    private const float DecaySpeed = 0.12f;
+    private const float PeakGravity = 0.008f;
+    private const float PeakBounce = 0.12f;
+    private const float MinBarRatio = 0.005f;
 
     /// <summary>使用代码创建视图</summary>
     public AudioVisualizerView(Context context) : base(context) => Init();

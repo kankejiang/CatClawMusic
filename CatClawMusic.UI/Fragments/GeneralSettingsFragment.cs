@@ -7,17 +7,19 @@ using AndroidX.Core.App;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
 /// <summary>
-/// 通用设置Fragment，包含省电策略、通知权限、桌面歌词等设置项
+/// 通用设置Fragment，包含省电策略、通知权限、桌面歌词、权限管理等设置项
 /// </summary>
 public class GeneralSettingsFragment : Fragment
 {
     private TextView? _tvBatteryStatus;
     private TextView? _tvNotificationStatus;
+    private TextView? _tvPermissionStatus;
 
     /// <summary>
     /// 创建通用设置视图，初始化各项设置入口和返回按钮
@@ -27,40 +29,152 @@ public class GeneralSettingsFragment : Fragment
         var view = inflater.Inflate(Resource.Layout.fragment_general_settings, container, false)!;
         var nav = MainApplication.Services.GetRequiredService<INavigationService>();
 
-        // 返回按钮
         var btnBack = view.FindViewById<ImageButton>(Resource.Id.btn_back);
         if (btnBack != null)
             btnBack.Click += (s, e) => nav.GoBack();
 
-        // 🔋 省电策略设置
         var btnBattery = view.FindViewById<View>(Resource.Id.btn_battery_optimization);
         _tvBatteryStatus = view.FindViewById<TextView>(Resource.Id.tv_battery_status);
         if (btnBattery != null)
             btnBattery.Click += (s, e) => OpenBatteryOptimizationSettings();
 
-        // 🔔 通知权限设置
         var btnNotification = view.FindViewById<View>(Resource.Id.btn_notification_permission);
         _tvNotificationStatus = view.FindViewById<TextView>(Resource.Id.tv_notification_status);
         if (btnNotification != null)
             btnNotification.Click += (s, e) => OpenNotificationSettings();
 
-        // 🎵 桌面与歌词
         var btnDesktopLyric = view.FindViewById<View>(Resource.Id.btn_desktop_lyric);
         if (btnDesktopLyric != null)
             btnDesktopLyric.Click += (s, e) => nav.PushFragment("DesktopLyric");
+
+        var btnPermission = view.FindViewById<View>(Resource.Id.btn_permission_management);
+        _tvPermissionStatus = view.FindViewById<TextView>(Resource.Id.tv_permission_status);
+        if (btnPermission != null)
+            btnPermission.Click += (s, e) => ShowPermissionManagementDialog();
 
         return view;
     }
 
     /// <summary>
-    /// Fragment恢复时重新检查电池优化和通知权限状态
+    /// Fragment恢复时重新检查各项权限状态
     /// </summary>
     public override void OnResume()
     {
         base.OnResume();
-        // 每次恢复页面时重新检查状态
         CheckBatteryOptimizationStatus();
         CheckNotificationStatus();
+        CheckPermissionStatus();
+    }
+
+    private void ShowPermissionManagementDialog()
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var permService = MainApplication.Services.GetRequiredService<IPermissionService>();
+
+        var dialog = new GlassDialog(ctx)
+            .SetTitle("🔐 权限管理");
+
+        var storageGranted = permService.CheckStoragePermissionAsync().Result;
+        var overlayGranted = permService.CheckOverlayPermissionAsync().Result;
+        var notificationGranted = AreNotificationsEnabled();
+        var recordAudioGranted = ctx.CheckSelfPermission(Android.Manifest.Permission.RecordAudio)
+            == Android.Content.PM.Permission.Granted;
+
+        dialog.AddMessage("以下是猫爪音乐需要的权限及其用途：");
+
+        dialog.AddItem($"🎤 录音权限（频谱可视化） — {(recordAudioGranted ? "✅ 已开启" : "❌ 未开启")}", () =>
+        {
+            if (recordAudioGranted)
+            {
+                Toast.MakeText(ctx, "录音权限已开启", ToastLength.Short)?.Show();
+            }
+            else
+            {
+                try
+                {
+                    var intent = new Intent(Settings.ActionApplicationDetailsSettings);
+                    intent.SetData(Android.Net.Uri.Parse($"package:{ctx.PackageName}"));
+                    StartActivity(intent);
+                    Toast.MakeText(ctx, "请在设置中开启录音权限", ToastLength.Long)?.Show();
+                }
+                catch
+                {
+                    Toast.MakeText(ctx, "请前往系统设置 > 猫爪音乐 > 开启录音权限", ToastLength.Long)?.Show();
+                }
+            }
+        });
+
+        dialog.AddItem($"📁 媒体/存储权限（扫描音乐） — {(storageGranted ? "✅ 已开启" : "❌ 未开启")}", () =>
+        {
+            if (storageGranted)
+            {
+                Toast.MakeText(ctx, "存储权限已开启", ToastLength.Short)?.Show();
+            }
+            else
+            {
+                try
+                {
+                    var intent = new Intent(Settings.ActionApplicationDetailsSettings);
+                    intent.SetData(Android.Net.Uri.Parse($"package:{ctx.PackageName}"));
+                    StartActivity(intent);
+                    Toast.MakeText(ctx, "请在设置中开启媒体权限", ToastLength.Long)?.Show();
+                }
+                catch
+                {
+                    Toast.MakeText(ctx, "请前往系统设置 > 猫爪音乐 > 开启媒体权限", ToastLength.Long)?.Show();
+                }
+            }
+        });
+
+        dialog.AddItem($"🔔 通知权限（播放控制） — {(notificationGranted ? "✅ 已开启" : "❌ 未开启")}", () =>
+        {
+            OpenNotificationSettings();
+        });
+
+        dialog.AddItem($"🖥️ 悬浮窗权限（桌面歌词） — {(overlayGranted ? "✅ 已开启" : "❌ 未开启")}", () =>
+        {
+            _ = permService.RequestOverlayPermissionAsync();
+        });
+
+        dialog.AddNegativeButton("关闭");
+        dialog.Show();
+    }
+
+    private void CheckPermissionStatus()
+    {
+        if (Context == null) return;
+
+        var permService = MainApplication.Services.GetRequiredService<IPermissionService>();
+        var storageGranted = permService.CheckStoragePermissionAsync().Result;
+        var notificationGranted = AreNotificationsEnabled();
+        var recordAudioGranted = Context.CheckSelfPermission(Android.Manifest.Permission.RecordAudio)
+            == Android.Content.PM.Permission.Granted;
+        var overlayGranted = permService.CheckOverlayPermissionAsync().Result;
+
+        int total = 4;
+        int granted = (storageGranted ? 1 : 0) + (notificationGranted ? 1 : 0)
+            + (recordAudioGranted ? 1 : 0) + (overlayGranted ? 1 : 0);
+
+        string statusText;
+        Android.Graphics.Color statusColor;
+        if (granted == total)
+        {
+            statusText = "✅ 所有权限已开启";
+            statusColor = Android.Graphics.Color.ParseColor("#4CAF50");
+        }
+        else
+        {
+            statusText = $"⚠️ {granted}/{total} 项权限已开启";
+            statusColor = Android.Graphics.Color.ParseColor("#FF9800");
+        }
+
+        _tvPermissionStatus?.Post(() =>
+        {
+            _tvPermissionStatus.Text = statusText;
+            _tvPermissionStatus.SetTextColor(statusColor);
+        });
     }
 
     /// <summary>
@@ -102,18 +216,16 @@ public class GeneralSettingsFragment : Fragment
         var notificationManager = (Android.App.NotificationManager)Context.GetSystemService(Context.NotificationService)!;
         if (notificationManager == null) return false;
 
-        // 对于 Android 13+，我们也可以检查 POST_NOTIFICATIONS 权限
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
         {
             return notificationManager.AreNotificationsEnabled();
         }
 
-        // 对于旧版本，默认认为通知是开启的
         return true;
     }
 
     /// <summary>
-    /// 打开系统通知设置页面，引导用户开启通知权限
+    /// 打开系统通知设置页面
     /// </summary>
     private void OpenNotificationSettings()
     {
@@ -123,14 +235,12 @@ public class GeneralSettingsFragment : Fragment
 
         if (areEnabled)
         {
-            // 已经开启，显示提示
             Toast.MakeText(Context, "当前通知权限已开启", ToastLength.Short)?.Show();
             return;
         }
 
         try
         {
-            // 尝试直接跳转到应用的通知设置页面
             var intent = new Intent();
             intent.SetAction(Settings.ActionAppNotificationSettings);
             intent.PutExtra(Settings.ExtraAppPackage, Context.PackageName);
@@ -140,7 +250,6 @@ public class GeneralSettingsFragment : Fragment
         {
             try
             {
-                // 如果上面的方法失败，跳转到应用详情页面
                 var intent = new Intent();
                 intent.SetAction(Settings.ActionApplicationDetailsSettings);
                 intent.SetData(Android.Net.Uri.Parse($"package:{Context.PackageName}"));
@@ -150,7 +259,6 @@ public class GeneralSettingsFragment : Fragment
             }
             catch
             {
-                // 如果都失败，提示用户手动操作
                 Toast.MakeText(Context, "请前往系统设置 > 应用 > 猫爪音乐 > 通知，开启通知权限", ToastLength.Long)?.Show();
             }
         }
@@ -186,7 +294,7 @@ public class GeneralSettingsFragment : Fragment
     }
 
     /// <summary>
-    /// 检查当前应用是否已忽略电池优化（即设置为无限制）
+    /// 检查当前应用是否已忽略电池优化
     /// </summary>
     private bool IsIgnoringBatteryOptimizations()
     {
@@ -197,12 +305,11 @@ public class GeneralSettingsFragment : Fragment
 
         if (powerManager == null) return false;
 
-        // 检查是否已经忽略电池优化（即设置为无限制）
         return powerManager.IsIgnoringBatteryOptimizations(packageName);
     }
 
     /// <summary>
-    /// 打开电池优化设置页面，引导用户设置为无限制
+    /// 打开电池优化设置页面
     /// </summary>
     private void OpenBatteryOptimizationSettings()
     {
@@ -213,14 +320,12 @@ public class GeneralSettingsFragment : Fragment
 
         if (isIgnoring)
         {
-            // 已经是无限制，显示提示
             Toast.MakeText(Context, "当前已设置为无限制", ToastLength.Short)?.Show();
             return;
         }
 
         try
         {
-            // 尝试直接跳转到应用的电池优化设置页面
             var intent = new Intent();
             intent.SetAction(Settings.ActionRequestIgnoreBatteryOptimizations);
             intent.SetData(Android.Net.Uri.Parse($"package:{packageName}"));
@@ -230,7 +335,6 @@ public class GeneralSettingsFragment : Fragment
         {
             try
             {
-                // 如果上面的方法失败，跳转到电池优化列表页面
                 var intent = new Intent();
                 intent.SetAction(Settings.ActionIgnoreBatteryOptimizationSettings);
                 StartActivity(intent);
@@ -239,7 +343,6 @@ public class GeneralSettingsFragment : Fragment
             }
             catch
             {
-                // 如果都失败，提示用户手动操作
                 Toast.MakeText(Context, "请前往系统设置 > 电池 > 找到猫爪音乐 > 设置为无限制", ToastLength.Long)?.Show();
             }
         }
