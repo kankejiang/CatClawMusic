@@ -18,9 +18,18 @@ public partial class PlaylistDetailViewModel : ObservableObject
     private readonly IServiceProvider? _serviceProvider;
     private Data.MusicDatabase? _db;
 
+    /// <summary>
+    /// 歌单歌曲列表
+    /// </summary>
     public ObservableCollection<Song> Songs { get; } = new();
 
+    /// <summary>
+    /// 歌单名称
+    /// </summary>
     [ObservableProperty] private string _playlistName = "";
+    /// <summary>
+    /// 状态文本
+    /// </summary>
     [ObservableProperty] private string _statusText = "";
 
     private int _playlistId;
@@ -138,6 +147,10 @@ public partial class PlaylistDetailViewModel : ObservableObject
         await _musicLibrary.AddSongToPlaylistAsync(targetPlaylistId, songId);
     }
 
+    /// <summary>
+    /// 从当前歌单中移除歌曲
+    /// </summary>
+    /// <param name="songId">歌曲ID</param>
     public async Task RemoveSongFromPlaylistAsync(int songId)
     {
         if (_playlistId > 0)

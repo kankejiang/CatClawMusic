@@ -52,6 +52,8 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 测试 Subsonic 服务器连接（ping.view）
     /// </summary>
+    /// <param name="profile">连接配置</param>
+    /// <returns>包含是否成功和消息的元组</returns>
     public async Task<(bool Success, string Message)> PingAsync(ConnectionProfile profile)
     {
         try
@@ -85,6 +87,9 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 通过 Subsonic search3 API 搜索歌曲
     /// </summary>
+    /// <param name="query">搜索关键词</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>匹配的歌曲列表</returns>
     public async Task<List<Song>> SearchAsync(string query, ConnectionProfile profile)
     {
         try
@@ -112,6 +117,10 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 获取专辑列表并逐张拉取歌曲详情，支持增量回调
     /// </summary>
+    /// <param name="profile">连接配置</param>
+    /// <param name="progress">进度报告回调</param>
+    /// <param name="songCallback">每张专辑歌曲拉取完成后的回调</param>
+    /// <returns>所有歌曲列表</returns>
     public async Task<List<Song>> GetSongsAsync(ConnectionProfile profile,
         IProgress<(int done, int total, string status)>? progress = null,
         Func<List<Song>, Task>? songCallback = null)
@@ -239,6 +248,8 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 获取最新专辑列表
     /// </summary>
+    /// <param name="profile">连接配置</param>
+    /// <returns>专辑列表</returns>
     public async Task<List<Album>> GetAlbumsAsync(ConnectionProfile profile)
     {
         var albums = new List<Album>();
@@ -269,6 +280,9 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 构建歌曲流播放 URL
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>流播放 URL</returns>
     public string GetStreamUrl(string songId, ConnectionProfile profile)
     {
         return ApiUrl($"stream.view?id={HttpUtility.UrlEncode(songId)}", profile);
@@ -277,6 +291,9 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 构建封面图 URL
     /// </summary>
+    /// <param name="coverArtId">封面图 ID</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>封面图 URL</returns>
     public string GetCoverArtUrl(string coverArtId, ConnectionProfile profile)
     {
         var baseUrl = profile.GetBaseUrl();
@@ -286,6 +303,9 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 异步获取封面图字节数据
     /// </summary>
+    /// <param name="coverArtId">封面图 ID</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>封面图字节数组，失败时返回 null</returns>
     public async Task<byte[]?> GetCoverArtAsync(string coverArtId, ConnectionProfile profile)
     {
         try
@@ -299,6 +319,9 @@ public class SubsonicService : ISubsonicService
     /// <summary>
     /// 获取歌词，支持 OpenSubsonic 结构化歌词和旧版简单歌词格式
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>歌词文本，失败时返回 null</returns>
     public async Task<string?> GetLyricsAsync(string songId, ConnectionProfile profile)
     {
         try
@@ -356,6 +379,12 @@ public class SubsonicService : ISubsonicService
         return null;
     }
 
+    /// <summary>
+    /// 根据 ID 获取单首歌曲的完整信息
+    /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>歌曲信息，失败时返回 null</returns>
     public async Task<Song?> GetSongAsync(string songId, ConnectionProfile profile)
     {
         try

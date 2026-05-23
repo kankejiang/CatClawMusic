@@ -11,9 +11,12 @@ public class TeeAudioProcessor : BaseAudioProcessor
     private readonly float[] _tempBuffer = new float[4096];
     private int _tempCount;
 
+    /// <summary>最新的频谱数据（32 个频带，0~1 归一化值）</summary>
     public float[] LatestSpectrum { get; private set; } = Array.Empty<float>();
+    /// <summary>频谱数据更新时触发</summary>
     public event Action<float[]>? SpectrumUpdated;
 
+    /// <summary>队列输入音频数据，透传原始数据并处理 PCM 用于频谱计算</summary>
     public override void QueueInput(Java.Nio.ByteBuffer? inputBuffer)
     {
         if (inputBuffer == null) return;

@@ -19,34 +19,92 @@ public partial class LibraryViewModel : ObservableObject
     private readonly IPermissionService? _permission;
     private readonly MusicDatabase? _database;
     private readonly IMainThreadDispatcher _dispatcher;
+    /// <summary>
+    /// 当前选中的标签页（"Local" 或 "Network"）
+    /// </summary>
     [ObservableProperty] private string _currentTab = "Local";
 
+    /// <summary>
+    /// 扫描完成事件
+    /// </summary>
     public event EventHandler? ScanCompleted;
 
+    /// <summary>
+    /// 协议变更事件（静态，跨页面通知）
+    /// </summary>
     public static event EventHandler? ProtocolChanged;
 
+    /// <summary>
+    /// 触发协议变更通知
+    /// </summary>
+    /// <param name="sender">触发源</param>
     public static void NotifyProtocolChanged(object sender)
     {
         ProtocolChanged?.Invoke(sender, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// 当前显示的歌曲列表
+    /// </summary>
     public ObservableCollection<CoreModels.Song> Songs { get; } = new();
 
+    /// <summary>
+    /// 是否正在加载
+    /// </summary>
     [ObservableProperty] private bool _isLoading;
+    /// <summary>
+    /// 是否显示权限提示
+    /// </summary>
     [ObservableProperty] private bool _showPermissionPrompt;
+    /// <summary>
+    /// 权限提示文本
+    /// </summary>
     [ObservableProperty] private string _permissionPromptText = "";
+    /// <summary>
+    /// 状态文本
+    /// </summary>
     [ObservableProperty] private string _statusText = "";
+    /// <summary>
+    /// 本地标签页颜色
+    /// </summary>
     [ObservableProperty] private string _localTabColor = "#9B7ED8";
+    /// <summary>
+    /// 网络标签页颜色
+    /// </summary>
     [ObservableProperty] private string _networkTabColor = "#C0B8CA";
+    /// <summary>
+    /// 扫描进度（0-100）
+    /// </summary>
     [ObservableProperty] private int _scanProgress;
+    /// <summary>
+    /// 扫描状态文本
+    /// </summary>
     [ObservableProperty] private string _scanStatus = "";
+    /// <summary>
+    /// 是否正在扫描
+    /// </summary>
     [ObservableProperty] private bool _isScanning;
+    /// <summary>
+    /// 当前选择的协议选项索引
+    /// </summary>
     [ObservableProperty] private int _selectedProtocolIndex = 0;
+    /// <summary>
+    /// 搜索关键字
+    /// </summary>
     [ObservableProperty] private string _searchQuery = "";
 
+    /// <summary>
+    /// 协议选项显示名称列表
+    /// </summary>
     public ObservableCollection<string> ProtocolOptions { get; } = new();
+    /// <summary>
+    /// 协议类型列表
+    /// </summary>
     public List<CoreModels.ProtocolType> ProtocolTypes { get; } = new();
 
+    /// <summary>
+    /// 按搜索关键字过滤后的歌曲列表
+    /// </summary>
     public List<CoreModels.Song> FilteredSongs => string.IsNullOrWhiteSpace(SearchQuery)
         ? Songs.ToList()
         : Songs.Where(s =>
@@ -68,6 +126,14 @@ public partial class LibraryViewModel : ObservableObject
         { CoreModels.ProtocolType.SMB, "SMB" },
     };
 
+    /// <summary>
+    /// 初始化音乐库ViewModel
+    /// </summary>
+    /// <param name="musicLibrary">本地音乐库服务</param>
+    /// <param name="networkMusic">网络音乐服务（可选）</param>
+    /// <param name="permission">权限服务（可选）</param>
+    /// <param name="dispatcher">主线程调度器</param>
+    /// <param name="database">音乐数据库（可选）</param>
     public LibraryViewModel(IMusicLibraryService musicLibrary, INetworkMusicService? networkMusic = null,
         IPermissionService? permission = null, IMainThreadDispatcher? dispatcher = null, MusicDatabase? database = null)
     {
@@ -95,6 +161,9 @@ public partial class LibraryViewModel : ObservableObject
 #endif
     }
 
+    /// <summary>
+    /// 刷新协议选项列表，从数据库加载已启用的协议
+    /// </summary>
     public async Task RefreshProtocolOptionsAsync()
     {
         if (_database == null) return;

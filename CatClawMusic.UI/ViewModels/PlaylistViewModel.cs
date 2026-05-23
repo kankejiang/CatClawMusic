@@ -16,8 +16,14 @@ public partial class PlaylistViewModel : ObservableObject
     private readonly IServiceProvider? _serviceProvider;
     private Data.MusicDatabase? _db;
 
+    /// <summary>
+    /// 歌单列表
+    /// </summary>
     public ObservableCollection<Playlist> Playlists { get; } = new();
 
+    /// <summary>
+    /// 状态文本
+    /// </summary>
     [ObservableProperty]
     private string _statusText = "";
 
@@ -120,18 +126,33 @@ public partial class PlaylistViewModel : ObservableObject
         await LoadPlaylistsAsync();
     }
 
+    /// <summary>
+    /// 将歌曲添加到指定歌单
+    /// </summary>
+    /// <param name="playlistId">目标歌单ID</param>
+    /// <param name="songId">歌曲ID</param>
     public async Task AddSongToPlaylistAsync(int playlistId, int songId)
     {
         await _musicLibrary.AddSongToPlaylistAsync(playlistId, songId);
         await LoadPlaylistsAsync();
     }
 
+    /// <summary>
+    /// 检查歌曲是否已收藏
+    /// </summary>
+    /// <param name="songId">歌曲ID</param>
+    /// <returns>是否已收藏</returns>
     public async Task<bool> IsFavoriteAsync(int songId)
     {
         try { return await GetDb().IsFavoriteAsync(songId); }
         catch { return false; }
     }
 
+    /// <summary>
+    /// 切换歌曲收藏状态
+    /// </summary>
+    /// <param name="songId">歌曲ID</param>
+    /// <param name="isFav">是否收藏</param>
     public async Task ToggleFavoriteAsync(int songId, bool isFav)
     {
         await GetDb().SetFavoriteAsync(songId, isFav);

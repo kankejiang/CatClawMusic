@@ -3,15 +3,20 @@ using ALog = Android.Util.Log;
 
 namespace CatClawMusic.UI.Helpers;
 
+/// <summary>Android Visualizer 频谱可视化辅助类，从音频会话捕获 FFT 数据并映射到 64 个频带</summary>
 public class VisualizerHelper : Java.Lang.Object
 {
     private Visualizer? _visualizer;
     private bool _enabled;
 
+    /// <summary>频谱数据更新事件，返回 64 个频带的归一化强度值（0~1）</summary>
     public event Action<float[]>? SpectrumUpdated;
 
+    /// <summary>是否已启用可视化</summary>
     public bool IsEnabled => _enabled;
 
+    /// <summary>启动可视化，绑定到指定音频会话 ID</summary>
+    /// <param name="audioSessionId">音频会话 ID（MediaPlayer 或 ExoPlayer 的 AudioSessionId）</param>
     public void Start(int audioSessionId)
     {
         Stop();
@@ -42,6 +47,7 @@ public class VisualizerHelper : Java.Lang.Object
         }
     }
 
+    /// <summary>停止可视化并释放资源</summary>
     public void Stop()
     {
         if (_visualizer != null)

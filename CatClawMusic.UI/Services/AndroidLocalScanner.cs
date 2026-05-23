@@ -4,8 +4,14 @@ using CatClawMusic.UI.Platforms.Android;
 
 namespace CatClawMusic.UI.Services;
 
+/// <summary>Android 本地音频扫描器，根据权限自动选择 SAF、MediaStore 或文件系统扫描方式</summary>
 public class AndroidLocalScanner
 {
+    /// <summary>扫描本地音频文件，返回歌曲列表</summary>
+    /// <param name="customFolders">自定义扫描目录列表</param>
+    /// <param name="progress">扫描进度报告</param>
+    /// <param name="songCallback">每批次扫描完成的回调，支持增量入库</param>
+    /// <returns>扫描到的所有歌曲</returns>
     public static async Task<List<Song>> ScanAsync(
         List<string>? customFolders = null,
         IProgress<(int done, int total, string status)>? progress = null,

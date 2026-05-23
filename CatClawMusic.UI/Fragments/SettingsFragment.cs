@@ -189,6 +189,9 @@ public class SettingsFragment : Fragment
         _btnDarkModeToggle.SetImageResource(iconRes);
     }
 
+    /// <summary>
+    /// 异步加载本地音乐、远程服务和插件状态信息，更新状态文本
+    /// </summary>
     private async Task LoadStatusAsync()
     {
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();

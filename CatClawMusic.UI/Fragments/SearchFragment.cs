@@ -22,7 +22,7 @@ public class SearchFragment : Fragment
     private RecyclerView _resultsList = null!;
     private TextView _statusText = null!;
     private SongAdapter _adapter = null!;
-    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
+    private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
 
     /// <summary>
     /// 创建探索视图
@@ -61,6 +61,9 @@ public class SearchFragment : Fragment
         _viewModel.SearchResults.CollectionChanged += _collectionChangedHandler;
     }
 
+    /// <summary>
+    /// Fragment销毁时解绑搜索结果集合变化事件
+    /// </summary>
     public override void OnDestroyView()
     {
         if (_collectionChangedHandler != null)

@@ -36,22 +36,61 @@ public partial class NowPlayingViewModel : ObservableObject
     private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
     private volatile bool _isSwitchingSong;
     private volatile bool _isRestoring;
+    /// <summary>
+    /// 是否在当前歌曲播放完毕后停止
+    /// </summary>
     public volatile bool StopAfterCurrentSong;
 
+    /// <summary>
+    /// 当前播放的歌曲
+    /// </summary>
     [ObservableProperty] private Song? _currentSong;
+    /// <summary>
+    /// 封面图片路径
+    /// </summary>
     [ObservableProperty] private string _coverSource = "";
     [ObservableProperty] private string _prevLyricLine2 = "";
     [ObservableProperty] private string _prevLyricLine = "";
+    /// <summary>
+    /// 当前歌词行文本
+    /// </summary>
     [ObservableProperty] private string _currentLyricLine = "🐾 猫爪音乐";
+    /// <summary>
+    /// 下一行歌词文本
+    /// </summary>
     [ObservableProperty] private string _nextLyricLine = "选择一首歌曲开始播放吧~";
     [ObservableProperty] private string _nextLyricLine2 = "";
+    /// <summary>
+    /// 当前播放位置
+    /// </summary>
     [ObservableProperty] private TimeSpan _currentPosition;
+    /// <summary>
+    /// 歌曲总时长
+    /// </summary>
     [ObservableProperty] private TimeSpan _totalDuration;
+    /// <summary>
+    /// 播放/暂停按钮图标
+    /// </summary>
     [ObservableProperty] private string _playPauseIcon = "▶";
+    /// <summary>
+    /// 播放模式图标
+    /// </summary>
     [ObservableProperty] private string _playModeIcon = ""; // 构造函数中同步
+    /// <summary>
+    /// 收藏按钮图标
+    /// </summary>
     [ObservableProperty] private string _likeIcon = "🤍";
+    /// <summary>
+    /// 是否已收藏
+    /// </summary>
     [ObservableProperty] private bool _isLiked;
+    /// <summary>
+    /// 当前音量（0-100）
+    /// </summary>
     [ObservableProperty] private int _volume = 80;
+    /// <summary>
+    /// 播放队列提示文本
+    /// </summary>
     [ObservableProperty] private string _queueHint = "";
     /// <summary>
     /// 即将播放的歌曲列表

@@ -10,6 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 歌单列表Fragment，显示用户创建的歌单、系统歌单，支持创建和删除歌单
+/// </summary>
 public class PlaylistFragment : Fragment
 {
     private PlaylistViewModel _viewModel = null!;
@@ -18,13 +21,19 @@ public class PlaylistFragment : Fragment
     private TextView _statusText = null!;
     private LibraryViewModel? _libraryVm;
     private EventHandler? _scanCompletedHandler;
-    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
+    private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
 
+    /// <summary>
+    /// 创建歌单列表视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {
         return inflater.Inflate(Resource.Layout.fragment_playlist, container, false)!;
     }
 
+    /// <summary>
+    /// 视图创建完成后初始化控件，绑定ViewModel和事件处理器，加载歌单数据
+    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -113,12 +122,18 @@ public class PlaylistFragment : Fragment
             .Show();
     }
 
+    /// <summary>
+    /// Fragment恢复可见时重新加载歌单列表
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
         _ = _viewModel.LoadPlaylistsAsync();
     }
 
+    /// <summary>
+    /// Fragment销毁时解绑集合变化事件和扫描完成事件
+    /// </summary>
     public override void OnDestroyView()
     {
         if (_collectionChangedHandler != null)

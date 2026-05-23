@@ -8,6 +8,9 @@ using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Data;
 
+/// <summary>
+/// WebDAV 网络文件服务，提供文件列表、读取、上传和连接测试功能
+/// </summary>
 public class WebDavService : INetworkFileService, IDisposable
 {
     private HttpClient? _client;
@@ -176,6 +179,11 @@ public class WebDavService : INetworkFileService, IDisposable
         throw new HttpRequestException("重定向次数过多");
     }
 
+    /// <summary>
+    /// 测试 WebDAV 服务器连接是否可用
+    /// </summary>
+    /// <param name="profile">连接配置</param>
+    /// <returns>包含是否成功和消息的元组</returns>
     public async Task<(bool Success, string Message)> TestConnectionAsync(ConnectionProfile profile)
     {
         var hostInfo = $"{profile.Host}:{profile.Port}";
@@ -255,6 +263,11 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 列出指定路径下的文件和目录
+    /// </summary>
+    /// <param name="path">WebDAV 目录路径</param>
+    /// <returns>远程文件信息列表</returns>
     public async Task<List<RemoteFile>> ListFilesAsync(string path)
     {
         try
@@ -320,11 +333,20 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 配置并连接到 WebDAV 服务器
+    /// </summary>
+    /// <param name="profile">连接配置</param>
     public void Configure(ConnectionProfile profile)
     {
         EnsureClient(profile);
     }
 
+    /// <summary>
+    /// 以流的方式读取远程文件内容
+    /// </summary>
+    /// <param name="filePath">远程文件路径</param>
+    /// <returns>包含文件内容的可读流</returns>
     public async Task<Stream> OpenReadAsync(string filePath)
     {
         try
@@ -341,6 +363,13 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 读取远程文件指定范围的字节数据
+    /// </summary>
+    /// <param name="filePath">远程文件路径</param>
+    /// <param name="offset">起始偏移量</param>
+    /// <param name="length">读取长度</param>
+    /// <returns>指定范围的字节数组</returns>
     public async Task<byte[]> OpenReadRangeAsync(string filePath, long offset, long length)
     {
         try
@@ -359,6 +388,11 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 获取远程文件的信息
+    /// </summary>
+    /// <param name="filePath">远程文件路径</param>
+    /// <returns>文件信息，失败时返回 null</returns>
     public async Task<RemoteFile?> GetFileInfoAsync(string filePath)
     {
         try
@@ -395,6 +429,13 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 上传文件到远程路径
+    /// </summary>
+    /// <param name="remotePath">远程目标路径</param>
+    /// <param name="content">文件内容</param>
+    /// <param name="contentType">MIME 类型</param>
+    /// <returns>包含是否成功和消息的元组</returns>
     public async Task<(bool Success, string Message)> UploadFileAsync(string remotePath, byte[] content, string? contentType = null)
     {
         try
@@ -425,6 +466,9 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 释放 HTTP 客户端资源
+    /// </summary>
     public void Dispose()
     {
         _client?.Dispose();

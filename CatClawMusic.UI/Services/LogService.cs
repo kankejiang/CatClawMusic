@@ -14,6 +14,7 @@ public class LogService : ILogService
     /// <summary>静态单例，供插件通过 Core 接口访问</summary>
     public static LogService? Instance { get; private set; }
 
+    /// <summary>初始化日志服务实例，创建日志文件路径并设为静态单例</summary>
     public LogService()
     {
         var externalDir = global::Android.App.Application.Context?.GetExternalFilesDir(null)?.AbsolutePath

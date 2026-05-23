@@ -32,6 +32,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     public bool IsPlaying => _player?.IsPlaying ?? false;
     /// <summary>当前播放歌曲的文件路径</summary>
     public string? CurrentSongFilePath => _currentPath;
+    /// <summary>音频会话 ID（用于 Visualizer 绑定）</summary>
     public int AudioSessionId
     {
         get
@@ -96,11 +97,13 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>播放位置变化事件</summary>
     public event EventHandler<TimeSpan>? PositionChanged;
 #pragma warning disable CS0067
+    /// <summary>PCM 原始音频数据可用事件（当前未实现，保留接口）</summary>
     public event Action<byte[]>? PcmDataAvailable;
 #pragma warning restore CS0067
 
     private readonly AudioFocusChangeListener? _focusListener;
 
+    /// <summary>初始化音频播放服务，获取 AudioManager 和创建音频焦点监听器</summary>
     public AudioPlayerService()
     {
         var ctx = global::Android.App.Application.Context;

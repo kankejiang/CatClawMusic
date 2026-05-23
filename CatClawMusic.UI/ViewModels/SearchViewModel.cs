@@ -12,10 +12,22 @@ public partial class SearchViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
 
+    /// <summary>
+    /// 搜索结果列表
+    /// </summary>
     public ObservableCollection<Song> SearchResults { get; } = new();
 
+    /// <summary>
+    /// 搜索文本
+    /// </summary>
     [ObservableProperty] private string _searchText = "";
+    /// <summary>
+    /// 是否正在搜索
+    /// </summary>
     [ObservableProperty] private bool _isSearching;
+    /// <summary>
+    /// 搜索结果数量文本
+    /// </summary>
     [ObservableProperty] private string _resultCount = "";
 
     // 防抖机制

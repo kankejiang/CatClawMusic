@@ -7,6 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// SMB设置Fragment，配置SMB/CIFS服务器连接参数，支持浏览共享目录
+/// </summary>
 public class SmbSettingsFragment : SettingsSubPageFragment
 {
     private SmbSettingsViewModel _viewModel = null!;
@@ -19,6 +22,9 @@ public class SmbSettingsFragment : SettingsSubPageFragment
 
     protected override string GetTitle() => "SMB 设置";
 
+    /// <summary>
+    /// 创建SMB设置视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_smb_settings, container, false)!;
 

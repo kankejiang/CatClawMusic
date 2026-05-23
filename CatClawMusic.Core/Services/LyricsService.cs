@@ -50,6 +50,11 @@ public class LyricsService : ILyricsService
         return null;
     }
 
+    /// <summary>
+    /// 从本地获取歌词（同名 .lrc 文件 > 嵌入歌词）
+    /// </summary>
+    /// <param name="song">歌曲信息</param>
+    /// <param name="skipEmbedded">是否跳过嵌入歌词</param>
     public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false)
     {
         var songPath = song.FilePath;

@@ -11,6 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Services;
 
+/// <summary>
+/// SMB 目录浏览对话框，支持两步选择：先选共享名，再浏览目录，最终返回所选路径
+/// </summary>
 public class SmbBrowserDialog : Dialog
 {
     private readonly ConnectionProfile _profile;
@@ -37,9 +40,14 @@ public class SmbBrowserDialog : Dialog
     private List<string> _shareNames = new();
     private string _selectedShare = "";
 
+    /// <summary>用户最终选择的路径</summary>
     public string? SelectedPath { get; private set; }
+    /// <summary>用户选择的共享名</summary>
     public string SelectedShareName { get; private set; } = "";
 
+    /// <summary>创建 SMB 浏览器对话框</summary>
+    /// <param name="activity">宿主 Activity</param>
+    /// <param name="profile">SMB 连接配置</param>
     public SmbBrowserDialog(Activity activity, ConnectionProfile profile)
         : base(activity)
     {
@@ -51,6 +59,7 @@ public class SmbBrowserDialog : Dialog
                      ?? new SmbService();
     }
 
+    /// <summary>对话框创建时初始化布局、视图和 RecyclerView，并异步列出共享名</summary>
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
@@ -320,6 +329,7 @@ public class SmbBrowserDialog : Dialog
         _recyclerView.Visibility = ViewStates.Gone;
     }
 
+    /// <summary>返回键处理：在共享选择模式关闭对话框，在浏览模式返回上级目录或共享列表</summary>
     public override void OnBackPressed()
     {
         if (_isLoading)

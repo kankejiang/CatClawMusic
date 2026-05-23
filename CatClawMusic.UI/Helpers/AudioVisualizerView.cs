@@ -5,6 +5,7 @@ using Android.Views;
 
 namespace CatClawMusic.UI.Helpers;
 
+/// <summary>音频可视化柱状图视图，显示 64 根跳动的频谱柱条和峰值指示器</summary>
 public class AudioVisualizerView : View
 {
     private readonly Paint _barPaint = new(PaintFlags.AntiAlias);
@@ -26,8 +27,11 @@ public class AudioVisualizerView : View
     private const float PeakBounce = 0.15f;
     private const float MinBarRatio = 0.01f;
 
+    /// <summary>使用代码创建视图</summary>
     public AudioVisualizerView(Context context) : base(context) => Init();
+    /// <summary>从 XML 布局创建视图</summary>
     public AudioVisualizerView(Context context, IAttributeSet attrs) : base(context, attrs) => Init();
+    /// <summary>从 XML 布局带默认样式创建视图</summary>
     public AudioVisualizerView(Context context, IAttributeSet attrs, int defStyle) : base(context, attrs, defStyle) => Init();
 
     private void Init()
@@ -40,6 +44,8 @@ public class AudioVisualizerView : View
         _peakVelocity = new float[BarCount];
     }
 
+    /// <summary>设置柱条的颜色（根据当前频谱强度在激活色与淡化色之间插值）</summary>
+    /// <param name="activeColor">激活状态颜色</param>
     public void SetColors(int activeColor)
     {
         _activeColor = activeColor;
@@ -49,6 +55,8 @@ public class AudioVisualizerView : View
         _inactiveColor = Color.Argb(0x30, r, g, b);
     }
 
+    /// <summary>更新目标频谱数据，柱条将平滑过渡到新的目标值</summary>
+    /// <param name="spectrum">频谱数据数组（0~1 的归一化值）</param>
     public void UpdateSpectrum(float[] spectrum)
     {
         if (spectrum == null || spectrum.Length == 0) return;
@@ -57,6 +65,7 @@ public class AudioVisualizerView : View
             _targetSpectrum[i] = spectrum[i];
     }
 
+    /// <summary>清空频谱数据，柱条将逐渐降为零</summary>
     public void Clear()
     {
         Array.Clear(_targetSpectrum);

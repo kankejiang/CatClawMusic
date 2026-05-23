@@ -75,23 +75,33 @@ public interface IMusicLibraryService
     /// <summary>获取播放次数最多的歌曲列表</summary>
     Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50);
 
-    // ── Playlist CRUD ──
-
+    /// <summary>获取所有播放列表</summary>
     Task<List<Playlist>> GetAllPlaylistsAsync();
+    /// <summary>根据 ID 获取播放列表</summary>
     Task<Playlist?> GetPlaylistByIdAsync(int id);
+    /// <summary>创建播放列表，返回新播放列表 ID</summary>
     Task<int> CreatePlaylistAsync(string name);
+    /// <summary>更新播放列表信息</summary>
     Task UpdatePlaylistAsync(Playlist playlist);
+    /// <summary>删除播放列表</summary>
     Task DeletePlaylistAsync(int playlistId);
+    /// <summary>向播放列表添加歌曲</summary>
     Task AddSongToPlaylistAsync(int playlistId, int songId);
+    /// <summary>从播放列表移除歌曲</summary>
     Task RemoveSongFromPlaylistAsync(int playlistId, int songId);
+    /// <summary>获取播放列表中的歌曲</summary>
     Task<List<Song>> GetPlaylistSongsAsync(int playlistId);
+    /// <summary>更新歌曲在播放列表中的位置</summary>
     Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition);
+    /// <summary>获取播放列表中的歌曲数量</summary>
     Task<int> GetPlaylistSongCountAsync(int playlistId);
 
-    // ── CachedSong CRUD ──
-
+    /// <summary>保存缓存的歌曲信息</summary>
     Task SaveCachedSongAsync(CachedSong cachedSong);
+    /// <summary>获取所有缓存的歌曲</summary>
     Task<List<CachedSong>> GetCachedSongsAsync();
+    /// <summary>根据歌曲 ID 获取缓存的歌曲</summary>
     Task<CachedSong?> GetCachedSongAsync(int songId);
+    /// <summary>删除缓存的歌曲</summary>
     Task DeleteCachedSongAsync(int songId);
 }

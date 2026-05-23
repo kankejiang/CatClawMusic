@@ -17,6 +17,11 @@ public class MusicScanner
     private const string DefaultArtist = "未知艺术家";
     private const string DefaultAlbum = "未知专辑";
 
+    /// <summary>
+    /// 创建音乐扫描器实例
+    /// </summary>
+    /// <param name="db">数据库操作实例</param>
+    /// <param name="batchCallback">每批次入库后的回调，传递本批次入库的歌曲列表</param>
     public MusicScanner(MusicDatabase db, Action<List<Song>>? batchCallback = null)
     {
         _db = db;

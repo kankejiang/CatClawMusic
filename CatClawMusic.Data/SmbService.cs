@@ -6,6 +6,9 @@ using SMBLibrary.Client;
 
 namespace CatClawMusic.Data;
 
+/// <summary>
+/// SMB 网络文件服务，提供文件列表、读取和传输功能
+/// </summary>
 public class SmbService : INetworkFileService, IDisposable
 {
     private readonly object _lock = new();
@@ -69,6 +72,10 @@ public class SmbService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 配置并连接到 SMB 服务器
+    /// </summary>
+    /// <param name="profile">包含主机、端口、凭据和共享名等信息的连接配置</param>
     public void Configure(ConnectionProfile profile)
     {
         EnsureConnected(profile);
@@ -77,6 +84,8 @@ public class SmbService : INetworkFileService, IDisposable
     /// <summary>
     /// 列出 SMB 服务器上可用的共享名列表
     /// </summary>
+    /// <param name="profile">连接配置</param>
+    /// <returns>包含是否成功、共享名列表和消息的元组</returns>
     public async Task<(bool Success, List<string> Shares, string Message)> ListSharesAsync(ConnectionProfile profile)
     {
         return await Task.Run(() =>
@@ -134,6 +143,11 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 测试 SMB 服务器连接是否可用
+    /// </summary>
+    /// <param name="profile">连接配置</param>
+    /// <returns>包含是否成功和消息的元组</returns>
     public async Task<(bool Success, string Message)> TestConnectionAsync(ConnectionProfile profile)
     {
         return await Task.Run(() =>
@@ -191,6 +205,11 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 列出指定路径下的文件和目录
+    /// </summary>
+    /// <param name="path">SMB 共享中的目录路径</param>
+    /// <returns>远程文件信息列表</returns>
     public async Task<List<RemoteFile>> ListFilesAsync(string path)
     {
         return await Task.Run(() =>
@@ -317,6 +336,11 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 以流的方式读取远程文件全部内容
+    /// </summary>
+    /// <param name="filePath">远程文件路径</param>
+    /// <returns>包含文件内容的可读流</returns>
     public async Task<Stream> OpenReadAsync(string filePath)
     {
         return await Task.Run(() =>
@@ -368,6 +392,13 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 读取远程文件指定范围的字节数据
+    /// </summary>
+    /// <param name="filePath">远程文件路径</param>
+    /// <param name="offset">起始偏移量</param>
+    /// <param name="length">读取长度</param>
+    /// <returns>指定范围的字节数组</returns>
     public async Task<byte[]> OpenReadRangeAsync(string filePath, long offset, long length)
     {
         return await Task.Run(() =>
@@ -407,6 +438,11 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 获取远程文件的信息
+    /// </summary>
+    /// <param name="filePath">远程文件路径</param>
+    /// <returns>文件信息，失败时返回 null</returns>
     public async Task<RemoteFile?> GetFileInfoAsync(string filePath)
     {
         return await Task.Run(() =>
@@ -466,6 +502,13 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 上传文件到远程路径（SMB 上传暂不支持）
+    /// </summary>
+    /// <param name="remotePath">远程目标路径</param>
+    /// <param name="content">文件内容</param>
+    /// <param name="contentType">MIME 类型</param>
+    /// <returns>包含是否成功和消息的元组</returns>
     public Task<(bool Success, string Message)> UploadFileAsync(string remotePath, byte[] content, string? contentType = null)
     {
         return Task.FromResult((false, "SMB 上传暂不支持"));
@@ -495,6 +538,9 @@ public class SmbService : INetworkFileService, IDisposable
         _connectedShare = null;
     }
 
+    /// <summary>
+    /// 释放 SMB 客户端连接资源
+    /// </summary>
     public void Dispose()
     {
         lock (_lock) { DisconnectLocked(); }

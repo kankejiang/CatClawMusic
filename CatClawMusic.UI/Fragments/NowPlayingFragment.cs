@@ -1102,6 +1102,9 @@ public class NowPlayingFragment : Fragment
         }, 800);
     }
 
+    /// <summary>
+    /// Fragment暂停时清理资源
+    /// </summary>
     public override void OnPause()
     {
         base.OnPause();

@@ -87,11 +87,13 @@ public class MusicDatabase
     /// <summary>
     /// 获取所有本地歌曲（含艺术家和专辑详情）
     /// </summary>
+    /// <returns>本地歌曲列表</returns>
     public Task<List<Song>> GetSongsAsync() => GetSongsWithDetailsAsync();
 
     /// <summary>
     /// 获取所有本地歌曲，并预加载艺术家和专辑名称
     /// </summary>
+    /// <returns>包含艺术家和专辑信息的歌曲列表</returns>
     public async Task<List<Song>> GetSongsWithDetailsAsync()
     {
         var songs = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).ToListAsync();
@@ -111,10 +113,14 @@ public class MusicDatabase
     /// <summary>
     /// 根据 ID 获取单首歌曲
     /// </summary>
+    /// <param name="id">歌曲 ID</param>
+    /// <returns>歌曲对象，未找到时返回 null</returns>
     public Task<Song?> GetSongByIdAsync(int id) =>
         _database.Table<Song>().Where(s => s.Id == id).FirstOrDefaultAsync();
 
     /// <summary>数据库层面搜索歌曲（JOIN Artist/Album 表，避免全部加载到内存）</summary>
+    /// <param name="keyword">搜索关键词</param>
+    /// <returns>匹配的歌曲列表</returns>
     public async Task<List<Song>> SearchSongsAsync(string keyword)
     {
         await EnsureInitializedAsync();
@@ -131,6 +137,8 @@ public class MusicDatabase
     }
 
     /// <summary>按艺术家获取歌曲（数据库层面过滤）</summary>
+    /// <param name="artist">艺术家名称</param>
+    /// <returns>歌曲列表</returns>
     public async Task<List<Song>> GetSongsByArtistAsync(string artist)
     {
         await EnsureInitializedAsync();
@@ -145,6 +153,8 @@ public class MusicDatabase
     }
 
     /// <summary>按专辑获取歌曲（数据库层面过滤）</summary>
+    /// <param name="album">专辑名称</param>
+    /// <returns>歌曲列表</returns>
     public async Task<List<Song>> GetSongsByAlbumAsync(string album)
     {
         await EnsureInitializedAsync();
@@ -161,6 +171,8 @@ public class MusicDatabase
     /// <summary>
     /// 保存或更新歌曲（基于 FilePath 去重）
     /// </summary>
+    /// <param name="song">歌曲对象</param>
+    /// <returns>受影响的行数</returns>
     public async Task<int> SaveSongAsync(Song song)
     {
         await EnsureInitializedAsync();
@@ -180,6 +192,8 @@ public class MusicDatabase
     /// <summary>
     /// 删除指定歌曲
     /// </summary>
+    /// <param name="song">要删除的歌曲对象</param>
+    /// <returns>受影响的行数</returns>
     public Task<int> DeleteSongAsync(Song song)
         => EnsureInitializedAsync().ContinueWith(_ => _database.DeleteAsync(song)).Unwrap();
 
@@ -193,6 +207,10 @@ public class MusicDatabase
     }
 
     /// <summary>删除指定来源中不在保留路径集合内的歌曲，并清理孤立艺术家/专辑</summary>
+    /// <param name="source">歌曲来源类型</param>
+    /// <param name="retainPaths">需要保留的本地文件路径集合</param>
+    /// <param name="retainRemoteIds">需要保留的远程 ID 集合</param>
+    /// <returns>删除的歌曲数量</returns>
     public async Task<int> RemoveStaleSongsAsync(SongSource source, HashSet<string> retainPaths, HashSet<string>? retainRemoteIds = null)
     {
         await EnsureInitializedAsync();
@@ -238,6 +256,8 @@ public class MusicDatabase
     /// <summary>
     /// 根据名称查找或创建艺术家，返回艺术家 ID
     /// </summary>
+    /// <param name="name">艺术家名称</param>
+    /// <returns>艺术家 ID，名称为空时返回 0</returns>
     public async Task<int> EnsureArtistAsync(string name)
     {
         await EnsureInitializedAsync();
@@ -252,6 +272,9 @@ public class MusicDatabase
     /// <summary>
     /// 根据标题和艺术家 ID 查找或创建专辑，返回专辑 ID
     /// </summary>
+    /// <param name="title">专辑标题</param>
+    /// <param name="artistId">艺术家 ID</param>
+    /// <returns>专辑 ID，标题为空时返回 0</returns>
     public async Task<int> EnsureAlbumAsync(string title, int artistId)
     {
         await EnsureInitializedAsync();
@@ -266,11 +289,13 @@ public class MusicDatabase
     /// <summary>
     /// 获取所有艺术家
     /// </summary>
+    /// <returns>艺术家列表</returns>
     public Task<List<Artist>> GetAllArtistsAsync() => _database.Table<Artist>().ToListAsync();
 
     /// <summary>
     /// 获取所有专辑
     /// </summary>
+    /// <returns>专辑列表</returns>
     public Task<List<Album>> GetAllAlbumsAsync() => _database.Table<Album>().ToListAsync();
 
     // ═══════════ Play History ═══════════
@@ -278,6 +303,7 @@ public class MusicDatabase
     /// <summary>
     /// 记录播放历史，已存在的记录会更新播放时间和次数
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
     public async Task RecordPlayAsync(int songId)
     {
         await EnsureInitializedAsync();
@@ -318,10 +344,13 @@ public class MusicDatabase
     /// <summary>
     /// 获取最近的播放历史记录
     /// </summary>
+    /// <param name="limit">最大返回数量</param>
+    /// <returns>播放历史列表</returns>
     public Task<List<PlayHistory>> GetRecentPlaysAsync(int limit = 200) =>
         _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(limit).ToListAsync();
 
     /// <summary>获取最近播放的歌曲（含艺术家/专辑名）</summary>
+    /// <returns>按播放时间降序排列的歌曲列表</returns>
     public async Task<List<Song>> GetRecentSongsAsync()
     {
         await EnsureInitializedAsync();
@@ -349,6 +378,8 @@ public class MusicDatabase
     }
 
     /// <summary>获取播放次数最多的歌曲（含艺术家/专辑名和播放计数）</summary>
+    /// <param name="limit">最大返回数量</param>
+    /// <returns>按播放次数降序排列的歌曲列表</returns>
     public async Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50)
     {
         await EnsureInitializedAsync();
@@ -380,6 +411,8 @@ public class MusicDatabase
     /// <summary>
     /// 设置或取消收藏指定歌曲
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="isFav">是否收藏</param>
     public async Task SetFavoriteAsync(int songId, bool isFav)
     {
         await EnsureInitializedAsync();
@@ -393,6 +426,8 @@ public class MusicDatabase
     /// <summary>
     /// 检查歌曲是否已收藏
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <returns>是否已收藏</returns>
     public async Task<bool> IsFavoriteAsync(int songId)
     {
         await EnsureInitializedAsync();
@@ -402,10 +437,12 @@ public class MusicDatabase
     /// <summary>
     /// 获取所有收藏记录
     /// </summary>
+    /// <returns>收藏记录列表</returns>
     public Task<List<Favorite>> GetFavoritesAsync()
         => _database.Table<Favorite>().ToListAsync();
 
     /// <summary>获取收藏歌曲完整信息（含艺术家/专辑名）</summary>
+    /// <returns>按收藏时间降序排列的歌曲列表</returns>
     public async Task<List<Song>> GetFavoriteSongsAsync()
     {
         await EnsureInitializedAsync();
@@ -439,6 +476,9 @@ public class MusicDatabase
     /// <summary>
     /// 保存或更新歌词信息
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="lrcPath">LRC 文件路径</param>
+    /// <param name="content">歌词内容</param>
     public async Task SaveLyricAsync(int songId, string? lrcPath, string? content)
     {
         await EnsureInitializedAsync();
@@ -450,6 +490,8 @@ public class MusicDatabase
     /// <summary>
     /// 获取指定歌曲的歌词信息
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <returns>歌词信息，未找到时返回 null</returns>
     public Task<Lyric?> GetLyricAsync(int songId) =>
         _database.Table<Lyric>().Where(x => x.SongId == songId).FirstOrDefaultAsync();
 
@@ -458,6 +500,8 @@ public class MusicDatabase
     /// <summary>
     /// 保存或更新连接配置
     /// </summary>
+    /// <param name="profile">连接配置对象</param>
+    /// <returns>受影响的行数</returns>
     public async Task<int> SaveConnectionProfileAsync(ConnectionProfile profile)
     {
         await EnsureInitializedAsync();
@@ -468,6 +512,7 @@ public class MusicDatabase
     /// <summary>
     /// 获取所有连接配置
     /// </summary>
+    /// <returns>连接配置列表</returns>
     public Task<List<ConnectionProfile>> GetConnectionProfilesAsync()
         => _database.Table<ConnectionProfile>().ToListAsync();
 
@@ -476,6 +521,7 @@ public class MusicDatabase
     /// <summary>
     /// 获取所有播放列表
     /// </summary>
+    /// <returns>播放列表列表</returns>
     public Task<List<Playlist>> GetAllPlaylistsAsync()
     {
         return _database.Table<Playlist>().ToListAsync();
@@ -484,6 +530,8 @@ public class MusicDatabase
     /// <summary>
     /// 根据 ID 获取播放列表
     /// </summary>
+    /// <param name="id">播放列表 ID</param>
+    /// <returns>播放列表对象，未找到时返回 null</returns>
     public Task<Playlist?> GetPlaylistByIdAsync(int id)
     {
         return _database.Table<Playlist>().Where(p => p.Id == id).FirstOrDefaultAsync();
@@ -492,6 +540,8 @@ public class MusicDatabase
     /// <summary>
     /// 创建新的播放列表
     /// </summary>
+    /// <param name="name">播放列表名称</param>
+    /// <returns>新播放列表的 ID</returns>
     public async Task<int> CreatePlaylistAsync(string name)
     {
         await EnsureInitializedAsync();
@@ -503,6 +553,7 @@ public class MusicDatabase
     /// <summary>
     /// 更新播放列表信息（自动刷新更新时间）
     /// </summary>
+    /// <param name="playlist">播放列表对象</param>
     public async Task UpdatePlaylistAsync(Playlist playlist)
     {
         await EnsureInitializedAsync();
@@ -513,6 +564,7 @@ public class MusicDatabase
     /// <summary>
     /// 删除播放列表及其所有关联歌曲
     /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
     public async Task DeletePlaylistAsync(int playlistId)
     {
         await EnsureInitializedAsync();
@@ -523,6 +575,8 @@ public class MusicDatabase
     /// <summary>
     /// 将歌曲添加到播放列表末尾（重复则忽略）
     /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <param name="songId">歌曲 ID</param>
     public async Task AddSongToPlaylistAsync(int playlistId, int songId)
     {
         await EnsureInitializedAsync();
@@ -552,6 +606,8 @@ public class MusicDatabase
     /// <summary>
     /// 从播放列表中移除歌曲并重新调整位置
     /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <param name="songId">歌曲 ID</param>
     public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId)
     {
         await EnsureInitializedAsync();
@@ -583,6 +639,8 @@ public class MusicDatabase
     /// <summary>
     /// 获取播放列表中的所有歌曲（按位置排序，含艺术家和专辑信息）
     /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <returns>歌曲列表</returns>
     public async Task<List<Song>> GetPlaylistSongsAsync(int playlistId)
     {
         await EnsureInitializedAsync();
@@ -616,6 +674,9 @@ public class MusicDatabase
     /// <summary>
     /// 更新播放列表中歌曲的位置
     /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="newPosition">新位置索引</param>
     public async Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition)
     {
         await EnsureInitializedAsync();
@@ -631,6 +692,8 @@ public class MusicDatabase
     /// <summary>
     /// 获取播放列表中的歌曲数量
     /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <returns>歌曲数量</returns>
     public async Task<int> GetPlaylistSongCountAsync(int playlistId)
     {
         return await _database.Table<PlaylistSong>()
@@ -641,6 +704,8 @@ public class MusicDatabase
     /// <summary>
     /// 获取播放列表中的第一首歌曲
     /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <returns>歌曲对象，播放列表为空时返回 null</returns>
     public async Task<Song?> GetFirstSongInPlaylistAsync(int playlistId)
     {
         await EnsureInitializedAsync();
@@ -665,6 +730,7 @@ public class MusicDatabase
     /// <summary>
     /// 保存或更新缓存歌曲信息
     /// </summary>
+    /// <param name="cachedSong">缓存歌曲对象</param>
     public async Task SaveCachedSongAsync(CachedSong cachedSong)
     {
         await EnsureInitializedAsync();
@@ -677,6 +743,7 @@ public class MusicDatabase
     /// <summary>
     /// 获取所有已缓存的歌曲
     /// </summary>
+    /// <returns>缓存歌曲列表</returns>
     public Task<List<CachedSong>> GetCachedSongsAsync()
     {
         return _database.Table<CachedSong>().ToListAsync();
@@ -685,6 +752,8 @@ public class MusicDatabase
     /// <summary>
     /// 根据歌曲 ID 获取缓存歌曲信息
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <returns>缓存歌曲信息，未找到时返回 null</returns>
     public Task<CachedSong?> GetCachedSongAsync(int songId)
     {
         return _database.Table<CachedSong>().Where(c => c.SongId == songId).FirstOrDefaultAsync();
@@ -693,6 +762,7 @@ public class MusicDatabase
     /// <summary>
     /// 删除指定歌曲的缓存记录
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
     public async Task DeleteCachedSongAsync(int songId)
     {
         await EnsureInitializedAsync();
@@ -704,6 +774,7 @@ public class MusicDatabase
     // ═══════════ Network Song Cache ═══════════
 
     /// <summary>替换所有网络缓存歌曲（先清除旧的，再批量写入新的）</summary>
+    /// <param name="songs">新歌曲列表</param>
     public async Task ReplaceNetworkSongsAsync(List<Song> songs)
     {
         await EnsureInitializedAsync();
@@ -777,6 +848,7 @@ public class MusicDatabase
     }
 
     /// <summary>获取缓存的网络歌曲</summary>
+    /// <returns>去重后的网络歌曲列表（SMB 优先于 WebDAV）</returns>
     public async Task<List<Song>> GetCachedNetworkSongsAsync()
     {
         await EnsureInitializedAsync();
@@ -801,10 +873,12 @@ public class MusicDatabase
     }
 
     /// <summary>缓存网络歌曲数量</summary>
+    /// <returns>网络歌曲总数</returns>
     public async Task<int> GetCachedNetworkSongCountAsync()
         => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB).CountAsync();
 
     /// <summary>本地歌曲数量</summary>
+    /// <returns>本地歌曲总数</returns>
     public async Task<int> GetLocalSongCountAsync()
         => await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
 
@@ -876,6 +950,7 @@ public class MusicDatabase
     }
 
     /// <summary>插入单首歌曲（用于增量入库），网络歌曲基于 RemoteId 去重</summary>
+    /// <param name="song">歌曲对象</param>
     public async Task InsertSongAsync(Song song)
     {
         await EnsureInitializedAsync();

@@ -2,9 +2,12 @@ using Android.Graphics;
 
 namespace CatClawMusic.UI.Services;
 
+/// <summary>表示提取出的一个主色调及其在封面中的水平位置</summary>
 public class ColorEntry
 {
+    /// <summary>颜色值（ARGB）</summary>
     public int Color { get; set; }
+    /// <summary>颜色在封面中的水平中心位置（0~1 归一化）</summary>
     public float CenterX { get; set; }
 }
 

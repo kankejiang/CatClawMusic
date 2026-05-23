@@ -38,6 +38,9 @@ public class WebDavBrowserDialog : Dialog
     /// <summary>用户最终选择的路径</summary>
     public string? SelectedPath { get; private set; }
 
+    /// <summary>创建 WebDAV 浏览器对话框</summary>
+    /// <param name="activity">宿主 Activity</param>
+    /// <param name="profile">WebDAV 连接配置</param>
     public WebDavBrowserDialog(Activity activity, ConnectionProfile profile)
         : base(activity)
     {

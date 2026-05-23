@@ -212,6 +212,9 @@ public class LibraryFragment : Fragment
         base.OnDestroyView();
     }
 
+    /// <summary>
+    /// Fragment恢复可见时刷新网络协议下拉列表
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();

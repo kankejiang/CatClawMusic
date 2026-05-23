@@ -18,17 +18,50 @@ public partial class SettingsViewModel : ObservableObject
     private readonly MusicDatabase? _database;
     private readonly IDialogService _dialogService;
 
+    /// <summary>
+    /// WebDAV服务器主机地址
+    /// </summary>
     [ObservableProperty] private string _host = "";
+    /// <summary>
+    /// WebDAV服务器端口
+    /// </summary>
     [ObservableProperty] private string _port = "5005";
+    /// <summary>
+    /// 用户名
+    /// </summary>
     [ObservableProperty] private string _userName = "";
+    /// <summary>
+    /// 密码
+    /// </summary>
     [ObservableProperty] private string _password = "";
+    /// <summary>
+    /// WebDAV基础路径
+    /// </summary>
     [ObservableProperty] private string _basePath = "/";
+    /// <summary>
+    /// 缓存大小（GB）
+    /// </summary>
     [ObservableProperty] private double _cacheSizeGB = 1;
+    /// <summary>
+    /// 是否仅在WiFi下缓存
+    /// </summary>
     [ObservableProperty] private bool _onlyWiFiCache = true;
+    /// <summary>
+    /// 音乐文件夹路径
+    /// </summary>
     [ObservableProperty] private string _musicFolder = "";
+    /// <summary>
+    /// 是否正在测试连接
+    /// </summary>
     [ObservableProperty] private bool _isTesting;
+    /// <summary>
+    /// 状态文本
+    /// </summary>
     [ObservableProperty] private string _statusText = "";
 
+    /// <summary>
+    /// 音乐文件夹列表
+    /// </summary>
     public ObservableCollection<string> MusicFolders { get; } = new();
 
     private List<string> _folderUris = new();
@@ -83,6 +116,9 @@ public partial class SettingsViewModel : ObservableObject
         catch { return uri; }
     }
 
+    /// <summary>
+    /// 打开文件夹选择器添加音乐文件夹
+    /// </summary>
     [RelayCommand]
     private async Task AddMusicFolder()
     {
@@ -100,6 +136,9 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 清除所有音乐文件夹
+    /// </summary>
     [RelayCommand]
     private void ClearMusicFolders()
     {
@@ -110,6 +149,10 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(MusicFolder));
     }
 
+    /// <summary>
+    /// 移除指定索引的音乐文件夹
+    /// </summary>
+    /// <param name="index">文件夹索引</param>
     public void RemoveMusicFolder(int index)
     {
         if (index < 0 || index >= MusicFolders.Count) return;

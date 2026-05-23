@@ -25,22 +25,32 @@ public class SongAdapter : RecyclerView.Adapter
     private static readonly ConcurrentDictionary<string, Task> _loadingCovers = new();
     private static readonly SemaphoreSlim _coverLoadSemaphore = new(4, 4);
 
+    /// <summary>歌曲点击事件</summary>
     public event EventHandler<Song>? SongClicked;
+    /// <summary>歌曲长按事件</summary>
     public event EventHandler<Song>? SongLongClicked;
+    /// <summary>最近一次长按的锚点视图</summary>
     public View? LastLongClickedView { get; private set; }
 
+    /// <summary>创建歌曲适配器</summary>
+    /// <param name="networkMusic">网络音乐服务，用于获取网络歌曲的封面</param>
     public SongAdapter(INetworkMusicService? networkMusic = null)
     {
         _networkMusic = networkMusic;
         HasStableIds = true;
     }
 
+    /// <summary>全量更新歌曲列表</summary>
+    /// <param name="songs">新的歌曲列表</param>
     public void UpdateSongs(IEnumerable<Song> songs)
     {
         _songs = songs.ToList();
         NotifyDataSetChanged();
     }
 
+    /// <summary>更新当前播放状态，高亮正在播放的歌曲并显示播放/暂停图标</summary>
+    /// <param name="currentSongId">当前播放歌曲的 ID</param>
+    /// <param name="isPlaying">是否正在播放</param>
     public void UpdatePlayState(int currentSongId, bool isPlaying)
     {
         var oldId = _currentPlayingSongId;
@@ -56,6 +66,8 @@ public class SongAdapter : RecyclerView.Adapter
         }
     }
 
+    /// <summary>批量追加歌曲到列表末尾</summary>
+    /// <param name="songs">待追加的歌曲列表</param>
     public void AddRange(IList<Song> songs)
     {
         if (songs.Count == 0) return;
@@ -64,6 +76,7 @@ public class SongAdapter : RecyclerView.Adapter
         NotifyItemRangeInserted(startPos, songs.Count);
     }
 
+    /// <summary>清空歌曲列表</summary>
     public void Clear()
     {
         int count = _songs.Count;

@@ -80,8 +80,11 @@ public interface IAudioPlayerService
 /// </summary>
 public class PlaybackStateChangedEventArgs : EventArgs
 {
+    /// <summary>当前播放状态</summary>
     public PlaybackState State { get; set; }
+    /// <summary>当前歌曲 ID</summary>
     public string? SongId { get; set; }
+    /// <summary>错误消息（仅在 Error 状态时有值）</summary>
     public string? ErrorMessage { get; set; }
 }
 

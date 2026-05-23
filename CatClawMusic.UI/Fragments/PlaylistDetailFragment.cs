@@ -12,6 +12,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
+/// <summary>
+/// 歌单详情Fragment，显示歌单内的歌曲列表，支持播放、移除、收藏等操作
+/// </summary>
 public class PlaylistDetailFragment : Fragment
 {
     private PlaylistDetailViewModel _viewModel = null!;
@@ -23,11 +26,17 @@ public class PlaylistDetailFragment : Fragment
     private SongAdapter _adapter = null!;
     private int _playlistId;
     private bool _isUserPlaylist;
-    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
+    private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
 
+    /// <summary>
+    /// 创建歌单详情视图
+    /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_playlist_detail, container, false)!;
 
+    /// <summary>
+    /// 视图创建完成后初始化控件，从Arguments获取歌单ID，加载歌曲列表
+    /// </summary>
     public override void OnViewCreated(View view, Bundle? state)
     {
         base.OnViewCreated(view, state);
@@ -196,6 +205,9 @@ public class PlaylistDetailFragment : Fragment
         _adapter.UpdatePlayState(currentSongId, isPlaying);
     }
 
+    /// <summary>
+    /// Fragment恢复可见时重新加载歌单数据（如果是用户歌单）
+    /// </summary>
     public override void OnResume()
     {
         base.OnResume();
@@ -203,6 +215,9 @@ public class PlaylistDetailFragment : Fragment
             _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName);
     }
 
+    /// <summary>
+    /// Fragment销毁时解绑事件处理器
+    /// </summary>
     public override void OnDestroyView()
     {
         if (_collectionChangedHandler != null)

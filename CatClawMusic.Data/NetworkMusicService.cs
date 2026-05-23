@@ -25,6 +25,13 @@ public class NetworkMusicService : INetworkMusicService
     private readonly INetworkFileService _webDav;
     private readonly INetworkFileService _smb;
 
+    /// <summary>
+    /// 创建网络音乐服务实例
+    /// </summary>
+    /// <param name="db">数据库操作实例</param>
+    /// <param name="subsonic">Subsonic/Navidrome API 客户端</param>
+    /// <param name="webDav">WebDAV 文件服务</param>
+    /// <param name="smb">SMB 文件服务</param>
     public NetworkMusicService(MusicDatabase db, ISubsonicService subsonic, INetworkFileService webDav, INetworkFileService smb)
     {
         _db = db;
@@ -36,6 +43,7 @@ public class NetworkMusicService : INetworkMusicService
     /// <summary>
     /// 获取所有连接配置
     /// </summary>
+    /// <returns>连接配置列表</returns>
     public async Task<List<ConnectionProfile>> GetProfilesAsync()
     {
         await _db.EnsureInitializedAsync();
@@ -43,8 +51,12 @@ public class NetworkMusicService : INetworkMusicService
     }
 
     /// <summary>
-    /// 扫描网络音乐源，按协议类型分发到 Subsonic 或 WebDAV 扫描
+    /// 扫描网络音乐源，按协议类型分发到 Subsonic 或 WebDAV/SMB 扫描
     /// </summary>
+    /// <param name="profile">连接配置</param>
+    /// <param name="progress">进度报告回调</param>
+    /// <param name="songBatchCallback">每批次歌曲扫描完成后的回调</param>
+    /// <returns>扫描到的所有歌曲列表</returns>
     public async Task<List<Song>> ScanAsync(ConnectionProfile profile,
         IProgress<(int done, int total, string status)>? progress = null,
         Action<List<Song>>? songBatchCallback = null)
@@ -109,6 +121,9 @@ public class NetworkMusicService : INetworkMusicService
     /// <summary>
     /// 按协议类型搜索网络音乐（当前仅支持 Navidrome）
     /// </summary>
+    /// <param name="keyword">搜索关键词</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>匹配的歌曲列表</returns>
     public async Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile)
     {
         return profile.Protocol switch
@@ -164,6 +179,9 @@ public class NetworkMusicService : INetworkMusicService
     /// <summary>
     /// 获取歌曲封面图流，按协议类型分发
     /// </summary>
+    /// <param name="songId">歌曲 ID 或文件路径</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>封面图流，失败时返回 null</returns>
     public async Task<Stream?> GetCoverAsync(string songId, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.Navidrome)
@@ -221,6 +239,9 @@ public class NetworkMusicService : INetworkMusicService
     /// <summary>
     /// 获取远程歌曲歌词，优先查找外部 .lrc 文件，回退到嵌入标签
     /// </summary>
+    /// <param name="remotePath">远程文件路径</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>歌词文本，失败时返回 null</returns>
     public async Task<string?> GetLyricsAsync(string remotePath, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.WebDAV)
@@ -299,6 +320,9 @@ public class NetworkMusicService : INetworkMusicService
     /// <summary>
     /// 从远程文件头部数据中解析歌曲元数据，更新歌曲信息
     /// </summary>
+    /// <param name="song">待更新元数据的歌曲对象</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>更新后的歌曲对象，失败时返回 null</returns>
     public async Task<Song?> FetchSongMetadataAsync(Song song, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.WebDAV)
@@ -397,6 +421,9 @@ public class NetworkMusicService : INetworkMusicService
     /// <summary>
     /// 获取歌曲流 URL，按协议类型构建对应的播放地址
     /// </summary>
+    /// <param name="song">歌曲对象</param>
+    /// <param name="profile">连接配置</param>
+    /// <returns>流播放 URL</returns>
     public Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.Navidrome)

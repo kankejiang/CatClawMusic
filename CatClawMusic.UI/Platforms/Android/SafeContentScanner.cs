@@ -6,6 +6,7 @@ using AUri = Android.Net.Uri;
 
 namespace CatClawMusic.UI.Platforms.Android;
 
+/// <summary>SAF（Storage Access Framework）安全内容扫描器，通过 content:// URI 遍历并读取音频文件元数据</summary>
 public static class SafeContentScanner
 {
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -24,6 +25,9 @@ public static class SafeContentScanner
     private const int MdKeyDuration = 9;
     private const int MdKeyBitrate = 20;
 
+    /// <summary>扫描已保存的 SAF 文件夹，批量读取音频文件元数据并通过回调返回</summary>
+    /// <param name="songCallback">每发现一批歌曲时回调</param>
+    /// <param name="progress">扫描进度报告</param>
     public static async Task ScanSavedFolderAsync(
         Func<List<Song>, Task> songCallback,
         IProgress<(int done, int total, string status)>? progress = null)

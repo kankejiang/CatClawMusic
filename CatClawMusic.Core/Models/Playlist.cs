@@ -3,11 +3,14 @@ using SQLite;
 namespace CatClawMusic.Core.Models;
 
 /// <summary>
-/// 播放列表模型
+/// 播放列表模型，对应数据库 Playlists 表
 /// </summary>
 [Table("Playlists")]
 public class Playlist
 {
+    /// <summary>
+    /// 主键，自增
+    /// </summary>
     [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
     

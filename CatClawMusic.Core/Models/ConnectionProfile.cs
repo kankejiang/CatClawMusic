@@ -71,6 +71,7 @@ public class ConnectionProfile
     // — 便捷方法 —
 
     /// <summary>构建完整 Base URL</summary>
+    /// <returns>拼接后的完整 URL 字符串</returns>
     public string GetBaseUrl()
     {
         var scheme = UseHttps ? "https" : "http";
