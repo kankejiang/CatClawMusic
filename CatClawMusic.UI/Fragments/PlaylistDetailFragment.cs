@@ -23,7 +23,7 @@ public class PlaylistDetailFragment : Fragment
     private SongAdapter _adapter = null!;
     private int _playlistId;
     private bool _isUserPlaylist;
-    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
+    private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_playlist_detail, container, false)!;

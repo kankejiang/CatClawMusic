@@ -18,7 +18,7 @@ public class PlaylistFragment : Fragment
     private TextView _statusText = null!;
     private LibraryViewModel? _libraryVm;
     private EventHandler? _scanCompletedHandler;
-    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
+    private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
     {

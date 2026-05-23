@@ -22,7 +22,7 @@ public class SearchFragment : Fragment
     private RecyclerView _resultsList = null!;
     private TextView _statusText = null!;
     private SongAdapter _adapter = null!;
-    private EventHandler<System.Collections.Specialized.NotifyCollectionChangedEventArgs>? _collectionChangedHandler;
+    private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
 
     /// <summary>
     /// 创建探索视图
