@@ -96,6 +96,8 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     public event EventHandler<CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs>? StateChanged;
     /// <summary>播放位置变化事件</summary>
     public event EventHandler<TimeSpan>? PositionChanged;
+    /// <summary>音频会话ID变化事件（Player重建时触发，用于重新绑定Visualizer）</summary>
+    public event Action<int>? AudioSessionIdChanged;
 #pragma warning disable CS0067
     /// <summary>PCM 原始音频数据可用事件（当前未实现，保留接口）</summary>
     public event Action<byte[]>? PcmDataAvailable;
@@ -192,6 +194,17 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>异步播放指定路径的音频文件或网络流</summary>
     public async Task PlayAsync(string filePathOrUrl)
     {
+        await PrepareCoreAsync(filePathOrUrl, autoPlay: true);
+    }
+
+    /// <summary>仅准备播放（不自动播放），用于恢复上次播放位置时避免短暂出声</summary>
+    public async Task PrepareWithoutPlayAsync(string filePathOrUrl)
+    {
+        await PrepareCoreAsync(filePathOrUrl, autoPlay: false);
+    }
+
+    private async Task PrepareCoreAsync(string filePathOrUrl, bool autoPlay)
+    {
         _isPrepared = false;
         _lastPlaybackState = 1;
         _cachedPositionMs = 0;
@@ -274,15 +287,27 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
             await _readyTcs.Task;
 
-            await RunOnMainThreadAsync(() => _player!.PlayWhenReady = true);
             _isPrepared = true;
             _currentPath = filePathOrUrl;
 
-            RequestAudioFocus();
-            AcquireWakeLock();
-            StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
-            StartPositionTimer();
-            ForegroundPlayerService.Start(global::Android.App.Application.Context);
+            var newSessionId = AudioSessionId;
+            if (newSessionId > 0)
+                _mainHandler.Post(() => AudioSessionIdChanged?.Invoke(newSessionId));
+
+            if (autoPlay)
+            {
+                await RunOnMainThreadAsync(() => _player!.PlayWhenReady = true);
+                RequestAudioFocus();
+                AcquireWakeLock();
+                StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
+                StartPositionTimer();
+                ForegroundPlayerService.Start(global::Android.App.Application.Context);
+            }
+            else
+            {
+                await RunOnMainThreadAsync(() => _player!.PlayWhenReady = false);
+                StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
+            }
         }
         catch (System.OperationCanceledException) { ALog.Warn("CatClaw", "[CatClaw] PlayAsync 被取消"); }
         catch (Exception ex)

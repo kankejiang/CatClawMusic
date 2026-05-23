@@ -208,7 +208,7 @@ public class MusicLibraryService : IMusicLibraryService
     }
 
     /// <summary>
-    /// 获取去重合并的全部歌曲：本地 + 网络歌曲按标题+艺术家去重，本地优先
+    /// 获取去重合并的全部歌曲：本地 + 网络歌曲按标题+艺术家去重，本地优先，自动过滤已关闭协议
     /// </summary>
     /// <returns>去重合并后的歌曲列表</returns>
     public async Task<List<Song>> GetMergedSongsAsync()
@@ -216,6 +216,9 @@ public class MusicLibraryService : IMusicLibraryService
         var allSongs = await GetAllSongsAsync();
         var networkSongs = await _db.GetCachedNetworkSongsAsync();
         allSongs.AddRange(networkSongs);
+
+        var enabledProtocols = await _db.GetEnabledProtocolsAsync();
+        allSongs = _db.FilterByEnabledProtocols(allSongs, enabledProtocols);
 
         var deduped = allSongs
             .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
@@ -232,6 +235,42 @@ public class MusicLibraryService : IMusicLibraryService
             .OrderBy(s => s.Title)
             .ToList();
         return deduped;
+    }
+
+    public async Task<int> GetMergedSongCountAsync()
+    {
+        await _db.EnsureInitializedAsync();
+        return await _db.GetMergedDedupedCountAsync();
+    }
+
+    public async Task<int> GetFavoriteSongCountAsync()
+    {
+        await _db.EnsureInitializedAsync();
+        return await _db.GetFavoriteCountAsync();
+    }
+
+    public async Task<int> GetRecentSongCountAsync()
+    {
+        await _db.EnsureInitializedAsync();
+        return await _db.GetRecentPlayCountAsync();
+    }
+
+    public async Task<int> GetFirstSongIdForAllAsync()
+    {
+        await _db.EnsureInitializedAsync();
+        return await _db.GetFirstSongIdForAllAsync();
+    }
+
+    public async Task<int> GetFirstFavoriteSongIdAsync()
+    {
+        await _db.EnsureInitializedAsync();
+        return await _db.GetFirstFavoriteSongIdAsync();
+    }
+
+    public async Task<int> GetFirstRecentSongIdAsync()
+    {
+        await _db.EnsureInitializedAsync();
+        return await _db.GetFirstRecentSongIdAsync();
     }
 
     /// <summary>

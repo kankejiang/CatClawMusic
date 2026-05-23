@@ -161,11 +161,12 @@ public class ForegroundPlayerService : Service
         }
     }
 
-    /// <summary>进度定时器回调，更新播放状态并延时递归调用</summary>
+    /// <summary>进度定时器回调，更新播放状态、通知进度并延时递归调用</summary>
     private void ProgressTick()
     {
         if (_progressHandler == null) return;
         UpdateMediaSessionPlaybackState();
+        UpdateNotificationProgress();
         _progressHandler.PostDelayed(ProgressTick, 1000);
     }
 
@@ -316,6 +317,8 @@ public class ForegroundPlayerService : Service
             var title = song?.Title ?? "猫爪音乐";
             var artist = song?.Artist ?? "未在播放";
             var durationMs = (long)(_audioPlayer?.Duration.TotalMilliseconds ?? 0);
+            if (durationMs <= 0 && song?.Duration > 0)
+                durationMs = song.Duration;
 
             var builder = new MediaMetadata.Builder()
                 .PutString(MediaMetadata.MetadataKeyTitle, title)
@@ -543,6 +546,59 @@ public class ForegroundPlayerService : Service
         catch (System.Exception ex)
         {
             ALog.Warn("CatClaw", $"UpdateNotification failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>仅更新通知进度条，不重建整个通知（轻量级，每秒调用）</summary>
+    private void UpdateNotificationProgress()
+    {
+        try
+        {
+            var manager = (NotificationManager)GetSystemService(NotificationService)!;
+            var song = _nowPlayingVm?.CurrentSong;
+            var title = song?.Title ?? "猫爪音乐";
+            var artist = string.IsNullOrEmpty(song?.Artist) ? "未在播放" : song!.Artist;
+            var isPlaying = _audioPlayer?.IsPlaying ?? false;
+            var positionMs = _audioPlayer?.RealtimePositionMs ?? 0;
+            var durationMs = (long)(_audioPlayer?.Duration.TotalMilliseconds ?? 0);
+
+            if (durationMs <= 0 && song?.Duration > 0)
+                durationMs = song.Duration;
+
+            var playIcon = isPlaying ? Resource.Drawable.ic_notif_pause : Resource.Drawable.ic_notif_play;
+            var playLabel = isPlaying ? "暂停" : "播放";
+
+            var mediaStyle = new Notification.MediaStyle();
+            if (_mediaSession != null)
+                mediaStyle.SetMediaSession(_mediaSession.SessionToken);
+
+            var builder = new Notification.Builder(this, ChannelId)
+                .SetContentTitle(title)
+                .SetContentText(artist)
+                .SetSmallIcon(Resource.Drawable.ic_play)
+                .SetLargeIcon(LoadCoverBitmap())
+                .SetVisibility(NotificationVisibility.Public)
+                .SetOngoing(true)
+                .SetShowWhen(false)
+                .SetCategory(Notification.CategoryTransport)
+                .SetColor(unchecked((int)0xFF9B7ED8))
+                .SetContentIntent(BuildContentPendingIntent())
+                .SetStyle(mediaStyle);
+
+            if (durationMs > 0)
+                builder.SetProgress((int)durationMs, (int)positionMs, false);
+            else
+                builder.SetProgress(1, 0, false);
+
+            builder.AddAction(BuildAction(Resource.Drawable.ic_notif_previous, "上一曲", "previous"));
+            builder.AddAction(BuildAction(playIcon, playLabel, isPlaying ? "pause" : "play"));
+            builder.AddAction(BuildAction(Resource.Drawable.ic_notif_next, "下一曲", "next"));
+
+            manager.Notify(NotifIdMain, builder.Build());
+        }
+        catch (System.Exception ex)
+        {
+            ALog.Warn("CatClaw", $"UpdateNotificationProgress failed: {ex.Message}");
         }
     }
 

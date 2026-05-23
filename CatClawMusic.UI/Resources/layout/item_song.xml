@@ -8,12 +8,17 @@
     android:foreground="?attr/selectableItemBackground"
     android:importantForAutofill="no">
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:padding="12dp" android:gravity="center_vertical">
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="12dp">
 
         <FrameLayout
+            android:id="@+id/cover_container"
             android:layout_width="48dp" android:layout_height="48dp"
-            android:layout_marginEnd="12dp">
+            android:layout_marginEnd="12dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent">
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent" android:layout_height="match_parent"
                 app:cardCornerRadius="12dp" app:cardElevation="0dp"
@@ -28,21 +33,33 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:orientation="vertical">
-            <TextView android:id="@+id/song_title" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:textSize="15sp"
-                android:textColor="?attr/catClawTextPrimary" android:maxLines="1"
-                android:ellipsize="end" android:fontFamily="sans-serif-medium"
-                android:text="歌曲名" />
-            <TextView android:id="@+id/song_artist" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:textSize="12sp"
-                android:textColor="?attr/catClawTextSecondary" android:fontFamily="sans-serif"
-                android:text="艺术家" />
-            <TextView android:id="@+id/song_album" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:textSize="11sp"
-                android:textColor="?attr/catClawTextHint" android:fontFamily="sans-serif"
-                android:text="专辑" />
-        </LinearLayout>
-    </LinearLayout>
+        <TextView android:id="@+id/song_title" android:layout_width="0dp"
+            android:layout_height="wrap_content" android:textSize="15sp"
+            android:textColor="?attr/catClawTextPrimary" android:maxLines="1"
+            android:ellipsize="end" android:fontFamily="sans-serif-medium"
+            android:text="歌曲名"
+            app:layout_constraintStart_toEndOf="@id/cover_container"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/song_artist" />
+
+        <TextView android:id="@+id/song_artist" android:layout_width="0dp"
+            android:layout_height="wrap_content" android:textSize="12sp"
+            android:textColor="?attr/catClawTextSecondary" android:fontFamily="sans-serif"
+            android:text="艺术家" android:maxLines="1" android:ellipsize="end"
+            app:layout_constraintStart_toEndOf="@id/cover_container"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/song_title"
+            app:layout_constraintBottom_toTopOf="@id/song_album" />
+
+        <TextView android:id="@+id/song_album" android:layout_width="0dp"
+            android:layout_height="wrap_content" android:textSize="11sp"
+            android:textColor="?attr/catClawTextHint" android:fontFamily="sans-serif"
+            android:text="专辑" android:maxLines="1" android:ellipsize="end"
+            app:layout_constraintStart_toEndOf="@id/cover_container"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/song_artist"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -78,6 +78,9 @@ public class MusicDatabase
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_artist ON Songs(ArtistId)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_album ON Songs(AlbumId)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_title ON Songs(Title)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_source ON Songs(Source)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_protocol ON Songs(Protocol)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_source_protocol ON Songs(Source, Protocol)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_albums_artist ON Albums(ArtistId)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_play_history_time ON PlayHistory(PlayedAt DESC)"); } catch { }
     }
@@ -85,10 +88,101 @@ public class MusicDatabase
     // ═══════════ Song CRUD ═══════════
 
     /// <summary>
+    /// 获取所有已启用协议的 ProtocolType 集合（用于过滤歌曲）
+    /// </summary>
+    public async Task<HashSet<ProtocolType>> GetEnabledProtocolsAsync()
+    {
+        await EnsureInitializedAsync();
+        var profiles = await _database.Table<ConnectionProfile>().ToListAsync();
+        var enabled = new HashSet<ProtocolType>();
+        foreach (var p in profiles)
+        {
+            if (p.IsEnabled)
+                enabled.Add(p.Protocol);
+        }
+        return enabled;
+    }
+
+    /// <summary>
+    /// 过滤歌曲列表，移除来自已关闭协议的歌曲
+    /// </summary>
+    public List<Song> FilterByEnabledProtocols(List<Song> songs, HashSet<ProtocolType> enabledProtocols)
+    {
+        return songs.Where(s =>
+        {
+            if (s.Source == SongSource.Local) return true;
+            if (s.Source == SongSource.Cache) return true;
+            return enabledProtocols.Contains(s.Protocol);
+        }).ToList();
+    }
+
+    /// <summary>
     /// 获取所有本地歌曲（含艺术家和专辑详情）
     /// </summary>
     /// <returns>本地歌曲列表</returns>
     public Task<List<Song>> GetSongsAsync() => GetSongsWithDetailsAsync();
+
+    public async Task<int> GetLocalSongCountAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
+    }
+
+    public async Task<int> GetNetworkSongCountAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<Song>()
+            .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
+            .CountAsync();
+    }
+
+    public async Task<int> GetMergedDedupedCountAsync()
+    {
+        await EnsureInitializedAsync();
+        var songs = await _database.Table<Song>()
+            .OrderBy(s => s.Title)
+            .ToListAsync();
+        var enabledProtocols = await GetEnabledProtocolsAsync();
+        var filtered = FilterByEnabledProtocols(songs, enabledProtocols);
+        return filtered
+            .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
+            .Count();
+    }
+
+    public async Task<int> GetFavoriteCountAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<Favorite>().CountAsync();
+    }
+
+    public async Task<int> GetRecentPlayCountAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<PlayHistory>().CountAsync();
+    }
+
+    public async Task<int> GetFirstSongIdForAllAsync()
+    {
+        await EnsureInitializedAsync();
+        var song = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).FirstOrDefaultAsync();
+        if (song != null) return song.Id;
+        song = await _database.Table<Song>().FirstOrDefaultAsync();
+        return song?.Id ?? 0;
+    }
+
+    public async Task<int> GetFirstFavoriteSongIdAsync()
+    {
+        await EnsureInitializedAsync();
+        var fav = await _database.Table<Favorite>().OrderByDescending(f => f.AddedAt).FirstOrDefaultAsync();
+        return fav?.SongId ?? 0;
+    }
+
+    public async Task<int> GetFirstRecentSongIdAsync()
+    {
+        await EnsureInitializedAsync();
+        var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).FirstOrDefaultAsync();
+        return history?.SongId ?? 0;
+    }
 
     /// <summary>
     /// 获取所有本地歌曲，并预加载艺术家和专辑名称
@@ -215,22 +309,29 @@ public class MusicDatabase
     {
         await EnsureInitializedAsync();
         var all = await _database.Table<Song>().Where(s => s.Source == source).ToListAsync();
-        var toDelete = new List<Song>();
+        var toDeleteIds = new List<int>();
         foreach (var s in all)
         {
             bool keep = source == SongSource.Local
                 ? retainPaths.Contains(s.FilePath)
                 : (retainRemoteIds != null && !string.IsNullOrEmpty(s.RemoteId) && retainRemoteIds.Contains(s.RemoteId));
-            if (!keep) toDelete.Add(s);
+            if (!keep) toDeleteIds.Add(s.Id);
         }
-        foreach (var s in toDelete)
+
+        if (toDeleteIds.Count == 0) return 0;
+
+        await _database.RunInTransactionAsync(tran =>
         {
-            try { await _database.DeleteAsync(s); } catch { }
-            try { await _database.ExecuteAsync("DELETE FROM PlayHistory WHERE SongId = ?", s.Id); } catch { }
-            try { await _database.ExecuteAsync("DELETE FROM Favorites WHERE SongId = ?", s.Id); } catch { }
-        }
+            foreach (var id in toDeleteIds)
+            {
+                try { tran.Delete<Song>(id); } catch { }
+                try { tran.Execute("DELETE FROM PlayHistory WHERE SongId = ?", id); } catch { }
+                try { tran.Execute("DELETE FROM Favorites WHERE SongId = ?", id); } catch { }
+            }
+        });
+
         await CleanupOrphanedArtistsAndAlbumsAsync();
-        return toDelete.Count;
+        return toDeleteIds.Count;
     }
 
     /// <summary>清理没有关联歌曲的孤立艺术家和专辑</summary>
@@ -269,6 +370,18 @@ public class MusicDatabase
         return newArtist.Id;
     }
 
+    public async Task<List<Artist>> GetAllArtistsAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<Artist>().ToListAsync();
+    }
+
+    public async Task<List<Album>> GetAllAlbumsAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _database.Table<Album>().ToListAsync();
+    }
+
     /// <summary>
     /// 根据标题和艺术家 ID 查找或创建专辑，返回专辑 ID
     /// </summary>
@@ -287,17 +400,6 @@ public class MusicDatabase
     }
 
     /// <summary>
-    /// 获取所有艺术家
-    /// </summary>
-    /// <returns>艺术家列表</returns>
-    public Task<List<Artist>> GetAllArtistsAsync() => _database.Table<Artist>().ToListAsync();
-
-    /// <summary>
-    /// 获取所有专辑
-    /// </summary>
-    /// <returns>专辑列表</returns>
-    public Task<List<Album>> GetAllAlbumsAsync() => _database.Table<Album>().ToListAsync();
-
     // ═══════════ Play History ═══════════
 
     /// <summary>
@@ -449,14 +551,19 @@ public class MusicDatabase
         var favs = await _database.Table<Favorite>().ToListAsync();
         if (favs.Count == 0) return new List<Song>();
 
-        // 批量加载所有歌曲、艺术家、专辑
-        var allFavIds = favs.Select(f => f.SongId).ToHashSet();
-        var songs = await _database.Table<Song>().ToListAsync();
-        var favSongs = songs.Where(s => allFavIds.Contains(s.Id)).ToList();
+        var allFavIds = favs.Select(f => f.SongId).ToList();
+        var favSongs = new List<Song>();
+        foreach (var id in allFavIds)
+        {
+            var song = await _database.Table<Song>().Where(s => s.Id == id).FirstOrDefaultAsync();
+            if (song != null) favSongs.Add(song);
+        }
         if (favSongs.Count == 0) return new List<Song>();
 
-        var artists = await _database.Table<Artist>().ToListAsync();
-        var albums = await _database.Table<Album>().ToListAsync();
+        var neededArtistIds = favSongs.Select(s => s.ArtistId).Distinct().ToList();
+        var neededAlbumIds = favSongs.Select(s => s.AlbumId).Distinct().ToList();
+        var artists = await _database.Table<Artist>().Where(a => neededArtistIds.Contains(a.Id)).ToListAsync();
+        var albums = await _database.Table<Album>().Where(a => neededAlbumIds.Contains(a.Id)).ToListAsync();
         var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
         var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
 
@@ -466,7 +573,6 @@ public class MusicDatabase
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
         }
 
-        // 用 Dictionary 替代 O(n) 的 First() 查找，降为 O(1)
         var favDict = favs.ToDictionary(f => f.SongId, f => f.AddedAt);
         return favSongs.OrderByDescending(s => favDict.TryGetValue(s.Id, out var t) ? t : 0).ToList();
     }
@@ -877,12 +983,6 @@ public class MusicDatabase
     public async Task<int> GetCachedNetworkSongCountAsync()
         => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB).CountAsync();
 
-    /// <summary>本地歌曲数量</summary>
-    /// <returns>本地歌曲总数</returns>
-    public async Task<int> GetLocalSongCountAsync()
-        => await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
-
-    /// <summary>开始替换网络歌曲（先清除旧的），配合 InsertSongAsync 逐首插入</summary>
     public async Task ReplaceNetworkSongsBeginAsync()
     {
         await EnsureInitializedAsync();

@@ -46,6 +46,8 @@ public class PlaylistDetailFragment : Fragment
         _playQueue = MainApplication.Services.GetService<PlayQueue>();
         _songList = view.FindViewById<RecyclerView>(Resource.Id.song_list)!;
         _songList.SetLayoutManager(new LinearLayoutManager(Context));
+        _songList.SetItemViewCacheSize(20);
+        _songList.GetRecycledViewPool().SetMaxRecycledViews(0, 30);
         _titleText = view.FindViewById<TextView>(Resource.Id.title_text)!;
         _statusText = view.FindViewById<TextView>(Resource.Id.status_text)!;
 
@@ -56,6 +58,7 @@ public class PlaylistDetailFragment : Fragment
         _adapter.SongClicked += (s, song) => _ = _viewModel.PlaySongAsync(song);
         _adapter.SongLongClicked += (s, song) => ShowSongContextMenu(song);
         _songList.SetAdapter(_adapter);
+        _songList.AddOnScrollListener(new SongAdapter.ScrollListener(_adapter));
 
         if (_audioPlayer != null)
             _audioPlayer.StateChanged += OnAudioPlayerStateChanged;
@@ -77,7 +80,15 @@ public class PlaylistDetailFragment : Fragment
             var a = Activity;
             if (a != null) a.RunOnUiThread(() =>
             {
-                _adapter.UpdateSongs(_viewModel.Songs);
+                if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+                {
+                    _adapter.Clear();
+                    _adapter.AddRange(_viewModel.Songs);
+                }
+                else
+                {
+                    _adapter.UpdateSongs(_viewModel.Songs);
+                }
                 _statusText.Text = _viewModel.StatusText;
                 _statusText.Visibility = _viewModel.Songs.Count == 0
                     ? ViewStates.Visible : ViewStates.Gone;

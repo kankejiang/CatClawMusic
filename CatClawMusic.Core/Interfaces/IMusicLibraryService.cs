@@ -41,6 +41,13 @@ public interface IMusicLibraryService
     /// 获取去重后的全部歌曲（本地 + 网络，同标题+同艺术家只保留本地优先）
     /// </summary>
     Task<List<Song>> GetMergedSongsAsync();
+
+    Task<int> GetMergedSongCountAsync();
+    Task<int> GetFavoriteSongCountAsync();
+    Task<int> GetRecentSongCountAsync();
+    Task<int> GetFirstSongIdForAllAsync();
+    Task<int> GetFirstFavoriteSongIdAsync();
+    Task<int> GetFirstRecentSongIdAsync();
     
     /// <summary>
     /// 按艺术家获取歌曲

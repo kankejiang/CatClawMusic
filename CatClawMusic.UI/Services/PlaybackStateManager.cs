@@ -167,6 +167,7 @@ public static class PlaybackStateManager
             vm.SetCurrentSong(song);
             vm.SyncPlayMode();
             vm.CurrentPosition = position;
+            _ = vm.LoadLyricsAsync(song);
 
             var playUrl = song.FilePath;
 
@@ -193,9 +194,7 @@ public static class PlaybackStateManager
 
             try
             {
-                await player.PlayAsync(playUrl);
-                await Task.Delay(300);
-                await player.PauseAsync();
+                await player.PrepareWithoutPlayAsync(playUrl);
                 if (position.TotalSeconds > 0)
                     await player.SeekAsync(position);
             }

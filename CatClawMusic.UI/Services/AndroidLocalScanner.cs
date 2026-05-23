@@ -1,24 +1,19 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Platforms.Android;
+using System.Collections.Concurrent;
 
 namespace CatClawMusic.UI.Services;
 
-/// <summary>Android 本地音频扫描器，根据权限自动选择 SAF、MediaStore 或文件系统扫描方式</summary>
 public class AndroidLocalScanner
 {
-    /// <summary>扫描本地音频文件，返回歌曲列表</summary>
-    /// <param name="customFolders">自定义扫描目录列表</param>
-    /// <param name="progress">扫描进度报告</param>
-    /// <param name="songCallback">每批次扫描完成的回调，支持增量入库</param>
-    /// <returns>扫描到的所有歌曲</returns>
     public static async Task<List<Song>> ScanAsync(
         List<string>? customFolders = null,
         IProgress<(int done, int total, string status)>? progress = null,
         Func<List<Song>, Task>? songCallback = null)
     {
         var allSongs = new List<Song>();
-        var existingPaths = new HashSet<string>();
+        var existingPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var locker = new object();
 
         bool hasManageStorage = global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.R
@@ -48,7 +43,6 @@ public class AndroidLocalScanner
         }
         else if (hasManageStorage)
         {
-            // ── 全文件访问模式：MediaStore + 文件系统扫描 ──
             progress?.Report((0, 2, "扫描系统媒体库..."));
             try
             {
@@ -64,7 +58,6 @@ public class AndroidLocalScanner
             if (allSongs.Count > 0 && songCallback != null)
                 await songCallback(allSongs.ToList());
 
-            // 文件系统补充扫描
             progress?.Report((1, 2, "扫描本地文件..."));
             var scanDirs = new List<string> { "/storage/emulated/0/Music", "/storage/emulated/0/Download" };
             if (customFolders != null)
@@ -74,44 +67,63 @@ public class AndroidLocalScanner
                         scanDirs.Add(f);
             }
 
+            var allScanPaths = new List<string>();
             foreach (var dir in scanDirs)
             {
                 if (Directory.Exists(dir))
                 {
+                    try { allScanPaths.AddRange(MusicUtility.ScanFolderRecursive(dir)); }
+                    catch { }
+                }
+            }
+
+            var newPaths = allScanPaths.Where(p => !existingPaths.Contains(p)).ToList();
+
+            if (newPaths.Count > 0)
+            {
+                var songBag = new ConcurrentBag<Song>();
+                var processedCount = 0;
+                var totalToProcess = newPaths.Count;
+
+                Parallel.ForEach(newPaths, new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 4)
+                }, path =>
+                {
                     try
                     {
-                        var scanPaths = MusicUtility.ScanFolderRecursive(dir);
-                        var batch = new List<Song>();
-                        foreach (var path in scanPaths)
+                        var song = TagReader.ReadSongInfo(path);
+                        if (song != null)
                         {
-                            if (existingPaths.Contains(path)) continue;
-                            var song = TagReader.ReadSongInfo(path);
-                            if (song != null)
-                            {
-                                existingPaths.Add(path);
-                                batch.Add(song);
-                                if (batch.Count >= 20 && songCallback != null)
-                                {
-                                    allSongs.AddRange(batch);
-                                    await songCallback(batch);
-                                    batch = new List<Song>();
-                                }
-                            }
-                        }
-                        if (batch.Count > 0)
-                        {
-                            allSongs.AddRange(batch);
-                            if (songCallback != null)
-                                await songCallback(batch);
+                            songBag.Add(song);
+                            existingPaths.Add(path);
                         }
                     }
                     catch { }
+
+                    var count = Interlocked.Increment(ref processedCount);
+                    if (count % 50 == 0 || count == totalToProcess)
+                    {
+                        progress?.Report((count, totalToProcess, $"正在读取标签 {count}/{totalToProcess}..."));
+                    }
+                });
+
+                var batch = songBag.ToList();
+                lock (locker) allSongs.AddRange(batch);
+
+                if (batch.Count > 0 && songCallback != null)
+                {
+                    const int batchSize = 30;
+                    for (int i = 0; i < batch.Count; i += batchSize)
+                    {
+                        var chunk = batch.Skip(i).Take(batchSize).ToList();
+                        await songCallback(chunk);
+                    }
                 }
             }
         }
         else
         {
-            // ── 无权限也无 SAF：尝试 MediaStore（只读） ──
             progress?.Report((0, 1, "扫描系统媒体库..."));
             try
             {

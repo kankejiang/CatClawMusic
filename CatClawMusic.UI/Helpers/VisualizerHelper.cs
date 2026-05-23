@@ -119,15 +119,27 @@ public class VisualizerHelper : Java.Lang.Object
             }
 
             float rms = count > 0 ? (float)Math.Sqrt(sumSq / count) : 0;
-            if (rms < 3f) rms = 0f;
+            if (rms < 5f) rms = 0f;
 
-            float normalized = Math.Clamp(rms / 60f, 0f, 1f);
+            float normalized = Math.Clamp(rms / 70f, 0f, 1f);
 
             _prevSmoothed[b] = _smoothed[b];
             if (normalized > _smoothed[b])
                 _smoothed[b] += (normalized - _smoothed[b]) * 0.8f;
             else
                 _smoothed[b] += (normalized - _smoothed[b]) * 0.35f;
+        }
+
+        float overallEnergy = 0f;
+        for (int b = 0; b < Bands; b++)
+            overallEnergy += _smoothed[b];
+        overallEnergy /= Bands;
+
+        float energyScale = Math.Clamp(overallEnergy * 3f, 0f, 1f);
+        if (energyScale < 1f)
+        {
+            for (int b = 0; b < Bands; b++)
+                _smoothed[b] *= energyScale;
         }
 
         for (int b = 1; b < Bands - 1; b++)

@@ -6,9 +6,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatClawMusic.UI.ViewModels;
 
-/// <summary>
-/// 歌单列表ViewModel，管理系统歌单和用户歌单的加载、创建和删除
-/// </summary>
 public partial class PlaylistViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -16,22 +13,13 @@ public partial class PlaylistViewModel : ObservableObject
     private readonly IServiceProvider? _serviceProvider;
     private Data.MusicDatabase? _db;
 
-    /// <summary>
-    /// 歌单列表
-    /// </summary>
     public ObservableCollection<Playlist> Playlists { get; } = new();
 
-    /// <summary>
-    /// 状态文本
-    /// </summary>
     [ObservableProperty]
     private string _statusText = "";
 
     private static readonly long _epoch = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
 
-    /// <summary>
-    /// 初始化歌单列表ViewModel
-    /// </summary>
     public PlaylistViewModel(IMusicLibraryService musicLibrary, INavigationService navigationService,
         IServiceProvider? serviceProvider = null)
     {
@@ -40,9 +28,6 @@ public partial class PlaylistViewModel : ObservableObject
         _serviceProvider = serviceProvider;
     }
 
-    /// <summary>
-    /// 获取数据库实例（延迟初始化）
-    /// </summary>
     private Data.MusicDatabase GetDb()
     {
         if (_db == null)
@@ -51,9 +36,6 @@ public partial class PlaylistViewModel : ObservableObject
         return _db!;
     }
 
-    /// <summary>
-    /// 异步加载所有歌单（系统歌单 + 用户歌单）
-    /// </summary>
     public async Task LoadPlaylistsAsync()
     {
         StatusText = "加载中...";
@@ -61,36 +43,43 @@ public partial class PlaylistViewModel : ObservableObject
         {
             Playlists.Clear();
 
-            var allSongs = await _musicLibrary.GetMergedSongsAsync();
+            var allCountTask = _musicLibrary.GetMergedSongCountAsync();
+            var favCountTask = _musicLibrary.GetFavoriteSongCountAsync();
+            var recentCountTask = _musicLibrary.GetRecentSongCountAsync();
+            var allFirstIdTask = _musicLibrary.GetFirstSongIdForAllAsync();
+            var favFirstIdTask = _musicLibrary.GetFirstFavoriteSongIdAsync();
+            var recentFirstIdTask = _musicLibrary.GetFirstRecentSongIdAsync();
+
+            await Task.WhenAll(allCountTask, favCountTask, recentCountTask,
+                allFirstIdTask, favFirstIdTask, recentFirstIdTask);
+
             Playlists.Add(new Playlist
             {
                 Id = -1,
                 Name = "全部歌曲",
-                SongCount = allSongs.Count,
+                SongCount = allCountTask.Result,
                 IsSystem = true,
-                CoverSongId = allSongs.FirstOrDefault()?.Id ?? 0,
+                CoverSongId = allFirstIdTask.Result,
                 CreatedAt = _epoch
             });
 
-            var favSongs = await _musicLibrary.GetFavoriteSongsAsync();
             Playlists.Add(new Playlist
             {
                 Id = -2,
                 Name = "收藏歌曲",
-                SongCount = favSongs.Count,
+                SongCount = favCountTask.Result,
                 IsSystem = true,
-                CoverSongId = favSongs.FirstOrDefault()?.Id ?? 0,
+                CoverSongId = favFirstIdTask.Result,
                 CreatedAt = _epoch + 1
             });
 
-            var recentSongs = await _musicLibrary.GetRecentSongsAsync();
             Playlists.Add(new Playlist
             {
                 Id = -3,
                 Name = "最近播放",
-                SongCount = recentSongs.Count,
+                SongCount = recentCountTask.Result,
                 IsSystem = true,
-                CoverSongId = recentSongs.FirstOrDefault()?.Id ?? 0,
+                CoverSongId = recentFirstIdTask.Result,
                 CreatedAt = _epoch + 2
             });
 

@@ -60,6 +60,7 @@ CatClawMusic/
 │   ├── MusicDatabase.cs        # SQLite（9 表 + 索引 + WAL）
 │   ├── SubsonicService.cs      # Navidrome/OpenSubsonic API
 │   ├── WebDavService.cs        # WebDAV 协议
+│   ├── MusicScanner.cs         # 统一渐进式批量入库
 │   └── NetworkMusicService.cs  # 网络音乐工厂
 │
 └── CatClawMusic.UI/            # UI 层（Android 原生界面）
@@ -72,7 +73,7 @@ CatClawMusic/
     └── Platforms/Android/      # ExoPlayer / SAF / 主题
 ```
 
-**技术栈**：.NET 9 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | Material 3 | Android Visualizer API
+**技术栈**：.NET 9 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | SMBLibrary | Material 3 | Android Visualizer API
 
 ***
 
@@ -115,7 +116,7 @@ CatClawMusic/
 | 歌曲切换防竞态 | _isSwitchingSong 标志阻止 Stopped 事件误触发 Next() |
 | 音频频谱可视化 | Android Visualizer API + FFT，64 频段实时跳动 |
 | 频谱算法 | 混合线性-对数频段分布、汉宁窗平滑、RMS 能量计算 |
-| 频谱开关 | 控制区一键开启/关闭频谱显示 |
+| 频谱默认关闭 | 频谱默认关闭，用户手动开启时才请求录音权限 |
 | 睡眠定时 | 10/20/30/45/60/90 分钟 + 自定义时间倒计时 |
 | 播完再停 | 可选播完当前歌曲后再暂停 |
 
@@ -198,6 +199,9 @@ CatClawMusic/
 |------|------|
 | 5 色主题 | Purple(默认) / Pink / Blue / Green / Orange |
 | 深色模式 | 明亮 / 深色 / 跟随系统 三种设置 |
+| 紫色调深色模式 | 非纯黑背景，紫色调深色模式，视觉更柔和 |
+| 无重启主题切换 | 运行时直接变色，音频不中断，无需重启 Activity |
+| 深浅色模式图标 | 月牙🌙(深色) / 太阳☀️(浅色) / 半阳半月🌗(跟随系统) |
 | 27 个自定义属性 | catClawPageBackground / PrimaryColor / TextPrimary / GradientStart 等 |
 | 毛玻璃风格卡片 | CatClawCard(20dp圆角) / CatClawCardSmall(16dp) / CatClawCardImage(24dp) |
 | 自定义按钮 | CatClawButtonPrimary(16dp圆角) / CatClawButtonSecondary |
@@ -206,7 +210,7 @@ CatClawMusic/
 
 ### ☁️ 网络协议
 
-> **已实现**：WebDAV、Navidrome (Subsonic API)　|　**规划中**：SMB、DLNA、FTP、NFS
+> **已实现**：WebDAV、Navidrome (Subsonic API)、SMB/CIFS　|　**规划中**：DLNA、FTP、NFS
 
 **Navidrome (Subsonic API)**
 
@@ -236,6 +240,18 @@ CatClawMusic/
 | 连接测试 | Depth=0 PROPFIND 验证 |
 | SocketsHttpHandler | 绕过 Android 网络栈对 HTTP 方法的限制 |
 
+**SMB/CIFS**
+
+| 特性 | 说明 |
+|------|------|
+| SMB 协议 | SMBLibrary 实现 SMB1/CIFS 协议通信 |
+| 共享目录浏览 | 列出服务器共享目录，选择指定共享文件夹 |
+| 递归扫描 | 递归遍历共享目录下所有音频文件，每 20 首一批入库 |
+| 域认证 | 支持 Domain 字段，兼容企业 AD 域环境 |
+| NTLM 认证 | UseNtlm 开关，支持 NTLMv2 认证 |
+| 连接测试 | 列出共享目录验证连接与认证 |
+| 流播放 | 支持 HTTP Range 头的流式播放 |
+
 ### 🔍 探索搜索
 
 | 特性 | 说明 |
@@ -243,6 +259,15 @@ CatClawMusic/
 | 实时搜索 | 300ms 防抖 + CancellationTokenSource 取消旧搜索 |
 | SQL JOIN 搜索 | 数据库层面 JOIN Artist/Album，避免 N+1 查询 |
 | 多字段匹配 | 标题/艺术家/专辑 |
+
+### 🔐 权限管理
+
+| 特性 | 说明 |
+|------|------|
+| 权限状态总览 | 设置页面可查看所有权限状态和说明 |
+| 录音权限 | 频谱可视化需要，手动开启时请求 |
+| 悬浮窗权限 | 桌面歌词需要，引导用户至系统设置 |
+| 通知权限 | Android 13+ 运行时请求 |
 
 ### 📱 页面导航
 
@@ -275,7 +300,7 @@ CatClawMusic/
 | PlayHistory | SongId(Indexed), PlayedAt, PlayCount | 播放历史（去重计次） |
 | Lyrics | SongId(PK), LrcPath, Content | 歌词缓存 |
 | CachedSongs | Id, SongId, LocalPath, CachedAt, FileSize | 网络歌曲本地缓存 |
-| ConnectionProfiles | Id, Name, Protocol, Host, Port, UserName, Password, BasePath, UseHttps | 网络连接配置 |
+| ConnectionProfiles | Id, Name, Protocol, Host, Port, UserName, Password, BasePath, UseHttps, Domain, ShareName, UseNtlm | 网络连接配置 |
 
 **索引优化**：idx_songs_artist / idx_songs_album / idx_songs_title / idx_albums_artist / idx_play_history_time
 

@@ -53,6 +53,8 @@ public class LibraryFragment : Fragment
         _viewModel = sp.GetRequiredService<LibraryViewModel>();
         _songList = view.FindViewById<RecyclerView>(Resource.Id.song_list)!;
         _songList.SetLayoutManager(new LinearLayoutManager(Context));
+        _songList.SetItemViewCacheSize(20);
+        _songList.GetRecycledViewPool().SetMaxRecycledViews(0, 30);
         _statusText = view.FindViewById<TextView>(Resource.Id.status_text)!;
         _btnLocal = view.FindViewById<Button>(Resource.Id.btn_local)!;
         _btnNetwork = view.FindViewById<Button>(Resource.Id.btn_network)!;
@@ -65,8 +67,7 @@ public class LibraryFragment : Fragment
         _adapter.SongClicked += OnSongClicked;
         _adapter.SongLongClicked += OnSongLongClicked;
         _songList.SetAdapter(_adapter);
-        _songList.SetRecycledViewPool(new RecyclerView.RecycledViewPool());
-        _songList.GetRecycledViewPool()!.SetMaxRecycledViews(0, 30);
+        _songList.AddOnScrollListener(new SongAdapter.ScrollListener(_adapter));
         (_songList.GetItemAnimator() as DefaultItemAnimator)!.SupportsChangeAnimations = false;
         _songList.SetItemViewCacheSize(20);
 
@@ -248,7 +249,11 @@ public class LibraryFragment : Fragment
                 break;
 
             case NotifyCollectionChangedAction.Reset:
-                a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
+                a.RunOnUiThread(() =>
+                {
+                    _adapter.Clear();
+                    _adapter.AddRange(_viewModel.Songs);
+                });
                 break;
 
             case NotifyCollectionChangedAction.Remove:

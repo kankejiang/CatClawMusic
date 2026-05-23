@@ -53,6 +53,7 @@ public class SearchFragment : Fragment
             MainApplication.Services.GetRequiredService<Core.Interfaces.INavigationService>().SwitchTab(0);
         };
         _resultsList.SetAdapter(_adapter);
+        _resultsList.AddOnScrollListener(new SongAdapter.ScrollListener(_adapter));
 
         _searchInput.TextChanged += (s, e) => _ = _viewModel.SearchAsync(e?.Text?.ToString() ?? "");
 

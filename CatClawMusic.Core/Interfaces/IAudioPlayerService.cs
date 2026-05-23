@@ -11,6 +11,11 @@ public interface IAudioPlayerService
     Task PlayAsync(string filePathOrUrl);
 
     /// <summary>
+    /// 仅准备播放（不自动播放），用于恢复上次播放位置时避免短暂出声
+    /// </summary>
+    Task PrepareWithoutPlayAsync(string filePathOrUrl);
+
+    /// <summary>
     /// 从暂停状态恢复播放（保持当前进度）
     /// </summary>
     Task ResumeAsync();

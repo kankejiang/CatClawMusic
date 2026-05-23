@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Android.Content;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Platforms.Android;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,9 +10,6 @@ using CoreModels = CatClawMusic.Core.Models;
 
 namespace CatClawMusic.UI.ViewModels;
 
-/// <summary>
-/// 音乐库ViewModel，管理本地和网络歌曲的加载、扫描和协议切换
-/// </summary>
 public partial class LibraryViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -19,14 +17,8 @@ public partial class LibraryViewModel : ObservableObject
     private readonly IPermissionService? _permission;
     private readonly MusicDatabase? _database;
     private readonly IMainThreadDispatcher _dispatcher;
-    /// <summary>
-    /// 当前选中的标签页（"Local" 或 "Network"）
-    /// </summary>
     [ObservableProperty] private string _currentTab = "Local";
 
-    /// <summary>
-    /// 扫描完成事件
-    /// </summary>
     public event EventHandler? ScanCompleted;
 
     /// <summary>
@@ -46,7 +38,7 @@ public partial class LibraryViewModel : ObservableObject
     /// <summary>
     /// 当前显示的歌曲列表
     /// </summary>
-    public ObservableCollection<CoreModels.Song> Songs { get; } = new();
+    public BatchObservableCollection<CoreModels.Song> Songs { get; } = new();
 
     /// <summary>
     /// 是否正在加载
@@ -114,6 +106,9 @@ public partial class LibraryViewModel : ObservableObject
         ).ToList();
 
     private bool _hasLoadedLocal;
+    private bool _hasLoadedNetwork;
+    private List<CoreModels.Song> _localSongsCache = new();
+    private List<CoreModels.Song> _networkSongsCache = new();
     private bool _suppressCollectionChanged;
     private const string PrefKey = "library_state";
     private const string PrefProtocolIndex = "protocol_index";
@@ -199,8 +194,7 @@ public partial class LibraryViewModel : ObservableObject
     /// <summary>批量添加歌曲到 Songs，减少 CollectionChanged 触发次数</summary>
     private void AddSongsBatch(IEnumerable<CoreModels.Song> songs)
     {
-        foreach (var s in songs)
-            Songs.Add(s);
+        Songs.AddRange(songs);
     }
 
     /// <summary>
@@ -209,18 +203,32 @@ public partial class LibraryViewModel : ObservableObject
     [RelayCommand]
     private void SwitchTab(string tab)
     {
+        if (CurrentTab == tab) return;
+
+        if (CurrentTab == "Local")
+            _localSongsCache = Songs.ToList();
+        else
+            _networkSongsCache = Songs.ToList();
+
         CurrentTab = tab;
         LocalTabColor = tab == "Local" ? "#9B7ED8" : "#C0B8CA";
         NetworkTabColor = tab == "Network" ? "#9B7ED8" : "#C0B8CA";
+
         Songs.Clear();
+        var cache = tab == "Local" ? _localSongsCache : _networkSongsCache;
+        if (cache.Count > 0)
+            AddSongsBatch(cache);
+
         if (tab == "Local")
-        {
+            StatusText = cache.Count > 0 ? $"🐱 共 {cache.Count} 首歌曲" : "未加载本地音乐";
+        else
+            StatusText = cache.Count > 0 ? $"☁️ 共 {cache.Count} 首网络歌曲" : "未加载网络音乐";
+
+        if (tab == "Local" && !_hasLoadedLocal && _localSongsCache.Count == 0)
             _ = LoadLocalAsync();
-        }
-        else if (tab == "Network")
-        {
+        else if (tab == "Network" && !_hasLoadedNetwork && _networkSongsCache.Count == 0)
             _ = LoadNetworkAsync();
-        }
+
 #if ANDROID
         try
         {
@@ -242,10 +250,15 @@ public partial class LibraryViewModel : ObservableObject
         if (CurrentTab == "Local")
         {
             _hasLoadedLocal = false;
+            _localSongsCache.Clear();
             await LoadLocalAsync(forceReload: true);
         }
         else
+        {
+            _hasLoadedNetwork = false;
+            _networkSongsCache.Clear();
             await LoadNetworkAsync(forceRefresh: true);
+        }
     }
 
     /// <summary>
@@ -277,7 +290,8 @@ public partial class LibraryViewModel : ObservableObject
             {
                 Songs.Clear();
                 AddSongsBatch(cachedSongs);
-                StatusText = $"🐱 共 {Songs.Count} 首歌曲（缓存 · 权限已过期，下拉刷新重新扫描）";
+                StatusText = $"🐱 共 {Songs.Count} 首歌曲（缓存 · 权限已过期）";
+                _localSongsCache = Songs.ToList();
                 _hasLoadedLocal = true;
                 ShowPermissionPrompt = true;
                 PermissionPromptText = "存储权限已过期，请重新选择音乐文件夹\n\n（使用系统文件管理器，无需额外权限）";
@@ -334,7 +348,8 @@ public partial class LibraryViewModel : ObservableObject
                     _dispatcher.Post(() =>
                     {
                         IsScanning = false;
-                        StatusText = $"🐱 共 {Songs.Count} 首歌曲（下拉刷新）";
+                        StatusText = $"🐱 共 {Songs.Count} 首歌曲";
+                        _localSongsCache = Songs.ToList();
                     });
                     IsLoading = false;
                     return;
@@ -379,11 +394,12 @@ public partial class LibraryViewModel : ObservableObject
             }
 
             var scannedPaths = new HashSet<string>();
+            var displayedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var scanner = new MusicScanner(_database!, batch =>
             {
                 var songsToAdd = batch
-                    .Where(s => !Songs.Any(existing => existing.FilePath == s.FilePath))
+                    .Where(s => displayedPaths.Add(s.FilePath))
                     .ToList();
                 if (songsToAdd.Count > 0)
                 {
@@ -443,6 +459,7 @@ public partial class LibraryViewModel : ObservableObject
                 ScanStatus = "扫描完成";
                 IsScanning = false;
                 StatusText = $"🐱 共 {Songs.Count} 首歌曲";
+                _localSongsCache = Songs.ToList();
                 _hasLoadedLocal = true;
                 ScanCompleted?.Invoke(this, EventArgs.Empty);
             });
@@ -477,10 +494,13 @@ public partial class LibraryViewModel : ObservableObject
                 var cached = await _database.GetCachedNetworkSongsAsync();
                 if (cached.Count > 0)
                 {
+                    cached = await FilterByEnabledProtocolsAsync(cached);
                     Songs.Clear();
                     var filtered = FilterSongsByProtocol(cached);
                     AddSongsBatch(filtered);
                     StatusText = $"☁️ 共 {filtered.Count} 首网络歌曲（缓存）";
+                    _networkSongsCache = Songs.ToList();
+                    _hasLoadedNetwork = true;
                     IsLoading = false;
                     return;
                 }
@@ -524,8 +544,7 @@ public partial class LibraryViewModel : ObservableObject
                     {
                         _dispatcher.Post(() =>
                         {
-                            AddSongsBatch(batch);
-                            StatusText = $"☁️ 已拉取 {Songs.Count} 首网络歌曲...";
+                            StatusText = $"☁️ 正在拉取网络歌曲...";
                         });
                     });
 
@@ -539,9 +558,12 @@ public partial class LibraryViewModel : ObservableObject
             {
                 await _database.EnsureInitializedAsync();
                 var cachedSongs = await _database.GetCachedNetworkSongsAsync();
+                cachedSongs = await FilterByEnabledProtocolsAsync(cachedSongs);
                 var cachedFiltered = FilterSongsByProtocol(cachedSongs);
                 Songs.Clear();
                 AddSongsBatch(cachedFiltered);
+                _networkSongsCache = Songs.ToList();
+                _hasLoadedNetwork = true;
             }
 
             StatusText = Songs.Count > 0 ? $"☁️ 共 {Songs.Count} 首网络歌曲" : "连接成功但未找到歌曲";
@@ -557,15 +579,26 @@ public partial class LibraryViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 根据当前选择的协议类型过滤歌曲列表
+    /// 根据当前选择的协议类型和协议开关状态过滤歌曲列表
     /// </summary>
     private List<CoreModels.Song> FilterSongsByProtocol(List<CoreModels.Song> songs)
     {
-        if (_selectedProtocolIndex >= ProtocolTypes.Count)
-            return songs;
+        if (_selectedProtocolIndex < ProtocolTypes.Count)
+        {
+            var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
+            songs = songs.Where(s => s.Protocol == selectedProtocol).ToList();
+        }
+        return songs;
+    }
 
-        var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
-        return songs.Where(s => s.Protocol == selectedProtocol).ToList();
+    /// <summary>
+    /// 过滤掉已关闭协议的歌曲（用于缓存加载等场景）
+    /// </summary>
+    private async Task<List<CoreModels.Song>> FilterByEnabledProtocolsAsync(List<CoreModels.Song> songs)
+    {
+        if (_database == null) return songs;
+        var enabledProtocols = await _database.GetEnabledProtocolsAsync();
+        return _database.FilterByEnabledProtocols(songs, enabledProtocols);
     }
 
     /// <summary>

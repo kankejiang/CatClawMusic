@@ -1,34 +1,35 @@
 using System.Reflection;
+using System.Text.Json;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Core.Services;
 
-/// <summary>
-/// 插件管理器实现，负责插件的注册、加载、安装、卸载和生命周期管理
-/// </summary>
 public class PluginManager : IPluginManager
 {
-    /// <summary>已注册的插件列表</summary>
     private readonly List<PluginInfo> _plugins = new();
-    /// <summary>读取插件启用状态的委托</summary>
     private readonly Func<string, bool> _getPrefFunc;
-    /// <summary>写入插件启用状态的委托</summary>
     private readonly Action<string, bool> _setPrefFunc;
-    /// <summary>插件安装目录</summary>
     private readonly string _pluginsDir;
-    /// <summary>HTTP 客户端</summary>
-    private readonly HttpClient _httpClient = new();
-    /// <summary>已安装插件 ID 集合</summary>
+    private readonly HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(30)
+    };
     private readonly HashSet<string> _installedPluginIds = new();
+    private static readonly HashSet<string> _hostAssemblyNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CatClawMusic.Core",
+        "CatClawMusic.Data",
+        "CatClawMusic.UI"
+    };
 
-    /// <summary>
-    /// 创建插件管理器实例
-    /// </summary>
-    /// <param name="plugins">内置插件列表</param>
-    /// <param name="getPrefFunc">读取偏好设置的委托</param>
-    /// <param name="setPrefFunc">写入偏好设置的委托</param>
-    /// <param name="pluginsDir">插件安装目录</param>
+    private static readonly string IPluginFullName = typeof(IPlugin).FullName!;
+    private static readonly string ICoverProviderFullName = typeof(ICoverProviderPlugin).FullName!;
+    private static readonly string ILyricsProviderFullName = typeof(ILyricsProviderPlugin).FullName!;
+    private static readonly string IMenuContributorFullName = typeof(IMenuContributorPlugin).FullName!;
+    private static readonly string IProtocolProviderFullName = typeof(IProtocolProviderPlugin).FullName!;
+    private static readonly string IAudioEnhancerFullName = typeof(IAudioEnhancerPlugin).FullName!;
+
     public PluginManager(
         IEnumerable<IPlugin> plugins,
         Func<string, bool> getPrefFunc,
@@ -40,6 +41,8 @@ public class PluginManager : IPluginManager
         _pluginsDir = pluginsDir ?? throw new ArgumentNullException(nameof(pluginsDir));
 
         Directory.CreateDirectory(_pluginsDir);
+
+        AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
 
         LoadInstalledIndex();
 
@@ -53,13 +56,27 @@ public class PluginManager : IPluginManager
         LoadInstalledPlugins();
     }
 
-    /// <summary>获取所有已注册的插件</summary>
+    private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)
+    {
+        var name = new AssemblyName(args.Name).Name;
+        if (name != null && _hostAssemblyNames.Contains(name))
+        {
+            var loaded = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == name);
+            if (loaded != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PluginManager] AssemblyResolve: {args.Name} -> {loaded.FullName}");
+                return loaded;
+            }
+        }
+        return null;
+    }
+
     public List<PluginInfo> GetAllPlugins()
     {
         return _plugins.ToList();
     }
 
-    /// <summary>获取指定类型的所有已启用插件实例</summary>
     public List<T> GetEnabledPlugins<T>() where T : IPlugin
     {
         var result = new List<T>();
@@ -77,13 +94,11 @@ public class PluginManager : IPluginManager
         return result;
     }
 
-    /// <summary>判断插件是否已启用</summary>
     public bool IsPluginEnabled(string pluginTypeId)
     {
         return _plugins.FirstOrDefault(p => p.PluginTypeId == pluginTypeId)?.IsEnabled ?? false;
     }
 
-    /// <summary>设置插件的启用状态并持久化</summary>
     public void SetPluginEnabled(string pluginTypeId, bool enabled)
     {
         var plugin = _plugins.FirstOrDefault(p => p.PluginTypeId == pluginTypeId);
@@ -93,7 +108,6 @@ public class PluginManager : IPluginManager
         _setPrefFunc($"plugin_enabled_{pluginTypeId}", enabled);
     }
 
-    /// <summary>初始化所有已启用的插件</summary>
     public async Task InitializeAllAsync()
     {
         foreach (var info in _plugins.Where(p => p.IsEnabled))
@@ -113,7 +127,6 @@ public class PluginManager : IPluginManager
         }
     }
 
-    /// <summary>关闭所有已启用的插件</summary>
     public async Task ShutdownAllAsync()
     {
         foreach (var info in _plugins.Where(p => p.IsEnabled))
@@ -126,7 +139,6 @@ public class PluginManager : IPluginManager
         }
     }
 
-    /// <summary>从本地文件安装插件（.dll 或 .ccp）</summary>
     public async Task<PluginInfo?> InstallFromLocalFileAsync(string filePath, IProgress<(string, int)>? progress = null)
     {
         try
@@ -163,7 +175,6 @@ public class PluginManager : IPluginManager
         }
     }
 
-    /// <summary>从 GitHub Release 安装插件</summary>
     public async Task<PluginInfo?> InstallFromGitHubAsync(string repoUrl, IProgress<(string, int)>? progress = null)
     {
         try
@@ -187,11 +198,15 @@ public class PluginManager : IPluginManager
 
             progress?.Report(("正在获取 Release 信息...", 15));
 
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CatClawMusic/1.0");
-            _httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github.v3+json");
-
             var releasesUrl = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
-            var releasesJson = await _httpClient.GetStringAsync(releasesUrl);
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, releasesUrl);
+            request.Headers.UserAgent.ParseAdd("CatClawMusic/1.0");
+            request.Headers.Accept.ParseAdd("application/vnd.github.v3+json");
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var releasesJson = await response.Content.ReadAsStringAsync();
 
             using var doc = System.Text.Json.JsonDocument.Parse(releasesJson);
             var root = doc.RootElement;
@@ -229,11 +244,11 @@ public class PluginManager : IPluginManager
 
             var destPath = Path.Combine(_pluginsDir, dllName ?? "plugin.dll");
 
-            var response = await _httpClient.GetAsync(dllUrl);
-            response.EnsureSuccessStatusCode();
-            var totalBytes = response.Content.Headers.ContentLength ?? -1;
+            using var downloadResponse = await _httpClient.GetAsync(dllUrl);
+            downloadResponse.EnsureSuccessStatusCode();
+            var totalBytes = downloadResponse.Content.Headers.ContentLength ?? -1;
 
-            using var remoteStream = await response.Content.ReadAsStreamAsync();
+            using var remoteStream = await downloadResponse.Content.ReadAsStreamAsync();
             using var fileStream = new FileStream(destPath, FileMode.Create, FileAccess.Write);
             var buffer = new byte[8192];
             long totalRead = 0;
@@ -260,36 +275,36 @@ public class PluginManager : IPluginManager
         }
     }
 
-    /// <summary>加载并注册插件程序集</summary>
     private async Task<PluginInfo?> LoadAndRegisterPluginAsync(string localPath, string sourceUrl, IProgress<(string, int)>? progress)
     {
         var fileBytes = File.ReadAllBytes(localPath);
         var assembly = Assembly.Load(fileBytes);
 
-        var pluginTypes = assembly.GetTypes()
-            .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
-            .ToList();
+        System.Diagnostics.Debug.WriteLine($"[PluginManager] Loaded assembly: {assembly.FullName}");
 
-        if (pluginTypes.Count == 0)
+        Type[] allTypes;
+        try
         {
-            File.Delete(localPath);
-            throw new InvalidOperationException("插件程序集中未找到有效的IPlugin实现");
+            allTypes = assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException rtle)
+        {
+            allTypes = rtle.Types.Where(t => t != null).ToArray()!;
+            System.Diagnostics.Debug.WriteLine($"[PluginManager] ReflectionTypeLoadException: {rtle.LoaderExceptions.Length} type(s) failed to load");
         }
 
-        progress?.Report(("正在初始化插件...", 85));
-
-        List<IPlugin> instances = new();
-        foreach (var type in pluginTypes)
-        {
-            if (Activator.CreateInstance(type) is IPlugin pluginInstance)
-                instances.Add(pluginInstance);
-        }
+        var instances = CreatePluginInstances(allTypes);
 
         if (instances.Count == 0)
         {
             File.Delete(localPath);
-            throw new InvalidOperationException("无法创建插件实例");
+            throw new InvalidOperationException(
+                "插件程序集中未找到有效的IPlugin实现。\n" +
+                "可能原因：插件编译时引用了不同版本的 CatClawMusic.Core.dll。\n" +
+                "请确保插件项目引用宿主的 CatClawMusic.Core.dll 而非独立副本。");
         }
+
+        progress?.Report(("正在初始化插件...", 85));
 
         var primary = instances[0];
         var info = CreatePluginInfo(primary);
@@ -324,7 +339,67 @@ public class PluginManager : IPluginManager
         return info;
     }
 
-    /// <summary>卸载插件并删除程序集文件</summary>
+    private List<IPlugin> CreatePluginInstances(Type[] allTypes)
+    {
+        var directTypes = allTypes
+            .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
+            .ToList();
+
+        if (directTypes.Count > 0)
+        {
+            List<IPlugin> instances = new();
+            foreach (var type in directTypes)
+            {
+                if (Activator.CreateInstance(type) is IPlugin pluginInstance)
+                    instances.Add(pluginInstance);
+            }
+            return instances;
+        }
+
+        var nameMatchedTypes = allTypes
+            .Where(t => !t.IsAbstract && !t.IsInterface
+                && t.GetInterfaces().Any(i => i.FullName == IPluginFullName))
+            .ToList();
+
+        if (nameMatchedTypes.Count == 0)
+            return new List<IPlugin>();
+
+        System.Diagnostics.Debug.WriteLine($"[PluginManager] Using reflection adapter for {nameMatchedTypes.Count} plugin type(s) with embedded types");
+
+        List<IPlugin> instances2 = new();
+        foreach (var type in nameMatchedTypes)
+        {
+            try
+            {
+                var rawInstance = Activator.CreateInstance(type);
+                if (rawInstance == null) continue;
+
+                var interfaceNames = type.GetInterfaces().Select(i => i.FullName).ToHashSet();
+                IPlugin wrapped;
+
+                if (interfaceNames.Contains(ICoverProviderFullName))
+                    wrapped = new CoverProviderAdapter(rawInstance);
+                else if (interfaceNames.Contains(ILyricsProviderFullName))
+                    wrapped = new LyricsProviderAdapter(rawInstance);
+                else if (interfaceNames.Contains(IMenuContributorFullName))
+                    wrapped = new MenuContributorAdapter(rawInstance);
+                else if (interfaceNames.Contains(IProtocolProviderFullName))
+                    wrapped = new ProtocolProviderAdapter(rawInstance);
+                else if (interfaceNames.Contains(IAudioEnhancerFullName))
+                    wrapped = new AudioEnhancerAdapter(rawInstance);
+                else
+                    wrapped = new BasicPluginAdapter(rawInstance);
+
+                instances2.Add(wrapped);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PluginManager] Failed to create wrapper for {type.FullName}: {ex.Message}");
+            }
+        }
+        return instances2;
+    }
+
     public async Task<bool> UninstallPluginAsync(string pluginTypeId)
     {
         var info = _plugins.FirstOrDefault(p => p.PluginTypeId == pluginTypeId && p.CanUninstall);
@@ -358,7 +433,6 @@ public class PluginManager : IPluginManager
         return true;
     }
 
-    /// <summary>持久化已安装插件索引到 installed.json</summary>
     private void SaveInstalledIndex()
     {
         var indexPath = Path.Combine(_pluginsDir, "installed.json");
@@ -377,7 +451,6 @@ public class PluginManager : IPluginManager
         catch { }
     }
 
-    /// <summary>从 installed.json 加载已安装插件 ID 索引</summary>
     private void LoadInstalledIndex()
     {
         var indexPath = Path.Combine(_pluginsDir, "installed.json");
@@ -401,7 +474,6 @@ public class PluginManager : IPluginManager
         catch { }
     }
 
-    /// <summary>从 installed.json 加载已安装插件并注册</summary>
     private void LoadInstalledPlugins()
     {
         var indexPath = Path.Combine(_pluginsDir, "installed.json");
@@ -426,17 +498,17 @@ public class PluginManager : IPluginManager
                     var fileBytes = File.ReadAllBytes(entry.AssemblyPath);
                     var assembly = Assembly.Load(fileBytes);
 
-                    var pluginTypes = assembly.GetTypes()
-                        .Where(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
-                        .ToList();
-
-                    List<IPlugin> instances = new();
-                    foreach (var type in pluginTypes)
+                    Type[] allTypes;
+                    try
                     {
-                        if (Activator.CreateInstance(type) is IPlugin pluginInstance)
-                            instances.Add(pluginInstance);
+                        allTypes = assembly.GetTypes();
+                    }
+                    catch (ReflectionTypeLoadException rtle)
+                    {
+                        allTypes = rtle.Types.Where(t => t != null).ToArray()!;
                     }
 
+                    var instances = CreatePluginInstances(allTypes);
                     if (instances.Count == 0) continue;
 
                     var primary = instances[0];
@@ -456,14 +528,12 @@ public class PluginManager : IPluginManager
                 }
                 catch
                 {
-                    // 插件加载失败，跳过
                 }
             }
         }
         catch { }
     }
 
-    /// <summary>根据插件类型创建 PluginInfo 元数据</summary>
     private static PluginInfo CreatePluginInfo(IPlugin plugin)
     {
         string pluginTypeId;
@@ -518,9 +588,288 @@ public class PluginManager : IPluginManager
         };
     }
 
-    /// <summary>
-    /// 已安装插件持久化条目
-    /// </summary>
+    #region Reflection Adapters
+
+    private static object? ConvertType(object? value, Type targetType)
+    {
+        if (value == null) return null;
+        if (targetType.IsAssignableFrom(value.GetType())) return value;
+        try
+        {
+            var json = JsonSerializer.Serialize(value);
+            return JsonSerializer.Deserialize(json, targetType);
+        }
+        catch
+        {
+            return value;
+        }
+    }
+
+    private static T? ConvertType<T>(object? value) where T : class
+    {
+        if (value == null) return null;
+        if (value is T t) return t;
+        try
+        {
+            var json = JsonSerializer.Serialize(value);
+            return JsonSerializer.Deserialize<T>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<object?> InvokeAsyncMethod(object target, string methodName, params object?[]? args)
+    {
+        var method = target.GetType().GetMethod(methodName,
+            BindingFlags.Public | BindingFlags.Instance,
+            null,
+            args?.Select(a => a?.GetType() ?? typeof(object)).ToArray() ?? Type.EmptyTypes,
+            null);
+
+        if (method == null)
+        {
+            method = target.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
+        }
+
+        if (method == null) return null;
+
+        var result = method.Invoke(target, args);
+        if (result is Task task)
+        {
+            await task;
+            if (task.GetType().IsGenericType)
+            {
+                var resultProp = task.GetType().GetProperty("Result");
+                return resultProp?.GetValue(task);
+            }
+            return null;
+        }
+        return result;
+    }
+
+    private class BasicPluginAdapter : IPlugin
+    {
+        protected readonly object _target;
+        protected readonly Type _targetType;
+
+        public BasicPluginAdapter(object target)
+        {
+            _target = target;
+            _targetType = target.GetType();
+        }
+
+        public string PluginId => (string?)_targetType.GetProperty("PluginId")?.GetValue(_target) ?? "";
+        public string Name => (string?)_targetType.GetProperty("Name")?.GetValue(_target) ?? "";
+        public string Version => (string?)_targetType.GetProperty("Version")?.GetValue(_target) ?? "";
+        public string Author => (string?)_targetType.GetProperty("Author")?.GetValue(_target) ?? "";
+        public string Description => (string?)_targetType.GetProperty("Description")?.GetValue(_target) ?? "";
+        public List<string> Capabilities => (List<string>?)_targetType.GetProperty("Capabilities")?.GetValue(_target) ?? new();
+
+        public Task InitializeAsync() => (Task)_targetType.GetMethod("InitializeAsync")!.Invoke(_target, null)!;
+        public Task ShutdownAsync() => (Task)_targetType.GetMethod("ShutdownAsync")!.Invoke(_target, null)!;
+    }
+
+    private class CoverProviderAdapter : BasicPluginAdapter, ICoverProviderPlugin
+    {
+        public CoverProviderAdapter(object target) : base(target) { }
+
+        public bool IsAvailable => (bool?)_targetType.GetProperty("IsAvailable")?.GetValue(_target) ?? false;
+
+        public async Task<byte[]?> GetCoverAsync(Song song)
+        {
+            var method = _targetType.GetMethod("GetCoverAsync");
+            if (method == null) return null;
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(Song).FullName)
+            {
+                var converted = ConvertType(song, paramType);
+                invokeArgs = new[] { converted };
+            }
+            else
+            {
+                invokeArgs = new object?[] { song };
+            }
+
+            var result = await InvokeAsyncMethod(_target, "GetCoverAsync", invokeArgs);
+            return result as byte[];
+        }
+    }
+
+    private class LyricsProviderAdapter : BasicPluginAdapter, ILyricsProviderPlugin
+    {
+        public LyricsProviderAdapter(object target) : base(target) { }
+
+        public bool IsAvailable => (bool?)_targetType.GetProperty("IsAvailable")?.GetValue(_target) ?? false;
+
+        public async Task<LrcLyrics?> GetLyricsAsync(Song song)
+        {
+            var method = _targetType.GetMethod("GetLyricsAsync");
+            if (method == null) return null;
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(Song).FullName)
+            {
+                var converted = ConvertType(song, paramType);
+                invokeArgs = new[] { converted };
+            }
+            else
+            {
+                invokeArgs = new object?[] { song };
+            }
+
+            var result = await InvokeAsyncMethod(_target, "GetLyricsAsync", invokeArgs);
+            return ConvertType<LrcLyrics>(result);
+        }
+    }
+
+    private class MenuContributorAdapter : BasicPluginAdapter, IMenuContributorPlugin
+    {
+        public MenuContributorAdapter(object target) : base(target) { }
+
+        public List<MenuItemEntry> GetMenuItems(Song song)
+        {
+            var method = _targetType.GetMethod("GetMenuItems");
+            if (method == null) return new();
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(Song).FullName)
+            {
+                var converted = ConvertType(song, paramType);
+                invokeArgs = new[] { converted };
+            }
+            else
+            {
+                invokeArgs = new object?[] { song };
+            }
+
+            var result = method.Invoke(_target, invokeArgs);
+            if (result is List<MenuItemEntry> typed) return typed;
+
+            if (result is System.Collections.IList list)
+            {
+                var entries = new List<MenuItemEntry>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<MenuItemEntry>(item);
+                    if (converted != null) entries.Add(converted);
+                }
+                return entries;
+            }
+
+            return new();
+        }
+
+        public async Task OnMenuItemClicked(int itemId, Song song, object fragment)
+        {
+            var method = _targetType.GetMethod("OnMenuItemClicked");
+            if (method == null) return;
+
+            var parameters = method.GetParameters();
+            var args = new object?[3];
+            args[0] = itemId;
+
+            if (parameters.Length > 1 && parameters[1].ParameterType.FullName == typeof(Song).FullName)
+                args[1] = ConvertType(song, parameters[1].ParameterType);
+            else
+                args[1] = song;
+
+            args[2] = fragment;
+
+            var result = method.Invoke(_target, args);
+            if (result is Task task) await task;
+        }
+    }
+
+    private class ProtocolProviderAdapter : BasicPluginAdapter, IProtocolProviderPlugin
+    {
+        public ProtocolProviderAdapter(object target) : base(target) { }
+
+        public string ProtocolName => (string?)_targetType.GetProperty("ProtocolName")?.GetValue(_target) ?? "";
+
+        public async Task<List<RemoteFile>> ListFilesAsync(string path)
+        {
+            var result = await InvokeAsyncMethod(_target, "ListFilesAsync", path);
+            if (result is List<RemoteFile> typed) return typed;
+
+            if (result is System.Collections.IList list)
+            {
+                var files = new List<RemoteFile>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<RemoteFile>(item);
+                    if (converted != null) files.Add(converted);
+                }
+                return files;
+            }
+
+            return new();
+        }
+
+        public async Task<Stream> OpenReadAsync(string filePath)
+        {
+            var result = await InvokeAsyncMethod(_target, "OpenReadAsync", filePath);
+            return (Stream)result!;
+        }
+
+        public async Task<bool> TestConnectionAsync(ConnectionProfile profile)
+        {
+            var method = _targetType.GetMethod("TestConnectionAsync");
+            if (method == null) return false;
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(ConnectionProfile).FullName)
+            {
+                var converted = ConvertType(profile, paramType);
+                invokeArgs = new[] { converted };
+            }
+            else
+            {
+                invokeArgs = new object?[] { profile };
+            }
+
+            var result = await InvokeAsyncMethod(_target, "TestConnectionAsync", invokeArgs);
+            return result is bool b && b;
+        }
+    }
+
+    private class AudioEnhancerAdapter : BasicPluginAdapter, IAudioEnhancerPlugin
+    {
+        public AudioEnhancerAdapter(object target) : base(target) { }
+
+        public bool IsEnabled
+        {
+            get => (bool?)_targetType.GetProperty("IsEnabled")?.GetValue(_target) ?? false;
+            set
+            {
+                var prop = _targetType.GetProperty("IsEnabled");
+                if (prop?.CanWrite == true) prop.SetValue(_target, value);
+            }
+        }
+
+        public float[] ProcessSamples(float[] samples, int sampleRate, int channels)
+        {
+            var method = _targetType.GetMethod("ProcessSamples");
+            if (method == null) return samples;
+            var result = method.Invoke(_target, new object[] { samples, sampleRate, channels });
+            return result as float[] ?? samples;
+        }
+
+        public void Reset()
+        {
+            var method = _targetType.GetMethod("Reset");
+            method?.Invoke(_target, null);
+        }
+    }
+
+    #endregion
+
     private class InstalledPluginEntry
     {
         public string PluginTypeId { get; set; } = string.Empty;

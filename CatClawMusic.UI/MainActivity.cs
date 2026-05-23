@@ -281,7 +281,7 @@ public class MainActivity : AppCompatActivity
             UpdateNavSelection(_currentTab);
         }
 
-        RefreshFragments();
+        RefreshViewPager();
 
         if (_settingsFragment != null && _panelOpen)
         {
@@ -294,24 +294,16 @@ public class MainActivity : AppCompatActivity
         }
     }
 
-    private void RefreshFragments()
+    private void RefreshViewPager()
     {
-        var fm = SupportFragmentManager;
-        var tx = fm.BeginTransaction();
-        foreach (var f in fm.Fragments)
-        {
-            if (f != null && f.IsAdded && f.Id != Resource.Id.side_panel_content)
-                tx.Detach(f);
-        }
-        tx.CommitNow();
-
-        var tx2 = fm.BeginTransaction();
-        foreach (var f in fm.Fragments)
-        {
-            if (f != null && !f.IsAdded && f.Id != Resource.Id.side_panel_content)
-                tx2.Attach(f);
-        }
-        tx2.CommitNow();
+        var currentItem = _viewPager.CurrentItem;
+        _viewPager.Adapter = null;
+        _tabAdapter = new TabPagerAdapter(this);
+        _viewPager.Adapter = _tabAdapter;
+        _viewPager.OffscreenPageLimit = 4;
+        _viewPager.SetCurrentItem(currentItem, false);
+        _currentTab = currentItem;
+        UpdateTabUI(currentItem);
     }
 
     private void UpdateNavSelection(int index)

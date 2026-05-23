@@ -43,7 +43,7 @@ public class NowPlayingFragment : Fragment
     private Android.OS.Handler? _mainHandler;
     private ActivityResultLauncher? _recordAudioLauncher;
     private int _modeActiveColor;
-    private bool _visualizerEnabled = true;
+    private bool _visualizerEnabled = false;
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
     private bool _sleepFinishSong;
@@ -107,7 +107,10 @@ public class NowPlayingFragment : Fragment
                 }
             }));
 
-        TryStartVisualizer();
+        _audioVisualizer.Visibility = ViewStates.Gone;
+        var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        var visEnabled = visPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
+        if (visEnabled) TryStartVisualizer();
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
@@ -153,6 +156,10 @@ public class NowPlayingFragment : Fragment
 
         SyncUIFromViewModel();
         BindViewModel();
+
+        var playerSvc = MainApplication.Services.GetRequiredService<IAudioPlayerService>() as AudioPlayerService;
+        if (playerSvc != null)
+            playerSvc.AudioSessionIdChanged += OnAudioSessionIdChanged;
     }
 
     /// <summary>
@@ -428,7 +435,7 @@ public class NowPlayingFragment : Fragment
             else
                 _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
             var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
-            var visualizerEnabled = prefs?.GetBoolean("visualizer_enabled", true) ?? true;
+            var visualizerEnabled = prefs?.GetBoolean("visualizer_enabled", false) ?? false;
             ApplyVisualizerState(visualizerEnabled);
             if (visualizerEnabled) TryStartVisualizer();
             UpdateTimeDisplay();
@@ -656,7 +663,7 @@ public class NowPlayingFragment : Fragment
     private void OnVisualizerToggleClick(object? s, EventArgs e)
     {
         var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
-        var enabled = !(prefs?.GetBoolean("visualizer_enabled", true) ?? true);
+        var enabled = !(prefs?.GetBoolean("visualizer_enabled", false) ?? false);
         prefs?.Edit().PutBoolean("visualizer_enabled", enabled).Apply();
         ApplyVisualizerState(enabled);
     }
@@ -1115,6 +1122,9 @@ public class NowPlayingFragment : Fragment
     /// </summary>
     public override void OnDestroyView()
     {
+        var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
+        if (playerSvc != null)
+            playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;
         _visualizerHelper?.Stop();
         _visualizerHelper = null;
         UnbindViewModel();
@@ -1124,6 +1134,20 @@ public class NowPlayingFragment : Fragment
     }
 
     private int _lastVisualizerSessionId;
+
+    private void OnAudioSessionIdChanged(int newSessionId)
+    {
+        if (Activity == null) return;
+        Activity.RunOnUiThread(() =>
+        {
+            if (!_visualizerEnabled) return;
+            if (newSessionId == 0) return;
+            _lastVisualizerSessionId = newSessionId;
+            _visualizerHelper?.Stop();
+            _visualizerHelper = null;
+            StartVisualizerWithSession(newSessionId);
+        });
+    }
 
     private void TryStartVisualizer()
     {

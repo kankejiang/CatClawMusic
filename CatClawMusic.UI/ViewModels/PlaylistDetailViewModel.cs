@@ -1,14 +1,11 @@
-using System.Collections.ObjectModel;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
+using CatClawMusic.UI.Helpers;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatClawMusic.UI.ViewModels;
 
-/// <summary>
-/// 歌单详情ViewModel，管理歌单歌曲列表和播放操作
-/// </summary>
 public partial class PlaylistDetailViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -18,10 +15,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
     private readonly IServiceProvider? _serviceProvider;
     private Data.MusicDatabase? _db;
 
-    /// <summary>
-    /// 歌单歌曲列表
-    /// </summary>
-    public ObservableCollection<Song> Songs { get; } = new();
+    public BatchObservableCollection<Song> Songs { get; } = new();
 
     /// <summary>
     /// 歌单名称
@@ -58,9 +52,6 @@ public partial class PlaylistDetailViewModel : ObservableObject
         return _db!;
     }
 
-    /// <summary>
-    /// 根据歌单ID加载歌曲列表
-    /// </summary>
     public async Task LoadAsync(int playlistId, string name)
     {
         _playlistId = playlistId;
@@ -86,8 +77,13 @@ public partial class PlaylistDetailViewModel : ObservableObject
                     break;
             }
 
-            Songs.Clear();
-            foreach (var s in songs) Songs.Add(s);
+            if (playlistId != -1)
+            {
+                var enabledProtocols = await GetDb().GetEnabledProtocolsAsync();
+                songs = GetDb().FilterByEnabledProtocols(songs, enabledProtocols);
+            }
+
+            Songs.ReplaceAll(songs);
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         }
         catch { StatusText = "加载失败"; }
