@@ -316,13 +316,20 @@ public class FullLyricsFragment : Fragment
         if (cover == _lastCoverSource) return;
         _lastCoverSource = cover;
 
-        // 尝试加载自定义封面
-        if (!string.IsNullOrEmpty(cover))
+        try
         {
-            var drawable = Drawable.CreateFromPath(cover);
-            if (drawable != null) { _bgCover.SetImageDrawable(drawable); return; }
+            var oldDrawable = _bgCover.Drawable as Android.Graphics.Drawables.BitmapDrawable;
+            if (oldDrawable?.Bitmap != null && oldDrawable.Bitmap.IsRecycled)
+                _bgCover.SetImageResource(Resource.Drawable.cover_default);
+
+            if (!string.IsNullOrEmpty(cover) && System.IO.File.Exists(cover))
+            {
+                var drawable = Drawable.CreateFromPath(cover);
+                if (drawable != null) { _bgCover.SetImageDrawable(drawable); return; }
+            }
         }
-        // 使用默认封面
+        catch { }
+
         _bgCover.SetImageResource(Resource.Drawable.cover_default);
     }
 

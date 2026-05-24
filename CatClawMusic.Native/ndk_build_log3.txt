@@ -1,0 +1,29 @@
+﻿[arm64-v8a] Compile++      : catclaw_native <= native_bridge.cpp
+[arm64-v8a] Compile++      : catclaw_native <= tag_reader.cpp
+[arm64-v8a] Compile++      : catclaw_native <= fft.cpp
+[arm64-v8a] Compile++      : catclaw_native <= lrc_parser.cpp
+[arm64-v8a] Compile++      : catclaw_native <= color_extractor.cpp
+[arm64-v8a] Compile++      : catclaw_native <= spectrum_processor.cpp
+[arm64-v8a] Compile++      : catclaw_native <= stack_blur.cpp
+ndk-build.cmd : ./src/stack_blur.cpp:89:41: error: no member named 'min' in namespace 'std'
+所在位置 行:1 字符: 119
++ ... lyContinue; & "C:\AndroidNDK\ndk-build.cmd" NDK_PROJECT_PATH=. APP_BU ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (./src/stack_blu...namespace 'std':String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   89 |             uint32_t p = get_pixel(std::min(i, inner_max - 1));
+      |                                    ~~~~~^
+./src/stack_blur.cpp:105:34: error: no member named 'min' in namespace 'std'
+  105 |             int32_t right = std::min(inner + radius + 1, inner_max - 1);
+      |                             ~~~~~^
+./src/stack_blur.cpp:106:33: error: no member named 'max' in namespace 'std'
+  106 |             int32_t left = std::max(inner - radius, 0);
+      |                            ~~~~~^
+3 errors generated.
+make: *** [C:/AndroidNDK/build/../build/core/build-binary.mk:422: obj/local/arm64-v8a/objs/catclaw_native/src/stack_blur.o] 
+Error 1
+make: *** Waiting for unfinished jobs....
+[armeabi-v7a] Compile++ thumb: catclaw_native <= fft.cpp
+[arm64-v8a] Compile++      : catclaw_native <= audio_processor.cpp
+[armeabi-v7a] Compile++ thumb: catclaw_native <= lrc_parser.cpp

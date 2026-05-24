@@ -31,9 +31,10 @@ public class MainApplication : Application
         var services = new ServiceCollection();
 
         // Database（v5：迁移到 ExternalFilesDir 规范路径）
-        var externalDir = global::Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath;
+        var externalDir = global::Android.App.Application.Context.GetExternalFilesDir(null)?.AbsolutePath
+            ?? Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "databases");
         string dbPath = Path.Combine(externalDir, "catclaw.db");
-        string oldDbPath = Path.Combine(CacheDir!.AbsolutePath, "catclaw.db");
+        string oldDbPath = Path.Combine(CacheDir?.AbsolutePath ?? Path.Combine(externalDir, "..", "cache"), "catclaw.db");
 
         if (!File.Exists(Path.Combine(externalDir, "catclaw_v5.marker")))
         {
@@ -92,6 +93,14 @@ public class MainApplication : Application
             }
             catch { return null; }
         };
+        /* 注入 C++ 原生编码检测器到歌词服务，优先使用原生库进行编码检测 */
+        LyricsService.NativeEncodingDetector = rawBytes =>
+        {
+            try { return NativeInterop.DetectAndConvertToUtf8(rawBytes); }
+            catch { return null; }
+        };
+        /* 初始化原生库（CPU 特性检测等） */
+        try { NativeInterop.Init(); } catch { }
         services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
         services.AddSingleton<IPermissionService, PermissionService>();
         services.AddSingleton<PlayQueue>();
@@ -146,8 +155,12 @@ public class MainApplication : Application
             lyricsService.PluginManager = Services.GetRequiredService<IPluginManager>();
         }
 
-        // 初始化所有已启用的插件
-        _ = Services.GetRequiredService<IPluginManager>().InitializeAllAsync();
+        // 初始化所有已启用的插件（fire-and-forget，异常不会导致闪退）
+        _ = Task.Run(async () =>
+        {
+            try { await Services.GetRequiredService<IPluginManager>().InitializeAllAsync(); }
+            catch (Exception ex) { Android.Util.Log.Warn("CatClaw", $"PluginManager.InitializeAllAsync failed: {ex.Message}"); }
+        });
 
         RegisterRescanReceiver();
     }

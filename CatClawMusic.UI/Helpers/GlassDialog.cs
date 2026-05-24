@@ -7,6 +7,7 @@ using Android.Widget;
 using System.Linq;
 using Android.Util;
 using Android.OS;
+using CatClawMusic.UI.Services;
 
 namespace CatClawMusic.UI.Helpers;
 
@@ -291,7 +292,16 @@ public class GlassDialog : Android.App.Dialog
 
             var scaled = Bitmap.CreateScaledBitmap(bitmap,
                 bitmap.Width / 8, bitmap.Height / 8, false);
-            var blurred = ApplyBlur(scaled, 15);
+
+            /* 优先使用 C++ Stack Blur（比 RenderScript 更快且无 API 版本限制） */
+            Bitmap? blurred = null;
+            if (NativeInterop.IsAvailable)
+            {
+                try { blurred = ApplyStackBlur(scaled, 15); }
+                catch { }
+            }
+            /* 回退到 RenderScript */
+            blurred ??= ApplyBlur(scaled, 15);
 
             var drawable = new BitmapDrawable(Context?.Resources, blurred);
             drawable.SetAlpha(180);
@@ -300,6 +310,29 @@ public class GlassDialog : Android.App.Dialog
             scaled?.Recycle();
         }
         catch { }
+    }
+
+    /// <summary>
+    /// 使用 C++ Stack Blur 模糊位图
+    /// 将像素数据传入原生库处理，无需 RenderScript 上下文
+    /// </summary>
+    private static Bitmap ApplyStackBlur(Bitmap src, int radius)
+    {
+        var pixels = new int[src.Width * src.Height];
+        src.GetPixels(pixels, 0, src.Width, 0, 0, src.Width, src.Height);
+
+        /* 转换为 uint[] 传给原生库 */
+        var uintPixels = new uint[pixels.Length];
+        for (int i = 0; i < pixels.Length; i++)
+            uintPixels[i] = (uint)pixels[i];
+
+        NativeInterop.StackBlurArgb(uintPixels, src.Width, src.Height, radius);
+
+        /* 写回 Bitmap */
+        for (int i = 0; i < uintPixels.Length; i++)
+            pixels[i] = (int)uintPixels[i];
+        src.SetPixels(pixels, 0, src.Width, 0, 0, src.Width, src.Height);
+        return src;
     }
 
     private static Bitmap ApplyBlur(Bitmap src, int radius)

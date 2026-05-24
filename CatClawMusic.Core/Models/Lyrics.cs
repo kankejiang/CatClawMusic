@@ -57,19 +57,9 @@ public class LrcMetadata
 /// </summary>
 public class LrcLyricLine
 {
-    /// <summary>
-    /// 时间戳（TimeSpan）
-    /// </summary>
     public TimeSpan Timestamp { get; set; }
-    
-    /// <summary>
-    /// 歌词文本
-    /// </summary>
     public string Text { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// 逐字时间戳（用于卡拉OK效果，预留）
-    /// </summary>
+    public string? Translation { get; set; }
     public List<WordTimestamp>? WordTimestamps { get; set; }
 }
 

@@ -125,34 +125,33 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
         {
             try
             {
-                Intent? intent = null;
-                // Android 11 (R) 及以上：尝试打开"所有文件访问权限"管理页面
                 if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
                 {
-                    intent = new Intent(global::Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
-                    intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
-                    // 检查该 Intent 是否可被系统解析，不可解析则置空以触发回退逻辑
-                    if (Activity?.PackageManager?.ResolveActivity(intent, 0) == null)
-                        intent = null;
+                    try
+                    {
+                        var intent = new Intent(global::Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
+                        intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
+                        StartActivity(intent);
+                        return;
+                    }
+                    catch { }
                 }
-                // 回退方案：打开应用详情设置页
-                if (intent == null)
-                {
-                    intent = new Intent(global::Android.Provider.Settings.ActionApplicationDetailsSettings);
-                    intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
-                }
-                StartActivity(intent);
-            }
-            catch
-            {
-                // 最终回退：打开系统总设置页面
                 try
                 {
-                    var intent = new Intent(global::Android.Provider.Settings.ActionSettings);
+                    var intent = new Intent(global::Android.Provider.Settings.ActionApplicationDetailsSettings);
+                    intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
+                    intent.AddFlags(ActivityFlags.NewTask);
                     StartActivity(intent);
+                    return;
+                }
+                catch { }
+                try
+                {
+                    StartActivity(new Intent(global::Android.Provider.Settings.ActionSettings));
                 }
                 catch { }
             }
+            catch { }
         };
 
         RefreshFolderList();

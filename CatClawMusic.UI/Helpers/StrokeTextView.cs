@@ -21,7 +21,12 @@ public class StrokeTextView : TextView
 
     private void Init()
     {
-        SetLayerType(global::Android.Views.LayerType.Software, null);
+        /* Android 9 (API 28) 以下：Paint.Style.Stroke 在硬件加速下可能渲染异常，
+         * 强制使用软件渲染层确保描边效果正确。
+         * Android 9+：硬件加速渲染管线已修复此问题，可安全使用硬件加速，
+         * 歌词滚动动画期间性能提升显著（5个 StrokeTextView 实例全部受益） */
+        if (global::Android.OS.Build.VERSION.SdkInt < global::Android.OS.BuildVersionCodes.P)
+            SetLayerType(global::Android.Views.LayerType.Software, null);
     }
 
     private void InitAttrs(IAttributeSet? attrs)

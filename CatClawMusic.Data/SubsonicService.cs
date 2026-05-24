@@ -174,68 +174,68 @@ public class SubsonicService : ISubsonicService
 
             progress?.Report((0, albums.Count, $"共 {albums.Count} 张专辑，开始拉取歌曲..."));
 
-            // 2. 逐个专辑获取歌曲（完整元数据）——每处理完一个专辑即回调
+            // 2. 并发获取专辑歌曲（每批 8 个并发请求）
             int albumIdx = 0;
-            foreach (var (albumId, albumName, albumArtist, coverArt) in albums)
+            var batchSize = 8;
+            for (int batchStart = 0; batchStart < albums.Count; batchStart += batchSize)
             {
-                albumIdx++;
-                try
+                var batch = albums.Skip(batchStart).Take(batchSize).ToList();
+                var tasks = batch.Select(async alb =>
                 {
-                    var songsUrl = ApiUrl($"getAlbum.view?id={HttpUtility.UrlEncode(albumId)}", profile);
-                    var json = await _http.GetStringAsync(songsUrl);
-                    using var doc = JsonDocument.Parse(json);
-                    var resp = doc.RootElement.GetProperty("subsonic-response");
-                    if (resp.TryGetProperty("album", out var album) &&
-                        album.TryGetProperty("song", out var songArr))
+                    var (albumId, albumName, albumArtist, coverArt) = alb;
+                    try
                     {
-                        var albumSongs = new List<Song>();
-                        foreach (var item in EnumerateSongArray(songArr))
+                        var songsUrl = ApiUrl($"getAlbum.view?id={HttpUtility.UrlEncode(albumId)}", profile);
+                        var json = await _http.GetStringAsync(songsUrl);
+                        using var doc = JsonDocument.Parse(json);
+                        var resp = doc.RootElement.GetProperty("subsonic-response");
+                        if (resp.TryGetProperty("album", out var album) &&
+                            album.TryGetProperty("song", out var songArr))
                         {
-                            var songId = GetString(item, "id");
-                            if (!seenIds.Add(songId)) continue;
-
-                            // Navidrome: getAlbum 返回的歌曲元素不保证有 artist/album 字段
-                            // 直接使用专辑级别的艺术家和专辑名
-                            var songArtist = GetString(item, "artist").Trim();
-                            var songAlbum = GetString(item, "album").Trim();
-                            var songCoverId = GetString(item, "coverArt").Trim();
-
-                            var song = new Song
+                            var albumSongs = new List<Song>();
+                            foreach (var item in EnumerateSongArray(songArr))
                             {
-                                Title = GetString(item, "title"),
-                                Artist = songArtist.Length > 0 ? songArtist : albumArtist,
-                                Album = songAlbum.Length > 0 ? songAlbum : albumName,
-                                Duration = GetInt(item, "duration"),
-                                Bitrate = GetInt(item, "bitRate"),
-                                FileSize = GetLong(item, "size"),
-                                FilePath = songId,
-                                CoverArtPath = songCoverId.Length > 0 ? songCoverId : coverArt,
-                                Source = SongSource.WebDAV,
-                                Protocol = ProtocolType.Navidrome,
-                                RemoteId = songId,
-                                Year = GetInt(item, "year"),
-                                TrackNumber = GetInt(item, "track")
-                            };
-                            song.FilePath = GetStreamUrl(song.FilePath, profile);
-                            songs.Add(song);
-                            albumSongs.Add(song);
-                        }
-                        // 增量回调：每获取完一个专辑就通知调用方
-                        if (albumSongs.Count > 0 && songCallback != null)
-                            await songCallback(albumSongs);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 专辑 {albumName} 失败: {ex.Message}");
-                }
+                                var songId = GetString(item, "id");
+                                if (!seenIds.Add(songId)) continue;
 
-                // 每处理完一个专辑报告进度
-                if (albumIdx % 3 == 0 || albumIdx == albums.Count)
-                {
-                    progress?.Report((albumIdx, albums.Count,
-                        $"拉取歌曲中 ({albumIdx}/{albums.Count}) · {songs.Count} 首"));
-                }
+                                var songArtist = GetString(item, "artist").Trim();
+                                var songAlbum = GetString(item, "album").Trim();
+                                var songCoverId = GetString(item, "coverArt").Trim();
+
+                                var song = new Song
+                                {
+                                    Title = GetString(item, "title"),
+                                    Artist = songArtist.Length > 0 ? songArtist : albumArtist,
+                                    Album = songAlbum.Length > 0 ? songAlbum : albumName,
+                                    Duration = GetInt(item, "duration"),
+                                    Bitrate = GetInt(item, "bitRate"),
+                                    FileSize = GetLong(item, "size"),
+                                    FilePath = songId,
+                                    CoverArtPath = songCoverId.Length > 0 ? songCoverId : coverArt,
+                                    Source = SongSource.WebDAV,
+                                    Protocol = ProtocolType.Navidrome,
+                                    RemoteId = songId,
+                                    Year = GetInt(item, "year"),
+                                    TrackNumber = GetInt(item, "track")
+                                };
+                                song.FilePath = GetStreamUrl(song.FilePath, profile);
+                                lock (songs) { songs.Add(song); }
+                                albumSongs.Add(song);
+                            }
+                            if (albumSongs.Count > 0 && songCallback != null)
+                                await songCallback(albumSongs);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 专辑 {albumName} 失败: {ex.Message}");
+                    }
+                }).ToArray();
+
+                await Task.WhenAll(tasks);
+                albumIdx = Math.Min(batchStart + batchSize, albums.Count);
+                progress?.Report((albumIdx, albums.Count,
+                    $"拉取歌曲中 ({albumIdx}/{albums.Count}) · {songs.Count} 首"));
             }
         }
         catch (Exception ex)

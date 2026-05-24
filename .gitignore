@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/publish-output/CatClawMusic.UI-Signed.apk
+/publish-output
+/build_output.txt
+/build_output2.txt
+/publish_output.txt

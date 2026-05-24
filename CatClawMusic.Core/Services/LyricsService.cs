@@ -79,7 +79,7 @@ public class LyricsService : ILyricsService
                 var lrcPath = Path.Combine(dir, nameNoExt + ".lrc");
                 if (File.Exists(lrcPath))
                 {
-                    try { return ParseLrc(await File.ReadAllTextAsync(lrcPath)); }
+                    try { return ParseLrc(await ReadLyricsFileWithEncodingDetection(lrcPath)); }
                     catch { }
                 }
             }
@@ -96,6 +96,82 @@ public class LyricsService : ILyricsService
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 读取歌词文件并自动检测编码（优先使用原生编码检测器，回退到 C# 实现）
+    ///
+    /// 编码检测策略：
+    ///   1. 原生编码检测器（由 UI 层注入的 C++ 原生库）
+    ///   2. C# 回退：BOM UTF-8 → 严格 UTF-8 → GBK → GB2312 → 默认
+    /// </summary>
+    /// <param name="path">歌词文件路径</param>
+    /// <returns>解码后的歌词文本</returns>
+    private static async Task<string> ReadLyricsFileWithEncodingDetection(string path)
+    {
+        var rawBytes = await File.ReadAllBytesAsync(path);
+
+        /* 优先使用原生编码检测器（由 UI 层注入） */
+        if (NativeEncodingDetector != null)
+        {
+            try
+            {
+                var nativeResult = NativeEncodingDetector(rawBytes);
+                if (nativeResult != null) return nativeResult;
+            }
+            catch { }
+        }
+
+        /* C# 回退实现 */
+        return ReadLyricsFileFallback(rawBytes);
+    }
+
+    /// <summary>
+    /// 原生编码检测器委托（由 UI 层注入 C++ 原生库的实现）
+    /// 输入：原始字节数据；输出：UTF-8 字符串，失败返回 null
+    /// </summary>
+    public static Func<byte[], string?>? NativeEncodingDetector { get; set; }
+
+    /// <summary>
+    /// C# 回退的编码检测实现（当原生库不可用时使用）
+    /// </summary>
+    private static string ReadLyricsFileFallback(byte[] rawBytes)
+    {
+        /* 1. BOM UTF-8 检测 */
+        if (rawBytes.Length >= 3 && rawBytes[0] == 0xEF && rawBytes[1] == 0xBB && rawBytes[2] == 0xBF)
+            return Encoding.UTF8.GetString(rawBytes, 3, rawBytes.Length - 3);
+
+        /* 2. 严格 UTF-8 验证 */
+        try
+        {
+            var decoder = Encoding.UTF8.GetDecoder();
+            decoder.Fallback = new DecoderExceptionFallback();
+            var chars = new char[rawBytes.Length];
+            decoder.GetChars(rawBytes, 0, rawBytes.Length, chars, 0, false);
+            return new string(chars);
+        }
+        catch { }
+
+        /* 3. GBK 解码 */
+        try
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            var gbk = Encoding.GetEncoding("GBK");
+            return gbk.GetString(rawBytes);
+        }
+        catch { }
+
+        /* 4. GB2312 解码 */
+        try
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            var gb2312 = Encoding.GetEncoding("GB2312");
+            return gb2312.GetString(rawBytes);
+        }
+        catch { }
+
+        /* 5. 默认 UTF-8（宽松模式） */
+        return Encoding.UTF8.GetString(rawBytes);
     }
 
     /// <summary>从 SAF content URI 构造同名 .lrc 的 content URI</summary>
@@ -210,13 +286,15 @@ public class LyricsService : ILyricsService
 
                 var timestamp = new TimeSpan(0, 0, minutes, seconds, millis);
 
-                // 解析逐字时间戳（如果有 <mm:ss.xx>word 格式）
                 var wordTimestamps = ParseWordTimestamps(text, timestamp);
+                var lineText = wordTimestamps != null ? string.Join("", wordTimestamps.Select(w => w.Word)) : text;
+                var (orig, trans) = SplitBilingual(lineText);
 
                 lyrics.Lines.Add(new LrcLyricLine
                 {
                     Timestamp = timestamp,
-                    Text = wordTimestamps != null ? string.Join("", wordTimestamps.Select(w => w.Word)) : text,
+                    Text = orig,
+                    Translation = trans,
                     WordTimestamps = wordTimestamps
                 });
             }
@@ -261,6 +339,105 @@ public class LyricsService : ILyricsService
                 return i;
         }
         return -1;
+    }
+
+    private static (string original, string? translation) SplitBilingual(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return (text, null);
+
+        bool hasCjk = false;
+        bool hasNonCjk = false;
+        foreach (var ch in text)
+        {
+            if (IsCjk(ch)) hasCjk = true;
+            else if (char.IsLetter(ch)) hasNonCjk = true;
+        }
+        if (!hasCjk || !hasNonCjk) return (text, null);
+
+        int splitPos = -1;
+        bool inCjkRun = false;
+        int cjkRunStart = -1;
+        bool seenJapanese = false;
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (IsJapanese(ch))
+            {
+                seenJapanese = true;
+                inCjkRun = false;
+                cjkRunStart = -1;
+            }
+            else if (IsCjk(ch))
+            {
+                if (!inCjkRun)
+                {
+                    inCjkRun = true;
+                    cjkRunStart = i;
+                }
+            }
+            else
+            {
+                if (inCjkRun && seenJapanese && cjkRunStart > 0)
+                {
+                    if (char.IsWhiteSpace(text[cjkRunStart - 1]))
+                        splitPos = cjkRunStart;
+                }
+                inCjkRun = false;
+                cjkRunStart = -1;
+            }
+        }
+
+        if (splitPos < 0)
+        {
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (IsCjk(text[i]))
+                {
+                    if (i > 0 && char.IsWhiteSpace(text[i - 1]))
+                    {
+                        bool hasNonCjkBefore = false;
+                        for (int j = 0; j < i - 1; j++)
+                        {
+                            if (char.IsLetter(text[j]) && !IsCjk(text[j]))
+                            {
+                                hasNonCjkBefore = true;
+                                break;
+                            }
+                        }
+                        if (hasNonCjkBefore)
+                        {
+                            splitPos = i;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (splitPos > 0)
+        {
+            var orig = text.Substring(0, splitPos).TrimEnd();
+            var trans = text.Substring(splitPos).TrimStart();
+            if (!string.IsNullOrEmpty(orig) && !string.IsNullOrEmpty(trans))
+                return (orig, trans);
+        }
+
+        return (text, null);
+    }
+
+    private static bool IsCjk(char ch)
+    {
+        return (ch >= 0x4E00 && ch <= 0x9FFF) || (ch >= 0x3400 && ch <= 0x4DBF) ||
+               (ch >= 0x2E80 && ch <= 0x2EFF) || (ch >= 0x3000 && ch <= 0x303F) ||
+               (ch >= 0xFF00 && ch <= 0xFFEF);
+    }
+
+    private static bool IsJapanese(char ch)
+    {
+        return (ch >= 0x3040 && ch <= 0x309F) || (ch >= 0x30A0 && ch <= 0x30FF) ||
+               (ch >= 0x31F0 && ch <= 0x31FF) || (ch >= 0xFF65 && ch <= 0xFF9F);
     }
 
     /// <summary>

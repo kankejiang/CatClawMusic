@@ -211,7 +211,6 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
         try
         {
-            // 提取 Basic 认证信息并剥离 URL 中的 userinfo
             var playUrl = filePathOrUrl;
             string? authHeader = null;
 
@@ -226,12 +225,10 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                         var authUser = parts[0];
                         var authPass = parts.Length > 1 ? parts[1] : "";
 
-                        // 生成 Basic Auth 请求头
                         var credentials = $"{authUser}:{authPass}";
                         var base64Credentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(credentials));
                         authHeader = $"Basic {base64Credentials}";
 
-                        // 剥离 userinfo，构造干净的 URL
                         var cleanUri = new System.UriBuilder(parsedUri)
                         {
                             UserName = "",
@@ -240,9 +237,15 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                         playUrl = cleanUri.Uri.AbsoluteUri;
                     }
                 }
-                catch (Exception ex)
-                {
-                }
+                catch { }
+            }
+            else if (filePathOrUrl.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
+            {
+                var cachedFile = await CacheSmbFileAsync(filePathOrUrl);
+                if (cachedFile != null)
+                    playUrl = "file://" + cachedFile;
+                else
+                    throw new Exception("SMB 文件缓存失败");
             }
 
             await RunOnMainThreadAsync(() => EnsurePlayer(authHeader));
@@ -479,6 +482,75 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
         _lastPlaybackState = _player.PlaybackState;
         ALog.Debug("CatClaw", $"[CatClaw] Player created, AudioSessionId={AudioSessionId}");
+    }
+
+    private static string? _smbCacheDir;
+
+    private async Task<string?> CacheSmbFileAsync(string smbUrl)
+    {
+        try
+        {
+            var cacheDir = _smbCacheDir ??= Path.Combine(
+                global::Android.App.Application.Context.CacheDir!.AbsolutePath, "smb_cache");
+            if (!Directory.Exists(cacheDir)) Directory.CreateDirectory(cacheDir);
+
+            var hash = Convert.ToBase64String(
+                System.Security.Cryptography.MD5.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(smbUrl)))
+                .Replace('/', '_').Replace('+', '-').TrimEnd('=');
+            var ext = Path.GetExtension(smbUrl.Split('?')[0]) ?? ".mp3";
+            var cacheFile = Path.Combine(cacheDir, hash + ext);
+
+            if (File.Exists(cacheFile)) return cacheFile;
+
+            foreach (var f in Directory.GetFiles(cacheDir))
+            {
+                try { if (new FileInfo(f).LastAccessTimeUtc < DateTime.UtcNow.AddDays(3)) File.Delete(f); } catch { }
+            }
+
+            var smbService = MainApplication.Services.GetService(typeof(CatClawMusic.Data.SmbService)) as CatClawMusic.Data.SmbService
+                ?? MainApplication.Services.GetServices<CatClawMusic.Core.Interfaces.INetworkFileService>()
+                    .FirstOrDefault(s => s is CatClawMusic.Data.SmbService) as CatClawMusic.Data.SmbService;
+            if (smbService == null) return null;
+
+            var uri = global::Android.Net.Uri.Parse(smbUrl);
+            if (uri == null) return null;
+
+            var host = uri.Host ?? "";
+            var userInfo = uri.UserInfo ?? "";
+            var userName = "";
+            var password = "";
+            if (!string.IsNullOrEmpty(userInfo))
+            {
+                var parts = userInfo.Split(':', 2);
+                userName = System.Uri.UnescapeDataString(parts[0]);
+                if (parts.Length > 1) password = System.Uri.UnescapeDataString(parts[1]);
+            }
+
+            var pathSegments = uri.PathSegments;
+            var shareName = pathSegments.Count > 0 ? pathSegments[0] : "share";
+            var filePath = pathSegments.Count > 1
+                ? "\\" + string.Join("\\", pathSegments.Skip(1))
+                : "\\";
+
+            var profile = new CatClawMusic.Core.Models.ConnectionProfile
+            {
+                Host = host, Port = 445,
+                UserName = userName, Password = password,
+                ShareName = shareName, IsEnabled = true
+            };
+            smbService.Configure(profile);
+
+            using var srcStream = await smbService.OpenReadAsync(filePath);
+            using var dstStream = new FileStream(cacheFile, FileMode.Create, FileAccess.Write, FileShare.None, 65536);
+            await srcStream.CopyToAsync(dstStream);
+            return cacheFile;
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"[CatClaw] SMB 缓存失败: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>启动播放位置定时器（200ms 间隔）</summary>

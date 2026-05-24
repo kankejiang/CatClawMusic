@@ -588,8 +588,8 @@ public class NetworkMusicService : INetworkMusicService
                 var song = new Song
                 {
                     Title = title,
-                    Artist = "未知艺术家",
-                    Album = "未知专辑",
+                    Artist = "",
+                    Album = "",
                     FilePath = streamUrl,
                     Duration = 0,
                     FileSize = file.Size,
@@ -599,6 +599,21 @@ public class NetworkMusicService : INetworkMusicService
                     RemoteId = file.Path,
                     CoverArtPath = file.Path
                 };
+
+                try
+                {
+                    var tagged = await FetchWebDavMetadataAsync(song, profile);
+                    if (tagged == null)
+                    {
+                        song.Artist = "未知艺术家";
+                        song.Album = "未知专辑";
+                    }
+                }
+                catch
+                {
+                    song.Artist = "未知艺术家";
+                    song.Album = "未知专辑";
+                }
 
                 songs.Add(song);
                 await scanner.AddSongAsync(song);
@@ -688,8 +703,8 @@ public class NetworkMusicService : INetworkMusicService
                 var song = new Song
                 {
                     Title = title,
-                    Artist = "未知艺术家",
-                    Album = "未知专辑",
+                    Artist = "",
+                    Album = "",
                     FilePath = streamUrl,
                     Duration = 0,
                     FileSize = file.Size,
@@ -699,6 +714,21 @@ public class NetworkMusicService : INetworkMusicService
                     RemoteId = file.Path,
                     CoverArtPath = file.Path
                 };
+
+                try
+                {
+                    var tagged = await FetchSmbMetadataAsync(song, profile);
+                    if (tagged == null)
+                    {
+                        song.Artist = "未知艺术家";
+                        song.Album = "未知专辑";
+                    }
+                }
+                catch
+                {
+                    song.Artist = "未知艺术家";
+                    song.Album = "未知专辑";
+                }
 
                 songs.Add(song);
                 await scanner.AddSongAsync(song);

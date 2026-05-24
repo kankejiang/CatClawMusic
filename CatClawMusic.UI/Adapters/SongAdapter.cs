@@ -117,7 +117,10 @@ public class SongAdapter : RecyclerView.Adapter
     /// <list type="bullet">
     ///   <item>以 KB 为单位计量每个 Bitmap 的大小，而非默认的条目数量</item>
     ///   <item>当缓存总大小超过设定容量时，自动淘汰最近最少使用的条目</item>
-    ///   <item>条目被淘汰时自动调用 Bitmap.Recycle() 回收原生内存，防止内存泄漏</item>
+    ///   <item>条目被淘汰时不再调用 Bitmap.Recycle()，避免 ImageView 仍在引用时
+    ///         触发 "Canvas: trying to use a recycled bitmap" 崩溃。
+    ///         Android 8.0+ 的 Bitmap 像素数据在 Java 堆中由 GC 管理；
+    ///         API 24-25 的 Bitmap finalizer 也会释放原生内存</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -156,7 +159,10 @@ public class SongAdapter : RecyclerView.Adapter
         /// <param name="newValue">替换的新值（仅替换时有值）</param>
         protected override void EntryRemoved(bool evicted, Java.Lang.Object? key, Java.Lang.Object? oldValue, Java.Lang.Object? newValue)
         {
-            if (oldValue is Bitmap ob && !ob.IsRecycled) ob.Recycle();
+            /* 不再主动 Recycle：LruCache 淘汰条目时，ImageView 可能仍持有该 Bitmap 引用，
+             * 调用 Recycle() 会导致 "trying to use a recycled bitmap" 崩溃。
+             * 交由 GC 回收：Android 8.0+ Bitmap 像素在 Java 堆中由 GC 自动管理；
+             * 低版本 API 的 Bitmap finalizer 也会释放原生内存 */
         }
 
         /// <summary>
@@ -523,6 +529,7 @@ public class SongAdapter : RecyclerView.Adapter
         /// 缓存的非播放状态标题颜色，从主题属性解析一次后复用，避免每次 Bind 都解析主题
         /// </summary>
         private static Color? _cachedTitleColor;
+        private static Color? _cachedPlayingColor;
 
         /// <summary>
         /// 创建 SongViewHolder 实例，初始化视图引用和事件绑定
@@ -569,7 +576,8 @@ public class SongAdapter : RecyclerView.Adapter
 
             if (song.Id == adapter._currentPlayingSongId)
             {
-                _title.SetTextColor(Color.ParseColor("#9B7ED8"));
+                _cachedPlayingColor ??= Color.ParseColor("#9B7ED8");
+                _title.SetTextColor(_cachedPlayingColor.Value);
                 _pauseIcon.SetPlaying(adapter._isPlaying);
             }
             else
@@ -660,7 +668,6 @@ public class SongAdapter : RecyclerView.Adapter
                     }
                     else
                     {
-                        bitmap.Recycle();
                         var pos = adapter._songs.FindIndex(s => s.Id == songId);
                         if (pos >= 0)
                             try { adapter.NotifyItemChanged(pos); } catch { }
@@ -694,6 +701,21 @@ public class SongAdapter : RecyclerView.Adapter
             long msId = song.MediaStoreId;
             if (msId <= 0 && !string.IsNullOrEmpty(song.FilePath))
             {
+                if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!adapter._isScrolling)
+                    {
+                        var loadKey = $"song_{song.Id}";
+                        if (!_loadingCovers.TryGetValue(loadKey, out var existingTask) || existingTask.IsCompleted)
+                        {
+                            var loadTask = LoadCoverWithThrottleAsync(song, adapter, ct);
+                            _loadingCovers[loadKey] = loadTask;
+                            _ = loadTask.ContinueWith(_ => _loadingCovers.TryRemove(loadKey, out _));
+                        }
+                    }
+                    return;
+                }
+
                 var (bitmap0, foundId) = await Task.Run(() => MediaStoreCoverHelper.LoadCoverByFilePath(song.FilePath, 120), ct);
                 if (foundId > 0) song.MediaStoreId = foundId;
                 ct.ThrowIfCancellationRequested();
@@ -710,7 +732,6 @@ public class SongAdapter : RecyclerView.Adapter
                         }
                         else
                         {
-                            bitmap0.Recycle();
                             var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
                             if (pos >= 0)
                                 try { adapter.NotifyItemChanged(pos); } catch { }
@@ -746,7 +767,6 @@ public class SongAdapter : RecyclerView.Adapter
                     }
                     else
                     {
-                        bitmap.Recycle();
                         var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
                         if (pos >= 0)
                             try { adapter.NotifyItemChanged(pos); } catch { }
@@ -870,7 +890,8 @@ public class SongAdapter : RecyclerView.Adapter
                                 }
                                 else
                                 {
-                                    msBitmap.Recycle();
+                                    /* 不再 Recycle：msBitmap 已在缓存中，可能被其他 ViewHolder 引用，
+                                     * 主动 Recycle 会导致 "trying to use a recycled bitmap" 崩溃 */
                                     var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
                                     if (pos >= 0)
                                         try { adapter.NotifyItemChanged(pos); } catch { }
@@ -953,7 +974,6 @@ public class SongAdapter : RecyclerView.Adapter
                             }
                             else
                             {
-                                bitmap.Recycle();
                                 var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
                                 if (pos >= 0)
                                     try { adapter.NotifyItemChanged(pos); } catch { }

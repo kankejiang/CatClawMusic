@@ -33,7 +33,7 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnVisualizerToggle = null!;
     private ImageButton _btnSleepTimer = null!;
     private GoogleSlider _progressSlider = null!;
-    private View _gradientBackground = null!;
+    private ImageView _gradientBackground = null!;
     private View _glow1 = null!, _glow2 = null!, _glow3 = null!;
     private View _reflectionMaskBottom = null!, _coverFog = null!, _coverGlow = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
@@ -51,7 +51,10 @@ public class NowPlayingFragment : Fragment
     private int _currentBackgroundColor;
     private int _targetBackgroundColor;
     private List<ColorEntry>? _currentEntries;
-    private float _flowOffset;
+    private int[]? _flowColors;
+
+    private bool _flowPaused;
+    private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
 
     /// <summary>
     /// 创建正在播放视图
@@ -76,8 +79,17 @@ public class NowPlayingFragment : Fragment
         _lyricCurrent = (StrokeTextView)view.FindViewById(Resource.Id.lyric_current)!;
         _lyricNext = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next)!;
         _lyricNext2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next2)!;
+        _lyricPrev2.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _lyricPrev.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _lyricCurrent.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _lyricNext.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _lyricNext2.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _songTitle.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _songArtist.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _timeCurrent = view.FindViewById<TextView>(Resource.Id.time_current)!;
         _timeTotal = view.FindViewById<TextView>(Resource.Id.time_total)!;
+        _timeCurrent.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _timeTotal.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _btnPlayPause = view.FindViewById<ImageButton>(Resource.Id.btn_play_pause)!;
         _btnNext = view.FindViewById<ImageButton>(Resource.Id.btn_next)!;
         _btnPrev = view.FindViewById<ImageButton>(Resource.Id.btn_prev)!;
@@ -87,7 +99,7 @@ public class NowPlayingFragment : Fragment
         _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
         _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
-        _gradientBackground = view.FindViewById<View>(Resource.Id.gradient_background)!;
+        _gradientBackground = view.FindViewById<ImageView>(Resource.Id.gradient_background)!;
         _glow1 = view.FindViewById<View>(Resource.Id.glow_1)!;
         _glow2 = view.FindViewById<View>(Resource.Id.glow_2)!;
         _glow3 = view.FindViewById<View>(Resource.Id.glow_3)!;
@@ -96,6 +108,25 @@ public class NowPlayingFragment : Fragment
         _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
+
+        _progressSlider.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _gradientBackground.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _glow1.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _glow2.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _glow3.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _reflectionMaskBottom.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _coverFog.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _coverGlow.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _controlsCard.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _audioVisualizer.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnPlayPause.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnNext.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnPrev.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnLike.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnModeCycle.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnPlaylist.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnVisualizerToggle.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _btnSleepTimer.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
 
         _recordAudioLauncher = RegisterForActivityResult(
             new ActivityResultContracts.RequestPermission(),
@@ -213,27 +244,17 @@ public class NowPlayingFragment : Fragment
         _colorTransitionAnimator.SetDuration(800);
         _colorTransitionAnimator.SetInterpolator(new Android.Views.Animations.AccelerateDecelerateInterpolator());
 
-        var oldBg = _currentBackgroundColor;
-        var oldEntries = _currentEntries.ToList();
+        var oldColors = _flowColors != null ? (int[])_flowColors.Clone() : null;
+        var newColors = PickVividColors(newEntries, 3);
 
         _colorTransitionAnimator.Update += (s, e) =>
         {
             var fraction = (float)e.Animation.AnimatedValue;
-            _currentBackgroundColor = BlendColor(oldBg, _targetBackgroundColor, fraction);
-            _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(_currentBackgroundColor));
-
-            var blendedEntries = new List<ColorEntry>();
-            for (int i = 0; i < Math.Max(oldEntries.Count, newEntries.Count); i++)
+            if (oldColors != null && _flowColors != null)
             {
-                var oldE = i < oldEntries.Count ? oldEntries[i] : newEntries[i];
-                var newE = i < newEntries.Count ? newEntries[i] : oldEntries[i];
-                blendedEntries.Add(new ColorEntry
-                {
-                    Color = BlendColor(oldE.Color, newE.Color, fraction),
-                    CenterX = oldE.CenterX + (newE.CenterX - oldE.CenterX) * fraction
-                });
+                for (int i = 0; i < _flowColors.Length; i++)
+                    _flowColors[i] = BlendColor(oldColors[i], newColors[i], fraction);
             }
-            ApplyColorsToGlowViews(blendedEntries);
         };
 
         _colorTransitionAnimator.AnimationEnd += (s, e) =>
@@ -255,49 +276,67 @@ public class NowPlayingFragment : Fragment
         return Android.Graphics.Color.Argb(a, r, g, b);
     }
 
+    /// <summary>
+    /// 启动流光动画：三个色带在背景区域随机缓慢漂移，带呼吸缩放效果。
+    /// 使用多重正弦波叠加模拟随机运动，每个色带拥有独立的相位偏移，
+    /// 确保运动轨迹各不相同且看起来自然有机。
+    /// </summary>
     private void StartFlowAnimation()
     {
         if (_flowAnimator != null) return;
+
         _flowAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
-        _flowAnimator.SetDuration(8000);
+        _flowAnimator.SetDuration(12000);
         _flowAnimator.RepeatCount = -1;
-        _flowAnimator.SetInterpolator(new Android.Views.Animations.LinearInterpolator());
+        _flowAnimator.RepeatMode = Android.Animation.ValueAnimatorRepeatMode.Reverse;
+        _flowAnimator.SetInterpolator(new Android.Views.Animations.AccelerateDecelerateInterpolator());
 
         _flowAnimator.Update += (s, e) =>
         {
-            _flowOffset = (float)e.Animation.AnimatedValue;
-            if (_currentEntries == null || _currentEntries.Count == 0) return;
-
-            var screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
-            var screenH = Resources?.DisplayMetrics?.HeightPixels ?? 2400;
-            var glowViews = new[] { _glow1, _glow2, _glow3 };
-            var drifts = new[] { 0.15f, -0.12f, 0.10f };
-            var verticalDrifts = new[] { 0.06f, -0.08f, 0.05f };
-            var phaseOffsets = new[] { 0f, 2.1f, 4.2f };
-
-            for (int i = 0; i < glowViews.Length; i++)
-            {
-                if (glowViews[i] == null) continue;
-                var t = _flowOffset * (float)Math.PI * 2 + phaseOffsets[i];
-                var dx = (float)Math.Sin(t * drifts[i]) * screenW * 0.2f;
-                var dy = (float)Math.Cos(t * verticalDrifts[i]) * screenH * 0.05f;
-                glowViews[i].TranslationX = dx;
-                glowViews[i].TranslationY = dy;
-                glowViews[i].Alpha = 0.6f + 0.4f * (float)Math.Sin(t * 0.5);
-                glowViews[i].ScaleX = 1.0f + 0.15f * (float)Math.Sin(t * 0.3);
-                glowViews[i].ScaleY = 1.0f + 0.15f * (float)Math.Cos(t * 0.3);
-            }
+            AnimateGlowViews((float)e.Animation.AnimatedValue);
         };
 
         _flowAnimator.Start();
+
+        if (_flowPaused || _viewModel.PlayPauseIcon == "▶")
+        {
+            _flowPaused = true;
+            _flowAnimator.Pause();
+        }
     }
 
+    /// <summary>
+    /// 暂停流光动画，音乐暂停时调用。
+    /// 色带停留在当前位置不动，呼吸也停止。
+    /// </summary>
+    private void PauseFlowAnimation()
+    {
+        _flowPaused = true;
+        if (_flowAnimator != null && _flowAnimator.IsRunning)
+            _flowAnimator.Pause();
+    }
+
+    /// <summary>
+    /// 恢复流光动画，音乐恢复播放时调用。
+    /// 色带从暂停位置继续漂移和呼吸。
+    /// </summary>
+    private void ResumeFlowAnimation()
+    {
+        _flowPaused = false;
+        if (_flowAnimator != null && _flowAnimator.IsStarted)
+            _flowAnimator.Resume();
+    }
+
+    /// <summary>
+    /// 停止流光动画并清理所有状态，Fragment 销毁时调用
+    /// </summary>
     private void StopFlowAnimation()
     {
         _flowAnimator?.Cancel();
         _flowAnimator = null;
         _colorTransitionAnimator?.Cancel();
         _colorTransitionAnimator = null;
+        _flowPaused = false;
     }
 
     private void AnimateCoverChange(string newCoverPath)
@@ -305,12 +344,41 @@ public class NowPlayingFragment : Fragment
         if (_albumCover == null) return;
 
         _albumCover.Animate().Cancel();
+
+        /* 必须在设置 Alpha/ScaleX/ScaleY 之前检查旧 Bitmap 是否已回收，
+         * 因为修改这些属性会触发 draw，对已回收的 Bitmap 绘制会抛出 RuntimeException */
+        try
+        {
+            var oldDrawable = _albumCover.Drawable as Android.Graphics.Drawables.BitmapDrawable;
+            if (oldDrawable?.Bitmap != null && oldDrawable.Bitmap.IsRecycled)
+            {
+                _albumCover.SetImageResource(Resource.Drawable.cover_default);
+            }
+        }
+        catch
+        {
+            try { _albumCover.SetImageResource(Resource.Drawable.cover_default); } catch { }
+        }
+
+        /* 启用硬件层：封面切换动画仅变换 Alpha/ScaleX/ScaleY，
+         * 硬件层将封面缓存为 GPU 纹理，避免每帧重新光栅化 Bitmap */
+        _albumCover.SetLayerType(global::Android.Views.LayerType.Hardware, null);
+
         _albumCover.Alpha = 0.3f;
         _albumCover.ScaleX = 0.92f;
         _albumCover.ScaleY = 0.92f;
 
-        try { _albumCover.SetImageDrawable(Drawable.CreateFromPath(newCoverPath)); }
-        catch { _albumCover.SetImageResource(Resource.Drawable.cover_default); }
+        try
+        {
+            if (!string.IsNullOrEmpty(newCoverPath) && File.Exists(newCoverPath))
+                _albumCover.SetImageDrawable(Android.Graphics.Drawables.Drawable.CreateFromPath(newCoverPath));
+            else
+                _albumCover.SetImageResource(Resource.Drawable.cover_default);
+        }
+        catch
+        {
+            try { _albumCover.SetImageResource(Resource.Drawable.cover_default); } catch { }
+        }
 
         _albumCover.Animate()
             .Alpha(1f)
@@ -318,6 +386,11 @@ public class NowPlayingFragment : Fragment
             .ScaleY(1f)
             .SetDuration(500)
             .SetInterpolator(new Android.Views.Animations.OvershootInterpolator(0.8f))
+            .WithEndAction(new Java.Lang.Runnable(() =>
+            {
+                /* 动画结束后恢复默认图层类型，释放 GPU 纹理内存 */
+                try { _albumCover.SetLayerType(global::Android.Views.LayerType.None, null); } catch { }
+            }))
             .Start();
     }
 
@@ -330,8 +403,10 @@ public class NowPlayingFragment : Fragment
 
         var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
 
-        _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(palette.Background));
-        _currentBackgroundColor = palette.Background;
+        _flowColors = PickVividColors(entries, 3);
+
+        var bgColor = _flowColors[0];
+        _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(bgColor));
 
         ApplyColorsToGlowViews(entries);
 
@@ -360,37 +435,72 @@ public class NowPlayingFragment : Fragment
         _lyricNext2.SetTextColor(onSurfaceLight);
     }
 
+    private static int[] PickVividColors(List<ColorEntry> entries, int count)
+    {
+        if (entries.Count == 0) return new[] { (int)Color.Argb(0xFF, 0xF5, 0xF3, 0xF7), (int)Color.Argb(0xFF, 0xF4, 0xF2, 0xF8), (int)Color.Argb(0xFF, 0xF6, 0xF4, 0xF9) };
+
+        var dominantHsv = new float[3];
+        Color.RGBToHSV(Color.GetRedComponent(entries[0].Color), Color.GetGreenComponent(entries[0].Color), Color.GetBlueComponent(entries[0].Color), dominantHsv);
+
+        var result = new int[count];
+        for (int i = 0; i < count; i++)
+        {
+            float hi = dominantHsv[0];
+            float si = Math.Clamp(dominantHsv[1] * 0.15f, 0.01f, 0.06f);
+            float vi = Math.Clamp(0.92f - i * 0.02f, 0.86f, 0.94f);
+            result[i] = (int)Color.HSVToColor(new[] { hi, si, vi });
+        }
+        return result;
+    }
+
+    private void AnimateGlowViews(float fraction)
+    {
+        var glowViews = new[] { _glow1, _glow2, _glow3 };
+        var offsets = new[] { new[] { 0.08f, 0.06f }, new[] { -0.06f, 0.08f }, new[] { 0.04f, -0.07f } };
+
+        for (int i = 0; i < glowViews.Length; i++)
+        {
+            if (glowViews[i] == null) continue;
+            float dx = offsets[i][0] * fraction;
+            float dy = offsets[i][1] * fraction;
+            glowViews[i].TranslationX = dx * _gradientBackground!.Width;
+            glowViews[i].TranslationY = dy * _gradientBackground.Height;
+            float scale = 1f + fraction * 0.05f;
+            glowViews[i].ScaleX = scale;
+            glowViews[i].ScaleY = scale;
+            glowViews[i].Alpha = 0.85f + fraction * 0.15f;
+        }
+    }
+
+    /// <summary>
+    /// 将封面提取的颜色应用到三个流光色带视图上。
+    /// 每个色带使用径向渐变，中心为封面色调（带透明度），边缘全透明。
+    /// 色带之间有色相偏移，营造多彩流光效果。
+    /// </summary>
     private void ApplyColorsToGlowViews(List<ColorEntry> entries)
     {
         if (entries.Count == 0) return;
 
         var transparent = Android.Graphics.Color.Argb(0, 0, 0, 0);
         var glowViews = new[] { _glow1, _glow2, _glow3 };
-        var radii     = new[] { 400f, 500f, 450f };
-        var alphas    = new[] { 0x44, 0x38, 0x3C };
+        var density = Resources?.DisplayMetrics?.Density ?? 2.5f;
+        var radii = new[] { 350f * density, 400f * density, 375f * density };
+        var alphas = new[] { 0x60, 0x50, 0x58 };
 
-        var seedHsv = new float[3];
+        var dominantHsv = new float[3];
         Color.RGBToHSV(
             Color.GetRedComponent(entries[0].Color),
             Color.GetGreenComponent(entries[0].Color),
-            Color.GetBlueComponent(entries[0].Color), seedHsv);
+            Color.GetBlueComponent(entries[0].Color), dominantHsv);
 
         for (int i = 0; i < glowViews.Length; i++)
         {
             if (glowViews[i] == null) continue;
-            var entry = entries[i % entries.Count];
-            var entryHsv = new float[3];
-            Color.RGBToHSV(
-                Color.GetRedComponent(entry.Color),
-                Color.GetGreenComponent(entry.Color),
-                Color.GetBlueComponent(entry.Color), entryHsv);
 
-            var hueShift = i * 25f;
-            var glowColor = Color.HSVToColor(new[] {
-                (seedHsv[0] + hueShift) % 360f,
-                Math.Min(entryHsv[1] * 0.8f, 0.55f),
-                Math.Min(entryHsv[2] * 0.7f + 0.25f, 0.85f)
-            });
+            float hue = (dominantHsv[0] + i * 25f) % 360f;
+            float sat = Math.Clamp(dominantHsv[1] * 0.3f, 0.05f, 0.20f);
+            float val = Math.Clamp(0.85f - i * 0.03f, 0.78f, 0.88f);
+            var glowColor = Color.HSVToColor(new[] { hue, sat, val });
             ApplyGlow(glowViews[i], ToAlpha(glowColor, alphas[i]), transparent, radii[i]);
         }
     }
@@ -443,14 +553,14 @@ public class NowPlayingFragment : Fragment
         _timeCurrent.SetTextColor(onSurfaceSemi);
         _timeTotal.SetTextColor(onSurfaceSemi);
 
-        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(new Android.Graphics.Color(palette.Primary));
+        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.ThumbTintList = sliderCs;
         _progressSlider.TrackActiveTintList = sliderCs;
-        _audioVisualizer.SetColors(palette.Primary);
+        _audioVisualizer.SetColors(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(
-            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B)));
+            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(
-            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x40, onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B)));
+            new Android.Graphics.Color(Android.Graphics.Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
 
         _modeActiveColor = onSurfaceColor;
 
@@ -642,6 +752,11 @@ public class NowPlayingFragment : Fragment
                 case nameof(_viewModel.PlayPauseIcon):
                     UpdatePlayPauseIcon();
                     TryStartVisualizer();
+                    /* 音乐暂停时流光跟随暂停，恢复播放时流光继续 */
+                    if (_viewModel.PlayPauseIcon == "▶")
+                        PauseFlowAnimation();
+                    else
+                        ResumeFlowAnimation();
                     break;
                 case nameof(_viewModel.PlayModeIcon):
                     UpdateModeIcon();
@@ -657,10 +772,6 @@ public class NowPlayingFragment : Fragment
                         _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
                     break;
                 case nameof(_viewModel.CurrentLyricLine):
-                case nameof(_viewModel.PrevLyricLine):
-                case nameof(_viewModel.PrevLyricLine2):
-                case nameof(_viewModel.NextLyricLine):
-                case nameof(_viewModel.NextLyricLine2):
                     UpdateLyrics();
                     break;
                 case nameof(_viewModel.CurrentLyricSpannable):
@@ -726,7 +837,7 @@ public class NowPlayingFragment : Fragment
                 .TranslationY(0f)
                 .Alpha(endAlpha[i])
                 .SetDuration(durations[i])
-                .SetInterpolator(new Android.Views.Animations.DecelerateInterpolator(1.5f))
+                .SetInterpolator(_lyricInterpolator)
                 .Start();
         }
     }
@@ -1122,70 +1233,38 @@ public class NowPlayingFragment : Fragment
 
         var currentSong = queue.CurrentSong;
         var dp = (int)act.Resources!.DisplayMetrics!.Density;
-
-        var scrollView = new ScrollView(act);
         var maxH = (int)(act.Resources!.DisplayMetrics!.HeightPixels * 0.5);
-        scrollView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+
+        var recyclerView = new AndroidX.RecyclerView.Widget.RecyclerView(act);
+        recyclerView.SetLayoutManager(new AndroidX.RecyclerView.Widget.LinearLayoutManager(act));
+        recyclerView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
+        recyclerView.OverScrollMode = OverScrollMode.Never;
+
+        var adapter = new PlaylistAdapter(allSongs, currentSong, dp, song =>
         {
-            Height = ViewGroup.LayoutParams.WrapContent
-        };
-        scrollView.Post(() =>
-        {
-            if (scrollView.Height > maxH)
-                scrollView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, maxH);
+            PlaySong(song);
+            _playlistDialog?.Dismiss();
         });
-        var listContainer = new LinearLayout(act) { Orientation = Orientation.Vertical };
-        listContainer.SetPadding(0, dp * 4, 0, dp * 4);
+        recyclerView.SetAdapter(adapter);
 
-        var songViews = new List<View>();
-        for (int i = 0; i < allSongs.Count; i++)
+        recyclerView.Post(() =>
         {
-            var song = allSongs[i];
-            var isCurrent = currentSong != null && song.Id == currentSong.Id;
-
-            var item = new TextView(act)
+            if (recyclerView.Height > maxH)
+                recyclerView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, maxH);
+            if (currentSong != null)
             {
-                Text = $"{(isCurrent ? "▶  " : "    ")}{song.Title ?? "未知歌曲"} - {song.Artist ?? "未知艺术家"}"
-            };
-            item.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
-            item.SetTextColor(isCurrent ? Color.White : Color.ParseColor("#CCFFFFFF"));
-            item.SetPadding(dp * 14, dp * 8, dp * 14, dp * 8);
-            item.SetSingleLine(true);
-            item.Ellipsize = Android.Text.TextUtils.TruncateAt.End;
-            item.Clickable = true;
-            item.Focusable = true;
-
-            var idx = i;
-            item.Click += (s, e) =>
-            {
-                PlaySong(allSongs[idx]);
-                _playlistDialog?.Dismiss();
-            };
-
-            listContainer.AddView(item);
-            if (isCurrent) songViews.Add(item);
-        }
-
-        scrollView.AddView(listContainer);
-        scrollView.ScrollBarStyle = ScrollbarStyles.InsideOverlay;
+                var idx = allSongs.FindIndex(s => s.Id == currentSong.Id);
+                if (idx >= 0)
+                    recyclerView.ScrollToPosition(idx);
+            }
+        });
 
         var dialog = new GlassDialog(act)
             .SetTitle("播放列表", $"{allSongs.Count} 首歌曲")
-            .AddCustomView(scrollView)
+            .AddCustomView(recyclerView)
             .AddNegativeButton("关闭");
 
         dialog.Show();
-
-        if (songViews.Count > 0)
-        {
-            scrollView.Post(() =>
-            {
-                var target = songViews[0];
-                var scrollY = target.Top - scrollView.Height / 2 + target.Height / 2;
-                scrollView.SmoothScrollTo(0, Math.Max(0, scrollY));
-            });
-        }
-
         _playlistDialog = null;
     }
 
@@ -1323,11 +1402,16 @@ public class NowPlayingFragment : Fragment
         var spectrumCounter = 0;
         _visualizerHelper.SpectrumUpdated += spectrum =>
         {
+            var sp = spectrum;
             _mainHandler.Post(() =>
             {
-                _audioVisualizer?.UpdateSpectrum(spectrum);
+                _audioVisualizer?.UpdateSpectrum(sp);
                 if (++spectrumCounter % 30 == 0)
-                    Android.Util.Log.Debug("CatClaw", $"[CatClaw] SpectrumUpdated x{spectrumCounter}, sum={spectrum.Sum():F2}");
+                {
+                    float sum = 0;
+                    for (int i = 0; i < sp.Length; i++) sum += sp[i];
+                    Android.Util.Log.Debug("CatClaw", $"[CatClaw] SpectrumUpdated x{spectrumCounter}, sum={sum:F2}");
+                }
             });
         };
         _visualizerHelper.Start(sessionId);
@@ -1364,35 +1448,105 @@ public class NowPlayingFragment : Fragment
     /// <summary>
     /// 控制区域触摸监听器，阻止父ViewPager2拦截控制区域的触摸事件
     /// </summary>
+    internal class PlaylistAdapter : AndroidX.RecyclerView.Widget.RecyclerView.Adapter
+    {
+        private readonly List<Song> _songs;
+        private readonly Song? _currentSong;
+        private readonly int _dp;
+        private readonly Action<Song> _onSongClick;
+
+        public PlaylistAdapter(List<Song> songs, Song? currentSong, int dp, Action<Song> onSongClick)
+        {
+            _songs = songs;
+            _currentSong = currentSong;
+            _dp = dp;
+            _onSongClick = onSongClick;
+        }
+
+        public override int ItemCount => _songs.Count;
+
+        public override void OnBindViewHolder(AndroidX.RecyclerView.Widget.RecyclerView.ViewHolder holder, int position)
+        {
+            if (holder is not PlaylistViewHolder vh) return;
+            var song = _songs[position];
+            var isCurrent = _currentSong != null && song.Id == _currentSong.Id;
+            vh.TextView.Text = $"{(isCurrent ? "▶  " : "    ")}{song.Title ?? "未知歌曲"} - {song.Artist ?? "未知艺术家"}";
+            vh.TextView.SetTextColor(isCurrent ? Color.White : Color.ParseColor("#CCFFFFFF"));
+            vh.TextView.SetPadding(_dp * 14, _dp * 8, _dp * 14, _dp * 8);
+            vh.TextView.Click -= vh.Handler;
+            vh.Handler = (s, e) => _onSongClick(song);
+            vh.TextView.Click += vh.Handler;
+        }
+
+        public override AndroidX.RecyclerView.Widget.RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
+        {
+            var tv = new TextView(parent.Context!)
+            {
+                TextSize = 13f,
+            };
+            tv.SetSingleLine(true);
+            tv.Ellipsize = Android.Text.TextUtils.TruncateAt.End;
+            tv.Clickable = true;
+            tv.Focusable = true;
+            return new PlaylistViewHolder(tv);
+        }
+    }
+
+    internal class PlaylistViewHolder : AndroidX.RecyclerView.Widget.RecyclerView.ViewHolder
+    {
+        public TextView TextView { get; }
+        public EventHandler? Handler;
+        public PlaylistViewHolder(TextView tv) : base(tv) => TextView = tv;
+    }
+
     internal class ControlsTouchListener : Java.Lang.Object, View.IOnTouchListener
     {
-        /// <summary>
-        /// 处理触摸事件，按下时请求父视图不要拦截，抬起时恢复
-        /// </summary>
+        private float _downX, _downY;
+
         public bool OnTouch(View? v, Android.Views.MotionEvent? e)
         {
             if (e == null || v == null) return false;
-            if (e.Action == MotionEventActions.Down)
+            switch (e.Action)
             {
-                // 阻止父 ViewPager2 拦截触摸，允许控制区自由操作
-                var parent = v.Parent;
-                while (parent != null)
-                {
-                    parent.RequestDisallowInterceptTouchEvent(true);
-                    parent = parent.Parent;
-                }
+                case MotionEventActions.Down:
+                    _downX = e.GetX();
+                    _downY = e.GetY();
+                    break;
+                case MotionEventActions.Move:
+                    {
+                        float dx = Math.Abs(e.GetX() - _downX);
+                        float dy = Math.Abs(e.GetY() - _downY);
+                        if (dx > 20 && dx > dy * 1.5f)
+                        {
+                            var parent = v.Parent;
+                            while (parent != null)
+                            {
+                                parent.RequestDisallowInterceptTouchEvent(false);
+                                parent = parent.Parent;
+                            }
+                            return false;
+                        }
+                        var p = v.Parent;
+                        while (p != null)
+                        {
+                            p.RequestDisallowInterceptTouchEvent(true);
+                            p = p.Parent;
+                        }
+                    }
+                    break;
+                case MotionEventActions.Up:
+                case MotionEventActions.Cancel:
+                    {
+                        var parent = v.Parent;
+                        while (parent != null)
+                        {
+                            parent.RequestDisallowInterceptTouchEvent(false);
+                            parent = parent.Parent;
+                        }
+                    }
+                    break;
             }
-            else if (e.Action is MotionEventActions.Up or MotionEventActions.Cancel)
-            {
-                var parent = v.Parent;
-                while (parent != null)
-                {
-                    parent.RequestDisallowInterceptTouchEvent(false);
-                    parent = parent.Parent;
-                }
-            }
-            return false; // 不消费，让子控件正常处理
-
+            return false;
         }
     }
 
@@ -1452,7 +1606,7 @@ public class NowPlayingFragment : Fragment
         public bool OnTouch(View? v, MotionEvent? e)
         {
             if (e == null || v == null) return false;
-            
+
             switch (e.Action)
             {
                 case MotionEventActions.Down:
@@ -1460,23 +1614,21 @@ public class NowPlayingFragment : Fragment
                     _downY = e.GetY();
                     _downTime = Java.Lang.JavaSystem.CurrentTimeMillis();
                     _isDown = true;
-                    // 按下时请求父视图不拦截，确保我们能收到完整的事件序列
-                    v.Parent?.RequestDisallowInterceptTouchEvent(true);
                     break;
-                    
+
                 case MotionEventActions.Move:
                     if (_isDown)
                     {
                         float dx = Math.Abs(e.GetX() - _downX);
                         float dy = Math.Abs(e.GetY() - _downY);
-                        // 如果是明显的水平滑动，交还给 ViewPager2 处理
-                        if (dx > 30 && dx > dy * 2)
+                        if (dx > 15 && dx > dy * 1.2f)
                         {
                             v.Parent?.RequestDisallowInterceptTouchEvent(false);
+                            _isDown = false;
                         }
                     }
                     break;
-                    
+
                 case MotionEventActions.Up:
                 case MotionEventActions.Cancel:
                     if (_isDown && e.Action == MotionEventActions.Up)
@@ -1484,16 +1636,14 @@ public class NowPlayingFragment : Fragment
                         float dx = Math.Abs(e.GetX() - _downX);
                         float dy = Math.Abs(e.GetY() - _downY);
                         long dt = Java.Lang.JavaSystem.CurrentTimeMillis() - _downTime;
-                        // 短按 + 小移动 → 视为点击
                         if (dx < 40 && dy < 40 && dt < 500)
                             _onTap();
                     }
                     _isDown = false;
-                    // 恢复父视图的事件拦截权限
                     v.Parent?.RequestDisallowInterceptTouchEvent(false);
                     break;
             }
-            return false; // 不消费事件，让 ViewPager2 仍能处理滑动
+            return false;
         }
     }
 }

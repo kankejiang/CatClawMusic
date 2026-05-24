@@ -77,9 +77,12 @@ public class MainActivity : AppCompatActivity
         insetsController.AppearanceLightNavigationBars = !isDark;
 
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+        /* 异步初始化数据库，RestoreAsync 内部也会调用 EnsureInitializedAsync 并等待完成 */
         _ = db.EnsureInitializedAsync();
 
         SetContentView(Resource.Layout.activity_main);
+
+        Window!.DecorView.ImportantForAutofill = Android.Views.ImportantForAutofill.NoExcludeDescendants;
 
         DesktopLyricService.Instance.Initialize(this);
 
@@ -107,6 +110,7 @@ public class MainActivity : AppCompatActivity
         _miniProgressTimer.Start();
         var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
         var subsonic = MainApplication.Services.GetService<ISubsonicService>();
+        /* 后台恢复播放状态，不阻塞 UI 线程；异常已内部处理不会导致闪退 */
         _ = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm, networkMusic, subsonic));
 
         _toolbar = FindViewById<View>(Resource.Id.toolbar)!;
@@ -379,8 +383,9 @@ public class MainActivity : AppCompatActivity
     {
         var player = MainApplication.Services.GetService<IAudioPlayerService>();
         var npVm = MainApplication.Services.GetService<NowPlayingViewModel>();
+        var queue = MainApplication.Services.GetService<PlayQueue>();
         if (player != null && npVm != null)
-            PlaybackStateManager.Save(player, npVm.CurrentSong);
+            PlaybackStateManager.Save(player, npVm.CurrentSong, queue);
 
         _miniProgressTimer?.Stop();
         _miniProgressTimer?.Dispose();
@@ -547,7 +552,23 @@ public class MainActivity : AppCompatActivity
             }
 
             if (needUpdateCover && !string.IsNullOrEmpty(_miniVm.CoverSource))
-                _miniCover.SetImageDrawable(Android.Graphics.Drawables.Drawable.CreateFromPath(_miniVm.CoverSource));
+            {
+                try
+                {
+                    var oldMiniDrawable = _miniCover.Drawable as Android.Graphics.Drawables.BitmapDrawable;
+                    if (oldMiniDrawable?.Bitmap != null && oldMiniDrawable.Bitmap.IsRecycled)
+                        _miniCover.SetImageResource(Resource.Drawable.cover_default);
+
+                    if (System.IO.File.Exists(_miniVm.CoverSource))
+                        _miniCover.SetImageDrawable(Android.Graphics.Drawables.Drawable.CreateFromPath(_miniVm.CoverSource));
+                    else
+                        _miniCover.SetImageResource(Resource.Drawable.cover_default);
+                }
+                catch
+                {
+                    try { _miniCover.SetImageResource(Resource.Drawable.cover_default); } catch { }
+                }
+            }
         });
     }
 

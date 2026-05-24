@@ -715,11 +715,17 @@ public partial class LibraryViewModel : ObservableObject
                         ReportProgress(pct, p.status);
                     });
 
-                    var scanned = await _networkMusic.ScanAsync(p, progress, (batch) =>
+                    var scanned = await _networkMusic.ScanAsync(p, progress, async (batch) =>
                     {
+                        if (_database != null)
+                        {
+                            try { foreach (var s in batch) await _database.SaveSongAsync(s); } catch { }
+                        }
+                        var filtered = FilterSongsByProtocol(batch);
                         _dispatcher.Post(() =>
                         {
-                            StatusText = $"☁️ 正在拉取网络歌曲...";
+                            AddSongsBatch(filtered);
+                            StatusText = $"☁️ 正在拉取... 已发现 {Songs.Count} 首歌曲";
                         });
                     });
 
@@ -728,15 +734,16 @@ public partial class LibraryViewModel : ObservableObject
                 catch { }
             }
 
-            // 增量扫描完成后，从数据库全量重新加载，避免新增与缓存重复
             if (_database != null)
             {
                 await _database.EnsureInitializedAsync();
-                var cachedSongs = await _database.GetCachedNetworkSongsAsync();
-                cachedSongs = await FilterByEnabledProtocolsAsync(cachedSongs);
-                var cachedFiltered = FilterSongsByProtocol(cachedSongs);
-                Songs.Clear();
-                AddSongsBatch(cachedFiltered);
+                if (Songs.Count == 0)
+                {
+                    var cachedSongs = await _database.GetCachedNetworkSongsAsync();
+                    cachedSongs = await FilterByEnabledProtocolsAsync(cachedSongs);
+                    var cachedFiltered = FilterSongsByProtocol(cachedSongs);
+                    AddSongsBatch(cachedFiltered);
+                }
                 _networkSongsCache = Songs.ToList();
                 _hasLoadedNetwork = true;
             }

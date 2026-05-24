@@ -104,6 +104,12 @@ public static class CoverColorExtractor
 
         try
         {
+            /* 优先使用 C++ 原生库取色（性能更优，避免 GetPixel JNI 开销） */
+            var nativeResult = NativeInterop.ExtractColorsFromBitmap(bitmap);
+            if (nativeResult != null && nativeResult.Count > 0)
+                return nativeResult;
+
+            /* C# 回退实现：当原生库不可用时使用 */
             // 第一步：降采样，将大图缩放至 MaxSampleSize 以内以减少计算量
             Bitmap? sampled = null;
             if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)

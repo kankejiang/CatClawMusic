@@ -21,6 +21,7 @@ public static class PlaybackStateManager
     private const string PrefSongRemoteId = "song_remote_id";
     /// <summary>远程协议类型（ProtocolType 枚举值），用于恢复时重新生成 stream URL</summary>
     private const string PrefSongProtocol = "song_protocol";
+    private const string PrefQueueSongIds = "queue_song_ids";
 
     /// <summary>获取 SharedPreferences 实例</summary>
     private static ISharedPreferences? GetPrefs()
@@ -32,7 +33,7 @@ public static class PlaybackStateManager
     /// <summary>保存当前播放歌曲路径、来源和播放位置</summary>
     /// <param name="player">播放器实例</param>
     /// <param name="currentSong">当前歌曲对象，用于保存 Source、RemoteId 和 Protocol 以支持网络歌曲恢复</param>
-    public static void Save(IAudioPlayerService player, Song? currentSong = null)
+    public static void Save(IAudioPlayerService player, Song? currentSong = null, PlayQueue? queue = null)
     {
         var prefs = GetPrefs();
         if (prefs == null) return;
@@ -46,6 +47,17 @@ public static class PlaybackStateManager
             editor.PutInt(PrefSongSource, currentSong != null ? (int)currentSong.Source : (int)SongSource.Local);
             editor.PutString(PrefSongRemoteId, currentSong?.RemoteId ?? "");
             editor.PutInt(PrefSongProtocol, currentSong != null ? (int)currentSong.Protocol : (int)ProtocolType.WebDAV);
+
+            if (queue != null)
+            {
+                var queueSongs = queue.GetSongs();
+                if (queueSongs.Count > 0)
+                {
+                    var ids = string.Join(",", queueSongs.Select(s => s.Id));
+                    editor.PutString(PrefQueueSongIds, ids);
+                }
+            }
+
             editor.Apply();
         }
     }
@@ -115,41 +127,62 @@ public static class PlaybackStateManager
     public static async Task RestoreAsync(IAudioPlayerService player, MusicDatabase db, PlayQueue queue, NowPlayingViewModel vm,
         INetworkMusicService? networkMusic = null, ISubsonicService? subsonic = null)
     {
-        var prefs = GetPrefs();
-        if (prefs == null) return;
-        var path = prefs.GetString(PrefSongPath, null);
-        if (string.IsNullOrEmpty(path)) return;
-
-        var position = TimeSpan.FromSeconds(prefs.GetFloat(PrefPosition, 0));
-        var savedSource = (SongSource)prefs.GetInt(PrefSongSource, (int)SongSource.Local);
-        var savedRemoteId = prefs.GetString(PrefSongRemoteId, null);
-        var savedProtocol = (ProtocolType)prefs.GetInt(PrefSongProtocol, (int)ProtocolType.WebDAV);
-
-        vm.BeginRestore();
         try
         {
+            var prefs = GetPrefs();
+            if (prefs == null) return;
+            var path = prefs.GetString(PrefSongPath, null);
+            if (string.IsNullOrEmpty(path)) return;
+
+            var position = TimeSpan.FromSeconds(prefs.GetFloat(PrefPosition, 0));
+            var savedSource = (SongSource)prefs.GetInt(PrefSongSource, (int)SongSource.Local);
+            var savedRemoteId = prefs.GetString(PrefSongRemoteId, null);
+            var savedProtocol = (ProtocolType)prefs.GetInt(PrefSongProtocol, (int)ProtocolType.WebDAV);
+
+            vm.BeginRestore();
+
             await db.EnsureInitializedAsync();
             var localSongs = await db.GetSongsAsync();
             var networkSongs = await db.GetCachedNetworkSongsAsync();
-            var songs = localSongs.Concat(networkSongs).ToList();
+            var allSongs = localSongs.Concat(networkSongs).ToList();
+
+            var savedQueueIds = prefs.GetString(PrefQueueSongIds, null);
+            List<Song> queueSongs;
+            if (!string.IsNullOrEmpty(savedQueueIds))
+            {
+                var idSet = new HashSet<int>();
+                foreach (var idStr in savedQueueIds.Split(','))
+                {
+                    if (int.TryParse(idStr, out var id))
+                        idSet.Add(id);
+                }
+                queueSongs = allSongs.Where(s => idSet.Contains(s.Id)).ToList();
+                if (queueSongs.Count == 0)
+                    queueSongs = allSongs;
+            }
+            else
+            {
+                queueSongs = allSongs;
+            }
+
             Song? song;
 
             if ((savedSource == SongSource.WebDAV || savedSource == SongSource.SMB) && !string.IsNullOrEmpty(savedRemoteId))
             {
-                song = songs.FirstOrDefault(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && s.RemoteId == savedRemoteId);
+                song = allSongs.FirstOrDefault(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && s.RemoteId == savedRemoteId);
             }
             else if (path.StartsWith("http://") || path.StartsWith("https://"))
             {
                 var idParam = ExtractQueryParam(path, "id");
                 var remoteId = savedRemoteId ?? idParam;
                 if (!string.IsNullOrEmpty(remoteId))
-                    song = songs.FirstOrDefault(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && s.RemoteId == remoteId);
+                    song = allSongs.FirstOrDefault(s => (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB) && s.RemoteId == remoteId);
                 else
-                    song = songs.FirstOrDefault(s => s.FilePath == path);
+                    song = allSongs.FirstOrDefault(s => s.FilePath == path);
             }
             else
             {
-                song = songs.FirstOrDefault(s => s.FilePath == path);
+                song = allSongs.FirstOrDefault(s => s.FilePath == path);
             }
 
             if (song == null)
@@ -159,7 +192,7 @@ public static class PlaybackStateManager
                 return;
             }
 
-            queue.SetSongs(songs);
+            queue.SetSongs(queueSongs);
             queue.SelectSong(song.Id);
 
             var savedMode = prefs.GetInt(PrefPlayMode, (int)PlayMode.ListRepeat);

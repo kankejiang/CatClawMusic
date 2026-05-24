@@ -73,36 +73,41 @@ public class VisualizerHelper : Java.Lang.Object
     private const int Bands = 64;
     private readonly float[] _smoothed = new float[Bands];
     private readonly float[] _prevSmoothed = new float[Bands];
+    private float[]? _magsBuf;
+    private float[]? _smoothedMagsBuf;
+
+    private readonly float[] _outputBuf = new float[Bands];
 
     private void OnFftData(byte[] fft)
     {
         int n = fft.Length / 2;
         if (n < 2) return;
 
+        if (_magsBuf == null || _magsBuf.Length != n) _magsBuf = new float[n];
+        if (_smoothedMagsBuf == null || _smoothedMagsBuf.Length != n) _smoothedMagsBuf = new float[n];
+
         int sr = _samplingRate > 0 ? _samplingRate / 1000 : 44100;
         float binHz = (float)sr / fft.Length;
         float nyquist = sr / 2f;
 
-        var mags = new float[n];
         for (int k = 1; k < n; k++)
         {
             float real = (sbyte)fft[2 * k];
             float imag = (sbyte)fft[2 * k + 1];
-            mags[k] = (float)Math.Sqrt(real * real + imag * imag);
+            _magsBuf[k] = (float)Math.Sqrt(real * real + imag * imag);
         }
 
-        var smoothedMags = new float[n];
         for (int k = 1; k < n - 1; k++)
         {
-            smoothedMags[k] = mags[k - 1] * 0.25f + mags[k] * 0.5f + mags[k + 1] * 0.25f;
+            _smoothedMagsBuf[k] = _magsBuf[k - 1] * 0.25f + _magsBuf[k] * 0.5f + _magsBuf[k + 1] * 0.25f;
         }
-        smoothedMags[1] = mags[1] * 0.75f + mags[2] * 0.25f;
-        smoothedMags[n - 1] = mags[n - 2] * 0.25f + mags[n - 1] * 0.75f;
+        _smoothedMagsBuf[1] = _magsBuf[1] * 0.75f + _magsBuf[2] * 0.25f;
+        _smoothedMagsBuf[n - 1] = _magsBuf[n - 2] * 0.25f + _magsBuf[n - 1] * 0.75f;
 
         float fMin = binHz;
         float fMax = Math.Min(nyquist, 14000f);
 
-        var bandEdges = BuildBandEdges(fMin, fMax, Bands, binHz, n);
+        var bandEdges = GetBandEdges(fMin, fMax, Bands, binHz, n);
 
         for (int b = 0; b < Bands; b++)
         {
@@ -114,7 +119,7 @@ public class VisualizerHelper : Java.Lang.Object
             int count = 0;
             for (int i = binLo; i <= binHi && i < n; i++)
             {
-                sumSq += smoothedMags[i] * smoothedMags[i];
+                sumSq += _smoothedMagsBuf[i] * _smoothedMagsBuf[i];
                 count++;
             }
 
@@ -153,12 +158,20 @@ public class VisualizerHelper : Java.Lang.Object
             ALog.Debug("CatClaw", $"[CatClaw] FFT diag: sr={sr}, binHz={binHz:F1}, bands={Bands}");
         }
 
-        SpectrumUpdated?.Invoke((float[])_smoothed.Clone());
+        Array.Copy(_smoothed, _outputBuf, Bands);
+        SpectrumUpdated?.Invoke(_outputBuf);
     }
 
-    private static int[] BuildBandEdges(float fMin, float fMax, int bands, float binHz, int n)
+    private int[]? _bandEdges;
+    private int _bandEdgesKey;
+
+    private int[] GetBandEdges(float fMin, float fMax, int bands, float binHz, int n)
     {
-        var edges = new int[bands + 1];
+        int key = (int)(binHz * 100) + n * 10000;
+        if (_bandEdges != null && _bandEdgesKey == key) return _bandEdges;
+
+        _bandEdges = new int[bands + 1];
+        _bandEdgesKey = key;
         int linearBands = Math.Max(8, bands / 2);
         float linearMax = 500f;
 
@@ -176,16 +189,16 @@ public class VisualizerHelper : Java.Lang.Object
                 float t = (float)(b - linearBands) / (bands - linearBands);
                 freq = (float)Math.Pow(10, logMin + t * (logMax - logMin));
             }
-            edges[b] = Math.Clamp((int)Math.Round(freq / binHz), 1, n - 1);
+            _bandEdges[b] = Math.Clamp((int)Math.Round(freq / binHz), 1, n - 1);
         }
 
         for (int b = 0; b < bands; b++)
         {
-            if (edges[b + 1] <= edges[b])
-                edges[b + 1] = edges[b] + 1;
+            if (_bandEdges[b + 1] <= _bandEdges[b])
+                _bandEdges[b + 1] = _bandEdges[b] + 1;
         }
 
-        return edges;
+        return _bandEdges;
     }
 
     private class CaptureListener : Java.Lang.Object, Visualizer.IOnDataCaptureListener

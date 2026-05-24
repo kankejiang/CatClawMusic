@@ -104,6 +104,9 @@ public class AndroidLocalScanner
         // 速度最快，但只能获取系统已索引的文件。
         else if (useMediaStore)
         {
+            var hasLocalCustomFolders = customFolders != null && customFolders.Any(f =>
+                !string.IsNullOrWhiteSpace(f) && !f.StartsWith("content://"));
+
             progress?.Report((0, 1, "扫描 Android 媒体库..."));
             try
             {
@@ -111,6 +114,12 @@ public class AndroidLocalScanner
                 foreach (var s in mediaSongs)
                 {
                     if (filterShort && s.Duration < minDuration) continue;
+                    if (hasLocalCustomFolders)
+                    {
+                        var fp = s.FilePath ?? "";
+                        if (!customFolders!.Any(f => fp.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
+                            continue;
+                    }
                     if (existingPaths.Add(s.FilePath))
                         allSongs.Add(s);
                 }
@@ -133,7 +142,9 @@ public class AndroidLocalScanner
         // 此策略覆盖面最广，但耗时较长。
         else if (hasManageStorage)
         {
-            // ── 阶段1：MediaStore 快速扫描 ────────────────────────────
+            var hasLocalCustomFolders = customFolders != null && customFolders.Any(f =>
+                !string.IsNullOrWhiteSpace(f) && !f.StartsWith("content://"));
+
             progress?.Report((0, 2, "扫描系统媒体库..."));
             try
             {
@@ -141,6 +152,12 @@ public class AndroidLocalScanner
                 foreach (var s in mediaSongs)
                 {
                     if (filterShort && s.Duration < minDuration) continue;
+                    if (hasLocalCustomFolders)
+                    {
+                        var fp = s.FilePath ?? "";
+                        if (!customFolders!.Any(f => fp.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
+                            continue;
+                    }
                     if (existingPaths.Add(s.FilePath))
                         allSongs.Add(s);
                 }
@@ -229,6 +246,9 @@ public class AndroidLocalScanner
         // 只能回退到 MediaStore 扫描作为兜底方案。
         else
         {
+            var hasLocalCustomFolders = customFolders != null && customFolders.Any(f =>
+                !string.IsNullOrWhiteSpace(f) && !f.StartsWith("content://"));
+
             progress?.Report((0, 1, "扫描系统媒体库..."));
             try
             {
@@ -236,6 +256,12 @@ public class AndroidLocalScanner
                 foreach (var s in mediaSongs)
                 {
                     if (filterShort && s.Duration < minDuration) continue;
+                    if (hasLocalCustomFolders)
+                    {
+                        var fp = s.FilePath ?? "";
+                        if (!customFolders!.Any(f => fp.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
+                            continue;
+                    }
                     if (existingPaths.Add(s.FilePath))
                         allSongs.Add(s);
                 }

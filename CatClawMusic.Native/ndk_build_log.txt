@@ -1,0 +1,18 @@
+﻿[arm64-v8a] Compile++      : catclaw_native <= native_bridge.cpp
+[arm64-v8a] Compile++      : catclaw_native <= tag_reader.cpp
+[armeabi-v7a] Compile++ thumb: catclaw_native <= fft.cpp
+[arm64-v8a] Compile++      : catclaw_native <= fft.cpp
+[arm64-v8a] Compile++      : catclaw_native <= lrc_parser.cpp
+[armeabi-v7a] Compile++ thumb: catclaw_native <= native_bridge.cpp
+[x86_64] Compile++      : catclaw_native <= fft.cpp
+[armeabi-v7a] Compile++ thumb: catclaw_native <= tag_reader.cpp
+[armeabi-v7a] Compile++ thumb: catclaw_native <= lrc_parser.cpp
+[x86_64] Compile++      : catclaw_native <= native_bridge.cpp
+[arm64-v8a] SharedLibrary  : libcatclaw_native.so
+[armeabi-v7a] SharedLibrary  : libcatclaw_native.so
+[x86_64] Compile++      : catclaw_native <= lrc_parser.cpp
+[arm64-v8a] Install        : libcatclaw_native.so => libs/arm64-v8a/libcatclaw_native.so
+[armeabi-v7a] Install        : libcatclaw_native.so => libs/armeabi-v7a/libcatclaw_native.so
+[x86_64] Compile++      : catclaw_native <= tag_reader.cpp
+[x86_64] SharedLibrary  : libcatclaw_native.so
+[x86_64] Install        : libcatclaw_native.so => libs/x86_64/libcatclaw_native.so

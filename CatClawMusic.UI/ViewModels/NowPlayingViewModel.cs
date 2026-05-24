@@ -114,9 +114,20 @@ public partial class NowPlayingViewModel : ObservableObject
         var text = line.Text;
         if (string.IsNullOrEmpty(text)) { ClearSpannable(); return; }
 
-        var ss = new SpannableString(text);
+        var hasTranslation = !string.IsNullOrEmpty(line.Translation);
+        var spanText = hasTranslation ? text + "\n" + line.Translation! : text;
+        var ss = new SpannableString(spanText);
+
         var baseGray = Android.Graphics.Color.Argb(0xDD, 0xBB, 0xBB, 0xBB);
-        ss.SetSpan(new ForegroundColorSpan(baseGray), 0, text.Length, SpanTypes.ExclusiveExclusive);
+        ss.SetSpan(new ForegroundColorSpan(baseGray), 0, spanText.Length, SpanTypes.ExclusiveExclusive);
+
+        if (hasTranslation)
+        {
+            var transGray = Android.Graphics.Color.Argb(0x99, 0x99, 0x99, 0x99);
+            var transStart = text.Length + 1;
+            ss.SetSpan(new ForegroundColorSpan(transGray), transStart, spanText.Length, SpanTypes.ExclusiveExclusive);
+            ss.SetSpan(new Android.Text.Style.RelativeSizeSpan(0.82f), transStart, spanText.Length, SpanTypes.ExclusiveExclusive);
+        }
 
         if (line.WordTimestamps is { Count: > 0 })
         {
@@ -242,6 +253,14 @@ public partial class NowPlayingViewModel : ObservableObject
     
 
     /// <summary>清除逐字高亮状态</summary>
+    private static string FormatLyricLine(List<LrcLyricLine> lines, int idx)
+    {
+        if (idx < 0 || idx >= lines.Count) return "";
+        var line = lines[idx];
+        if (string.IsNullOrEmpty(line.Translation)) return line.Text;
+        return line.Text + "\n" + line.Translation;
+    }
+
     private void ClearSpannable()
     {
         if (CurrentLyricSpannable != null)
@@ -312,7 +331,7 @@ public partial class NowPlayingViewModel : ObservableObject
         _database = database;
         _networkMusic = networkMusic;
         _subsonic = subsonic;
-        _dispatcher = dispatcher!;
+        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Volume = _audioPlayer.Volume;
         // 同步播放模式图标与 PlayQueue 的实际模式
         PlayModeIcon = _playQueue.PlayMode switch
@@ -653,30 +672,30 @@ public partial class NowPlayingViewModel : ObservableObject
                 var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, position);
                 if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
                 {
-                    PrevLyricLine2 = idx > 1 ? CurrentLyrics.Lines[idx - 2].Text : "";
-                    PrevLyricLine = idx > 0 ? CurrentLyrics.Lines[idx - 1].Text : "";
-                    NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
-                    NextLyricLine2 = idx + 2 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 2].Text : "";
-                    CurrentLyricLine = CurrentLyrics.Lines[idx].Text;
+                    _prevLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx - 2);
+                    _prevLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx - 1);
+                    _nextLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx + 1);
+                    _nextLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx + 2);
+                    _currentLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx);
                     CurrentLyricIndex = idx;
                     UpdateLyricSpannable();
+                    OnPropertyChanged(nameof(CurrentLyricLine));
                 }
                 else if (idx < 0)
                 {
-                    PrevLyricLine2 = "";
-                    PrevLyricLine = "";
-                    CurrentLyricLine = "";
-                    NextLyricLine = CurrentLyrics.Lines[0].Text;
-                    NextLyricLine2 = CurrentLyrics.Lines.Count > 1 ? CurrentLyrics.Lines[1].Text : "";
+                    _prevLyricLine2 = "";
+                    _prevLyricLine = "";
+                    _currentLyricLine = "";
+                    _nextLyricLine = FormatLyricLine(CurrentLyrics.Lines, 0);
+                    _nextLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, 1);
                     CurrentLyricIndex = -1;
                     ClearSpannable();
+                    OnPropertyChanged(nameof(CurrentLyricLine));
                 }
             }
             _isPositionUpdating = false;
-            // 每 ~5 秒保存一次播放位置（200ms 定时器 × 25）
-            // 传入 CurrentSong 以保存 Source/RemoteId，解决网络歌曲 URL 动态 token 导致恢复失败的问题
             if (++_saveCounter % 25 == 0)
-                CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer, CurrentSong);
+                CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer, CurrentSong, _playQueue);
         });
     }
 
