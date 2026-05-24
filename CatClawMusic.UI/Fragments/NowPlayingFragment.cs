@@ -54,6 +54,19 @@ public class NowPlayingFragment : Fragment
     private float _flowOffset;
 
     /// <summary>
+    /// 流光暂停状态标记，音乐暂停时流光跟随暂停
+    /// </summary>
+    private bool _flowPaused;
+
+    /// <summary>
+    /// 每个色带的随机相位偏移，用于产生各不相同的漂移轨迹
+    /// 初始化时随机生成，确保每次启动流光效果都略有不同
+    /// </summary>
+    private readonly float[] _glowPhaseX = new float[3];
+    private readonly float[] _glowPhaseY = new float[3];
+    private readonly float[] _glowPhaseBreath = new float[3];
+
+    /// <summary>
     /// 创建正在播放视图
     /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
@@ -255,11 +268,27 @@ public class NowPlayingFragment : Fragment
         return Android.Graphics.Color.Argb(a, r, g, b);
     }
 
+    /// <summary>
+    /// 启动流光动画：三个色带在背景区域随机缓慢漂移，带呼吸缩放效果。
+    /// 使用多重正弦波叠加模拟随机运动，每个色带拥有独立的相位偏移，
+    /// 确保运动轨迹各不相同且看起来自然有机。
+    /// </summary>
     private void StartFlowAnimation()
     {
         if (_flowAnimator != null) return;
+
+        /* 为每个色带生成随机初始相位，使漂移轨迹互不相同 */
+        var rng = new Random();
+        for (int i = 0; i < 3; i++)
+        {
+            _glowPhaseX[i] = (float)(rng.NextDouble() * Math.PI * 2);
+            _glowPhaseY[i] = (float)(rng.NextDouble() * Math.PI * 2);
+            _glowPhaseBreath[i] = (float)(rng.NextDouble() * Math.PI * 2);
+        }
+
+        /* 12 秒一个完整循环，速度足够缓慢 */
         _flowAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
-        _flowAnimator.SetDuration(8000);
+        _flowAnimator.SetDuration(12000);
         _flowAnimator.RepeatCount = -1;
         _flowAnimator.SetInterpolator(new Android.Views.Animations.LinearInterpolator());
 
@@ -271,33 +300,98 @@ public class NowPlayingFragment : Fragment
             var screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
             var screenH = Resources?.DisplayMetrics?.HeightPixels ?? 2400;
             var glowViews = new[] { _glow1, _glow2, _glow3 };
-            var drifts = new[] { 0.15f, -0.12f, 0.10f };
-            var verticalDrifts = new[] { 0.06f, -0.08f, 0.05f };
-            var phaseOffsets = new[] { 0f, 2.1f, 4.2f };
+
+            /* 每个色带的漂移参数：
+             * - freqX1/freqX2/freqX3: X 方向三重正弦波频率，越低越慢
+             * - freqY1/freqY2/freqY3: Y 方向三重正弦波频率
+             * - ampX/ampY: 漂移振幅占屏幕比例
+             * - breathFreq: 呼吸频率
+             * - breathAmp: 呼吸振幅（0.15 表示 ±15% 缩放）
+             */
+            var freqX1 = new[] { 0.7f, 0.5f, 0.6f };
+            var freqX2 = new[] { 1.3f, 1.1f, 0.9f };
+            var freqX3 = new[] { 0.3f, 0.4f, 0.35f };
+            var freqY1 = new[] { 0.5f, 0.6f, 0.4f };
+            var freqY2 = new[] { 0.9f, 0.8f, 1.0f };
+            var freqY3 = new[] { 0.35f, 0.25f, 0.3f };
+            var ampX = new[] { 0.18f, 0.22f, 0.20f };
+            var ampY = new[] { 0.12f, 0.10f, 0.14f };
+            var breathFreq = new[] { 0.4f, 0.35f, 0.45f };
+            var breathAmp = new[] { 0.18f, 0.22f, 0.20f };
+
+            var t = _flowOffset * (float)Math.PI * 2;
 
             for (int i = 0; i < glowViews.Length; i++)
             {
                 if (glowViews[i] == null) continue;
-                var t = _flowOffset * (float)Math.PI * 2 + phaseOffsets[i];
-                var dx = (float)Math.Sin(t * drifts[i]) * screenW * 0.2f;
-                var dy = (float)Math.Cos(t * verticalDrifts[i]) * screenH * 0.05f;
+
+                /* X 方向：三重正弦波叠加 + 随机相位偏移，模拟随机漂移 */
+                var dx = (float)(
+                    Math.Sin(t * freqX1[i] + _glowPhaseX[i]) * 0.5 +
+                    Math.Sin(t * freqX2[i] + _glowPhaseX[i] * 1.7) * 0.3 +
+                    Math.Sin(t * freqX3[i] + _glowPhaseX[i] * 0.6) * 0.2
+                ) * screenW * ampX[i];
+
+                /* Y 方向：三重正弦波叠加 + 随机相位偏移 */
+                var dy = (float)(
+                    Math.Sin(t * freqY1[i] + _glowPhaseY[i]) * 0.5 +
+                    Math.Sin(t * freqY2[i] + _glowPhaseY[i] * 1.3) * 0.3 +
+                    Math.Sin(t * freqY3[i] + _glowPhaseY[i] * 0.8) * 0.2
+                ) * screenH * ampY[i];
+
                 glowViews[i].TranslationX = dx;
                 glowViews[i].TranslationY = dy;
-                glowViews[i].Alpha = 0.6f + 0.4f * (float)Math.Sin(t * 0.5);
-                glowViews[i].ScaleX = 1.0f + 0.15f * (float)Math.Sin(t * 0.3);
-                glowViews[i].ScaleY = 1.0f + 0.15f * (float)Math.Cos(t * 0.3);
+
+                /* 呼吸缩放：缓慢的正弦波驱动 ScaleX/ScaleY，带随机相位 */
+                var breathScale = 1.0f + breathAmp[i] * (float)Math.Sin(t * breathFreq[i] + _glowPhaseBreath[i]);
+                glowViews[i].ScaleX = breathScale;
+                glowViews[i].ScaleY = breathScale;
+
+                /* 透明度随呼吸微调：缩放小时稍透明，缩放大时稍明亮 */
+                var breathAlpha = 0.55f + 0.25f * (float)Math.Sin(t * breathFreq[i] + _glowPhaseBreath[i]);
+                glowViews[i].Alpha = breathAlpha;
             }
         };
 
         _flowAnimator.Start();
+
+        /* 如果当前音乐处于暂停状态，流光也保持暂停 */
+        if (_flowPaused)
+            _flowAnimator.Pause();
     }
 
+    /// <summary>
+    /// 暂停流光动画，音乐暂停时调用。
+    /// 色带停留在当前位置不动，呼吸也停止。
+    /// </summary>
+    private void PauseFlowAnimation()
+    {
+        _flowPaused = true;
+        if (_flowAnimator != null && _flowAnimator.IsRunning)
+            _flowAnimator.Pause();
+    }
+
+    /// <summary>
+    /// 恢复流光动画，音乐恢复播放时调用。
+    /// 色带从暂停位置继续漂移和呼吸。
+    /// </summary>
+    private void ResumeFlowAnimation()
+    {
+        _flowPaused = false;
+        if (_flowAnimator != null && !_flowAnimator.IsRunning)
+            _flowAnimator.Resume();
+    }
+
+    /// <summary>
+    /// 停止流光动画并清理所有状态，Fragment 销毁时调用
+    /// </summary>
     private void StopFlowAnimation()
     {
         _flowAnimator?.Cancel();
         _flowAnimator = null;
         _colorTransitionAnimator?.Cancel();
         _colorTransitionAnimator = null;
+        _flowPaused = false;
     }
 
     private void AnimateCoverChange(string newCoverPath)
@@ -360,14 +454,21 @@ public class NowPlayingFragment : Fragment
         _lyricNext2.SetTextColor(onSurfaceLight);
     }
 
+    /// <summary>
+    /// 将封面提取的颜色应用到三个流光色带视图上。
+    /// 每个色带使用径向渐变，中心为封面色调（带透明度），边缘全透明。
+    /// 色带之间有色相偏移，营造多彩流光效果。
+    /// </summary>
     private void ApplyColorsToGlowViews(List<ColorEntry> entries)
     {
         if (entries.Count == 0) return;
 
         var transparent = Android.Graphics.Color.Argb(0, 0, 0, 0);
         var glowViews = new[] { _glow1, _glow2, _glow3 };
-        var radii     = new[] { 400f, 500f, 450f };
-        var alphas    = new[] { 0x44, 0x38, 0x3C };
+        /* 径向渐变半径，与布局中的 600/700/650dp 匹配 */
+        var radii     = new[] { 500f, 600f, 550f };
+        /* 中心色透明度：0x66/0x55/0x5C ≈ 40%/33%/36%，柔和但可见 */
+        var alphas    = new[] { 0x66, 0x55, 0x5C };
 
         var seedHsv = new float[3];
         Color.RGBToHSV(
@@ -385,10 +486,11 @@ public class NowPlayingFragment : Fragment
                 Color.GetGreenComponent(entry.Color),
                 Color.GetBlueComponent(entry.Color), entryHsv);
 
-            var hueShift = i * 25f;
+            /* 色相偏移 30° 间隔，饱和度 max 0.85，亮度适中 */
+            var hueShift = i * 30f;
             var glowColor = Color.HSVToColor(new[] {
                 (seedHsv[0] + hueShift) % 360f,
-                Math.Min(entryHsv[1] * 0.8f, 0.55f),
+                Math.Min(entryHsv[1] * 0.85f, 0.85f),
                 Math.Min(entryHsv[2] * 0.7f + 0.25f, 0.85f)
             });
             ApplyGlow(glowViews[i], ToAlpha(glowColor, alphas[i]), transparent, radii[i]);
@@ -642,6 +744,11 @@ public class NowPlayingFragment : Fragment
                 case nameof(_viewModel.PlayPauseIcon):
                     UpdatePlayPauseIcon();
                     TryStartVisualizer();
+                    /* 音乐暂停时流光跟随暂停，恢复播放时流光继续 */
+                    if (_viewModel.PlayPauseIcon == "▶")
+                        PauseFlowAnimation();
+                    else
+                        ResumeFlowAnimation();
                     break;
                 case nameof(_viewModel.PlayModeIcon):
                     UpdateModeIcon();

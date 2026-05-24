@@ -8,15 +8,13 @@
         android:layout_height="match_parent" android:background="?attr/catClawPageBackground" />
 
     <!-- 动态流光色带：大面积柔和渐变，由代码动态设置颜色和位置 -->
-    <View android:id="@+id/glow_1" android:layout_width="400dp"
-        android:layout_height="400dp" android:layout_gravity="top"
-        android:layout_marginTop="100dp" />
-    <View android:id="@+id/glow_2" android:layout_width="500dp"
-        android:layout_height="500dp" android:layout_gravity="center"
-        android:layout_marginTop="50dp" />
-    <View android:id="@+id/glow_3" android:layout_width="450dp"
-        android:layout_height="450dp" android:layout_gravity="bottom"
-        android:layout_marginBottom="100dp" />
+    <!-- 三个色带居中放置，代码控制 TranslationX/Y 实现随机缓慢漂移 -->
+    <View android:id="@+id/glow_1" android:layout_width="600dp"
+        android:layout_height="600dp" android:layout_gravity="center" />
+    <View android:id="@+id/glow_2" android:layout_width="700dp"
+        android:layout_height="700dp" android:layout_gravity="center" />
+    <View android:id="@+id/glow_3" android:layout_width="650dp"
+        android:layout_height="650dp" android:layout_gravity="center" />
 
     <!-- 光晕底部遮罩：透明→背景色（底部自然收尾） -->
     <View android:id="@+id/reflection_mask_bottom" android:layout_width="match_parent"
