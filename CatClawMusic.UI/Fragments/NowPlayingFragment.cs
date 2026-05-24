@@ -36,7 +36,7 @@ public class NowPlayingFragment : Fragment
     private View _gradientBackground = null!;
     private View _glow1 = null!, _glow2 = null!, _glow3 = null!;
     private View _glow4 = null!, _glow5 = null!, _glow6 = null!;
-    private View _reflectionMaskBottom = null!, _coverFog = null!;
+    private View _reflectionMaskBottom = null!, _coverFog = null!, _coverGlow = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
     private AudioVisualizerView _audioVisualizer = null!;
     private VisualizerHelper? _visualizerHelper;
@@ -47,6 +47,12 @@ public class NowPlayingFragment : Fragment
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
     private bool _sleepFinishSong;
+    private Android.Animation.ValueAnimator? _flowAnimator;
+    private Android.Animation.ValueAnimator? _colorTransitionAnimator;
+    private int _currentBackgroundColor;
+    private int _targetBackgroundColor;
+    private List<ColorEntry>? _currentEntries;
+    private float _flowOffset;
 
     /// <summary>
     /// 创建正在播放视图
@@ -91,6 +97,7 @@ public class NowPlayingFragment : Fragment
         _glow6 = view.FindViewById<View>(Resource.Id.glow_6)!;
         _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
         _coverFog = view.FindViewById<View>(Resource.Id.cover_fog)!;
+        _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
 
@@ -172,7 +179,6 @@ public class NowPlayingFragment : Fragment
         var coverPath = _viewModel.CoverSource;
         if (string.IsNullOrEmpty(coverPath) || !System.IO.File.Exists(coverPath))
         {
-            // 无封面时恢复默认背景
             ApplyDefaultBackground();
             return;
         }
@@ -184,10 +190,139 @@ public class NowPlayingFragment : Fragment
                 var colors = CoverColorExtractor.ExtractFromFile(coverPath);
                 if (colors.Count == 0) return;
 
-                Activity?.RunOnUiThread(() => ApplyColorsToBackground(colors));
+                Activity?.RunOnUiThread(() => TransitionToColors(colors));
             }
             catch { }
         });
+    }
+
+    private void TransitionToColors(List<ColorEntry> newEntries)
+    {
+        if (_gradientBackground == null || newEntries.Count == 0) return;
+
+        var newPalette = MaterialYouPalette.FromSeedColor(newEntries[0].Color);
+        _targetBackgroundColor = newPalette.Background;
+
+        if (_currentEntries == null || _currentEntries.Count == 0)
+        {
+            _currentEntries = newEntries;
+            _currentBackgroundColor = _targetBackgroundColor;
+            ApplyColorsToBackground(newEntries);
+            StartFlowAnimation();
+            return;
+        }
+
+        _colorTransitionAnimator?.Cancel();
+        _colorTransitionAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
+        _colorTransitionAnimator.SetDuration(800);
+        _colorTransitionAnimator.SetInterpolator(new Android.Views.Animations.AccelerateDecelerateInterpolator());
+
+        var oldBg = _currentBackgroundColor;
+        var oldEntries = _currentEntries.ToList();
+
+        _colorTransitionAnimator.Update += (s, e) =>
+        {
+            var fraction = (float)e.Animation.AnimatedValue;
+            _currentBackgroundColor = BlendColor(oldBg, _targetBackgroundColor, fraction);
+            _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(_currentBackgroundColor));
+
+            var blendedEntries = new List<ColorEntry>();
+            for (int i = 0; i < Math.Max(oldEntries.Count, newEntries.Count); i++)
+            {
+                var oldE = i < oldEntries.Count ? oldEntries[i] : newEntries[i];
+                var newE = i < newEntries.Count ? newEntries[i] : oldEntries[i];
+                blendedEntries.Add(new ColorEntry
+                {
+                    Color = BlendColor(oldE.Color, newE.Color, fraction),
+                    CenterX = oldE.CenterX + (newE.CenterX - oldE.CenterX) * fraction
+                });
+            }
+            ApplyColorsToGlowViews(blendedEntries);
+        };
+
+        _colorTransitionAnimator.AnimationEnd += (s, e) =>
+        {
+            _currentEntries = newEntries;
+            _currentBackgroundColor = _targetBackgroundColor;
+            ApplyColorsToBackground(newEntries);
+        };
+
+        _colorTransitionAnimator.Start();
+    }
+
+    private static int BlendColor(int from, int to, float fraction)
+    {
+        var a = (int)(Android.Graphics.Color.GetAlphaComponent(from) + (Android.Graphics.Color.GetAlphaComponent(to) - Android.Graphics.Color.GetAlphaComponent(from)) * fraction);
+        var r = (int)(Android.Graphics.Color.GetRedComponent(from) + (Android.Graphics.Color.GetRedComponent(to) - Android.Graphics.Color.GetRedComponent(from)) * fraction);
+        var g = (int)(Android.Graphics.Color.GetGreenComponent(from) + (Android.Graphics.Color.GetGreenComponent(to) - Android.Graphics.Color.GetGreenComponent(from)) * fraction);
+        var b = (int)(Android.Graphics.Color.GetBlueComponent(from) + (Android.Graphics.Color.GetBlueComponent(to) - Android.Graphics.Color.GetBlueComponent(from)) * fraction);
+        return Android.Graphics.Color.Argb(a, r, g, b);
+    }
+
+    private void StartFlowAnimation()
+    {
+        if (_flowAnimator != null) return;
+        _flowAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
+        _flowAnimator.SetDuration(12000);
+        _flowAnimator.RepeatCount = -1;
+        _flowAnimator.SetInterpolator(new Android.Views.Animations.LinearInterpolator());
+
+        _flowAnimator.Update += (s, e) =>
+        {
+            _flowOffset = (float)e.Animation.AnimatedValue;
+            if (_currentEntries == null || _currentEntries.Count == 0) return;
+
+            var screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
+            var density = Resources?.DisplayMetrics?.Density ?? 2.5f;
+            var glowViews = new[] { _glow1, _glow2, _glow3, _glow4, _glow5, _glow6 };
+            var widthsDp = new[] { 220, 280, 180, 320, 200, 260 };
+            var jitter = new[] { -0.08f, 0.06f, -0.12f, 0.10f, -0.04f, 0.08f };
+            var speeds = new[] { 0.3f, -0.2f, 0.4f, -0.15f, 0.25f, -0.35f };
+
+            for (int i = 0; i < glowViews.Length; i++)
+            {
+                if (glowViews[i] == null) continue;
+                var entry = _currentEntries[i % _currentEntries.Count];
+                var glowPx = (int)(widthsDp[i] * density + 0.5f);
+                var baseX = entry.CenterX * (screenW - glowPx) + jitter[i] * screenW;
+                var drift = (float)Math.Sin((_flowOffset * Math.PI * 2 + i * 1.2) * speeds[i]) * screenW * 0.08f;
+                var x = baseX + drift;
+                x = Math.Max(-glowPx * 0.3f, Math.Min(screenW - glowPx * 0.7f, x));
+                glowViews[i].TranslationX = x;
+                glowViews[i].Alpha = 0.7f + 0.3f * (float)Math.Sin(_flowOffset * Math.PI * 2 + i * 0.8);
+            }
+        };
+
+        _flowAnimator.Start();
+    }
+
+    private void StopFlowAnimation()
+    {
+        _flowAnimator?.Cancel();
+        _flowAnimator = null;
+        _colorTransitionAnimator?.Cancel();
+        _colorTransitionAnimator = null;
+    }
+
+    private void AnimateCoverChange(string newCoverPath)
+    {
+        if (_albumCover == null) return;
+
+        _albumCover.Animate().Cancel();
+        _albumCover.Alpha = 0.3f;
+        _albumCover.ScaleX = 0.92f;
+        _albumCover.ScaleY = 0.92f;
+
+        try { _albumCover.SetImageDrawable(Drawable.CreateFromPath(newCoverPath)); }
+        catch { _albumCover.SetImageResource(Resource.Drawable.cover_default); }
+
+        _albumCover.Animate()
+            .Alpha(1f)
+            .ScaleX(1f)
+            .ScaleY(1f)
+            .SetDuration(500)
+            .SetInterpolator(new Android.Views.Animations.OvershootInterpolator(0.8f))
+            .Start();
     }
 
     /// <summary>
@@ -200,9 +335,41 @@ public class NowPlayingFragment : Fragment
         var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
 
         _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(palette.Background));
+        _currentBackgroundColor = palette.Background;
 
-        var screenW = Resources.DisplayMetrics.WidthPixels;
-        var density = Resources.DisplayMetrics.Density;
+        ApplyColorsToGlowViews(entries);
+
+        if (_reflectionMaskBottom != null)
+            _reflectionMaskBottom.Background = null;
+
+        ApplyFogToCover(palette.Background);
+        ApplyCoverGlow(entries);
+        ApplyCardTheme(palette);
+
+        var onSurfaceColor = new Android.Graphics.Color(palette.OnSurface);
+        _songTitle.SetTextColor(onSurfaceColor);
+        _songArtist.SetTextColor(new Android.Graphics.Color(palette.OnSurfaceVariant));
+
+        var onSurfaceVariant = new Android.Graphics.Color(palette.OnSurfaceVariant);
+        var onSurfaceLight = Android.Graphics.Color.Argb(
+            (int)(0x90 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant),
+            Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
+        var onSurfaceLighter = Android.Graphics.Color.Argb(
+            (int)(0xB0 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant),
+            Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
+        _lyricCurrent.SetTextColor(onSurfaceColor);
+        _lyricPrev.SetTextColor(onSurfaceLighter);
+        _lyricNext.SetTextColor(onSurfaceLighter);
+        _lyricPrev2.SetTextColor(onSurfaceLight);
+        _lyricNext2.SetTextColor(onSurfaceLight);
+    }
+
+    private void ApplyColorsToGlowViews(List<ColorEntry> entries)
+    {
+        if (entries.Count == 0) return;
+
+        var screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
+        var density = Resources?.DisplayMetrics?.Density ?? 2.5f;
         var transparent = Android.Graphics.Color.Argb(0, 0, 0, 0);
 
         var glowViews = new[] { _glow1, _glow2, _glow3, _glow4, _glow5, _glow6 };
@@ -233,34 +400,6 @@ public class NowPlayingFragment : Fragment
             x = Math.Max(-glowPx * 0.3f, Math.Min(screenW - glowPx * 0.7f, x));
             glowViews[i].TranslationX = x;
         }
-
-        if (_reflectionMaskBottom != null)
-            _reflectionMaskBottom.Background = null;
-
-        // 封面底部雾化过渡：封面底边 → 背景色
-        ApplyFogToCover(palette.Background);
-
-        // 控件卡片：Surface 色 + Outline 描边
-        ApplyCardTheme(palette);
-
-        // 文字颜色
-        var onSurfaceColor = new Android.Graphics.Color(palette.OnSurface);
-        _songTitle.SetTextColor(onSurfaceColor);
-        _songArtist.SetTextColor(new Android.Graphics.Color(palette.OnSurfaceVariant));
-
-        // 歌词颜色
-        var onSurfaceVariant = new Android.Graphics.Color(palette.OnSurfaceVariant);
-        var onSurfaceLight = Android.Graphics.Color.Argb(
-            (int)(0x90 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant),
-            Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
-        var onSurfaceLighter = Android.Graphics.Color.Argb(
-            (int)(0xB0 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant),
-            Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
-        _lyricCurrent.SetTextColor(onSurfaceColor);
-        _lyricPrev.SetTextColor(onSurfaceLighter);
-        _lyricNext.SetTextColor(onSurfaceLighter);
-        _lyricPrev2.SetTextColor(onSurfaceLight);
-        _lyricNext2.SetTextColor(onSurfaceLight);
     }
 
     private void ApplyFogToCover(int backgroundColor)
@@ -274,6 +413,23 @@ public class NowPlayingFragment : Fragment
             });
         fog.SetGradientType(GradientType.LinearGradient);
         _coverFog.Background = fog;
+    }
+
+    private void ApplyCoverGlow(List<ColorEntry> entries)
+    {
+        if (_coverGlow == null || entries.Count == 0) return;
+        var seedColor = entries[0].Color;
+        var r = Android.Graphics.Color.GetRedComponent(seedColor);
+        var g = Android.Graphics.Color.GetGreenComponent(seedColor);
+        var b = Android.Graphics.Color.GetBlueComponent(seedColor);
+        var glowCenter = Android.Graphics.Color.Argb(0x40, r, g, b);
+        var glowEdge = Android.Graphics.Color.Argb(0x00, r, g, b);
+        var gd = new GradientDrawable();
+        gd.SetGradientType(GradientType.RadialGradient);
+        gd.SetGradientCenter(0.5f, 0.8f);
+        gd.SetGradientRadius(300f);
+        gd.SetColors(new int[] { glowCenter, glowEdge });
+        _coverGlow.Background = gd;
     }
 
     private void ApplyCardTheme(MaterialYouPalette palette)
@@ -422,7 +578,7 @@ public class NowPlayingFragment : Fragment
 
             if (!string.IsNullOrEmpty(_viewModel.CoverSource))
             {
-                _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
+                AnimateCoverChange(_viewModel.CoverSource);
                 UpdateGradientBackground();
             }
             else
@@ -478,7 +634,7 @@ public class NowPlayingFragment : Fragment
                 case nameof(_viewModel.CoverSource):
                     if (!string.IsNullOrEmpty(_viewModel.CoverSource))
                     {
-                        _albumCover.SetImageDrawable(Drawable.CreateFromPath(_viewModel.CoverSource));
+                        AnimateCoverChange(_viewModel.CoverSource);
                         UpdateGradientBackground();
                     }
                     else
@@ -1122,6 +1278,7 @@ public class NowPlayingFragment : Fragment
     /// </summary>
     public override void OnDestroyView()
     {
+        StopFlowAnimation();
         var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
         if (playerSvc != null)
             playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;

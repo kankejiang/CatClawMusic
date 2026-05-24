@@ -247,6 +247,9 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
             await RunOnMainThreadAsync(() => EnsurePlayer(authHeader));
 
+            if (!playUrl.Contains("://") && !playUrl.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                playUrl = "file://" + playUrl;
+
             var uri = global::Android.Net.Uri.Parse(playUrl);
             if (uri == null)
             {
@@ -596,6 +599,8 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
     public long Open(AndroidX.Media3.DataSource.DataSpec? dataSpec)
     {
         var scheme = dataSpec?.Uri?.Scheme ?? "";
+        var path = dataSpec?.Uri?.Path ?? "";
+
         if (scheme == "content")
         {
             _contentUri = dataSpec!.Uri;
@@ -636,6 +641,33 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
                 }
 
                 return _contentLength >= 0 ? _contentLength : -1;
+            }
+            catch (Java.IO.InterruptedIOException) { return -1; }
+            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }
+            catch (System.IO.IOException ex) { throw new Java.IO.IOException(ex.Message); }
+            catch (Exception ex) { throw new Java.IO.IOException(ex.Message); }
+        }
+        else if (string.IsNullOrEmpty(scheme) || scheme == "file")
+        {
+            var filePath = dataSpec!.Uri?.ToString() ?? "";
+            if (filePath.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                filePath = filePath.Substring(7);
+            if (string.IsNullOrEmpty(filePath) && !string.IsNullOrEmpty(path))
+                filePath = path;
+
+            try
+            {
+                _contentStream = new System.IO.FileStream(filePath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read);
+                _contentLength = _contentStream.Length;
+                _contentPosition = 0;
+
+                if (dataSpec.Position > 0 && _contentStream.CanSeek)
+                {
+                    _contentStream.Seek((long)dataSpec.Position, System.IO.SeekOrigin.Begin);
+                    _contentPosition = (long)dataSpec.Position;
+                }
+
+                return _contentLength;
             }
             catch (Java.IO.InterruptedIOException) { return -1; }
             catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }

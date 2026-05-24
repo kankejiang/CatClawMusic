@@ -56,16 +56,26 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
         {
             try
             {
-                var intent = new Intent(global::Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
-                intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
+                Intent? intent = null;
+                if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+                {
+                    intent = new Intent(global::Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
+                    intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
+                    if (Activity?.PackageManager?.ResolveActivity(intent, 0) == null)
+                        intent = null;
+                }
+                if (intent == null)
+                {
+                    intent = new Intent(global::Android.Provider.Settings.ActionApplicationDetailsSettings);
+                    intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
+                }
                 StartActivity(intent);
             }
             catch
             {
                 try
                 {
-                    var intent = new Intent(global::Android.Provider.Settings.ActionApplicationDetailsSettings);
-                    intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
+                    var intent = new Intent(global::Android.Provider.Settings.ActionSettings);
                     StartActivity(intent);
                 }
                 catch { }
