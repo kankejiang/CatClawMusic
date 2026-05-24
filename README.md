@@ -1,6 +1,6 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
-> 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、桌面悬浮歌词（可拖拽/锁定/双行KTV）、LRC 歌词同步滚动、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复。
+> 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、桌面悬浮歌词（可拖拽/锁定/双行KTV）、LRC 歌词同步滚动、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题。
 >
 > 📢 **QQ 交流群**: [855383639](https://qm.qq.com/q/Fhu3IEzqa4) 点击链接加入群聊【₍˄·͈༝·͈˄*₎◞ ̑̑】
 
@@ -52,25 +52,27 @@
 ```
 CatClawMusic/
 ├── CatClawMusic.Core/          # 核心层（接口 + 模型 + 服务）
-│   ├── Interfaces/             # 12 个服务接口
-│   ├── Models/                 # 11 个数据模型 + 2 枚举
-│   └── Services/               # PlayQueue / LyricsService / TagReader / MusicUtility
+│   ├── Interfaces/             # 14 个服务接口
+│   ├── Models/                 # 12 个数据模型 + 2 枚举
+│   └── Services/               # PlayQueue / LyricsService / TagReader / MusicUtility / PluginManager
 │
 ├── CatClawMusic.Data/          # 数据层（数据库 + 网络服务）
 │   ├── MusicDatabase.cs        # SQLite（9 表 + 索引 + WAL）
 │   ├── SubsonicService.cs      # Navidrome/OpenSubsonic API
 │   ├── WebDavService.cs        # WebDAV 协议
+│   ├── SmbService.cs           # SMB/CIFS 协议
 │   ├── MusicScanner.cs         # 统一渐进式批量入库
+│   ├── MusicLibraryService.cs  # 音乐库服务实现
 │   └── NetworkMusicService.cs  # 网络音乐工厂
 │
 └── CatClawMusic.UI/            # UI 层（Android 原生界面）
     ├── MainActivity.cs         # ViewPager2 + BottomNav + 侧滑面板 + 迷你播放器
-    ├── Fragments/              # 12 个 Fragment
+    ├── Fragments/              # 18 个 Fragment（含 LocalMusicSettings / FullLyrics 等）
     ├── ViewModels/             # MVVM（CommunityToolkit.Mvvm 源生成器）
-    ├── Helpers/                # VisualizerHelper / AudioVisualizerView
-    ├── Services/               # 桌面歌词 / 导航 / 播放状态 / 前台服务
-    ├── Adapters/               # 歌曲列表 / 播放列表 适配器
-    └── Platforms/Android/      # ExoPlayer / SAF / 主题
+    ├── Helpers/                # VisualizerHelper / AudioVisualizerView / BatchObservableCollection
+    ├── Services/               # 桌面歌词 / 导航 / 播放状态 / 前台服务 / 扫描设置 / MaterialYou 取色
+    ├── Adapters/               # 歌曲列表 / 播放列表 适配器（MediaStore 封面优先加载）
+    └── Platforms/Android/      # ExoPlayer / SAF / 主题 / MediaStoreCoverHelper / AndroidMediaScanner
 ```
 
 **技术栈**：.NET 9 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | SMBLibrary | Material 3 | Android Visualizer API
@@ -87,13 +89,18 @@ CatClawMusic/
 | 多文件夹支持 | 管道分隔(\|)存储多个 SAF URI，权限过期自动检测并移除 |
 | MediaStore 扫描 | Android 10+ 无需存储权限即可扫描设备音频 |
 | 三路径扫描策略 | SAF Picker(优先) → MANAGE_EXTERNAL_STORAGE + MediaStore → MediaStore 只读 |
+| 本地音乐设置页 | 仿椒盐音乐设计：使用 Android 媒体库开关 / 不扫描 60s 以下音频 / 自定义文件夹 / 权限管理 |
+| 扫描设置持久化 | ScanSettings（SharedPreferences）：UseMediaStore / FilterShortAudio / MinDurationSec |
 | 递归扫描 | DocumentsContract.BuildChildDocumentsUriUsingTree 递归遍历 |
 | 音频格式 | .mp3 .flac .wav .ogg .oga .opus .m4a .mp4 .aac .wma .aiff .aifc .ape .wv .tta .mka .dsf .dff .mid .midi .rmi .spx .amr .3gp .mkv .webm（共26种） |
 | Tag 读取 | TagLibSharp 解析标题/艺术家/专辑/时长/比特率/年份/音轨/流派/封面/嵌入歌词 |
 | 增量式扫描 | 每 20 首一批回调入库 + 列表实时刷新，进度条动画 |
 | 缓存歌曲批量加载 | 每 50 首一批加载，30ms 间隔给主线程喘息 |
 | 歌曲去重 | 本地按 FilePath 去重，网络按 RemoteId 去重，已存在则更新 |
+| MediaStore 极速封面 | LruCache → 磁盘缓存 → MediaStore LoadThumbnail(Q+) → TagLib/网络，毫秒级返回 |
+| MediaStoreId 持久化 | Song.MediaStoreId 字段存入数据库，旧数据 BatchFillMediaStoreIds 后台回填 |
 | 封面懒加载 | 滚动到可见时加载，ConcurrentDictionary 去重 + SemaphoreSlim(4) 限流 + 取消支持 |
+| 封面加载通知 | 加载完成后 NotifyItemChanged 刷新对应 item，解决首页封面不显示问题 |
 
 ### ▶️ 音频播放 (ExoPlayer)
 
@@ -106,6 +113,7 @@ CatClawMusic/
 | 自动下一首 | 播放完毕自动切换 |
 | 流媒体播放 | 支持 HTTP/HTTPS URL |
 | content:// URI | 自定义 DataSource：content:// → ContentDataSource，http → DefaultHttpDataSource |
+| file:// 本地播放 | CatClawDataSource 识别 file:// / 空 scheme → System.IO.FileStream 直接读取，避免 MalformedURLException |
 | Basic Auth | URL 嵌入 `user:pass@host` 自动提取，转为 Authorization 请求头 |
 | WakeLock | PARTIAL_WAKE_LOCK 后台播放防 CPU 休眠 |
 | WiFi Lock | 高性能模式保持 WiFi 连接，防锁屏断网 |
@@ -141,6 +149,8 @@ CatClawMusic/
 | LRC 格式解析 | 兼容 `[mm:ss.xx]` / `[mm:ss.xxx]` / `[mm:ss]`，支持多时间戳行 |
 | 元数据标签 | 解析 `[ti:]` `[ar:]` `[al:]` 等元数据 |
 | 多源歌词 | 嵌入歌词 → 同名 .lrc → Navidrome 远程歌词 → 磁盘缓存 |
+| 歌词编码检测 | ReadLyricsFile 自动检测：BOM UTF-8 → 严格 UTF-8 → GBK → GB2312 → 默认，解决中文乱码 |
+| 歌词路径匹配 | 精确匹配 → "艺术家 - 标题.lrc" → 目录下模糊匹配，提高歌词查找成功率 |
 | 二分查找 | GetCurrentLyricIndex O(log n) 定位当前歌词行 |
 | 5 行显示 | 上上/上/当前(高亮)/下/下下 |
 | 全屏歌词页 | 毛玻璃模糊背景（Android 12+ RenderEffect），手动滚动暂停 3 秒后恢复自动 |
@@ -202,6 +212,11 @@ CatClawMusic/
 | 紫色调深色模式 | 非纯黑背景，紫色调深色模式，视觉更柔和 |
 | 无重启主题切换 | 运行时直接变色，音频不中断，无需重启 Activity |
 | 深浅色模式图标 | 月牙🌙(深色) / 太阳☀️(浅色) / 半阳半月🌗(跟随系统) |
+| 动态流光背景 | ValueAnimator 8s 循环，3 个大面积色带独立相位漂移 + 呼吸 + 缩放脉冲 |
+| 切歌颜色过渡 | TransitionToColors 800ms ArgbEvaluator 平滑过渡背景色和光晕颜色 |
+| 封面取色主题 | MaterialYouPalette HSV 色调映射，封面主色驱动播放页背景和光晕配色 |
+| 封面切换动画 | AnimateCoverChange：缩小到 92% + 淡出到 30% → 500ms Overshoot 弹回 + 淡入 |
+| 封面底部发光 | ApplyCoverGlow 径向渐变发光，颜色跟随封面取色 |
 | 27 个自定义属性 | catClawPageBackground / PrimaryColor / TextPrimary / GradientStart 等 |
 | 毛玻璃风格卡片 | CatClawCard(20dp圆角) / CatClawCardSmall(16dp) / CatClawCardImage(24dp) |
 | 自定义按钮 | CatClawButtonPrimary(16dp圆角) / CatClawButtonSecondary |
@@ -281,7 +296,7 @@ CatClawMusic/
 
 **侧滑面板**：80% 宽度设置面板 + 20% 遮罩(60% 黑)，手势拖拽关闭(阈值 100px)，alpha 动画 250ms
 
-**子页面**（Fragment 路由）：设置、通用设置、音乐文件夹、远程音乐、Navidrome 设置、WebDAV 设置、桌面歌词设置、播放列表详情、探索搜索
+**子页面**（Fragment 路由）：设置、通用设置、本地音乐设置、音乐文件夹、远程音乐、Navidrome 设置、WebDAV 设置、SMB 设置、桌面歌词设置、播放列表详情、探索搜索、插件管理
 
 ***
 
@@ -291,7 +306,7 @@ CatClawMusic/
 
 | 表名 | 关键字段 | 说明 |
 |------|---------|------|
-| Songs | Id, Title, ArtistId(FK), AlbumId(FK), FilePath(Unique), Source, Protocol, RemoteId | 歌曲主表 |
+| Songs | Id, Title, ArtistId(FK), AlbumId(FK), FilePath(Unique), Source, Protocol, RemoteId, MediaStoreId | 歌曲主表，MediaStoreId 用于 LoadThumbnail 封面加载 |
 | Artists | Id, Name(Unique), Cover | 艺术家 |
 | Albums | Id, Title, ArtistId(FK), CoverArtPath, SongCount, Year | 专辑 |
 | Playlists | Id, Name, CreatedAt, UpdatedAt, SongCount, IsSystem | 系统歌单: -1全部/-2收藏/-3最近 |
@@ -343,6 +358,39 @@ CatClawMusic/
 
 ***
 
-## 📜 开源协议
+## � 版本更新
+
+### v1.0.12
+
+**🎉 新功能**
+
+- **本地音乐设置页**：仿椒盐音乐设计，支持"使用 Android 媒体库"开关、不扫描 60s 以下音频、自定义文件夹管理、外部存储权限管理
+- **MediaStore 极速封面加载**：通过 `ContentResolver.LoadThumbnail()` 直接获取系统缓存封面，毫秒级返回，替代 TagLib 逐文件解码（200-400ms/首）
+- **动态流光背景**：ValueAnimator 8s 循环驱动 3 个大面积色带独立相位漂移 + 呼吸 + 缩放脉冲，高饱和度高透明度
+- **封面取色主题**：MaterialYouPalette HSV 色调映射，封面主色驱动播放页背景和光晕配色
+- **封面切换动画**：缩小到 92% + 淡出到 30% → 500ms Overshoot 弹回 + 淡入
+- **封面底部发光**：ApplyCoverGlow 径向渐变发光，颜色跟随封面取色
+- **切歌颜色过渡**：TransitionToColors 800ms ArgbEvaluator 平滑过渡背景色和光晕颜色
+
+**🐛 修复**
+
+- 修复重启后第一首歌没有总时长（PrepareWithoutPlayAsync 不启动位置定时器 + OnPositionChanged 限制 + ResumeAsync 缺失）
+- 修复音乐库第一页除第一首外都没有封面（SemaphoreSlim 竞态 + _loadingCovers 竞态 + 无 NotifyItemChanged 通知）
+- 修复点击"管理外部存储权限"闪退（包名错误 + Intent 回退策略）
+- 修复本地文件路径被当作 HTTP URL 播放（MalformedURLException），CatClawDataSource 新增 file:// / 空 scheme 分支
+- 修复播放失败 NullPointerException（CatClawDataSource file 分支未设置 _contentUri）
+- 修复歌词显示"暂无歌词"（编码自动检测 BOM UTF-8 → GBK → GB2312 + 路径匹配扩展）
+- 修复封面仍然走 IMediaMetadataRetriever 而非 MediaStore.LoadThumbnail（本地歌曲 MediaStore 优先路径 + BatchFillMediaStoreIds 回填）
+
+**⚡ 优化**
+
+- 封面加载优先级重构：LruCache → 磁盘缓存 → MediaStore（本地歌曲）→ TagLib/网络
+- SemaphoreSlim 从 (2,2) 提升到 (4,4)，移除 100ms 延迟
+- 流光效果增强：透明度 25%→60%，饱和度 max 0.85，色带半径 500/600/550dp
+- 扫描策略支持 ScanSettings 配置（UseMediaStore / FilterShortAudio / MinDurationSec）
+
+***
+
+## �📜 开源协议
 
 MIT License
