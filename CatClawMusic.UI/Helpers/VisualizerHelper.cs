@@ -125,9 +125,9 @@ public class VisualizerHelper : Java.Lang.Object
 
             _prevSmoothed[b] = _smoothed[b];
             if (normalized > _smoothed[b])
-                _smoothed[b] += (normalized - _smoothed[b]) * 0.8f;
+                _smoothed[b] += (normalized - _smoothed[b]) * 0.6f;
             else
-                _smoothed[b] += (normalized - _smoothed[b]) * 0.35f;
+                _smoothed[b] += (normalized - _smoothed[b]) * 0.2f;
         }
 
         float overallEnergy = 0f;
