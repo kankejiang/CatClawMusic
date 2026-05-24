@@ -202,7 +202,6 @@ public class SongAdapter : RecyclerView.Adapter
     public SongAdapter(INetworkMusicService? networkMusic = null)
     {
         _networkMusic = networkMusic;
-        HasStableId = true;
     }
 
     /// <summary>
