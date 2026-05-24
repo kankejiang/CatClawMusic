@@ -454,6 +454,23 @@ public partial class NowPlayingViewModel : ObservableObject
         if (song == null) return;
         try
         {
+            if (song.Source == SongSource.Local && song.MediaStoreId > 0)
+            {
+                var msBitmap = await Platforms.Android.MediaStoreCoverHelper.LoadCoverFromMediaStoreAsync(song.MediaStoreId, 480);
+                if (msBitmap != null)
+                {
+                    var cacheDir = Path.Combine(global::Android.App.Application.Context.CacheDir!.AbsolutePath, "covers");
+                    Directory.CreateDirectory(cacheDir);
+                    var coverPath = Path.Combine(cacheDir, $"cover_{song.Id}.jpg");
+                    using var fs = File.Create(coverPath);
+                    await msBitmap.CompressAsync(Android.Graphics.Bitmap.CompressFormat.Jpeg, 85, fs);
+                    msBitmap.Recycle();
+                    var songId = song.Id;
+                    _dispatcher.Post(() => { if (CurrentSong?.Id == songId) CoverSource = coverPath; });
+                    return;
+                }
+            }
+
             byte[]? coverBytes = null;
 
             if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
@@ -628,9 +645,9 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             _isPositionUpdating = true;
             CurrentPosition = position;
-            // 仅在播放中读取 Duration，避免切歌时的竞态触发原生 getDuration 错误
-            if (_audioPlayer.IsPlaying)
-                TotalDuration = _audioPlayer.Duration;
+            var duration = _audioPlayer.Duration;
+            if (duration > TimeSpan.Zero)
+                TotalDuration = duration;
             if (CurrentLyrics?.Lines is { Count: > 0 })
             {
                 var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, position);

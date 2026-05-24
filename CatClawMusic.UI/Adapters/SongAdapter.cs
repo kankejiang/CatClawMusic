@@ -8,6 +8,7 @@ using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.UI.Platforms.Android;
 using System.Collections.Concurrent;
 
 namespace CatClawMusic.UI.Adapters;
@@ -25,7 +26,7 @@ public class SongAdapter : RecyclerView.Adapter
     private volatile bool _isScrolling;
 
     private static readonly ConcurrentDictionary<string, Task> _loadingCovers = new();
-    private static readonly SemaphoreSlim _coverLoadSemaphore = new(2, 2);
+    private static readonly SemaphoreSlim _coverLoadSemaphore = new(4, 4);
     private static readonly Handler _mainHandler = new(Looper.MainLooper!);
     private static readonly BitmapLruCache _bitmapCache;
 
@@ -300,8 +301,13 @@ public class SongAdapter : RecyclerView.Adapter
                 if (_loadedCoverKey != coverKey)
                 {
                     _loadedCoverKey = coverKey;
-                    _ = LoadCachedCoverAsync(coverPath, coverKey, song.Id, ct);
+                    _ = LoadCachedCoverAsync(coverPath, coverKey, song.Id, adapter, ct);
                 }
+            }
+            else if (song.Source == SongSource.Local)
+            {
+                _loadedCoverKey = null;
+                _ = LoadMediaStoreCoverAsync(song, adapter, ct);
             }
             else
             {
@@ -311,7 +317,7 @@ public class SongAdapter : RecyclerView.Adapter
                 if (!adapter._isScrolling)
                 {
                     var loadKey = $"song_{song.Id}";
-                    if (!_loadingCovers.ContainsKey(loadKey))
+                    if (!_loadingCovers.TryGetValue(loadKey, out var existingTask) || existingTask.IsCompleted)
                     {
                         var loadTask = LoadCoverWithThrottleAsync(song, adapter, ct);
                         _loadingCovers[loadKey] = loadTask;
@@ -321,22 +327,113 @@ public class SongAdapter : RecyclerView.Adapter
             }
         }
 
-        private async Task LoadCachedCoverAsync(string coverPath, string coverKey, int songId, CancellationToken ct)
+        private async Task LoadCachedCoverAsync(string coverPath, string coverKey, int songId, SongAdapter adapter, CancellationToken ct)
         {
             var bitmap = await Task.Run(() => DecodeSampledBitmap(coverPath, 120, 120), ct);
             ct.ThrowIfCancellationRequested();
             _mainHandler.Post(() =>
             {
-                if (_boundSongId != songId) { bitmap?.Recycle(); return; }
                 if (bitmap != null)
                 {
                     _bitmapCache.PutBitmap(coverKey, bitmap);
-                    _cover.SetImageBitmap(bitmap);
+                    if (_boundSongId == songId)
+                    {
+                        _cover.SetImageBitmap(bitmap);
+                    }
+                    else
+                    {
+                        bitmap.Recycle();
+                        var pos = adapter._songs.FindIndex(s => s.Id == songId);
+                        if (pos >= 0)
+                            try { adapter.NotifyItemChanged(pos); } catch { }
+                    }
                 }
                 else
                 {
-                    _cover.SetImageResource(Resource.Drawable.cover_default);
+                    if (_boundSongId == songId)
+                        _cover.SetImageResource(Resource.Drawable.cover_default);
                     try { System.IO.File.Delete(coverPath); } catch { }
+                }
+            });
+        }
+
+        private async Task LoadMediaStoreCoverAsync(Song song, SongAdapter adapter, CancellationToken ct)
+        {
+            long msId = song.MediaStoreId;
+            if (msId <= 0 && !string.IsNullOrEmpty(song.FilePath))
+            {
+                var (bitmap0, foundId) = await Task.Run(() => MediaStoreCoverHelper.LoadCoverByFilePath(song.FilePath, 120), ct);
+                if (foundId > 0) song.MediaStoreId = foundId;
+                ct.ThrowIfCancellationRequested();
+                _mainHandler.Post(() =>
+                {
+                    if (bitmap0 != null)
+                    {
+                        var coverKey0 = $"cover_{song.Id}";
+                        _bitmapCache.PutBitmap(coverKey0, bitmap0);
+                        if (_boundSongId == song.Id)
+                        {
+                            _cover.SetImageBitmap(bitmap0);
+                            _loadedCoverKey = coverKey0;
+                        }
+                        else
+                        {
+                            bitmap0.Recycle();
+                            var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                            if (pos >= 0)
+                                try { adapter.NotifyItemChanged(pos); } catch { }
+                        }
+                    }
+                    else if (_boundSongId == song.Id)
+                    {
+                        _cover.SetImageResource(Resource.Drawable.cover_default);
+                    }
+                });
+                return;
+            }
+
+            if (msId <= 0)
+            {
+                if (_boundSongId == song.Id)
+                    _cover.SetImageResource(Resource.Drawable.cover_default);
+                return;
+            }
+
+            var bitmap = await Task.Run(() => MediaStoreCoverHelper.LoadCoverFromMediaStore(msId, 120), ct);
+            ct.ThrowIfCancellationRequested();
+            _mainHandler.Post(() =>
+            {
+                if (bitmap != null)
+                {
+                    var coverKey = $"cover_{song.Id}";
+                    _bitmapCache.PutBitmap(coverKey, bitmap);
+                    if (_boundSongId == song.Id)
+                    {
+                        _cover.SetImageBitmap(bitmap);
+                        _loadedCoverKey = coverKey;
+                    }
+                    else
+                    {
+                        bitmap.Recycle();
+                        var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                        if (pos >= 0)
+                            try { adapter.NotifyItemChanged(pos); } catch { }
+                    }
+                }
+                else
+                {
+                    if (_boundSongId == song.Id)
+                        _cover.SetImageResource(Resource.Drawable.cover_default);
+                    if (!adapter._isScrolling)
+                    {
+                        var loadKey = $"song_{song.Id}";
+                        if (!_loadingCovers.TryGetValue(loadKey, out var existingTask) || existingTask.IsCompleted)
+                        {
+                            var loadTask = LoadCoverWithThrottleAsync(song, adapter, ct);
+                            _loadingCovers[loadKey] = loadTask;
+                            _ = loadTask.ContinueWith(_ => _loadingCovers.TryRemove(loadKey, out _));
+                        }
+                    }
                 }
             });
         }
@@ -357,7 +454,6 @@ public class SongAdapter : RecyclerView.Adapter
 
         private async Task LoadCoverWithThrottleAsync(Song song, SongAdapter adapter, CancellationToken ct)
         {
-            await Task.Delay(100, ct).ConfigureAwait(false);
             await _coverLoadSemaphore.WaitAsync(ct);
             try
             {
@@ -395,6 +491,32 @@ public class SongAdapter : RecyclerView.Adapter
                 }
                 else
                 {
+                    if (song.MediaStoreId > 0)
+                    {
+                        var msBitmap = MediaStoreCoverHelper.LoadCoverFromMediaStore(song.MediaStoreId, 120);
+                        if (msBitmap != null)
+                        {
+                            var coverKey2 = $"cover_{song.Id}";
+                            _bitmapCache.PutBitmap(coverKey2, msBitmap);
+                            _mainHandler.Post(() =>
+                            {
+                                if (_boundSongId == song.Id)
+                                {
+                                    _cover.SetImageBitmap(msBitmap);
+                                    _loadedCoverKey = coverKey2;
+                                }
+                                else
+                                {
+                                    msBitmap.Recycle();
+                                    var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                                    if (pos >= 0)
+                                        try { adapter.NotifyItemChanged(pos); } catch { }
+                                }
+                            });
+                            return;
+                        }
+                    }
+
                     if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
                     {
                         coverBytes = await Task.Run(() =>
@@ -458,26 +580,29 @@ public class SongAdapter : RecyclerView.Adapter
 
                     _mainHandler.Post(() =>
                     {
-                        if (_boundSongId == song.Id)
+                        if (bitmap != null)
                         {
-                            if (bitmap != null)
+                            _bitmapCache.PutBitmap(coverKey, bitmap);
+                            if (_boundSongId == song.Id)
                             {
-                                _bitmapCache.PutBitmap(coverKey, bitmap);
                                 _cover.SetImageBitmap(bitmap);
                                 _loadedCoverKey = coverKey;
                             }
                             else
                             {
-                                _cover.SetImageResource(Resource.Drawable.cover_default);
-                                try { System.IO.File.Delete(coverPath); } catch { }
+                                bitmap.Recycle();
+                                var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                                if (pos >= 0)
+                                    try { adapter.NotifyItemChanged(pos); } catch { }
                             }
                         }
                         else
                         {
-                            if (bitmap != null)
-                                _bitmapCache.PutBitmap(coverKey, bitmap);
-                            else
-                                bitmap?.Recycle();
+                            if (_boundSongId == song.Id)
+                            {
+                                _cover.SetImageResource(Resource.Drawable.cover_default);
+                                try { System.IO.File.Delete(coverPath); } catch { }
+                            }
                         }
                     });
                 }
@@ -527,7 +652,7 @@ public class SongAdapter : RecyclerView.Adapter
                                 if (!System.IO.File.Exists(coverPath))
                                 {
                                     var loadKey = $"song_{song.Id}";
-                                    if (!_loadingCovers.ContainsKey(loadKey))
+                                    if (!_loadingCovers.TryGetValue(loadKey, out var et) || et.IsCompleted)
                                         svh.Bind(song, _adapter);
                                 }
                                 else

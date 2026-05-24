@@ -16,6 +16,10 @@ public class AndroidLocalScanner
         var existingPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var locker = new object();
 
+        bool useMediaStore = ScanSettings.UseMediaStore;
+        bool filterShort = ScanSettings.FilterShortAudio;
+        int minDuration = ScanSettings.MinDurationSec;
+
         bool hasManageStorage = global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.R
             && global::Android.OS.Environment.IsExternalStorageManager;
 
@@ -29,7 +33,8 @@ public class AndroidLocalScanner
             {
                 await SafeContentScanner.ScanSavedFolderAsync(async (songs) =>
                 {
-                    var newSongs = songs.Where(s => existingPaths.Add(s.FilePath)).ToList();
+                    var filtered = filterShort ? songs.Where(s => s.Duration >= minDuration) : songs;
+                    var newSongs = filtered.Where(s => existingPaths.Add(s.FilePath)).ToList();
                     if (newSongs.Count == 0) return;
                     lock (locker) allSongs.AddRange(newSongs);
                     if (songCallback != null)
@@ -41,6 +46,26 @@ public class AndroidLocalScanner
                 System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF scan error: {ex.Message}");
             }
         }
+        else if (useMediaStore)
+        {
+            progress?.Report((0, 1, "扫描 Android 媒体库..."));
+            try
+            {
+                var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
+                foreach (var s in mediaSongs)
+                {
+                    if (filterShort && s.Duration < minDuration) continue;
+                    if (existingPaths.Add(s.FilePath))
+                        allSongs.Add(s);
+                }
+            }
+            catch { }
+
+            if (allSongs.Count > 0 && songCallback != null)
+                await songCallback(allSongs.ToList());
+
+            progress?.Report((1, 1, $"扫描完成，共 {allSongs.Count} 首"));
+        }
         else if (hasManageStorage)
         {
             progress?.Report((0, 2, "扫描系统媒体库..."));
@@ -49,6 +74,7 @@ public class AndroidLocalScanner
                 var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
                 foreach (var s in mediaSongs)
                 {
+                    if (filterShort && s.Duration < minDuration) continue;
                     if (existingPaths.Add(s.FilePath))
                         allSongs.Add(s);
                 }
@@ -95,6 +121,7 @@ public class AndroidLocalScanner
                         var song = TagReader.ReadSongInfo(path);
                         if (song != null)
                         {
+                            if (filterShort && song.Duration < minDuration) return;
                             songBag.Add(song);
                             existingPaths.Add(path);
                         }
@@ -121,6 +148,8 @@ public class AndroidLocalScanner
                     }
                 }
             }
+
+            progress?.Report((1, 1, $"扫描完成，共 {allSongs.Count} 首"));
         }
         else
         {
@@ -130,6 +159,7 @@ public class AndroidLocalScanner
                 var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
                 foreach (var s in mediaSongs)
                 {
+                    if (filterShort && s.Duration < minDuration) continue;
                     if (existingPaths.Add(s.FilePath))
                         allSongs.Add(s);
                 }
@@ -138,9 +168,10 @@ public class AndroidLocalScanner
 
             if (allSongs.Count > 0 && songCallback != null)
                 await songCallback(allSongs.ToList());
+
+            progress?.Report((1, 1, $"扫描完成，共 {allSongs.Count} 首"));
         }
 
-        progress?.Report((1, 1, $"扫描完成，共 {allSongs.Count} 首"));
         return allSongs;
     }
 }

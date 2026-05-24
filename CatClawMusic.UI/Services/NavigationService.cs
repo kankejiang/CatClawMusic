@@ -48,6 +48,7 @@ public class NavigationService : INavigationService
             "NavidromeSettings" => MainApplication.Services.GetRequiredService<NavidromeSettingsFragment>(),
             "SmbSettings" => MainApplication.Services.GetRequiredService<SmbSettingsFragment>(),
             "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),
+            "LocalMusicSettings" => MainApplication.Services.GetRequiredService<LocalMusicSettingsFragment>(),
             "Settings" => MainApplication.Services.GetRequiredService<SettingsFragment>(),
             "GeneralSettings" => MainApplication.Services.GetRequiredService<GeneralSettingsFragment>(),
             "DesktopLyric" => MainApplication.Services.GetRequiredService<DesktopLyricFragment>(),

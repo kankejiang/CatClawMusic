@@ -58,7 +58,7 @@ public class SettingsFragment : Fragment
         var btnFolders = view.FindViewById<View>(Resource.Id.btn_music_folders);
         _tvLocalStatus = view.FindViewById<TextView>(Resource.Id.tv_local_music_status);
         if (btnFolders != null)
-            btnFolders.SetOnClickListener(new ClickListener(() => nav.PushFragment("MusicFolderSettings")));
+            btnFolders.SetOnClickListener(new ClickListener(() => nav.PushFragment("LocalMusicSettings")));
 
         // ☁️ 远程音乐服务
         var btnRemoteMusic = view.FindViewById<View>(Resource.Id.btn_remote_music);

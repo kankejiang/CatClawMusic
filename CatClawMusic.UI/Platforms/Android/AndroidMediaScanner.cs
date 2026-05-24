@@ -65,7 +65,8 @@ public static class AndroidMediaScanner
                     Year = colYear >= 0 ? cursor.GetInt(colYear) : 0,
                     TrackNumber = colTrack >= 0 ? cursor.GetInt(colTrack) : 0,
                     LyricsPath = MusicUtility.FindLyricsFile(dataPath),
-                    Source = SongSource.Local
+                    Source = SongSource.Local,
+                    MediaStoreId = cursor.GetLong(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Id))
                 });
             }
             cursor.Close();

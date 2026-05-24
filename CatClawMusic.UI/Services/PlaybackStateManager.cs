@@ -197,6 +197,9 @@ public static class PlaybackStateManager
                 await player.PrepareWithoutPlayAsync(playUrl);
                 if (position.TotalSeconds > 0)
                     await player.SeekAsync(position);
+                var duration = player.Duration;
+                if (duration > TimeSpan.Zero)
+                    vm.TotalDuration = duration;
             }
             catch (Exception ex)
             {

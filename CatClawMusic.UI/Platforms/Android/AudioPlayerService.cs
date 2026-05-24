@@ -336,7 +336,11 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
             _mainHandler.Post(() =>
             {
                 _player.PlayWhenReady = true;
+                StartPositionTimer();
+                RequestAudioFocus();
+                AcquireWakeLock();
                 StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
+                ForegroundPlayerService.Start(global::Android.App.Application.Context);
             });
         return Task.CompletedTask;
     }

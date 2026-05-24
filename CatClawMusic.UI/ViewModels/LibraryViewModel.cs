@@ -288,6 +288,7 @@ public partial class LibraryViewModel : ObservableObject
             var cachedSongs = await _musicLibrary.GetAllSongsAsync();
             if (cachedSongs.Count > 0)
             {
+                _ = Task.Run(() => Platforms.Android.MediaStoreCoverHelper.BatchFillMediaStoreIds(cachedSongs));
                 Songs.Clear();
                 AddSongsBatch(cachedSongs);
                 StatusText = $"🐱 共 {Songs.Count} 首歌曲（缓存 · 权限已过期）";
@@ -326,7 +327,8 @@ public partial class LibraryViewModel : ObservableObject
                 var cachedSongs = await _musicLibrary.GetAllSongsAsync();
                 if (cachedSongs.Count > 0)
                 {
-                    // 增量式加载：每 50 首一批，减少 UI 通知次数
+                    _ = Task.Run(() => Platforms.Android.MediaStoreCoverHelper.BatchFillMediaStoreIds(cachedSongs));
+
                     IsScanning = true; ScanProgress = 0;
                     int total = cachedSongs.Count;
                     int batchSize = 50;

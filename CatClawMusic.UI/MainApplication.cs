@@ -127,6 +127,7 @@ public class MainApplication : Application
         services.AddTransient<NavidromeSettingsFragment>();
         services.AddTransient<SmbSettingsFragment>();
         services.AddTransient<MusicFolderSettingsFragment>();
+        services.AddTransient<LocalMusicSettingsFragment>();
         services.AddTransient<GeneralSettingsFragment>();
         services.AddTransient<DesktopLyricFragment>();
         services.AddTransient<PluginManagementFragment>();

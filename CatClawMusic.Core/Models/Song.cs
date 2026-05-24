@@ -67,6 +67,9 @@ public class Song
     /// <summary>远程歌曲唯一标识（Subsonic songId），用于网络歌曲去重</summary>
     public string? RemoteId { get; set; }
 
+    /// <summary>Android MediaStore 音频记录 ID，用于通过 ContentResolver.LoadThumbnail 快速加载封面</summary>
+    public long MediaStoreId { get; set; }
+
     // ── 以下为兼容查询的运行时字段，不存储 ──
 
     /// <summary>艺术家名称（运行时赋值，不持久化）</summary>
