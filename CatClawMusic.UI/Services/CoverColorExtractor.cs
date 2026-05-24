@@ -2,29 +2,101 @@ using Android.Graphics;
 
 namespace CatClawMusic.UI.Services;
 
-/// <summary>表示提取出的一个主色调及其在封面中的水平位置</summary>
+/// <summary>
+/// 表示从封面中提取出的一种主色调及其在封面图片中的水平位置
+/// <para>
+/// 该结构用于动态渐变背景的生成：
+/// <list type="bullet">
+///   <item>Color：提取出的主色调，用于渐变色停（gradient stop）</item>
+///   <item>CenterX：该色调在封面中的水平中心位置（0~1 归一化），用于确定渐变色停的水平分布</item>
+/// </list>
+/// 例如，若封面左侧为蓝色、右侧为橙色，则蓝色 ColorEntry 的 CenterX 接近 0，橙色接近 1，
+/// 渐变背景将按此比例分布两种颜色，使背景与封面构图呼应。
+/// </para>
+/// </summary>
 public class ColorEntry
 {
-    /// <summary>颜色值（ARGB）</summary>
+    /// <summary>
+    /// 颜色值（ARGB 格式）
+    /// <para>由色彩量化算法从封面像素中提取，代表一个主色调</para>
+    /// </summary>
     public int Color { get; set; }
-    /// <summary>颜色在封面中的水平中心位置（0~1 归一化）</summary>
+
+    /// <summary>
+    /// 颜色在封面中的水平中心位置（0~1 归一化）
+    /// <para>
+    /// 计算方式：该色调所有像素的 x 坐标平均值，经归一化处理。
+    /// 0 表示位于封面最左侧，1 表示最右侧，0.5 表示居中。
+    /// 用于动态渐变背景中确定各色停的水平位置。
+    /// </para>
+    /// </summary>
     public float CenterX { get; set; }
 }
 
 /// <summary>
 /// 从专辑封面位图中提取 1-6 种主色调及其水平位置，用于生成动态渐变背景
-/// 采用色彩量化 + 频率统计 + 饱和度/亮度加权筛选算法
+/// <para>
+/// 算法概述（色彩量化 + 频率统计 + 饱和度加权筛选）：
+/// <list type="number">
+///   <item>降采样：将封面缩放至最大 120×120 像素，减少计算量</item>
+///   <item>色彩量化：将每个像素的 RGB 各通道除以 32（QuantizeLevels），映射到 5 位整数（0-31），
+///         三个通道组合为 15 位 key，大幅减少颜色种类</item>
+///   <item>频率统计：统计每个量化 key 出现的像素数，同时累加 x 坐标用于计算水平中心</item>
+///   <item>亮度过滤：跳过过暗（V &lt; 0.12）和过亮（V &gt; 0.92）的像素，避免黑/白等无意义色调</item>
+///   <item>评分排序：每个量化颜色的得分 = 像素频率 × (0.5 + 饱和度)，饱和度越高且出现越多的颜色排名越靠前</item>
+///   <item>色相去重：按得分从高到低选取，要求相邻选中颜色的色相差 ≥ 30°（前3个）或 ≥ 18°（第4-6个），
+///         确保提取的颜色在视觉上有足够区分度</item>
+///   <item>位置归一化：将各颜色的水平中心位置归一化到 0~1 范围</item>
+///   <item>兜底策略：若上述流程未提取到任何颜色，对原图进行稀疏采样（每10像素取1个），
+///         计算所有有效像素的平均颜色作为兜底</item>
+/// </list>
+/// </para>
 /// </summary>
 public static class CoverColorExtractor
 {
+    /// <summary>
+    /// 色彩量化级别：将每个 RGB 通道从 256 级（8位）降为 32 级（5位）
+    /// <para>量化公式：channel_key = channel_value / 32，范围 0-31</para>
+    /// <para>三个通道组合为 15 位 key：(r_key << 10) | (g_key << 5) | b_key</para>
+    /// </para>
+    /// </summary>
     private const int QuantizeLevels = 32;
+
+    /// <summary>
+    /// 明度下限：低于此值的像素被视为"过暗"，不参与主色调提取
+    /// <para>避免纯黑、极暗区域主导提取结果</para>
+    /// </summary>
     private const float VMin = 0.12f;
+
+    /// <summary>
+    /// 明度上限：高于此值的像素被视为"过亮"，不参与主色调提取
+    /// <para>避免纯白、极亮区域主导提取结果</para>
+    /// </summary>
     private const float VMax = 0.92f;
+
+    /// <summary>
+    /// 最大采样尺寸：封面图片降采样后的最大边长（像素）
+    /// <para>在保证提取精度的前提下，将计算量控制在合理范围</para>
+    /// </summary>
     private const int MaxSampleSize = 120;
 
     /// <summary>
     /// 从位图提取主色调及水平位置，返回 1-6 个 ColorEntry
+    /// <para>
+    /// 完整流程：
+    /// <list type="number">
+    ///   <item>降采样：大图缩放至 MaxSampleSize 以内</item>
+    ///   <item>逐像素遍历：跳过半透明像素（A &lt; 128）和过暗/过亮像素</item>
+    ///   <item>色彩量化 + 频率统计：构建 colorFreq 和 xSumPerKey 字典</item>
+    ///   <item>评分排序：得分 = 频率 × (0.5 + 饱和度)</item>
+    ///   <item>色相去重选取：前3个色差≥30°，之后色差≥18°，最多6个</item>
+    ///   <item>水平位置归一化</item>
+    ///   <item>兜底：若无可选颜色，取全图平均色</item>
+    /// </list>
+    /// </para>
     /// </summary>
+    /// <param name="bitmap">专辑封面位图</param>
+    /// <returns>主色调列表（1-6 个 ColorEntry），若输入为空则返回空列表</returns>
     public static List<ColorEntry> Extract(Bitmap bitmap)
     {
         var result = new List<ColorEntry>();
@@ -32,6 +104,7 @@ public static class CoverColorExtractor
 
         try
         {
+            // 第一步：降采样，将大图缩放至 MaxSampleSize 以内以减少计算量
             Bitmap? sampled = null;
             if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)
             {
@@ -45,25 +118,33 @@ public static class CoverColorExtractor
                 sampled = bitmap;
             }
 
-            var colorFreq = new Dictionary<int, int>();
-            var xSumPerKey = new Dictionary<int, long>();
+            // 第二步：逐像素遍历，进行色彩量化和频率统计
+            var colorFreq = new Dictionary<int, int>();     // 量化 key → 像素出现次数
+            var xSumPerKey = new Dictionary<int, long>();    // 量化 key → 该颜色所有像素的 x 坐标之和
 
             for (int y = 0; y < sampled.Height; y++)
             {
                 for (int x = 0; x < sampled.Width; x++)
                 {
                     var pixel = new Color(sampled.GetPixel(x, y));
+
+                    // 跳过半透明像素（alpha < 128），避免透明区域干扰取色
                     if (pixel.A < 128) continue;
 
+                    // 转换为 HSV，进行亮度过滤
                     float[] hsv = { 0, 0, 0 };
                     Android.Graphics.Color.RGBToHSV(pixel.R, pixel.G, pixel.B, hsv);
+
+                    // 跳过过暗和过亮的像素，避免黑/白色主导结果
                     if (hsv[2] < VMin || hsv[2] > VMax) continue;
 
+                    // 色彩量化：将 RGB 各通道从 256 级降为 32 级（5位），组合为 15 位 key
                     var r = pixel.R / QuantizeLevels;
                     var g = pixel.G / QuantizeLevels;
                     var b = pixel.B / QuantizeLevels;
                     var key = (r << 10) | (g << 5) | b;
 
+                    // 累加频率和 x 坐标
                     if (colorFreq.ContainsKey(key))
                     {
                         colorFreq[key]++;
@@ -77,26 +158,38 @@ public static class CoverColorExtractor
                 }
             }
 
+            // 释放降采样位图（仅当它是新建的缩放副本时）
             if (sampled != bitmap && sampled != null)
                 sampled.Recycle();
 
+            // 若无有效像素，返回空列表
             if (colorFreq.Count == 0) return result;
 
+            // 第三步：评分排序
+            // 评分公式：score = 频率 × (0.5 + 饱和度)
+            // 饱和度越高的颜色得分越高（更鲜艳），出现频率越高的颜色得分也越高（更具代表性）
+            // 0.5 的偏移确保低饱和度颜色仍有机会被选中（只要频率足够高）
             var scored = colorFreq
                 .Select(kv =>
                 {
+                    // 从量化 key 反推 RGB 中心值（加上半级偏移以代表量化区间的中心）
                     var r = ((kv.Key >> 10) & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     var g = ((kv.Key >> 5) & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     var b = (kv.Key & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     float[] hsv = { 0, 0, 0 };
                     Android.Graphics.Color.RGBToHSV(r, g, b, hsv);
                     var score = kv.Value * (0.5f + hsv[1]);
+                    // 计算该颜色所有像素的平均 x 坐标（水平中心位置）
                     var avgX = (float)xSumPerKey[kv.Key] / kv.Value;
                     return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: score, AvgX: avgX);
                 })
                 .OrderByDescending(x => x.Score)
                 .ToList();
 
+            // 第四步：色相去重选取
+            // 从得分最高的颜色开始，依次检查与已选颜色的色相差
+            // 前3个颜色要求色相差 ≥ 30°（确保主要色调差异明显）
+            // 第4-6个颜色要求色相差 ≥ 18°（允许更细微的色调变化）
             var colors = new List<int>();
             var xPositions = new List<float>();
             var minHueDist = 30f;
@@ -110,6 +203,7 @@ public static class CoverColorExtractor
                 var cb = Android.Graphics.Color.GetBlueComponent(c);
                 Android.Graphics.Color.RGBToHSV(cr, cg, cb, hsv1);
 
+                // 检查与已选颜色的色相差，考虑色相环的循环性（0° 和 360° 是同一色相）
                 bool isDuplicate = false;
                 foreach (var existing in colors)
                 {
@@ -119,6 +213,7 @@ public static class CoverColorExtractor
                     var eb = Android.Graphics.Color.GetBlueComponent(existing);
                     Android.Graphics.Color.RGBToHSV(er, eg, eb, hsv2);
                     var hueDist = Math.Abs(hsv1[0] - hsv2[0]);
+                    // 色相差取环面距离（如 350° 和 10° 的实际差为 20°）
                     if (hueDist < minHueDist || hueDist > 360f - minHueDist)
                     {
                         isDuplicate = true;
@@ -127,15 +222,19 @@ public static class CoverColorExtractor
                 }
                 if (isDuplicate) continue;
 
+                // 通过去重检查，加入结果列表
                 colors.Add(c);
                 xPositions.Add(entry.AvgX);
                 result.Add(new ColorEntry { Color = c, CenterX = entry.AvgX });
 
+                // 最多提取 6 种主色调
                 if (result.Count >= 6) break;
+                // 前3个颜色选完后，放宽色相差要求至 18°，允许更多色调变化
                 if (result.Count >= 3) minHueDist = 18f;
             }
 
-            // 归一化到 0~1
+            // 第五步：水平位置归一化到 0~1 范围
+            // 将各颜色的平均 x 坐标映射到 [0, 1] 区间，用于渐变色停的水平分布
             if (result.Count > 0)
             {
                 var maxX = xPositions.Max();
@@ -143,16 +242,20 @@ public static class CoverColorExtractor
                 var xRange = maxX - minX;
                 if (xRange > 0)
                 {
+                    // 线性归一化：(x - min) / (max - min)
                     foreach (var entry in result)
                         entry.CenterX = (entry.CenterX - minX) / xRange;
                 }
                 else
                 {
+                    // 所有色调的 x 坐标相同（如纯色封面），均匀分布
                     for (int i = 0; i < result.Count; i++)
                         result[i].CenterX = (float)i / (result.Count - 1 > 0 ? result.Count - 1 : 1);
                 }
             }
 
+            // 第六步：兜底策略 — 若上述流程未提取到任何颜色（极端情况），
+            // 对原图进行稀疏采样（每10像素取1个），计算所有有效像素的平均颜色
             if (result.Count == 0)
             {
                 long rSum = 0, gSum = 0, bSum = 0;
@@ -166,6 +269,7 @@ public static class CoverColorExtractor
                         if (p.A < 128) continue;
                         float[] hsv = { 0, 0, 0 };
                         Android.Graphics.Color.RGBToHSV(p.R, p.G, p.B, hsv);
+                        // 放宽亮度限制（0.1-0.95），尽量获取一个可用颜色
                         if (hsv[2] < 0.1f || hsv[2] > 0.95f) continue;
                         rSum += p.R; gSum += p.G; bSum += p.B;
                         count++;
@@ -175,7 +279,7 @@ public static class CoverColorExtractor
                     result.Add(new ColorEntry
                     {
                         Color = Android.Graphics.Color.Rgb((int)(rSum / count), (int)(gSum / count), (int)(bSum / count)),
-                        CenterX = 0.5f
+                        CenterX = 0.5f   // 兜底颜色默认居中
                     });
             }
         }
@@ -186,7 +290,10 @@ public static class CoverColorExtractor
 
     /// <summary>
     /// 从图片文件路径提取主色调（封装了 Bitmap 的加载与回收）
+    /// <para>内部调用 Extract(Bitmap) 完成实际提取逻辑，自动处理 Bitmap 的生命周期</para>
     /// </summary>
+    /// <param name="filePath">图片文件的绝对路径</param>
+    /// <returns>主色调列表（1-6 个 ColorEntry），若文件不存在或解码失败则返回空列表</returns>
     public static List<ColorEntry> ExtractFromFile(string filePath)
     {
         var entries = new List<ColorEntry>();
