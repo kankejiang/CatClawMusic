@@ -35,7 +35,6 @@ public class NowPlayingFragment : Fragment
     private GoogleSlider _progressSlider = null!;
     private View _gradientBackground = null!;
     private View _glow1 = null!, _glow2 = null!, _glow3 = null!;
-    private View _glow4 = null!, _glow5 = null!, _glow6 = null!;
     private View _reflectionMaskBottom = null!, _coverFog = null!, _coverGlow = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
     private AudioVisualizerView _audioVisualizer = null!;
@@ -92,9 +91,6 @@ public class NowPlayingFragment : Fragment
         _glow1 = view.FindViewById<View>(Resource.Id.glow_1)!;
         _glow2 = view.FindViewById<View>(Resource.Id.glow_2)!;
         _glow3 = view.FindViewById<View>(Resource.Id.glow_3)!;
-        _glow4 = view.FindViewById<View>(Resource.Id.glow_4)!;
-        _glow5 = view.FindViewById<View>(Resource.Id.glow_5)!;
-        _glow6 = view.FindViewById<View>(Resource.Id.glow_6)!;
         _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
         _coverFog = view.FindViewById<View>(Resource.Id.cover_fog)!;
         _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
@@ -263,7 +259,7 @@ public class NowPlayingFragment : Fragment
     {
         if (_flowAnimator != null) return;
         _flowAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
-        _flowAnimator.SetDuration(12000);
+        _flowAnimator.SetDuration(8000);
         _flowAnimator.RepeatCount = -1;
         _flowAnimator.SetInterpolator(new Android.Views.Animations.LinearInterpolator());
 
@@ -273,23 +269,23 @@ public class NowPlayingFragment : Fragment
             if (_currentEntries == null || _currentEntries.Count == 0) return;
 
             var screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
-            var density = Resources?.DisplayMetrics?.Density ?? 2.5f;
-            var glowViews = new[] { _glow1, _glow2, _glow3, _glow4, _glow5, _glow6 };
-            var widthsDp = new[] { 220, 280, 180, 320, 200, 260 };
-            var jitter = new[] { -0.08f, 0.06f, -0.12f, 0.10f, -0.04f, 0.08f };
-            var speeds = new[] { 0.3f, -0.2f, 0.4f, -0.15f, 0.25f, -0.35f };
+            var screenH = Resources?.DisplayMetrics?.HeightPixels ?? 2400;
+            var glowViews = new[] { _glow1, _glow2, _glow3 };
+            var drifts = new[] { 0.15f, -0.12f, 0.10f };
+            var verticalDrifts = new[] { 0.06f, -0.08f, 0.05f };
+            var phaseOffsets = new[] { 0f, 2.1f, 4.2f };
 
             for (int i = 0; i < glowViews.Length; i++)
             {
                 if (glowViews[i] == null) continue;
-                var entry = _currentEntries[i % _currentEntries.Count];
-                var glowPx = (int)(widthsDp[i] * density + 0.5f);
-                var baseX = entry.CenterX * (screenW - glowPx) + jitter[i] * screenW;
-                var drift = (float)Math.Sin((_flowOffset * Math.PI * 2 + i * 1.2) * speeds[i]) * screenW * 0.08f;
-                var x = baseX + drift;
-                x = Math.Max(-glowPx * 0.3f, Math.Min(screenW - glowPx * 0.7f, x));
-                glowViews[i].TranslationX = x;
-                glowViews[i].Alpha = 0.7f + 0.3f * (float)Math.Sin(_flowOffset * Math.PI * 2 + i * 0.8);
+                var t = _flowOffset * (float)Math.PI * 2 + phaseOffsets[i];
+                var dx = (float)Math.Sin(t * drifts[i]) * screenW * 0.2f;
+                var dy = (float)Math.Cos(t * verticalDrifts[i]) * screenH * 0.05f;
+                glowViews[i].TranslationX = dx;
+                glowViews[i].TranslationY = dy;
+                glowViews[i].Alpha = 0.6f + 0.4f * (float)Math.Sin(t * 0.5);
+                glowViews[i].ScaleX = 1.0f + 0.15f * (float)Math.Sin(t * 0.3);
+                glowViews[i].ScaleY = 1.0f + 0.15f * (float)Math.Cos(t * 0.3);
             }
         };
 
@@ -368,15 +364,10 @@ public class NowPlayingFragment : Fragment
     {
         if (entries.Count == 0) return;
 
-        var screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
-        var density = Resources?.DisplayMetrics?.Density ?? 2.5f;
         var transparent = Android.Graphics.Color.Argb(0, 0, 0, 0);
-
-        var glowViews = new[] { _glow1, _glow2, _glow3, _glow4, _glow5, _glow6 };
-        var radii     = new[] { 220f, 280f, 180f, 320f, 200f, 260f };
-        var alphas    = new[] { 0x66, 0x55, 0x5A, 0x48, 0x4C, 0x50 };
-        var widthsDp  = new[] { 220, 280, 180, 320, 200, 260 };
-        var jitter    = new[] { -0.08f, 0.06f, -0.12f, 0.10f, -0.04f, 0.08f };
+        var glowViews = new[] { _glow1, _glow2, _glow3 };
+        var radii     = new[] { 400f, 500f, 450f };
+        var alphas    = new[] { 0x44, 0x38, 0x3C };
 
         var seedHsv = new float[3];
         Color.RGBToHSV(
@@ -388,17 +379,19 @@ public class NowPlayingFragment : Fragment
         {
             if (glowViews[i] == null) continue;
             var entry = entries[i % entries.Count];
+            var entryHsv = new float[3];
+            Color.RGBToHSV(
+                Color.GetRedComponent(entry.Color),
+                Color.GetGreenComponent(entry.Color),
+                Color.GetBlueComponent(entry.Color), entryHsv);
+
+            var hueShift = i * 25f;
             var glowColor = Color.HSVToColor(new[] {
-                seedHsv[0],
-                Math.Min(seedHsv[1] * 0.7f, 0.35f),
-                Math.Min(seedHsv[2] * 0.8f + 0.15f, 0.85f)
+                (seedHsv[0] + hueShift) % 360f,
+                Math.Min(entryHsv[1] * 0.8f, 0.55f),
+                Math.Min(entryHsv[2] * 0.7f + 0.25f, 0.85f)
             });
             ApplyGlow(glowViews[i], ToAlpha(glowColor, alphas[i]), transparent, radii[i]);
-
-            var glowPx = (int)(widthsDp[i] * density + 0.5f);
-            var x = entry.CenterX * (screenW - glowPx) + jitter[i] * screenW;
-            x = Math.Max(-glowPx * 0.3f, Math.Min(screenW - glowPx * 0.7f, x));
-            glowViews[i].TranslationX = x;
         }
     }
 
@@ -508,9 +501,6 @@ public class NowPlayingFragment : Fragment
         if (_glow1 != null) _glow1.Background = null;
         if (_glow2 != null) _glow2.Background = null;
         if (_glow3 != null) _glow3.Background = null;
-        if (_glow4 != null) _glow4.Background = null;
-        if (_glow5 != null) _glow5.Background = null;
-        if (_glow6 != null) _glow6.Background = null;
         if (_reflectionMaskBottom != null) _reflectionMaskBottom.Background = null;
 
         // 清除雾化

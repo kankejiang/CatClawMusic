@@ -649,7 +649,8 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         }
         else if (string.IsNullOrEmpty(scheme) || scheme == "file")
         {
-            var filePath = dataSpec!.Uri?.ToString() ?? "";
+            _contentUri = dataSpec!.Uri;
+            var filePath = dataSpec.Uri?.ToString() ?? "";
             if (filePath.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
                 filePath = filePath.Substring(7);
             if (string.IsNullOrEmpty(filePath) && !string.IsNullOrEmpty(path))

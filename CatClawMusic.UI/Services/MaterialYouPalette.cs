@@ -34,14 +34,14 @@ public class MaterialYouPalette
 
         var palette = new MaterialYouPalette
         {
-            Background   = HsvToColor(hue, Math.Min(sat * 0.18f, 0.08f), Lerp(val, 0.95f, 0.35f)),
-            Surface      = HsvToColor(hue, Math.Min(sat * 0.22f, 0.10f), Lerp(val, 0.91f, 0.30f)),
+            Background   = HsvToColor(hue, Math.Min(sat * 0.35f, 0.20f), Lerp(val, 0.95f, 0.35f)),
+            Surface      = HsvToColor(hue, Math.Min(sat * 0.30f, 0.15f), Lerp(val, 0.91f, 0.30f)),
             OnSurface    = HsvToColor(hue, Math.Min(sat * 0.15f, 0.05f), Lerp(val, 0.12f, 0.33f)),
             OnSurfaceVariant = HsvToColor(hue, Math.Min(sat * 0.25f, 0.12f), Lerp(val, 0.42f, 0.28f)),
             Primary      = HsvToColor(hue, Math.Max(sat, 0.25f), Lerp(val, 0.50f, 0.40f)),
             OnSurfaceForDarkBg = HsvToColor(hue, Math.Min(sat * 0.10f, 0.04f), 0.92f),
             Outline      = HsvToColor(hue, Math.Min(sat * 0.10f, 0.06f), Lerp(val, 0.80f, 0.22f)),
-            GlowAccent   = HsvToColor(hue, Math.Min(sat * 0.55f, 0.40f), Lerp(val, 0.60f, 0.45f))
+            GlowAccent   = HsvToColor(hue, Math.Min(sat * 0.65f, 0.50f), Lerp(val, 0.60f, 0.45f))
         };
 
         return palette;
