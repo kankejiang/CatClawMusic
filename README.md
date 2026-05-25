@@ -89,7 +89,7 @@ CatClawMusic/
 | 多文件夹支持 | 管道分隔(\|)存储多个 SAF URI，权限过期自动检测并移除 |
 | MediaStore 扫描 | Android 10+ 无需存储权限即可扫描设备音频 |
 | 三路径扫描策略 | SAF Picker(优先) → MANAGE_EXTERNAL_STORAGE + MediaStore → MediaStore 只读 |
-| 本地音乐设置页 | 仿椒盐音乐设计：使用 Android 媒体库开关 / 不扫描 60s 以下音频 / 自定义文件夹 / 权限管理 |
+| 本地音乐设置页 | 使用 Android 媒体库开关 / 不扫描 60s 以下音频 / 自定义文件夹 / 权限管理 |
 | 扫描设置持久化 | ScanSettings（SharedPreferences）：UseMediaStore / FilterShortAudio / MinDurationSec |
 | 递归扫描 | DocumentsContract.BuildChildDocumentsUriUsingTree 递归遍历 |
 | 音频格式 | .mp3 .flac .wav .ogg .oga .opus .m4a .mp4 .aac .wma .aiff .aifc .ape .wv .tta .mka .dsf .dff .mid .midi .rmi .spx .amr .3gp .mkv .webm（共26种） |
@@ -364,7 +364,7 @@ CatClawMusic/
 
 **🎉 新功能**
 
-- **本地音乐设置页**：仿椒盐音乐设计，支持"使用 Android 媒体库"开关、不扫描 60s 以下音频、自定义文件夹管理、外部存储权限管理
+- **本地音乐设置页**：支持"使用 Android 媒体库"开关、不扫描 60s 以下音频、自定义文件夹管理、外部存储权限管理
 - **MediaStore 极速封面加载**：通过 `ContentResolver.LoadThumbnail()` 直接获取系统缓存封面，毫秒级返回，替代 TagLib 逐文件解码（200-400ms/首）
 - **动态流光背景**：ValueAnimator 8s 循环驱动 3 个大面积色带独立相位漂移 + 呼吸 + 缩放脉冲，高饱和度高透明度
 - **封面取色主题**：MaterialYouPalette HSV 色调映射，封面主色驱动播放页背景和光晕配色

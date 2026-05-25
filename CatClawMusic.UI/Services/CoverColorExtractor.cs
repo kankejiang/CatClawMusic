@@ -178,14 +178,12 @@ public static class CoverColorExtractor
             var scored = colorFreq
                 .Select(kv =>
                 {
-                    // 从量化 key 反推 RGB 中心值（加上半级偏移以代表量化区间的中心）
                     var r = ((kv.Key >> 10) & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     var g = ((kv.Key >> 5) & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     var b = (kv.Key & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     float[] hsv = { 0, 0, 0 };
                     Android.Graphics.Color.RGBToHSV(r, g, b, hsv);
-                    var score = kv.Value * (0.5f + hsv[1]);
-                    // 计算该颜色所有像素的平均 x 坐标（水平中心位置）
+                    var score = kv.Value * (0.85f + hsv[1] * 0.15f);
                     var avgX = (float)xSumPerKey[kv.Key] / kv.Value;
                     return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: score, AvgX: avgX);
                 })
@@ -198,7 +196,7 @@ public static class CoverColorExtractor
             // 第4-6个颜色要求色相差 ≥ 18°（允许更细微的色调变化）
             var colors = new List<int>();
             var xPositions = new List<float>();
-            var minHueDist = 30f;
+            var minHueDist = 20f;
 
             foreach (var entry in scored)
             {
@@ -236,7 +234,7 @@ public static class CoverColorExtractor
                 // 最多提取 6 种主色调
                 if (result.Count >= 6) break;
                 // 前3个颜色选完后，放宽色相差要求至 18°，允许更多色调变化
-                if (result.Count >= 3) minHueDist = 18f;
+                if (result.Count >= 3) minHueDist = 12f;
             }
 
             // 第五步：水平位置归一化到 0~1 范围

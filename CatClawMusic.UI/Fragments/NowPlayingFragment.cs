@@ -33,8 +33,7 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnVisualizerToggle = null!;
     private ImageButton _btnSleepTimer = null!;
     private GoogleSlider _progressSlider = null!;
-    private ImageView _gradientBackground = null!;
-    private View _glow1 = null!, _glow2 = null!, _glow3 = null!;
+    private SweepGradientView _gradientBackground = null!;
     private View _reflectionMaskBottom = null!, _coverFog = null!, _coverGlow = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
     private AudioVisualizerView _audioVisualizer = null!;
@@ -54,6 +53,9 @@ public class NowPlayingFragment : Fragment
     private int[]? _flowColors;
 
     private bool _flowPaused;
+    private long _flowPauseTime;
+    private long _flowTimeOffset;
+    private float _sweepAngle;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
 
     /// <summary>
@@ -99,10 +101,7 @@ public class NowPlayingFragment : Fragment
         _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
         _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
-        _gradientBackground = view.FindViewById<ImageView>(Resource.Id.gradient_background)!;
-        _glow1 = view.FindViewById<View>(Resource.Id.glow_1)!;
-        _glow2 = view.FindViewById<View>(Resource.Id.glow_2)!;
-        _glow3 = view.FindViewById<View>(Resource.Id.glow_3)!;
+        _gradientBackground = view.FindViewById<SweepGradientView>(Resource.Id.gradient_background)!;
         _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
         _coverFog = view.FindViewById<View>(Resource.Id.cover_fog)!;
         _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
@@ -111,9 +110,6 @@ public class NowPlayingFragment : Fragment
 
         _progressSlider.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _gradientBackground.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
-        _glow1.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
-        _glow2.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
-        _glow3.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _reflectionMaskBottom.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _coverFog.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _coverGlow.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
@@ -234,7 +230,8 @@ public class NowPlayingFragment : Fragment
         {
             _currentEntries = newEntries;
             _currentBackgroundColor = _targetBackgroundColor;
-            ApplyColorsToBackground(newEntries);
+            _flowColors = PickVividColors(newEntries, 3);
+            ApplySweepGradientBackground(newEntries);
             StartFlowAnimation();
             return;
         }
@@ -252,16 +249,18 @@ public class NowPlayingFragment : Fragment
             var fraction = (float)e.Animation.AnimatedValue;
             if (oldColors != null && _flowColors != null)
             {
-                for (int i = 0; i < _flowColors.Length; i++)
+                for (int i = 0; i < Math.Min(oldColors.Length, 3); i++)
                     _flowColors[i] = BlendColor(oldColors[i], newColors[i], fraction);
+                if (_flowColors.Length > 3) _flowColors[3] = _flowColors[0];
             }
+            UpdateSweepGradientColors();
         };
 
         _colorTransitionAnimator.AnimationEnd += (s, e) =>
         {
             _currentEntries = newEntries;
             _currentBackgroundColor = _targetBackgroundColor;
-            ApplyColorsToBackground(newEntries);
+            ApplySweepGradientBackground(newEntries);
         };
 
         _colorTransitionAnimator.Start();
@@ -285,15 +284,21 @@ public class NowPlayingFragment : Fragment
     {
         if (_flowAnimator != null) return;
 
+        _flowTimeOffset = SystemClock.ElapsedRealtime();
+        _sweepAngle = 0f;
+
         _flowAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
-        _flowAnimator.SetDuration(12000);
+        _flowAnimator.SetDuration(24000);
         _flowAnimator.RepeatCount = -1;
-        _flowAnimator.RepeatMode = Android.Animation.ValueAnimatorRepeatMode.Reverse;
-        _flowAnimator.SetInterpolator(new Android.Views.Animations.AccelerateDecelerateInterpolator());
+        _flowAnimator.RepeatMode = Android.Animation.ValueAnimatorRepeatMode.Restart;
+        _flowAnimator.SetInterpolator(new Android.Views.Animations.LinearInterpolator());
 
         _flowAnimator.Update += (s, e) =>
         {
-            AnimateGlowViews((float)e.Animation.AnimatedValue);
+            var rawTime = SystemClock.ElapsedRealtime();
+            var t = (rawTime - _flowTimeOffset) / 1000f;
+            _sweepAngle = (t * 15f) % 360f;
+            _gradientBackground?.SetRotationAngle(_sweepAngle);
         };
 
         _flowAnimator.Start();
@@ -312,6 +317,7 @@ public class NowPlayingFragment : Fragment
     private void PauseFlowAnimation()
     {
         _flowPaused = true;
+        _flowPauseTime = SystemClock.ElapsedRealtime();
         if (_flowAnimator != null && _flowAnimator.IsRunning)
             _flowAnimator.Pause();
     }
@@ -323,6 +329,7 @@ public class NowPlayingFragment : Fragment
     private void ResumeFlowAnimation()
     {
         _flowPaused = false;
+        _flowTimeOffset += SystemClock.ElapsedRealtime() - _flowPauseTime;
         if (_flowAnimator != null && _flowAnimator.IsStarted)
             _flowAnimator.Resume();
     }
@@ -337,6 +344,9 @@ public class NowPlayingFragment : Fragment
         _colorTransitionAnimator?.Cancel();
         _colorTransitionAnimator = null;
         _flowPaused = false;
+        _flowTimeOffset = 0;
+        _flowPauseTime = 0;
+        _sweepAngle = 0f;
     }
 
     private void AnimateCoverChange(string newCoverPath)
@@ -397,18 +407,14 @@ public class NowPlayingFragment : Fragment
     /// <summary>
     /// 应用 Material You 色调方案：背景、光晕、控件卡片、文字图标全部统一配色
     /// </summary>
-    private void ApplyColorsToBackground(List<ColorEntry> entries)
+    private void ApplySweepGradientBackground(List<ColorEntry> entries)
     {
         if (_gradientBackground == null || entries.Count == 0) return;
 
         var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
 
         _flowColors = PickVividColors(entries, 3);
-
-        var bgColor = _flowColors[0];
-        _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(bgColor));
-
-        ApplyColorsToGlowViews(entries);
+        BuildAndApplySweepGradient();
 
         if (_reflectionMaskBottom != null)
             _reflectionMaskBottom.Background = null;
@@ -435,74 +441,42 @@ public class NowPlayingFragment : Fragment
         _lyricNext2.SetTextColor(onSurfaceLight);
     }
 
+    private void BuildAndApplySweepGradient()
+    {
+        if (_gradientBackground == null || _flowColors == null || _flowColors.Length < 4) return;
+        _gradientBackground.SetGradient(_flowColors!, new float[] { 0f, 0.333f, 0.667f, 1f });
+        _gradientBackground.SetRotationAngle(_sweepAngle);
+    }
+
+    private void UpdateSweepGradientColors()
+    {
+        if (_flowColors == null || _flowColors.Length < 4 || _gradientBackground == null) return;
+        _gradientBackground.UpdateColors(_flowColors);
+        _gradientBackground.SetRotationAngle(_sweepAngle);
+    }
+
     private static int[] PickVividColors(List<ColorEntry> entries, int count)
     {
-        if (entries.Count == 0) return new[] { (int)Color.Argb(0xFF, 0xF5, 0xF3, 0xF7), (int)Color.Argb(0xFF, 0xF4, 0xF2, 0xF8), (int)Color.Argb(0xFF, 0xF6, 0xF4, 0xF9) };
+        if (entries.Count == 0) return new[] { (int)Color.Argb(0xFF, 0xF0, 0xF2, 0xF5), (int)Color.Argb(0xFF, 0xEE, 0xF0, 0xF5), (int)Color.Argb(0xFF, 0xF0, 0xF0, 0xF5), (int)Color.Argb(0xFF, 0xF0, 0xF2, 0xF5) };
 
-        var dominantHsv = new float[3];
-        Color.RGBToHSV(Color.GetRedComponent(entries[0].Color), Color.GetGreenComponent(entries[0].Color), Color.GetBlueComponent(entries[0].Color), dominantHsv);
+        var result = new int[4];
 
-        var result = new int[count];
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < 3; i++)
         {
-            float hi = dominantHsv[0];
-            float si = Math.Clamp(dominantHsv[1] * 0.15f, 0.01f, 0.06f);
-            float vi = Math.Clamp(0.92f - i * 0.02f, 0.86f, 0.94f);
-            result[i] = (int)Color.HSVToColor(new[] { hi, si, vi });
+            int entryIdx = Math.Min(i, entries.Count - 1);
+            float[] hsv = { 0, 0, 0 };
+            Color.RGBToHSV(
+                Color.GetRedComponent(entries[entryIdx].Color),
+                Color.GetGreenComponent(entries[entryIdx].Color),
+                Color.GetBlueComponent(entries[entryIdx].Color), hsv);
+
+            float sat = Math.Clamp(hsv[1] * 0.70f + 0.10f, 0.15f, 0.55f);
+            float val = Math.Clamp(hsv[2] * 0.50f + 0.45f, 0.82f, 0.96f);
+            result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
         }
+
+        result[3] = result[0];
         return result;
-    }
-
-    private void AnimateGlowViews(float fraction)
-    {
-        var glowViews = new[] { _glow1, _glow2, _glow3 };
-        var offsets = new[] { new[] { 0.08f, 0.06f }, new[] { -0.06f, 0.08f }, new[] { 0.04f, -0.07f } };
-
-        for (int i = 0; i < glowViews.Length; i++)
-        {
-            if (glowViews[i] == null) continue;
-            float dx = offsets[i][0] * fraction;
-            float dy = offsets[i][1] * fraction;
-            glowViews[i].TranslationX = dx * _gradientBackground!.Width;
-            glowViews[i].TranslationY = dy * _gradientBackground.Height;
-            float scale = 1f + fraction * 0.05f;
-            glowViews[i].ScaleX = scale;
-            glowViews[i].ScaleY = scale;
-            glowViews[i].Alpha = 0.85f + fraction * 0.15f;
-        }
-    }
-
-    /// <summary>
-    /// 将封面提取的颜色应用到三个流光色带视图上。
-    /// 每个色带使用径向渐变，中心为封面色调（带透明度），边缘全透明。
-    /// 色带之间有色相偏移，营造多彩流光效果。
-    /// </summary>
-    private void ApplyColorsToGlowViews(List<ColorEntry> entries)
-    {
-        if (entries.Count == 0) return;
-
-        var transparent = Android.Graphics.Color.Argb(0, 0, 0, 0);
-        var glowViews = new[] { _glow1, _glow2, _glow3 };
-        var density = Resources?.DisplayMetrics?.Density ?? 2.5f;
-        var radii = new[] { 350f * density, 400f * density, 375f * density };
-        var alphas = new[] { 0x60, 0x50, 0x58 };
-
-        var dominantHsv = new float[3];
-        Color.RGBToHSV(
-            Color.GetRedComponent(entries[0].Color),
-            Color.GetGreenComponent(entries[0].Color),
-            Color.GetBlueComponent(entries[0].Color), dominantHsv);
-
-        for (int i = 0; i < glowViews.Length; i++)
-        {
-            if (glowViews[i] == null) continue;
-
-            float hue = (dominantHsv[0] + i * 25f) % 360f;
-            float sat = Math.Clamp(dominantHsv[1] * 0.3f, 0.05f, 0.20f);
-            float val = Math.Clamp(0.85f - i * 0.03f, 0.78f, 0.88f);
-            var glowColor = Color.HSVToColor(new[] { hue, sat, val });
-            ApplyGlow(glowViews[i], ToAlpha(glowColor, alphas[i]), transparent, radii[i]);
-        }
     }
 
     private void ApplyFogToCover(int backgroundColor)
@@ -579,25 +553,6 @@ public class NowPlayingFragment : Fragment
         _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
     }
 
-    private static int ToAlpha(int color, int alpha)
-    {
-        return Android.Graphics.Color.Argb(alpha,
-            Android.Graphics.Color.GetRedComponent(color),
-            Android.Graphics.Color.GetGreenComponent(color),
-            Android.Graphics.Color.GetBlueComponent(color));
-    }
-
-    private static void ApplyGlow(View view, int centerColor, int edgeColor, float radius)
-    {
-        if (view == null) return;
-        var gd = new GradientDrawable();
-        gd.SetGradientType(GradientType.RadialGradient);
-        gd.SetGradientCenter(0.5f, 0.5f);
-        gd.SetGradientRadius(radius);
-        gd.SetColors(new int[] { centerColor, edgeColor });
-        view.Background = gd;
-    }
-
     /// <summary>
     /// 恢复默认深色背景及控件配色
     /// </summary>
@@ -607,10 +562,6 @@ public class NowPlayingFragment : Fragment
         var defaultBg = Android.Graphics.Color.ParseColor("#1A0E28");
         _gradientBackground.SetBackgroundColor(defaultBg);
 
-        // 清除光晕
-        if (_glow1 != null) _glow1.Background = null;
-        if (_glow2 != null) _glow2.Background = null;
-        if (_glow3 != null) _glow3.Background = null;
         if (_reflectionMaskBottom != null) _reflectionMaskBottom.Background = null;
 
         // 清除雾化
