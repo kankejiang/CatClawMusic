@@ -6,14 +6,7 @@
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:gravity="center_vertical"
-        android:layout_marginBottom="12dp">
-
-        <ImageButton android:id="@+id/btn_shuffle" android:layout_width="40dp"
-            android:layout_height="40dp" android:src="@drawable/ic_shuffle"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?attr/catClawTextPrimary"
-            android:contentDescription="随机播放"
-            android:layout_marginEnd="4dp" />
+        android:layout_marginBottom="4dp">
 
         <ImageButton android:id="@+id/btn_back" android:layout_width="40dp"
             android:layout_height="40dp" android:src="@drawable/ic_arrow_back"
@@ -28,20 +21,34 @@
             android:fontFamily="@font/happy_zcool_2016"
             android:text="@string/playlist_detail" android:maxLines="1"
             android:ellipsize="end" />
+    </LinearLayout>
 
-        <ImageButton android:id="@+id/btn_sort" android:layout_width="40dp"
-            android:layout_height="40dp" android:src="@drawable/ic_sort"
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <ImageButton android:id="@+id/btn_shuffle" android:layout_width="36dp"
+            android:layout_height="36dp" android:src="@drawable/ic_shuffle"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?attr/catClawTextPrimary"
+            android:tint="?attr/catClawTextHint"
+            android:contentDescription="随机播放"
+            android:layout_marginEnd="8dp" />
+
+        <View android:layout_width="0dp" android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <ImageButton android:id="@+id/btn_sort" android:layout_width="36dp"
+            android:layout_height="36dp" android:src="@drawable/ic_sort"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="?attr/catClawTextHint"
             android:contentDescription="排序"
-            android:layout_marginStart="4dp" />
+            android:layout_marginEnd="8dp" />
 
-        <ImageButton android:id="@+id/btn_multi_select" android:layout_width="40dp"
-            android:layout_height="40dp" android:src="@drawable/ic_check_box_outline"
+        <ImageButton android:id="@+id/btn_multi_select" android:layout_width="36dp"
+            android:layout_height="36dp" android:src="@drawable/ic_check_box_outline"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?attr/catClawTextPrimary"
-            android:contentDescription="多选"
-            android:layout_marginStart="4dp" />
+            android:tint="?attr/catClawTextHint"
+            android:contentDescription="多选" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/song_list"

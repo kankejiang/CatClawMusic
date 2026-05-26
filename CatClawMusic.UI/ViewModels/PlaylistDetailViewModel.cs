@@ -64,7 +64,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
             switch (playlistId)
             {
                 case -1:
-                    songs = await _musicLibrary.GetMergedSongsAsync();
+                    songs = await _musicLibrary.GetAllSongsAsync();
                     break;
                 case -2:
                     songs = await _musicLibrary.GetFavoriteSongsAsync();

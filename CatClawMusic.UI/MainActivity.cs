@@ -84,6 +84,15 @@ public class MainActivity : AppCompatActivity
 
         Window!.DecorView.ImportantForAutofill = Android.Views.ImportantForAutofill.NoExcludeDescendants;
 
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+        {
+            Window!.DecorView.SetOnApplyWindowInsetsListener(new DecorViewInsetsListener());
+        }
+        else
+        {
+            ViewCompat.SetOnApplyWindowInsetsListener(Window!.DecorView, new DecorViewInsetsListenerCompat());
+        }
+
         DesktopLyricService.Instance.Initialize(this);
 
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
@@ -610,6 +619,24 @@ public class MainActivity : AppCompatActivity
         private readonly Func<View, WindowInsetsCompat, WindowInsetsCompat> _callback;
         public WindowInsetsListener(Func<View, WindowInsetsCompat, WindowInsetsCompat> callback) => _callback = callback;
         public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets) => _callback(v, insets);
+    }
+
+    private class DecorViewInsetsListener : Java.Lang.Object, Android.Views.View.IOnApplyWindowInsetsListener
+    {
+        public WindowInsets OnApplyWindowInsets(Android.Views.View v, WindowInsets insets)
+        {
+            _ = insets.GetInsetsIgnoringVisibility(WindowInsets.Type.SystemBars());
+            return WindowInsets.Consumed;
+        }
+    }
+
+    private class DecorViewInsetsListenerCompat : Java.Lang.Object, IOnApplyWindowInsetsListener
+    {
+        public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets)
+        {
+            _ = insets.GetInsetsIgnoringVisibility(WindowInsetsCompat.Type.SystemBars());
+            return WindowInsetsCompat.Consumed;
+        }
     }
 
     private class PageChangeCallback : ViewPager2.OnPageChangeCallback

@@ -121,6 +121,10 @@ public static class CoverColorExtractor
                     return nativeResult;
             }
 
+            bool isGrayscaleCover = DetectGrayscaleCover(bitmap);
+            if (isGrayscaleCover)
+                return ExtractGrayscaleColors(bitmap);
+
             /* C# 回退实现：当原生库不可用时使用 */
             // 第一步：降采样，将大图缩放至 MaxSampleSize 以内以减少计算量
             Bitmap? sampled = null;
@@ -270,124 +274,6 @@ public static class CoverColorExtractor
                 }
             }
 
-            if (result.Count > 0 && result.All(e =>
-            {
-                float[] h = { 0, 0, 0 };
-                Android.Graphics.Color.RGBToHSV(
-                    Android.Graphics.Color.GetRedComponent(e.Color),
-                    Android.Graphics.Color.GetGreenComponent(e.Color),
-                    Android.Graphics.Color.GetBlueComponent(e.Color), h);
-                return h[1] < 0.15f;
-            }))
-            {
-                result.Clear();
-                colors.Clear();
-                xPositions.Clear();
-
-                var grayFreq = new Dictionary<int, int>();
-                var grayXSum = new Dictionary<int, long>();
-
-                Bitmap? graySampled = null;
-                if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)
-                {
-                    var scale = (float)MaxSampleSize / Math.Max(bitmap.Width, bitmap.Height);
-                    var w = (int)(bitmap.Width * scale);
-                    var h = (int)(bitmap.Height * scale);
-                    graySampled = Bitmap.CreateScaledBitmap(bitmap, Math.Max(w, 1), Math.Max(h, 1), false);
-                }
-                else
-                {
-                    graySampled = bitmap;
-                }
-
-                for (int y = 0; y < graySampled.Height; y++)
-                {
-                    for (int x = 0; x < graySampled.Width; x++)
-                    {
-                        var pixel = new Color(graySampled.GetPixel(x, y));
-                        if (pixel.A < 128) continue;
-
-                        var r = pixel.R / 64;
-                        var g = pixel.G / 64;
-                        var b = pixel.B / 64;
-                        var key = (r << 6) | (g << 3) | b;
-
-                        if (grayFreq.ContainsKey(key))
-                        {
-                            grayFreq[key]++;
-                            grayXSum[key] += x;
-                        }
-                        else
-                        {
-                            grayFreq[key] = 1;
-                            grayXSum[key] = x;
-                        }
-                    }
-                }
-
-                if (graySampled != bitmap && graySampled != null)
-                    graySampled.Recycle();
-
-                var grayScored = grayFreq
-                    .Select(kv =>
-                    {
-                        var r = ((kv.Key >> 6) & 0x7) * 64 + 32;
-                        var g = ((kv.Key >> 3) & 0x7) * 64 + 32;
-                        var b = (kv.Key & 0x7) * 64 + 32;
-                        var avgX = (float)grayXSum[kv.Key] / kv.Value;
-                        return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: (double)kv.Value, AvgX: avgX);
-                    })
-                    .OrderByDescending(x => x.Score)
-                    .ToList();
-
-                foreach (var entry in grayScored)
-                {
-                    float[] hsv1 = { 0, 0, 0 };
-                    Android.Graphics.Color.RGBToHSV(
-                        Android.Graphics.Color.GetRedComponent(entry.Color),
-                        Android.Graphics.Color.GetGreenComponent(entry.Color),
-                        Android.Graphics.Color.GetBlueComponent(entry.Color), hsv1);
-
-                    bool isDup = false;
-                    foreach (var existing in colors)
-                    {
-                        float[] hsv2 = { 0, 0, 0 };
-                        Android.Graphics.Color.RGBToHSV(
-                            Android.Graphics.Color.GetRedComponent(existing),
-                            Android.Graphics.Color.GetGreenComponent(existing),
-                            Android.Graphics.Color.GetBlueComponent(existing), hsv2);
-                        var vDist = Math.Abs(hsv1[2] - hsv2[2]);
-                        if (vDist < 0.15f) { isDup = true; break; }
-                    }
-                    if (isDup) continue;
-
-                    colors.Add(entry.Color);
-                    xPositions.Add(entry.AvgX);
-                    result.Add(new ColorEntry { Color = entry.Color, CenterX = entry.AvgX });
-
-                    if (result.Count >= 3) break;
-                }
-
-                if (result.Count > 0)
-                {
-                    var maxX = xPositions.Max();
-                    var minX = xPositions.Min();
-                    var xRange = maxX - minX;
-                    if (xRange > 0)
-                    {
-                        foreach (var entry in result)
-                            entry.CenterX = (entry.CenterX - minX) / xRange;
-                    }
-                    else
-                    {
-                        for (int i = 0; i < result.Count; i++)
-                            result[i].CenterX = (float)i / (result.Count - 1 > 0 ? result.Count - 1 : 1);
-                    }
-                }
-            }
-
-            // 第六步：兜底策略 — 若上述流程未提取到任何颜色（极端情况），
-            // 对原图进行稀疏采样（每10像素取1个），计算所有有效像素的平均颜色
             if (result.Count == 0)
             {
                 long rSum = 0, gSum = 0, bSum = 0;
@@ -439,5 +325,135 @@ public static class CoverColorExtractor
         }
         catch { }
         return entries;
+    }
+
+    private static bool DetectGrayscaleCover(Bitmap bitmap)
+    {
+        int w = Math.Min(bitmap.Width, 60);
+        int h = Math.Min(bitmap.Height, 60);
+        int total = 0, grayCount = 0;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var pixel = new Color(bitmap.GetPixel(x * bitmap.Width / w, y * bitmap.Height / h));
+                if (pixel.A < 128) continue;
+                total++;
+                float[] hsv = { 0, 0, 0 };
+                Android.Graphics.Color.RGBToHSV(pixel.R, pixel.G, pixel.B, hsv);
+                if (hsv[1] < 0.12f) grayCount++;
+            }
+        }
+
+        return total > 0 && grayCount > total * 0.7;
+    }
+
+    private static List<ColorEntry> ExtractGrayscaleColors(Bitmap bitmap)
+    {
+        var result = new List<ColorEntry>();
+
+        Bitmap? sampled = null;
+        if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)
+        {
+            var scale = (float)MaxSampleSize / Math.Max(bitmap.Width, bitmap.Height);
+            sampled = Bitmap.CreateScaledBitmap(bitmap, Math.Max((int)(bitmap.Width * scale), 1), Math.Max((int)(bitmap.Height * scale), 1), false);
+        }
+        else
+        {
+            sampled = bitmap;
+        }
+
+        var grayFreq = new Dictionary<int, int>();
+        var grayXSum = new Dictionary<int, long>();
+
+        for (int y = 0; y < sampled.Height; y++)
+        {
+            for (int x = 0; x < sampled.Width; x++)
+            {
+                var pixel = new Color(sampled.GetPixel(x, y));
+                if (pixel.A < 128) continue;
+
+                var r = pixel.R / 64;
+                var g = pixel.G / 64;
+                var b = pixel.B / 64;
+                var key = (r << 6) | (g << 3) | b;
+
+                if (grayFreq.ContainsKey(key))
+                {
+                    grayFreq[key]++;
+                    grayXSum[key] += x;
+                }
+                else
+                {
+                    grayFreq[key] = 1;
+                    grayXSum[key] = x;
+                }
+            }
+        }
+
+        if (sampled != bitmap && sampled != null)
+            sampled.Recycle();
+
+        var grayScored = grayFreq
+            .Select(kv =>
+            {
+                var r = ((kv.Key >> 6) & 0x7) * 64 + 32;
+                var g = ((kv.Key >> 3) & 0x7) * 64 + 32;
+                var b = (kv.Key & 0x7) * 64 + 32;
+                var avgX = (float)grayXSum[kv.Key] / kv.Value;
+                return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: (double)kv.Value, AvgX: avgX);
+            })
+            .OrderByDescending(x => x.Score)
+            .ToList();
+
+        var selectedColors = new List<int>();
+        var selectedX = new List<float>();
+
+        foreach (var entry in grayScored)
+        {
+            float[] hsv1 = { 0, 0, 0 };
+            Android.Graphics.Color.RGBToHSV(
+                Android.Graphics.Color.GetRedComponent(entry.Color),
+                Android.Graphics.Color.GetGreenComponent(entry.Color),
+                Android.Graphics.Color.GetBlueComponent(entry.Color), hsv1);
+
+            bool isDup = false;
+            foreach (var existing in selectedColors)
+            {
+                float[] hsv2 = { 0, 0, 0 };
+                Android.Graphics.Color.RGBToHSV(
+                    Android.Graphics.Color.GetRedComponent(existing),
+                    Android.Graphics.Color.GetGreenComponent(existing),
+                    Android.Graphics.Color.GetBlueComponent(existing), hsv2);
+                if (Math.Abs(hsv1[2] - hsv2[2]) < 0.15f) { isDup = true; break; }
+            }
+            if (isDup) continue;
+
+            selectedColors.Add(entry.Color);
+            selectedX.Add(entry.AvgX);
+            result.Add(new ColorEntry { Color = entry.Color, CenterX = entry.AvgX });
+
+            if (result.Count >= 3) break;
+        }
+
+        if (result.Count > 0)
+        {
+            var maxX = selectedX.Max();
+            var minX = selectedX.Min();
+            var xRange = maxX - minX;
+            if (xRange > 0)
+            {
+                foreach (var entry in result)
+                    entry.CenterX = (entry.CenterX - minX) / xRange;
+            }
+            else
+            {
+                for (int i = 0; i < result.Count; i++)
+                    result[i].CenterX = (float)i / (result.Count - 1 > 0 ? result.Count - 1 : 1);
+            }
+        }
+
+        return result;
     }
 }

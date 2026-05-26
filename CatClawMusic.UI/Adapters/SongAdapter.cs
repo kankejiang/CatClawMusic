@@ -228,6 +228,14 @@ public class SongAdapter : RecyclerView.Adapter
         NotifyDataSetChanged();
     }
 
+    private bool _customSortMode;
+
+    public void SetCustomSortMode(bool enabled)
+    {
+        _customSortMode = enabled;
+        NotifyDataSetChanged();
+    }
+
     public void ToggleSelection(int songId)
     {
         if (_selectedSongIds.Contains(songId))
@@ -343,6 +351,7 @@ public class SongAdapter : RecyclerView.Adapter
     /// <param name="anchor">长按的锚点 View，用于定位弹出菜单</param>
     private void OnSongLongClick(int position, View anchor)
     {
+        if (_customSortMode) return;
         if (position >= 0 && position < _songs.Count)
         {
             LastLongClickedView = anchor;

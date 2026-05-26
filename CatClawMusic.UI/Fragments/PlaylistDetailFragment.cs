@@ -87,7 +87,10 @@ public class PlaylistDetailFragment : Fragment
             _isUserPlaylist = _playlistId > 0;
             string name = args.GetString("playlistName") ?? "歌单";
             _titleText.Text = name;
-            _ = _viewModel.LoadAsync(_playlistId, name);
+            _ = _viewModel.LoadAsync(_playlistId, name).ContinueWith(_ =>
+            {
+                ApplySavedSort();
+            });
         }
 
         _collectionChangedHandler = (s, e) =>
@@ -239,6 +242,9 @@ public class PlaylistDetailFragment : Fragment
         _ = _viewModel.PlaySongAsync(song);
     }
 
+    private bool _isCustomSortMode;
+    private ItemTouchHelper? _itemTouchHelper;
+
     private void OnSortClicked(object? sender, EventArgs e)
     {
         var ctx = Context;
@@ -246,30 +252,120 @@ public class PlaylistDetailFragment : Fragment
 
         var dialog = new GlassDialog(ctx).SetTitle("排序");
 
-        dialog.AddItem("自定义", () => { });
-        dialog.AddItem("标题", () => ApplySort(s => s.Title ?? "", false));
-        dialog.AddItem("文件名", () => ApplySort(s => System.IO.Path.GetFileNameWithoutExtension(s.FilePath ?? ""), false));
-        dialog.AddItem("专辑", () => ApplySort(s => s.Album ?? "", false));
-        dialog.AddItem("艺术家", () => ApplySort(s => s.Artist ?? "", false));
-        dialog.AddItem("大小", () => ApplySort(s => s.FileSize.ToString(), false));
-        dialog.AddItem("年份", () => ApplySort(s => s.Year.ToString(), false));
-        dialog.AddItem("文件夹", () => ApplySort(s => System.IO.Path.GetDirectoryName(s.FilePath ?? "") ?? "", false));
-        dialog.AddItem("播放次数", () => ApplySort(s => s.PlayCount.ToString(), true));
-        dialog.AddItem("时长（短→长）", () => ApplySort(s => s.Duration.ToString(), false));
-        dialog.AddItem("时长（长→短）", () => ApplySort(s => s.Duration.ToString(), true));
-        dialog.AddItem("修改时间", () => ApplySort(s => s.DateModified.ToString(), false));
-        dialog.AddItem("添加时间", () => ApplySort(s => s.DateAdded.ToString(), false));
+        dialog.AddItem("自定义", () => EnableCustomSort());
+        dialog.AddItem("标题", () => ApplySort("title", s => s.Title ?? "", false));
+        dialog.AddItem("文件名", () => ApplySort("filename", s => System.IO.Path.GetFileNameWithoutExtension(s.FilePath ?? ""), false));
+        dialog.AddItem("专辑", () => ApplySort("album", s => s.Album ?? "", false));
+        dialog.AddItem("艺术家", () => ApplySort("artist", s => s.Artist ?? "", false));
+        dialog.AddItem("大小", () => ApplySort("size", s => s.FileSize.ToString(), false));
+        dialog.AddItem("年份", () => ApplySort("year", s => s.Year.ToString(), false));
+        dialog.AddItem("文件夹", () => ApplySort("folder", s => System.IO.Path.GetDirectoryName(s.FilePath ?? "") ?? "", false));
+        dialog.AddItem("播放次数", () => ApplySort("playcount", s => s.PlayCount.ToString(), true));
+        dialog.AddItem("时长（短→长）", () => ApplySort("duration_asc", s => s.Duration.ToString(), false));
+        dialog.AddItem("时长（长→短）", () => ApplySort("duration_desc", s => s.Duration.ToString(), true));
+        dialog.AddItem("修改时间", () => ApplySort("modified", s => s.DateModified.ToString(), false));
+        dialog.AddItem("添加时间", () => ApplySort("added", s => s.DateAdded.ToString(), false));
 
         dialog.Show();
     }
 
-    private void ApplySort(Func<Song, string> keySelector, bool descending)
+    private void EnableCustomSort()
+    {
+        _isCustomSortMode = true;
+        _adapter.SetCustomSortMode(true);
+
+        if (_itemTouchHelper == null)
+        {
+            var callback = new DragSortCallback(_adapter, (fromPos, toPos) =>
+            {
+                if (fromPos < _viewModel.Songs.Count && toPos < _viewModel.Songs.Count)
+                {
+                    var list = _viewModel.Songs.ToList();
+                    var item = list[fromPos];
+                    list.RemoveAt(fromPos);
+                    list.Insert(toPos, item);
+                    _viewModel.Songs.ReplaceAll(list);
+                }
+            });
+            _itemTouchHelper = new ItemTouchHelper(callback);
+        }
+        _itemTouchHelper.AttachToRecyclerView(_songList);
+
+        _btnSort.SetImageResource(Resource.Drawable.ic_check);
+        _btnSort.Click -= OnSortClicked;
+        _btnSort.Click += OnFinishCustomSort;
+
+        Toast.MakeText(Context!, "长按拖动歌曲排序，点击✓完成", ToastLength.Short)?.Show();
+    }
+
+    private void OnFinishCustomSort(object? sender, EventArgs e)
+    {
+        DisableCustomSort();
+    }
+
+    private void DisableCustomSort()
+    {
+        _isCustomSortMode = false;
+        _adapter.SetCustomSortMode(false);
+        _itemTouchHelper?.AttachToRecyclerView(null);
+
+        _btnSort.SetImageResource(Resource.Drawable.ic_sort);
+        _btnSort.Click -= OnFinishCustomSort;
+        _btnSort.Click += OnSortClicked;
+    }
+
+    private void ApplySavedSort()
+    {
+        var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
+        if (prefs == null) return;
+        var sortKey = prefs.GetString($"sort_{_playlistId}", null);
+        if (string.IsNullOrEmpty(sortKey) || _viewModel.Songs.Count == 0) return;
+        var desc = prefs.GetBoolean($"sort_desc_{_playlistId}", false);
+
+        var sortMap = new Dictionary<string, Func<Song, string>>
+        {
+            ["title"] = s => s.Title ?? "",
+            ["filename"] = s => System.IO.Path.GetFileNameWithoutExtension(s.FilePath ?? ""),
+            ["album"] = s => s.Album ?? "",
+            ["artist"] = s => s.Artist ?? "",
+            ["size"] = s => s.FileSize.ToString(),
+            ["year"] = s => s.Year.ToString(),
+            ["folder"] = s => System.IO.Path.GetDirectoryName(s.FilePath ?? "") ?? "",
+            ["playcount"] = s => s.PlayCount.ToString(),
+            ["duration_asc"] = s => s.Duration.ToString(),
+            ["duration_desc"] = s => s.Duration.ToString(),
+            ["modified"] = s => s.DateModified.ToString(),
+            ["added"] = s => s.DateAdded.ToString(),
+        };
+
+        if (!sortMap.TryGetValue(sortKey, out var selector)) return;
+
+        Activity?.RunOnUiThread(() =>
+        {
+            var sorted = desc
+                ? _viewModel.Songs.OrderByDescending(selector).ToList()
+                : _viewModel.Songs.OrderBy(selector).ToList();
+            _viewModel.Songs.ReplaceAll(sorted);
+            _adapter.UpdateSongs(_viewModel.Songs);
+        });
+    }
+
+    private void ApplySort(string sortKey, Func<Song, string> keySelector, bool descending)
     {
         var sorted = descending
             ? _viewModel.Songs.OrderByDescending(keySelector).ToList()
             : _viewModel.Songs.OrderBy(keySelector).ToList();
         _viewModel.Songs.ReplaceAll(sorted);
         _adapter.UpdateSongs(_viewModel.Songs);
+        DisableCustomSort();
+
+        var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
+        if (prefs != null)
+        {
+            prefs.Edit().PutString($"sort_{_playlistId}", sortKey)
+                      .PutBoolean($"sort_desc_{_playlistId}", descending)
+                      .Apply();
+        }
     }
 
     private void OnMultiSelectClicked(object? sender, EventArgs e)

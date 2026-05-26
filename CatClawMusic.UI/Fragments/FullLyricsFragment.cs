@@ -10,6 +10,7 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using AndroidX.Core.View;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -104,11 +105,24 @@ public class FullLyricsFragment : Fragment
         // 设置跳转按钮点击事件
         _btnJump.Click += (s, e) => OnJumpClicked();
 
-        var act = Activity;
-        var statusBarHeightId = act?.Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
-        var statusBarHeight = statusBarHeightId > 0 ? (act?.Resources?.GetDimensionPixelSize(statusBarHeightId) ?? 0) : 0;
         var topBar = view.FindViewById<RelativeLayout>(Resource.Id.lyric_top_bar);
-        if (topBar != null) topBar.SetPadding(topBar.PaddingLeft, statusBarHeight + topBar.PaddingTop, topBar.PaddingRight, topBar.PaddingBottom);
+        if (topBar != null)
+        {
+            var origTop = topBar.PaddingTop;
+            ViewCompat.SetOnApplyWindowInsetsListener(topBar, new WindowInsetsCallback((v, insets) =>
+            {
+                var statusBarTop = insets.GetInsets(WindowInsetsCompat.Type.StatusBars()).Top;
+                v.SetPadding(v.PaddingLeft, statusBarTop + origTop, v.PaddingRight, v.PaddingBottom);
+                return insets;
+            }));
+        }
+
+        var act = Activity;
+        if (act != null)
+        {
+            act.Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
+            act.Window?.SetNavigationBarColor(Android.Graphics.Color.Transparent);
+        }
 
         // 动态设置歌词容器的顶部padding，让歌词从页面底部开始
         _scrollView.ViewTreeObserver.AddOnGlobalLayoutListener(new OnGlobalLayoutListener(this));

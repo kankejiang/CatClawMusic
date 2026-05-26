@@ -29,12 +29,6 @@
                 android:id="@+id/view_pager"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
-
-            <androidx.fragment.app.FragmentContainerView
-                android:id="@+id/overlay_container"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:visibility="gone" />
         </FrameLayout>
 
         <!-- 全局扫描进度条（入库/刷新时显示） -->
@@ -119,6 +113,12 @@
             app:elevation="0dp"
             style="@style/CatClawBottomNav" />
     </LinearLayout>
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/overlay_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
 
     <!-- 左侧滑出设置面板 -->
     <LinearLayout android:id="@+id/side_panel_overlay"

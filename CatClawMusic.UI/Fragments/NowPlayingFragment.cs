@@ -14,6 +14,7 @@ using CatClawMusic.UI.Platforms.Android;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidX.Activity.Result;
 using AndroidX.Activity.Result.Contract;
+using AndroidX.Core.View;
 using GoogleSlider = Google.Android.Material.Slider.Slider;
 
 namespace CatClawMusic.UI.Fragments;
@@ -184,11 +185,30 @@ public class NowPlayingFragment : Fragment
         // 进度条：Touch 松开时 seek（SetOnTouchListener 不影响原生拖动）
         _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
 
-        var act = Activity;
-        var statusBarHeightId = act?.Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
-        var statusBarHeight = statusBarHeightId > 0 ? (act?.Resources?.GetDimensionPixelSize(statusBarHeightId) ?? 0) : 0;
         var contentArea = view.FindViewById<LinearLayout>(Resource.Id.content_area);
-        if (contentArea != null) contentArea.SetPadding(0, statusBarHeight, 0, 0);
+        if (contentArea != null)
+        {
+            ViewCompat.SetOnApplyWindowInsetsListener(contentArea, new WindowInsetsCallback((v, insets) =>
+            {
+                var statusBarTop = insets.GetInsets(WindowInsetsCompat.Type.StatusBars()).Top;
+                v.SetPadding(0, statusBarTop, 0, 0);
+                return insets;
+            }));
+        }
+
+        var act = Activity;
+        if (act != null)
+        {
+            act.Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
+            act.Window?.SetNavigationBarColor(Android.Graphics.Color.Transparent);
+            var insetsController = WindowCompat.GetInsetsController(act.Window!, act.Window!.DecorView);
+            if (insetsController != null)
+            {
+                var isDark = (act.Resources?.Configuration?.UiMode & Android.Content.Res.UiMode.NightMask) == Android.Content.Res.UiMode.NightYes;
+                insetsController.AppearanceLightStatusBars = !isDark;
+                insetsController.AppearanceLightNavigationBars = !isDark;
+            }
+        }
 
         SyncUIFromViewModel();
         BindViewModel();
@@ -259,7 +279,6 @@ public class NowPlayingFragment : Fragment
                     _flowColors[i] = BlendColor(oldColors[i], newColors[i], fraction);
                 if (_flowColors.Length > 3) _flowColors[3] = _flowColors[0];
             }
-            UpdateSweepGradientColors();
         };
 
         _colorTransitionAnimator.AnimationEnd += (s, e) =>
@@ -1194,7 +1213,9 @@ public class NowPlayingFragment : Fragment
 
         var recyclerView = new AndroidX.RecyclerView.Widget.RecyclerView(act);
         recyclerView.SetLayoutManager(new AndroidX.RecyclerView.Widget.LinearLayoutManager(act));
-        recyclerView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
+        var itemHeight = (int)(72 * dp);
+        var totalHeight = Math.Min(allSongs.Count * itemHeight, maxH);
+        recyclerView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, totalHeight);
         recyclerView.OverScrollMode = OverScrollMode.Never;
 
         var adapter = new PlaylistAdapter(allSongs, currentSong, dp, song =>
@@ -1313,6 +1334,16 @@ public class NowPlayingFragment : Fragment
         UnbindViewModel();
         _playlistDialog?.Dismiss();
         _playlistDialog = null;
+
+        var act = Activity;
+        if (act != null)
+        {
+            var isDark = (act.Resources?.Configuration?.UiMode & Android.Content.Res.UiMode.NightMask) == Android.Content.Res.UiMode.NightYes;
+            var bgColor = isDark ? Android.Graphics.Color.ParseColor("#1A0E28") : Android.Graphics.Color.ParseColor("#F5F2FA");
+            act.Window?.SetStatusBarColor(bgColor);
+            act.Window?.SetNavigationBarColor(bgColor);
+        }
+
         base.OnDestroyView();
     }
 

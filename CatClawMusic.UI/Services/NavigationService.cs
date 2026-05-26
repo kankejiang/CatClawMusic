@@ -99,9 +99,9 @@ public class NavigationService : INavigationService
     public void GoBack()
     {
         if (_fm == null) return;
-        _fm.PopBackStackImmediate();
+        _fm.PopBackStack();
 
-        if (_fm.BackStackEntryCount == 0 && _sidePanelContainerId == null)
+        if (_fm.BackStackEntryCount <= 1 && _sidePanelContainerId == null)
         {
             var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
             if (overlay != null) overlay.Visibility = ViewStates.Gone;

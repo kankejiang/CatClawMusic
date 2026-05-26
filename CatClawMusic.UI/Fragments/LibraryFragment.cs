@@ -113,11 +113,6 @@ public class LibraryFragment : Fragment
         }
         if (_viewModel.Songs.Count > 0)
             _adapter.UpdateSongs(_viewModel.Songs);
-
-        if (_viewModel.CurrentTab == "Local" && _viewModel.Songs.Count == 0)
-            _ = _viewModel.LoadLocalAsync();
-        else if (_viewModel.CurrentTab == "Network" && _viewModel.Songs.Count == 0)
-            _ = _viewModel.LoadNetworkAsync();
     }
 
     /// <summary>
