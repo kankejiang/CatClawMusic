@@ -9,6 +9,7 @@ using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -27,6 +28,12 @@ public class PlaylistDetailFragment : Fragment
     private int _playlistId;
     private bool _isUserPlaylist;
     private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
+    private ImageButton _btnShuffle = null!;
+    private ImageButton _btnSort = null!;
+    private ImageButton _btnMultiSelect = null!;
+    private bool _isMultiSelectMode;
+    private readonly HashSet<int> _selectedSongIds = new();
+    private LinearLayout? _multiSelectBar;
 
     /// <summary>
     /// 创建歌单详情视图
@@ -53,6 +60,14 @@ public class PlaylistDetailFragment : Fragment
 
         var btnBack = view.FindViewById<ImageButton>(Resource.Id.btn_back)!;
         btnBack.Click += (s, e) => _navigationService.GoBack();
+
+        _btnShuffle = view.FindViewById<ImageButton>(Resource.Id.btn_shuffle)!;
+        _btnSort = view.FindViewById<ImageButton>(Resource.Id.btn_sort)!;
+        _btnMultiSelect = view.FindViewById<ImageButton>(Resource.Id.btn_multi_select)!;
+
+        _btnShuffle.Click += OnShuffleClicked;
+        _btnSort.Click += OnSortClicked;
+        _btnMultiSelect.Click += OnMultiSelectClicked;
 
         _adapter = MainApplication.Services.GetRequiredService<SongAdapter>();
         _adapter.SongClicked += (s, song) => _ = _viewModel.PlaySongAsync(song);
@@ -214,6 +229,176 @@ public class PlaylistDetailFragment : Fragment
         int currentSongId = currentSong?.Id ?? -1;
         bool isPlaying = _audioPlayer?.IsPlaying ?? false;
         _adapter.UpdatePlayState(currentSongId, isPlaying);
+    }
+
+    private void OnShuffleClicked(object? sender, EventArgs e)
+    {
+        if (_viewModel.Songs.Count == 0) return;
+        var random = new Random();
+        var song = _viewModel.Songs[random.Next(_viewModel.Songs.Count)];
+        _ = _viewModel.PlaySongAsync(song);
+    }
+
+    private void OnSortClicked(object? sender, EventArgs e)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var dialog = new GlassDialog(ctx).SetTitle("排序");
+
+        dialog.AddItem("自定义", () => { });
+        dialog.AddItem("标题", () => ApplySort(s => s.Title ?? "", false));
+        dialog.AddItem("文件名", () => ApplySort(s => System.IO.Path.GetFileNameWithoutExtension(s.FilePath ?? ""), false));
+        dialog.AddItem("专辑", () => ApplySort(s => s.Album ?? "", false));
+        dialog.AddItem("艺术家", () => ApplySort(s => s.Artist ?? "", false));
+        dialog.AddItem("大小", () => ApplySort(s => s.FileSize.ToString(), false));
+        dialog.AddItem("年份", () => ApplySort(s => s.Year.ToString(), false));
+        dialog.AddItem("文件夹", () => ApplySort(s => System.IO.Path.GetDirectoryName(s.FilePath ?? "") ?? "", false));
+        dialog.AddItem("播放次数", () => ApplySort(s => s.PlayCount.ToString(), true));
+        dialog.AddItem("时长（短→长）", () => ApplySort(s => s.Duration.ToString(), false));
+        dialog.AddItem("时长（长→短）", () => ApplySort(s => s.Duration.ToString(), true));
+        dialog.AddItem("修改时间", () => ApplySort(s => s.DateModified.ToString(), false));
+        dialog.AddItem("添加时间", () => ApplySort(s => s.DateAdded.ToString(), false));
+
+        dialog.Show();
+    }
+
+    private void ApplySort(Func<Song, string> keySelector, bool descending)
+    {
+        var sorted = descending
+            ? _viewModel.Songs.OrderByDescending(keySelector).ToList()
+            : _viewModel.Songs.OrderBy(keySelector).ToList();
+        _viewModel.Songs.ReplaceAll(sorted);
+        _adapter.UpdateSongs(_viewModel.Songs);
+    }
+
+    private void OnMultiSelectClicked(object? sender, EventArgs e)
+    {
+        _isMultiSelectMode = !_isMultiSelectMode;
+        _selectedSongIds.Clear();
+
+        if (_isMultiSelectMode)
+        {
+            _btnMultiSelect.SetImageResource(Resource.Drawable.ic_check_box);
+            _adapter.SetMultiSelectMode(true);
+            ShowMultiSelectBar();
+        }
+        else
+        {
+            _btnMultiSelect.SetImageResource(Resource.Drawable.ic_check_box_outline);
+            _adapter.SetMultiSelectMode(false);
+            HideMultiSelectBar();
+        }
+    }
+
+    private void ShowMultiSelectBar()
+    {
+        if (_multiSelectBar != null) { _multiSelectBar.Visibility = ViewStates.Visible; return; }
+
+        var view = View;
+        if (view == null) return;
+
+        _multiSelectBar = new LinearLayout(Context) { Orientation = Orientation.Horizontal };
+        _multiSelectBar.SetGravity(GravityFlags.CenterVertical);
+        _multiSelectBar.SetBackgroundColor(Android.Graphics.Color.Argb(0xE0, 0x1A, 0x0E, 0x28));
+        _multiSelectBar.SetPadding(24, 16, 24, 16);
+
+        var lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+        {
+            Gravity = GravityFlags.Bottom
+        };
+        _multiSelectBar.LayoutParameters = lp;
+
+        AddMultiSelectButton("移出歌单", () => RemoveSelectedFromPlaylist());
+        AddMultiSelectButton("添加到歌单", () => AddSelectedToPlaylist());
+        AddMultiSelectButton("添加到播放列表", () => AddSelectedToPlayQueue());
+
+        (view as ViewGroup)?.AddView(_multiSelectBar);
+    }
+
+    private void AddMultiSelectButton(string text, Action action)
+    {
+        var btn = new TextView(Context) { Text = text };
+        btn.SetTextSize(Android.Util.ComplexUnitType.Sp, 13);
+        btn.SetTextColor(Android.Graphics.Color.White);
+        btn.SetPadding(24, 12, 24, 12);
+        btn.Click += (s, e) => action();
+        var lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f);
+        btn.LayoutParameters = lp;
+        btn.Gravity = GravityFlags.Center;
+        _multiSelectBar?.AddView(btn);
+    }
+
+    private void HideMultiSelectBar()
+    {
+        if (_multiSelectBar != null) _multiSelectBar.Visibility = ViewStates.Gone;
+    }
+
+    private async void RemoveSelectedFromPlaylist()
+    {
+        var adapterSelected = _adapter.GetSelectedSongIds();
+        if (adapterSelected.Count == 0) return;
+        foreach (var id in adapterSelected.ToList())
+            await _viewModel.RemoveSongFromPlaylistAsync(id);
+        _selectedSongIds.Clear();
+        ExitMultiSelectMode();
+        _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName);
+    }
+
+    private void AddSelectedToPlaylist()
+    {
+        if (_adapter.GetSelectedSongIds().Count == 0) return;
+        var selected = _viewModel.Songs.Where(s => _adapter.GetSelectedSongIds().Contains(s.Id)).ToList();
+        ShowAddToPlaylistDialogForSongs(selected);
+    }
+
+    private void AddSelectedToPlayQueue()
+    {
+        if (_adapter.GetSelectedSongIds().Count == 0) return;
+        var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
+        var selected = _viewModel.Songs.Where(s => _adapter.GetSelectedSongIds().Contains(s.Id)).ToList();
+        foreach (var song in selected)
+            queue.AddToEnd(song);
+        Toast.MakeText(Context!, $"已添加{selected.Count}首到播放列表", ToastLength.Short)?.Show();
+        ExitMultiSelectMode();
+    }
+
+    private void ExitMultiSelectMode()
+    {
+        _isMultiSelectMode = false;
+        _selectedSongIds.Clear();
+        _btnMultiSelect.SetImageResource(Resource.Drawable.ic_check_box_outline);
+        _adapter.SetMultiSelectMode(false);
+        HideMultiSelectBar();
+    }
+
+    private async void ShowAddToPlaylistDialogForSongs(List<Song> songs)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var musicLibrary = MainApplication.Services.GetRequiredService<IMusicLibraryService>();
+        var playlists = await musicLibrary.GetAllPlaylistsAsync();
+        if (playlists.Count == 0)
+        {
+            Toast.MakeText(ctx, "暂无歌单，请先创建歌单", ToastLength.Short)!.Show();
+            return;
+        }
+
+        var dialog = new GlassDialog(ctx).SetTitle("添加到歌单");
+        foreach (var p in playlists)
+        {
+            var playlistId = p.Id;
+            dialog.AddItem(p.Name, async () =>
+            {
+                foreach (var song in songs)
+                    await _viewModel.AddSongToPlaylistAsync(playlistId, song.Id);
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(ctx, $"已添加{songs.Count}首到「{p.Name}」", ToastLength.Short)?.Show());
+            });
+        }
+        dialog.AddNegativeButton("取消");
+        dialog.Show();
     }
 
     /// <summary>

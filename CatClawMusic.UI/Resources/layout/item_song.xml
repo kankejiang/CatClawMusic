@@ -33,13 +33,20 @@
                 android:visibility="gone" />
         </FrameLayout>
 
+        <CheckBox android:id="@+id/checkbox_select" android:layout_width="28dp"
+            android:layout_height="28dp" android:visibility="gone"
+            android:button="@null" android:background="@drawable/ic_check_box_outline"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
         <TextView android:id="@+id/song_title" android:layout_width="0dp"
             android:layout_height="wrap_content" android:textSize="15sp"
             android:textColor="?attr/catClawTextPrimary" android:maxLines="1"
             android:ellipsize="end" android:fontFamily="sans-serif-medium"
             android:text="歌曲名"
             app:layout_constraintStart_toEndOf="@id/cover_container"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/checkbox_select"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toTopOf="@id/song_artist" />
 
@@ -48,7 +55,7 @@
             android:textColor="?attr/catClawTextSecondary" android:fontFamily="sans-serif"
             android:text="艺术家" android:maxLines="1" android:ellipsize="end"
             app:layout_constraintStart_toEndOf="@id/cover_container"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/checkbox_select"
             app:layout_constraintTop_toBottomOf="@id/song_title"
             app:layout_constraintBottom_toTopOf="@id/song_album" />
 
@@ -57,7 +64,7 @@
             android:textColor="?attr/catClawTextHint" android:fontFamily="sans-serif"
             android:text="专辑" android:maxLines="1" android:ellipsize="end"
             app:layout_constraintStart_toEndOf="@id/cover_container"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/checkbox_select"
             app:layout_constraintTop_toBottomOf="@id/song_artist"
             app:layout_constraintBottom_toBottomOf="parent" />
 

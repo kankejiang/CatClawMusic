@@ -184,6 +184,12 @@ public class NowPlayingFragment : Fragment
         // 进度条：Touch 松开时 seek（SetOnTouchListener 不影响原生拖动）
         _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
 
+        var act = Activity;
+        var statusBarHeightId = act?.Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
+        var statusBarHeight = statusBarHeightId > 0 ? (act?.Resources?.GetDimensionPixelSize(statusBarHeightId) ?? 0) : 0;
+        var contentArea = view.FindViewById<LinearLayout>(Resource.Id.content_area);
+        if (contentArea != null) contentArea.SetPadding(0, statusBarHeight, 0, 0);
+
         SyncUIFromViewModel();
         BindViewModel();
 

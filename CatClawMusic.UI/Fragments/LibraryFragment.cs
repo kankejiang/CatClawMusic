@@ -5,6 +5,7 @@ using Android.Views;
 using Android.Views.InputMethods;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
+using System.Linq;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
@@ -28,6 +29,7 @@ public class LibraryFragment : Fragment
     private Button _btnLocal = null!;
     private Button _btnNetwork = null!;
     private ImageButton _btnRefresh = null!;
+    private ImageButton _btnSort = null!;
     private LinearLayout _networkProtocolRow = null!;
     private Spinner _protocolSpinner = null!;
     private ArrayAdapter<string>? _protocolAdapter = null!;
@@ -59,6 +61,7 @@ public class LibraryFragment : Fragment
         _btnLocal = view.FindViewById<Button>(Resource.Id.btn_local)!;
         _btnNetwork = view.FindViewById<Button>(Resource.Id.btn_network)!;
         _btnRefresh = view.FindViewById<ImageButton>(Resource.Id.btn_refresh)!;
+        _btnSort = view.FindViewById<ImageButton>(Resource.Id.btn_sort)!;
         _searchBox = view.FindViewById<EditText>(Resource.Id.search_box)!;
         _networkProtocolRow = view.FindViewById<LinearLayout>(Resource.Id.network_protocol_row)!;
         _protocolSpinner = view.FindViewById<Spinner>(Resource.Id.spinner_protocol)!;
@@ -93,6 +96,7 @@ public class LibraryFragment : Fragment
         _btnLocal.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Local");
         _btnNetwork.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Network");
         _btnRefresh.Click += (s, e) => _viewModel.RefreshCommand.Execute(null);
+        _btnSort.Click += OnSortClicked;
 
         BindViews();
         if (_viewModel.CurrentTab == "Network")
@@ -419,6 +423,30 @@ public class LibraryFragment : Fragment
         if (bytes < 1024) return $"{bytes} B";
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+
+    private void OnSortClicked(object? sender, EventArgs e)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var dialog = new GlassDialog(ctx).SetTitle("排序");
+        dialog.AddItem("文件名", () => ApplyLibrarySort(s => System.IO.Path.GetFileNameWithoutExtension(s.FilePath ?? ""), false));
+        dialog.AddItem("入库时间", () => ApplyLibrarySort(s => s.DateAdded.ToString(), false));
+        dialog.AddItem("文件大小", () => ApplyLibrarySort(s => s.FileSize.ToString(), true));
+        dialog.AddItem("文件夹", () => ApplyLibrarySort(s => System.IO.Path.GetDirectoryName(s.FilePath ?? "") ?? "", false));
+        dialog.AddItem("艺术家", () => ApplyLibrarySort(s => s.Artist ?? "", false));
+        dialog.AddItem("标题", () => ApplyLibrarySort(s => s.Title ?? "", false));
+        dialog.Show();
+    }
+
+    private void ApplyLibrarySort(Func<CoreModels.Song, string> keySelector, bool descending)
+    {
+        var songs = _viewModel.FilteredSongs;
+        var sorted = descending
+            ? songs.OrderByDescending(keySelector).ToList()
+            : songs.OrderBy(keySelector).ToList();
+        _adapter.UpdateSongs(sorted);
     }
 
     private Android.App.Dialog? _contextMenuDialog;

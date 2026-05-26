@@ -22,6 +22,11 @@
                 android:fontFamily="sans-serif" android:textSize="14sp"
                 android:singleLine="true" android:imeOptions="actionSearch" />
         </com.google.android.material.card.MaterialCardView>
+        <ImageButton android:id="@+id/btn_sort" android:layout_width="36dp"
+            android:layout_height="36dp" android:src="@drawable/ic_sort"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="?attr/catClawTextHint" android:padding="6dp"
+            android:layout_marginEnd="4dp" />
         <ImageButton android:id="@+id/btn_refresh" android:layout_width="36dp"
             android:layout_height="36dp" android:src="@drawable/ic_refresh"
             android:background="?attr/selectableItemBackgroundBorderless"

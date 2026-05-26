@@ -107,7 +107,19 @@ public static class CoverColorExtractor
             /* 优先使用 C++ 原生库取色（性能更优，避免 GetPixel JNI 开销） */
             var nativeResult = NativeInterop.ExtractColorsFromBitmap(bitmap);
             if (nativeResult != null && nativeResult.Count > 0)
-                return nativeResult;
+            {
+                bool allLowSat = nativeResult.All(e =>
+                {
+                    float[] h = { 0, 0, 0 };
+                    Android.Graphics.Color.RGBToHSV(
+                        Android.Graphics.Color.GetRedComponent(e.Color),
+                        Android.Graphics.Color.GetGreenComponent(e.Color),
+                        Android.Graphics.Color.GetBlueComponent(e.Color), h);
+                    return h[1] < 0.15f;
+                });
+                if (!allLowSat)
+                    return nativeResult;
+            }
 
             /* C# 回退实现：当原生库不可用时使用 */
             // 第一步：降采样，将大图缩放至 MaxSampleSize 以内以减少计算量
@@ -255,6 +267,122 @@ public static class CoverColorExtractor
                     // 所有色调的 x 坐标相同（如纯色封面），均匀分布
                     for (int i = 0; i < result.Count; i++)
                         result[i].CenterX = (float)i / (result.Count - 1 > 0 ? result.Count - 1 : 1);
+                }
+            }
+
+            if (result.Count > 0 && result.All(e =>
+            {
+                float[] h = { 0, 0, 0 };
+                Android.Graphics.Color.RGBToHSV(
+                    Android.Graphics.Color.GetRedComponent(e.Color),
+                    Android.Graphics.Color.GetGreenComponent(e.Color),
+                    Android.Graphics.Color.GetBlueComponent(e.Color), h);
+                return h[1] < 0.15f;
+            }))
+            {
+                result.Clear();
+                colors.Clear();
+                xPositions.Clear();
+
+                var grayFreq = new Dictionary<int, int>();
+                var grayXSum = new Dictionary<int, long>();
+
+                Bitmap? graySampled = null;
+                if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)
+                {
+                    var scale = (float)MaxSampleSize / Math.Max(bitmap.Width, bitmap.Height);
+                    var w = (int)(bitmap.Width * scale);
+                    var h = (int)(bitmap.Height * scale);
+                    graySampled = Bitmap.CreateScaledBitmap(bitmap, Math.Max(w, 1), Math.Max(h, 1), false);
+                }
+                else
+                {
+                    graySampled = bitmap;
+                }
+
+                for (int y = 0; y < graySampled.Height; y++)
+                {
+                    for (int x = 0; x < graySampled.Width; x++)
+                    {
+                        var pixel = new Color(graySampled.GetPixel(x, y));
+                        if (pixel.A < 128) continue;
+
+                        var r = pixel.R / 64;
+                        var g = pixel.G / 64;
+                        var b = pixel.B / 64;
+                        var key = (r << 6) | (g << 3) | b;
+
+                        if (grayFreq.ContainsKey(key))
+                        {
+                            grayFreq[key]++;
+                            grayXSum[key] += x;
+                        }
+                        else
+                        {
+                            grayFreq[key] = 1;
+                            grayXSum[key] = x;
+                        }
+                    }
+                }
+
+                if (graySampled != bitmap && graySampled != null)
+                    graySampled.Recycle();
+
+                var grayScored = grayFreq
+                    .Select(kv =>
+                    {
+                        var r = ((kv.Key >> 6) & 0x7) * 64 + 32;
+                        var g = ((kv.Key >> 3) & 0x7) * 64 + 32;
+                        var b = (kv.Key & 0x7) * 64 + 32;
+                        var avgX = (float)grayXSum[kv.Key] / kv.Value;
+                        return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: (double)kv.Value, AvgX: avgX);
+                    })
+                    .OrderByDescending(x => x.Score)
+                    .ToList();
+
+                foreach (var entry in grayScored)
+                {
+                    float[] hsv1 = { 0, 0, 0 };
+                    Android.Graphics.Color.RGBToHSV(
+                        Android.Graphics.Color.GetRedComponent(entry.Color),
+                        Android.Graphics.Color.GetGreenComponent(entry.Color),
+                        Android.Graphics.Color.GetBlueComponent(entry.Color), hsv1);
+
+                    bool isDup = false;
+                    foreach (var existing in colors)
+                    {
+                        float[] hsv2 = { 0, 0, 0 };
+                        Android.Graphics.Color.RGBToHSV(
+                            Android.Graphics.Color.GetRedComponent(existing),
+                            Android.Graphics.Color.GetGreenComponent(existing),
+                            Android.Graphics.Color.GetBlueComponent(existing), hsv2);
+                        var vDist = Math.Abs(hsv1[2] - hsv2[2]);
+                        if (vDist < 0.15f) { isDup = true; break; }
+                    }
+                    if (isDup) continue;
+
+                    colors.Add(entry.Color);
+                    xPositions.Add(entry.AvgX);
+                    result.Add(new ColorEntry { Color = entry.Color, CenterX = entry.AvgX });
+
+                    if (result.Count >= 3) break;
+                }
+
+                if (result.Count > 0)
+                {
+                    var maxX = xPositions.Max();
+                    var minX = xPositions.Min();
+                    var xRange = maxX - minX;
+                    if (xRange > 0)
+                    {
+                        foreach (var entry in result)
+                            entry.CenterX = (entry.CenterX - minX) / xRange;
+                    }
+                    else
+                    {
+                        for (int i = 0; i < result.Count; i++)
+                            result[i].CenterX = (float)i / (result.Count - 1 > 0 ? result.Count - 1 : 1);
+                    }
                 }
             }
 

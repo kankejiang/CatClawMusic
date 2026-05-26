@@ -73,6 +73,8 @@ public class NavigationService : INavigationService
         }
 
         _fm.BeginTransaction()
+            .SetCustomAnimations(Resource.Animation.slide_in_right, Resource.Animation.slide_out_left,
+                                  Resource.Animation.slide_in_left, Resource.Animation.slide_out_right)
             .Replace(containerId, fragment, route)
             .AddToBackStack(route)
             .Commit();

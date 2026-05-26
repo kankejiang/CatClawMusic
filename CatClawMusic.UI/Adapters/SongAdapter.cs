@@ -69,6 +69,9 @@ public class SongAdapter : RecyclerView.Adapter
     /// </summary>
     private bool _isPlaying = false;
 
+    private bool _multiSelectMode;
+    private readonly HashSet<int> _selectedSongIds = new();
+
     /// <summary>
     /// 标记列表是否正在滚动（volatile 保证多线程可见性）。
     /// 滚动期间暂停网络封面加载，停止后补加载。
@@ -196,6 +199,8 @@ public class SongAdapter : RecyclerView.Adapter
     /// </summary>
     public event EventHandler<Song>? SongLongClicked;
 
+    public event EventHandler? SelectionChanged;
+
     /// <summary>
     /// 最后一次长按操作的锚点 View，用于定位弹出菜单的位置
     /// </summary>
@@ -215,6 +220,24 @@ public class SongAdapter : RecyclerView.Adapter
     /// </summary>
     /// <param name="scrolling">是否正在滚动</param>
     public void SetScrolling(bool scrolling) => _isScrolling = scrolling;
+
+    public void SetMultiSelectMode(bool enabled)
+    {
+        _multiSelectMode = enabled;
+        if (!enabled) _selectedSongIds.Clear();
+        NotifyDataSetChanged();
+    }
+
+    public void ToggleSelection(int songId)
+    {
+        if (_selectedSongIds.Contains(songId))
+            _selectedSongIds.Remove(songId);
+        else
+            _selectedSongIds.Add(songId);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public HashSet<int> GetSelectedSongIds() => _selectedSongIds;
 
     /// <summary>
     /// 使用 DiffUtil 差异计算更新歌曲列表。
@@ -509,6 +532,7 @@ public class SongAdapter : RecyclerView.Adapter
         private readonly TextView _title, _artist, _album;
         private readonly ImageView _cover;
         private readonly Helpers.WaveformView _pauseIcon;
+        private readonly CheckBox _checkbox;
 
         /// <summary>
         /// 当前 ViewHolder 绑定的歌曲 ID，用于判断封面加载完成时是否仍对应当前歌曲（防错位）
@@ -524,6 +548,8 @@ public class SongAdapter : RecyclerView.Adapter
         /// 当前已加载封面的缓存键，避免重复加载同一封面
         /// </summary>
         private string? _loadedCoverKey;
+
+        private EventHandler? _checkboxClickHandler;
 
         /// <summary>
         /// 缓存的非播放状态标题颜色，从主题属性解析一次后复用，避免每次 Bind 都解析主题
@@ -544,6 +570,7 @@ public class SongAdapter : RecyclerView.Adapter
             _album = view.FindViewById<TextView>(Resource.Id.song_album)!;
             _cover = view.FindViewById<ImageView>(Resource.Id.song_cover)!;
             _pauseIcon = view.FindViewById<Helpers.WaveformView>(Resource.Id.playing_pause_icon)!;
+            _checkbox = view.FindViewById<CheckBox>(Resource.Id.checkbox_select)!;
             _title.ImportantForAutofill = ImportantForAutofill.No;
             _artist.ImportantForAutofill = ImportantForAutofill.No;
             _album.ImportantForAutofill = ImportantForAutofill.No;
@@ -573,6 +600,23 @@ public class SongAdapter : RecyclerView.Adapter
             _artist.Text = string.IsNullOrEmpty(song.Artist) ? "未知艺术家" : song.Artist;
             _album.Text = song.Album ?? "";
             _boundSongId = song.Id;
+
+            if (adapter._multiSelectMode)
+            {
+                _checkbox.Visibility = ViewStates.Visible;
+                _checkbox.Checked = adapter._selectedSongIds.Contains(song.Id);
+                _checkbox.Click -= _checkboxClickHandler;
+                _checkboxClickHandler = (s, e) =>
+                {
+                    adapter.ToggleSelection(song.Id);
+                    _checkbox.Checked = adapter._selectedSongIds.Contains(song.Id);
+                };
+                _checkbox.Click += _checkboxClickHandler;
+            }
+            else
+            {
+                _checkbox.Visibility = ViewStates.Gone;
+            }
 
             if (song.Id == adapter._currentPlayingSongId)
             {

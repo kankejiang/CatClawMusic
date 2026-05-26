@@ -104,6 +104,12 @@ public class FullLyricsFragment : Fragment
         // 设置跳转按钮点击事件
         _btnJump.Click += (s, e) => OnJumpClicked();
 
+        var act = Activity;
+        var statusBarHeightId = act?.Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
+        var statusBarHeight = statusBarHeightId > 0 ? (act?.Resources?.GetDimensionPixelSize(statusBarHeightId) ?? 0) : 0;
+        var topBar = view.FindViewById<RelativeLayout>(Resource.Id.lyric_top_bar);
+        if (topBar != null) topBar.SetPadding(topBar.PaddingLeft, statusBarHeight + topBar.PaddingTop, topBar.PaddingRight, topBar.PaddingBottom);
+
         // 动态设置歌词容器的顶部padding，让歌词从页面底部开始
         _scrollView.ViewTreeObserver.AddOnGlobalLayoutListener(new OnGlobalLayoutListener(this));
 
@@ -165,8 +171,10 @@ public class FullLyricsFragment : Fragment
                 var lyricView = _lyricViews[i];
                 if (lyricView == null) continue;
                 
-                // 计算歌词视图的中心点Y坐标
-                var lyricCenterY = lyricView.Top + lyricView.Height / 2;
+                var wrapper = lyricView.Parent as View;
+                if (wrapper == null) continue;
+
+                var lyricCenterY = wrapper.Top + wrapper.Height / 2;
                 // 计算歌词中心到ScrollView中心的距离
                 var distance = Math.Abs(scrollCenterY - lyricCenterY);
 
@@ -419,17 +427,38 @@ public class FullLyricsFragment : Fragment
         for (int i = 0; i < lyrics.Lines.Count; i++)
         {
             var line = lyrics.Lines[i];
+
+            var lineLayout = new LinearLayout(Context) { Orientation = Orientation.Vertical };
+            lineLayout.SetGravity(GetLyricGravity());
+            lineLayout.Tag = i;
+
             var tv = new TextView(Context) { Text = line.Text };
             tv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
             tv.SetTextColor(Color.ParseColor("#38FFFFFF"));
             tv.SetTypeface(null, TypefaceStyle.Bold);
             tv.Gravity = GetLyricGravity();
             tv.SetLineSpacing(0, 1.4f);
+            lineLayout.AddView(tv);
+
+            if (!string.IsNullOrEmpty(line.Translation))
+            {
+                var transTv = new TextView(Context) { Text = line.Translation };
+                transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
+                transTv.SetTextColor(Color.ParseColor("#28FFFFFF"));
+                transTv.SetTypeface(null, TypefaceStyle.Normal);
+                transTv.Gravity = GetLyricGravity();
+                transTv.SetLineSpacing(0, 1.3f);
+                var transLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
+                transLp.TopMargin = 4;
+                transTv.LayoutParameters = transLp;
+                lineLayout.AddView(transTv);
+            }
+
             var lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
             lp.TopMargin = i > 0 ? 16 : 0;
-            tv.LayoutParameters = lp;
-            tv.Tag = i;
-            _lyricsContainer.AddView(tv); 
+            lineLayout.LayoutParameters = lp;
+
+            _lyricsContainer.AddView(lineLayout);
             _lyricViews.Add(tv);
         }
 
@@ -466,12 +495,34 @@ public class FullLyricsFragment : Fragment
             v.SetTextColor(Color.ParseColor("#38FFFFFF"));
             v.SetTypeface(null, TypefaceStyle.Bold);
             v.Background = null;
+
+            var parent = v.Parent as LinearLayout;
+            if (parent != null && parent.ChildCount > 1)
+            {
+                var transTv = parent.GetChildAt(1) as TextView;
+                if (transTv != null)
+                {
+                    transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
+                    transTv.SetTextColor(Color.ParseColor("#28FFFFFF"));
+                }
+            }
         }
 
         if (idx >= 0 && idx < _lyricViews.Count)
         {
             _lyricViews[idx].SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 4);
             _lyricViews[idx].SetTextColor(Color.White);
+
+            var parent = _lyricViews[idx].Parent as LinearLayout;
+            if (parent != null && parent.ChildCount > 1)
+            {
+                var transTv = parent.GetChildAt(1) as TextView;
+                if (transTv != null)
+                {
+                    transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 2);
+                    transTv.SetTextColor(Color.ParseColor("#CCFFFFFF"));
+                }
+            }
         }
 
         _lastLyricIndex = idx;
@@ -506,17 +557,17 @@ public class FullLyricsFragment : Fragment
 
         var t = _lyricViews[idx];
         if (t == null) return;
+        var wrapper = t.Parent as View;
+        if (wrapper == null) return;
         
         Activity?.RunOnUiThread(() =>
         {
             try
             {
-                // 获取ScrollView容器的高度
                 var scrollViewHeight = _scrollView.Height;
                 if (scrollViewHeight <= 0) return;
                 
-                // 计算歌词视图中心点相对于容器顶部的位置
-                var lyricCenterY = t.Top + t.Height / 2;
+                var lyricCenterY = wrapper.Top + wrapper.Height / 2;
                 // 计算目标滚动位置，使歌词中心与ScrollView中心对齐
                 var targetScrollY = lyricCenterY - scrollViewHeight / 2;
                 _scrollView.SmoothScrollTo(0, Math.Max(0, targetScrollY));

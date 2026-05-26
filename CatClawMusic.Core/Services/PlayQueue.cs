@@ -193,6 +193,14 @@ public class PlayQueue
         }
         RebuildIndex();
     }
+
+    public void AddToEnd(Song song)
+    {
+        _originalList.Add(song);
+        if (_shuffledList.Count > 0)
+            _shuffledList.Add(song);
+        RebuildIndex();
+    }
     
     /// <summary>
     /// 预览下一首（不改变队列状态）
