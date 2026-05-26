@@ -25,6 +25,8 @@ public class NetworkMusicService : INetworkMusicService
     private readonly INetworkFileService _webDav;
     private readonly INetworkFileService _smb;
 
+    private static readonly SemaphoreSlim ScanSemaphore = new(4, 4);
+
     /// <summary>
     /// 创建网络音乐服务实例
     /// </summary>
@@ -504,9 +506,20 @@ public class NetworkMusicService : INetworkMusicService
         catch { }
 
         var scanner = new MusicScanner(_db, songBatchCallback);
-        var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs);
+        var allFiles = await _webDav.ListAllFilesAsync(basePath);
+        if (allFiles.Count > 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 成功，找到 {allFiles.Count} 个文件，并发处理中...");
+            await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner);
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("[WebDAV Scan] 深度 PROPFIND 不支持，回退到递归扫描");
+            var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs);
+        }
+
         await scanner.FlushAsync();
 
         return (songs, foundIds);
@@ -531,55 +544,32 @@ public class NetworkMusicService : INetworkMusicService
         => AudioExtSet.Contains(ext);
 
     /// <summary>
-    /// 递归扫描 WebDAV 目录，按扩展名过滤音频文件，通过 MusicScanner 渐进式入库
+    /// 并发处理深度 PROPFIND 返回的扁平文件列表
     /// </summary>
-    private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
-        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
+    private async Task ProcessFileListAsync(List<RemoteFile> allFiles, ConnectionProfile profile,
+        List<Song> songs, HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner)
     {
-        if (depth > MaxScanDepth)
-        {
-            return;
-        }
-
-        var normalizedDir = path.TrimEnd('/').TrimEnd('\\');
-        if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "/";
-        if (!visitedDirs.Add(normalizedDir))
-        {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 跳过已访问目录: {path}");
-            return;
-        }
-
-        List<RemoteFile> files;
-        try
-        {
-            files = await _webDav.ListFilesAsync(path);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 列出 {path} 失败: {ex.Message}");
-            return;
-        }
-
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
-
-        foreach (var file in files)
-        {
-            if (file.IsDirectory)
+        var audioFiles = allFiles
+            .Where(f =>
             {
-                await ScanWebDavDirectoryAsync(file.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
-            }
-            else
-            {
-                var ext = System.IO.Path.GetExtension(file.Name)?.ToUpperInvariant() ?? "";
+                var ext = System.IO.Path.GetExtension(f.Name)?.ToUpperInvariant() ?? "";
                 if (string.IsNullOrEmpty(ext))
-                    ext = System.IO.Path.GetExtension(file.Path)?.ToUpperInvariant() ?? "";
-                if (!IsAudioExtension(ext))
-                    continue;
+                    ext = System.IO.Path.GetExtension(f.Path)?.ToUpperInvariant() ?? "";
+                return IsAudioExtension(ext);
+            })
+            .ToList();
 
+        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 过滤后音频文件: {audioFiles.Count}");
+
+        var metadataTasks = audioFiles.Select(file => Task.Run(async () =>
+        {
+            await ScanSemaphore.WaitAsync();
+            try
+            {
                 foundIds.Add(file.Path);
 
                 if (existingIds.Contains(file.Path))
-                    continue;
+                    return;
 
                 var streamUrl = BuildWebDavStreamUrl(file.Path, profile);
                 var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
@@ -615,10 +605,126 @@ public class NetworkMusicService : INetworkMusicService
                     song.Album = "未知专辑";
                 }
 
-                songs.Add(song);
+                lock (songs)
+                    songs.Add(song);
                 await scanner.AddSongAsync(song);
             }
+            finally
+            {
+                ScanSemaphore.Release();
+            }
+        }));
+
+        await Task.WhenAll(metadataTasks);
+    }
+
+    /// <summary>
+    /// 递归扫描 WebDAV 目录（回退方案，当深度 PROPFIND 不支持时使用）
+    /// </summary>
+    private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
+        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
+    {
+        if (depth > MaxScanDepth)
+            return;
+
+        var normalizedDir = path.TrimEnd('/').TrimEnd('\\');
+        if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "/";
+        if (!visitedDirs.Add(normalizedDir))
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 跳过已访问目录: {path}");
+            return;
         }
+
+        List<RemoteFile> files;
+        try
+        {
+            files = await _webDav.ListFilesAsync(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 列出 {path} 失败: {ex.Message}");
+            return;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
+
+        var audioFiles = new List<RemoteFile>();
+        var subDirs = new List<RemoteFile>();
+
+        foreach (var file in files)
+        {
+            if (file.IsDirectory)
+                subDirs.Add(file);
+            else
+            {
+                var ext = System.IO.Path.GetExtension(file.Name)?.ToUpperInvariant() ?? "";
+                if (string.IsNullOrEmpty(ext))
+                    ext = System.IO.Path.GetExtension(file.Path)?.ToUpperInvariant() ?? "";
+                if (IsAudioExtension(ext))
+                    audioFiles.Add(file);
+            }
+        }
+
+        foreach (var subDir in subDirs)
+            await ScanWebDavDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
+
+        if (audioFiles.Count == 0) return;
+
+        var metadataTasks = audioFiles.Select(file => Task.Run(async () =>
+        {
+            await ScanSemaphore.WaitAsync();
+            try
+            {
+                foundIds.Add(file.Path);
+
+                if (existingIds.Contains(file.Path))
+                    return;
+
+                var streamUrl = BuildWebDavStreamUrl(file.Path, profile);
+                var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
+                if (string.IsNullOrEmpty(title))
+                    title = System.IO.Path.GetFileNameWithoutExtension(file.Path) ?? file.Path;
+                var song = new Song
+                {
+                    Title = title,
+                    Artist = "",
+                    Album = "",
+                    FilePath = streamUrl,
+                    Duration = 0,
+                    FileSize = file.Size,
+                    DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    Source = SongSource.WebDAV,
+                    Protocol = ProtocolType.WebDAV,
+                    RemoteId = file.Path,
+                    CoverArtPath = file.Path
+                };
+
+                try
+                {
+                    var tagged = await FetchWebDavMetadataAsync(song, profile);
+                    if (tagged == null)
+                    {
+                        song.Artist = "未知艺术家";
+                        song.Album = "未知专辑";
+                    }
+                }
+                catch
+                {
+                    song.Artist = "未知艺术家";
+                    song.Album = "未知专辑";
+                }
+
+                lock (songs)
+                    songs.Add(song);
+                await scanner.AddSongAsync(song);
+            }
+            finally
+            {
+                ScanSemaphore.Release();
+            }
+        }));
+
+        await Task.WhenAll(metadataTasks);
     }
 
     private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanSmbAsync(
@@ -679,22 +785,37 @@ public class NetworkMusicService : INetworkMusicService
 
         System.Diagnostics.Debug.WriteLine($"[SMB Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
 
+        var audioFiles = new List<RemoteFile>();
+        var subDirs = new List<RemoteFile>();
+
         foreach (var file in files)
         {
             if (file.IsDirectory)
-            {
-                await ScanSmbDirectoryAsync(file.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
-            }
+                subDirs.Add(file);
             else
             {
                 var ext = System.IO.Path.GetExtension(file.Name)?.ToUpperInvariant() ?? "";
                 if (string.IsNullOrEmpty(ext))
                     ext = System.IO.Path.GetExtension(file.Path)?.ToUpperInvariant() ?? "";
-                if (!IsAudioExtension(ext)) continue;
+                if (IsAudioExtension(ext))
+                    audioFiles.Add(file);
+            }
+        }
 
+        foreach (var subDir in subDirs)
+            await ScanSmbDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
+
+        if (audioFiles.Count == 0) return;
+
+        var metadataTasks = audioFiles.Select(file => Task.Run(async () =>
+        {
+            await ScanSemaphore.WaitAsync();
+            try
+            {
                 foundIds.Add(file.Path);
 
-                if (existingIds.Contains(file.Path)) continue;
+                if (existingIds.Contains(file.Path))
+                    return;
 
                 var streamUrl = BuildSmbStreamUrl(file.Path, profile);
                 var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
@@ -730,9 +851,16 @@ public class NetworkMusicService : INetworkMusicService
                     song.Album = "未知专辑";
                 }
 
-                songs.Add(song);
+                lock (songs)
+                    songs.Add(song);
                 await scanner.AddSongAsync(song);
             }
-        }
+            finally
+            {
+                ScanSemaphore.Release();
+            }
+        }));
+
+        await Task.WhenAll(metadataTasks);
     }
 }

@@ -333,6 +333,58 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    public async Task<List<RemoteFile>> ListAllFilesAsync(string path)
+    {
+        try
+        {
+            var url = BuildUrl(path, isDirectory: true);
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListAllFiles (depth=infinity): {url}");
+            var doc = await PropFindAsync(url, 899);
+            var ns = XNamespace.Get("DAV:");
+            var files = new List<RemoteFile>();
+
+            foreach (var resp in doc.Descendants(ns + "response"))
+            {
+                var href = resp.Element(ns + "href")?.Value ?? "";
+                var propstat = resp.Element(ns + "propstat");
+                var prop = propstat?.Element(ns + "prop");
+                if (prop == null) continue;
+
+                var resType = prop.Element(ns + "resourcetype");
+                bool isDir = resType?.Element(ns + "collection") != null;
+                if (isDir) continue;
+
+                var displayName = prop.Element(ns + "displayname")?.Value ?? "";
+                var contentLength = prop.Element(ns + "getcontentlength")?.Value ?? "0";
+                var lastModified = prop.Element(ns + "getlastmodified")?.Value ?? "";
+
+                var rawName = href.Split('/').LastOrDefault(s => !string.IsNullOrEmpty(s)) ?? href;
+                var displayFromHref = Uri.UnescapeDataString(rawName);
+                var name = !string.IsNullOrEmpty(displayName) ? displayName : displayFromHref;
+
+                var normalizedPath = NormalizeHrefToPath(href);
+
+                files.Add(new RemoteFile
+                {
+                    Name = name,
+                    Path = normalizedPath,
+                    IsDirectory = false,
+                    Size = long.TryParse(contentLength, out var sz) ? sz : 0,
+                    LastModified = DateTimeOffset.TryParse(lastModified, out var dt)
+                        ? dt.ToUnixTimeSeconds() : 0
+                });
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListAllFiles 结果: {files.Count} 个文件 ({path})");
+            return files;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListAllFiles 失败 (将回退到递归扫描): {ex.Message}");
+            return new List<RemoteFile>();
+        }
+    }
+
     /// <summary>
     /// 配置并连接到 WebDAV 服务器
     /// </summary>

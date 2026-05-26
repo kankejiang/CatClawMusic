@@ -15,7 +15,8 @@
             android:layout_height="match_parent" android:hint="探索歌曲、艺术家、专辑..."
             android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
             android:background="@null" android:paddingHorizontal="16dp"
-            android:fontFamily="sans-serif" android:textSize="14sp" />
+            android:fontFamily="sans-serif" android:textSize="14sp"
+            android:importantForAutofill="no" />
     </com.google.android.material.card.MaterialCardView>
 
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/search_results"

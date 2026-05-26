@@ -18,7 +18,7 @@
 
         <!-- 顶部：歌曲信息 + 设置按钮 -->
         <RelativeLayout android:id="@+id/lyric_top_bar" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:paddingTop="16dp" android:paddingBottom="16dp"
+            android:paddingTop="0dp" android:paddingBottom="16dp"
             android:paddingHorizontal="24dp">
             <!-- 设置按钮 -->
             <ImageButton android:id="@+id/btn_lyric_settings"

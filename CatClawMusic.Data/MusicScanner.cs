@@ -67,9 +67,10 @@ public class MusicScanner
 
     /// <summary>
     /// 当前批次内已处理的远程ID集合，用于去重。忽略大小写比较。
-    /// 每次刷写后清空。
     /// </summary>
     private readonly HashSet<string> _batchRemoteIds = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly object _lock = new();
 
     /// <summary>
     /// 标记内存缓存是否已从数据库加载。首次执行 FlushAsync 时进行懒加载，
@@ -127,14 +128,25 @@ public class MusicScanner
     /// <param name="song">待添加的歌曲对象。</param>
     public async Task AddSongAsync(Song song)
     {
-        if (!string.IsNullOrEmpty(song.FilePath) && !_batchFilePaths.Add(song.FilePath))
-            return;
-        if (!string.IsNullOrEmpty(song.RemoteId) && !_batchRemoteIds.Add(song.RemoteId))
-            return;
+        Song[]? flushBatch = null;
+        lock (_lock)
+        {
+            if (!string.IsNullOrEmpty(song.FilePath) && !_batchFilePaths.Add(song.FilePath))
+                return;
+            if (!string.IsNullOrEmpty(song.RemoteId) && !_batchRemoteIds.Add(song.RemoteId))
+                return;
 
-        _pending.Add(song);
-        if (_pending.Count >= GetBatchSize())
-            await FlushAsync();
+            _pending.Add(song);
+            if (_pending.Count >= GetBatchSize())
+            {
+                flushBatch = _pending.ToArray();
+                _pending.Clear();
+                _batchFilePaths.Clear();
+                _batchRemoteIds.Clear();
+            }
+        }
+        if (flushBatch != null)
+            await FlushBatchAsync(flushBatch);
     }
 
     /// <summary>
@@ -152,18 +164,27 @@ public class MusicScanner
     /// </summary>
     public async Task FlushAsync()
     {
-        if (_pending.Count == 0) return;
+        Song[] batch;
+        lock (_lock)
+        {
+            if (_pending.Count == 0) return;
+            batch = _pending.ToArray();
+            _pending.Clear();
+            _batchFilePaths.Clear();
+            _batchRemoteIds.Clear();
+        }
+        await FlushBatchAsync(batch);
+    }
+
+    private async Task FlushBatchAsync(Song[] toInsert)
+    {
+        if (toInsert.Length == 0) return;
 
         if (!_cacheLoaded)
         {
             await LoadCachesAsync();
             _cacheLoaded = true;
         }
-
-        var toInsert = _pending.ToList();
-        _pending.Clear();
-        _batchFilePaths.Clear();
-        _batchRemoteIds.Clear();
 
         if (!_artistCache.TryGetValue(DefaultArtist, out var defaultArtistId))
         {

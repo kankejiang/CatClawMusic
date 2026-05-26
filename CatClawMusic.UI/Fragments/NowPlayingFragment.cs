@@ -40,6 +40,8 @@ public class NowPlayingFragment : Fragment
     private AudioVisualizerView _audioVisualizer = null!;
     private VisualizerHelper? _visualizerHelper;
     private Android.OS.Handler? _mainHandler;
+    private int _spectrumUpdateQueued;
+    private float[] _latestSpectrum = Array.Empty<float>();
     private ActivityResultLauncher? _recordAudioLauncher;
     private int _modeActiveColor;
     private bool _visualizerEnabled = false;
@@ -184,31 +186,6 @@ public class NowPlayingFragment : Fragment
 
         // 进度条：Touch 松开时 seek（SetOnTouchListener 不影响原生拖动）
         _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
-
-        var contentArea = view.FindViewById<LinearLayout>(Resource.Id.content_area);
-        if (contentArea != null)
-        {
-            ViewCompat.SetOnApplyWindowInsetsListener(contentArea, new WindowInsetsCallback((v, insets) =>
-            {
-                var statusBarTop = insets.GetInsets(WindowInsetsCompat.Type.StatusBars()).Top;
-                v.SetPadding(0, statusBarTop, 0, 0);
-                return insets;
-            }));
-        }
-
-        var act = Activity;
-        if (act != null)
-        {
-            act.Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
-            act.Window?.SetNavigationBarColor(Android.Graphics.Color.Transparent);
-            var insetsController = WindowCompat.GetInsetsController(act.Window!, act.Window!.DecorView);
-            if (insetsController != null)
-            {
-                var isDark = (act.Resources?.Configuration?.UiMode & Android.Content.Res.UiMode.NightMask) == Android.Content.Res.UiMode.NightYes;
-                insetsController.AppearanceLightStatusBars = !isDark;
-                insetsController.AppearanceLightNavigationBars = !isDark;
-            }
-        }
 
         SyncUIFromViewModel();
         BindViewModel();
@@ -495,9 +472,17 @@ public class NowPlayingFragment : Fragment
                 Color.GetGreenComponent(entries[entryIdx].Color),
                 Color.GetBlueComponent(entries[entryIdx].Color), hsv);
 
-            float sat = Math.Clamp(hsv[1] * 0.70f + 0.10f, 0.15f, 0.55f);
-            float val = Math.Clamp(hsv[2] * 0.50f + 0.45f, 0.82f, 0.96f);
-            result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
+            if (hsv[1] < 0.15f)
+            {
+                float val = Math.Clamp(hsv[2] * 0.35f + 0.12f, 0.08f, 0.35f);
+                result[i] = (int)Color.HSVToColor(new[] { hsv[0], 0.08f, val });
+            }
+            else
+            {
+                float sat = Math.Clamp(hsv[1] * 0.70f + 0.10f, 0.15f, 0.55f);
+                float val = Math.Clamp(hsv[2] * 0.50f + 0.45f, 0.82f, 0.96f);
+                result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
+            }
         }
 
         result[3] = result[0];
@@ -1335,15 +1320,6 @@ public class NowPlayingFragment : Fragment
         _playlistDialog?.Dismiss();
         _playlistDialog = null;
 
-        var act = Activity;
-        if (act != null)
-        {
-            var isDark = (act.Resources?.Configuration?.UiMode & Android.Content.Res.UiMode.NightMask) == Android.Content.Res.UiMode.NightYes;
-            var bgColor = isDark ? Android.Graphics.Color.ParseColor("#1A0E28") : Android.Graphics.Color.ParseColor("#F5F2FA");
-            act.Window?.SetStatusBarColor(bgColor);
-            act.Window?.SetNavigationBarColor(bgColor);
-        }
-
         base.OnDestroyView();
     }
 
@@ -1390,14 +1366,22 @@ public class NowPlayingFragment : Fragment
         var spectrumCounter = 0;
         _visualizerHelper.SpectrumUpdated += spectrum =>
         {
-            var sp = spectrum;
+            var src = spectrum;
+            if (_latestSpectrum.Length < src.Length)
+                _latestSpectrum = new float[src.Length];
+            Array.Copy(src, _latestSpectrum, src.Length);
+
+            if (Interlocked.Exchange(ref _spectrumUpdateQueued, 1) == 1)
+                return;
+
             _mainHandler.Post(() =>
             {
-                _audioVisualizer?.UpdateSpectrum(sp);
+                Interlocked.Exchange(ref _spectrumUpdateQueued, 0);
+                _audioVisualizer?.UpdateSpectrum(_latestSpectrum);
                 if (++spectrumCounter % 30 == 0)
                 {
                     float sum = 0;
-                    for (int i = 0; i < sp.Length; i++) sum += sp[i];
+                    for (int i = 0; i < _latestSpectrum.Length; i++) sum += _latestSpectrum[i];
                     Android.Util.Log.Debug("CatClaw", $"[CatClaw] SpectrumUpdated x{spectrumCounter}, sum={sum:F2}");
                 }
             });

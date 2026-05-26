@@ -490,43 +490,51 @@ void compute_mp3_duration(const uint8_t* data, int32_t size, int32_t id3_size, C
 int32_t catclaw_read_tags(const char* file_path, CatClawTagInfo* info) {
     if (!file_path || !info) return -1;
 
-    /* 初始化输出 */
-    memset(info, 0, sizeof(CatClawTagInfo));
-
     int32_t file_size = 0;
     uint8_t* data = read_file(file_path, &file_size);
     if (!data) return -1;
 
+    int32_t result = catclaw_read_tags_from_memory(data, file_size, info);
+    free(data);
+    return result;
+}
+
+int32_t catclaw_read_tags_from_memory(const uint8_t* data, int32_t size, CatClawTagInfo* info) {
+    if (!data || !info) return -1;
+
+    /* 初始化输出 */
+    memset(info, 0, sizeof(CatClawTagInfo));
+
     int result = -1;
 
     /* 检测文件类型并读取标签 */
-    if (file_size >= 3 && data[0] == 'I' && data[1] == 'D' && data[2] == '3') {
+    if (size >= 3 && data[0] == 'I' && data[1] == 'D' && data[2] == '3') {
         /* MP3 + ID3v2 标签 */
-        int id3_result = read_id3v2(data, file_size, info);
+        int id3_result = read_id3v2(data, size, info);
 
         /* 计算 ID3v2 标签总大小 */
         uint32_t tag_size = read_syncsafe(data + 6);
         int32_t id3_total = 10 + (int32_t)tag_size;
 
         /* 计算 MP3 时长 */
-        compute_mp3_duration(data, file_size, id3_total, info);
+        compute_mp3_duration(data, size, id3_total, info);
 
         result = (id3_result == 0) ? 0 : 0; /* 即使 ID3 读取失败，时长也可能有效 */
-    } else if (file_size >= 4 && data[0] == 'f' && data[1] == 'L' && data[2] == 'a' && data[3] == 'C') {
+    } else if (size >= 4 && data[0] == 'f' && data[1] == 'L' && data[2] == 'a' && data[3] == 'C') {
         /* FLAC 文件 */
-        result = read_flac_vorbis_comment(data, file_size, info);
-    } else if (file_size >= 4 && data[0] == 'O' && data[1] == 'g' && data[2] == 'g' && data[3] == 'S') {
+        result = read_flac_vorbis_comment(data, size, info);
+    } else if (size >= 4 && data[0] == 'O' && data[1] == 'g' && data[2] == 'g' && data[3] == 'S') {
         /* OGG 文件：简化处理，只读取基本信息 */
         result = -1; /* OGG Vorbis Comment 需要更复杂的解析，暂不支持 */
     } else {
         /* 尝试作为 MP3 解析（无 ID3v2 标签） */
         int32_t bitrate = 0, sample_rate = 0, channels = 0;
-        for (int32_t i = 0; i + 4 <= file_size; i++) {
+        for (int32_t i = 0; i + 4 <= size; i++) {
             uint32_t header = read_be32(data + i);
             if (parse_mp3_frame_header(header, &bitrate, &sample_rate, &channels)) {
                 info->sample_rate = sample_rate;
                 info->channels = channels;
-                int32_t audio_size = file_size - i;
+                int32_t audio_size = size - i;
                 if (bitrate > 0) {
                     info->duration_ms = (int32_t)((int64_t)audio_size * 8 * 1000 / bitrate);
                     info->bitrate_kbps = bitrate / 1000;
@@ -537,7 +545,6 @@ int32_t catclaw_read_tags(const char* file_path, CatClawTagInfo* info) {
         }
     }
 
-    free(data);
     return result;
 }
 

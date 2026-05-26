@@ -25,8 +25,8 @@ constexpr int QUANTIZE_LEVELS = 32;
 /* 量化 key 最大值：32^3 = 32768 */
 constexpr int MAX_QUANT_KEYS = 32768;
 /* 明度过滤范围 */
-constexpr float V_MIN = 0.12f;
-constexpr float V_MAX = 0.92f;
+constexpr float V_MIN = 0.05f;
+constexpr float V_MAX = 0.97f;
 
 /**
  * @brief RGB 转 HSV（内联，避免函数调用开销）

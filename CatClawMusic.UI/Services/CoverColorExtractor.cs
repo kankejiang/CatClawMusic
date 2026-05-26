@@ -66,13 +66,13 @@ public static class CoverColorExtractor
     /// 明度下限：低于此值的像素被视为"过暗"，不参与主色调提取
     /// <para>避免纯黑、极暗区域主导提取结果</para>
     /// </summary>
-    private const float VMin = 0.12f;
+    private const float VMin = 0.05f;
 
     /// <summary>
     /// 明度上限：高于此值的像素被视为"过亮"，不参与主色调提取
     /// <para>避免纯白、极亮区域主导提取结果</para>
     /// </summary>
-    private const float VMax = 0.92f;
+    private const float VMax = 0.97f;
 
     /// <summary>
     /// 最大采样尺寸：封面图片降采样后的最大边长（像素）
@@ -107,19 +107,7 @@ public static class CoverColorExtractor
             /* 优先使用 C++ 原生库取色（性能更优，避免 GetPixel JNI 开销） */
             var nativeResult = NativeInterop.ExtractColorsFromBitmap(bitmap);
             if (nativeResult != null && nativeResult.Count > 0)
-            {
-                bool allLowSat = nativeResult.All(e =>
-                {
-                    float[] h = { 0, 0, 0 };
-                    Android.Graphics.Color.RGBToHSV(
-                        Android.Graphics.Color.GetRedComponent(e.Color),
-                        Android.Graphics.Color.GetGreenComponent(e.Color),
-                        Android.Graphics.Color.GetBlueComponent(e.Color), h);
-                    return h[1] < 0.15f;
-                });
-                if (!allLowSat)
-                    return nativeResult;
-            }
+                return nativeResult;
 
             bool isGrayscaleCover = DetectGrayscaleCover(bitmap);
             if (isGrayscaleCover)
@@ -199,7 +187,7 @@ public static class CoverColorExtractor
                     var b = (kv.Key & 0x1F) * QuantizeLevels + QuantizeLevels / 2;
                     float[] hsv = { 0, 0, 0 };
                     Android.Graphics.Color.RGBToHSV(r, g, b, hsv);
-                    var score = kv.Value * (0.85f + hsv[1] * 0.15f);
+                    var score = kv.Value * (0.5f + hsv[1] * 0.5f);
                     var avgX = (float)xSumPerKey[kv.Key] / kv.Value;
                     return (Color: Android.Graphics.Color.Rgb(r, g, b), Score: score, AvgX: avgX);
                 })
@@ -223,7 +211,6 @@ public static class CoverColorExtractor
                 var cb = Android.Graphics.Color.GetBlueComponent(c);
                 Android.Graphics.Color.RGBToHSV(cr, cg, cb, hsv1);
 
-                // 检查与已选颜色的色相差，考虑色相环的循环性（0° 和 360° 是同一色相）
                 bool isDuplicate = false;
                 foreach (var existing in colors)
                 {
@@ -232,12 +219,16 @@ public static class CoverColorExtractor
                     var eg = Android.Graphics.Color.GetGreenComponent(existing);
                     var eb = Android.Graphics.Color.GetBlueComponent(existing);
                     Android.Graphics.Color.RGBToHSV(er, eg, eb, hsv2);
-                    var hueDist = Math.Abs(hsv1[0] - hsv2[0]);
-                    // 色相差取环面距离（如 350° 和 10° 的实际差为 20°）
-                    if (hueDist < minHueDist || hueDist > 360f - minHueDist)
+
+                    bool bothLowSat = hsv1[1] < 0.15f && hsv2[1] < 0.15f;
+                    if (bothLowSat)
                     {
-                        isDuplicate = true;
-                        break;
+                        if (Math.Abs(hsv1[2] - hsv2[2]) < 0.15f) { isDuplicate = true; break; }
+                    }
+                    else
+                    {
+                        var hueDist = Math.Abs(hsv1[0] - hsv2[0]);
+                        if (hueDist < minHueDist || hueDist > 360f - minHueDist) { isDuplicate = true; break; }
                     }
                 }
                 if (isDuplicate) continue;

@@ -58,6 +58,8 @@ public class MainActivity : AppCompatActivity
     private NowPlayingViewModel? _miniVm;
 
     public static MainActivity Instance { get; private set; } = null!;
+    public static int StatusBarHeight { get; private set; }
+    public static int NavBarHeight { get; private set; }
 
     public NavigationService NavigationService =>
         (NavigationService)MainApplication.Services.GetRequiredService<INavigationService>();
@@ -71,10 +73,25 @@ public class MainActivity : AppCompatActivity
 
         WindowCompat.SetDecorFitsSystemWindows(Window!, false);
 
+        Window!.AddFlags(WindowManagerFlags.DrawsSystemBarBackgrounds);
+
+        ApplySystemBarImmersive(_currentTab is 0 or 1);
+
         var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
         var isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
         insetsController.AppearanceLightStatusBars = !isDark;
         insetsController.AppearanceLightNavigationBars = !isDark;
+
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+        {
+            Window!.InsetsController!.SystemBarsBehavior =
+                (int)WindowInsetsControllerBehavior.ShowTransientBarsBySwipe;
+        }
+        else
+        {
+            insetsController.SystemBarsBehavior =
+                WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
+        }
 
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
         /* 异步初始化数据库，RestoreAsync 内部也会调用 EnsureInitializedAsync 并等待完成 */
@@ -83,15 +100,6 @@ public class MainActivity : AppCompatActivity
         SetContentView(Resource.Layout.activity_main);
 
         Window!.DecorView.ImportantForAutofill = Android.Views.ImportantForAutofill.NoExcludeDescendants;
-
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
-        {
-            Window!.DecorView.SetOnApplyWindowInsetsListener(new DecorViewInsetsListener());
-        }
-        else
-        {
-            ViewCompat.SetOnApplyWindowInsetsListener(Window!.DecorView, new DecorViewInsetsListenerCompat());
-        }
 
         DesktopLyricService.Instance.Initialize(this);
 
@@ -106,15 +114,19 @@ public class MainActivity : AppCompatActivity
             if (_miniProgress == null) return;
             if (!player.IsPlaying || player.Duration.TotalSeconds <= 0)
             {
-                _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(
-                    _miniPlayer?.Width ?? 0, 2, GravityFlags.Bottom);
+                if (_miniProgress.LayoutParameters is FrameLayout.LayoutParams lp0)
+                { lp0.Width = _miniPlayer?.Width ?? 0; lp0.Gravity = GravityFlags.Bottom; _miniProgress.LayoutParameters = lp0; }
+                else
+                    _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(_miniPlayer?.Width ?? 0, 2, GravityFlags.Bottom);
                 return;
             }
             var dur = player.Duration.TotalSeconds;
             var pos = player.CurrentPosition.TotalSeconds;
-            _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(
-                (int)(_miniPlayer!.Width * (pos / dur)), 2,
-                GravityFlags.Bottom);
+            var newWidth = (int)(_miniPlayer!.Width * (pos / dur));
+            if (_miniProgress.LayoutParameters is FrameLayout.LayoutParams lp)
+            { lp.Width = newWidth; lp.Gravity = GravityFlags.Bottom; _miniProgress.LayoutParameters = lp; }
+            else
+                _miniProgress.LayoutParameters = new FrameLayout.LayoutParams(newWidth, 2, GravityFlags.Bottom);
         });
         _miniProgressTimer.Start();
         var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
@@ -229,9 +241,11 @@ public class MainActivity : AppCompatActivity
         insetsController.AppearanceLightStatusBars = !isDark;
         insetsController.AppearanceLightNavigationBars = !isDark;
 
-        var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
-        if (mainLayout != null)
-            mainLayout.SetBackgroundColor(new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawPageBackground)));
+        ApplySystemBarImmersive(_currentTab is 0 or 1);
+
+        var rootLayout = FindViewById<FrameLayout>(Resource.Id.root_layout);
+        if (rootLayout != null)
+            rootLayout.SetBackgroundColor(new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawPageBackground)));
 
         if (_toolbar != null)
         {
@@ -333,10 +347,15 @@ public class MainActivity : AppCompatActivity
 
     private void UpdateTabUI(int index)
     {
-        bool hideNav = index is 0 or 1;
-        _toolbar.Visibility = hideNav ? ViewStates.Gone : ViewStates.Visible;
-        _bottomNav.Visibility = hideNav ? ViewStates.Gone : ViewStates.Visible;
-        SetMiniPlayerVisible(!hideNav);
+        bool immersive = index is 0 or 1;
+        _toolbar.Visibility = immersive ? ViewStates.Gone : ViewStates.Visible;
+        _bottomNav.Visibility = immersive ? ViewStates.Gone : ViewStates.Visible;
+        SetMiniPlayerVisible(!immersive);
+        ApplySystemBarImmersive(immersive);
+
+        var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
+        if (mainLayout != null)
+            mainLayout.SetPadding(0, immersive ? 0 : StatusBarHeight, 0, 0);
     }
 
     public void SetBottomNavVisible(bool visible)
@@ -583,17 +602,53 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 系统栏适配 ═══════════
 
+    private void ApplySystemBarImmersive(bool immersive)
+    {
+        if (Window == null) return;
+
+        if (immersive)
+        {
+            Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
+            Window.SetNavigationBarColor(Android.Graphics.Color.Transparent);
+
+            Window.DecorView.SystemUiVisibility =
+                (StatusBarVisibility)(SystemUiFlags.LayoutStable
+                    | SystemUiFlags.LayoutFullscreen
+                    | SystemUiFlags.LayoutHideNavigation);
+        }
+        else
+        {
+            Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
+
+            var navColor = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawNavBarBackground));
+            Window.SetNavigationBarColor(navColor);
+
+            Window.DecorView.SystemUiVisibility =
+                (StatusBarVisibility)(SystemUiFlags.LayoutStable
+                    | SystemUiFlags.LayoutFullscreen
+                    | SystemUiFlags.LayoutHideNavigation);
+        }
+    }
+
     private void FitSystemBars()
     {
         var root = FindViewById<View>(Android.Resource.Id.Content)!;
+        ViewCompat.SetFitsSystemWindows(root, false);
+        root.SetPadding(0, 0, 0, 0);
+
         ViewCompat.SetOnApplyWindowInsetsListener(root, new WindowInsetsListener((v, insets) =>
         {
             var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()
                 | WindowInsetsCompat.Type.DisplayCutout());
 
+            StatusBarHeight = bars.Top;
+            NavBarHeight = bars.Bottom;
+
+            v.SetPadding(0, 0, 0, 0);
+
             var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
             if (mainLayout != null)
-                mainLayout.SetPadding(0, bars.Top, 0, 0);
+                mainLayout.SetPadding(0, _currentTab is 0 or 1 ? 0 : bars.Top, 0, 0);
 
             _bottomNav.SetPadding(
                 _bottomNav.PaddingLeft,
@@ -608,7 +663,7 @@ public class MainActivity : AppCompatActivity
             if (_sidePanelContent != null)
                 _sidePanelContent.SetPadding(0, bars.Top, 0, 0);
 
-            return ViewCompat.OnApplyWindowInsets(v, insets);
+            return WindowInsetsCompat.Consumed;
         }));
     }
 
@@ -619,24 +674,6 @@ public class MainActivity : AppCompatActivity
         private readonly Func<View, WindowInsetsCompat, WindowInsetsCompat> _callback;
         public WindowInsetsListener(Func<View, WindowInsetsCompat, WindowInsetsCompat> callback) => _callback = callback;
         public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets) => _callback(v, insets);
-    }
-
-    private class DecorViewInsetsListener : Java.Lang.Object, Android.Views.View.IOnApplyWindowInsetsListener
-    {
-        public WindowInsets OnApplyWindowInsets(Android.Views.View v, WindowInsets insets)
-        {
-            _ = insets.GetInsetsIgnoringVisibility(WindowInsets.Type.SystemBars());
-            return WindowInsets.Consumed;
-        }
-    }
-
-    private class DecorViewInsetsListenerCompat : Java.Lang.Object, IOnApplyWindowInsetsListener
-    {
-        public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets)
-        {
-            _ = insets.GetInsetsIgnoringVisibility(WindowInsetsCompat.Type.SystemBars());
-            return WindowInsetsCompat.Consumed;
-        }
     }
 
     private class PageChangeCallback : ViewPager2.OnPageChangeCallback

@@ -151,6 +151,19 @@ typedef struct {
 int32_t catclaw_read_tags(const char* file_path, CatClawTagInfo* info);
 
 /**
+ * @brief 从内存缓冲区读取标签信息（无需文件路径）
+ *
+ * 与 catclaw_read_tags 功能相同，但直接从内存中的音频数据读取，
+ * 适用于已下载到内存的网络文件（WebDAV/SMB 远程扫描场景）。
+ *
+ * @param data  音频数据的字节指针（调用方管理生命周期）
+ * @param size  数据字节数
+ * @param info  输出标签信息
+ * @return 0 成功，-1 失败
+ */
+int32_t catclaw_read_tags_from_memory(const uint8_t* data, int32_t size, CatClawTagInfo* info);
+
+/**
  * @brief 从音频文件提取封面图片数据
  *
  * @param file_path  文件路径（UTF-8）

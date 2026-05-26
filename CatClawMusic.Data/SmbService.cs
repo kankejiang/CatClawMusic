@@ -336,6 +336,9 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    public Task<List<RemoteFile>> ListAllFilesAsync(string path)
+        => Task.FromResult(new List<RemoteFile>());
+
     /// <summary>
     /// 以流的方式读取远程文件全部内容
     /// </summary>

@@ -109,19 +109,7 @@ public class FullLyricsFragment : Fragment
         if (topBar != null)
         {
             var origTop = topBar.PaddingTop;
-            ViewCompat.SetOnApplyWindowInsetsListener(topBar, new WindowInsetsCallback((v, insets) =>
-            {
-                var statusBarTop = insets.GetInsets(WindowInsetsCompat.Type.StatusBars()).Top;
-                v.SetPadding(v.PaddingLeft, statusBarTop + origTop, v.PaddingRight, v.PaddingBottom);
-                return insets;
-            }));
-        }
-
-        var act = Activity;
-        if (act != null)
-        {
-            act.Window?.SetStatusBarColor(Android.Graphics.Color.Transparent);
-            act.Window?.SetNavigationBarColor(Android.Graphics.Color.Transparent);
+            topBar.SetPadding(topBar.PaddingLeft, MainActivity.StatusBarHeight + (int)(16 * Resources?.DisplayMetrics?.Density ?? 1), topBar.PaddingRight, topBar.PaddingBottom);
         }
 
         // 动态设置歌词容器的顶部padding，让歌词从页面底部开始
@@ -711,7 +699,18 @@ public class FullLyricsFragment : Fragment
     /// <summary>
     /// Fragment恢复可见时调用
     /// </summary>
-    public override void OnResume() { base.OnResume(); SyncUI(); }
+    public override void OnResume()
+    {
+        base.OnResume();
+        UpdateBackground();
+        UpdateProgress();
+        _songTitle.Text = _viewModel.CurrentSong?.Title ?? "";
+        _songArtist.Text = _viewModel.CurrentSong?.Artist ?? "";
+        if (_lyricViews.Count == 0)
+            RebuildLyrics();
+        else
+            HighlightCurrentLine();
+    }
 
     /// <summary>
     /// 从外部通知 Fragment 需要滚动到当前歌词位置。

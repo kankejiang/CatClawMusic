@@ -20,7 +20,8 @@
                 android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
                 android:background="@null" android:paddingHorizontal="14dp"
                 android:fontFamily="sans-serif" android:textSize="14sp"
-                android:singleLine="true" android:imeOptions="actionSearch" />
+                android:singleLine="true" android:imeOptions="actionSearch"
+                android:importantForAutofill="no" />
         </com.google.android.material.card.MaterialCardView>
         <ImageButton android:id="@+id/btn_sort" android:layout_width="36dp"
             android:layout_height="36dp" android:src="@drawable/ic_sort"

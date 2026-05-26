@@ -6,9 +6,15 @@ namespace CatClawMusic.Core.Interfaces;
 public interface INetworkFileService
 {
     /// <summary>
-    /// 列出指定路径下的文件
+    /// 列出指定路径下的文件（仅当前目录）
     /// </summary>
     Task<List<RemoteFile>> ListFilesAsync(string path);
+
+    /// <summary>
+    /// 递归列出所有文件（深度PROPFIND，一次性获取整个目录树）
+    /// 如果服务器不支持则返回空列表，调用方应回退到 ListFilesAsync 递归扫描
+    /// </summary>
+    Task<List<RemoteFile>> ListAllFilesAsync(string path);
     
     /// <summary>
     /// 打开文件流（用于读取）

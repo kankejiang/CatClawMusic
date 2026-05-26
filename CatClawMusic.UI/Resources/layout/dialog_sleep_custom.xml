@@ -35,6 +35,7 @@
                     android:textColor="#FFFFFF" android:textSize="28sp"
                     android:fontFamily="sans-serif-medium"
                     android:inputType="number"
+                    android:importantForAutofill="no"
                     android:background="@null" />
 
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"

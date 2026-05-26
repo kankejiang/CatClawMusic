@@ -36,6 +36,10 @@ public partial class NowPlayingViewModel : ObservableObject
     private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
     private volatile bool _isSwitchingSong;
     private volatile bool _isRestoring;
+    private int _lastSpannableLineIdx = -1;
+    private int _lastSpannableWordIdx = -1;
+    private int _positionUpdateQueued;
+    private TimeSpan _pendingPosition;
     /// <summary>
     /// 是否在当前歌曲播放完毕后停止
     /// </summary>
@@ -108,11 +112,34 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         var lines = CurrentLyrics?.Lines;
         var idx = CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); return; }
+        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); _lastSpannableLineIdx = -1; _lastSpannableWordIdx = -1; return; }
 
         var line = lines[idx];
         var text = line.Text;
-        if (string.IsNullOrEmpty(text)) { ClearSpannable(); return; }
+        if (string.IsNullOrEmpty(text)) { ClearSpannable(); _lastSpannableLineIdx = -1; _lastSpannableWordIdx = -1; return; }
+
+        int currentWordIdx = -1;
+        if (line.WordTimestamps is { Count: > 0 })
+        {
+            for (int i = line.WordTimestamps.Count - 1; i >= 0; i--)
+                if (line.WordTimestamps[i].Start <= CurrentPosition) { currentWordIdx = i; break; }
+        }
+        else
+        {
+            var lineDuration = GetLineDuration(lines, idx);
+            if (lineDuration.TotalMilliseconds > 0)
+            {
+                var progress = Math.Clamp((CurrentPosition - line.Timestamp).TotalMilliseconds / lineDuration.TotalMilliseconds, 0.0, 1.0);
+                var units = SplitTextUnits(text);
+                currentWordIdx = (int)(progress * units.Count);
+            }
+        }
+
+        if (idx == _lastSpannableLineIdx && currentWordIdx == _lastSpannableWordIdx)
+            return;
+
+        _lastSpannableLineIdx = idx;
+        _lastSpannableWordIdx = currentWordIdx;
 
         var hasTranslation = !string.IsNullOrEmpty(line.Translation);
         var spanText = hasTranslation ? text + "\n" + line.Translation! : text;
@@ -660,16 +687,22 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
+        _pendingPosition = position;
+        if (Interlocked.Exchange(ref _positionUpdateQueued, 1) == 1)
+            return;
+
         _dispatcher.Post(() =>
         {
+            Interlocked.Exchange(ref _positionUpdateQueued, 0);
+            var pos = _pendingPosition;
             _isPositionUpdating = true;
-            CurrentPosition = position;
+            CurrentPosition = pos;
             var duration = _audioPlayer.Duration;
             if (duration > TimeSpan.Zero)
                 TotalDuration = duration;
             if (CurrentLyrics?.Lines is { Count: > 0 })
             {
-                var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, position);
+                var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, pos);
                 if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
                 {
                     _prevLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx - 2);
@@ -704,11 +737,13 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastSpannableWordIdx = -1; return; }
         var songId = song.Id;
         CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = "";
         CurrentLyrics = null;
         CurrentLyricIndex = -1;
+        _lastSpannableLineIdx = -1;
+        _lastSpannableWordIdx = -1;
         ClearSpannable();
         try
         {

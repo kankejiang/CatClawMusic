@@ -232,6 +232,28 @@ public static class NativeInterop
     [DllImport(DllName, EntryPoint = "catclaw_read_tags")]
     public static extern int ReadTags(byte[] filePath, ref NativeTagInfo info);
 
+    [DllImport(DllName, EntryPoint = "catclaw_read_tags_from_memory")]
+    private static extern int ReadTagsFromMemory(IntPtr data, int size, ref NativeTagInfo info);
+
+    public static bool TryReadTagsFromMemory(byte[] data, out NativeTagInfo info)
+    {
+        info = default;
+        if (data == null || data.Length == 0) return false;
+        var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+        try
+        {
+            return ReadTagsFromMemory(handle.AddrOfPinnedObject(), data.Length, ref info) == 0;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            handle.Free();
+        }
+    }
+
     /// <summary>
     /// 从音频文件提取封面图片数据
     /// </summary>
@@ -422,6 +444,11 @@ public static class NativeInterop
         }
     }
 
+    [ThreadStatic]
+    private static int[]? _cachedPixelBuffer;
+    [ThreadStatic]
+    private static uint[]? _cachedUintBuffer;
+
     /// <summary>
     /// 使用原生库从 Bitmap 提取主色调
     /// 如果原生库不可用，返回 null（由 C# 回退逻辑处理）
@@ -438,24 +465,32 @@ public static class NativeInterop
             /* 降采样：大图缩放至 120x120 以内 */
             const int maxSampleSize = 120;
             Android.Graphics.Bitmap? sampled = null;
+            int sampleW, sampleH;
             if (bitmap.Width > maxSampleSize || bitmap.Height > maxSampleSize)
             {
                 var scale = (float)maxSampleSize / Math.Max(bitmap.Width, bitmap.Height);
-                var w = Math.Max((int)(bitmap.Width * scale), 1);
-                var h = Math.Max((int)(bitmap.Height * scale), 1);
-                sampled = Android.Graphics.Bitmap.CreateScaledBitmap(bitmap, w, h, false);
+                sampleW = Math.Max((int)(bitmap.Width * scale), 1);
+                sampleH = Math.Max((int)(bitmap.Height * scale), 1);
+                sampled = Android.Graphics.Bitmap.CreateScaledBitmap(bitmap, sampleW, sampleH, false);
             }
             else
             {
                 sampled = bitmap;
+                sampleW = sampled.Width;
+                sampleH = sampled.Height;
             }
 
-            /* 将 Bitmap 像素数据复制到 uint[] 数组 */
-            var pixelArray = new int[sampled.Width * sampled.Height];
-            sampled.GetPixels(pixelArray, 0, sampled.Width, 0, 0, sampled.Width, sampled.Height);
-            var pixels = new uint[pixelArray.Length];
-            for (int i = 0; i < pixelArray.Length; i++)
-                pixels[i] = (uint)pixelArray[i];
+            int pixelCount = sampleW * sampleH;
+
+            /* 复用线程静态缓冲区，避免每次切歌分配 LOS 大对象 */
+            if (_cachedPixelBuffer == null || _cachedPixelBuffer.Length < pixelCount)
+                _cachedPixelBuffer = new int[pixelCount];
+            if (_cachedUintBuffer == null || _cachedUintBuffer.Length < pixelCount)
+                _cachedUintBuffer = new uint[pixelCount];
+
+            sampled.GetPixels(_cachedPixelBuffer, 0, sampleW, 0, 0, sampleW, sampleH);
+            for (int i = 0; i < pixelCount; i++)
+                _cachedUintBuffer[i] = (uint)_cachedPixelBuffer[i];
 
             /* 释放降采样位图 */
             if (sampled != bitmap && sampled != null)
@@ -463,8 +498,7 @@ public static class NativeInterop
 
             /* 调用原生取色 */
             var entries = new NativeColorEntry[6];
-            int count = ExtractColors(pixels, sampled != bitmap ? sampled.Width : bitmap.Width,
-                sampled != bitmap ? sampled.Height : bitmap.Height, 6, entries);
+            int count = ExtractColors(_cachedUintBuffer, sampleW, sampleH, 6, entries);
 
             if (count <= 0) return null;
 
