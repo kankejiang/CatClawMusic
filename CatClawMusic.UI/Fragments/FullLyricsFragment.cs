@@ -109,12 +109,7 @@ public class FullLyricsFragment : Fragment
         if (topBar != null)
         {
             var origTop = topBar.PaddingTop;
-            ViewCompat.SetOnApplyWindowInsetsListener(topBar, new WindowInsetsCallback((v, insets) =>
-            {
-                var statusBarTop = insets.GetInsets(WindowInsetsCompat.Type.StatusBars()).Top;
-                v.SetPadding(v.PaddingLeft, statusBarTop + origTop, v.PaddingRight, v.PaddingBottom);
-                return insets;
-            }));
+            topBar.SetPadding(topBar.PaddingLeft, MainActivity.StatusBarHeight + origTop, topBar.PaddingRight, topBar.PaddingBottom);
         }
 
         var act = Activity;

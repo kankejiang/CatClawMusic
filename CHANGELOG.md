@@ -1,5 +1,57 @@
 # 更新日志 (CHANGELOG)
 
+## [1.0.14] - 2026-05-27
+
+### 🖥️ 全面屏沉浸式适配
+
+- **状态栏透明沉浸**：播放页状态栏透明，SweepGradient 背景和专辑封面延伸至状态栏后方，实现类似网易云音乐的全面屏沉浸效果
+- **浅色模式状态栏图标**：状态栏图标根据深浅主题自动切换明暗
+- **edge-to-edge 全面适配**：`SetDecorFitsSystemWindows(false)` + `enforceStatusBarContrast=false` + 布局层级重构
+- **主页系统栏适配**：`FitSystemBars()` 统一处理 toolbar、bottom nav、side panel 的 insets padding
+
+### 🎨 SweepGradient 锥形渐变背景
+
+- **零内存分配渲染**：`SweepGradientView` 自定义 View，通过 `OnDraw` + `Paint.Shader` 直接渲染，消除每帧创建 Bitmap 的 GC 风暴
+- **三色锥形渐变**：从封面取 3 色构建 SweepGradient，圆心藏在封面后，顺时针 15°/秒旋转
+- **色彩准确度提升**：重写取色算法——面积主导评分（频率权重 85%）、灰度封面检测（>70% 低饱和）、HSV 色度去重
+
+### 📋 歌单功能增强
+
+- **随机播放按钮**：歌单详情页新增一键随机播放
+- **13 种排序方式**：标题/文件名/专辑/艺术家/时长/年份/添加时间/播放次数/随机/自定义
+- **多选批量操作**：多选模式下支持移出歌单/添加到歌单/添加到播放列表
+- **自定义排序拖拽**：`ItemTouchHelper` 实现长按拖拽重排歌单顺序
+- **排序持久化**：排序方式通过 SharedPreferences 持久化，重新进入歌单保持上次排序
+
+### 🎵 歌词双语显示
+
+- **全屏歌词页**：每条歌词同时显示原文和译文，高亮行同时高亮译文
+
+### 🚀 性能与启动优化
+
+- **启动不自动加载歌曲**：进入音乐库时才加载，减少启动时间
+- **覆盖取色线程安全**：修复 `CoverColorExtractor` 异步回调中的线程安全问题
+
+### 📦 音乐库排序
+
+- 新增排序按钮，支持按文件名/添加时间/文件大小/文件夹/艺术家/标题排序
+
+### 🔧 页面过渡动画
+
+- 导航新增滑动过渡动画（slide_in_right / slide_out_left / slide_in_left / slide_out_right）
+
+### 🐛 Bug 修复
+
+| 问题 | 修复方案 |
+|------|---------|
+| 全部歌曲数量与音乐库不一致 | `GetMergedSongsAsync`（标题+艺术家去重）改为 `GetAllSongsAsync` |
+| 自定义排序只能拖动一首 | `DragSortCallback` 通知 adapter 后恢复数据源绑定 |
+| 播放列表弹窗先大后小 | 预计算高度 `min(count * 72dp, maxHeight)` |
+| 排序未持久化 | 从反射 Method.Name 改为显式字符串 key + Dictionary 查询 |
+| 歌单退出无过渡动画 | `PopBackStackImmediate()` 改为 `PopBackStack()` |
+
+---
+
 ## [1.0.13] - 2026-05-26
 
 ### ✨ 流光效果优化

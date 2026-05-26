@@ -58,6 +58,8 @@ public class MainActivity : AppCompatActivity
     private NowPlayingViewModel? _miniVm;
 
     public static MainActivity Instance { get; private set; } = null!;
+    public static int StatusBarHeight { get; private set; }
+    public static int NavBarHeight { get; private set; }
 
     public NavigationService NavigationService =>
         (NavigationService)MainApplication.Services.GetRequiredService<INavigationService>();
@@ -83,15 +85,6 @@ public class MainActivity : AppCompatActivity
         SetContentView(Resource.Layout.activity_main);
 
         Window!.DecorView.ImportantForAutofill = Android.Views.ImportantForAutofill.NoExcludeDescendants;
-
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
-        {
-            Window!.DecorView.SetOnApplyWindowInsetsListener(new DecorViewInsetsListener());
-        }
-        else
-        {
-            ViewCompat.SetOnApplyWindowInsetsListener(Window!.DecorView, new DecorViewInsetsListenerCompat());
-        }
 
         DesktopLyricService.Instance.Initialize(this);
 
@@ -591,6 +584,9 @@ public class MainActivity : AppCompatActivity
             var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()
                 | WindowInsetsCompat.Type.DisplayCutout());
 
+            StatusBarHeight = bars.Top;
+            NavBarHeight = bars.Bottom;
+
             var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
             if (mainLayout != null)
                 mainLayout.SetPadding(0, bars.Top, 0, 0);
@@ -608,7 +604,7 @@ public class MainActivity : AppCompatActivity
             if (_sidePanelContent != null)
                 _sidePanelContent.SetPadding(0, bars.Top, 0, 0);
 
-            return ViewCompat.OnApplyWindowInsets(v, insets);
+            return WindowInsetsCompat.Consumed;
         }));
     }
 
@@ -619,24 +615,6 @@ public class MainActivity : AppCompatActivity
         private readonly Func<View, WindowInsetsCompat, WindowInsetsCompat> _callback;
         public WindowInsetsListener(Func<View, WindowInsetsCompat, WindowInsetsCompat> callback) => _callback = callback;
         public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets) => _callback(v, insets);
-    }
-
-    private class DecorViewInsetsListener : Java.Lang.Object, Android.Views.View.IOnApplyWindowInsetsListener
-    {
-        public WindowInsets OnApplyWindowInsets(Android.Views.View v, WindowInsets insets)
-        {
-            _ = insets.GetInsetsIgnoringVisibility(WindowInsets.Type.SystemBars());
-            return WindowInsets.Consumed;
-        }
-    }
-
-    private class DecorViewInsetsListenerCompat : Java.Lang.Object, IOnApplyWindowInsetsListener
-    {
-        public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets)
-        {
-            _ = insets.GetInsetsIgnoringVisibility(WindowInsetsCompat.Type.SystemBars());
-            return WindowInsetsCompat.Consumed;
-        }
     }
 
     private class PageChangeCallback : ViewPager2.OnPageChangeCallback

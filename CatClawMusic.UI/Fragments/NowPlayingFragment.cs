@@ -185,17 +185,6 @@ public class NowPlayingFragment : Fragment
         // 进度条：Touch 松开时 seek（SetOnTouchListener 不影响原生拖动）
         _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
 
-        var contentArea = view.FindViewById<LinearLayout>(Resource.Id.content_area);
-        if (contentArea != null)
-        {
-            ViewCompat.SetOnApplyWindowInsetsListener(contentArea, new WindowInsetsCallback((v, insets) =>
-            {
-                var statusBarTop = insets.GetInsets(WindowInsetsCompat.Type.StatusBars()).Top;
-                v.SetPadding(0, statusBarTop, 0, 0);
-                return insets;
-            }));
-        }
-
         var act = Activity;
         if (act != null)
         {
