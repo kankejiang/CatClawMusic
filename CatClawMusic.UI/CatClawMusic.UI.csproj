@@ -7,13 +7,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
-    <ApplicationVersion>15</ApplicationVersion>
-    <ApplicationDisplayVersion>1.0.14</ApplicationDisplayVersion>
+    <ApplicationVersion>16</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0.15</ApplicationDisplayVersion>
     <LangVersion>preview</LangVersion>
     <NoWarn>NU1605;NU1608</NoWarn>
     <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
     <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
-    <Aapt2ToolPath Condition="Exists('$(AndroidSdkDirectory)\build-tools\35.0.0')">$(AndroidSdkDirectory)\build-tools\35.0.0</Aapt2ToolPath>
+    <Aapt2ToolPath Condition="'$(Configuration)'=='Release'">C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows\35.0.105\tools</Aapt2ToolPath>
     <AndroidUseAapt2>true</AndroidUseAapt2>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -35,6 +35,22 @@
     <AndroidNativeLibrary Include="libs\arm64-v8a\libcatclaw_native.so" Abi="arm64-v8a" />
     <AndroidNativeLibrary Include="libs\armeabi-v7a\libcatclaw_native.so" Abi="armeabi-v7a" />
     <AndroidNativeLibrary Include="libs\x86_64\libcatclaw_native.so" Abi="x86_64" />
+  </ItemGroup>
+
+  <!-- 自动编译 C++ 原生库（改 C++ 代码后无需手动执行 ndk-build） -->
+  <Target Name="BuildNativeLibrary" BeforeTargets="BeforeBuild"
+          Inputs="@(NativeSource)" Outputs="@(NativeOutput)">
+    <Exec Command="&quot;$(AppData)\Android\Sdk\ndk\27.0.12077973\ndk-build.cmd&quot; -j4 NDK_PROJECT_PATH=$(MSBuildProjectDirectory)\..\CatClawMusic.Native APP_BUILD_SCRIPT=jni/Android.mk"
+          WorkingDirectory="$(MSBuildProjectDirectory)\..\CatClawMusic.Native" />
+  </Target>
+
+  <ItemGroup>
+    <NativeSource Include="..\CatClawMusic.Native\src\*.cpp" />
+    <NativeSource Include="..\CatClawMusic.Native\include\*.h" />
+    <NativeSource Include="..\CatClawMusic.Native\jni\*.mk" />
+    <NativeOutput Include="libs\arm64-v8a\libcatclaw_native.so" />
+    <NativeOutput Include="libs\armeabi-v7a\libcatclaw_native.so" />
+    <NativeOutput Include="libs\x86_64\libcatclaw_native.so" />
   </ItemGroup>
 
   <ItemGroup>

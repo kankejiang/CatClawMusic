@@ -108,13 +108,15 @@ public class AudioVisualizerView : View
     private class FrameCallback : Java.Lang.Object, Choreographer.IFrameCallback
     {
         private readonly WeakReference<AudioVisualizerView> _view;
+        private int _frameCount;
         public FrameCallback(AudioVisualizerView view) => _view = new WeakReference<AudioVisualizerView>(view);
         public void DoFrame(long frameTimeNanos)
         {
             if (_view.TryGetTarget(out var view) && view._isAttached)
             {
                 view._isFrameCallbackPosted = false;
-                view.Invalidate();
+                if (++_frameCount % 2 == 0)
+                    view.Invalidate();
                 view.PostFrameCallback();
             }
         }

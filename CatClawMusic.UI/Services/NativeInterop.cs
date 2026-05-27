@@ -274,10 +274,9 @@ public static class NativeInterop
     [StructLayout(LayoutKind.Sequential)]
     public struct NativeColorEntry
     {
-        /// <summary>ARGB 颜色值</summary>
         public int Color;
-        /// <summary>水平中心位置（0~1 归一化）</summary>
         public float CenterX;
+        public float Weight;
     }
 
     /// <summary>
@@ -509,7 +508,8 @@ public static class NativeInterop
                 result.Add(new ColorEntry
                 {
                     Color = entries[i].Color,
-                    CenterX = entries[i].CenterX
+                    CenterX = entries[i].CenterX,
+                    Weight = entries[i].Weight
                 });
             }
             return result;

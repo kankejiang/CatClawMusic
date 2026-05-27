@@ -45,6 +45,10 @@ public class NowPlayingFragment : Fragment
     private ActivityResultLauncher? _recordAudioLauncher;
     private int _modeActiveColor;
     private bool _visualizerEnabled = false;
+    private LyricProgressCallback? _lyricProgressCallback;
+    private bool _lyricGradientActive;
+    private double _lyricLineStartMs;
+    private double _lyricLineDurationMs;
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
     private bool _sleepFinishSong;
@@ -54,11 +58,13 @@ public class NowPlayingFragment : Fragment
     private int _targetBackgroundColor;
     private List<ColorEntry>? _currentEntries;
     private int[]? _flowColors;
+    private float[]? _flowPositions;
 
     private bool _flowPaused;
     private long _flowPauseTime;
     private long _flowTimeOffset;
     private float _sweepAngle;
+    private int _flowFrameSkip;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
 
     /// <summary>
@@ -233,7 +239,7 @@ public class NowPlayingFragment : Fragment
         {
             _currentEntries = newEntries;
             _currentBackgroundColor = _targetBackgroundColor;
-            _flowColors = PickVividColors(newEntries, 3);
+            _flowColors = PickVividColors(newEntries);
             ApplySweepGradientBackground(newEntries);
             StartFlowAnimation();
             return;
@@ -245,16 +251,17 @@ public class NowPlayingFragment : Fragment
         _colorTransitionAnimator.SetInterpolator(new Android.Views.Animations.AccelerateDecelerateInterpolator());
 
         var oldColors = _flowColors != null ? (int[])_flowColors.Clone() : null;
-        var newColors = PickVividColors(newEntries, 3);
+        var newColors = PickVividColors(newEntries);
 
         _colorTransitionAnimator.Update += (s, e) =>
         {
             var fraction = (float)e.Animation.AnimatedValue;
-            if (oldColors != null && _flowColors != null)
+            if (oldColors != null && _flowColors != null && newColors != null)
             {
-                for (int i = 0; i < Math.Min(oldColors.Length, 3); i++)
+                var len = Math.Min(oldColors.Length, newColors.Length);
+                for (int i = 0; i < len - 1; i++)
                     _flowColors[i] = BlendColor(oldColors[i], newColors[i], fraction);
-                if (_flowColors.Length > 3) _flowColors[3] = _flowColors[0];
+                _flowColors[_flowColors.Length - 1] = _flowColors[0];
             }
         };
 
@@ -297,6 +304,7 @@ public class NowPlayingFragment : Fragment
 
         _flowAnimator.Update += (s, e) =>
         {
+            if (++_flowFrameSkip % 3 != 0) return;
             var rawTime = SystemClock.ElapsedRealtime();
             var t = (rawTime - _flowTimeOffset) / 1000f;
             _sweepAngle = (t * 15f) % 360f;
@@ -357,8 +365,6 @@ public class NowPlayingFragment : Fragment
 
         _albumCover.Animate().Cancel();
 
-        /* 必须在设置 Alpha/ScaleX/ScaleY 之前检查旧 Bitmap 是否已回收，
-         * 因为修改这些属性会触发 draw，对已回收的 Bitmap 绘制会抛出 RuntimeException */
         try
         {
             var oldDrawable = _albumCover.Drawable as Android.Graphics.Drawables.BitmapDrawable;
@@ -372,38 +378,54 @@ public class NowPlayingFragment : Fragment
             try { _albumCover.SetImageResource(Resource.Drawable.cover_default); } catch { }
         }
 
-        /* 启用硬件层：封面切换动画仅变换 Alpha/ScaleX/ScaleY，
-         * 硬件层将封面缓存为 GPU 纹理，避免每帧重新光栅化 Bitmap */
-        _albumCover.SetLayerType(global::Android.Views.LayerType.Hardware, null);
-
-        _albumCover.Alpha = 0.3f;
-        _albumCover.ScaleX = 0.92f;
-        _albumCover.ScaleY = 0.92f;
-
-        try
+        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
         {
-            if (!string.IsNullOrEmpty(newCoverPath) && File.Exists(newCoverPath))
-                _albumCover.SetImageDrawable(Android.Graphics.Drawables.Drawable.CreateFromPath(newCoverPath));
-            else
-                _albumCover.SetImageResource(Resource.Drawable.cover_default);
-        }
-        catch
-        {
-            try { _albumCover.SetImageResource(Resource.Drawable.cover_default); } catch { }
-        }
-
-        _albumCover.Animate()
-            .Alpha(1f)
-            .ScaleX(1f)
-            .ScaleY(1f)
-            .SetDuration(500)
-            .SetInterpolator(new Android.Views.Animations.OvershootInterpolator(0.8f))
-            .WithEndAction(new Java.Lang.Runnable(() =>
+            Bitmap? bitmap = null;
+            try
             {
-                /* 动画结束后恢复默认图层类型，释放 GPU 纹理内存 */
-                try { _albumCover.SetLayerType(global::Android.Views.LayerType.None, null); } catch { }
-            }))
-            .Start();
+                if (!string.IsNullOrEmpty(newCoverPath) && File.Exists(newCoverPath))
+                    bitmap = BitmapFactory.DecodeFile(newCoverPath);
+            }
+            catch { }
+
+            Activity?.RunOnUiThread(() =>
+            {
+                if (_albumCover == null)
+                {
+                    bitmap?.Recycle();
+                    return;
+                }
+
+                _albumCover.SetLayerType(global::Android.Views.LayerType.Hardware, null);
+                _albumCover.Alpha = 0.3f;
+                _albumCover.ScaleX = 0.92f;
+                _albumCover.ScaleY = 0.92f;
+
+                try
+                {
+                    if (bitmap != null)
+                        _albumCover.SetImageBitmap(bitmap);
+                    else
+                        _albumCover.SetImageResource(Resource.Drawable.cover_default);
+                }
+                catch
+                {
+                    try { _albumCover.SetImageResource(Resource.Drawable.cover_default); } catch { }
+                }
+
+                _albumCover.Animate()
+                    .Alpha(1f)
+                    .ScaleX(1f)
+                    .ScaleY(1f)
+                    .SetDuration(500)
+                    .SetInterpolator(new Android.Views.Animations.OvershootInterpolator(0.8f))
+                    .WithEndAction(new Java.Lang.Runnable(() =>
+                    {
+                        try { _albumCover.SetLayerType(global::Android.Views.LayerType.None, null); } catch { }
+                    }))
+                    .Start();
+            });
+        });
     }
 
     /// <summary>
@@ -415,7 +437,17 @@ public class NowPlayingFragment : Fragment
 
         var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
 
-        _flowColors = PickVividColors(entries, 3);
+        var sorted = entries.OrderByDescending(e => e.Weight).ToList();
+        var totalWeight = sorted.Sum(e => Math.Max(e.Weight, 0.01f));
+        var topEntries = sorted.Where(e => e.Weight / totalWeight >= 0.20f).Take(3).ToList();
+
+        if (topEntries.Count == 0)
+            topEntries.Add(sorted[0]);
+        if (topEntries.Count == 1)
+            topEntries.Add(topEntries[0]);
+
+        _flowColors = PickVividColors(topEntries);
+        _flowPositions = CalculateWeightedPositions(topEntries);
         BuildAndApplySweepGradient();
 
         if (_reflectionMaskBottom != null)
@@ -445,47 +477,74 @@ public class NowPlayingFragment : Fragment
 
     private void BuildAndApplySweepGradient()
     {
-        if (_gradientBackground == null || _flowColors == null || _flowColors.Length < 4) return;
-        _gradientBackground.SetGradient(_flowColors!, new float[] { 0f, 0.333f, 0.667f, 1f });
+        if (_gradientBackground == null || _flowColors == null || _flowColors.Length < 3) return;
+        var positions = _flowPositions;
+        if (positions == null || positions.Length != _flowColors.Length)
+        {
+            var n = _flowColors.Length - 1;
+            positions = new float[_flowColors.Length];
+            for (int i = 0; i <= n; i++)
+                positions[i] = (float)i / n;
+            _flowPositions = positions;
+        }
+        _gradientBackground.SetGradient(_flowColors!, positions);
         _gradientBackground.SetRotationAngle(_sweepAngle);
     }
 
     private void UpdateSweepGradientColors()
     {
-        if (_flowColors == null || _flowColors.Length < 4 || _gradientBackground == null) return;
+        if (_flowColors == null || _flowColors.Length < 3 || _gradientBackground == null) return;
         _gradientBackground.UpdateColors(_flowColors);
         _gradientBackground.SetRotationAngle(_sweepAngle);
     }
 
-    private static int[] PickVividColors(List<ColorEntry> entries, int count)
+    private static float[] CalculateWeightedPositions(List<ColorEntry> entries)
+    {
+        if (entries.Count < 2)
+            return new float[] { 0f, 0.5f, 1f };
+
+        var totalWeight = entries.Sum(e => Math.Max(e.Weight, 0.01f));
+        var positions = new float[entries.Count + 1];
+        positions[0] = 0f;
+        var cumulative = 0f;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            cumulative += entries[i].Weight / totalWeight;
+            positions[i + 1] = Math.Clamp(cumulative, 0f, 1f);
+        }
+        return positions;
+    }
+
+    private static int[] PickVividColors(List<ColorEntry> entries)
     {
         if (entries.Count == 0) return new[] { (int)Color.Argb(0xFF, 0xF0, 0xF2, 0xF5), (int)Color.Argb(0xFF, 0xEE, 0xF0, 0xF5), (int)Color.Argb(0xFF, 0xF0, 0xF0, 0xF5), (int)Color.Argb(0xFF, 0xF0, 0xF2, 0xF5) };
 
-        var result = new int[4];
+        var n = entries.Count;
+        var result = new int[n + 1];
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < n; i++)
         {
-            int entryIdx = Math.Min(i, entries.Count - 1);
             float[] hsv = { 0, 0, 0 };
             Color.RGBToHSV(
-                Color.GetRedComponent(entries[entryIdx].Color),
-                Color.GetGreenComponent(entries[entryIdx].Color),
-                Color.GetBlueComponent(entries[entryIdx].Color), hsv);
+                Color.GetRedComponent(entries[i].Color),
+                Color.GetGreenComponent(entries[i].Color),
+                Color.GetBlueComponent(entries[i].Color), hsv);
 
             if (hsv[1] < 0.15f)
             {
-                float val = Math.Clamp(hsv[2] * 0.35f + 0.12f, 0.08f, 0.35f);
-                result[i] = (int)Color.HSVToColor(new[] { hsv[0], 0.08f, val });
+                float sat = Math.Clamp(hsv[2] * 0.06f, 0.02f, 0.06f);
+                float val = Math.Clamp(hsv[2] * 0.35f + 0.50f, 0.30f, 1.0f);
+                result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
             }
             else
             {
-                float sat = Math.Clamp(hsv[1] * 0.70f + 0.10f, 0.15f, 0.55f);
-                float val = Math.Clamp(hsv[2] * 0.50f + 0.45f, 0.82f, 0.96f);
+                float sat = Math.Clamp(hsv[1] * 0.60f + 0.10f, 0.12f, 0.45f);
+                float val = Math.Clamp(hsv[2] * 0.40f + 0.55f, 0.85f, 0.98f);
                 result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
             }
         }
 
-        result[3] = result[0];
+        result[n] = result[0];
         return result;
     }
 
@@ -726,6 +785,7 @@ public class NowPlayingFragment : Fragment
                     UpdateLikeIcon();
                     break;
                 case nameof(_viewModel.CurrentSong):
+                    StopLyricGradientUpdates();
                     _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
                     if ((_viewModel.CurrentSong?.Source == SongSource.WebDAV || _viewModel.CurrentSong?.Source == SongSource.SMB) && _viewModel.CurrentSong.Artist == "未知艺术家")
                         _songArtist.Text = "正在加载...";
@@ -812,8 +872,6 @@ public class NowPlayingFragment : Fragment
     }
 
     /// <summary>
-    /// 设当前歌词文本，优先用 ViewModel 生成的逐字 Spannable
-    /// </summary>
     private void ApplyCurrentLineWithSpannable(string? plainText)
     {
         if (_lyricCurrent == null) return;
@@ -821,11 +879,15 @@ public class NowPlayingFragment : Fragment
         if (spannable != null)
         {
             _lyricCurrent.SetText(spannable, TextView.BufferType.Spannable);
+            _lyricCurrent.SetupLyricGradient();
+            CacheLyricLineTiming();
+            StartLyricGradientUpdates();
         }
         else if (plainText != null)
         {
             _lyricCurrent.Text = plainText;
             _lyricCurrent.Alpha = 1f;
+            StopLyricGradientUpdates();
         }
         _lyricCurrent.TranslationY = 0f;
     }
@@ -1311,6 +1373,7 @@ public class NowPlayingFragment : Fragment
     public override void OnDestroyView()
     {
         StopFlowAnimation();
+        StopLyricGradientUpdates();
         var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
         if (playerSvc != null)
             playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;
@@ -1387,6 +1450,63 @@ public class NowPlayingFragment : Fragment
             });
         };
         _visualizerHelper.Start(sessionId);
+    }
+
+    private void StartLyricGradientUpdates()
+    {
+        if (_lyricGradientActive) return;
+        _lyricGradientActive = true;
+        _lyricProgressCallback ??= new LyricProgressCallback(this);
+        Choreographer.Instance.PostFrameCallback(_lyricProgressCallback);
+    }
+
+    private void StopLyricGradientUpdates()
+    {
+        _lyricGradientActive = false;
+    }
+
+    private void CacheLyricLineTiming()
+    {
+        var lines = _viewModel.CurrentLyrics?.Lines;
+        var idx = _viewModel.CurrentLyricIndex;
+        if (lines == null || idx < 0 || idx >= lines.Count) { _lyricLineDurationMs = 0; return; }
+
+        _lyricLineStartMs = lines[idx].Timestamp.TotalMilliseconds;
+        if (idx + 1 < lines.Count)
+        {
+            var gap = (lines[idx + 1].Timestamp - lines[idx].Timestamp).TotalMilliseconds;
+            _lyricLineDurationMs = gap > 0 && gap < 30000 ? gap : 5000;
+        }
+        else
+        {
+            _lyricLineDurationMs = 5000;
+        }
+    }
+
+    private void UpdateLyricGradientProgress()
+    {
+        if (!_lyricGradientActive || _lyricCurrent == null || _lyricLineDurationMs <= 0) return;
+        var nowMs = _viewModel.CurrentPosition.TotalMilliseconds;
+        var progress = (float)Math.Clamp((nowMs - _lyricLineStartMs) / _lyricLineDurationMs, 0.0, 1.0);
+        _lyricCurrent.SetLyricProgress(progress);
+    }
+
+    private class LyricProgressCallback : Java.Lang.Object, Choreographer.IFrameCallback
+    {
+        private readonly WeakReference<NowPlayingFragment> _fragment;
+        private int _frameCount;
+        public LyricProgressCallback(NowPlayingFragment f) => _fragment = new(f);
+
+        public void DoFrame(long frameTimeNanos)
+        {
+            if (_fragment.TryGetTarget(out var f))
+            {
+                if (++_frameCount % 2 == 0)
+                    f.UpdateLyricGradientProgress();
+                if (f._lyricGradientActive)
+                    Choreographer.Instance.PostFrameCallback(this);
+            }
+        }
     }
 
     internal class RecordAudioCallback : Java.Lang.Object, AndroidX.Activity.Result.IActivityResultCallback
