@@ -9,6 +9,10 @@ add_library(catclaw_native SHARED
     src/lrc_parser.cpp
     src/tag_reader.cpp
     src/native_bridge.cpp
+    src/color_extractor.cpp
+    src/audio_processor.cpp
+    src/spectrum_processor.cpp
+    src/stack_blur.cpp
 )
 
 target_include_directories(catclaw_native PRIVATE

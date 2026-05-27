@@ -16,21 +16,11 @@ namespace CatClawMusic.UI.Services;
 /// </summary>
 public class ColorEntry
 {
-    /// <summary>
-    /// 颜色值（ARGB 格式）
-    /// <para>由色彩量化算法从封面像素中提取，代表一个主色调</para>
-    /// </summary>
     public int Color { get; set; }
 
-    /// <summary>
-    /// 颜色在封面中的水平中心位置（0~1 归一化）
-    /// <para>
-    /// 计算方式：该色调所有像素的 x 坐标平均值，经归一化处理。
-    /// 0 表示位于封面最左侧，1 表示最右侧，0.5 表示居中。
-    /// 用于动态渐变背景中确定各色停的水平位置。
-    /// </para>
-    /// </summary>
     public float CenterX { get; set; }
+
+    public float Weight { get; set; } = 1f;
 }
 
 /// <summary>
@@ -236,7 +226,7 @@ public static class CoverColorExtractor
                 // 通过去重检查，加入结果列表
                 colors.Add(c);
                 xPositions.Add(entry.AvgX);
-                result.Add(new ColorEntry { Color = c, CenterX = entry.AvgX });
+                result.Add(new ColorEntry { Color = c, CenterX = entry.AvgX, Weight = entry.Score });
 
                 // 最多提取 6 种主色调
                 if (result.Count >= 6) break;
@@ -288,7 +278,8 @@ public static class CoverColorExtractor
                     result.Add(new ColorEntry
                     {
                         Color = Android.Graphics.Color.Rgb((int)(rSum / count), (int)(gSum / count), (int)(bSum / count)),
-                        CenterX = 0.5f   // 兜底颜色默认居中
+                        CenterX = 0.5f,
+                        Weight = 1f
                     });
             }
         }
@@ -423,7 +414,7 @@ public static class CoverColorExtractor
 
             selectedColors.Add(entry.Color);
             selectedX.Add(entry.AvgX);
-            result.Add(new ColorEntry { Color = entry.Color, CenterX = entry.AvgX });
+            result.Add(new ColorEntry { Color = entry.Color, CenterX = entry.AvgX, Weight = (float)entry.Score });
 
             if (result.Count >= 3) break;
         }

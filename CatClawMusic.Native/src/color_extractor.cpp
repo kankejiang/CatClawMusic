@@ -214,6 +214,7 @@ int32_t catclaw_extract_colors(
         selected_hues[result_count] = h;
         entries[result_count].color = hsv_to_argb(h, s, v);
         entries[result_count].center_x = scored[i].avg_x;
+        entries[result_count].weight = scored[i].score;
         result_count++;
 
         /* 前3个颜色选完后，放宽色相差要求 */
@@ -263,6 +264,7 @@ int32_t catclaw_extract_colors(
             int32_t b = (int32_t)(b_sum / count);
             entries[0].color = (0xFF << 24) | (r << 16) | (g << 8) | b;
             entries[0].center_x = 0.5f;
+            entries[0].weight = 1.0f;
             result_count = 1;
         }
     }

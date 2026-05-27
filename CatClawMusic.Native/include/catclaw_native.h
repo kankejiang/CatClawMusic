@@ -201,6 +201,7 @@ int32_t catclaw_scan_directory(
 typedef struct {
     int32_t color;    /* ARGB 颜色值 */
     float center_x;   /* 水平中心位置（0~1 归一化） */
+    float weight;     /* 该颜色在封面中的占比权重 */
 } CatClawColorEntry;
 
 /**

@@ -37,9 +37,15 @@ public partial class NowPlayingViewModel : ObservableObject
     private volatile bool _isSwitchingSong;
     private volatile bool _isRestoring;
     private int _lastSpannableLineIdx = -1;
-    private int _lastSpannableWordIdx = -1;
     private int _positionUpdateQueued;
     private TimeSpan _pendingPosition;
+
+    private float _currentLyricProgress;
+    public float CurrentLyricProgress
+    {
+        get => _currentLyricProgress;
+        set { if (Math.Abs(_currentLyricProgress - value) > 0.001f) { _currentLyricProgress = value; OnPropertyChanged(); } }
+    }
     /// <summary>
     /// 是否在当前歌曲播放完毕后停止
     /// </summary>
@@ -112,172 +118,38 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         var lines = CurrentLyrics?.Lines;
         var idx = CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); _lastSpannableLineIdx = -1; _lastSpannableWordIdx = -1; return; }
+        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); _lastSpannableLineIdx = -1; return; }
 
         var line = lines[idx];
         var text = line.Text;
-        if (string.IsNullOrEmpty(text)) { ClearSpannable(); _lastSpannableLineIdx = -1; _lastSpannableWordIdx = -1; return; }
+        if (string.IsNullOrEmpty(text)) { ClearSpannable(); _lastSpannableLineIdx = -1; return; }
 
-        int currentWordIdx = -1;
-        if (line.WordTimestamps is { Count: > 0 })
-        {
-            for (int i = line.WordTimestamps.Count - 1; i >= 0; i--)
-                if (line.WordTimestamps[i].Start <= CurrentPosition) { currentWordIdx = i; break; }
-        }
+        var lineDuration = GetLineDuration(lines, idx);
+        if (lineDuration.TotalMilliseconds > 0)
+            CurrentLyricProgress = (float)Math.Clamp((CurrentPosition - line.Timestamp).TotalMilliseconds / lineDuration.TotalMilliseconds, 0.0, 1.0);
         else
-        {
-            var lineDuration = GetLineDuration(lines, idx);
-            if (lineDuration.TotalMilliseconds > 0)
-            {
-                var progress = Math.Clamp((CurrentPosition - line.Timestamp).TotalMilliseconds / lineDuration.TotalMilliseconds, 0.0, 1.0);
-                var units = SplitTextUnits(text);
-                currentWordIdx = (int)(progress * units.Count);
-            }
-        }
+            CurrentLyricProgress = 1f;
 
-        if (idx == _lastSpannableLineIdx && currentWordIdx == _lastSpannableWordIdx)
+        if (idx == _lastSpannableLineIdx)
             return;
 
         _lastSpannableLineIdx = idx;
-        _lastSpannableWordIdx = currentWordIdx;
 
         var hasTranslation = !string.IsNullOrEmpty(line.Translation);
         var spanText = hasTranslation ? text + "\n" + line.Translation! : text;
         var ss = new SpannableString(spanText);
 
-        var baseGray = Android.Graphics.Color.Argb(0xDD, 0xBB, 0xBB, 0xBB);
-        ss.SetSpan(new ForegroundColorSpan(baseGray), 0, spanText.Length, SpanTypes.ExclusiveExclusive);
-
         if (hasTranslation)
         {
-            var transGray = Android.Graphics.Color.Argb(0x99, 0x99, 0x99, 0x99);
             var transStart = text.Length + 1;
+            var transGray = Android.Graphics.Color.Argb(0x99, 0x99, 0x99, 0x99);
             ss.SetSpan(new ForegroundColorSpan(transGray), transStart, spanText.Length, SpanTypes.ExclusiveExclusive);
             ss.SetSpan(new Android.Text.Style.RelativeSizeSpan(0.82f), transStart, spanText.Length, SpanTypes.ExclusiveExclusive);
-        }
-
-        if (line.WordTimestamps is { Count: > 0 })
-        {
-            ApplyExactWordTimestamps(ss, line.WordTimestamps);
-        }
-        else
-        {
-            var lineDuration = GetLineDuration(lines, idx);
-            ApplyDynamicProgress(ss, text, line.Timestamp, lineDuration);
         }
 
         CurrentLyricSpannable = ss;
         OnPropertyChanged(nameof(CurrentLyricSpannable));
     }
-
-    private void ApplyExactWordTimestamps(SpannableString ss, List<WordTimestamp> wts)
-    {
-        var wordIdx = -1;
-        for (int i = wts.Count - 1; i >= 0; i--)
-            if (wts[i].Start <= CurrentPosition) { wordIdx = i; break; }
-        if (wordIdx < 0) return;
-
-        var lineEnd = wts[wordIdx].Start + wts[wordIdx].Duration;
-        var nextLineStart = GetNextLineStart();
-        var nearEnd = nextLineStart.HasValue && (nextLineStart.Value - CurrentPosition).TotalMilliseconds < 200;
-
-        ApplyWordSpans(ss, wts, wordIdx, (i, w) =>
-        {
-            if (i == wordIdx)
-            {
-                if (nearEnd || i == wts.Count - 1)
-                    return 1f;
-                return Math.Clamp((float)((CurrentPosition - w.Start).TotalMilliseconds / w.Duration.TotalMilliseconds), 0f, 1f);
-            }
-            return i < wordIdx ? 1f : 0f;
-        });
-    }
-
-    private TimeSpan? GetNextLineStart()
-    {
-        var lines = CurrentLyrics?.Lines;
-        var idx = CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx + 1 >= lines.Count) return null;
-        return lines[idx + 1].Timestamp;
-    }
-
-    private void ApplyDynamicProgress(SpannableString ss, string text, TimeSpan lineStart, TimeSpan duration)
-    {
-        var units = SplitTextUnits(text);
-        if (units.Count == 0) return;
-        if (duration.TotalMilliseconds <= 0) return;
-
-        var progress = Math.Clamp((CurrentPosition - lineStart).TotalMilliseconds / duration.TotalMilliseconds, 0.0, 1.0);
-
-        var nextLineStart = GetNextLineStart();
-        var nearEnd = nextLineStart.HasValue && (nextLineStart.Value - CurrentPosition).TotalMilliseconds < 200;
-        if (nearEnd) progress = 1.0;
-
-        var unitProgress = progress * units.Count;
-        var activeIdx = (int)unitProgress;
-        var activeFrac = (float)(unitProgress - activeIdx);
-
-        var fakeTimestamps = new List<WordTimestamp>();
-        for (int i = 0; i < units.Count; i++)
-            fakeTimestamps.Add(new WordTimestamp { Word = units[i], Start = TimeSpan.Zero, Duration = TimeSpan.Zero });
-
-        ApplyWordSpans(ss, fakeTimestamps, activeIdx, (i, _) =>
-        {
-            if (i < activeIdx) return 1f;
-            if (i == activeIdx) return activeFrac;
-            return 0f;
-        });
-    }
-
-    private void ApplyWordSpans(SpannableString ss, List<WordTimestamp> wts, int highlightIdx, Func<int, WordTimestamp, float> getAlpha)
-    {
-        var offset = 0;
-        for (int i = 0; i < wts.Count; i++)
-        {
-            var wlen = wts[i].Word.Length;
-            var alpha = getAlpha(i, wts[i]);
-
-            if (alpha > 0.01f && offset + wlen <= ss.Length())
-            {
-                var r = (int)(0xBB + (0xFF - 0xBB) * alpha);
-                var g = (int)(0xBB + (0xFF - 0xBB) * alpha);
-                var b = (int)(0xBB + (0xFF - 0xBB) * alpha);
-                ss.SetSpan(new ForegroundColorSpan(Android.Graphics.Color.Rgb(r, g, b)),
-                    offset, offset + wlen, SpanTypes.ExclusiveExclusive);
-            }
-            offset += wlen;
-        }
-    }
-
-    private static List<string> SplitTextUnits(string text)
-    {
-        var units = new List<string>();
-        var currentWord = "";
-        foreach (var ch in text)
-        {
-            if (ch >= 0x4E00 && ch <= 0x9FFF || ch >= 0x3400 && ch <= 0x4DBF)
-            {
-                if (currentWord.Length > 0) { units.Add(currentWord); currentWord = ""; }
-                units.Add(ch.ToString());
-            }
-            else if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch))
-            {
-                if (currentWord.Length > 0) { units.Add(currentWord); currentWord = ""; }
-            }
-            else if (char.IsLetterOrDigit(ch))
-            {
-                currentWord += ch;
-            }
-            else
-            {
-                if (currentWord.Length > 0) { units.Add(currentWord); currentWord = ""; }
-                units.Add(ch.ToString());
-            }
-        }
-        if (currentWord.Length > 0) units.Add(currentWord);
-        return units;
-    }
-    
 
     /// <summary>清除逐字高亮状态</summary>
     private static string FormatLyricLine(List<LrcLyricLine> lines, int idx)
@@ -737,13 +609,12 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastSpannableWordIdx = -1; return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; return; }
         var songId = song.Id;
         CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = "";
         CurrentLyrics = null;
         CurrentLyricIndex = -1;
         _lastSpannableLineIdx = -1;
-        _lastSpannableWordIdx = -1;
         ClearSpannable();
         try
         {

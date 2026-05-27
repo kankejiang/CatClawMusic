@@ -1,0 +1,408 @@
+﻿  姝ｅ湪纭畾瑕佽繕鍘熺殑椤圭洰鈥?
+  宸茶繕鍘?D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj (鐢ㄦ椂 377 姣)銆?
+  2 涓」鐩?鍏?3 涓?鏄渶鏂扮殑锛屾棤娉曡繕鍘熴€?
+  CatClawMusic.Core -> D:\WorkBuddy\CatClawMusic\CatClawMusic.Core\bin\Release\net9.0\CatClawMusic.Core.dll
+  CatClawMusic.Data -> D:\WorkBuddy\CatClawMusic\CatClawMusic.Data\bin\Release\net9.0\CatClawMusic.Data.dll
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(875,1): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥滃厓绱犫€渟ummary鈥濋渶瑕佺粨鏉熸爣璁般€傗€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(50,40): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥滃簲涓烘爣璇嗙銆傗€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(50,41): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥滃簲涓烘爣璇嗙銆傗€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(50,41): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥?鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(50,56): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥滃簲涓烘爣璇嗙銆傗€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(50,57): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥滃簲涓烘爣璇嗙銆傗€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(50,57): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥?鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(51,11): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥滅粨鏉熸爣璁扳€減ara鈥濅笌寮€濮嬫爣璁扳€渟ummary鈥濅笉鍖归厤銆傗€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\CoverColorExtractor.cs(52,9): warning CS1570: XML 娉ㄩ噴鍑虹幇 XML 鏍煎紡閿欒 --鈥滃湪姝や綅缃笉搴斾负缁撴潫鏍囪銆傗€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\LibraryFragment.cs(15,7): warning CS0105: 鈥淐atClawMusic.UI.Helpers鈥濈殑 using 鎸囦护浠ュ墠鍦ㄦ鍛藉悕绌洪棿涓嚭鐜拌繃 [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(94,32): warning CS0672: 鎴愬憳鈥淧luginManagementFragment.OnActivityResult(int, int, Intent?)鈥濆皢閲嶅啓杩囨椂鐨勬垚鍛樷€淔ragment.OnActivityResult(int, int, Intent?)鈥濄€傝鍚戔€淧luginManagementFragment.OnActivityResult(int, int, Intent?)鈥濅腑娣诲姞 Obsolete 鐗规€с€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\SmbBrowserDialog.cs(398,20): warning CS0108: 鈥淪mbBrowserDialog.FileViewHolder.Position鈥濋殣钘忕户鎵跨殑鎴愬憳鈥淩ecyclerView.ViewHolder.Position鈥濄€傚鏋滄槸鏈夋剰闅愯棌锛岃浣跨敤鍏抽敭瀛?new銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(1516,21): warning CS8767: 鈥渧oid RecordAudioCallback.OnActivityResult(Object result)鈥濈殑鍙傛暟鈥渞esult鈥濈被鍨嬩腑寮曠敤绫诲瀷鐨勪负 Null 鎬т笌闅愬紡瀹炵幇鐨勬垚鍛樷€渧oid IActivityResultCallback.OnActivityResult(Object? result)鈥濅笉鍖归厤(鍙兘鏄敱浜庝负 Null 鎬х壒鎬?銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\WebDavBrowserDialog.cs(256,20): warning CS0108: 鈥淲ebDavBrowserDialog.FileViewHolder.Position鈥濋殣钘忕户鎵跨殑鎴愬憳鈥淩ecyclerView.ViewHolder.Position鈥濄€傚鏋滄槸鏈夋剰闅愯棌锛岃浣跨敤鍏抽敭瀛?new銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\ThemeService.cs(73,26): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\ThemeService.cs(73,26): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\ThemeService.cs(145,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\ThemeService.cs(153,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\WebDavSettingsFragment.cs(45,20): warning CS8601: 鍙兘鐨?null 寮曠敤璧嬪€笺€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\AudioVisualizerView.cs(105,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainApplication.cs(80,27): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainApplication.cs(81,38): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainApplication.cs(81,38): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainApplication.cs(81,38): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(681,72): warning CS8604: 鈥淪tream? ContentResolver.OpenInputStream(Uri uri)鈥濅腑鐨勫舰鍙傗€渦ri鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(756,20): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\SafeContentScanner.cs(61,62): warning CS8604: 鈥渧oid SafeContentScanner.CollectAudioFiles(Context ctx, Uri treeUri, string rootDocId, List<(Uri uri, string name, long size, long lastModified)> results)鈥濅腑鐨勫舰鍙傗€渞ootDocId鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(788,25): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\SafeContentScanner.cs(130,53): warning CS8604: 鈥淚Cursor? ContentResolver.Query(Uri uri, string[]? projection, string? selection, string[]? selectionArgs, string? sortOrder)鈥濅腑鐨勫舰鍙傗€渦ri鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\SafeContentScanner.cs(159,37): warning CS8620: 鐢变簬寮曠敤绫诲瀷鐨勫彲涓?null 鎬у樊寮傦紝(Uri? docUri, string displayName, long size, long lastModified) 绫诲瀷鐨勫疄鍙備笉鑳界敤浜?void List<(Uri uri, string name, long size, long lastModified)>.Add((Uri uri, string name, long size, long lastModified) item) 涓?(Uri uri, string name, long size, long lastModified) 绫诲瀷鐨勫舰鍙?item銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(385,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\FolderPicker.cs(130,63): warning CS8604: 鈥淚Cursor? ContentResolver.Query(Uri uri, string[]? projection, string? selection, string[]? selectionArgs, string? sortOrder)鈥濅腑鐨勫舰鍙傗€渦ri鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\FolderPicker.cs(153,17): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\FolderPicker.cs(153,17): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\SafeContentScanner.cs(217,28): warning CS8601: 鍙兘鐨?null 寮曠敤璧嬪€笺€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\SafeContentScanner.cs(229,28): warning CS8601: 鍙兘鐨?null 寮曠敤璧嬪€笺€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\SongAdapter.cs(689,94): warning CS8600: 灏?null 鏂囨湰鎴栧彲鑳界殑 null 鍊艰浆鎹负涓嶅彲涓?null 绫诲瀷銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\FolderPicker.cs(187,36): warning CS8604: 鈥渂ool List<string>.Contains(string item)鈥濅腑鐨勫舰鍙傗€渋tem鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\MediaStoreCoverHelper.cs(45,21): warning CS8604: 鈥淯ri ContentUris.WithAppendedId(Uri contentUri, long id)鈥濅腑鐨勫舰鍙傗€渃ontentUri鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(456,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(458,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\MediaStoreCoverHelper.cs(95,17): warning CS8604: 鈥淚Cursor? ContentResolver.Query(Uri uri, string[]? projection, string? selection, string[]? selectionArgs, string? sortOrder)鈥濅腑鐨勫舰鍙傗€渦ri鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(460,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(467,64): warning CS8604: 鈥淐atClawDataSourceFactory.CatClawDataSourceFactory(IDataSourceFactory httpFactory, Context ctx)鈥濅腑鐨勫舰鍙傗€渉ttpFactory鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(469,19): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(476,65): warning CS8604: 鈥淢ethod Class.GetMethod(string name, params Class[]? parameterTypes)鈥濅腑鐨勫舰鍙傗€減arameterTypes鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(479,42): warning CS8604: 鈥淥bject? Method.Invoke(Object? obj, params Object[]? args)鈥濅腑鐨勫舰鍙傗€渁rgs鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(483,30): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(475,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(476,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(497,21): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\MediaStoreCoverHelper.cs(134,17): warning CS8604: 鈥淚Cursor? ContentResolver.Query(Uri uri, string[]? projection, string? selection, string[]? selectionArgs, string? sortOrder)鈥濅腑鐨勫舰鍙傗€渦ri鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\WebDavBrowserDialog.cs(248,39): warning CS8604: 鈥淔ileViewHolder.FileViewHolder(View view, Action<int> onItemClick)鈥濅腑鐨勫舰鍙傗€渧iew鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\SongAdapter.cs(766,98): warning CS8600: 灏?null 鏂囨湰鎴栧彲鑳界殑 null 鍊艰浆鎹负涓嶅彲涓?null 绫诲瀷銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\SongAdapter.cs(839,98): warning CS8600: 灏?null 鏂囨湰鎴栧彲鑳界殑 null 鍊艰浆鎹负涓嶅彲涓?null 绫诲瀷銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\MediaStoreCoverHelper.cs(218,17): warning CS8604: 鈥淚Cursor? ContentResolver.Query(Uri uri, string[]? projection, string? selection, string[]? selectionArgs, string? sortOrder)鈥濅腑鐨勫舰鍙傗€渦ri鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(185,75): warning CS8604: 鈥淥bject? Method.Invoke(Object? obj, params Object[]? args)鈥濅腑鐨勫舰鍙傗€渁rgs鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(531,29): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\SettingsViewModel.cs(110,31): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\SettingsViewModel.cs(114,20): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(217,17): warning CS8604: 鈥淥bject? Method.Invoke(Object? obj, params Object[]? args)鈥濅腑鐨勫舰鍙傗€渁rgs鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(571,35): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(245,110): warning CS8604: 鈥淥bject? Method.Invoke(Object? obj, params Object[]? args)鈥濅腑鐨勫舰鍙傗€渁rgs鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(614,13): warning CS0618: 鈥淰iew.SystemUiVisibility鈥濆凡杩囨椂:鈥淭his property has an incorrect enumeration type. Use the SystemUiFlags property instead.鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(626,13): warning CS0618: 鈥淰iew.SystemUiVisibility鈥濆凡杩囨椂:鈥淭his property has an incorrect enumeration type. Use the SystemUiFlags property instead.鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\PluginCardAdapter.cs(112,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\PluginCardAdapter.cs(112,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\PluginCardAdapter.cs(112,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\PluginCardAdapter.cs(112,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Adapters\PluginCardAdapter.cs(105,24): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(636,9): warning CS0618: 鈥淰iewCompat.SetFitsSystemWindows(View?, bool)鈥濆凡杩囨椂:鈥渄eprecated鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\DragSortCallback.cs(19,20): warning CS0618: 鈥淩ecyclerView.ViewHolder.AdapterPosition鈥濆凡杩囨椂:鈥渄eprecated鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\DragSortCallback.cs(20,18): warning CS0618: 鈥淩ecyclerView.ViewHolder.AdapterPosition鈥濆凡杩囨椂:鈥渄eprecated鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(715,30): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\FullLyricsFragment.cs(116,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\FullLyricsFragment.cs(130,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\SmbBrowserDialog.cs(390,39): warning CS8604: 鈥淔ileViewHolder.FileViewHolder(View view, Action<int> onItemClick)鈥濅腑鐨勫舰鍙傗€渧iew鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ScanSettings.cs(51,16): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ScanSettings.cs(51,16): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ScanSettings.cs(65,16): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ScanSettings.cs(65,16): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\FullLyricsFragment.cs(317,80): warning CS8604: 鈥淩enderEffect RenderEffect.CreateBlurEffect(float radiusX, float radiusY, TileMode edgeTreatment)鈥濅腑鐨勫舰鍙傗€渆dgeTreatment鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ScanSettings.cs(76,16): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ScanSettings.cs(76,16): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\PlaybackStateManager.cs(85,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(343,71): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(345,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(348,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(349,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(224,38): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\FullLyricsFragment.cs(602,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(341,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(341,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(341,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\StrokeTextView.cs(71,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\StrokeTextView.cs(80,13): warning CS8604: 鈥淟inearGradient.LinearGradient(float x0, float y0, float x1, float y1, int[] colors, float[]? positions, TileMode tile)鈥濅腑鐨勫舰鍙傗€渢ile鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\FullLyricsFragment.cs(779,17): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\StrokeTextView.cs(106,27): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(384,50): warning CS8604: 鈥淭ask<bool> Bitmap.CompressAsync(CompressFormat format, int quality, Stream stream)鈥濅腑鐨勫舰鍙傗€渇ormat鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\WaveformView.cs(30,18): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\WaveformView.cs(30,18): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(548,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(548,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(548,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\WaveformView.cs(52,18): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\WaveformView.cs(52,18): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\WaveformView.cs(61,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(292,33): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(292,33): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(323,27): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(323,27): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(323,27): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(331,17): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(333,39): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\AndroidLocalScanner.cs(123,43): warning CS8604: 鈥渂ool HashSet<string>.Add(string item)鈥濅腑鐨勫舰鍙傗€渋tem鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\AndroidLocalScanner.cs(161,43): warning CS8604: 鈥渂ool HashSet<string>.Add(string item)鈥濅腑鐨勫舰鍙傗€渋tem鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\AndroidLocalScanner.cs(265,43): warning CS8604: 鈥渂ool HashSet<string>.Add(string item)鈥濅腑鐨勫舰鍙傗€渋tem鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(814,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(814,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(814,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(518,16): warning CS8603: 鍙兘杩斿洖 null 寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(529,16): warning CS8603: 鍙兘杩斿洖 null 寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(660,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(83,13): warning CS0618: 鈥淔ragment.StartActivityForResult(Intent, int)鈥濆凡杩囨椂:鈥渄eprecated鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\DesktopLyricService.cs(232,24): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\DesktopLyricService.cs(234,30): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(96,9): warning CS0618: 鈥淔ragment.OnActivityResult(int, int, Intent?)鈥濆凡杩囨椂:鈥渄eprecated鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(122,53): warning CS0618: 鈥淥penableColumns鈥濆凡杩囨椂:鈥淯se the 'Android.Provider.IOpenableColumns' type. This class will be removed in a future release.鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(122,53): warning CS0618: 鈥淥penableColumns.DisplayName鈥濆凡杩囨椂:鈥淯se 'Android.Provider.IOpenableColumns.DisplayName'. This class will be removed in a future release.鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(224,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(224,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(224,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(224,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(250,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(258,35): warning CS8604: 鈥淥bject.explicit operator float(Object value)鈥濅腑鐨勫舰鍙傗€渧alue鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(300,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(366,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(416,17): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PlaylistDetailFragment.cs(365,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PlaylistDetailFragment.cs(365,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PlaylistDetailFragment.cs(365,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(213,48): warning CS8604: 鈥渂ool Callback.OnMediaButtonEvent(Intent mediaButtonIntent)鈥濅腑鐨勫舰鍙傗€渕ediaButtonIntent鈥濆彲鑳戒紶鍏?null 寮曠敤瀹炲弬銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(850,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(857,13): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(947,15): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(947,15): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(1460,9): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\NowPlayingFragment.cs(1507,21): warning CS8602: 瑙ｅ紩鐢ㄥ彲鑳藉嚭鐜扮┖寮曠敤銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(177,18): warning CS0169: 浠庝笉浣跨敤瀛楁鈥淟ibraryViewModel._suppressCollectionChanged鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\DesktopLyricService.cs(48,19): warning CS0169: 浠庝笉浣跨敤瀛楁鈥淒esktopLyricService._initialX鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\LibraryFragment.cs(447,33): warning CS0169: 浠庝笉浣跨敤瀛楁鈥淟ibraryFragment._contextMenuDialog鈥?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PlaylistDetailFragment.cs(245,18): warning CS0414: 瀛楁鈥淧laylistDetailFragment._isCustomSortMode鈥濆凡琚祴鍊硷紝浣嗕粠鏈娇鐢ㄨ繃瀹冪殑鍊?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\MediaStoreCoverHelper.cs(62,25): warning CS0419: cref 鐗规€т腑鏈変笉鏄庣‘鐨勫紩鐢?鈥淭ask.Run鈥濄€傚亣瀹氫负鈥淭ask.Run(Action)鈥濓紝浣嗗彲鑳借繕涓庡叾浠栭噸杞藉尮閰嶏紝鍖呮嫭鈥淭ask.Run(Action, CancellationToken)鈥濄€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(185,17): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎udioManager.AbandonAudioFocus(AudioManager.IOnAudioFocusChangeListener?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\AudioPlayerService.cs(168,26): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎udioManager.RequestAudioFocus(AudioManager.IOnAudioFocusChangeListener?, Stream, AudioFocus)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(208,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淩esources.UpdateConfiguration(Configuration?, DisplayMetrics?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 25.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(392,14): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎ctivity.OnBackPressed()鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 33.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(20,15): warning CA1416: 鍙湪 "Android" 31.0 鍙婃洿楂樼増鏈?涓婅闂璋冪敤绔欑偣銆?Manifest.Permission.ReadMediaAudio" 浠呭湪 "android" 33.0 鍙婃洿楂樼増鏈?涓婂彈鏀寔銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(33,15): warning CA1416: 鍙湪 "Android" 31.0 鍙婃洿楂樼増鏈?涓婅闂璋冪敤绔欑偣銆?Manifest.Permission.ReadMediaAudio" 浠呭湪 "android" 33.0 鍙婃洿楂樼増鏈?涓婂彈鏀寔銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(61,16): warning CA1416: 鍙湪 "Android" 31.0 鍙婃洿楂樼増鏈?涓婅闂璋冪敤绔欑偣銆?Manifest.Permission.ReadMediaAudio" 浠呭湪 "android" 33.0 鍙婃洿楂樼増鏈?涓婂彈鏀寔銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(75,15): warning CA1416: 鍙湪 "Android" 31.0 鍙婃洿楂樼増鏈?涓婅闂璋冪敤绔欑偣銆?Manifest.Permission.ReadMediaAudio" 浠呭湪 "android" 33.0 鍙婃洿楂樼増鏈?涓婂彈鏀寔銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1416) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\WebDavBrowserDialog.cs(215,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淒ialog.OnBackPressed()鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 33.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\MediaStoreCoverHelper.cs(135,25): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淢ediaStore.Audio.Albums.InterfaceConsts.AlbumArt鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 29.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Platforms\Android\PermissionService.cs(213,17): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淐lass.NewInstance()鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 34.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(624,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淲indow.SetNavigationBarColor(Color)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 35.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(621,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淲indow.SetStatusBarColor(Color)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 35.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(612,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淲indow.SetNavigationBarColor(Color)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 35.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(611,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淲indow.SetStatusBarColor(Color)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 35.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\MainActivity.cs(755,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淩esources.UpdateConfiguration(Configuration?, DisplayMetrics?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 25.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\SmbBrowserDialog.cs(345,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淒ialog.OnBackPressed()鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 33.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(348,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎llocation.CopyTo(Bitmap?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(347,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淪criptIntrinsicBlur.ForEach(Allocation?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(349,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淩enderScript.Destroy()鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(346,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淪criptIntrinsicBlur.SetInput(Allocation?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(345,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淪criptIntrinsicBlur.SetRadius(float)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(343,71): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎llocation.Type鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(343,22): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎llocation.CreateTyped(RenderScript?, Type?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(344,75): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎llocation.Element鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(342,21): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淎llocation.CreateFromBitmap(RenderScript?, Bitmap?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(344,22): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淪criptIntrinsicBlur.Create(RenderScript?, Element?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(287,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淰iew.DrawingCacheEnabled鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 28.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(340,18): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淩enderScript.Create(Context?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 31.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(288,13): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淰iew.BuildDrawingCache()鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 28.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Helpers\GlassDialog.cs(289,26): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淰iew.DrawingCache鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 28.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(268,17): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.LibraryViewModel._selectedProtocolIndex is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(269,17): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.LibraryViewModel._selectedProtocolIndex is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(580,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._prevLyricLine2 is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(581,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._prevLyricLine is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(582,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._nextLyricLine is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(583,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._nextLyricLine2 is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(584,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._currentLyricLine is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(591,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._prevLyricLine2 is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(592,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._prevLyricLine is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(593,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._currentLyricLine is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(594,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._nextLyricLine is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\NowPlayingViewModel.cs(595,21): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.NowPlayingViewModel._nextLyricLine2 is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(687,17): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.LibraryViewModel._selectedProtocolIndex is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(689,54): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.LibraryViewModel._selectedProtocolIndex is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(772,13): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.LibraryViewModel._selectedProtocolIndex is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\ViewModels\LibraryViewModel.cs(774,50): warning MVVMTK0034: The field CatClawMusic.UI.ViewModels.LibraryViewModel._selectedProtocolIndex is annotated with [ObservableProperty] and should not be directly referenced (use the generated property instead) (https://aka.ms/mvvmtoolkit/errors/mvvmtk0034) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(184,17): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淢ediaSession.FlagHandlesTransportControls鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This constant will be removed in the future version. Use Android.Media.Session.MediaSessionFlags enum directly instead of this field.)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(185,17): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淢ediaSession.FlagHandlesMediaButtons鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This constant will be removed in the future version. Use Android.Media.Session.MediaSessionFlags enum directly instead of this field.)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(659,25): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淲ifiManager.CreateWifiLock(string?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 29.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(150,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog.SetProgressStyle(ProgressDialogStyle)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(162,21): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog.Progress鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(147,30): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(152,9): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog.Max鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(242,38): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(257,29): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog.Progress鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(247,17): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog.Max鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Fragments\PluginManagementFragment.cs(245,17): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淧rogressDialog.SetProgressStyle(ProgressDialogStyle)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 26.0 鍙婃洿楂樼増鏈?(This class is obsoleted in this android platform)銆?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\Services\ForegroundPlayerService.cs(215,28): warning CA1422: 姝よ皟鐢ㄧ珯鐐瑰彲鍦ㄤ互涓嬩綅缃闂?"Android" 31.0 鍙婃洿楂樼増鏈€傗€淚ntent.GetParcelableExtra(string?)鈥濆湪浠ヤ笅浣嶇疆杩囨椂:"Android" 33.0 鍙婃洿楂樼増鏈€?(https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1422) [D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+  CatClawMusic.UI -> D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\bin\Release\net9.0-android\CatClawMusic.UI.dll
+  CatClawMusic.Core -> D:\WorkBuddy\CatClawMusic\CatClawMusic.Core\bin\Release\net9.0\CatClawMusic.Core.dll
+  CatClawMusic.Data -> D:\WorkBuddy\CatClawMusic\CatClawMusic.Data\bin\Release\net9.0\CatClawMusic.Data.dll
+  浼樺寲绋嬪簭闆嗕互璋冩暣澶у皬鍙兘浼氭洿鏀瑰簲鐢ㄧ殑琛屼负銆傝鍔″繀鍦ㄥ彂甯冨悗杩涜娴嬭瘯銆傝鍙傞槄: https://aka.ms/dotnet-illink
+  姝ｅ湪浼樺寲绋嬪簭闆嗕互璋冩暣澶у皬銆傛杩囩▼鍙兘闇€瑕佷竴娈垫椂闂淬€?
+  浼樺寲绋嬪簭闆嗕互璋冩暣澶у皬鍙兘浼氭洿鏀瑰簲鐢ㄧ殑琛屼负銆傝鍔″繀鍦ㄥ彂甯冨悗杩涜娴嬭瘯銆傝鍙傞槄: https://aka.ms/dotnet-illink
+  姝ｅ湪浼樺寲绋嬪簭闆嗕互璋冩暣澶у皬銆傛杩囩▼鍙兘闇€瑕佷竴娈垫椂闂淬€?
+  [1/88] _Microsoft.Android.Resource.Designer.dll -> _Microsoft.Android.Resource.Designer.dll.so
+  [2/88] CommunityToolkit.Mvvm.dll -> CommunityToolkit.Mvvm.dll.so
+  [3/88] CatClawMusic.Data.dll -> CatClawMusic.Data.dll.so
+  [4/88] SQLitePCLRaw.core.dll -> SQLitePCLRaw.core.dll.so
+  [5/88] CatClawMusic.Core.dll -> CatClawMusic.Core.dll.so
+  [6/88] SMBLibrary.dll -> SMBLibrary.dll.so
+  [7/88] Microsoft.Extensions.DependencyInjection.Abstractions.dll -> Microsoft.Extensions.DependencyInjection.Abstractions.dll.so
+  [8/88] SQLitePCLRaw.provider.e_sqlite3.dll -> SQLitePCLRaw.provider.e_sqlite3.dll.so
+  [9/88] Xamarin.AndroidX.Activity.dll -> Xamarin.AndroidX.Activity.dll.so
+  [10/88] Xamarin.AndroidX.CardView.dll -> Xamarin.AndroidX.CardView.dll.so
+  [11/88] TagLibSharp.dll -> TagLibSharp.dll.so
+  [12/88] Microsoft.Extensions.DependencyInjection.dll -> Microsoft.Extensions.DependencyInjection.dll.so
+  [13/88] Xamarin.AndroidX.AppCompat.dll -> Xamarin.AndroidX.AppCompat.dll.so
+  [14/88] SQLite-net.dll -> SQLite-net.dll.so
+  [15/88] SQLitePCLRaw.batteries_v2.dll -> SQLitePCLRaw.batteries_v2.dll.so
+  [16/88] SQLitePCLRaw.lib.e_sqlite3.android.dll -> SQLitePCLRaw.lib.e_sqlite3.android.dll.so
+  [17/88] Xamarin.AndroidX.DrawerLayout.dll -> Xamarin.AndroidX.DrawerLayout.dll.so
+  [18/88] Xamarin.AndroidX.Core.dll -> Xamarin.AndroidX.Core.dll.so
+  [19/88] Xamarin.AndroidX.Lifecycle.Common.Jvm.dll -> Xamarin.AndroidX.Lifecycle.Common.Jvm.dll.so
+  [20/88] Xamarin.AndroidX.Lifecycle.LiveData.Core.dll -> Xamarin.AndroidX.Lifecycle.LiveData.Core.dll.so
+  [21/88] Xamarin.AndroidX.Fragment.dll -> Xamarin.AndroidX.Fragment.dll.so
+  [22/88] Xamarin.AndroidX.Lifecycle.ViewModel.Android.dll -> Xamarin.AndroidX.Lifecycle.ViewModel.Android.dll.so
+  [23/88] Xamarin.AndroidX.Media3.Decoder.dll -> Xamarin.AndroidX.Media3.Decoder.dll.so
+  [1/88] _Microsoft.Android.Resource.Designer.dll -> _Microsoft.Android.Resource.Designer.dll.so
+  [24/88] Xamarin.AndroidX.Loader.dll -> Xamarin.AndroidX.Loader.dll.so
+  [25/88] Xamarin.AndroidX.Media3.DataSource.dll -> Xamarin.AndroidX.Media3.DataSource.dll.so
+  [26/88] Xamarin.AndroidX.Media3.Common.dll -> Xamarin.AndroidX.Media3.Common.dll.so
+  [27/88] Xamarin.AndroidX.Media3.ExoPlayer.dll -> Xamarin.AndroidX.Media3.ExoPlayer.dll.so
+  [28/88] Xamarin.AndroidX.SavedState.dll -> Xamarin.AndroidX.SavedState.dll.so
+  [29/88] Xamarin.AndroidX.Media3.Extractor.dll -> Xamarin.AndroidX.Media3.Extractor.dll.so
+  [30/88] Xamarin.AndroidX.RecyclerView.dll -> Xamarin.AndroidX.RecyclerView.dll.so
+  [31/88] Xamarin.AndroidX.ViewPager2.dll -> Xamarin.AndroidX.ViewPager2.dll.so
+  [32/88] Xamarin.Google.Android.Material.dll -> Xamarin.Google.Android.Material.dll.so
+  [33/88] Xamarin.Google.Guava.dll -> Xamarin.Google.Guava.dll.so
+  [34/88] Xamarin.Google.Guava.ListenableFuture.dll -> Xamarin.Google.Guava.ListenableFuture.dll.so
+  [35/88] Xamarin.Kotlin.StdLib.dll -> Xamarin.Kotlin.StdLib.dll.so
+  [36/88] System.Buffers.dll -> System.Buffers.dll.so
+  [37/88] Xamarin.KotlinX.Coroutines.Core.Jvm.dll -> Xamarin.KotlinX.Coroutines.Core.Jvm.dll.so
+  [38/88] System.Collections.Specialized.dll -> System.Collections.Specialized.dll.so
+  [2/88] CatClawMusic.Core.dll -> CatClawMusic.Core.dll.so
+  [39/88] System.Collections.NonGeneric.dll -> System.Collections.NonGeneric.dll.so
+  [40/88] System.ComponentModel.TypeConverter.dll -> System.ComponentModel.TypeConverter.dll.so
+  [41/88] System.ComponentModel.Primitives.dll -> System.ComponentModel.Primitives.dll.so
+  [42/88] System.ComponentModel.dll -> System.ComponentModel.dll.so
+  [43/88] System.Collections.Concurrent.dll -> System.Collections.Concurrent.dll.so
+  [44/88] System.Console.dll -> System.Console.dll.so
+  [45/88] System.Collections.dll -> System.Collections.dll.so
+  [46/88] System.IO.Compression.Brotli.dll -> System.IO.Compression.Brotli.dll.so
+  [47/88] System.Formats.Asn1.dll -> System.Formats.Asn1.dll.so
+  [48/88] System.Diagnostics.DiagnosticSource.dll -> System.Diagnostics.DiagnosticSource.dll.so
+  [49/88] System.IO.Compression.dll -> System.IO.Compression.dll.so
+  [3/88] CatClawMusic.Data.dll -> CatClawMusic.Data.dll.so
+  [50/88] System.IO.Pipelines.dll -> System.IO.Pipelines.dll.so
+  [51/88] System.Net.NetworkInformation.dll -> System.Net.NetworkInformation.dll.so
+  [52/88] System.Linq.Expressions.dll -> System.Linq.Expressions.dll.so
+  [53/88] System.Net.NameResolution.dll -> System.Net.NameResolution.dll.so
+  [54/88] System.Net.Requests.dll -> System.Net.Requests.dll.so
+  [55/88] System.Memory.dll -> System.Memory.dll.so
+  [56/88] System.Net.Primitives.dll -> System.Net.Primitives.dll.so
+  [57/88] System.Linq.dll -> System.Linq.dll.so
+  [58/88] System.ObjectModel.dll -> System.ObjectModel.dll.so
+  [59/88] System.Net.Sockets.dll -> System.Net.Sockets.dll.so
+  [60/88] System.Net.Security.dll -> System.Net.Security.dll.so
+  [61/88] System.Private.Xml.Linq.dll -> System.Private.Xml.Linq.dll.so
+  [62/88] System.Runtime.InteropServices.RuntimeInformation.dll -> System.Runtime.InteropServices.RuntimeInformation.dll.so
+  [63/88] System.Runtime.InteropServices.dll -> System.Runtime.InteropServices.dll.so
+  [64/88] System.Runtime.Serialization.Formatters.dll -> System.Runtime.Serialization.Formatters.dll.so
+  [65/88] System.Private.Uri.dll -> System.Private.Uri.dll.so
+  [66/88] System.Net.Http.dll -> System.Net.Http.dll.so
+  [67/88] System.Runtime.Numerics.dll -> System.Runtime.Numerics.dll.so
+  [68/88] System.Private.Xml.dll -> System.Private.Xml.dll.so
+  [69/88] System.Security.Cryptography.dll -> System.Security.Cryptography.dll.so
+  [70/88] System.Runtime.dll -> System.Runtime.dll.so
+  [71/88] System.Text.Encoding.CodePages.dll -> System.Text.Encoding.CodePages.dll.so
+  [72/88] System.Web.HttpUtility.dll -> System.Web.HttpUtility.dll.so
+  [73/88] System.Threading.Channels.dll -> System.Threading.Channels.dll.so
+  [74/88] System.Threading.ThreadPool.dll -> System.Threading.ThreadPool.dll.so
+  [75/88] System.Text.Encodings.Web.dll -> System.Text.Encodings.Web.dll.so
+  [76/88] System.Threading.dll -> System.Threading.dll.so
+  [77/88] System.Xml.XDocument.dll -> System.Xml.XDocument.dll.so
+  [78/88] CatClawMusic.UI.dll -> CatClawMusic.UI.dll.so
+  [79/88] netstandard.dll -> netstandard.dll.so
+  [80/88] System.dll -> System.dll.so
+  [81/88] Mono.Android.Runtime.dll -> Mono.Android.Runtime.dll.so
+  [82/88] System.Threading.Tasks.Parallel.dll -> System.Threading.Tasks.Parallel.dll.so
+  [83/88] System.Xml.Linq.dll -> System.Xml.Linq.dll.so
+  [84/88] System.Text.RegularExpressions.dll -> System.Text.RegularExpressions.dll.so
+  [85/88] System.Text.Json.dll -> System.Text.Json.dll.so
+  [86/88] Java.Interop.dll -> Java.Interop.dll.so
+  [87/88] Mono.Android.dll -> Mono.Android.dll.so
+  [4/88] CatClawMusic.UI.dll -> CatClawMusic.UI.dll.so
+  [5/88] CommunityToolkit.Mvvm.dll -> CommunityToolkit.Mvvm.dll.so
+  [6/88] Microsoft.Extensions.DependencyInjection.dll -> Microsoft.Extensions.DependencyInjection.dll.so
+  [7/88] Microsoft.Extensions.DependencyInjection.Abstractions.dll -> Microsoft.Extensions.DependencyInjection.Abstractions.dll.so
+  [8/88] SMBLibrary.dll -> SMBLibrary.dll.so
+  [9/88] SQLite-net.dll -> SQLite-net.dll.so
+  [10/88] SQLitePCLRaw.batteries_v2.dll -> SQLitePCLRaw.batteries_v2.dll.so
+  [11/88] SQLitePCLRaw.core.dll -> SQLitePCLRaw.core.dll.so
+  [12/88] SQLitePCLRaw.lib.e_sqlite3.android.dll -> SQLitePCLRaw.lib.e_sqlite3.android.dll.so
+  [88/88] System.Private.CoreLib.dll -> System.Private.CoreLib.dll.so
+  [13/88] SQLitePCLRaw.provider.e_sqlite3.dll -> SQLitePCLRaw.provider.e_sqlite3.dll.so
+  [14/88] TagLibSharp.dll -> TagLibSharp.dll.so
+  [15/88] Xamarin.AndroidX.Activity.dll -> Xamarin.AndroidX.Activity.dll.so
+  [16/88] Xamarin.AndroidX.AppCompat.dll -> Xamarin.AndroidX.AppCompat.dll.so
+  [17/88] Xamarin.AndroidX.CardView.dll -> Xamarin.AndroidX.CardView.dll.so
+  [18/88] Xamarin.AndroidX.Core.dll -> Xamarin.AndroidX.Core.dll.so
+  [19/88] Xamarin.AndroidX.DrawerLayout.dll -> Xamarin.AndroidX.DrawerLayout.dll.so
+  [20/88] Xamarin.AndroidX.Fragment.dll -> Xamarin.AndroidX.Fragment.dll.so
+  [21/88] Xamarin.AndroidX.Lifecycle.Common.Jvm.dll -> Xamarin.AndroidX.Lifecycle.Common.Jvm.dll.so
+  [22/88] Xamarin.AndroidX.Lifecycle.LiveData.Core.dll -> Xamarin.AndroidX.Lifecycle.LiveData.Core.dll.so
+  [23/88] Xamarin.AndroidX.Lifecycle.ViewModel.Android.dll -> Xamarin.AndroidX.Lifecycle.ViewModel.Android.dll.so
+  [24/88] Xamarin.AndroidX.Loader.dll -> Xamarin.AndroidX.Loader.dll.so
+  [25/88] Xamarin.AndroidX.Media3.Common.dll -> Xamarin.AndroidX.Media3.Common.dll.so
+  [26/88] Xamarin.AndroidX.Media3.DataSource.dll -> Xamarin.AndroidX.Media3.DataSource.dll.so
+  [27/88] Xamarin.AndroidX.Media3.Decoder.dll -> Xamarin.AndroidX.Media3.Decoder.dll.so
+  [28/88] Xamarin.AndroidX.Media3.ExoPlayer.dll -> Xamarin.AndroidX.Media3.ExoPlayer.dll.so
+  [29/88] Xamarin.AndroidX.Media3.Extractor.dll -> Xamarin.AndroidX.Media3.Extractor.dll.so
+  [30/88] Xamarin.AndroidX.RecyclerView.dll -> Xamarin.AndroidX.RecyclerView.dll.so
+  [31/88] Xamarin.AndroidX.SavedState.dll -> Xamarin.AndroidX.SavedState.dll.so
+  [32/88] Xamarin.AndroidX.ViewPager2.dll -> Xamarin.AndroidX.ViewPager2.dll.so
+  [33/88] Xamarin.Google.Android.Material.dll -> Xamarin.Google.Android.Material.dll.so
+  [34/88] Xamarin.Google.Guava.dll -> Xamarin.Google.Guava.dll.so
+  [35/88] Xamarin.Google.Guava.ListenableFuture.dll -> Xamarin.Google.Guava.ListenableFuture.dll.so
+  [36/88] Xamarin.Kotlin.StdLib.dll -> Xamarin.Kotlin.StdLib.dll.so
+  [37/88] Xamarin.KotlinX.Coroutines.Core.Jvm.dll -> Xamarin.KotlinX.Coroutines.Core.Jvm.dll.so
+  [38/88] System.Buffers.dll -> System.Buffers.dll.so
+  [39/88] System.Collections.Concurrent.dll -> System.Collections.Concurrent.dll.so
+  [40/88] System.Collections.NonGeneric.dll -> System.Collections.NonGeneric.dll.so
+  [41/88] System.Collections.Specialized.dll -> System.Collections.Specialized.dll.so
+  [42/88] System.Collections.dll -> System.Collections.dll.so
+  [43/88] System.ComponentModel.Primitives.dll -> System.ComponentModel.Primitives.dll.so
+  [44/88] System.ComponentModel.TypeConverter.dll -> System.ComponentModel.TypeConverter.dll.so
+  [45/88] System.ComponentModel.dll -> System.ComponentModel.dll.so
+  [46/88] System.Console.dll -> System.Console.dll.so
+  [47/88] System.Diagnostics.DiagnosticSource.dll -> System.Diagnostics.DiagnosticSource.dll.so
+  [48/88] System.Formats.Asn1.dll -> System.Formats.Asn1.dll.so
+  [49/88] System.IO.Compression.Brotli.dll -> System.IO.Compression.Brotli.dll.so
+  [50/88] System.IO.Compression.dll -> System.IO.Compression.dll.so
+  [51/88] System.IO.Pipelines.dll -> System.IO.Pipelines.dll.so
+  [52/88] System.Linq.Expressions.dll -> System.Linq.Expressions.dll.so
+  [53/88] System.Linq.dll -> System.Linq.dll.so
+  [54/88] System.Memory.dll -> System.Memory.dll.so
+  [55/88] System.Net.Http.dll -> System.Net.Http.dll.so
+  [56/88] System.Net.NameResolution.dll -> System.Net.NameResolution.dll.so
+  [57/88] System.Net.NetworkInformation.dll -> System.Net.NetworkInformation.dll.so
+  [58/88] System.Net.Primitives.dll -> System.Net.Primitives.dll.so
+  [59/88] System.Net.Requests.dll -> System.Net.Requests.dll.so
+  [60/88] System.Net.Security.dll -> System.Net.Security.dll.so
+  [61/88] System.Net.Sockets.dll -> System.Net.Sockets.dll.so
+  [62/88] System.ObjectModel.dll -> System.ObjectModel.dll.so
+  [63/88] System.Private.Uri.dll -> System.Private.Uri.dll.so
+  [64/88] System.Private.Xml.Linq.dll -> System.Private.Xml.Linq.dll.so
+  [65/88] System.Private.Xml.dll -> System.Private.Xml.dll.so
+  [66/88] System.Runtime.InteropServices.RuntimeInformation.dll -> System.Runtime.InteropServices.RuntimeInformation.dll.so
+  [67/88] System.Runtime.InteropServices.dll -> System.Runtime.InteropServices.dll.so
+  [68/88] System.Runtime.Numerics.dll -> System.Runtime.Numerics.dll.so
+  [69/88] System.Runtime.Serialization.Formatters.dll -> System.Runtime.Serialization.Formatters.dll.so
+  [70/88] System.Runtime.dll -> System.Runtime.dll.so
+  [71/88] System.Security.Cryptography.dll -> System.Security.Cryptography.dll.so
+  [72/88] System.Text.Encoding.CodePages.dll -> System.Text.Encoding.CodePages.dll.so
+  [73/88] System.Text.Encodings.Web.dll -> System.Text.Encodings.Web.dll.so
+  [74/88] System.Text.Json.dll -> System.Text.Json.dll.so
+  [75/88] System.Text.RegularExpressions.dll -> System.Text.RegularExpressions.dll.so
+  [76/88] System.Threading.Channels.dll -> System.Threading.Channels.dll.so
+  [77/88] System.Threading.Tasks.Parallel.dll -> System.Threading.Tasks.Parallel.dll.so
+  [78/88] System.Threading.ThreadPool.dll -> System.Threading.ThreadPool.dll.so
+  [79/88] System.Threading.dll -> System.Threading.dll.so
+  [80/88] System.Web.HttpUtility.dll -> System.Web.HttpUtility.dll.so
+  [81/88] System.Xml.Linq.dll -> System.Xml.Linq.dll.so
+  [82/88] System.Xml.XDocument.dll -> System.Xml.XDocument.dll.so
+  [83/88] System.dll -> System.dll.so
+  [84/88] netstandard.dll -> netstandard.dll.so
+  [85/88] Java.Interop.dll -> Java.Interop.dll.so
+  [86/88] Mono.Android.Runtime.dll -> Mono.Android.Runtime.dll.so
+  [87/88] Mono.Android.dll -> Mono.Android.dll.so
+  [88/88] System.Private.CoreLib.dll -> System.Private.CoreLib.dll.so
+C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows\35.0.105\tools\Xamarin.Android.Common.targets(2092,3): warning XA0141: Android 16 灏嗛渶瑕?16 KB 椤甸潰澶у皬锛屽叡浜簱 'libcatclaw_native.so' 鐨勯〉闈㈠ぇ灏忎笉涓?16 KB銆傝閫氱煡浣滆€呭寘鍚?'libs\arm64-v8a\libcatclaw_native.so' 鐨?NuGet 鍖?'<unknown>' 鐗堟湰 '<unknown>'銆傛湁鍏宠缁嗕俊鎭紝璇峰弬闃?https://developer.android.com/guide/practices/page-sizes銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows\35.0.105\tools\Xamarin.Android.Common.targets(2092,3): warning XA0141: Android 16 灏嗛渶瑕?16 KB 椤甸潰澶у皬锛屽叡浜簱 'libcatclaw_native.so' 鐨勯〉闈㈠ぇ灏忎笉涓?16 KB銆傝閫氱煡浣滆€呭寘鍚?'libs\x86_64\libcatclaw_native.so' 鐨?NuGet 鍖?'<unknown>' 鐗堟湰 '<unknown>'銆傛湁鍏宠缁嗕俊鎭紝璇峰弬闃?https://developer.android.com/guide/practices/page-sizes銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+libs\arm64-v8a\libcatclaw_native.so : warning XA4301: APK 宸插寘鍚」 lib/arm64-v8a/libcatclaw_native.so锛涙鍦ㄥ拷鐣ャ€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+libs\x86_64\libcatclaw_native.so : warning XA4301: APK 宸插寘鍚」 lib/x86_64/libcatclaw_native.so锛涙鍦ㄥ拷鐣ャ€?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows\35.0.105\tools\Xamarin.Android.Common.targets(2092,3): warning XA0141: Android 16 灏嗛渶瑕?16 KB 椤甸潰澶у皬锛屽叡浜簱 'libe_sqlite3.so' 鐨勯〉闈㈠ぇ灏忎笉涓?16 KB銆傝閫氱煡浣滆€呭寘鍚?'C:\Users\lvjin\.nuget\packages\sqlitepclraw.lib.e_sqlite3.android\2.1.2\lib\net6.0-android31.0\SQLitePCLRaw.lib.e_sqlite3.android.aar' 鐨?NuGet 鍖?'SQLitePCLRaw.lib.e_sqlite3.android' 鐗堟湰 '2.1.2'銆傛湁鍏宠缁嗕俊鎭紝璇峰弬闃?https://developer.android.com/guide/practices/page-sizes銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows\35.0.105\tools\Xamarin.Android.Common.targets(2092,3): warning XA0141: Android 16 灏嗛渶瑕?16 KB 椤甸潰澶у皬锛屽叡浜簱 'libe_sqlite3.so' 鐨勯〉闈㈠ぇ灏忎笉涓?16 KB銆傝閫氱煡浣滆€呭寘鍚?'C:\Users\lvjin\.nuget\packages\sqlitepclraw.lib.e_sqlite3.android\2.1.2\lib\net6.0-android31.0\SQLitePCLRaw.lib.e_sqlite3.android.aar' 鐨?NuGet 鍖?'SQLitePCLRaw.lib.e_sqlite3.android' 鐗堟湰 '2.1.2'銆傛湁鍏宠缁嗕俊鎭紝璇峰弬闃?https://developer.android.com/guide/practices/page-sizes銆?[D:\WorkBuddy\CatClawMusic\CatClawMusic.UI\CatClawMusic.UI.csproj]
+
+鏈夊彲鐢ㄧ殑宸ヤ綔璐熻浇鏇存柊銆傛湁鍏宠缁嗕俊鎭紝璇疯繍琛?`dotnet workload list`銆?
