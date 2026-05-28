@@ -13,8 +13,8 @@
     <NoWarn>NU1605;NU1608</NoWarn>
     <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
     <EmbedAssembliesIntoApk>True</EmbedAssembliesIntoApk>
-    <Aapt2ToolPath Condition="'$(Configuration)'=='Release'">C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows\35.0.105\tools</Aapt2ToolPath>
     <AndroidUseAapt2>true</AndroidUseAapt2>
+    <AndroidSdkDirectory>C:\Users\Administrator\.android\sdk</AndroidSdkDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <AndroidPackageFormat>apk</AndroidPackageFormat>

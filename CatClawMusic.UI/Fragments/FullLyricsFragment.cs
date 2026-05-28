@@ -41,7 +41,7 @@ public class FullLyricsFragment : Fragment
     // 跳转按钮
     private Button _btnJump = null!;
     // 所有歌词TextView列表
-    private readonly List<TextView> _lyricViews = new();
+    private readonly List<StrokeTextView> _lyricViews = new();
     // 上一次高亮的歌词索引
     private int _lastLyricIndex = -1;
     private bool _userScrolling;
@@ -56,6 +56,12 @@ public class FullLyricsFragment : Fragment
     private readonly Handler _dragResumeHandler = new(Looper.MainLooper!);
     // 上一次的封面路径
     private string? _lastCoverSource;
+    
+    // 逐字歌词进度更新
+    private LyricProgressCallback? _lyricProgressCallback;
+    private bool _lyricGradientActive;
+    private double _lyricLineStartMs;
+    private double _lyricLineDurationMs;
     
     // SharedPreferences用于保存用户设置
     private ISharedPreferences? _prefs;
@@ -370,6 +376,8 @@ public class FullLyricsFragment : Fragment
                     break;
                 case nameof(_viewModel.CurrentLyricIndex): 
                     HighlightCurrentLine();
+                    CacheLyricLineTiming();
+                    StartLyricGradientUpdates();
                     break;
                 case nameof(_viewModel.CurrentLyricSpannable):
                     UpdateWordByWordLyrics();
@@ -425,7 +433,7 @@ public class FullLyricsFragment : Fragment
             return;
         }
 
-        // 为每一行歌词创建TextView
+        // 为每一行歌词创建StrokeTextView
         for (int i = 0; i < lyrics.Lines.Count; i++)
         {
             var line = lyrics.Lines[i];
@@ -434,7 +442,7 @@ public class FullLyricsFragment : Fragment
             lineLayout.SetGravity(GetLyricGravity());
             lineLayout.Tag = i;
 
-            var tv = new TextView(Context) { Text = line.Text };
+            var tv = new StrokeTextView(Context) { Text = line.Text };
             tv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
             tv.SetTextColor(Color.ParseColor("#38FFFFFF"));
             tv.SetTypeface(null, TypefaceStyle.Bold);
@@ -486,7 +494,7 @@ public class FullLyricsFragment : Fragment
     private void HighlightCurrentLine()
     {
         var idx = _viewModel.CurrentLyricIndex;
-        if (idx == _lastLyricIndex || _lyricViews.Count == 0) return;
+        if (idx == _lastLyricIndex && _lyricGradientActive) return;
 
         foreach (var v in _lyricViews)
         {
@@ -497,6 +505,7 @@ public class FullLyricsFragment : Fragment
             v.SetTextColor(Color.ParseColor("#38FFFFFF"));
             v.SetTypeface(null, TypefaceStyle.Bold);
             v.Background = null;
+            v.StrokeEnabled = true;
 
             var parent = v.Parent as LinearLayout;
             if (parent != null && parent.ChildCount > 1)
@@ -514,6 +523,7 @@ public class FullLyricsFragment : Fragment
         {
             _lyricViews[idx].SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 4);
             _lyricViews[idx].SetTextColor(Color.White);
+            _lyricViews[idx].SetupLyricGradient();
 
             var parent = _lyricViews[idx].Parent as LinearLayout;
             if (parent != null && parent.ChildCount > 1)
@@ -851,6 +861,64 @@ public class FullLyricsFragment : Fragment
                     break;
             }
             return false;
+        }
+    }
+
+    private void CacheLyricLineTiming()
+    {
+        var lines = _viewModel.CurrentLyrics?.Lines;
+        var idx = _viewModel.CurrentLyricIndex;
+        if (lines == null || idx < 0 || idx >= lines.Count) { _lyricLineDurationMs = 0; return; }
+
+        _lyricLineStartMs = lines[idx].Timestamp.TotalMilliseconds;
+        if (idx + 1 < lines.Count)
+        {
+            var gap = (lines[idx + 1].Timestamp - lines[idx].Timestamp).TotalMilliseconds;
+            _lyricLineDurationMs = gap > 0 && gap < 30000 ? gap : 5000;
+        }
+        else
+        {
+            _lyricLineDurationMs = 5000;
+        }
+    }
+
+    private void StartLyricGradientUpdates()
+    {
+        if (_lyricGradientActive) return;
+        _lyricGradientActive = true;
+        _lyricProgressCallback ??= new LyricProgressCallback(this);
+        Choreographer.Instance.PostFrameCallback(_lyricProgressCallback);
+    }
+
+    private void StopLyricGradientUpdates()
+    {
+        _lyricGradientActive = false;
+    }
+
+    private void UpdateLyricGradientProgress()
+    {
+        if (!_lyricGradientActive || _lyricLineDurationMs <= 0) return;
+        var idx = _viewModel.CurrentLyricIndex;
+        if (idx < 0 || idx >= _lyricViews.Count) return;
+
+        var nowMs = _viewModel.CurrentPosition.TotalMilliseconds;
+        var progress = (float)Math.Clamp((nowMs - _lyricLineStartMs) / _lyricLineDurationMs, 0.0, 1.0);
+        _lyricViews[idx].SetLyricProgress(progress);
+    }
+
+    private class LyricProgressCallback : Java.Lang.Object, Choreographer.IFrameCallback
+    {
+        private readonly WeakReference<FullLyricsFragment> _fragment;
+        public LyricProgressCallback(FullLyricsFragment f) => _fragment = new(f);
+
+        public void DoFrame(long frameTimeNanos)
+        {
+            if (_fragment.TryGetTarget(out var f))
+            {
+                f.UpdateLyricGradientProgress();
+                if (f._lyricGradientActive)
+                    Choreographer.Instance.PostFrameCallback(this);
+            }
         }
     }
 }
