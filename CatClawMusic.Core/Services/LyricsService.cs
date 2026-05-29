@@ -85,9 +85,17 @@ public class LyricsService : ILyricsService
             }
         }
 
-        if (!skipEmbedded && !isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+        if (!skipEmbedded)
         {
-            var embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
+            string? embeddedLyrics = null;
+            if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+            {
+                embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
+            }
+            else if (isContentUri && !string.IsNullOrEmpty(songPath) && ContentUriLyricsReader != null)
+            {
+                embeddedLyrics = ContentUriLyricsReader(songPath);
+            }
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
                 var parsed = ParseLrc(embeddedLyrics);
@@ -190,8 +198,11 @@ public class LyricsService : ILyricsService
         catch { return null; }
     }
 
-    /// <summary>读取 content:// URI 文本（由平台层注入）</summary>
+    /// <summary>读取 content:// URI 文本（由平台层注入，用于读取 .lrc 文件）</summary>
     public static Func<string, Task<string?>>? ContentUriReader { get; set; }
+
+    /// <summary>读取 content:// URI 音频文件并提取内嵌歌词（由平台层注入）</summary>
+    public static Func<string, string?>? ContentUriLyricsReader { get; set; }
 
     /// <summary>通过注入的 ContentUriReader 读取 content URI 内容</summary>
     private static async Task<string?> ReadContentUriAsync(string uri)

@@ -1,28 +1,98 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="?attr/catClawPageBackground"
-    android:paddingHorizontal="16dp" android:paddingTop="16dp">
+    android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
-    <com.google.android.material.card.MaterialCardView
-        android:layout_width="match_parent" android:layout_height="48dp"
-        android:layout_marginBottom="12dp"
-        app:cardCornerRadius="16dp" app:cardElevation="0dp"
-        app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
-        app:cardBackgroundColor="?attr/catClawCardBackground">
-        <EditText android:id="@+id/search_input" android:layout_width="match_parent"
-            android:layout_height="match_parent" android:hint="探索歌曲、艺术家、专辑..."
-            android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
-            android:background="@null" android:paddingHorizontal="16dp"
-            android:fontFamily="sans-serif" android:textSize="14sp"
-            android:importantForAutofill="no" />
-    </com.google.android.material.card.MaterialCardView>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingHorizontal="12dp" android:paddingVertical="8dp">
+        <ImageButton android:id="@+id/btn_ai_settings"
+            android:layout_width="36dp" android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_settings"
+            android:tint="?attr/catClawTextHint"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:contentDescription="AI 设置" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="AI 助手" android:textSize="18sp"
+            android:textColor="?attr/catClawTextPrimary"
+            android:fontFamily="@font/happy_zcool_2016"
+            android:gravity="center" />
+        <ImageButton android:id="@+id/btn_clear_chat"
+            android:layout_width="36dp" android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_refresh"
+            android:tint="?attr/catClawTextHint"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:contentDescription="清空对话" />
+    </LinearLayout>
 
-    <androidx.recyclerview.widget.RecyclerView android:id="@+id/search_results"
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="?attr/catClawCardBorder" />
+
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/chat_messages"
         android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:clipToPadding="false" android:paddingBottom="8dp" />
-    <TextView android:id="@+id/status_text" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:gravity="center" android:padding="8dp"
-        android:textColor="?attr/catClawTextHint" android:textSize="12sp" />
+        android:layout_weight="1" android:clipToPadding="false"
+        android:padding="12dp" android:paddingBottom="8dp" />
+
+    <LinearLayout android:id="@+id/layout_not_configured"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical" android:gravity="center"
+        android:visibility="gone">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="🤖" android:textSize="48sp"
+            android:layout_marginBottom="12dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="AI 助手未配置"
+            android:textSize="16sp" android:textColor="?attr/catClawTextPrimary"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginBottom="8dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="请先在设置中配置 AI 服务"
+            android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+            android:layout_marginBottom="16dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_go_ai_settings"
+            android:layout_width="wrap_content" android:layout_height="44dp"
+            android:text="前往设置"
+            app:cornerRadius="12dp" />
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="?attr/catClawCardBorder" />
+
+    <LinearLayout android:id="@+id/layout_input"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingHorizontal="12dp" android:paddingVertical="8dp">
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="0dp" android:layout_height="44dp"
+            android:layout_weight="1"
+            app:cardCornerRadius="22dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <EditText android:id="@+id/et_chat_input"
+                android:layout_width="match_parent" android:layout_height="match_parent"
+                android:hint="和 AI 助手对话..."
+                android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                android:background="@null" android:paddingHorizontal="16dp"
+                android:textSize="14sp" android:maxLines="3"
+                android:importantForAutofill="no" android:inputType="textMultiLine" />
+        </com.google.android.material.card.MaterialCardView>
+        <ImageButton android:id="@+id/btn_send"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            android:tint="?attr/catClawPrimaryColor"
+            android:scaleType="centerInside"
+            android:padding="10dp"
+            android:contentDescription="发送" />
+    </LinearLayout>
+
 </LinearLayout>

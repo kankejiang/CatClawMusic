@@ -1494,15 +1494,13 @@ public class NowPlayingFragment : Fragment
     private class LyricProgressCallback : Java.Lang.Object, Choreographer.IFrameCallback
     {
         private readonly WeakReference<NowPlayingFragment> _fragment;
-        private int _frameCount;
         public LyricProgressCallback(NowPlayingFragment f) => _fragment = new(f);
 
         public void DoFrame(long frameTimeNanos)
         {
             if (_fragment.TryGetTarget(out var f))
             {
-                if (++_frameCount % 2 == 0)
-                    f.UpdateLyricGradientProgress();
+                f.UpdateLyricGradientProgress();
                 if (f._lyricGradientActive)
                     Choreographer.Instance.PostFrameCallback(this);
             }

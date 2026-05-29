@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
@@ -109,7 +109,7 @@
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/btn_plugin_management"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp" android:clickable="true" android:focusable="true"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
             android:foreground="?attr/selectableItemBackground"
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
             app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
@@ -124,6 +124,35 @@
                         android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:id="@+id/tv_plugin_status"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="加载中…"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 🤖 AI 助手 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btn_ai_settings"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="🤖 AI 助手"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_ai_status"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="加载中…"
                         android:textSize="12sp" android:textColor="?attr/catClawTextHint"

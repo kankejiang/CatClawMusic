@@ -155,6 +155,47 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    public GlassDialog AddItemWithHighlight(string text, bool isHighlighted, Action onClick)
+    {
+        EnsureItemsContainer();
+
+        var itemLayout = new LinearLayout(Context!) { Orientation = Orientation.Horizontal };
+        itemLayout.SetGravity(GravityFlags.CenterVertical);
+        itemLayout.SetPadding(_dp * 8, _dp * 6, _dp * 8, _dp * 6);
+        itemLayout.SetBackgroundColor(Color.Transparent);
+
+        var tv = new TextView(Context!) { Text = text };
+        tv.SetTextSize(ComplexUnitType.Sp, 14f);
+        tv.SetTextColor(isHighlighted ? _themeColor : Color.White);
+        tv.SetTypeface(null, isHighlighted ? TypefaceStyle.Bold : TypefaceStyle.Normal);
+        tv.LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
+        itemLayout.AddView(tv);
+
+        itemLayout.Clickable = true;
+        itemLayout.Focusable = true;
+
+        var pressedColor = WithAlpha(_themeColor, 0x1A).ToArgb();
+        var normalColor = Color.Transparent.ToArgb();
+        var stateList = new Android.Content.Res.ColorStateList(
+            new[] { new[] { Android.Resource.Attribute.StatePressed }, new int[] { } },
+            new[] { pressedColor, normalColor }
+        );
+        var ripple = new RippleDrawable(stateList,
+            null, new ShapeDrawable(new RoundRectShape(
+                Enumerable.Repeat(12f * _density, 8).ToArray(), null, null)));
+        itemLayout.Background = ripple;
+
+        var capturedAction = onClick;
+        itemLayout.Click += (s, e) =>
+        {
+            capturedAction();
+            Dismiss();
+        };
+
+        _itemsContainer!.AddView(itemLayout);
+        return this;
+    }
+
     public GlassDialog AddDivider()
     {
         var divider = new View(Context!);

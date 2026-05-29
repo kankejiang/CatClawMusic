@@ -1,6 +1,7 @@
 using Android.Content;
 using Android.Graphics;
 using Android.Util;
+using Android.Views;
 using Android.Widget;
 
 namespace CatClawMusic.UI.Helpers;
@@ -16,9 +17,11 @@ public class StrokeTextView : TextView
     private float _lyricProgress = -1;
     private float _gradientTextWidth;
     private float _textStartX;
-    private const float GradientTransitionRatio = 0.03f;
+    private const float GradientTransitionRatio = 0.05f;
     private static readonly int[] GradientColors = { unchecked((int)0xFFFFFFFF), unchecked((int)0xFF777777) };
     private static readonly float[] GradientStops = { 0f, 1f };
+
+    private bool _useHardwareLayer = true;
 
     public StrokeTextView(Context context) : base(context) => Init();
     public StrokeTextView(Context context, IAttributeSet? attrs) : base(context, attrs) => InitAttrs(attrs);
@@ -26,8 +29,7 @@ public class StrokeTextView : TextView
 
     private void Init()
     {
-        if (global::Android.OS.Build.VERSION.SdkInt < global::Android.OS.BuildVersionCodes.P)
-            SetLayerType(global::Android.Views.LayerType.Software, null);
+        SetLayerType(LayerType.Hardware, null);
     }
 
     private void InitAttrs(IAttributeSet? attrs)
@@ -72,7 +74,7 @@ public class StrokeTextView : TextView
         _gradientTextWidth = paint.MeasureText(Text);
         var viewWidth = Width > 0 ? Width : _gradientTextWidth;
         _textStartX = Math.Max((viewWidth - _gradientTextWidth) / 2f, 0f);
-        var transitionWidth = Math.Max(_gradientTextWidth * GradientTransitionRatio, 60f);
+        var transitionWidth = Math.Max(_gradientTextWidth * GradientTransitionRatio, 80f);
 
         _lyricGradient = new LinearGradient(
             0, 0, transitionWidth, 0,
@@ -84,7 +86,7 @@ public class StrokeTextView : TextView
     {
         if (_lyricGradient == null) return;
         progress = Math.Clamp(progress, 0f, 1f);
-        if (Math.Abs(_lyricProgress - progress) < 0.002f) return;
+        if (Math.Abs(_lyricProgress - progress) < 0.001f) return;
         _lyricProgress = progress;
 
         var brightEnd = _textStartX + _gradientTextWidth * progress;

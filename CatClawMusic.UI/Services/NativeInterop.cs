@@ -519,4 +519,418 @@ public static class NativeInterop
             return null;
         }
     }
+
+    /* ============================================================
+     * AI Agent JSON 处理接口（C++ 原生实现）
+     * ============================================================ */
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NativeToolCallEntry
+    {
+        public IntPtr Id;
+        public IntPtr Name;
+        public IntPtr Arguments;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NativeLlmResponse
+    {
+        public IntPtr Content;
+        public IntPtr FinishReason;
+        public int ToolCallCount;
+        public IntPtr ToolCalls;
+        public IntPtr Error;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NativeChatMessage
+    {
+        public IntPtr Role;
+        public IntPtr Content;
+        public IntPtr ToolCallId;
+        public IntPtr Name;
+        public int ToolCallCount;
+        public IntPtr ToolCalls;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NativeToolCallMsg
+    {
+        public IntPtr Id;
+        public IntPtr Name;
+        public IntPtr Arguments;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NativeParamProperty
+    {
+        public IntPtr Type;
+        public IntPtr Description;
+        public int EnumCount;
+        public IntPtr EnumValues;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NativeToolDef
+    {
+        public IntPtr Name;
+        public IntPtr Description;
+        public int ParamCount;
+        public IntPtr ParamNames;
+        public IntPtr ParamProperties;
+        public int RequiredCount;
+        public IntPtr RequiredParams;
+    }
+
+    [DllImport(DllName, EntryPoint = "catclaw_ai_build_chat_request")]
+    private static extern IntPtr NativeBuildChatRequest(
+        IntPtr model, IntPtr messages, int msgCount,
+        IntPtr tools, int toolCount,
+        double temperature, int maxTokens);
+
+    [DllImport(DllName, EntryPoint = "catclaw_ai_parse_chat_response")]
+    private static extern IntPtr NativeParseChatResponse(IntPtr json, int jsonLen);
+
+    [DllImport(DllName, EntryPoint = "catclaw_ai_extract_string_arg")]
+    private static extern IntPtr NativeExtractStringArg(IntPtr json, int jsonLen, IntPtr key);
+
+    [DllImport(DllName, EntryPoint = "catclaw_ai_extract_int_arg")]
+    private static extern int NativeExtractIntArg(IntPtr json, int jsonLen, IntPtr key, int defaultVal);
+
+    [DllImport(DllName, EntryPoint = "catclaw_ai_build_url")]
+    private static extern IntPtr NativeBuildUrl(IntPtr baseUrl);
+
+    [DllImport(DllName, EntryPoint = "catclaw_ai_free")]
+    private static extern void AiFree(IntPtr ptr);
+
+    [DllImport(DllName, EntryPoint = "catclaw_ai_free_response")]
+    private static extern void AiFreeResponse(IntPtr response);
+
+    public static string? AiBuildChatRequest(
+        string model, List<Services.AI.ChatMessage> messages,
+        List<Services.AI.ToolDefinition>? tools,
+        double temperature, int maxTokens)
+    {
+        if (!IsAvailable) return null;
+        try
+        {
+            var modelPtr = Marshal.StringToHGlobalAnsi(model);
+            try
+            {
+                var msgArr = BuildNativeMessages(messages);
+                try
+                {
+                    IntPtr toolsPtr = IntPtr.Zero;
+                    int toolCount = 0;
+                    var toolDefArrs = new List<IntPtr[]>();
+                    var toolNamePtrs = new List<IntPtr>();
+                    var toolDescPtrs = new List<IntPtr>();
+                    var paramAllocs = new List<IntPtr>();
+
+                    if (tools != null && tools.Count > 0)
+                    {
+                        toolCount = tools.Count;
+                        var nativeToolDefs = new NativeToolDef[toolCount];
+
+                        for (int i = 0; i < toolCount; i++)
+                        {
+                            var t = tools[i];
+                            var namePtr = Marshal.StringToHGlobalAnsi(t.Function.Name);
+                            var descPtr = Marshal.StringToHGlobalAnsi(t.Function.Description);
+                            toolNamePtrs.Add(namePtr);
+                            toolDescPtrs.Add(descPtr);
+
+                            var paramNames = t.Function.Parameters.Properties.Keys.ToList();
+                            var paramNamePtrs = new IntPtr[paramNames.Count];
+                            var paramProps = new NativeParamProperty[paramNames.Count];
+                            var propAllocs = new List<IntPtr>();
+
+                            for (int j = 0; j < paramNames.Count; j++)
+                            {
+                                paramNamePtrs[j] = Marshal.StringToHGlobalAnsi(paramNames[j]);
+                                paramAllocs.Add(paramNamePtrs[j]);
+
+                                var prop = t.Function.Parameters.Properties[paramNames[j]];
+                                var typePtr = Marshal.StringToHGlobalAnsi(prop.Type);
+                                var descP = Marshal.StringToHGlobalAnsi(prop.Description);
+                                propAllocs.Add(typePtr);
+                                propAllocs.Add(descP);
+
+                                IntPtr enumPtr = IntPtr.Zero;
+                                if (prop.Enum != null && prop.Enum.Count > 0)
+                                {
+                                    var ep = new IntPtr[prop.Enum.Count];
+                                    for (int k = 0; k < prop.Enum.Count; k++)
+                                    {
+                                        ep[k] = Marshal.StringToHGlobalAnsi(prop.Enum[k]);
+                                        propAllocs.Add(ep[k]);
+                                    }
+                                    enumPtr = Marshal.AllocHGlobal(IntPtr.Size * prop.Enum.Count);
+                                    Marshal.Copy(ep, 0, enumPtr, prop.Enum.Count);
+                                    propAllocs.Add(enumPtr);
+                                }
+
+                                paramProps[j] = new NativeParamProperty
+                                {
+                                    Type = typePtr,
+                                    Description = descP,
+                                    EnumCount = prop.Enum?.Count ?? 0,
+                                    EnumValues = enumPtr
+                                };
+                            }
+
+                            var paramNamesPtr = Marshal.AllocHGlobal(IntPtr.Size * paramNames.Count);
+                            Marshal.Copy(paramNamePtrs, 0, paramNamesPtr, paramNames.Count);
+                            paramAllocs.Add(paramNamesPtr);
+
+                            var paramPropsPtr = Marshal.AllocHGlobal(Marshal.SizeOf<NativeParamProperty>() * paramNames.Count);
+                            for (int j = 0; j < paramNames.Count; j++)
+                                Marshal.StructureToPtr(paramProps[j], paramPropsPtr + j * Marshal.SizeOf<NativeParamProperty>(), false);
+                            paramAllocs.Add(paramPropsPtr);
+
+                            var reqParams = t.Function.Parameters.Required;
+                            var reqPtrs = new IntPtr[reqParams.Count];
+                            for (int j = 0; j < reqParams.Count; j++)
+                            {
+                                reqPtrs[j] = Marshal.StringToHGlobalAnsi(reqParams[j]);
+                                paramAllocs.Add(reqPtrs[j]);
+                            }
+                            var reqArrPtr = Marshal.AllocHGlobal(IntPtr.Size * reqParams.Count);
+                            if (reqParams.Count > 0) Marshal.Copy(reqPtrs, 0, reqArrPtr, reqParams.Count);
+                            paramAllocs.Add(reqArrPtr);
+
+                            nativeToolDefs[i] = new NativeToolDef
+                            {
+                                Name = namePtr,
+                                Description = descPtr,
+                                ParamCount = paramNames.Count,
+                                ParamNames = paramNamesPtr,
+                                ParamProperties = paramPropsPtr,
+                                RequiredCount = reqParams.Count,
+                                RequiredParams = reqArrPtr
+                            };
+                        }
+
+                        toolsPtr = Marshal.AllocHGlobal(Marshal.SizeOf<NativeToolDef>() * toolCount);
+                        for (int i = 0; i < toolCount; i++)
+                            Marshal.StructureToPtr(nativeToolDefs[i], toolsPtr + i * Marshal.SizeOf<NativeToolDef>(), false);
+                        paramAllocs.Add(toolsPtr);
+                    }
+
+                    try
+                    {
+                        var resultPtr = NativeBuildChatRequest(modelPtr, msgArr, messages.Count, toolsPtr, toolCount, temperature, maxTokens);
+                        if (resultPtr == IntPtr.Zero) return null;
+                        var result = Marshal.PtrToStringAnsi(resultPtr);
+                        AiFree(resultPtr);
+                        return result;
+                    }
+                    finally
+                    {
+                        foreach (var p in paramAllocs) Marshal.FreeHGlobal(p);
+                    }
+                }
+                finally
+                {
+                    FreeNativeMessages(msgArr, messages.Count);
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(modelPtr);
+            }
+        }
+        catch { return null; }
+    }
+
+    public static Services.AI.LlmResponse? AiParseChatResponse(string responseBody)
+    {
+        if (!IsAvailable) return null;
+        try
+        {
+            var jsonBytes = System.Text.Encoding.UTF8.GetBytes(responseBody);
+            var jsonPtr = Marshal.AllocHGlobal(jsonBytes.Length);
+            try
+            {
+                Marshal.Copy(jsonBytes, 0, jsonPtr, jsonBytes.Length);
+                var resultPtr = NativeParseChatResponse(jsonPtr, jsonBytes.Length);
+                if (resultPtr == IntPtr.Zero) return null;
+
+                try
+                {
+                    var native = Marshal.PtrToStructure<NativeLlmResponse>(resultPtr);
+                    var response = new Services.AI.LlmResponse();
+
+                    if (native.Error != IntPtr.Zero)
+                    {
+                        var errMsg = Marshal.PtrToStringAnsi(native.Error);
+                        throw new InvalidOperationException($"API 错误: {errMsg}");
+                    }
+
+                    response.Content = native.Content != IntPtr.Zero ? Marshal.PtrToStringAnsi(native.Content) ?? "" : "";
+                    response.FinishReason = native.FinishReason != IntPtr.Zero ? Marshal.PtrToStringAnsi(native.FinishReason) ?? "" : "";
+
+                    if (native.ToolCallCount > 0 && native.ToolCalls != IntPtr.Zero)
+                    {
+                        for (int i = 0; i < native.ToolCallCount; i++)
+                        {
+                            var tcEntry = Marshal.PtrToStructure<NativeToolCallEntry>(
+                                native.ToolCalls + i * Marshal.SizeOf<NativeToolCallEntry>());
+                            response.ToolCalls.Add(new Services.AI.ToolCall
+                            {
+                                Id = tcEntry.Id != IntPtr.Zero ? Marshal.PtrToStringAnsi(tcEntry.Id) ?? "" : "",
+                                Type = "function",
+                                Function = new Services.AI.ToolCallFunction
+                                {
+                                    Name = tcEntry.Name != IntPtr.Zero ? Marshal.PtrToStringAnsi(tcEntry.Name) ?? "" : "",
+                                    Arguments = tcEntry.Arguments != IntPtr.Zero ? Marshal.PtrToStringAnsi(tcEntry.Arguments) ?? "{}" : "{}"
+                                }
+                            });
+                        }
+                    }
+                    return response;
+                }
+                finally
+                {
+                    AiFreeResponse(resultPtr);
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(jsonPtr);
+            }
+        }
+        catch { return null; }
+    }
+
+    public static string? AiExtractStringArg(string argsJson, string key)
+    {
+        if (!IsAvailable) return null;
+        try
+        {
+            var jsonBytes = System.Text.Encoding.UTF8.GetBytes(argsJson);
+            var jsonPtr = Marshal.AllocHGlobal(jsonBytes.Length);
+            var keyPtr = Marshal.StringToHGlobalAnsi(key);
+            try
+            {
+                Marshal.Copy(jsonBytes, 0, jsonPtr, jsonBytes.Length);
+                var resultPtr = NativeExtractStringArg(jsonPtr, jsonBytes.Length, keyPtr);
+                if (resultPtr == IntPtr.Zero) return null;
+                var result = Marshal.PtrToStringAnsi(resultPtr);
+                AiFree(resultPtr);
+                return result;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(jsonPtr);
+                Marshal.FreeHGlobal(keyPtr);
+            }
+        }
+        catch { return null; }
+    }
+
+    public static int AiExtractIntArg(string argsJson, string key, int defaultVal = 0)
+    {
+        if (!IsAvailable) return defaultVal;
+        try
+        {
+            var jsonBytes = System.Text.Encoding.UTF8.GetBytes(argsJson);
+            var jsonPtr = Marshal.AllocHGlobal(jsonBytes.Length);
+            var keyPtr = Marshal.StringToHGlobalAnsi(key);
+            try
+            {
+                Marshal.Copy(jsonBytes, 0, jsonPtr, jsonBytes.Length);
+                return NativeExtractIntArg(jsonPtr, jsonBytes.Length, keyPtr, defaultVal);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(jsonPtr);
+                Marshal.FreeHGlobal(keyPtr);
+            }
+        }
+        catch { return defaultVal; }
+    }
+
+    public static string? AiBuildUrl(string baseUrl)
+    {
+        if (!IsAvailable) return null;
+        try
+        {
+            var ptr = Marshal.StringToHGlobalAnsi(baseUrl);
+            try
+            {
+                var resultPtr = NativeBuildUrl(ptr);
+                if (resultPtr == IntPtr.Zero) return null;
+                var result = Marshal.PtrToStringAnsi(resultPtr);
+                AiFree(resultPtr);
+                return result;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+        catch { return null; }
+    }
+
+    private static IntPtr BuildNativeMessages(List<Services.AI.ChatMessage> messages)
+    {
+        var arr = Marshal.AllocHGlobal(Marshal.SizeOf<NativeChatMessage>() * messages.Count);
+        for (int i = 0; i < messages.Count; i++)
+        {
+            var m = messages[i];
+            var native = new NativeChatMessage
+            {
+                Role = Marshal.StringToHGlobalAnsi(m.Role),
+                Content = Marshal.StringToHGlobalAnsi(m.Content ?? ""),
+                ToolCallId = m.ToolCallId != null ? Marshal.StringToHGlobalAnsi(m.ToolCallId) : IntPtr.Zero,
+                Name = m.Name != null ? Marshal.StringToHGlobalAnsi(m.Name) : IntPtr.Zero,
+                ToolCallCount = m.ToolCalls?.Count ?? 0,
+                ToolCalls = IntPtr.Zero
+            };
+
+            if (m.ToolCalls != null && m.ToolCalls.Count > 0)
+            {
+                native.ToolCalls = Marshal.AllocHGlobal(Marshal.SizeOf<NativeToolCallMsg>() * m.ToolCalls.Count);
+                for (int j = 0; j < m.ToolCalls.Count; j++)
+                {
+                    var tc = m.ToolCalls[j];
+                    Marshal.StructureToPtr(new NativeToolCallMsg
+                    {
+                        Id = Marshal.StringToHGlobalAnsi(tc.Id),
+                        Name = Marshal.StringToHGlobalAnsi(tc.Function.Name),
+                        Arguments = Marshal.StringToHGlobalAnsi(tc.Function.Arguments)
+                    }, native.ToolCalls + j * Marshal.SizeOf<NativeToolCallMsg>(), false);
+                }
+            }
+
+            Marshal.StructureToPtr(native, arr + i * Marshal.SizeOf<NativeChatMessage>(), false);
+        }
+        return arr;
+    }
+
+    private static void FreeNativeMessages(IntPtr arr, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            var native = Marshal.PtrToStructure<NativeChatMessage>(arr + i * Marshal.SizeOf<NativeChatMessage>());
+            Marshal.FreeHGlobal(native.Role);
+            Marshal.FreeHGlobal(native.Content);
+            if (native.ToolCallId != IntPtr.Zero) Marshal.FreeHGlobal(native.ToolCallId);
+            if (native.Name != IntPtr.Zero) Marshal.FreeHGlobal(native.Name);
+            if (native.ToolCalls != IntPtr.Zero)
+            {
+                for (int j = 0; j < native.ToolCallCount; j++)
+                {
+                    var tc = Marshal.PtrToStructure<NativeToolCallMsg>(
+                        native.ToolCalls + j * Marshal.SizeOf<NativeToolCallMsg>());
+                    Marshal.FreeHGlobal(tc.Id);
+                    Marshal.FreeHGlobal(tc.Name);
+                    Marshal.FreeHGlobal(tc.Arguments);
+                }
+                Marshal.FreeHGlobal(native.ToolCalls);
+            }
+        }
+        Marshal.FreeHGlobal(arr);
+    }
 }

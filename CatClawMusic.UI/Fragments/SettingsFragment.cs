@@ -6,6 +6,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Platforms.Android;
+using CatClawMusic.UI.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
@@ -18,6 +19,7 @@ public class SettingsFragment : Fragment
     private TextView? _tvLocalStatus;
     private TextView? _tvRemoteStatus;
     private TextView? _tvPluginStatus;
+    private TextView? _tvAiStatus;
     private Spinner? _spinnerTheme;
     private ImageButton? _btnDarkModeToggle;
     private IThemeService? _themeService;
@@ -76,6 +78,12 @@ public class SettingsFragment : Fragment
         var btnGeneralSettings = view.FindViewById<View>(Resource.Id.card_general_settings);
         if (btnGeneralSettings != null)
             btnGeneralSettings.SetOnClickListener(new ClickListener(() => nav.PushFragment("GeneralSettings")));
+
+        // AI 助手
+        var btnAiSettings = view.FindViewById<View>(Resource.Id.btn_ai_settings);
+        _tvAiStatus = view.FindViewById<TextView>(Resource.Id.tv_ai_status);
+        if (btnAiSettings != null)
+            btnAiSettings.SetOnClickListener(new ClickListener(() => nav.PushFragment("AiSettings")));
 
         return view;
     }
@@ -239,6 +247,20 @@ public class SettingsFragment : Fragment
         catch
         {
             _tvPluginStatus?.Post(() => _tvPluginStatus.Text = "插件系统未就绪");
+        }
+
+        // AI 助手状态
+        try
+        {
+            var aiConfig = CatClawMusic.UI.Services.AI.AgentService.LoadConfig();
+            var aiText = aiConfig.Enabled && !string.IsNullOrWhiteSpace(aiConfig.ApiKey)
+                ? $"已配置 ({aiConfig.Provider})"
+                : "未配置";
+            _tvAiStatus?.Post(() => _tvAiStatus.Text = aiText);
+        }
+        catch
+        {
+            _tvAiStatus?.Post(() => _tvAiStatus.Text = "未配置");
         }
     }
 

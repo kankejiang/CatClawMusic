@@ -2,7 +2,7 @@
     <string name="app_name">猫爪音乐</string>
     <string name="tab_library">音乐库</string>
     <string name="tab_playlist">歌单</string>
-    <string name="tab_search">探索</string>
+    <string name="tab_search">AI 助手</string>
     <string name="tab_settings">设置</string>
     <string name="local_music">本地音乐</string>
     <string name="network_music">网络音乐</string>

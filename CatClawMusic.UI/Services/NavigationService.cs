@@ -53,6 +53,7 @@ public class NavigationService : INavigationService
             "GeneralSettings" => MainApplication.Services.GetRequiredService<GeneralSettingsFragment>(),
             "DesktopLyric" => MainApplication.Services.GetRequiredService<DesktopLyricFragment>(),
             "PluginManagement" => MainApplication.Services.GetRequiredService<PluginManagementFragment>(),
+            "AiSettings" => MainApplication.Services.GetRequiredService<AiSettingsFragment>(),
             _ => throw new ArgumentException($"Unknown route: {route}")
         };
 

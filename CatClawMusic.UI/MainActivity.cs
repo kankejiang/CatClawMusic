@@ -717,6 +717,15 @@ public class MainActivity : AppCompatActivity
             var theme = (AppTheme)themeValue;
             var darkModeSetting = (DarkModeSetting)darkModeValue;
 
+            var themeService = MainApplication.Services.GetRequiredService<IThemeService>();
+            bool isDark = darkModeSetting == DarkModeSetting.Dark ||
+                (darkModeSetting == DarkModeSetting.FollowSystem && themeService.IsSystemDarkMode());
+
+            var config = new Configuration(Resources!.Configuration!);
+            config.UiMode = (config.UiMode & ~UiMode.NightMask)
+                | (isDark ? UiMode.NightYes : UiMode.NightNo);
+            Resources.UpdateConfiguration(config, Resources.DisplayMetrics);
+
             switch (darkModeSetting)
             {
                 case DarkModeSetting.Light:
@@ -762,7 +771,19 @@ public class MainActivity : AppCompatActivity
         bool isFollowSystem = themeService.DarkModeSetting == DarkModeSetting.FollowSystem;
 
         if (isFollowSystem)
+        {
             _skipNextRecreate = true;
+            // 更新 AppCompatDelegate 设置以跟随系统
+            AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightFollowSystem;
+        }
+        else
+        {
+            // 如果不是跟随系统模式，保持当前的主题设置
+            bool isDark = themeService.IsEffectivelyDark();
+            AppCompatDelegate.DefaultNightMode = isDark 
+                ? AppCompatDelegate.ModeNightYes 
+                : AppCompatDelegate.ModeNightNo;
+        }
 
         base.OnConfigurationChanged(newConfig);
         LockFontScale();
