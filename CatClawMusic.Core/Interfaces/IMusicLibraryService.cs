@@ -100,6 +100,8 @@ public interface IMusicLibraryService
     Task<List<Song>> GetPlaylistSongsAsync(int playlistId);
     /// <summary>更新歌曲在播放列表中的位置</summary>
     Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition);
+    /// <summary>批量更新播放列表中所有歌曲的顺序位置</summary>
+    Task UpdatePlaylistOrderAsync(int playlistId, List<int> orderedSongIds);
     /// <summary>获取播放列表中的歌曲数量</summary>
     Task<int> GetPlaylistSongCountAsync(int playlistId);
 

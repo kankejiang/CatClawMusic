@@ -542,6 +542,7 @@ public class SongAdapter : RecyclerView.Adapter
         private readonly ImageView _cover;
         private readonly Helpers.WaveformView _pauseIcon;
         private readonly CheckBox _checkbox;
+        private readonly View _cardView;
 
         /// <summary>
         /// 当前 ViewHolder 绑定的歌曲 ID，用于判断封面加载完成时是否仍对应当前歌曲（防错位）

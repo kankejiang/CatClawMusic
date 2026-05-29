@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content;
 using Android.Runtime;
+using AndroidX.AppCompat.App;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
@@ -170,6 +171,25 @@ public class MainApplication : Application
         services.AddTransient<UpcomingSongAdapter>();
 
         Services = services.BuildServiceProvider();
+
+        // 初始化主题设置（确保在应用启动时就正确设置）
+        try
+        {
+            var themeService = Services.GetRequiredService<IThemeService>();
+            switch (themeService.DarkModeSetting)
+            {
+                case DarkModeSetting.Light:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightNo;
+                    break;
+                case DarkModeSetting.Dark:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightYes;
+                    break;
+                case DarkModeSetting.FollowSystem:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightFollowSystem;
+                    break;
+            }
+        }
+        catch { }
 
         // 设置 LyricsService 的 PluginManager（属性注入，避免循环依赖）
         var lyricsService = Services.GetRequiredService<ILyricsService>() as LyricsService;

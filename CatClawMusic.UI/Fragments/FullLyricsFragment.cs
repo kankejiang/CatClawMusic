@@ -545,15 +545,6 @@ public class FullLyricsFragment : Fragment
 
     public void UpdateWordByWordLyrics()
     {
-        var idx = _viewModel.CurrentLyricIndex;
-        if (idx < 0 || idx >= _lyricViews.Count) return;
-
-        var spannable = _viewModel.CurrentLyricSpannable;
-        if (spannable != null)
-        {
-            _lyricViews[idx].SetText(spannable, TextView.BufferType.Spannable);
-            _lyricViews[idx].SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 4);
-        }
     }
 
     /// <summary>
