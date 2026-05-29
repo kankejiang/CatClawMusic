@@ -93,6 +93,29 @@ public class MainApplication : Application
             }
             catch { return null; }
         };
+        LyricsService.ContentUriLyricsReader = uri =>
+        {
+            try
+            {
+                using var stream = global::Android.App.Application.Context.ContentResolver!.OpenInputStream(global::Android.Net.Uri.Parse(uri)!);
+                if (stream == null) return null;
+                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"catclaw_lyrics_{Guid.NewGuid()}.tmp");
+                using (var tempFile = System.IO.File.Create(tempPath))
+                {
+                    stream.CopyTo(tempFile);
+                }
+                try
+                {
+                    var lyrics = CatClawMusic.Core.Services.TagReader.ReadEmbeddedLyrics(tempPath);
+                    return !string.IsNullOrWhiteSpace(lyrics) ? lyrics : null;
+                }
+                finally
+                {
+                    try { System.IO.File.Delete(tempPath); } catch { }
+                }
+            }
+            catch { return null; }
+        };
         /* 注入 C++ 原生编码检测器到歌词服务，优先使用原生库进行编码检测 */
         LyricsService.NativeEncodingDetector = rawBytes =>
         {
