@@ -51,6 +51,11 @@ public class SearchFragment : Fragment
                 e.Handled = true;
             }
         };
+        _chatInput.FocusChange += (s, e) =>
+        {
+            if (e.HasFocus)
+                _chatMessages.Post(() => ScrollToBottom());
+        };
 
         var btnAiSettings = view.FindViewById<ImageButton>(Resource.Id.btn_ai_settings);
         if (btnAiSettings != null)

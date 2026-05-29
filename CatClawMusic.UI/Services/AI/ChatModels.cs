@@ -60,6 +60,25 @@ public class LlmConfig
     public bool Enabled { get; set; }
 }
 
+public class LlmConfigEntry : LlmConfig
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public string DisplayName
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Name)) return Name;
+            var providers = AgentService.GetProviders();
+            var provider = Array.Find(providers, p => p.Id == Provider);
+            return provider?.Name ?? Provider;
+        }
+    }
+}
+
 public class LlmResponse
 {
     public string Content { get; set; } = "";

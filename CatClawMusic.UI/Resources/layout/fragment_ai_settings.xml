@@ -58,6 +58,51 @@
             app:cardBackgroundColor="?attr/catClawCardBackground">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="已保存配置"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_config_count"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint" />
+                </LinearLayout>
+                <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_config_entries"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false" />
+                <TextView android:id="@+id/tv_no_configs"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="暂无已保存的配置，填写下方信息后点击保存"
+                    android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                    android:gravity="center" android:paddingVertical="12dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="配置名称"
+                    android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                    android:layout_marginBottom="4dp" />
+                <EditText android:id="@+id/et_config_name"
+                    android:layout_width="match_parent" android:layout_height="44dp"
+                    android:hint="如：我的 DeepSeek"
+                    android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                    android:background="@null" android:paddingHorizontal="12dp"
+                    android:textSize="14sp" android:inputType="text"
+                    android:importantForAutofill="no"
+                    android:layout_marginBottom="12dp" />
+
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:text="模型服务商"
                     android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
@@ -106,10 +151,30 @@
                     android:importantForAutofill="no"
                     android:layout_marginBottom="12dp" />
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="模型名称"
-                    android:textSize="13sp" android:textColor="?attr/catClawTextHint"
-                    android:layout_marginBottom="4dp" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="模型名称"
+                        android:textSize="13sp" android:textColor="?attr/catClawTextHint" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_fetch_models"
+                        android:layout_width="wrap_content" android:layout_height="32dp"
+                        android:text="获取可用模型"
+                        android:textSize="11sp"
+                        app:cornerRadius="8dp"
+                        app:backgroundTint="?attr/catClawCardBackground"
+                        android:textColor="?attr/catClawPrimaryColor"
+                        app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+                        android:minWidth="0dp" android:paddingHorizontal="12dp" />
+                </LinearLayout>
+                <Spinner android:id="@+id/spinner_model"
+                    android:layout_width="match_parent" android:layout_height="44dp"
+                    android:paddingHorizontal="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:minHeight="44dp"
+                    android:visibility="gone" />
                 <EditText android:id="@+id/et_model"
                     android:layout_width="match_parent" android:layout_height="44dp"
                     android:hint="deepseek-chat"

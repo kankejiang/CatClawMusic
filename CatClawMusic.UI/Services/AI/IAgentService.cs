@@ -4,6 +4,7 @@ public interface ILlmClient
 {
     Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default);
     Task<bool> TestConnectionAsync();
+    Task<List<string>> GetModelsAsync();
 }
 
 public interface IAgentTool

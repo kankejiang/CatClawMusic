@@ -75,6 +75,63 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         catch { return false; }
     }
 
+    public async Task<List<string>> GetModelsAsync()
+    {
+        var config = _configProvider();
+        if (string.IsNullOrWhiteSpace(config.ApiUrl) || string.IsNullOrWhiteSpace(config.ApiKey))
+            throw new InvalidOperationException("请先填写 API 地址和 Key");
+
+        var url = BuildModelsUrl(config.ApiUrl);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Add("Authorization", $"Bearer {config.ApiKey}");
+
+        using var response = await _httpClient.SendAsync(request);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"获取模型列表失败 ({(int)response.StatusCode})");
+
+        return ParseModelsResponse(responseBody);
+    }
+
+    private static string BuildModelsUrl(string apiUrl)
+    {
+        var url = apiUrl.TrimEnd('/');
+        if (url.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            return url.Replace("/chat/completions", "/models");
+        if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+            return url + "/models";
+        if (url.EndsWith("/v1/", StringComparison.OrdinalIgnoreCase))
+            return url + "models";
+        return url + "/v1/models";
+    }
+
+    private static List<string> ParseModelsResponse(string responseBody)
+    {
+        var models = new List<string>();
+        try
+        {
+            using var doc = JsonDocument.Parse(responseBody);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in data.EnumerateArray())
+                {
+                    var id = item.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+                    if (!string.IsNullOrEmpty(id))
+                        models.Add(id);
+                }
+            }
+
+            models.Sort(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (JsonException) { }
+
+        return models;
+    }
+
     private static string BuildChatUrl(string apiUrl)
     {
         var nativeUrl = Services.NativeInterop.AiBuildUrl(apiUrl);

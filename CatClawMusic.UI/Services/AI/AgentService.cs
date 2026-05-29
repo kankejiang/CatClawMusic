@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Android.Content;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
@@ -29,13 +30,20 @@ public class AgentService : IAgentService
     private static readonly LlmProviderInfo[] Providers = new[]
     {
         new LlmProviderInfo { Id = "deepseek", Name = "DeepSeek", DefaultApiUrl = "https://api.deepseek.com/v1", DefaultModel = "deepseek-chat" },
-        new LlmProviderInfo { Id = "modelscope", Name = "魔搭社区", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "qwen-turbo" },
+        new LlmProviderInfo { Id = "modelscope", Name = "魔搭社区", DefaultApiUrl = "https://api-inference.modelscope.cn/v1", DefaultModel = "Qwen/Qwen3-8B" },
         new LlmProviderInfo { Id = "llamacpp", Name = "llama.cpp (本地)", DefaultApiUrl = "http://127.0.0.1:8080/v1", DefaultModel = "default" },
         new LlmProviderInfo { Id = "zhipu", Name = "智谱 AI", DefaultApiUrl = "https://open.bigmodel.cn/api/paas/v1", DefaultModel = "glm-4-flash" },
         new LlmProviderInfo { Id = "moonshot", Name = "Moonshot (Kimi)", DefaultApiUrl = "https://api.moonshot.cn/v1", DefaultModel = "moonshot-v1-8k" },
-        new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "qwen-turbo" },
-        new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "generalv3.5" },
+        new LlmProviderInfo { Id = "qwen", Name = "通义千问 (百炼)", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "qwen-turbo" },
+        new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api.xf-yun.com/v1", DefaultModel = "generalv3.5" },
         new LlmProviderInfo { Id = "custom", Name = "自定义 (OpenAI 兼容)", DefaultApiUrl = "", DefaultModel = "" },
+    };
+
+    private static readonly JsonSerializerOptions EntryJsonOpts = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     public bool IsConfigured
@@ -58,6 +66,9 @@ public class AgentService : IAgentService
 
     public static LlmConfig LoadConfig()
     {
+        var activeEntry = LoadAllConfigEntries().FirstOrDefault(e => e.IsActive);
+        if (activeEntry != null) return activeEntry;
+
         try
         {
             var ctx = global::Android.App.Application.Context;
@@ -92,6 +103,82 @@ public class AgentService : IAgentService
             .PutInt("max_tokens", config.MaxTokens)
             .PutBoolean("enabled", config.Enabled)
             .Apply();
+    }
+
+    public static List<LlmConfigEntry> LoadAllConfigEntries()
+    {
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            var prefs = ctx.GetSharedPreferences("catclaw_ai_entries", FileCreationMode.Private);
+            var json = prefs.GetString("entries", null);
+            if (string.IsNullOrEmpty(json)) return new List<LlmConfigEntry>();
+            return JsonSerializer.Deserialize<List<LlmConfigEntry>>(json, EntryJsonOpts) ?? new List<LlmConfigEntry>();
+        }
+        catch
+        {
+            return new List<LlmConfigEntry>();
+        }
+    }
+
+    public static void SaveAllConfigEntries(List<LlmConfigEntry> entries)
+    {
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_ai_entries", FileCreationMode.Private);
+        var json = JsonSerializer.Serialize(entries, EntryJsonOpts);
+        prefs.Edit().PutString("entries", json).Apply();
+    }
+
+    public static void SaveConfigEntry(LlmConfigEntry entry)
+    {
+        var entries = LoadAllConfigEntries();
+        var existing = entries.FindIndex(e => e.Id == entry.Id);
+        if (existing >= 0)
+            entries[existing] = entry;
+        else
+            entries.Add(entry);
+
+        if (entry.IsActive)
+        {
+            foreach (var e in entries)
+            {
+                if (e.Id != entry.Id) e.IsActive = false;
+            }
+        }
+
+        SaveAllConfigEntries(entries);
+    }
+
+    public static void DeleteConfigEntry(string entryId)
+    {
+        var entries = LoadAllConfigEntries();
+        var wasActive = entries.FirstOrDefault(e => e.Id == entryId)?.IsActive ?? false;
+        entries.RemoveAll(e => e.Id == entryId);
+
+        if (wasActive && entries.Count > 0)
+            entries[0].IsActive = true;
+
+        SaveAllConfigEntries(entries);
+    }
+
+    public static void SetActiveConfigEntry(string entryId)
+    {
+        var entries = LoadAllConfigEntries();
+        foreach (var e in entries)
+            e.IsActive = e.Id == entryId;
+
+        SaveAllConfigEntries(entries);
+    }
+
+    public static void ToggleConfigEntryEnabled(string entryId, bool enabled)
+    {
+        var entries = LoadAllConfigEntries();
+        var entry = entries.FirstOrDefault(e => e.Id == entryId);
+        if (entry != null)
+        {
+            entry.Enabled = enabled;
+            SaveAllConfigEntries(entries);
+        }
     }
 
     public async Task<ChatMessage> SendMessageAsync(string userMessage, Action<ChatMessage>? onPartialMessage = null, CancellationToken ct = default)
