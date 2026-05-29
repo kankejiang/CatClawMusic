@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content;
 using Android.Runtime;
+using AndroidX.AppCompat.App;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
@@ -93,6 +94,29 @@ public class MainApplication : Application
             }
             catch { return null; }
         };
+        LyricsService.ContentUriLyricsReader = uri =>
+        {
+            try
+            {
+                using var stream = global::Android.App.Application.Context.ContentResolver!.OpenInputStream(global::Android.Net.Uri.Parse(uri)!);
+                if (stream == null) return null;
+                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"catclaw_lyrics_{Guid.NewGuid()}.tmp");
+                using (var tempFile = System.IO.File.Create(tempPath))
+                {
+                    stream.CopyTo(tempFile);
+                }
+                try
+                {
+                    var lyrics = CatClawMusic.Core.Services.TagReader.ReadEmbeddedLyrics(tempPath);
+                    return !string.IsNullOrWhiteSpace(lyrics) ? lyrics : null;
+                }
+                finally
+                {
+                    try { System.IO.File.Delete(tempPath); } catch { }
+                }
+            }
+            catch { return null; }
+        };
         /* 注入 C++ 原生编码检测器到歌词服务，优先使用原生库进行编码检测 */
         LyricsService.NativeEncodingDetector = rawBytes =>
         {
@@ -147,6 +171,25 @@ public class MainApplication : Application
         services.AddTransient<UpcomingSongAdapter>();
 
         Services = services.BuildServiceProvider();
+
+        // 初始化主题设置（确保在应用启动时就正确设置）
+        try
+        {
+            var themeService = Services.GetRequiredService<IThemeService>();
+            switch (themeService.DarkModeSetting)
+            {
+                case DarkModeSetting.Light:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightNo;
+                    break;
+                case DarkModeSetting.Dark:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightYes;
+                    break;
+                case DarkModeSetting.FollowSystem:
+                    AppCompatDelegate.DefaultNightMode = AppCompatDelegate.ModeNightFollowSystem;
+                    break;
+            }
+        }
+        catch { }
 
         // 设置 LyricsService 的 PluginManager（属性注入，避免循环依赖）
         var lyricsService = Services.GetRequiredService<ILyricsService>() as LyricsService;

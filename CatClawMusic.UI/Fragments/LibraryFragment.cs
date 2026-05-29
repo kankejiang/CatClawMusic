@@ -30,11 +30,15 @@ public class LibraryFragment : Fragment
     private Button _btnNetwork = null!;
     private ImageButton _btnRefresh = null!;
     private ImageButton _btnSort = null!;
+    private ImageButton _btnSource = null!;
+    private ImageButton _btnClear = null!;
     private LinearLayout _networkProtocolRow = null!;
     private Spinner _protocolSpinner = null!;
     private ArrayAdapter<string>? _protocolAdapter = null!;
     private EditText _searchBox = null!;
     private SongAdapter _adapter = null!;
+
+    private string _currentSourceFilter = "all"; // all, local, network
 
     /// <summary>
     /// 创建音乐库视图
@@ -62,6 +66,8 @@ public class LibraryFragment : Fragment
         _btnNetwork = view.FindViewById<Button>(Resource.Id.btn_network)!;
         _btnRefresh = view.FindViewById<ImageButton>(Resource.Id.btn_refresh)!;
         _btnSort = view.FindViewById<ImageButton>(Resource.Id.btn_sort)!;
+        _btnSource = view.FindViewById<ImageButton>(Resource.Id.btn_source)!;
+        _btnClear = view.FindViewById<ImageButton>(Resource.Id.btn_clear)!;
         _searchBox = view.FindViewById<EditText>(Resource.Id.search_box)!;
         _networkProtocolRow = view.FindViewById<LinearLayout>(Resource.Id.network_protocol_row)!;
         _protocolSpinner = view.FindViewById<Spinner>(Resource.Id.spinner_protocol)!;
@@ -97,6 +103,8 @@ public class LibraryFragment : Fragment
         _btnNetwork.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Network");
         _btnRefresh.Click += (s, e) => _viewModel.RefreshCommand.Execute(null);
         _btnSort.Click += OnSortClicked;
+        _btnSource.Click += OnSourceClicked;
+        _btnClear.Click += OnClearClicked;
 
         BindViews();
         if (_viewModel.CurrentTab == "Network")
@@ -111,8 +119,18 @@ public class LibraryFragment : Fragment
         {
             _networkProtocolRow.Visibility = ViewStates.Gone;
         }
+        
+        // 如果已有歌曲，更新适配器
         if (_viewModel.Songs.Count > 0)
             _adapter.UpdateSongs(_viewModel.Songs);
+        // 否则，根据当前标签自动加载音乐
+        else
+        {
+            if (_viewModel.CurrentTab == "Local")
+                _ = _viewModel.LoadLocalAsync();
+            else
+                _ = _viewModel.LoadNetworkAsync();
+        }
     }
 
     /// <summary>
@@ -442,6 +460,82 @@ public class LibraryFragment : Fragment
             ? songs.OrderByDescending(keySelector).ToList()
             : songs.OrderBy(keySelector).ToList();
         _adapter.UpdateSongs(sorted);
+    }
+
+    private void OnSourceClicked(object? sender, EventArgs e)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var dialog = new GlassDialog(ctx).SetTitle("来源筛选");
+
+        dialog.AddItemWithHighlight("全部音乐", _currentSourceFilter == "all", () =>
+        {
+            _currentSourceFilter = "all";
+            _adapter.UpdateSongs(_viewModel.Songs);
+        });
+        dialog.AddItemWithHighlight("仅本地音乐", _currentSourceFilter == "local", () =>
+        {
+            _currentSourceFilter = "local";
+            var filtered = _viewModel.Songs.Where(s => s.Source == CoreModels.SongSource.Local).ToList();
+            _adapter.UpdateSongs(filtered);
+        });
+        dialog.AddItemWithHighlight("仅网络音乐", _currentSourceFilter == "network", () =>
+        {
+            _currentSourceFilter = "network";
+            var filtered = _viewModel.Songs.Where(s => s.Source != CoreModels.SongSource.Local).ToList();
+            _adapter.UpdateSongs(filtered);
+        });
+
+        dialog.Show();
+    }
+
+    private void OnClearClicked(object? sender, EventArgs e)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var type = _viewModel.CurrentTab == "Local" ? "本地音乐库" : "网络音乐库";
+
+        new GlassDialog(ctx)
+            .SetTitle("确认清除")
+            .AddMessage($"确定要清除{type}中的所有歌曲吗？\n\n此操作不可撤销。")
+            .AddNegativeButton("取消")
+            .AddPositiveButton("确认清除", async (s) =>
+            {
+                try
+                {
+                    var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+                    if (_viewModel.CurrentTab == "Local")
+                    {
+                        await db.ClearLocalSongsAsync();
+                    }
+                    else
+                    {
+                        await db.ClearCachedNetworkSongsAsync();
+                    }
+                    
+                    _viewModel.Songs.Clear();
+                    _adapter.Clear();
+                    
+                    if (_viewModel.CurrentTab == "Local")
+                    {
+                        _viewModel.StatusText = "本地音乐库已清空";
+                    }
+                    else
+                    {
+                        _viewModel.StatusText = "网络音乐库已清空";
+                    }
+
+                    Toast.MakeText(ctx, $"{type}已清空", ToastLength.Short)?.Show();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Library] 清除失败: {ex.Message}");
+                    Toast.MakeText(ctx, "清除失败", ToastLength.Short)?.Show();
+                }
+            })
+            .Show();
     }
 
     private Android.App.Dialog? _contextMenuDialog;

@@ -146,10 +146,19 @@ public partial class PlaylistDetailViewModel : ObservableObject
     /// <summary>
     /// 从当前歌单中移除歌曲
     /// </summary>
-    /// <param name="songId">歌曲ID</param>
+    /// <param name="songId">歌曲 ID</param>
     public async Task RemoveSongFromPlaylistAsync(int songId)
     {
         if (_playlistId > 0)
             await _musicLibrary.RemoveSongFromPlaylistAsync(_playlistId, songId);
+    }
+
+    /// <summary>
+    /// 保存歌单中歌曲的自定义排序位置
+    /// </summary>
+    public async Task SavePlaylistOrderAsync()
+    {
+        if (_playlistId <= 0) return;
+        await _musicLibrary.UpdatePlaylistOrderAsync(_playlistId, Songs.Select(s => s.Id).ToList());
     }
 }

@@ -300,6 +300,14 @@ public class MusicDatabase
         try { await _database.ExecuteAsync("DELETE FROM Albums"); } catch { }
     }
 
+    /// <summary>清空所有缓存的网络歌曲</summary>
+    public async Task ClearCachedNetworkSongsAsync()
+    {
+        await EnsureInitializedAsync();
+        try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source != ?", (int)SongSource.Local); } catch { }
+        try { await _database.ExecuteAsync("DELETE FROM CachedSongs"); } catch { }
+    }
+
     /// <summary>删除指定来源中不在保留路径集合内的歌曲，并清理孤立艺术家/专辑</summary>
     /// <param name="source">歌曲来源类型</param>
     /// <param name="retainPaths">需要保留的本地文件路径集合</param>
@@ -764,7 +772,8 @@ public class MusicDatabase
         var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
 
         var songMap = songs.ToDictionary(s => s.Id);
-        var sorted = new List<Song>();
+
+        var sorted = new List<Song>(entries.Count);
         foreach (var entry in entries)
         {
             if (songMap.TryGetValue(entry.SongId, out var song))
@@ -793,6 +802,45 @@ public class MusicDatabase
 
         entry.Position = newPosition;
         await _database.UpdateAsync(entry);
+    }
+
+    /// <summary>
+    /// 批量更新播放列表中所有歌曲的顺序位置
+    /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <param name="orderedSongIds">排序后的歌曲 ID 列表</param>
+    public async Task UpdatePlaylistOrderAsync(int playlistId, List<int> orderedSongIds)
+    {
+        await EnsureInitializedAsync();
+
+        var allEntries = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .ToListAsync();
+
+        System.Diagnostics.Debug.WriteLine($"[DB] UpdatePlaylistOrderAsync: playlistId={playlistId}, orderedSongIds.Count={orderedSongIds.Count}, existingEntries.Count={allEntries.Count}");
+
+        var entryDict = allEntries.ToDictionary(e => e.SongId);
+
+        int updatedCount = 0;
+        int missingCount = 0;
+
+        for (int i = 0; i < orderedSongIds.Count; i++)
+        {
+            var songId = orderedSongIds[i];
+            if (entryDict.TryGetValue(songId, out var entry))
+            {
+                entry.Position = i;
+                await _database.UpdateAsync(entry);
+                updatedCount++;
+            }
+            else
+            {
+                missingCount++;
+                System.Diagnostics.Debug.WriteLine($"[DB] UpdatePlaylistOrderAsync: SongId={songId} not found in PlaylistSong for playlist {playlistId}");
+            }
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[DB] UpdatePlaylistOrderAsync completed: {updatedCount} updated, {missingCount} missing");
     }
 
     /// <summary>

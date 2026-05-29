@@ -415,6 +415,13 @@ public class MusicLibraryService : IMusicLibraryService
     public async Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition) => await _db.UpdateSongPositionAsync(playlistId, songId, newPosition);
 
     /// <summary>
+    /// 委托：批量更新播放列表中所有歌曲的顺序位置
+    /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <param name="orderedSongIds">排序后的歌曲 ID 列表</param>
+    public async Task UpdatePlaylistOrderAsync(int playlistId, List<int> orderedSongIds) => await _db.UpdatePlaylistOrderAsync(playlistId, orderedSongIds);
+
+    /// <summary>
     /// 委托：获取播放列表歌曲数量
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
