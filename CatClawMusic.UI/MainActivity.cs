@@ -638,32 +638,36 @@ public class MainActivity : AppCompatActivity
 
         ViewCompat.SetOnApplyWindowInsetsListener(root, new WindowInsetsListener((v, insets) =>
         {
-            var bars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()
+            var systemBars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()
                 | WindowInsetsCompat.Type.DisplayCutout());
+            
+            var ime = insets.GetInsets(WindowInsetsCompat.Type.Ime());
 
-            StatusBarHeight = bars.Top;
-            NavBarHeight = bars.Bottom;
+            StatusBarHeight = systemBars.Top;
+            NavBarHeight = systemBars.Bottom;
 
             v.SetPadding(0, 0, 0, 0);
 
             var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
             if (mainLayout != null)
-                mainLayout.SetPadding(0, _currentTab is 0 or 1 ? 0 : bars.Top, 0, 0);
+            {
+                mainLayout.SetPadding(0, _currentTab is 0 or 1 ? 0 : systemBars.Top, 0, 0);
+            }
 
             _bottomNav.SetPadding(
                 _bottomNav.PaddingLeft,
                 _bottomNav.PaddingTop,
                 _bottomNav.PaddingRight,
-                bars.Bottom);
+                systemBars.Bottom);
 
             var overlay = FindViewById<View>(Resource.Id.overlay_container);
             if (overlay != null)
-                overlay.SetPadding(0, 0, 0, bars.Bottom);
+                overlay.SetPadding(0, 0, 0, Math.Max(systemBars.Bottom, ime.Bottom));
 
             if (_sidePanelContent != null)
-                _sidePanelContent.SetPadding(0, bars.Top, 0, 0);
+                _sidePanelContent.SetPadding(0, systemBars.Top, 0, 0);
 
-            return WindowInsetsCompat.Consumed;
+            return insets;
         }));
     }
 

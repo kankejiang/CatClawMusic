@@ -11,12 +11,14 @@ public class AgentService : IAgentService
     private readonly IEnumerable<IAgentTool> _tools;
     private readonly List<ChatMessage> _conversationHistory = new();
     private readonly ILogService _logService;
+    private readonly IMusicLibraryService? _musicLibrary;
 
     private const string SystemPrompt = @"你是猫爪音乐的 AI 助手，可以帮助用户管理音乐库和播放音乐。你可以：
 1. 搜索音乐库中的歌曲
 2. 创建、查看、删除播放列表（歌单）
-3. 将歌曲添加到歌单或从歌单中移除
+3. 将歌曲添加到歌单或从歌单移除
 4. 播放指定歌曲
+5. 当用户询问需要网络信息的问题时（如：最新音乐资讯、艺术家介绍、歌曲背景等），使用网络搜索工具获取信息
 
 请用中文回复用户。当用户请求涉及音乐操作时，请使用提供的工具来完成。回复要简洁友好。
 
@@ -24,17 +26,18 @@ public class AgentService : IAgentService
 - 创建歌单前不需要确认，直接创建
 - 添加歌曲到歌单时，先搜索歌曲获取 ID，再添加
 - 如果用户说""帮我创建一个XX歌单""，直接调用创建歌单工具
-- 如果用户说""把XX添加到歌单""，先搜索歌曲，再添加到歌单";
+- 如果用户说""把XX添加到歌单""，先搜索歌曲，再添加到歌单
+- 当用户询问需要网络信息的问题时，主动使用 web_search 工具搜索";
 
     private static readonly LlmProviderInfo[] Providers = new[]
     {
-        new LlmProviderInfo { Id = "deepseek", Name = "DeepSeek", DefaultApiUrl = "https://api.deepseek.com/v1", DefaultModel = "deepseek-chat" },
-        new LlmProviderInfo { Id = "modelscope", Name = "魔搭社区", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "qwen-turbo" },
-        new LlmProviderInfo { Id = "llamacpp", Name = "llama.cpp (本地)", DefaultApiUrl = "http://127.0.0.1:8080/v1", DefaultModel = "default" },
-        new LlmProviderInfo { Id = "zhipu", Name = "智谱 AI", DefaultApiUrl = "https://open.bigmodel.cn/api/paas/v1", DefaultModel = "glm-4-flash" },
-        new LlmProviderInfo { Id = "moonshot", Name = "Moonshot (Kimi)", DefaultApiUrl = "https://api.moonshot.cn/v1", DefaultModel = "moonshot-v1-8k" },
-        new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "qwen-turbo" },
-        new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "generalv3.5" },
+        new LlmProviderInfo { Id = "deepseek", Name = "DeepSeek", DefaultApiUrl = "https://api.deepseek.com/v1", DefaultModel = "", PresetModels = new[] { "deepseek-chat", "deepseek-reasoner" } },
+        new LlmProviderInfo { Id = "modelscope", Name = "魔搭社区", DefaultApiUrl = "https://api-inference.modelscope.cn/v1", DefaultModel = "", PresetModels = new[] { "Qwen/Qwen3.5-35B-A3B", "Qwen/Qwen3-235B-A22B", "Qwen/Qwen2.5-Coder-32B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1" } },
+        new LlmProviderInfo { Id = "llamacpp", Name = "llama.cpp (本地)", DefaultApiUrl = "http://127.0.0.1:8080/v1", DefaultModel = "" },
+        new LlmProviderInfo { Id = "zhipu", Name = "智谱 AI", DefaultApiUrl = "https://open.bigmodel.cn/api/paas/v1", DefaultModel = "", PresetModels = new[] { "glm-4-flash", "glm-4-plus", "glm-4-air", "glm-4-long", "glm-4" } },
+        new LlmProviderInfo { Id = "moonshot", Name = "Moonshot (Kimi)", DefaultApiUrl = "https://api.moonshot.cn/v1", DefaultModel = "", PresetModels = new[] { "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k" } },
+        new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "", PresetModels = new[] { "qwen-turbo", "qwen-plus", "qwen-max", "qwen-long" } },
+        new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "", PresetModels = new[] { "generalv3.5", "generalv3", "4.0Ultra" } },
         new LlmProviderInfo { Id = "custom", Name = "自定义 (OpenAI 兼容)", DefaultApiUrl = "", DefaultModel = "" },
     };
 
@@ -47,14 +50,39 @@ public class AgentService : IAgentService
         }
     }
 
-    public AgentService(ILlmClient llmClient, IEnumerable<IAgentTool> tools, ILogService logService)
+    public AgentService(ILlmClient llmClient, IEnumerable<IAgentTool> tools, ILogService logService, IMusicLibraryService? musicLibrary = null)
     {
         _llmClient = llmClient;
         _tools = tools;
         _logService = logService;
+        _musicLibrary = musicLibrary;
     }
 
     public static LlmProviderInfo[] GetProviders() => Providers;
+
+    public static List<LlmConfig> LoadAllConfigs()
+    {
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
+            var json = prefs.GetString("all_configs", "[]") ?? "[]";
+            var configs = JsonSerializer.Deserialize<List<LlmConfig>>(json) ?? new List<LlmConfig>();
+            return configs;
+        }
+        catch
+        {
+            return new List<LlmConfig>();
+        }
+    }
+
+    public static void SaveAllConfigs(List<LlmConfig> configs)
+    {
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
+        var json = JsonSerializer.Serialize(configs);
+        prefs.Edit().PutString("all_configs", json).Apply();
+    }
 
     public static LlmConfig LoadConfig()
     {
@@ -62,8 +90,16 @@ public class AgentService : IAgentService
         {
             var ctx = global::Android.App.Application.Context;
             var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
+            var currentName = prefs.GetString("current_config_name", "默认配置") ?? "默认配置";
+            var allConfigs = LoadAllConfigs();
+            var config = allConfigs.FirstOrDefault(c => c.Name == currentName);
+            
+            if (config != null)
+                return config;
+            
             return new LlmConfig
             {
+                Name = currentName,
                 Provider = prefs.GetString("provider", "deepseek") ?? "deepseek",
                 ApiUrl = prefs.GetString("api_url", "https://api.deepseek.com/v1") ?? "",
                 ApiKey = prefs.GetString("api_key", "") ?? "",
@@ -81,9 +117,24 @@ public class AgentService : IAgentService
 
     public static void SaveConfig(LlmConfig config)
     {
+        var allConfigs = LoadAllConfigs();
+        var existingIndex = allConfigs.FindIndex(c => c.Name == config.Name);
+        
+        if (existingIndex >= 0)
+        {
+            allConfigs[existingIndex] = config;
+        }
+        else
+        {
+            allConfigs.Add(config);
+        }
+        
+        SaveAllConfigs(allConfigs);
+        
         var ctx = global::Android.App.Application.Context;
         var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
         prefs.Edit()
+            .PutString("current_config_name", config.Name)
             .PutString("provider", config.Provider)
             .PutString("api_url", config.ApiUrl)
             .PutString("api_key", config.ApiKey)
@@ -92,6 +143,31 @@ public class AgentService : IAgentService
             .PutInt("max_tokens", config.MaxTokens)
             .PutBoolean("enabled", config.Enabled)
             .Apply();
+    }
+
+    public static void DeleteConfig(string configName)
+    {
+        var allConfigs = LoadAllConfigs();
+        var toRemove = allConfigs.FirstOrDefault(c => c.Name == configName);
+        if (toRemove != null)
+        {
+            allConfigs.Remove(toRemove);
+            SaveAllConfigs(allConfigs);
+        }
+    }
+
+    public static string GetCurrentConfigName()
+    {
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
+        return prefs.GetString("current_config_name", "默认配置") ?? "默认配置";
+    }
+
+    public static void SetCurrentConfigName(string name)
+    {
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
+        prefs.Edit().PutString("current_config_name", name).Apply();
     }
 
     public async Task<ChatMessage> SendMessageAsync(string userMessage, Action<ChatMessage>? onPartialMessage = null, CancellationToken ct = default)
@@ -142,12 +218,25 @@ public class AgentService : IAgentService
             foreach (var toolCall in response.ToolCalls)
             {
                 string toolResult;
+                List<Core.Models.Song>? songs = null;
                 if (toolMap.TryGetValue(toolCall.Function.Name, out var tool))
                 {
                     try
                     {
                         toolResult = await tool.ExecuteAsync(toolCall.Function.Arguments);
                         _logService.Info("Agent", $"Agent 工具 {toolCall.Function.Name} 执行成功");
+
+                        if (toolCall.Function.Name == "search_music" && _musicLibrary != null)
+                        {
+                            try
+                            {
+                                var keyword = NativeInterop.AiExtractStringArg(toolCall.Function.Arguments, "keyword")
+                                    ?? ArgHelper.ExtractStringArgFallback(toolCall.Function.Arguments, "keyword");
+                                if (!string.IsNullOrWhiteSpace(keyword))
+                                    songs = await _musicLibrary.SearchAsync(keyword);
+                            }
+                            catch { }
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -165,7 +254,8 @@ public class AgentService : IAgentService
                     Role = "tool",
                     Content = toolResult,
                     ToolCallId = toolCall.Id,
-                    Name = toolCall.Function.Name
+                    Name = toolCall.Function.Name,
+                    Songs = songs
                 });
             }
         }
