@@ -1380,6 +1380,12 @@ public class NowPlayingFragment : Fragment
             _viewModel.SyncWithQueue();
             SyncUIFromViewModel();
         }
+        if (_visualizerEnabled)
+        {
+            _visualizerHelper?.Stop();
+            _visualizerHelper = null;
+            _lastVisualizerSessionId = 0;
+        }
         TryStartVisualizer();
         View?.PostDelayed(() =>
         {

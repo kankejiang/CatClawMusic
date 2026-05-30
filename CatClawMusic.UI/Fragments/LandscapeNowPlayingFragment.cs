@@ -98,6 +98,8 @@ public class LandscapeNowPlayingFragment : Fragment
         _albumCover = view.FindViewById<ImageView>(Resource.Id.album_cover)!;
         _songTitle = view.FindViewById<TextView>(Resource.Id.song_title)!;
         _songArtist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
+        _lyricPrev6 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev6)!;
+        _lyricPrev5 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev5)!;
         _lyricPrev4 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev4)!;
         _lyricPrev3 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev3)!;
         _lyricPrev2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev2)!;
@@ -107,6 +109,8 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricNext2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next2)!;
         _lyricNext3 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next3)!;
         _lyricNext4 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next4)!;
+        _lyricNext5 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next5)!;
+        _lyricNext6 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next6)!;
         _coverPanel = view.FindViewById<View>(Resource.Id.cover_panel)!;
         _lyricsArea = (LinearLayout)view.FindViewById(Resource.Id.lyrics_area)!;
         _timeCurrent = view.FindViewById<TextView>(Resource.Id.time_current)!;
@@ -167,6 +171,25 @@ public class LandscapeNowPlayingFragment : Fragment
 
     private IAudioPlayerService? _audioPlayer;
 
+    private void HideStatusBar()
+    {
+        var act = Activity;
+        if (act == null || act.Window == null) return;
+        var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
+        controller.Hide(WindowInsetsCompat.Type.StatusBars());
+        controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
+        act.Window.SetDecorFitsSystemWindows(false);
+    }
+
+    private void ShowStatusBar()
+    {
+        var act = Activity;
+        if (act == null || act.Window == null) return;
+        var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
+        controller.Show(WindowInsetsCompat.Type.StatusBars());
+        act.Window.SetDecorFitsSystemWindows(true);
+    }
+
     private void OnExitLandscape(object? s, EventArgs e)
     {
         var nav = MainApplication.Services.GetRequiredService<INavigationService>();
@@ -187,14 +210,22 @@ public class LandscapeNowPlayingFragment : Fragment
         {
             _audioVisualizer.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _audioVisualizer.Visibility = ViewStates.Gone)).Start();
             _controlsCard.Animate().Alpha(0f).TranslationY(40f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _controlsCard.Visibility = ViewStates.Gone)).Start();
+            _lyricPrev6.Visibility = ViewStates.Visible;
+            _lyricPrev5.Visibility = ViewStates.Visible;
             _lyricPrev4.Visibility = ViewStates.Visible;
             _lyricPrev3.Visibility = ViewStates.Visible;
             _lyricNext3.Visibility = ViewStates.Visible;
             _lyricNext4.Visibility = ViewStates.Visible;
+            _lyricNext5.Visibility = ViewStates.Visible;
+            _lyricNext6.Visibility = ViewStates.Visible;
+            _lyricPrev6.Alpha = 0f; _lyricPrev6.Animate().Alpha(0.25f).SetDuration(duration).Start();
+            _lyricPrev5.Alpha = 0f; _lyricPrev5.Animate().Alpha(0.30f).SetDuration(duration).Start();
             _lyricPrev4.Alpha = 0f; _lyricPrev4.Animate().Alpha(0.35f).SetDuration(duration).Start();
             _lyricPrev3.Alpha = 0f; _lyricPrev3.Animate().Alpha(0.45f).SetDuration(duration).Start();
             _lyricNext3.Alpha = 0f; _lyricNext3.Animate().Alpha(0.45f).SetDuration(duration).Start();
             _lyricNext4.Alpha = 0f; _lyricNext4.Animate().Alpha(0.35f).SetDuration(duration).Start();
+            _lyricNext5.Alpha = 0f; _lyricNext5.Animate().Alpha(0.30f).SetDuration(duration).Start();
+            _lyricNext6.Alpha = 0f; _lyricNext6.Animate().Alpha(0.25f).SetDuration(duration).Start();
         }
         else
         {
@@ -204,10 +235,14 @@ public class LandscapeNowPlayingFragment : Fragment
             _controlsCard.Alpha = 0f; _controlsCard.TranslationY = 40f;
             _controlsCard.Visibility = ViewStates.Visible;
             _controlsCard.Animate().Alpha(1f).TranslationY(0f).SetDuration(duration).Start();
+            _lyricPrev6.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev6.Visibility = ViewStates.Gone)).Start();
+            _lyricPrev5.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev5.Visibility = ViewStates.Gone)).Start();
             _lyricPrev4.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev4.Visibility = ViewStates.Gone)).Start();
             _lyricPrev3.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev3.Visibility = ViewStates.Gone)).Start();
             _lyricNext3.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext3.Visibility = ViewStates.Gone)).Start();
             _lyricNext4.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext4.Visibility = ViewStates.Gone)).Start();
+            _lyricNext5.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext5.Visibility = ViewStates.Gone)).Start();
+            _lyricNext6.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext6.Visibility = ViewStates.Gone)).Start();
         }
         UpdateLyrics();
     }
@@ -216,6 +251,7 @@ public class LandscapeNowPlayingFragment : Fragment
     {
         base.OnResume();
         Activity?.RequestedOrientation = Android.Content.PM.ScreenOrientation.SensorLandscape;
+        HideStatusBar();
         var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
         if (queue.CurrentSong != null)
         {
@@ -238,6 +274,7 @@ public class LandscapeNowPlayingFragment : Fragment
     {
         base.OnPause();
         Activity!.RequestedOrientation = Android.Content.PM.ScreenOrientation.Portrait;
+        ShowStatusBar();
         if (Activity is MainActivity ma)
             ma.SetViewPagerSwipeEnabled(true);
     }
@@ -754,6 +791,8 @@ public class LandscapeNowPlayingFragment : Fragment
 
     private void UpdateLyrics()
     {
+        var prev6 = _viewModel.PrevLyricLine6;
+        var prev5 = _viewModel.PrevLyricLine5;
         var prev4 = _viewModel.PrevLyricLine4;
         var prev3 = _viewModel.PrevLyricLine3;
         var prev2 = _viewModel.PrevLyricLine2;
@@ -763,21 +802,27 @@ public class LandscapeNowPlayingFragment : Fragment
         var next2 = _viewModel.NextLyricLine2;
         var next3 = _viewModel.NextLyricLine3;
         var next4 = _viewModel.NextLyricLine4;
+        var next5 = _viewModel.NextLyricLine5;
+        var next6 = _viewModel.NextLyricLine6;
         var idx = _viewModel.CurrentLyricIndex;
         var isLineChanged = idx != _lastLyricIdx && _lastLyricIdx != -1 && !string.IsNullOrEmpty(curr);
         _lastLyricIdx = idx;
 
+        _lyricPrev6.Text = prev6;
+        _lyricPrev5.Text = prev5;
         _lyricPrev4.Text = prev4;
         _lyricPrev3.Text = prev3;
         _lyricNext3.Text = next3;
         _lyricNext4.Text = next4;
+        _lyricNext5.Text = next5;
+        _lyricNext6.Text = next6;
 
         if (!isLineChanged)
         {
-            _lyricPrev2.Text = prev2; _lyricPrev2.TranslationY = 0f; _lyricPrev2.Alpha = 0.35f;
-            _lyricPrev.Text = prev; _lyricPrev.TranslationY = 0f; _lyricPrev.Alpha = 0.45f;
+            _lyricPrev2.Text = prev2; _lyricPrev2.TranslationY = 0f; _lyricPrev2.Alpha = 0.55f;
+            _lyricPrev.Text = prev; _lyricPrev.TranslationY = 0f; _lyricPrev.Alpha = 0.7f;
             _lyricNext.Text = next; _lyricNext.TranslationY = 0f; _lyricNext.Alpha = 1f;
-            _lyricNext2.Text = next2; _lyricNext2.TranslationY = 0f; _lyricNext2.Alpha = 0.6f;
+            _lyricNext2.Text = next2; _lyricNext2.TranslationY = 0f; _lyricNext2.Alpha = 0.55f;
             ApplyCurrentLineWithSpannable(curr);
             return;
         }
@@ -787,11 +832,11 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricNext2.Text = next2;
         ApplyCurrentLineWithSpannable(curr);
 
-        var allViews = new List<StrokeTextView> { _lyricPrev4, _lyricPrev3, _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2, _lyricNext3, _lyricNext4 };
-        var allStartY = new[] { -4f, -6f, -8f, -10f, 14f, 10f, 8f, 6f, 4f };
-        var allStartAlpha = new[] { 0.1f, 0.15f, 0.2f, 0.3f, 0f, 0.6f, 0.4f, 0.3f, 0.15f };
-        var allEndAlpha = new[] { 0.35f, 0.45f, 0.35f, 0.45f, 1f, 1f, 0.6f, 0.45f, 0.35f };
-        var allDurations = new long[] { 120, 150, 180, 200, 250, 200, 180, 150, 120 };
+        var allViews = new List<StrokeTextView> { _lyricPrev6, _lyricPrev5, _lyricPrev4, _lyricPrev3, _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2, _lyricNext3, _lyricNext4, _lyricNext5, _lyricNext6 };
+        var allStartY = new[] { -2f, -3f, -4f, -6f, -8f, -10f, 14f, 10f, 8f, 6f, 4f, 3f, 2f };
+        var allStartAlpha = new[] { 0.05f, 0.08f, 0.1f, 0.15f, 0.2f, 0.3f, 0f, 0.6f, 0.4f, 0.3f, 0.15f, 0.08f, 0.05f };
+        var allEndAlpha = new[] { 0.25f, 0.30f, 0.35f, 0.45f, 0.55f, 0.7f, 1f, 1f, 0.55f, 0.45f, 0.35f, 0.30f, 0.25f };
+        var allDurations = new long[] { 80, 100, 120, 150, 180, 200, 250, 200, 180, 150, 120, 100, 80 };
 
         for (int i = 0; i < allViews.Count; i++)
         {
