@@ -56,6 +56,7 @@ public class NavigationService : INavigationService
             "AiSettings" => MainApplication.Services.GetRequiredService<AiSettingsFragment>(),
             "ModelManager" => MainApplication.Services.GetRequiredService<ModelManagerFragment>(),
             "ModelEdit" => CreateModelEdit(parameters),
+            "LandscapeNowPlaying" => MainApplication.Services.GetRequiredService<LandscapeNowPlayingFragment>(),
             _ => throw new ArgumentException($"Unknown route: {route}")
         };
 
@@ -129,7 +130,7 @@ public class NavigationService : INavigationService
         if (_fm == null) return;
         _fm.PopBackStack();
 
-        if (_fm.BackStackEntryCount <= 1 && _sidePanelContainerId == null)
+        if (_fm.BackStackEntryCount == 0 && _sidePanelContainerId == null)
         {
             var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
             if (overlay != null) overlay.Visibility = ViewStates.Gone;

@@ -166,6 +166,7 @@ public class MainApplication : Application
         services.AddTransient<FullLyricsFragment>();
         services.AddTransient<LibraryFragment>();
         services.AddTransient<NowPlayingFragment>();
+        services.AddTransient<LandscapeNowPlayingFragment>();
         services.AddTransient<PlaylistFragment>();
         services.AddTransient<SearchFragment>();
         services.AddTransient<SettingsFragment>();

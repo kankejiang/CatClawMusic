@@ -21,7 +21,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CatClawMusic.UI;
 
 [Activity(Theme = "@style/CatClaw.Splash", MainLauncher = true,
-    ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode)]
+    ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode,
+    ScreenOrientation = Android.Content.PM.ScreenOrientation.Portrait)]
 public class MainActivity : AppCompatActivity
 {
     private ViewPager2 _viewPager = null!;
@@ -36,6 +37,7 @@ public class MainActivity : AppCompatActivity
     private bool _skipNextRecreate;
 
     public void SetOverlayOpen(bool open) => _overlayOpen = open;
+    public void SetViewPagerSwipeEnabled(bool enabled) { if (_viewPager != null) _viewPager.UserInputEnabled = enabled; }
 
     private View _miniPlayerWrapper = null!;
     private MaterialCardView _miniPlayer = null!;

@@ -89,14 +89,7 @@ public class NowPlayingFragment : Fragment
     /// 创建正在播放视图
     /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
-    {
-        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
-        _isLandscapeMode = prefs?.GetBoolean("landscape_mode", false) ?? false;
-        var layoutId = _isLandscapeMode
-            ? Resource.Layout.fragment_now_playing_land
-            : Resource.Layout.fragment_now_playing;
-        return inflater.Inflate(layoutId, container, false)!;
-    }
+        => inflater.Inflate(Resource.Layout.fragment_now_playing, container, false)!;
 
     /// <summary>
     /// 视图创建完成后初始化所有控件引用、绑定事件和ViewModel
@@ -635,7 +628,6 @@ public class NowPlayingFragment : Fragment
         var visGray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
         _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
         _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
-        _btnLandscape.ImageTintList = _isLandscapeMode ? visWhite : visGray;
     }
 
     /// <summary>
@@ -678,7 +670,6 @@ public class NowPlayingFragment : Fragment
         var visGray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
         _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
         _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
-        _btnLandscape.ImageTintList = _isLandscapeMode ? visWhite : visGray;
 
         var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.ThumbTintList = sliderCs;
@@ -975,38 +966,10 @@ public class NowPlayingFragment : Fragment
         ShowSleepTimerDialog();
     }
 
-    private bool _isLandscapeMode;
-
     private void OnLandscapeClick(object? s, EventArgs e)
     {
-        _isLandscapeMode = !_isLandscapeMode;
-
-        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
-        prefs?.Edit().PutBoolean("landscape_mode", _isLandscapeMode).Apply();
-
-        SwapLayout();
-    }
-
-    private void SwapLayout()
-    {
-        var currentView = View;
-        if (currentView == null) return;
-
-        var parent = currentView.Parent as ViewGroup;
-        if (parent == null) return;
-        var index = parent.IndexOfChild(currentView);
-
-        CleanupViewResources();
-
-        var layoutId = _isLandscapeMode
-            ? Resource.Layout.fragment_now_playing_land
-            : Resource.Layout.fragment_now_playing;
-        var newView = LayoutInflater.From(Context)!.Inflate(layoutId, parent, false);
-
-        parent.RemoveViewAt(index);
-        parent.AddView(newView, index);
-
-        OnViewCreated(newView, null);
+        var nav = MainApplication.Services.GetRequiredService<INavigationService>();
+        nav.PushFragment("LandscapeNowPlaying");
     }
 
     private void CleanupViewResources()
