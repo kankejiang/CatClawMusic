@@ -7,6 +7,7 @@ public class ChatMessage
     public List<ToolCall>? ToolCalls { get; set; }
     public string? ToolCallId { get; set; }
     public string? Name { get; set; }
+    public List<CatClawMusic.Core.Models.Song>? Songs { get; set; }
 }
 
 public class ToolCall
@@ -51,6 +52,7 @@ public class ToolParameterProperty
 
 public class LlmConfig
 {
+    public string Name { get; set; } = "默认配置";
     public string Provider { get; set; } = "deepseek";
     public string ApiUrl { get; set; } = "https://api.deepseek.com/v1";
     public string ApiKey { get; set; } = "";
@@ -93,4 +95,5 @@ public class LlmProviderInfo
     public string Name { get; set; } = "";
     public string DefaultApiUrl { get; set; } = "";
     public string DefaultModel { get; set; } = "";
+    public string[] PresetModels { get; set; } = Array.Empty<string>();
 }

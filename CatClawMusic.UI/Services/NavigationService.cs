@@ -54,6 +54,8 @@ public class NavigationService : INavigationService
             "DesktopLyric" => MainApplication.Services.GetRequiredService<DesktopLyricFragment>(),
             "PluginManagement" => MainApplication.Services.GetRequiredService<PluginManagementFragment>(),
             "AiSettings" => MainApplication.Services.GetRequiredService<AiSettingsFragment>(),
+            "ModelManager" => MainApplication.Services.GetRequiredService<ModelManagerFragment>(),
+            "ModelEdit" => CreateModelEdit(parameters),
             _ => throw new ArgumentException($"Unknown route: {route}")
         };
 
@@ -91,6 +93,31 @@ public class NavigationService : INavigationService
                 args.PutInt("playlistId", Convert.ToInt32(id));
             if (parameters.TryGetValue("playlistName", out var name))
                 args.PutString("playlistName", name?.ToString());
+            fragment.Arguments = args;
+        }
+        return fragment;
+    }
+
+    private Fragment CreateModelEdit(Dictionary<string, object>? parameters)
+    {
+        var fragment = MainApplication.Services.GetRequiredService<ModelEditFragment>();
+        if (parameters != null)
+        {
+            var args = new Android.OS.Bundle();
+            if (parameters.TryGetValue("model", out var model))
+            {
+                if (model is CatClawMusic.UI.Services.AI.LlmConfig config)
+                {
+                    args.PutString("modelName", config.Name);
+                    args.PutString("provider", config.Provider);
+                    args.PutString("apiUrl", config.ApiUrl);
+                    args.PutString("apiKey", config.ApiKey);
+                    args.PutString("modelId", config.Model);
+                    args.PutDouble("temperature", config.Temperature);
+                    args.PutInt("maxTokens", config.MaxTokens);
+                    args.PutBoolean("enabled", config.Enabled);
+                }
+            }
             fragment.Arguments = args;
         }
         return fragment;

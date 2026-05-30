@@ -66,6 +66,19 @@
         
         <meta-data android:name="android.max_aspect" android:value="2.4" />
         
+        <!-- 主活动配置 -->
+        <activity 
+            android:name=".MainActivity"
+            android:theme="@style/CatClaw.Splash"
+            android:windowSoftInputMode="adjustResize|stateHidden"
+            android:configChanges="screenSize|orientation|uiMode"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
         <!-- 前台服务（后台播放，适配 Android 14+） -->
         <service 
             android:name=".ForegroundPlayerService"

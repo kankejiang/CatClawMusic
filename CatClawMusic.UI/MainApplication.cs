@@ -148,6 +148,7 @@ public class MainApplication : Application
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetPlaylistSongsTool>();
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.DeletePlaylistTool>();
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.PlaySongTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.WebSearchTool>();
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentService, CatClawMusic.UI.Services.AI.AgentService>();
 
         // ViewModels
@@ -179,6 +180,9 @@ public class MainApplication : Application
         services.AddTransient<DesktopLyricFragment>();
         services.AddTransient<PluginManagementFragment>();
         services.AddTransient<AiSettingsFragment>();
+        services.AddTransient<ModelManagerFragment>();
+        services.AddTransient<ModelEditFragment>();
+        services.AddTransient<ModelAdapter>();
 
         // Adapters
         services.AddTransient<SongAdapter>();
