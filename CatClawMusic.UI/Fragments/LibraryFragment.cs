@@ -30,15 +30,12 @@ public class LibraryFragment : Fragment
     private Button _btnNetwork = null!;
     private ImageButton _btnRefresh = null!;
     private ImageButton _btnSort = null!;
-    private ImageButton _btnSource = null!;
     private ImageButton _btnClear = null!;
     private LinearLayout _networkProtocolRow = null!;
     private Spinner _protocolSpinner = null!;
     private ArrayAdapter<string>? _protocolAdapter = null!;
     private EditText _searchBox = null!;
     private SongAdapter _adapter = null!;
-
-    private string _currentSourceFilter = "all"; // all, local, network
 
     /// <summary>
     /// 创建音乐库视图
@@ -66,7 +63,6 @@ public class LibraryFragment : Fragment
         _btnNetwork = view.FindViewById<Button>(Resource.Id.btn_network)!;
         _btnRefresh = view.FindViewById<ImageButton>(Resource.Id.btn_refresh)!;
         _btnSort = view.FindViewById<ImageButton>(Resource.Id.btn_sort)!;
-        _btnSource = view.FindViewById<ImageButton>(Resource.Id.btn_source)!;
         _btnClear = view.FindViewById<ImageButton>(Resource.Id.btn_clear)!;
         _searchBox = view.FindViewById<EditText>(Resource.Id.search_box)!;
         _networkProtocolRow = view.FindViewById<LinearLayout>(Resource.Id.network_protocol_row)!;
@@ -103,7 +99,6 @@ public class LibraryFragment : Fragment
         _btnNetwork.Click += (s, e) => _viewModel.SwitchTabCommand.Execute("Network");
         _btnRefresh.Click += (s, e) => _viewModel.RefreshCommand.Execute(null);
         _btnSort.Click += OnSortClicked;
-        _btnSource.Click += OnSourceClicked;
         _btnClear.Click += OnClearClicked;
 
         BindViews();
@@ -460,34 +455,6 @@ public class LibraryFragment : Fragment
             ? songs.OrderByDescending(keySelector).ToList()
             : songs.OrderBy(keySelector).ToList();
         _adapter.UpdateSongs(sorted);
-    }
-
-    private void OnSourceClicked(object? sender, EventArgs e)
-    {
-        var ctx = Context;
-        if (ctx == null) return;
-
-        var dialog = new GlassDialog(ctx).SetTitle("来源筛选");
-
-        dialog.AddItemWithHighlight("全部音乐", _currentSourceFilter == "all", () =>
-        {
-            _currentSourceFilter = "all";
-            _adapter.UpdateSongs(_viewModel.Songs);
-        });
-        dialog.AddItemWithHighlight("仅本地音乐", _currentSourceFilter == "local", () =>
-        {
-            _currentSourceFilter = "local";
-            var filtered = _viewModel.Songs.Where(s => s.Source == CoreModels.SongSource.Local).ToList();
-            _adapter.UpdateSongs(filtered);
-        });
-        dialog.AddItemWithHighlight("仅网络音乐", _currentSourceFilter == "network", () =>
-        {
-            _currentSourceFilter = "network";
-            var filtered = _viewModel.Songs.Where(s => s.Source != CoreModels.SongSource.Local).ToList();
-            _adapter.UpdateSongs(filtered);
-        });
-
-        dialog.Show();
     }
 
     private void OnClearClicked(object? sender, EventArgs e)

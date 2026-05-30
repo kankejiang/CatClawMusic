@@ -240,15 +240,15 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
 
-            if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
+            if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
             {
                 var choice = choices[0];
                 var message = choice.GetProperty("message");
 
-                result.Content = message.TryGetProperty("content", out var content) ? content.GetString() ?? "" : "";
-                result.FinishReason = choice.TryGetProperty("finish_reason", out var fr) ? fr.GetString() ?? "" : "";
+                result.Content = message.TryGetProperty("content", out var content) && content.ValueKind != JsonValueKind.Null ? content.GetString() ?? "" : "";
+                result.FinishReason = choice.TryGetProperty("finish_reason", out var fr) && fr.ValueKind != JsonValueKind.Null ? fr.GetString() ?? "" : "";
 
-                if (message.TryGetProperty("tool_calls", out var toolCalls))
+                if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var tc in toolCalls.EnumerateArray())
                     {

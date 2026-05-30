@@ -147,14 +147,18 @@
                         android:gravity="center" />
                 </LinearLayout>
 
-                <!-- 频谱开关 + 睡眠定时 + 播放列表 -->
+                <!-- 横屏切换 + 频谱开关 + 睡眠定时 + 播放列表 -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:gravity="center_vertical"
                     android:layout_marginTop="2dp">
+                    <ImageButton android:id="@+id/btn_landscape" android:layout_width="28dp"
+                        android:layout_height="28dp" android:src="@drawable/ic_landscape"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="2dp" />
                     <ImageButton android:id="@+id/btn_visualizer_toggle" android:layout_width="28dp"
                         android:layout_height="28dp" android:src="@drawable/ic_equalizer"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:padding="2dp" />
+                        android:padding="2dp" android:layout_marginStart="4dp" />
                     <ImageButton android:id="@+id/btn_sleep_timer" android:layout_width="28dp"
                         android:layout_height="28dp" android:src="@drawable/ic_sleep"
                         android:background="?attr/selectableItemBackgroundBorderless"

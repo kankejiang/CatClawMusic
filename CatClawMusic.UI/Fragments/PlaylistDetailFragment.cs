@@ -105,8 +105,6 @@ public class PlaylistDetailFragment : Fragment
 
         _collectionChangedHandler = (s, e) =>
         {
-            if (_isDragging) return;
-
             var a = Activity;
             if (a != null) a.RunOnUiThread(() =>
             {
@@ -153,7 +151,10 @@ public class PlaylistDetailFragment : Fragment
                 Activity?.RunOnUiThread(() =>
                 {
                     Toast.MakeText(ctx, "已从歌单移除", ToastLength.Short)?.Show();
-                    _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName);
+                    _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>
+                    {
+                        ApplySavedSort();
+                    });
                 });
             });
         }
@@ -254,10 +255,6 @@ public class PlaylistDetailFragment : Fragment
         _ = _viewModel.PlaySongAsync(song);
     }
 
-    private bool _isCustomSortMode;
-    private bool _isDragging;
-    private ItemTouchHelper? _itemTouchHelper;
-
     private void OnFilterClicked(object? sender, EventArgs e)
     {
         var ctx = Context;
@@ -292,11 +289,10 @@ public class PlaylistDetailFragment : Fragment
         if (ctx == null) return;
 
         var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
-        var currentSort = prefs?.GetString($"sort_{_playlistId}", "custom") ?? "custom";
+        var currentSort = prefs?.GetString($"sort_{_playlistId}", "title") ?? "title";
 
         var dialog = new GlassDialog(ctx).SetTitle("排序");
 
-        dialog.AddItemWithHighlight("自定义", currentSort == "custom", () => EnableCustomSort());
         dialog.AddItemWithHighlight("标题", currentSort == "title", () => ApplySort("title", s => s.Title ?? "", false));
         dialog.AddItemWithHighlight("文件名", currentSort == "filename", () => ApplySort("filename", s => System.IO.Path.GetFileNameWithoutExtension(s.FilePath ?? ""), false));
         dialog.AddItemWithHighlight("专辑", currentSort == "album", () => ApplySort("album", s => s.Album ?? "", false));
@@ -313,88 +309,12 @@ public class PlaylistDetailFragment : Fragment
         dialog.Show();
     }
 
-    private void EnableCustomSort()
-    {
-        _isCustomSortMode = true;
-        _isDragging = true;
-        _adapter.SetCustomSortMode(true);
-
-        if (_itemTouchHelper == null)
-        {
-            var callback = new DragSortCallback(_adapter, (fromPos, toPos) =>
-            {
-                if (fromPos < _viewModel.Songs.Count && toPos < _viewModel.Songs.Count)
-                {
-                    var list = _viewModel.Songs.ToList();
-                    var item = list[fromPos];
-                    list.RemoveAt(fromPos);
-                    list.Insert(toPos, item);
-                    _viewModel.Songs.ReplaceAll(list);
-                }
-            });
-            _itemTouchHelper = new ItemTouchHelper(callback);
-        }
-        _itemTouchHelper.AttachToRecyclerView(_songList);
-
-        _btnSort.SetImageResource(Resource.Drawable.ic_check);
-        _btnSort.Click -= OnSortClicked;
-        _btnSort.Click += OnFinishCustomSort;
-
-        Toast.MakeText(Context!, "长按拖动歌曲排序，点击✓完成", ToastLength.Short)?.Show();
-    }
-
-    private void OnFinishCustomSort(object? sender, EventArgs e)
-    {
-        _ = DisableCustomSort();
-    }
-
-    private async Task DisableCustomSort()
-    {
-        _isCustomSortMode = false;
-        _isDragging = false;
-        _adapter.SetCustomSortMode(false);
-        _itemTouchHelper?.AttachToRecyclerView(null);
-
-        _adapter.UpdateSongs(_viewModel.Songs);
-
-        _btnSort.SetImageResource(Resource.Drawable.ic_sort);
-        _btnSort.Click -= OnFinishCustomSort;
-        _btnSort.Click += OnSortClicked;
-
-        if (_playlistId > 0)
-        {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine($"[PlaylistDetail] DisableCustomSort: _playlistId={_playlistId}, Songs.Count={_viewModel.Songs.Count}");
-
-                // 保存自定义排序到数据库
-                await _viewModel.SavePlaylistOrderAsync();
-
-                // 保存"custom"标记到 SharedPreferences，这样 ApplySavedSort 不会覆盖
-                var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
-                prefs?.Edit()
-                    .PutString($"sort_{_playlistId}", "custom")
-                    .PutBoolean($"sort_desc_{_playlistId}", false)
-                    .Apply();
-
-                System.Diagnostics.Debug.WriteLine($"[PlaylistDetail] DisableCustomSort: 排序保存成功");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[PlaylistDetail] 保存排序失败: {ex.Message}");
-            }
-        }
-    }
-
     private void ApplySavedSort()
     {
         var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
         if (prefs == null) return;
         var sortKey = prefs.GetString($"sort_{_playlistId}", null);
         if (string.IsNullOrEmpty(sortKey) || _viewModel.Songs.Count == 0) return;
-
-        // 如果是"custom"，保持数据库中的 Position 顺序，不做处理
-        if (sortKey == "custom") return;
 
         var desc = prefs.GetBoolean($"sort_desc_{_playlistId}", false);
 
@@ -433,7 +353,6 @@ public class PlaylistDetailFragment : Fragment
             : _viewModel.Songs.OrderBy(keySelector).ToList();
         _viewModel.Songs.ReplaceAll(sorted);
         _adapter.UpdateSongs(_viewModel.Songs);
-        _ = DisableCustomSort();
 
         var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
         if (prefs != null)
@@ -514,7 +433,10 @@ public class PlaylistDetailFragment : Fragment
             await _viewModel.RemoveSongFromPlaylistAsync(id);
         _selectedSongIds.Clear();
         ExitMultiSelectMode();
-        _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName);
+        _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>
+        {
+            ApplySavedSort();
+        });
     }
 
     private void AddSelectedToPlaylist()
@@ -580,7 +502,10 @@ public class PlaylistDetailFragment : Fragment
     {
         base.OnResume();
         if (_viewModel.Songs.Count > 0 && _isUserPlaylist)
-            _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName);
+            _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>
+            {
+                ApplySavedSort();
+            });
     }
 
     /// <summary>

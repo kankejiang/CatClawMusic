@@ -33,6 +33,7 @@ public class NowPlayingFragment : Fragment
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
     private ImageButton _btnVisualizerToggle = null!;
     private ImageButton _btnSleepTimer = null!;
+    private ImageButton _btnLandscape = null!;
     private GoogleSlider _progressSlider = null!;
     private SweepGradientView _gradientBackground = null!;
     private View _reflectionMaskBottom = null!, _coverFog = null!, _coverGlow = null!;
@@ -67,11 +68,35 @@ public class NowPlayingFragment : Fragment
     private int _flowFrameSkip;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
 
+    public override void OnCreate(Bundle? savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        _recordAudioLauncher = RegisterForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            new RecordAudioCallback(granted =>
+            {
+                if (granted)
+                {
+                    var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+                    var sessionId = playerService.AudioSessionId;
+                    if (sessionId != 0)
+                        StartVisualizerWithSession(sessionId);
+                }
+            }));
+    }
+
     /// <summary>
     /// 创建正在播放视图
     /// </summary>
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
-        => inflater.Inflate(Resource.Layout.fragment_now_playing, container, false)!;
+    {
+        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        _isLandscapeMode = prefs?.GetBoolean("landscape_mode", false) ?? false;
+        var layoutId = _isLandscapeMode
+            ? Resource.Layout.fragment_now_playing_land
+            : Resource.Layout.fragment_now_playing;
+        return inflater.Inflate(layoutId, container, false)!;
+    }
 
     /// <summary>
     /// 视图创建完成后初始化所有控件引用、绑定事件和ViewModel
@@ -109,6 +134,7 @@ public class NowPlayingFragment : Fragment
         _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
         _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
         _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
+        _btnLandscape = view.FindViewById<ImageButton>(Resource.Id.btn_landscape)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
         _gradientBackground = view.FindViewById<SweepGradientView>(Resource.Id.gradient_background)!;
         _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
@@ -132,19 +158,7 @@ public class NowPlayingFragment : Fragment
         _btnPlaylist.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _btnVisualizerToggle.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _btnSleepTimer.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
-
-        _recordAudioLauncher = RegisterForActivityResult(
-            new ActivityResultContracts.RequestPermission(),
-            new RecordAudioCallback(granted =>
-            {
-                if (granted)
-                {
-                    var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-                    var sessionId = playerService.AudioSessionId;
-                    if (sessionId != 0)
-                        StartVisualizerWithSession(sessionId);
-                }
-            }));
+        _btnLandscape.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
 
         _audioVisualizer.Visibility = ViewStates.Gone;
         var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
@@ -189,6 +203,7 @@ public class NowPlayingFragment : Fragment
         _btnPlaylist.Click -= OnPlaylistClick; _btnPlaylist.Click += OnPlaylistClick;
         _btnVisualizerToggle.Click -= OnVisualizerToggleClick; _btnVisualizerToggle.Click += OnVisualizerToggleClick;
         _btnSleepTimer.Click -= OnSleepTimerClick; _btnSleepTimer.Click += OnSleepTimerClick;
+        _btnLandscape.Click -= OnLandscapeClick; _btnLandscape.Click += OnLandscapeClick;
 
         // 进度条：Touch 松开时 seek（SetOnTouchListener 不影响原生拖动）
         _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
@@ -620,6 +635,7 @@ public class NowPlayingFragment : Fragment
         var visGray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
         _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
         _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
+        _btnLandscape.ImageTintList = _isLandscapeMode ? visWhite : visGray;
     }
 
     /// <summary>
@@ -662,6 +678,7 @@ public class NowPlayingFragment : Fragment
         var visGray = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#88FFFFFF"));
         _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
         _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
+        _btnLandscape.ImageTintList = _isLandscapeMode ? visWhite : visGray;
 
         var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.ThumbTintList = sliderCs;
@@ -956,6 +973,56 @@ public class NowPlayingFragment : Fragment
             return;
         }
         ShowSleepTimerDialog();
+    }
+
+    private bool _isLandscapeMode;
+
+    private void OnLandscapeClick(object? s, EventArgs e)
+    {
+        _isLandscapeMode = !_isLandscapeMode;
+
+        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        prefs?.Edit().PutBoolean("landscape_mode", _isLandscapeMode).Apply();
+
+        SwapLayout();
+    }
+
+    private void SwapLayout()
+    {
+        var currentView = View;
+        if (currentView == null) return;
+
+        var parent = currentView.Parent as ViewGroup;
+        if (parent == null) return;
+        var index = parent.IndexOfChild(currentView);
+
+        CleanupViewResources();
+
+        var layoutId = _isLandscapeMode
+            ? Resource.Layout.fragment_now_playing_land
+            : Resource.Layout.fragment_now_playing;
+        var newView = LayoutInflater.From(Context)!.Inflate(layoutId, parent, false);
+
+        parent.RemoveViewAt(index);
+        parent.AddView(newView, index);
+
+        OnViewCreated(newView, null);
+    }
+
+    private void CleanupViewResources()
+    {
+        StopFlowAnimation();
+        StopLyricGradientUpdates();
+        var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
+        if (playerSvc != null)
+            playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;
+        _visualizerHelper?.Stop();
+        _visualizerHelper = null;
+        UnbindViewModel();
+        _playlistDialog?.Dismiss();
+        _playlistDialog = null;
+        _lastLyricIdx = -1;
+        _lyricGradientActive = false;
     }
 
     private void ShowSleepTimerDialog()
@@ -1372,17 +1439,7 @@ public class NowPlayingFragment : Fragment
     /// </summary>
     public override void OnDestroyView()
     {
-        StopFlowAnimation();
-        StopLyricGradientUpdates();
-        var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
-        if (playerSvc != null)
-            playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;
-        _visualizerHelper?.Stop();
-        _visualizerHelper = null;
-        UnbindViewModel();
-        _playlistDialog?.Dismiss();
-        _playlistDialog = null;
-
+        CleanupViewResources();
         base.OnDestroyView();
     }
 

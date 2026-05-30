@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?attr/catClawPageBackground">
+
+    <!-- 标题栏 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingHorizontal="12dp" android:paddingVertical="8dp">
+        <ImageButton android:id="@+id/btn_back"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_back"
+            android:tint="?attr/catClawTextPrimary"
+            android:contentDescription="返回" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="模型管理" android:textSize="20sp"
+            android:textColor="?attr/catClawTextPrimary"
+            android:fontFamily="@font/happy_zcool_2016"
+            android:gravity="center" />
+        <ImageButton android:id="@+id/btn_add_model"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            android:tint="?attr/catClawTextPrimary"
+            android:contentDescription="添加" />
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="?attr/catClawCardBorder" />
+
+    <!-- 模型列表 -->
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_models"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="12dp"
+        android:clipToPadding="false" />
+
+    <!-- 空状态提示 -->
+    <LinearLayout android:id="@+id/ll_empty"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical" android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="暂无模型" android:textSize="18sp"
+            android:textColor="?attr/catClawTextHint"
+            android:layout_marginBottom="8dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="点击右上角 + 添加新模型" android:textSize="14sp"
+            android:textColor="?attr/catClawTextHint" />
+    </LinearLayout>
+
+</LinearLayout>

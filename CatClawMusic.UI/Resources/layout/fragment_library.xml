@@ -23,11 +23,6 @@
                 android:singleLine="true" android:imeOptions="actionSearch"
                 android:importantForAutofill="no" />
         </com.google.android.material.card.MaterialCardView>
-        <ImageButton android:id="@+id/btn_source" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_filter"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?attr/catClawTextHint" android:padding="6dp"
-            android:layout_marginEnd="4dp" />
         <ImageButton android:id="@+id/btn_sort" android:layout_width="36dp"
             android:layout_height="36dp" android:src="@drawable/ic_sort"
             android:background="?attr/selectableItemBackgroundBorderless"

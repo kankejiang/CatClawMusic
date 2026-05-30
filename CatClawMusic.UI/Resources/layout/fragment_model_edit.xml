@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="?attr/catClawPageBackground">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="16dp">
+
+        <!-- 标题栏 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+            <ImageButton android:id="@+id/btn_back"
+                android:layout_width="40dp" android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="?attr/catClawTextPrimary"
+                android:contentDescription="返回" />
+            <TextView android:id="@+id/tv_title"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="添加模型" android:textSize="20sp"
+                android:textColor="?attr/catClawTextPrimary"
+                android:fontFamily="@font/happy_zcool_2016"
+                android:gravity="center" />
+            <View android:layout_width="40dp" android:layout_height="0dp" />
+        </LinearLayout>
+
+        <!-- 配置名称 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="配置名称"
+                    android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginBottom="8dp" />
+                <EditText android:id="@+id/et_name"
+                    android:layout_width="match_parent" android:layout_height="48dp"
+                    android:hint="例如：我的DeepSeek"
+                    android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                    android:background="?attr/catClawCardBackground"
+                    android:paddingHorizontal="12dp"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:importantForAutofill="no" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 模型服务商 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="模型服务商"
+                    android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginBottom="8dp" />
+                <Spinner android:id="@+id/spinner_provider"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:padding="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:minHeight="48dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- API配置 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="API 地址"
+                    android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                    android:layout_marginBottom="4dp" />
+                <EditText android:id="@+id/et_api_url"
+                    android:layout_width="match_parent" android:layout_height="48dp"
+                    android:hint="https://api.deepseek.com/v1"
+                    android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                    android:background="?attr/catClawCardBackground"
+                    android:paddingHorizontal="12dp"
+                    android:textSize="14sp"
+                    android:inputType="textUri"
+                    android:importantForAutofill="no"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="API Key"
+                    android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                    android:layout_marginBottom="4dp" />
+                <EditText android:id="@+id/et_api_key"
+                    android:layout_width="match_parent" android:layout_height="48dp"
+                    android:hint="输入你的API Key"
+                    android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                    android:background="?attr/catClawCardBackground"
+                    android:paddingHorizontal="12dp"
+                    android:textSize="14sp"
+                    android:inputType="textPassword"
+                    android:importantForAutofill="no"
+                    android:layout_marginBottom="12dp" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:layout_marginBottom="4dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="模型名称"
+                        android:textSize="13sp" android:textColor="?attr/catClawTextHint" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_fetch_models"
+                        android:layout_width="wrap_content" android:layout_height="36dp"
+                        android:text="获取模型"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        android:paddingHorizontal="16dp"
+                        android:layout_marginEnd="8dp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_test_connection"
+                        android:layout_width="wrap_content" android:layout_height="36dp"
+                        android:text="测试连接"
+                        android:textSize="12sp"
+                        app:cornerRadius="8dp"
+                        android:paddingHorizontal="16dp"
+                        app:backgroundTint="?attr/catClawCardBorder"
+                        app:strokeColor="?attr/catClawCardBorder"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+                <Spinner android:id="@+id/spinner_models"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:padding="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:minHeight="48dp"
+                    android:layout_marginBottom="4dp" />
+                <EditText android:id="@+id/et_model"
+                    android:layout_width="match_parent" android:layout_height="48dp"
+                    android:hint="deepseek-chat"
+                    android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                    android:background="?attr/catClawCardBackground"
+                    android:paddingHorizontal="12dp"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:importantForAutofill="no" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 高级参数 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="高级参数"
+                    android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Temperature（创造性）"
+                    android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                    android:layout_marginBottom="4dp" />
+                <SeekBar android:id="@+id/seekbar_temperature"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:max="100" android:progress="70"
+                    android:layout_marginBottom="4dp" />
+                <TextView android:id="@+id/tv_temperature_value"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="0.7"
+                    android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="最大 Token 数"
+                    android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                    android:layout_marginBottom="4dp" />
+                <EditText android:id="@+id/et_max_tokens"
+                    android:layout_width="match_parent" android:layout_height="48dp"
+                    android:hint="2048"
+                    android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                    android:background="?attr/catClawCardBackground"
+                    android:paddingHorizontal="12dp"
+                    android:textSize="14sp"
+                    android:inputType="number"
+                    android:importantForAutofill="no" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 保存按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_save"
+            android:layout_width="match_parent" android:layout_height="48dp"
+            android:text="保存"
+            app:cornerRadius="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView android:id="@+id/tv_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:padding="8dp"
+            android:textColor="?attr/catClawTextHint" android:textSize="12sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</ScrollView>
