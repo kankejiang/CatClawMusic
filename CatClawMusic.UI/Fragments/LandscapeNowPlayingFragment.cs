@@ -277,6 +277,9 @@ public class LandscapeNowPlayingFragment : Fragment
         ShowStatusBar();
         if (Activity is MainActivity ma)
             ma.SetViewPagerSwipeEnabled(true);
+        _visualizerHelper?.Stop();
+        _visualizerHelper = null;
+        _lastVisualizerSessionId = 0;
     }
 
     public override void OnDestroyView()
