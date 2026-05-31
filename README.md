@@ -1,8 +1,6 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
 > 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、桌面悬浮歌词（可拖拽/锁定/双行KTV）、LRC 歌词同步滚动、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题。
->
-> 📢 **QQ 交流群**: [855383639](https://qm.qq.com/q/Fhu3IEzqa4) 点击链接加入群聊【₍˄·͈༝·͈˄*₎◞ ̑̑】
 
 <div align="center">
 
@@ -14,7 +12,21 @@
 
 </div>
 
-***
+<br />
+
+<div align="center">
+
+## 💬 加入交流群
+
+[![QQ群](https://img.shields.io/badge/QQ群-855383639-eb192d?style=for-the-badge&logo=tencentqq&logoColor=white)](https://qm.qq.com/q/Fhu3IEzqa4)
+
+**点击上方按钮或扫描下方二维码加入群聊 ₍˄·͈༝·͈˄*₎◞ ̑̑**
+
+</div>
+
+<br />
+
+<hr />
 
 ## 📱 应用截图
 
