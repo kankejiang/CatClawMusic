@@ -16,7 +16,13 @@
 
 <div align="center">
 
-[![QQ群](https://img.shields.io/badge/QQ交流群-855383639-7B68EE?style=for-the-badge&logo=tencentqq&logoColor=white)](https://qm.qq.com/q/Fhu3IEzqa4)
+<h2 align="center">🐾 加入猫爪音乐交流群</h2>
+
+<a href="https://qm.qq.com/q/Fhu3IEzqa4" target="_blank">
+<img alt="QQ群" src="https://img.shields.io/badge/QQ交流群-855383639-7B68EE?style=for-the-badge&logo=tencentqq&logoColor=white&logoWidth=32" width="380" />
+</a>
+
+<br />
 
 **点击上方按钮加入群聊 ₍˄·͈༝·͈˄*₎◞ ̑̑**
 

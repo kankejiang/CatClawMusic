@@ -46,6 +46,7 @@ public class NowPlayingFragment : Fragment
     private ActivityResultLauncher? _recordAudioLauncher;
     private int _modeActiveColor;
     private bool _visualizerEnabled = false;
+    private string? _lastCoverSource;
     private LyricProgressCallback? _lyricProgressCallback;
     private bool _lyricGradientActive;
     private double _lyricLineStartMs;
@@ -245,6 +246,7 @@ public class NowPlayingFragment : Fragment
 
         if (_currentEntries == null || _currentEntries.Count == 0)
         {
+            _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(_targetBackgroundColor));
             _currentEntries = newEntries;
             _currentBackgroundColor = _targetBackgroundColor;
             _flowColors = PickVividColors(newEntries);
@@ -697,17 +699,23 @@ public class NowPlayingFragment : Fragment
         {
             if (_albumCover == null) return;
 
-            // 如果 CurrentSong 有值但封面/歌词还没加载过，重新触发加载
             if (_viewModel.CurrentSong != null && string.IsNullOrEmpty(_viewModel.CoverSource))
             {
                 _ = _viewModel.LoadCoverAsync(_viewModel.CurrentSong);
                 _ = _viewModel.LoadLyricsAsync(_viewModel.CurrentSong);
             }
 
-            if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+            var coverSource = _viewModel.CoverSource;
+            var coverChanged = coverSource != _lastCoverSource;
+            _lastCoverSource = coverSource;
+
+            if (!string.IsNullOrEmpty(coverSource))
             {
-                AnimateCoverChange(_viewModel.CoverSource);
-                UpdateGradientBackground();
+                if (coverChanged)
+                {
+                    AnimateCoverChange(coverSource);
+                    UpdateGradientBackground();
+                }
             }
             else
             {
@@ -720,8 +728,8 @@ public class NowPlayingFragment : Fragment
                 _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
             var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
             var visualizerEnabled = prefs?.GetBoolean("visualizer_enabled", false) ?? false;
-            ApplyVisualizerState(visualizerEnabled);
-            if (visualizerEnabled) TryStartVisualizer();
+            if (visualizerEnabled != _visualizerEnabled)
+                ApplyVisualizerState(visualizerEnabled);
             UpdateTimeDisplay();
             UpdateSlider();
             UpdatePlayPauseIcon();
@@ -729,7 +737,7 @@ public class NowPlayingFragment : Fragment
             UpdateLikeIcon();
             UpdateLyrics();
         }
-        catch { /* Hide/Show 后视图可能短暂无效，忽略 */ }
+        catch { }
     }
 
     /// <summary>

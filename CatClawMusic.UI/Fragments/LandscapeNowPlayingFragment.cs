@@ -46,6 +46,7 @@ public class LandscapeNowPlayingFragment : Fragment
     private ActivityResultLauncher? _recordAudioLauncher;
     private int _modeActiveColor;
     private bool _visualizerEnabled = false;
+    private string? _lastCoverSource;
     private LyricProgressCallback? _lyricProgressCallback;
     private bool _lyricGradientActive;
     private double _lyricLineStartMs;
@@ -175,10 +176,10 @@ public class LandscapeNowPlayingFragment : Fragment
     {
         var act = Activity;
         if (act == null || act.Window == null) return;
+        WindowCompat.SetDecorFitsSystemWindows(act.Window, false);
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
-        controller.Hide(WindowInsetsCompat.Type.StatusBars());
         controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
-        act.Window.SetDecorFitsSystemWindows(false);
+        controller.Hide(WindowInsetsCompat.Type.StatusBars());
     }
 
     private void ShowStatusBar()
@@ -187,7 +188,7 @@ public class LandscapeNowPlayingFragment : Fragment
         if (act == null || act.Window == null) return;
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
         controller.Show(WindowInsetsCompat.Type.StatusBars());
-        act.Window.SetDecorFitsSystemWindows(true);
+        WindowCompat.SetDecorFitsSystemWindows(act.Window, true);
     }
 
     private void OnExitLandscape(object? s, EventArgs e)
@@ -312,10 +313,17 @@ public class LandscapeNowPlayingFragment : Fragment
                 _ = _viewModel.LoadLyricsAsync(_viewModel.CurrentSong);
             }
 
-            if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+            var coverSource = _viewModel.CoverSource;
+            var coverChanged = coverSource != _lastCoverSource;
+            _lastCoverSource = coverSource;
+
+            if (!string.IsNullOrEmpty(coverSource))
             {
-                AnimateCoverChange(_viewModel.CoverSource);
-                UpdateGradientBackground();
+                if (coverChanged)
+                {
+                    AnimateCoverChange(coverSource);
+                    UpdateGradientBackground();
+                }
             }
             else
             {
@@ -328,8 +336,8 @@ public class LandscapeNowPlayingFragment : Fragment
                 _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
             var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
             var visualizerEnabled = prefs?.GetBoolean("visualizer_enabled", false) ?? false;
-            ApplyVisualizerState(visualizerEnabled);
-            if (visualizerEnabled) TryStartVisualizer();
+            if (visualizerEnabled != _visualizerEnabled)
+                ApplyVisualizerState(visualizerEnabled);
             UpdateTimeDisplay();
             UpdateSlider();
             UpdatePlayPauseIcon();
@@ -429,6 +437,7 @@ public class LandscapeNowPlayingFragment : Fragment
         _targetBackgroundColor = newPalette.Background;
         if (_currentEntries == null || _currentEntries.Count == 0)
         {
+            _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(_targetBackgroundColor));
             _currentEntries = newEntries;
             _currentBackgroundColor = _targetBackgroundColor;
             _flowColors = PickVividColors(newEntries);
