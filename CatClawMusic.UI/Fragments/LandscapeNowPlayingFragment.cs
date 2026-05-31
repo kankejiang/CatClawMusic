@@ -157,7 +157,11 @@ public class LandscapeNowPlayingFragment : Fragment
         _audioVisualizer.Visibility = ViewStates.Gone;
         var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
         var visEnabled = visPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
-        if (visEnabled) TryStartVisualizer();
+        if (visEnabled)
+        {
+            _visualizerEnabled = true;
+            TryStartVisualizer();
+        }
 
         if (_audioPlayer != null)
             _audioPlayer.StateChanged += OnAudioPlayerStateChanged;
@@ -368,13 +372,19 @@ public class LandscapeNowPlayingFragment : Fragment
             switch (e.PropertyName)
             {
                 case nameof(_viewModel.CoverSource):
-                    if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+                    var cover = _viewModel.CoverSource;
+                    if (cover != _lastCoverSource && !string.IsNullOrEmpty(cover))
                     {
-                        AnimateCoverChange(_viewModel.CoverSource);
-                        UpdateGradientBackground();
+                        _lastCoverSource = cover;
+                        Activity?.RunOnUiThread(() =>
+                        {
+                            AnimateCoverChange(cover);
+                            UpdateGradientBackground();
+                        });
                     }
-                    else
+                    else if (string.IsNullOrEmpty(cover))
                     {
+                        _lastCoverSource = null;
                         _albumCover.SetImageResource(Resource.Drawable.cover_default);
                     }
                     break;
@@ -387,7 +397,6 @@ public class LandscapeNowPlayingFragment : Fragment
                     break;
                 case nameof(_viewModel.PlayPauseIcon):
                     UpdatePlayPauseIcon();
-                    TryStartVisualizer();
                     if (_viewModel.PlayPauseIcon == "▶")
                         PauseFlowAnimation();
                     else
@@ -1104,6 +1113,8 @@ public class LandscapeNowPlayingFragment : Fragment
         {
             if (!_visualizerEnabled) return;
             if (newSessionId == 0) return;
+            if (newSessionId == _lastVisualizerSessionId && _visualizerHelper != null && _visualizerHelper.IsEnabled)
+                return;
             _lastVisualizerSessionId = newSessionId;
             _visualizerHelper?.Stop();
             _visualizerHelper = null;
@@ -1132,12 +1143,22 @@ public class LandscapeNowPlayingFragment : Fragment
         _visualizerHelper = new VisualizerHelper();
         _mainHandler ??= new Handler(Looper.MainLooper!);
         var spectrumCounter = 0;
+        var lastUpdateTicks = 0L;
         _visualizerHelper.SpectrumUpdated += spectrum =>
         {
             var src = spectrum;
             if (_latestSpectrum.Length < src.Length) _latestSpectrum = new float[src.Length];
             Array.Copy(src, _latestSpectrum, src.Length);
             if (Interlocked.Exchange(ref _spectrumUpdateQueued, 1) == 1) return;
+
+            var now = System.Environment.TickCount64;
+            if (now - lastUpdateTicks < 50)
+            {
+                Interlocked.Exchange(ref _spectrumUpdateQueued, 0);
+                return;
+            }
+            lastUpdateTicks = now;
+
             _mainHandler.Post(() =>
             {
                 Interlocked.Exchange(ref _spectrumUpdateQueued, 0);

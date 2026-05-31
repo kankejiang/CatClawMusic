@@ -27,23 +27,29 @@ public class VisualizerHelper : Java.Lang.Object
             return;
         }
 
-        try
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            _visualizer = new Visualizer(audioSessionId);
-            _visualizer.SetCaptureSize(1024);
-            _visualizer.SetDataCaptureListener(
-                new CaptureListener(this),
-                Visualizer.MaxCaptureRate,
-                false,
-                true);
-            _visualizer.SetEnabled(true);
-            _enabled = true;
-            ALog.Debug("CatClaw", $"[CatClaw] Visualizer started, sessionId={audioSessionId}, captureSize={_visualizer.CaptureSize}");
-        }
-        catch (Exception ex)
-        {
-            ALog.Warn("CatClaw", $"[CatClaw] Visualizer start failed: {ex.Message}");
-            ReleaseInternal();
+            try
+            {
+                _visualizer = new Visualizer(audioSessionId);
+                _visualizer.SetCaptureSize(1024);
+                _visualizer.SetDataCaptureListener(
+                    new CaptureListener(this),
+                    Visualizer.MaxCaptureRate,
+                    false,
+                    true);
+                _visualizer.SetEnabled(true);
+                _enabled = true;
+                ALog.Debug("CatClaw", $"[CatClaw] Visualizer started, sessionId={audioSessionId}, captureSize={_visualizer.CaptureSize}");
+                return;
+            }
+            catch (Exception ex)
+            {
+                ALog.Warn("CatClaw", $"[CatClaw] Visualizer start attempt {attempt + 1} failed: {ex.Message}");
+                ReleaseInternal();
+                if (attempt < 2)
+                    Thread.Sleep(100);
+            }
         }
     }
 

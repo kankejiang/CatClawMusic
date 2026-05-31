@@ -157,7 +157,11 @@ public class NowPlayingFragment : Fragment
         _audioVisualizer.Visibility = ViewStates.Gone;
         var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
         var visEnabled = visPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
-        if (visEnabled) TryStartVisualizer();
+        if (visEnabled)
+        {
+            _visualizerEnabled = true;
+            TryStartVisualizer();
+        }
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
@@ -699,12 +703,6 @@ public class NowPlayingFragment : Fragment
         {
             if (_albumCover == null) return;
 
-            if (_viewModel.CurrentSong != null && string.IsNullOrEmpty(_viewModel.CoverSource))
-            {
-                _ = _viewModel.LoadCoverAsync(_viewModel.CurrentSong);
-                _ = _viewModel.LoadLyricsAsync(_viewModel.CurrentSong);
-            }
-
             var coverSource = _viewModel.CoverSource;
             var coverChanged = coverSource != _lastCoverSource;
             _lastCoverSource = coverSource;
@@ -768,13 +766,19 @@ public class NowPlayingFragment : Fragment
             switch (e.PropertyName)
             {
                 case nameof(_viewModel.CoverSource):
-                    if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+                    var cover = _viewModel.CoverSource;
+                    if (cover != _lastCoverSource && !string.IsNullOrEmpty(cover))
                     {
-                        AnimateCoverChange(_viewModel.CoverSource);
-                        UpdateGradientBackground();
+                        _lastCoverSource = cover;
+                        Activity?.RunOnUiThread(() =>
+                        {
+                            AnimateCoverChange(cover);
+                            UpdateGradientBackground();
+                        });
                     }
-                    else
+                    else if (string.IsNullOrEmpty(cover))
                     {
+                        _lastCoverSource = null;
                         _albumCover.SetImageResource(Resource.Drawable.cover_default);
                     }
                     break;
@@ -787,9 +791,7 @@ public class NowPlayingFragment : Fragment
                     break;
                 case nameof(_viewModel.PlayPauseIcon):
                     UpdatePlayPauseIcon();
-                    TryStartVisualizer();
-                    /* 音乐暂停时流光跟随暂停，恢复播放时流光继续 */
-                    if (_viewModel.PlayPauseIcon == "▶")
+                    if (_viewModel.PlayPauseIcon != "▶")
                         PauseFlowAnimation();
                     else
                         ResumeFlowAnimation();
@@ -913,8 +915,24 @@ public class NowPlayingFragment : Fragment
     /// </summary>
     private void UpdateTimeDisplay()
     {
-        _timeCurrent.Text = $"{_viewModel.CurrentPosition.Minutes}:{_viewModel.CurrentPosition.Seconds:D2}";
-        _timeTotal.Text = $"{_viewModel.TotalDuration.Minutes}:{_viewModel.TotalDuration.Seconds:D2}";
+        _timeCurrent.Text = FormatTime(_viewModel.CurrentPosition);
+        _timeTotal.Text = FormatTime(_viewModel.TotalDuration);
+    }
+
+    [ThreadStatic]
+    private static char[]? _timeBuf;
+
+    private static string FormatTime(TimeSpan t)
+    {
+        var buf = _timeBuf ??= new char[8];
+        int m = t.Minutes;
+        int s = t.Seconds;
+        buf[0] = (char)('0' + m / 10);
+        buf[1] = (char)('0' + m % 10);
+        buf[2] = ':';
+        buf[3] = (char)('0' + s / 10);
+        buf[4] = (char)('0' + s % 10);
+        return new string(buf, 0, 5);
     }
 
     /// <summary>
@@ -1386,15 +1404,27 @@ public class NowPlayingFragment : Fragment
         if (queue.CurrentSong != null)
         {
             _viewModel.SyncWithQueue();
-            SyncUIFromViewModel();
-        }
-        RestartVisualizer();
-        View?.PostDelayed(() =>
-        {
-            UpdateSlider();
             UpdatePlayPauseIcon();
+            UpdateModeIcon();
+            UpdateLikeIcon();
+            UpdateTimeDisplay();
+            UpdateSlider();
             UpdateLyrics();
-        }, 800);
+            var coverSource = _viewModel.CoverSource;
+            if (!string.IsNullOrEmpty(coverSource) && coverSource != _lastCoverSource)
+            {
+                _lastCoverSource = coverSource;
+                AnimateCoverChange(coverSource);
+                UpdateGradientBackground();
+            }
+            else if (string.IsNullOrEmpty(coverSource))
+            {
+                _albumCover.SetImageResource(Resource.Drawable.cover_default);
+            }
+            _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
+            _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
+        }
+        TryStartVisualizer();
     }
 
     /// <summary>
@@ -1423,6 +1453,8 @@ public class NowPlayingFragment : Fragment
         {
             if (!_visualizerEnabled) return;
             if (newSessionId == 0) return;
+            if (newSessionId == _lastVisualizerSessionId && _visualizerHelper != null && _visualizerHelper.IsEnabled)
+                return;
             _lastVisualizerSessionId = newSessionId;
             _visualizerHelper?.Stop();
             _visualizerHelper = null;
@@ -1464,6 +1496,7 @@ public class NowPlayingFragment : Fragment
         _visualizerHelper = new VisualizerHelper();
         _mainHandler ??= new Handler(Looper.MainLooper!);
         var spectrumCounter = 0;
+        var lastUpdateTicks = 0L;
         _visualizerHelper.SpectrumUpdated += spectrum =>
         {
             var src = spectrum;
@@ -1473,6 +1506,14 @@ public class NowPlayingFragment : Fragment
 
             if (Interlocked.Exchange(ref _spectrumUpdateQueued, 1) == 1)
                 return;
+
+            var now = System.Environment.TickCount64;
+            if (now - lastUpdateTicks < 50)
+            {
+                Interlocked.Exchange(ref _spectrumUpdateQueued, 0);
+                return;
+            }
+            lastUpdateTicks = now;
 
             _mainHandler.Post(() =>
             {

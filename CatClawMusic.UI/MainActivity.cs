@@ -104,6 +104,8 @@ public class MainActivity : AppCompatActivity
 
         Window!.DecorView.ImportantForAutofill = Android.Views.ImportantForAutofill.NoExcludeDescendants;
 
+        new Helpers.WaveformView(this!);
+
         DesktopLyricService.Instance.Initialize(this);
 
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
@@ -348,21 +350,28 @@ public class MainActivity : AppCompatActivity
         _suppressNavListener = false;
     }
 
+    private LinearLayout? _mainLayout;
+    private bool _lastImmersiveState;
+
     private void UpdateTabUI(int index)
     {
         bool immersive = index is 0 or 1;
+        if (immersive == _lastImmersiveState && _mainLayout != null) return;
+        _lastImmersiveState = immersive;
         _toolbar.Visibility = immersive ? ViewStates.Gone : ViewStates.Visible;
         _bottomNav.Visibility = immersive ? ViewStates.Gone : ViewStates.Visible;
         SetMiniPlayerVisible(!immersive);
         ApplySystemBarImmersive(immersive);
 
-        var mainLayout = FindViewById<LinearLayout>(Resource.Id.main_layout);
-        if (mainLayout != null)
-            mainLayout.SetPadding(0, immersive ? 0 : StatusBarHeight, 0, 0);
+        _mainLayout ??= FindViewById<LinearLayout>(Resource.Id.main_layout);
+        if (_mainLayout != null)
+            _mainLayout.SetPadding(0, immersive ? 0 : StatusBarHeight, 0, 0);
     }
 
     public void SetBottomNavVisible(bool visible)
         => _bottomNav.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
+
+    public void UpdateTabUIForCurrentTab() => UpdateTabUI(_currentTab);
 
     public void SetToolbarVisible(bool visible)
         => _toolbar.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
@@ -380,16 +389,25 @@ public class MainActivity : AppCompatActivity
         if (_panelOpen) { CloseSidePanel(); return; }
         if (SupportFragmentManager.BackStackEntryCount > 0)
         {
+            var topEntry = SupportFragmentManager.GetBackStackEntryAt(SupportFragmentManager.BackStackEntryCount - 1);
+            var isLandscape = topEntry.Name == "LandscapeNowPlaying";
             SupportFragmentManager.PopBackStackImmediate();
             if (SupportFragmentManager.BackStackEntryCount == 0)
             {
                 SetOverlayOpen(false);
                 var overlay = FindViewById<View>(Resource.Id.overlay_container);
                 if (overlay != null) overlay.Visibility = ViewStates.Gone;
-                SetToolbarVisible(true);
-                SetBottomNavVisible(true);
-                SetMiniPlayerVisible(true);
-                UpdateNavSelection(_currentTab);
+                if (isLandscape)
+                {
+                    UpdateTabUI(_currentTab);
+                }
+                else
+                {
+                    SetToolbarVisible(true);
+                    SetBottomNavVisible(true);
+                    SetMiniPlayerVisible(true);
+                    UpdateNavSelection(_currentTab);
+                }
             }
         }
         else base.OnBackPressed();
@@ -605,6 +623,8 @@ public class MainActivity : AppCompatActivity
 
     // ═══════════ 系统栏适配 ═══════════
 
+    private int _cachedNavBarColor;
+
     private void ApplySystemBarImmersive(bool immersive)
     {
         if (Window == null) return;
@@ -623,8 +643,9 @@ public class MainActivity : AppCompatActivity
         {
             Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
 
-            var navColor = new Android.Graphics.Color(ResolveColor(Resource.Attribute.catClawNavBarBackground));
-            Window.SetNavigationBarColor(navColor);
+            if (_cachedNavBarColor == 0)
+                _cachedNavBarColor = ResolveColor(Resource.Attribute.catClawNavBarBackground);
+            Window.SetNavigationBarColor(new Android.Graphics.Color(_cachedNavBarColor));
 
             Window.DecorView.SystemUiVisibility =
                 (StatusBarVisibility)(SystemUiFlags.LayoutStable

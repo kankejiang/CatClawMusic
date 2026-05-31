@@ -67,6 +67,9 @@ public partial class LibraryViewModel : ObservableObject
     /// <summary>扫描完成事件，在 BackgroundScanAsync 结束后触发，通知外部组件</summary>
     public event EventHandler? ScanCompleted;
 
+    /// <summary>请求显示扫描对话框，参数为对话框标题</summary>
+    public event EventHandler<string>? ScanDialogRequested;
+
     /// <summary>
     /// 协议变更事件（静态，跨页面通知）
     /// </summary>
@@ -450,10 +453,9 @@ public partial class LibraryViewModel : ObservableObject
                 var cachedSongs = await _musicLibrary.GetAllSongsAsync();
                 if (cachedSongs.Count > 0)
                 {
-                    // 后台批量填充 MediaStore ID
                     _ = Task.Run(() => Platforms.Android.MediaStoreCoverHelper.BatchFillMediaStoreIds(cachedSongs));
 
-                    // 分批加载到 UI，每批 50 首，模拟扫描进度效果
+                    ScanDialogRequested?.Invoke(this, "🐱 正在加载本地音乐");
                     IsScanning = true; ScanProgress = 0;
                     int total = cachedSongs.Count;
                     int batchSize = 50;
@@ -469,7 +471,7 @@ public partial class LibraryViewModel : ObservableObject
                             ScanStatus = $"加载中 ({loaded}/{total})";
                             StatusText = $"🐱 加载中... ({Songs.Count}/{total})";
                         });
-                        await Task.Delay(30); // 给主线程喘息，避免 UI 卡顿
+                        await Task.Delay(30);
                     }
                     _hasLoadedLocal = true;
                     _dispatcher.Post(() =>
@@ -478,6 +480,7 @@ public partial class LibraryViewModel : ObservableObject
                         StatusText = $"🐱 共 {Songs.Count} 首歌曲";
                         _localSongsCache = Songs.ToList();
                     });
+                    ScanCompleted?.Invoke(this, EventArgs.Empty);
                     IsLoading = false;
                     return;
                 }
@@ -533,6 +536,7 @@ public partial class LibraryViewModel : ObservableObject
     /// <param name="forceReload">是否强制重新扫描（当前未区分，预留扩展）</param>
     private async Task BackgroundScanAsync(bool forceReload)
     {
+        ScanDialogRequested?.Invoke(this, "🐱 正在扫描本地音乐");
         try
         {
             _dispatcher.Post(() => { StatusText = "正在准备扫描..."; IsScanning = true; ScanProgress = 0; ScanStatus = "遍历文件夹..."; });
@@ -625,6 +629,7 @@ public partial class LibraryViewModel : ObservableObject
         catch (Exception ex)
         {
             _dispatcher.Post(() => { IsScanning = false; StatusText = $"扫描出错: {ex.Message}"; });
+            ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -654,17 +659,19 @@ public partial class LibraryViewModel : ObservableObject
     {
         ShowPermissionPrompt = false; IsLoading = true;
         StatusText = "正在加载...";
+        var showDialog = forceRefresh;
 
         try
         {
-            // 第一步：尝试从数据库缓存加载（非强制刷新时）
             if (_database != null && !forceRefresh)
             {
-                await _database.EnsureInitializedAsync();
-                var cached = await _database.GetCachedNetworkSongsAsync();
+                var cached = await Task.Run(async () =>
+                {
+                    await _database.EnsureInitializedAsync();
+                    return await _database.GetCachedNetworkSongsAsync();
+                });
                 if (cached.Count > 0)
                 {
-                    // 先过滤掉已关闭协议的歌曲，再按当前选中协议过滤
                     cached = await FilterByEnabledProtocolsAsync(cached);
                     Songs.Clear();
                     var filtered = FilterSongsByProtocol(cached);
@@ -675,24 +682,24 @@ public partial class LibraryViewModel : ObservableObject
                     IsLoading = false;
                     return;
                 }
+                showDialog = true;
             }
 
-            // 第二步：网络服务不可用，直接返回
+            if (showDialog)
+                ScanDialogRequested?.Invoke(this, "☁️ 正在扫描网络音乐");
+
             if (_networkMusic == null) { StatusText = "网络服务未就绪"; IsLoading = false; return; }
 
-            // 获取所有已启用的连接配置
             var enabled = (await _networkMusic.GetProfilesAsync()).Where(p => p.IsEnabled).ToList();
-            
-            // 根据当前选择的协议过滤连接配置
+
             if (_selectedProtocolIndex < ProtocolTypes.Count)
             {
                 var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
                 enabled = enabled.Where(p => p.Protocol == selectedProtocol).ToList();
             }
-            
+
             if (enabled.Count == 0) { StatusText = "请先在设置中配置网络连接"; IsLoading = false; return; }
 
-            // 清空列表，准备拉取远程数据
             if (forceRefresh || !Songs.Any())
             {
                 if (forceRefresh) IsScanning = true;
@@ -700,7 +707,6 @@ public partial class LibraryViewModel : ObservableObject
                 Songs.Clear();
             }
 
-            // 逐个连接配置拉取远程歌曲
             var all = new List<CoreModels.Song>();
             foreach (var p in enabled)
             {
@@ -715,19 +721,48 @@ public partial class LibraryViewModel : ObservableObject
                         ReportProgress(pct, p.status);
                     });
 
-                    var scanned = await _networkMusic.ScanAsync(p, progress, async (batch) =>
+                    var scanBuffer = new List<CoreModels.Song>();
+                    var scanBufferLock = new object();
+                    var scanBufferTimer = new System.Timers.Timer(200);
+                    scanBufferTimer.Elapsed += (_, _) =>
+                    {
+                        List<CoreModels.Song> toAdd;
+                        lock (scanBufferLock)
+                        {
+                            if (scanBuffer.Count == 0) return;
+                            toAdd = scanBuffer.ToList();
+                            scanBuffer.Clear();
+                        }
+                        _dispatcher.Post(() =>
+                        {
+                            AddSongsBatch(toAdd);
+                            StatusText = $"☁️ 正在拉取... 已发现 {Songs.Count} 首歌曲";
+                        });
+                    };
+                    scanBufferTimer.Start();
+
+                    var scanned = await Task.Run(async () => await _networkMusic.ScanAsync(p, progress, (batch) =>
                     {
                         if (_database != null)
                         {
-                            try { foreach (var s in batch) await _database.SaveSongAsync(s); } catch { }
+                            try { foreach (var s in batch) _database.SaveSongAsync(s).GetAwaiter().GetResult(); } catch { }
                         }
                         var filtered = FilterSongsByProtocol(batch);
+                        lock (scanBufferLock)
+                            scanBuffer.AddRange(filtered);
+                    }));
+
+                    scanBufferTimer.Stop();
+                    scanBufferTimer.Dispose();
+
+                    if (scanBuffer.Count > 0)
+                    {
                         _dispatcher.Post(() =>
                         {
-                            AddSongsBatch(filtered);
+                            AddSongsBatch(scanBuffer);
                             StatusText = $"☁️ 正在拉取... 已发现 {Songs.Count} 首歌曲";
                         });
-                    });
+                    }
 
                     all.AddRange(scanned);
                 }
@@ -736,10 +771,10 @@ public partial class LibraryViewModel : ObservableObject
 
             if (_database != null)
             {
-                await _database.EnsureInitializedAsync();
+                await Task.Run(async () => await _database.EnsureInitializedAsync());
                 if (Songs.Count == 0)
                 {
-                    var cachedSongs = await _database.GetCachedNetworkSongsAsync();
+                    var cachedSongs = await Task.Run(async () => await _database.GetCachedNetworkSongsAsync());
                     cachedSongs = await FilterByEnabledProtocolsAsync(cachedSongs);
                     var cachedFiltered = FilterSongsByProtocol(cachedSongs);
                     AddSongsBatch(cachedFiltered);
@@ -750,14 +785,20 @@ public partial class LibraryViewModel : ObservableObject
 
             StatusText = Songs.Count > 0 ? $"☁️ 共 {Songs.Count} 首网络歌曲" : "连接成功但未找到歌曲";
 
-            // 强制刷新时显示完成进度
             if (forceRefresh)
             {
                 ReportProgress(100, "扫描完成");
                 _dispatcher.Post(async () => { await Task.Delay(1500); IsScanning = false; });
             }
+
+            if (showDialog)
+                ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) { StatusText = $"连接失败: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            StatusText = $"连接失败: {ex.Message}";
+            if (showDialog) ScanCompleted?.Invoke(this, EventArgs.Empty);
+        }
         finally { IsLoading = false; if (!forceRefresh) IsScanning = false; }
     }
 

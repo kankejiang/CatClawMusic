@@ -37,6 +37,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private volatile bool _isSwitchingSong;
     private volatile bool _isRestoring;
     private int _lastSpannableLineIdx = -1;
+    private int _lastLyricIndex = -999;
     private int _positionUpdateQueued;
     private TimeSpan _pendingPosition;
 
@@ -126,7 +127,9 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         var lines = CurrentLyrics?.Lines;
         var idx = CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); _lastSpannableLineIdx = -1; return; }
+        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); _lastSpannableLineIdx = -1;
+        _lastLyricIndex = -999;
+        return; }
 
         var line = lines[idx];
         var text = line.Text;
@@ -583,10 +586,13 @@ public partial class NowPlayingViewModel : ObservableObject
             if (CurrentLyrics?.Lines is { Count: > 0 })
             {
                 var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, pos);
-                if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
+                if (idx != _lastLyricIndex)
                 {
-                    _prevLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx - 6);
-                    _prevLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx - 5);
+                    _lastLyricIndex = idx;
+                    if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
+                    {
+                        _prevLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx - 6);
+                        _prevLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx - 5);
                     _prevLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, idx - 4);
                     _prevLyricLine3 = FormatLyricLine(CurrentLyrics.Lines, idx - 3);
                     _prevLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx - 2);
@@ -621,6 +627,7 @@ public partial class NowPlayingViewModel : ObservableObject
                     ClearSpannable();
                     OnPropertyChanged(nameof(CurrentLyricLine));
                 }
+                }
             }
             _isPositionUpdating = false;
             if (++_saveCounter % 25 == 0)
@@ -633,12 +640,12 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; return; }
         var songId = song.Id;
         CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = "";
         CurrentLyrics = null;
         CurrentLyricIndex = -1;
-        _lastSpannableLineIdx = -1;
+        _lastSpannableLineIdx = -1; _lastLyricIndex = -999;
         ClearSpannable();
         try
         {

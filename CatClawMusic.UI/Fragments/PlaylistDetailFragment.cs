@@ -108,15 +108,7 @@ public class PlaylistDetailFragment : Fragment
             var a = Activity;
             if (a != null) a.RunOnUiThread(() =>
             {
-                if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
-                {
-                    _adapter.Clear();
-                    _adapter.AddRange(_viewModel.Songs);
-                }
-                else
-                {
-                    _adapter.UpdateSongs(_viewModel.Songs);
-                }
+                _adapter.UpdateSongs(_viewModel.Songs);
                 _statusText.Text = _viewModel.StatusText;
                 _statusText.Visibility = _viewModel.Songs.Count == 0
                     ? ViewStates.Visible : ViewStates.Gone;
@@ -336,23 +328,32 @@ public class PlaylistDetailFragment : Fragment
 
         if (!sortMap.TryGetValue(sortKey, out var selector)) return;
 
-        Activity?.RunOnUiThread(() =>
+        var songsCopy = _viewModel.Songs.ToList();
+        _ = Task.Run(() =>
         {
             var sorted = desc
-                ? _viewModel.Songs.OrderByDescending(selector).ToList()
-                : _viewModel.Songs.OrderBy(selector).ToList();
-            _viewModel.Songs.ReplaceAll(sorted);
-            _adapter.UpdateSongs(_viewModel.Songs);
+                ? songsCopy.OrderByDescending(selector).ToList()
+                : songsCopy.OrderBy(selector).ToList();
+            Activity?.RunOnUiThread(() =>
+            {
+                _viewModel.Songs.ReplaceAll(sorted);
+            });
         });
     }
 
     private void ApplySort(string sortKey, Func<Song, string> keySelector, bool descending)
     {
-        var sorted = descending
-            ? _viewModel.Songs.OrderByDescending(keySelector).ToList()
-            : _viewModel.Songs.OrderBy(keySelector).ToList();
-        _viewModel.Songs.ReplaceAll(sorted);
-        _adapter.UpdateSongs(_viewModel.Songs);
+        var songsCopy = _viewModel.Songs.ToList();
+        _ = Task.Run(() =>
+        {
+            var sorted = descending
+                ? songsCopy.OrderByDescending(keySelector).ToList()
+                : songsCopy.OrderBy(keySelector).ToList();
+            Activity?.RunOnUiThread(() =>
+            {
+                _viewModel.Songs.ReplaceAll(sorted);
+            });
+        });
 
         var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
         if (prefs != null)
@@ -501,11 +502,6 @@ public class PlaylistDetailFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
-        if (_viewModel.Songs.Count > 0 && _isUserPlaylist)
-            _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>
-            {
-                ApplySavedSort();
-            });
     }
 
     /// <summary>

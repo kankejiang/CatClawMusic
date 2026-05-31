@@ -33,6 +33,7 @@ public class SongAdapter : RecyclerView.Adapter
     /// 当前展示的歌曲列表
     /// </summary>
     private List<Song> _songs = new();
+    private readonly Dictionary<int, int> _songIdToIndex = new();
 
     /// <summary>
     /// 网络音乐服务实例，用于获取远程封面和连接配置。可为 null（纯本地模式）
@@ -109,7 +110,7 @@ public class SongAdapter : RecyclerView.Adapter
     static SongAdapter()
     {
         var maxMemory = (int)(Java.Lang.Runtime.GetRuntime()!.MaxMemory() / 1024);
-        var cacheSize = maxMemory / 8;
+        var cacheSize = maxMemory / 4;
         _bitmapCache = new BitmapLruCache(cacheSize);
     }
 
@@ -258,8 +259,15 @@ public class SongAdapter : RecyclerView.Adapter
     public void UpdateSongs(IEnumerable<Song> songs)
     {
         var oldList = _songs;
-        var newList = songs.ToList();
+        List<Song> newList;
+        if (songs is List<Song> list)
+            newList = list;
+        else
+            newList = songs.ToList();
         _songs = newList;
+        _songIdToIndex.Clear();
+        for (int i = 0; i < newList.Count; i++)
+            _songIdToIndex[newList[i].Id] = i;
         var diffResult = DiffUtil.CalculateDiff(new SongDiffCallback(oldList, newList));
         diffResult.DispatchUpdatesTo(this);
     }
@@ -273,6 +281,8 @@ public class SongAdapter : RecyclerView.Adapter
         if (songs.Count == 0) return;
         int startPos = _songs.Count;
         _songs.AddRange(songs);
+        for (int i = 0; i < songs.Count; i++)
+            _songIdToIndex[songs[i].Id] = startPos + i;
         NotifyItemRangeInserted(startPos, songs.Count);
     }
 
@@ -283,6 +293,7 @@ public class SongAdapter : RecyclerView.Adapter
     {
         int count = _songs.Count;
         _songs.Clear();
+        _songIdToIndex.Clear();
         if (count > 0) NotifyItemRangeRemoved(0, count);
     }
 
@@ -300,6 +311,11 @@ public class SongAdapter : RecyclerView.Adapter
     public override long GetItemId(int position)
     {
         return _songs[position].Id;
+    }
+
+    internal int GetSongPosition(int songId)
+    {
+        return _songIdToIndex.TryGetValue(songId, out var idx) ? idx : -1;
     }
 
     /// <summary>
@@ -722,7 +738,7 @@ public class SongAdapter : RecyclerView.Adapter
                     }
                     else
                     {
-                        var pos = adapter._songs.FindIndex(s => s.Id == songId);
+                        var pos = adapter.GetSongPosition(songId);
                         if (pos >= 0)
                             try { adapter.NotifyItemChanged(pos); } catch { }
                     }
@@ -786,7 +802,7 @@ public class SongAdapter : RecyclerView.Adapter
                         }
                         else
                         {
-                            var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                            var pos = adapter.GetSongPosition(song.Id);
                             if (pos >= 0)
                                 try { adapter.NotifyItemChanged(pos); } catch { }
                         }
@@ -821,7 +837,7 @@ public class SongAdapter : RecyclerView.Adapter
                     }
                     else
                     {
-                        var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                        var pos = adapter.GetSongPosition(song.Id);
                         if (pos >= 0)
                             try { adapter.NotifyItemChanged(pos); } catch { }
                     }
@@ -946,7 +962,7 @@ public class SongAdapter : RecyclerView.Adapter
                                 {
                                     /* 不再 Recycle：msBitmap 已在缓存中，可能被其他 ViewHolder 引用，
                                      * 主动 Recycle 会导致 "trying to use a recycled bitmap" 崩溃 */
-                                    var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                                    var pos = adapter.GetSongPosition(song.Id);
                                     if (pos >= 0)
                                         try { adapter.NotifyItemChanged(pos); } catch { }
                                 }
@@ -1028,7 +1044,7 @@ public class SongAdapter : RecyclerView.Adapter
                             }
                             else
                             {
-                                var pos = adapter._songs.FindIndex(s => s.Id == song.Id);
+                                var pos = adapter.GetSongPosition(song.Id);
                                 if (pos >= 0)
                                     try { adapter.NotifyItemChanged(pos); } catch { }
                             }

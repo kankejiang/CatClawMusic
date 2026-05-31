@@ -11,6 +11,7 @@ using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.Helpers;
+using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using CatClawMusic.UI.Helpers;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,7 @@ public class LibraryFragment : Fragment
     private ArrayAdapter<string>? _protocolAdapter = null!;
     private EditText _searchBox = null!;
     private SongAdapter _adapter = null!;
+    private ScanProgressDialog? _scanDialog;
 
     /// <summary>
     /// 创建音乐库视图
@@ -138,6 +140,9 @@ public class LibraryFragment : Fragment
         _viewModel.Songs.CollectionChanged += OnSongsCollectionChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
+        _viewModel.ScanDialogRequested += OnScanDialogRequested;
+        _viewModel.ScanCompleted += OnScanCompleted;
+
         _viewModel.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(_viewModel.FilteredSongs))
@@ -156,6 +161,8 @@ public class LibraryFragment : Fragment
     {
         _viewModel.Songs.CollectionChanged -= OnSongsCollectionChanged;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _viewModel.ScanDialogRequested -= OnScanDialogRequested;
+        _viewModel.ScanCompleted -= OnScanCompleted;
         _protocolSpinner.ItemSelected -= OnProtocolSelected;
         LibraryViewModel.ProtocolChanged -= OnProtocolChanged;
     }
@@ -173,15 +180,52 @@ public class LibraryFragment : Fragment
         if (e.PropertyName == nameof(_viewModel.LocalTabColor))
         {
             UpdateTabButtonColor(_btnLocal, _viewModel.LocalTabColor, _viewModel.CurrentTab == "Local");
-            // 切换到本地 Tab 时隐藏协议选择
             _networkProtocolRow.Visibility = ViewStates.Gone;
         }
         else if (e.PropertyName == nameof(_viewModel.NetworkTabColor))
         {
             UpdateTabButtonColor(_btnNetwork, _viewModel.NetworkTabColor, _viewModel.CurrentTab == "Network");
-            // 切换到网络 Tab 时显示协议选择
             _networkProtocolRow.Visibility = _viewModel.CurrentTab == "Network" ? ViewStates.Visible : ViewStates.Gone;
         }
+        else if (e.PropertyName == nameof(_viewModel.ScanProgress) || e.PropertyName == nameof(_viewModel.ScanStatus))
+        {
+            _scanDialog?.UpdateProgress(_viewModel.ScanProgress, _viewModel.ScanStatus);
+        }
+        else if (e.PropertyName == nameof(_viewModel.Songs))
+        {
+            _scanDialog?.UpdateCount(_viewModel.Songs.Count);
+        }
+    }
+
+    private void OnScanDialogRequested(object? sender, string title)
+    {
+        Activity?.RunOnUiThread(() =>
+        {
+            _scanDialog?.Dismiss();
+            _scanDialog = new ScanProgressDialog(Activity!, title);
+            _scanDialog.Show();
+        });
+    }
+
+    private void OnScanCompleted(object? sender, EventArgs e)
+    {
+        Activity?.RunOnUiThread(() =>
+        {
+            if (_scanDialog != null)
+            {
+                var status = _viewModel.StatusText;
+                if (status.Contains("失败") || status.Contains("出错"))
+                    _scanDialog.SetError(status);
+                else
+                {
+                    var count = _viewModel.Songs.Count;
+                    var msg = _viewModel.CurrentTab == "Local"
+                        ? $"扫描完成，共发现 {count} 首歌曲"
+                        : $"扫描完成，共发现 {count} 首网络歌曲";
+                    _scanDialog.SetCompleted(msg);
+                }
+            }
+        });
     }
 
     /// <summary>

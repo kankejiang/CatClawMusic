@@ -128,16 +128,31 @@ public class NavigationService : INavigationService
     public void GoBack()
     {
         if (_fm == null) return;
-        _fm.PopBackStack();
+
+        var isLandscape = false;
+        if (_fm.BackStackEntryCount > 0)
+        {
+            var topEntry = _fm.GetBackStackEntryAt(_fm.BackStackEntryCount - 1);
+            isLandscape = topEntry.Name == "LandscapeNowPlaying";
+        }
+
+        _fm.PopBackStackImmediate();
 
         if (_fm.BackStackEntryCount == 0 && _sidePanelContainerId == null)
         {
             var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
             if (overlay != null) overlay.Visibility = ViewStates.Gone;
-            if (_bottomNav != null) _bottomNav.Visibility = ViewStates.Visible;
-            MainActivity.Instance?.SetOverlayOpen(false);
-            MainActivity.Instance?.SetToolbarVisible(true);
-            MainActivity.Instance?.SetMiniPlayerVisible(true);
+            if (isLandscape)
+            {
+                MainActivity.Instance?.UpdateTabUIForCurrentTab();
+            }
+            else
+            {
+                if (_bottomNav != null) _bottomNav.Visibility = ViewStates.Visible;
+                MainActivity.Instance?.SetOverlayOpen(false);
+                MainActivity.Instance?.SetToolbarVisible(true);
+                MainActivity.Instance?.SetMiniPlayerVisible(true);
+            }
         }
     }
 

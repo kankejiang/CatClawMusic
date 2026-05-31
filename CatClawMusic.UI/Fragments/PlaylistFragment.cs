@@ -77,8 +77,9 @@ public class PlaylistFragment : Fragment
         {
             _scanCompletedHandler = (s, e) =>
             {
+                _viewModel.MarkDirty();
                 var a = Activity;
-                if (a != null) a.RunOnUiThread(() => _ = _viewModel.LoadPlaylistsAsync());
+                if (a != null) a.RunOnUiThread(() => _ = _viewModel.RefreshIfChangedAsync());
             };
             _libraryVm.ScanCompleted += _scanCompletedHandler;
         }
@@ -128,7 +129,7 @@ public class PlaylistFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
-        _ = _viewModel.LoadPlaylistsAsync();
+        _ = _viewModel.RefreshIfChangedAsync();
     }
 
     /// <summary>

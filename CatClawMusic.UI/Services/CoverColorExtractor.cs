@@ -44,6 +44,23 @@ public class ColorEntry
 /// </summary>
 public static class CoverColorExtractor
 {
+    private static readonly Dictionary<string, List<ColorEntry>> _fileCache = new();
+    private static readonly Dictionary<string, long> _fileCacheTimestamps = new();
+
+    public static void InvalidateCache(string? filePath)
+    {
+        if (filePath != null)
+        {
+            _fileCache.Remove(filePath);
+            _fileCacheTimestamps.Remove(filePath);
+        }
+    }
+
+    public static void ClearCache()
+    {
+        _fileCache.Clear();
+        _fileCacheTimestamps.Clear();
+    }
     /// <summary>
     /// 色彩量化级别：将每个 RGB 通道从 256 级（8位）降为 32 级（5位）
     /// <para>量化公式：channel_key = channel_value / 32，范围 0-31</para>
@@ -296,6 +313,19 @@ public static class CoverColorExtractor
     /// <returns>主色调列表（1-6 个 ColorEntry），若文件不存在或解码失败则返回空列表</returns>
     public static List<ColorEntry> ExtractFromFile(string filePath)
     {
+        if (_fileCache.TryGetValue(filePath, out var cached))
+        {
+            try
+            {
+                var lastWrite = System.IO.File.GetLastWriteTimeUtc(filePath).Ticks;
+                if (_fileCacheTimestamps.TryGetValue(filePath, out var ts) && ts == lastWrite)
+                    return cached;
+            }
+            catch { }
+            _fileCache.Remove(filePath);
+            _fileCacheTimestamps.Remove(filePath);
+        }
+
         var entries = new List<ColorEntry>();
         try
         {
@@ -304,6 +334,8 @@ public static class CoverColorExtractor
             {
                 entries = Extract(bitmap);
             }
+            _fileCache[filePath] = entries;
+            try { _fileCacheTimestamps[filePath] = System.IO.File.GetLastWriteTimeUtc(filePath).Ticks; } catch { }
         }
         catch { }
         return entries;
