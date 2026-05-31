@@ -46,4 +46,5 @@ public class TabPagerAdapter : FragmentStateAdapter
     /// 获取歌词页 Fragment 实例（可能为 null，如果尚未创建）
     /// </summary>
     public FullLyricsFragment? FullLyricsFragment => _fullLyricsFragment;
+    public NowPlayingFragment? NowPlayingFragment => _nowPlayingFragment;
 }

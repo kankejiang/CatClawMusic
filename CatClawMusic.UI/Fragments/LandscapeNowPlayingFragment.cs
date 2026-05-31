@@ -274,13 +274,21 @@ public class LandscapeNowPlayingFragment : Fragment
     public override void OnPause()
     {
         base.OnPause();
-        Activity!.RequestedOrientation = Android.Content.PM.ScreenOrientation.Portrait;
-        ShowStatusBar();
-        if (Activity is MainActivity ma)
-            ma.SetViewPagerSwipeEnabled(true);
         _visualizerHelper?.Stop();
         _visualizerHelper = null;
         _lastVisualizerSessionId = 0;
+        Activity!.RequestedOrientation = Android.Content.PM.ScreenOrientation.Portrait;
+        ShowStatusBar();
+        if (Activity is MainActivity ma)
+        {
+            ma.SetViewPagerSwipeEnabled(true);
+            var npFragment = ma.GetTabAdapter()?.NowPlayingFragment;
+            if (npFragment != null)
+            {
+                _mainHandler ??= new Android.OS.Handler(Android.OS.Looper.MainLooper!);
+                _mainHandler.PostDelayed(() => npFragment.RestartVisualizer(), 150);
+            }
+        }
     }
 
     public override void OnDestroyView()

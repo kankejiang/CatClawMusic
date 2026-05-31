@@ -38,6 +38,7 @@ public class MainActivity : AppCompatActivity
 
     public void SetOverlayOpen(bool open) => _overlayOpen = open;
     public void SetViewPagerSwipeEnabled(bool enabled) { if (_viewPager != null) _viewPager.UserInputEnabled = enabled; }
+    public TabPagerAdapter? GetTabAdapter() => _tabAdapter;
 
     private View _miniPlayerWrapper = null!;
     private MaterialCardView _miniPlayer = null!;

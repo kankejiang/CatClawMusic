@@ -1388,13 +1388,7 @@ public class NowPlayingFragment : Fragment
             _viewModel.SyncWithQueue();
             SyncUIFromViewModel();
         }
-        if (_visualizerEnabled)
-        {
-            _visualizerHelper?.Stop();
-            _visualizerHelper = null;
-            _lastVisualizerSessionId = 0;
-        }
-        TryStartVisualizer();
+        RestartVisualizer();
         View?.PostDelayed(() =>
         {
             UpdateSlider();
@@ -1453,6 +1447,15 @@ public class NowPlayingFragment : Fragment
 
         _lastVisualizerSessionId = sessionId;
         StartVisualizerWithSession(sessionId);
+    }
+
+    public void RestartVisualizer()
+    {
+        if (!_visualizerEnabled) return;
+        _visualizerHelper?.Stop();
+        _visualizerHelper = null;
+        _lastVisualizerSessionId = 0;
+        TryStartVisualizer();
     }
 
     private void StartVisualizerWithSession(int sessionId)
