@@ -16,11 +16,9 @@
 
 <div align="center">
 
-## 💬 加入交流群
+[![QQ群](https://img.shields.io/badge/QQ交流群-855383639-7B68EE?style=for-the-badge&logo=tencentqq&logoColor=white)](https://qm.qq.com/q/Fhu3IEzqa4)
 
-[![QQ群](https://img.shields.io/badge/QQ群-855383639-eb192d?style=for-the-badge&logo=tencentqq&logoColor=white)](https://qm.qq.com/q/Fhu3IEzqa4)
-
-**点击上方按钮或扫描下方二维码加入群聊 ₍˄·͈༝·͈˄*₎◞ ̑̑**
+**点击上方按钮加入群聊 ₍˄·͈༝·͈˄*₎◞ ̑̑**
 
 </div>
 
