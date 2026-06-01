@@ -206,6 +206,7 @@ public class LandscapeNowPlayingFragment : Fragment
         var duration = 300L;
         if (_isFullLyricMode)
         {
+            _lyricsArea.SetGravity(GravityFlags.CenterVertical | GravityFlags.CenterHorizontal);
             _audioVisualizer.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _audioVisualizer.Visibility = ViewStates.Gone)).Start();
             _controlsCard.Animate().Alpha(0f).TranslationY(40f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _controlsCard.Visibility = ViewStates.Gone)).Start();
             _lyricPrev6.Visibility = ViewStates.Visible;
@@ -227,6 +228,7 @@ public class LandscapeNowPlayingFragment : Fragment
         }
         else
         {
+            _lyricsArea.SetGravity(GravityFlags.Bottom | GravityFlags.CenterHorizontal);
             _audioVisualizer.Alpha = 0f;
             _audioVisualizer.Visibility = _visualizerEnabled ? ViewStates.Visible : ViewStates.Gone;
             if (_visualizerEnabled) _audioVisualizer.Animate().Alpha(1f).SetDuration(duration).Start();

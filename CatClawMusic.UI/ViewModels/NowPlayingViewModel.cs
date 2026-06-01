@@ -28,6 +28,10 @@ public partial class NowPlayingViewModel : ObservableObject
     public int LyricsMode { get; set; } = 0;
     public int LyricStyle { get; set; } = 0;
     public ISpannable? CurrentLyricSpannable { get; private set; }
+    /// <summary>
+    /// 当前歌词行的演唱进度（0~1），用于 StrokeTextView 的渐变裁剪
+    /// <para>值由 UpdateLyricSpannable 根据播放位置和行持续时间计算</para>
+    /// </summary>
     [ObservableProperty] private float _currentLyricProgress;
     private bool _isPositionUpdating;
     private int _saveCounter;
@@ -113,6 +117,12 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public ObservableCollection<Song> UpcomingSongs { get; } = new();
 
+    /// <summary>
+    /// 更新当前歌词行的 Spannable 富文本和渐变进度
+    /// <para>根据当前播放位置计算当前行的演唱进度（0~1），并构建包含翻译的 SpannableString</para>
+    /// <para>翻译文本以灰色+缩小字号显示在原文下方</para>
+    /// <para>同一行内只更新进度值，不重复创建 SpannableString</para>
+    /// </summary>
     public void UpdateLyricSpannable()
     {
         var lines = CurrentLyrics?.Lines;

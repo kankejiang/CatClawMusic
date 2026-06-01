@@ -5,6 +5,11 @@ using Android.Widget;
 
 namespace CatClawMusic.UI.Helpers;
 
+/// <summary>
+/// 支持描边和歌词渐变进度的自定义 TextView
+/// <para>通过 OnDraw 重写实现两种效果：1) 文字描边（Stroke）；2) 歌词已唱/未唱双色渐变</para>
+/// <para>渐变原理：先绘制未唱颜色全文，再通过 Canvas 裁剪区域（ClipRect）覆盖绘制已唱颜色，实现左右渐变过渡</para>
+/// </summary>
 public class StrokeTextView : TextView
 {
     private Color _strokeColor = Color.Argb(128, 0, 0, 0);
@@ -38,6 +43,10 @@ public class StrokeTextView : TextView
         set { _strokeEnabled = value; Invalidate(); }
     }
 
+    /// <summary>
+    /// 歌词渐变进度（0~1），-1 表示不启用渐变
+    /// <para>0 = 完全未唱，1 = 完全已唱；进度值决定已唱颜色的裁剪宽度</para>
+    /// </summary>
     public float LyricProgress
     {
         get => _lyricProgress;
@@ -61,6 +70,7 @@ public class StrokeTextView : TextView
         set { _unsungColor = value; Invalidate(); }
     }
 
+    /// <summary>重置歌词进度为未启用状态</summary>
     public void ResetLyricProgress()
     {
         _lyricProgress = -1f;
@@ -79,6 +89,9 @@ public class StrokeTextView : TextView
         base.Invalidate(l, t, r, b);
     }
 
+    /// <summary>
+    /// 自定义绘制逻辑：先绘制描边层，再绘制填充层，最后通过裁剪区域叠加已唱颜色
+    /// </summary>
     protected override void OnDraw(Canvas canvas)
     {
         if (string.IsNullOrEmpty(Text) || Layout == null)
@@ -101,6 +114,7 @@ public class StrokeTextView : TextView
         _suppressInvalidate = true;
         try
         {
+            // 第一层：描边（如果启用），使用 Stroke 样式绘制文字轮廓
             if (needsStroke)
             {
                 SetTextColor(_strokeColor);
@@ -110,22 +124,27 @@ public class StrokeTextView : TextView
                 base.OnDraw(canvas);
             }
 
+            // 第二层：填充底色（未唱颜色或原始文字色）
             var fillColor = needsGradient ? _unsungColor : originalTextColor;
             SetTextColor(fillColor);
             Paint.SetStyle(Android.Graphics.Paint.Style.Fill);
             Paint.StrokeWidth = 0;
             base.OnDraw(canvas);
 
+            // 第三层：已唱颜色覆盖，通过 ClipRect 裁剪实现左右渐变
             if (needsGradient && _lyricProgress > 0f)
             {
+                // 计算文字最大宽度（取所有行中最宽的）
                 float textWidth = 0f;
                 for (int i = 0; i < Layout.LineCount; i++)
                     textWidth = Math.Max(textWidth, Layout.GetLineWidth(i));
 
                 float textStartX = Layout.GetLineLeft(0);
+                // 根据进度计算裁剪右边界
                 float clipX = textStartX + textWidth * Math.Clamp(_lyricProgress, 0f, 1f);
 
                 var saved = canvas.Save();
+                // 裁剪区域：从左侧到 clipX，只在这个范围内绘制已唱颜色
                 canvas.ClipRect(0, 0, clipX, Height);
                 SetTextColor(_sungColor);
                 base.OnDraw(canvas);

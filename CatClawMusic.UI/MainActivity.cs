@@ -20,6 +20,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI;
 
+/// <summary>
+/// 应用主界面 Activity，管理 ViewPager2 + BottomNavigation 的 Tab 切换、
+/// 迷你播放器、侧面板（设置）、Fragment 导航栈和系统栏沉浸式适配
+/// </summary>
 [Activity(Theme = "@style/CatClaw.Splash", MainLauncher = true,
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode,
     ScreenOrientation = Android.Content.PM.ScreenOrientation.Portrait)]
@@ -148,20 +152,23 @@ public class MainActivity : AppCompatActivity
         _viewPager.Adapter = _tabAdapter;
         _viewPager.OffscreenPageLimit = 4;
         _viewPager.UserInputEnabled = true;
+        // Tab 切换：ViewPager2 页面滑动回调，仅响应用户手势滑动
         _viewPager.RegisterOnPageChangeCallback(new PageChangeCallback(index =>
         {
             if (!_isUserSwipe) return;
             _currentTab = index;
             UpdateNavSelection(index);
             UpdateTabUI(index);
+            // 切换到全词页时自动滚动到当前歌词位置
             if (index == 0)
                 _tabAdapter.FullLyricsFragment?.ScrollToCurrentPosition();
         }));
 
+        // Tab 切换：底部导航栏点击回调
         _bottomNav.SetOnItemSelectedListener(new NavListener(index =>
         {
             if (_suppressNavListener) return;
-            _isUserSwipe = false;
+            _isUserSwipe = false;                       // 临时禁用滑动检测，避免与程序切换冲突
             _viewPager.SetCurrentItem(index, true);
             _isUserSwipe = true;
             _currentTab = index;
@@ -338,6 +345,7 @@ public class MainActivity : AppCompatActivity
         UpdateTabUI(currentItem);
     }
 
+    /// <summary>同步底部导航栏选中项与当前 ViewPager 页面</summary>
     private void UpdateNavSelection(int index)
     {
         _suppressNavListener = true;
@@ -353,6 +361,10 @@ public class MainActivity : AppCompatActivity
     private LinearLayout? _mainLayout;
     private bool _lastImmersiveState;
 
+    /// <summary>
+    /// 更新 Tab 切换后的 UI 状态：沉浸式模式下隐藏工具栏和底部导航，非沉浸式恢复显示
+    /// <para>Tab 0（全词页）和 Tab 1（播放页）为沉浸式，其余 Tab 显示工具栏</para>
+    /// </summary>
     private void UpdateTabUI(int index)
     {
         bool immersive = index is 0 or 1;
@@ -385,6 +397,7 @@ public class MainActivity : AppCompatActivity
             ? ViewStates.Visible : ViewStates.Gone;
     }
 
+    /// <summary>返回键处理：优先关闭侧面板 → 弹出 Fragment 栈 → 系统默认行为</summary>
     public override void OnBackPressed()
     {
         if (_panelOpen) { CloseSidePanel(); return; }
@@ -414,6 +427,7 @@ public class MainActivity : AppCompatActivity
         else base.OnBackPressed();
     }
 
+    /// <summary>程序化切换到指定 Tab 页（供 NavigationService 等外部调用）</summary>
     public void SwitchTab(int index)
     {
         if (index >= 0 && index < 5)

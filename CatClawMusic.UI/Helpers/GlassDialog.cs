@@ -11,6 +11,11 @@ using CatClawMusic.UI.Services;
 
 namespace CatClawMusic.UI.Helpers;
 
+/// <summary>
+/// 毛玻璃风格对话框，支持标题、输入框、列表项、按钮等组件的链式构建
+/// <para>Android 12+ 使用系统 SetBackgroundBlurRadius 实现原生模糊；低版本回退到 StackBlur/RenderScript</para>
+/// <para>所有 AddXxx 方法返回 this，支持链式调用：dialog.SetTitle(...).AddItem(...).Show()</para>
+/// </summary>
 public class GlassDialog : Android.App.Dialog
 {
     private readonly LinearLayout _cardLayout;
@@ -53,6 +58,7 @@ public class GlassDialog : Android.App.Dialog
             (byte)alpha);
     }
 
+    /// <summary>设置对话框标题和可选副标题</summary>
     public GlassDialog SetTitle(string title, string? subtitle = null)
     {
         var titleTv = new TextView(Context!) { Text = title };
@@ -83,6 +89,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加文本输入框</summary>
     public GlassDialog AddInput(string hint = "")
     {
         var container = new LinearLayout(Context!) { Orientation = Orientation.Vertical };
@@ -115,6 +122,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加可点击列表项，点击后自动关闭对话框</summary>
     public GlassDialog AddItem(string text, Action onClick)
     {
         EnsureItemsContainer();
@@ -155,6 +163,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加带高亮样式的列表项（如当前选中项）</summary>
     public GlassDialog AddItemWithHighlight(string text, bool isHighlighted, Action onClick)
     {
         EnsureItemsContainer();
@@ -196,6 +205,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加分割线</summary>
     public GlassDialog AddDivider()
     {
         var divider = new View(Context!);
@@ -205,6 +215,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加消息文本</summary>
     public GlassDialog AddMessage(string message)
     {
         var tv = new TextView(Context!) { Text = message };
@@ -215,6 +226,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加确认按钮，点击时回调传入输入框文本</summary>
     public GlassDialog AddPositiveButton(string text, Action<string?> onClick)
     {
         EnsureItemsContainer();
@@ -251,6 +263,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加取消按钮</summary>
     public GlassDialog AddNegativeButton(string text, Action? onClick = null)
     {
         EnsureItemsContainer();
@@ -278,6 +291,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>添加自定义 View</summary>
     public GlassDialog AddCustomView(View view)
     {
         _cardLayout.AddView(view);
@@ -291,6 +305,7 @@ public class GlassDialog : Android.App.Dialog
         _cardLayout.AddView(_itemsContainer);
     }
 
+    /// <summary>显示对话框，配置毛玻璃背景模糊效果</summary>
     public new GlassDialog Show()
     {
         SetContentView(_cardLayout);
@@ -317,6 +332,7 @@ public class GlassDialog : Android.App.Dialog
         return this;
     }
 
+    /// <summary>Android 12 以下版本的模糊回退：截屏 → 缩小 → StackBlur/RenderScript 模糊 → 设为背景</summary>
     private void ApplyPreSBlur()
     {
         try
@@ -376,6 +392,7 @@ public class GlassDialog : Android.App.Dialog
         return src;
     }
 
+    /// <summary>RenderScript 模糊回退（API 17+，最大半径 25）</summary>
     private static Bitmap ApplyBlur(Bitmap src, int radius)
     {
         var rs = Android.Renderscripts.RenderScript.Create(
