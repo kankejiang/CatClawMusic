@@ -25,6 +25,10 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IMainThreadDispatcher _dispatcher;
     [ObservableProperty] private LrcLyrics? _currentLyrics;
     [ObservableProperty] private int _currentLyricIndex = -1;
+    public int LyricsMode { get; set; } = 0;
+    public int LyricStyle { get; set; } = 0;
+    public ISpannable? CurrentLyricSpannable { get; private set; }
+    [ObservableProperty] private float _currentLyricProgress;
     private bool _isPositionUpdating;
     private int _saveCounter;
     private ConnectionProfile? _cachedNavidromeProfile;
@@ -33,20 +37,13 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly HashSet<int> _metadataFetchAttempted = new();
     private CancellationTokenSource? _errorDialogCts;
     private CancellationTokenSource? _songLoadCts;
-    private Song? _lastActiveSong; // 上一次成功播放的歌曲（用于播放失败时回退）
+    private Song? _lastActiveSong;
     private volatile bool _isSwitchingSong;
     private volatile bool _isRestoring;
     private int _lastSpannableLineIdx = -1;
     private int _lastLyricIndex = -999;
     private int _positionUpdateQueued;
     private TimeSpan _pendingPosition;
-
-    private float _currentLyricProgress;
-    public float CurrentLyricProgress
-    {
-        get => _currentLyricProgress;
-        set { if (Math.Abs(_currentLyricProgress - value) > 0.001f) { _currentLyricProgress = value; OnPropertyChanged(); } }
-    }
     /// <summary>
     /// 是否在当前歌曲播放完毕后停止
     /// </summary>
@@ -116,20 +113,11 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public ObservableCollection<Song> UpcomingSongs { get; } = new();
 
-    /// <summary>逐字歌词 Spannable，当前字高亮为主题色，供 Fragment 直接设置到 TextView</summary>
-    public ISpannable? CurrentLyricSpannable { get; private set; }
-
-    /// <summary>
-    /// 根据当前播放位置生成逐字着色的 SpannableString
-    /// 优先使用 LRC 内嵌 &lt;mm:ss.xx&gt; 逐字时间戳，否则实时动态映射播放进度到字符
-    /// </summary>
     public void UpdateLyricSpannable()
     {
         var lines = CurrentLyrics?.Lines;
         var idx = CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); _lastSpannableLineIdx = -1;
-        _lastLyricIndex = -999;
-        return; }
+        if (lines == null || idx < 0 || idx >= lines.Count) { ClearSpannable(); _lastSpannableLineIdx = -1; _lastLyricIndex = -999; return; }
 
         var line = lines[idx];
         var text = line.Text;
@@ -162,15 +150,6 @@ public partial class NowPlayingViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentLyricSpannable));
     }
 
-    /// <summary>清除逐字高亮状态</summary>
-    private static string FormatLyricLine(List<LrcLyricLine> lines, int idx)
-    {
-        if (idx < 0 || idx >= lines.Count) return "";
-        var line = lines[idx];
-        if (string.IsNullOrEmpty(line.Translation)) return line.Text;
-        return line.Text + "\n" + line.Translation;
-    }
-
     private void ClearSpannable()
     {
         if (CurrentLyricSpannable != null)
@@ -178,6 +157,14 @@ public partial class NowPlayingViewModel : ObservableObject
             CurrentLyricSpannable = null;
             OnPropertyChanged(nameof(CurrentLyricSpannable));
         }
+    }
+
+    private static string FormatLyricLine(List<LrcLyricLine> lines, int idx)
+    {
+        if (idx < 0 || idx >= lines.Count) return "";
+        var line = lines[idx];
+        if (string.IsNullOrEmpty(line.Translation)) return line.Text;
+        return line.Text + "\n" + line.Translation;
     }
 
     /// <summary>
@@ -423,8 +410,26 @@ public partial class NowPlayingViewModel : ObservableObject
                 var cacheDir = Path.Combine(global::Android.App.Application.Context.CacheDir!.AbsolutePath, "covers");
                 Directory.CreateDirectory(cacheDir);
                 var coverPath = Path.Combine(cacheDir, $"cover_{song.Id}.jpg");
-                using (var fs = File.Create(coverPath)) await stream.CopyToAsync(fs);
+
+                var bitmap = await Android.Graphics.BitmapFactory.DecodeStreamAsync(stream);
                 stream.Dispose();
+                if (bitmap != null)
+                {
+                    const int maxCoverSize = 960;
+                    if (bitmap.Width > maxCoverSize || bitmap.Height > maxCoverSize)
+                    {
+                        var scale = (float)maxCoverSize / Math.Max(bitmap.Width, bitmap.Height);
+                        var w = (int)(bitmap.Width * scale);
+                        var h = (int)(bitmap.Height * scale);
+                        var scaled = Android.Graphics.Bitmap.CreateScaledBitmap(bitmap, w, h, true);
+                        bitmap.Recycle();
+                        bitmap = scaled;
+                    }
+                    using var fs = File.Create(coverPath);
+                    await bitmap.CompressAsync(Android.Graphics.Bitmap.CompressFormat.Jpeg, 85, fs);
+                    bitmap.Recycle();
+                }
+
                 var songId = song.Id;
                 _dispatcher.Post(() => { if (CurrentSong?.Id == songId) CoverSource = coverPath; });
             }
@@ -605,7 +610,6 @@ public partial class NowPlayingViewModel : ObservableObject
                     _nextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx + 6);
                     _currentLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx);
                     CurrentLyricIndex = idx;
-                    UpdateLyricSpannable();
                     OnPropertyChanged(nameof(CurrentLyricLine));
                 }
                 else if (idx < 0)
@@ -624,10 +628,10 @@ public partial class NowPlayingViewModel : ObservableObject
                     _nextLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, 4);
                     _nextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, 5);
                     CurrentLyricIndex = -1;
-                    ClearSpannable();
                     OnPropertyChanged(nameof(CurrentLyricLine));
                 }
                 }
+                if (LyricStyle == 1) UpdateLyricSpannable();
             }
             _isPositionUpdating = false;
             if (++_saveCounter % 25 == 0)
@@ -640,17 +644,27 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; CurrentLyrics = null; ClearSpannable(); CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; CurrentLyrics = null; CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; return; }
         var songId = song.Id;
         CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = "";
         CurrentLyrics = null;
         CurrentLyricIndex = -1;
         _lastSpannableLineIdx = -1; _lastLyricIndex = -999;
-        ClearSpannable();
         try
         {
-            var skipEmbedded = song.Source == SongSource.WebDAV || song.Source == SongSource.SMB;
-            CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, skipEmbedded);
+            if (LyricsMode == 2)
+            {
+                CurrentLyrics = null;
+            }
+            else if (LyricsMode == 1)
+            {
+                CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, false, true);
+            }
+            else
+            {
+                var skipEmbedded = song.Source == SongSource.WebDAV || song.Source == SongSource.SMB;
+                CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, skipEmbedded);
+            }
         }
         catch (OperationCanceledException) { return; }
         catch { }
@@ -677,7 +691,8 @@ public partial class NowPlayingViewModel : ObservableObject
 
         if (CurrentSong?.Id != songId) return;
 
-        if (CurrentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
+        if (LyricsMode == 2) { CurrentLyricLine = ""; NextLyricLine = ""; }
+        else if (CurrentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
         else if (CurrentLyrics.Lines.Count > 0)
         {
             var pos = _audioPlayer.CurrentPosition;

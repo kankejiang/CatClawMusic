@@ -55,11 +55,38 @@ public class LyricsService : ILyricsService
     /// </summary>
     /// <param name="song">歌曲信息</param>
     /// <param name="skipEmbedded">是否跳过嵌入歌词</param>
-    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false)
+    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false)
     {
         var songPath = song.FilePath;
 
         bool isContentUri = !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
+
+        if (preferEmbedded && !skipEmbedded)
+        {
+            var embeddedLyrics = ReadEmbeddedLyrics(songPath, isContentUri);
+            if (!string.IsNullOrWhiteSpace(embeddedLyrics))
+            {
+                var parsed = ParseLrc(embeddedLyrics) ?? ParsePlainTextLyrics(embeddedLyrics);
+                if (parsed != null) return parsed;
+            }
+
+            if (isContentUri)
+            {
+                var lrcUri = ConstructLrcUri(songPath);
+                if (lrcUri != null)
+                {
+                    var content = await ReadContentUriAsync(lrcUri);
+                    if (content != null) return ParseLrc(content);
+                }
+            }
+            else if (!string.IsNullOrEmpty(songPath))
+            {
+                var lrcLyrics = await TryReadLrcFileAsync(songPath);
+                if (lrcLyrics != null) return lrcLyrics;
+            }
+
+            return null;
+        }
 
         if (isContentUri)
         {
@@ -70,39 +97,70 @@ public class LyricsService : ILyricsService
                 if (content != null) return ParseLrc(content);
             }
         }
-        else
+        else if (!string.IsNullOrEmpty(songPath))
         {
-            if (File.Exists(songPath))
-            {
-                var dir = Path.GetDirectoryName(songPath) ?? "";
-                var nameNoExt = Path.GetFileNameWithoutExtension(songPath);
-                var lrcPath = Path.Combine(dir, nameNoExt + ".lrc");
-                if (File.Exists(lrcPath))
-                {
-                    try { return ParseLrc(await ReadLyricsFileWithEncodingDetection(lrcPath)); }
-                    catch { }
-                }
-            }
+            var lrcLyrics = await TryReadLrcFileAsync(songPath);
+            if (lrcLyrics != null) return lrcLyrics;
         }
 
         if (!skipEmbedded)
         {
-            string? embeddedLyrics = null;
-            if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
-            {
-                embeddedLyrics = TagReader.ReadEmbeddedLyrics(songPath);
-            }
-            else if (isContentUri && !string.IsNullOrEmpty(songPath) && ContentUriLyricsReader != null)
-            {
-                embeddedLyrics = ContentUriLyricsReader(songPath);
-            }
+            var embeddedLyrics = ReadEmbeddedLyrics(songPath, isContentUri);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
-                var parsed = ParseLrc(embeddedLyrics);
+                var parsed = ParseLrc(embeddedLyrics) ?? ParsePlainTextLyrics(embeddedLyrics);
                 if (parsed != null) return parsed;
             }
         }
 
+        return null;
+    }
+
+    private static string? ReadEmbeddedLyrics(string? songPath, bool isContentUri)
+    {
+        if (string.IsNullOrEmpty(songPath)) return null;
+
+        if (isContentUri)
+        {
+            if (ContentUriLyricsReader != null)
+                return ContentUriLyricsReader(songPath);
+            return null;
+        }
+
+        var lyrics = TagReader.ReadEmbeddedLyrics(songPath);
+        if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
+
+        if (AndroidFileStreamOpener != null)
+        {
+            try
+            {
+                var stream = AndroidFileStreamOpener(songPath);
+                if (stream != null)
+                {
+                    using (stream)
+                    {
+                        lyrics = TagReader.ReadEmbeddedLyricsFromStream(stream, Path.GetFileName(songPath));
+                        if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return null;
+    }
+
+    private async Task<LrcLyrics?> TryReadLrcFileAsync(string songPath)
+    {
+        var dir = Path.GetDirectoryName(songPath) ?? "";
+        var nameNoExt = Path.GetFileNameWithoutExtension(songPath);
+        var lrcPath = Path.Combine(dir, nameNoExt + ".lrc");
+        try
+        {
+            if (File.Exists(lrcPath))
+                return ParseLrc(await ReadLyricsFileWithEncodingDetection(lrcPath));
+        }
+        catch { }
         return null;
     }
 
@@ -203,6 +261,9 @@ public class LyricsService : ILyricsService
 
     /// <summary>读取 content:// URI 音频文件并提取内嵌歌词（由平台层注入）</summary>
     public static Func<string, string?>? ContentUriLyricsReader { get; set; }
+
+    /// <summary>通过 Android ContentResolver 打开文件流（由平台层注入，用于普通文件路径在 scoped storage 下无法直接访问时的回退）</summary>
+    public static Func<string, Stream?>? AndroidFileStreamOpener { get; set; }
 
     /// <summary>通过注入的 ContentUriReader 读取 content URI 内容</summary>
     private static async Task<string?> ReadContentUriAsync(string uri)
@@ -313,6 +374,45 @@ public class LyricsService : ILyricsService
 
         // 按时间戳排序（LRC 文件通常已有序，仅兜底排序）
         lyrics.Lines = lyrics.Lines.OrderBy(l => l.Timestamp).ToList();
+
+        return lyrics.Lines.Count > 0 ? lyrics : null;
+    }
+
+    /// <summary>
+    /// 解析纯文本歌词（无时间戳），为每行生成等间隔时间戳
+    /// </summary>
+    public LrcLyrics? ParsePlainTextLyrics(string text)
+    {
+        var lyrics = new LrcLyrics();
+
+        text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+        var lines = text.Split('\n');
+
+        int lineIndex = 0;
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+            if (line.StartsWith("//")) continue;
+
+            var tagMatch = TagRegex.Match(line);
+            if (tagMatch.Success)
+            {
+                lineIndex++;
+                continue;
+            }
+
+            if (line.Contains("纯音乐") || line.Contains("暂无歌词"))
+                continue;
+
+            var timestamp = TimeSpan.FromSeconds(lineIndex * 5);
+            lyrics.Lines.Add(new LrcLyricLine
+            {
+                Timestamp = timestamp,
+                Text = line
+            });
+            lineIndex++;
+        }
 
         return lyrics.Lines.Count > 0 ? lyrics : null;
     }

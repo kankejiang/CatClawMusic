@@ -455,33 +455,13 @@ public partial class LibraryViewModel : ObservableObject
                 {
                     _ = Task.Run(() => Platforms.Android.MediaStoreCoverHelper.BatchFillMediaStoreIds(cachedSongs));
 
-                    ScanDialogRequested?.Invoke(this, "🐱 正在加载本地音乐");
-                    IsScanning = true; ScanProgress = 0;
-                    int total = cachedSongs.Count;
-                    int batchSize = 50;
-                    for (int i = 0; i < total; i += batchSize)
-                    {
-                        var batch = cachedSongs.Skip(i).Take(batchSize).ToList();
-                        int loaded = Math.Min(i + batchSize, total);
-                        int pct = (int)(100.0 * loaded / total);
-                        _dispatcher.Post(() =>
-                        {
-                            AddSongsBatch(batch);
-                            ScanProgress = pct;
-                            ScanStatus = $"加载中 ({loaded}/{total})";
-                            StatusText = $"🐱 加载中... ({Songs.Count}/{total})";
-                        });
-                        await Task.Delay(30);
-                    }
+                    Songs.Clear();
+                    AddSongsBatch(cachedSongs);
                     _hasLoadedLocal = true;
-                    _dispatcher.Post(() =>
-                    {
-                        IsScanning = false;
-                        StatusText = $"🐱 共 {Songs.Count} 首歌曲";
-                        _localSongsCache = Songs.ToList();
-                    });
-                    ScanCompleted?.Invoke(this, EventArgs.Empty);
+                    _localSongsCache = Songs.ToList();
+                    StatusText = $"🐱 共 {Songs.Count} 首歌曲";
                     IsLoading = false;
+                    ScanCompleted?.Invoke(this, EventArgs.Empty);
                     return;
                 }
             }
@@ -659,10 +639,23 @@ public partial class LibraryViewModel : ObservableObject
     {
         ShowPermissionPrompt = false; IsLoading = true;
         StatusText = "正在加载...";
-        var showDialog = forceRefresh;
 
         try
         {
+            if (_networkMusic == null) { StatusText = "网络服务未就绪"; IsLoading = false; return; }
+
+            var allProfiles = await _networkMusic.GetProfilesAsync();
+            var hasEnabled = allProfiles.Any(p => p.IsEnabled);
+            if (!hasEnabled)
+            {
+                Songs.Clear();
+                _networkSongsCache.Clear();
+                _hasLoadedNetwork = true;
+                StatusText = "未启用网络连接";
+                IsLoading = false;
+                return;
+            }
+
             if (_database != null && !forceRefresh)
             {
                 var cached = await Task.Run(async () =>
@@ -676,21 +669,17 @@ public partial class LibraryViewModel : ObservableObject
                     Songs.Clear();
                     var filtered = FilterSongsByProtocol(cached);
                     AddSongsBatch(filtered);
-                    StatusText = $"☁️ 共 {filtered.Count} 首网络歌曲（缓存）";
+                    StatusText = $"☁️ 共 {filtered.Count} 首网络歌曲";
                     _networkSongsCache = Songs.ToList();
                     _hasLoadedNetwork = true;
                     IsLoading = false;
                     return;
                 }
-                showDialog = true;
             }
 
-            if (showDialog)
-                ScanDialogRequested?.Invoke(this, "☁️ 正在扫描网络音乐");
+            ScanDialogRequested?.Invoke(this, "☁️ 正在扫描网络音乐");
 
-            if (_networkMusic == null) { StatusText = "网络服务未就绪"; IsLoading = false; return; }
-
-            var enabled = (await _networkMusic.GetProfilesAsync()).Where(p => p.IsEnabled).ToList();
+            var enabled = allProfiles.Where(p => p.IsEnabled).ToList();
 
             if (_selectedProtocolIndex < ProtocolTypes.Count)
             {
@@ -791,13 +780,13 @@ public partial class LibraryViewModel : ObservableObject
                 _dispatcher.Post(async () => { await Task.Delay(1500); IsScanning = false; });
             }
 
-            if (showDialog)
+            if (forceRefresh)
                 ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
             StatusText = $"连接失败: {ex.Message}";
-            if (showDialog) ScanCompleted?.Invoke(this, EventArgs.Empty);
+            if (forceRefresh) ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
         finally { IsLoading = false; if (!forceRefresh) IsScanning = false; }
     }

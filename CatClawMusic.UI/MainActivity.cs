@@ -361,11 +361,12 @@ public class MainActivity : AppCompatActivity
         _toolbar.Visibility = immersive ? ViewStates.Gone : ViewStates.Visible;
         _bottomNav.Visibility = immersive ? ViewStates.Gone : ViewStates.Visible;
         SetMiniPlayerVisible(!immersive);
-        ApplySystemBarImmersive(immersive);
 
         _mainLayout ??= FindViewById<LinearLayout>(Resource.Id.main_layout);
         if (_mainLayout != null)
             _mainLayout.SetPadding(0, immersive ? 0 : StatusBarHeight, 0, 0);
+
+        _viewPager.Post(() => ApplySystemBarImmersive(immersive));
     }
 
     public void SetBottomNavVisible(bool visible)
@@ -624,33 +625,34 @@ public class MainActivity : AppCompatActivity
     // ═══════════ 系统栏适配 ═══════════
 
     private int _cachedNavBarColor;
+    private int _currentNavBarColor;
+    private bool _systemUiFlagsApplied;
 
     private void ApplySystemBarImmersive(bool immersive)
     {
         if (Window == null) return;
 
-        if (immersive)
+        if (!_systemUiFlagsApplied)
         {
-            Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
-            Window.SetNavigationBarColor(Android.Graphics.Color.Transparent);
-
             Window.DecorView.SystemUiVisibility =
                 (StatusBarVisibility)(SystemUiFlags.LayoutStable
                     | SystemUiFlags.LayoutFullscreen
                     | SystemUiFlags.LayoutHideNavigation);
+            _systemUiFlagsApplied = true;
         }
-        else
+
+        Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
+
+        var targetNavBarColor = immersive
+            ? Android.Graphics.Color.Transparent
+            : (_cachedNavBarColor == 0
+                ? _cachedNavBarColor = ResolveColor(Resource.Attribute.catClawNavBarBackground)
+                : _cachedNavBarColor);
+
+        if (_currentNavBarColor != targetNavBarColor)
         {
-            Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
-
-            if (_cachedNavBarColor == 0)
-                _cachedNavBarColor = ResolveColor(Resource.Attribute.catClawNavBarBackground);
-            Window.SetNavigationBarColor(new Android.Graphics.Color(_cachedNavBarColor));
-
-            Window.DecorView.SystemUiVisibility =
-                (StatusBarVisibility)(SystemUiFlags.LayoutStable
-                    | SystemUiFlags.LayoutFullscreen
-                    | SystemUiFlags.LayoutHideNavigation);
+            _currentNavBarColor = targetNavBarColor;
+            Window.SetNavigationBarColor(new Android.Graphics.Color(targetNavBarColor));
         }
     }
 

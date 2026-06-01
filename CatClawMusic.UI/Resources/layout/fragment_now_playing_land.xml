@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
@@ -14,7 +14,6 @@
         android:orientation="horizontal" android:clipChildren="false"
         android:paddingHorizontal="24dp" android:paddingVertical="16dp">
 
-        <!-- 左侧：专辑封面 -->
         <FrameLayout android:id="@+id/cover_panel" android:layout_width="0dp" android:layout_height="match_parent"
             android:layout_weight="1"
             android:layout_marginEnd="16dp">
@@ -58,61 +57,59 @@
             </com.google.android.material.card.MaterialCardView>
         </FrameLayout>
 
-        <!-- 右侧：歌词 + 可视化 + 控制区 -->
         <LinearLayout android:layout_width="0dp" android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical" android:clipChildren="false">
 
-            <!-- 歌词区 -->
             <LinearLayout android:id="@+id/lyrics_area" android:layout_width="match_parent"
                 android:layout_height="0dp" android:layout_weight="1"
-                android:orientation="vertical" android:gravity="center"
+                android:orientation="vertical" android:gravity="bottom|center_horizontal"
                 android:clipChildren="false" android:paddingHorizontal="16dp"
-                android:paddingTop="2dp">
+                android:paddingBottom="0dp">
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev6" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginBottom="1dp"
-                    android:textColor="#90999999" android:textSize="8sp"
+                    android:textColor="#99000000" android:textSize="8sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.25"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev5" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginBottom="1dp"
-                    android:textColor="#90999999" android:textSize="9sp"
+                    android:textColor="#99000000" android:textSize="9sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.30"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev4" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginBottom="1dp"
-                    android:textColor="#90999999" android:textSize="9sp"
+                    android:textColor="#CC000000" android:textSize="9sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.35"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev3" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginBottom="1dp"
-                    android:textColor="#90999999" android:textSize="10sp"
+                    android:textColor="#CC000000" android:textSize="10sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.45"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev2" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginBottom="2dp"
-                    android:textColor="#90999999" android:textSize="10sp"
+                    android:textColor="#CC000000" android:textSize="10sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.55" />
+                    android:lineSpacingMultiplier="1.2" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginBottom="3dp"
-                    android:textColor="#B0999999" android:textSize="12sp"
+                    android:textColor="#CC000000" android:textSize="12sp"
                     android:gravity="center" android:maxLines="3" android:ellipsize="end"
                     android:lineSpacingMultiplier="1.2" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_current" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginVertical="3dp"
-                    android:textColor="#FF444444" android:textSize="15sp"
+                    android:textColor="#FFFFFFFF" android:textSize="15sp"
                     android:fontFamily="sans-serif-medium"
                     android:gravity="center" android:maxLines="4" android:ellipsize="end"
                     android:lineSpacingMultiplier="1.2"
@@ -120,51 +117,49 @@
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="3dp"
-                    android:textColor="#B0999999" android:textSize="12sp"
+                    android:textColor="#CC000000" android:textSize="12sp"
                     android:gravity="center" android:maxLines="3" android:ellipsize="end"
                     android:lineSpacingMultiplier="1.2" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next2" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="2dp"
-                    android:textColor="#90999999" android:textSize="10sp"
+                    android:textColor="#CC000000" android:textSize="10sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.55" />
+                    android:lineSpacingMultiplier="1.2" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next3" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="1dp"
-                    android:textColor="#90999999" android:textSize="10sp"
+                    android:textColor="#CC000000" android:textSize="10sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.45"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next4" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="1dp"
-                    android:textColor="#90999999" android:textSize="9sp"
+                    android:textColor="#CC000000" android:textSize="9sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.35"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next5" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="1dp"
-                    android:textColor="#90999999" android:textSize="9sp"
+                    android:textColor="#99000000" android:textSize="9sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.30"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next6" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="1dp"
-                    android:textColor="#90999999" android:textSize="8sp"
+                    android:textColor="#99000000" android:textSize="8sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
-                    android:lineSpacingMultiplier="1.2" android:alpha="0.25"
+                    android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
             </LinearLayout>
 
-            <!-- 音频可视化 -->
             <CatClawMusic.UI.Helpers.AudioVisualizerView android:id="@+id/audio_visualizer"
                 android:layout_width="match_parent" android:layout_height="48dp"
                 android:layout_marginHorizontal="16dp" />
 
-            <!-- 控制区 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/controls_card"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -178,7 +173,6 @@
                     android:orientation="vertical" android:paddingHorizontal="18dp"
                     android:paddingTop="10dp" android:paddingBottom="10dp">
 
-                    <!-- 进度条 -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="horizontal" android:gravity="center_vertical">
                         <TextView android:id="@+id/time_current" android:layout_width="36dp"
@@ -204,7 +198,6 @@
                             android:gravity="center" />
                     </LinearLayout>
 
-                    <!-- 横屏切换 + 频谱开关 + 睡眠定时 + 播放列表 -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="horizontal" android:gravity="center_vertical"
                         android:layout_marginTop="2dp">
@@ -232,7 +225,6 @@
                             android:tint="#DDFFFFFF" android:padding="2dp" />
                     </LinearLayout>
 
-                    <!-- 控制按钮 -->
                     <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:orientation="horizontal" android:gravity="center"
                         android:layout_gravity="center_horizontal" android:layout_marginTop="6dp">

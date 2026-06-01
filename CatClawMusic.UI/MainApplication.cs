@@ -100,22 +100,39 @@ public class MainApplication : Application
             {
                 using var stream = global::Android.App.Application.Context.ContentResolver!.OpenInputStream(global::Android.Net.Uri.Parse(uri)!);
                 if (stream == null) return null;
-                var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"catclaw_lyrics_{Guid.NewGuid()}.tmp");
-                using (var tempFile = System.IO.File.Create(tempPath))
-                {
-                    stream.CopyTo(tempFile);
-                }
-                try
-                {
-                    var lyrics = CatClawMusic.Core.Services.TagReader.ReadEmbeddedLyrics(tempPath);
-                    return !string.IsNullOrWhiteSpace(lyrics) ? lyrics : null;
-                }
-                finally
-                {
-                    try { System.IO.File.Delete(tempPath); } catch { }
-                }
+                var lyrics = CatClawMusic.Core.Services.TagReader.ReadEmbeddedLyricsFromStream(stream, System.IO.Path.GetFileName(uri));
+                return !string.IsNullOrWhiteSpace(lyrics) ? lyrics : null;
             }
             catch { return null; }
+        };
+        LyricsService.AndroidFileStreamOpener = filePath =>
+        {
+            try
+            {
+                return System.IO.File.OpenRead(filePath);
+            }
+            catch
+            {
+                try
+                {
+                    var ctx = global::Android.App.Application.Context;
+                    var baseUri = Android.Provider.MediaStore.Audio.Media.ExternalContentUri;
+                    using var cursor = ctx.ContentResolver!.Query(baseUri,
+                        new[] { Android.Provider.MediaStore.Audio.Media.InterfaceConsts.Id },
+                        $"{Android.Provider.MediaStore.Audio.Media.InterfaceConsts.Data} = ?",
+                        new[] { filePath }, null);
+                    if (cursor != null && cursor.MoveToFirst())
+                    {
+                        var id = cursor.GetLong(cursor.GetColumnIndexOrThrow(Android.Provider.MediaStore.Audio.Media.InterfaceConsts.Id));
+                        cursor.Close();
+                        var contentUri = Android.Content.ContentUris.WithAppendedId(baseUri, id);
+                        return ctx.ContentResolver.OpenInputStream(contentUri);
+                    }
+                    cursor?.Close();
+                }
+                catch { }
+            }
+            return null;
         };
         /* 注入 C++ 原生编码检测器到歌词服务，优先使用原生库进行编码检测 */
         LyricsService.NativeEncodingDetector = rawBytes =>

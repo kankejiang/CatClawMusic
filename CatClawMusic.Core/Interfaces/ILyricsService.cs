@@ -15,7 +15,7 @@ public interface ILyricsService
     /// <summary>
     /// 从本地文件获取歌词
     /// </summary>
-    Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false);
+    Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false);
     
     /// <summary>
     /// 解析 LRC 格式字符串

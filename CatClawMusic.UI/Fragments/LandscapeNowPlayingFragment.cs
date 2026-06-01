@@ -47,10 +47,6 @@ public class LandscapeNowPlayingFragment : Fragment
     private int _modeActiveColor;
     private bool _visualizerEnabled = false;
     private string? _lastCoverSource;
-    private LyricProgressCallback? _lyricProgressCallback;
-    private bool _lyricGradientActive;
-    private double _lyricLineStartMs;
-    private double _lyricLineDurationMs;
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
     private bool _sleepFinishSong;
@@ -158,10 +154,7 @@ public class LandscapeNowPlayingFragment : Fragment
         var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
         var visEnabled = visPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
         if (visEnabled)
-        {
-            _visualizerEnabled = true;
-            TryStartVisualizer();
-        }
+            ApplyVisualizerState(true);
 
         if (_audioPlayer != null)
             _audioPlayer.StateChanged += OnAudioPlayerStateChanged;
@@ -263,7 +256,17 @@ public class LandscapeNowPlayingFragment : Fragment
             _viewModel.SyncWithQueue();
             SyncUIFromViewModel();
         }
-        TryStartVisualizer();
+        var resumeVisPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        var resumeVisEnabled = resumeVisPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
+        ApplyVisualizerState(resumeVisEnabled);
+        if (_visualizerEnabled && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+        {
+            View?.PostDelayed(() =>
+            {
+                if (_visualizerEnabled && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+                    TryStartVisualizer();
+            }, 1500);
+        }
         View?.PostDelayed(() =>
         {
             UpdateSlider();
@@ -299,7 +302,6 @@ public class LandscapeNowPlayingFragment : Fragment
     {
         _isFullLyricMode = false;
         StopFlowAnimation();
-        StopLyricGradientUpdates();
         var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
         if (playerSvc != null)
             playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;
@@ -350,6 +352,8 @@ public class LandscapeNowPlayingFragment : Fragment
             var visualizerEnabled = prefs?.GetBoolean("visualizer_enabled", false) ?? false;
             if (visualizerEnabled != _visualizerEnabled)
                 ApplyVisualizerState(visualizerEnabled);
+            _viewModel.LyricStyle = prefs?.GetInt("lyric_style", 0) ?? 0;
+            _viewModel.LyricsMode = prefs?.GetInt("lyrics_mode", 0) ?? 0;
             UpdateTimeDisplay();
             UpdateSlider();
             UpdatePlayPauseIcon();
@@ -409,7 +413,6 @@ public class LandscapeNowPlayingFragment : Fragment
                     UpdateLikeIcon();
                     break;
                 case nameof(_viewModel.CurrentSong):
-                    StopLyricGradientUpdates();
                     _songTitle.Text = _viewModel.CurrentSong?.Title ?? "选择歌曲";
                     if ((_viewModel.CurrentSong?.Source == SongSource.WebDAV || _viewModel.CurrentSong?.Source == SongSource.SMB) && _viewModel.CurrentSong.Artist == "未知艺术家")
                         _songArtist.Text = "正在加载...";
@@ -420,7 +423,14 @@ public class LandscapeNowPlayingFragment : Fragment
                     UpdateLyrics();
                     break;
                 case nameof(_viewModel.CurrentLyricSpannable):
-                    ApplyLyricSpannable();
+                    if (_viewModel.LyricStyle == 1 && _viewModel.CurrentLyricSpannable != null && _lyricCurrent != null)
+                        _lyricCurrent.SetText(_viewModel.CurrentLyricSpannable, TextView.BufferType.Spannable);
+                    else if (_lyricCurrent != null)
+                        _lyricCurrent.Text = _viewModel.CurrentLyricLine ?? "";
+                    break;
+                case nameof(_viewModel.CurrentLyricProgress):
+                    if (_lyricCurrent != null && _viewModel.LyricStyle == 1)
+                        _lyricCurrent.LyricProgress = _viewModel.CurrentLyricProgress;
                     break;
             }
         });
@@ -569,7 +579,23 @@ public class LandscapeNowPlayingFragment : Fragment
             try
             {
                 if (!string.IsNullOrEmpty(newCoverPath) && File.Exists(newCoverPath))
-                    bitmap = BitmapFactory.DecodeFile(newCoverPath);
+                {
+                    var opts = new BitmapFactory.Options { InJustDecodeBounds = true };
+                    BitmapFactory.DecodeFile(newCoverPath, opts);
+                    var targetSize = 960;
+                    if (opts.OutWidth > targetSize || opts.OutHeight > targetSize)
+                    {
+                        var sampleSize = Math.Max(opts.OutWidth, opts.OutHeight) / targetSize;
+                        if (sampleSize < 1) sampleSize = 1;
+                        var shift = 0;
+                        while ((1 << (shift + 1)) <= sampleSize) shift++;
+                        bitmap = BitmapFactory.DecodeFile(newCoverPath, new BitmapFactory.Options { InSampleSize = 1 << shift });
+                    }
+                    else
+                    {
+                        bitmap = BitmapFactory.DecodeFile(newCoverPath);
+                    }
+                }
             }
             catch { }
             Activity?.RunOnUiThread(() =>
@@ -614,14 +640,18 @@ public class LandscapeNowPlayingFragment : Fragment
         var onSurfaceColor = new Color(palette.OnSurface);
         _songTitle.SetTextColor(onSurfaceColor);
         _songArtist.SetTextColor(new Color(palette.OnSurfaceVariant));
-        var onSurfaceVariant = new Color(palette.OnSurfaceVariant);
-        var onSurfaceLight = Color.Argb((int)(0x90 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant), Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
-        var onSurfaceLighter = Color.Argb((int)(0xB0 * 255f / 0xFF), Color.GetRedComponent(palette.OnSurfaceVariant), Color.GetGreenComponent(palette.OnSurfaceVariant), Color.GetBlueComponent(palette.OnSurfaceVariant));
         _lyricCurrent.SetTextColor(onSurfaceColor);
-        _lyricPrev.SetTextColor(onSurfaceLighter);
-        _lyricNext.SetTextColor(onSurfaceLighter);
-        _lyricPrev2.SetTextColor(onSurfaceLight);
-        _lyricNext2.SetTextColor(onSurfaceLight);
+        _lyricPrev.SetTextColor(Color.ParseColor("#CC000000"));
+        _lyricNext.SetTextColor(Color.ParseColor("#CC000000"));
+        _lyricPrev2.SetTextColor(Color.ParseColor("#99000000"));
+        _lyricNext2.SetTextColor(Color.ParseColor("#99000000"));
+        _lyricCurrent.SungColor = Color.White;
+        _lyricCurrent.UnsungColor = Color.Argb(0xCC, 0x00, 0x00, 0x00);
+        _lyricCurrent.StrokeEnabled = false;
+        _lyricPrev.StrokeEnabled = false;
+        _lyricNext.StrokeEnabled = false;
+        _lyricPrev2.StrokeEnabled = false;
+        _lyricNext2.StrokeEnabled = false;
     }
 
     private void BuildAndApplySweepGradient()
@@ -764,13 +794,20 @@ public class LandscapeNowPlayingFragment : Fragment
         _audioVisualizer.SetColors(Color.ParseColor("#FFFFFF"));
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
-        _songTitle.SetTextColor(Color.ParseColor("#FFFFFF"));
+        _songTitle.SetTextColor(Color.ParseColor("#FFEEEEEE"));
         _songArtist.SetTextColor(Color.ParseColor("#CCFFFFFF"));
-        _lyricCurrent.SetTextColor(Color.ParseColor("#FF444444"));
-        _lyricPrev.SetTextColor(Color.ParseColor("#B0999999"));
-        _lyricNext.SetTextColor(Color.ParseColor("#B0999999"));
-        _lyricPrev2.SetTextColor(Color.ParseColor("#90999999"));
-        _lyricNext2.SetTextColor(Color.ParseColor("#90999999"));
+        _lyricCurrent.SetTextColor(Color.ParseColor("#FFFFFFFF"));
+        _lyricPrev.SetTextColor(Color.ParseColor("#CC000000"));
+        _lyricNext.SetTextColor(Color.ParseColor("#CC000000"));
+        _lyricPrev2.SetTextColor(Color.ParseColor("#99000000"));
+        _lyricNext2.SetTextColor(Color.ParseColor("#99000000"));
+        _lyricCurrent.SungColor = Color.ParseColor("#FFFFFFFF");
+        _lyricCurrent.UnsungColor = Color.ParseColor("#CC000000");
+        _lyricCurrent.StrokeEnabled = false;
+        _lyricPrev.StrokeEnabled = false;
+        _lyricNext.StrokeEnabled = false;
+        _lyricPrev2.StrokeEnabled = false;
+        _lyricNext2.StrokeEnabled = false;
     }
 
     private void UpdateTimeDisplay()
@@ -817,6 +854,7 @@ public class LandscapeNowPlayingFragment : Fragment
     }
 
     private int _lastLyricIdx = -1;
+    private float _lyricLineHeightPx = -1f;
 
     private void UpdateLyrics()
     {
@@ -848,13 +886,20 @@ public class LandscapeNowPlayingFragment : Fragment
 
         if (!isLineChanged)
         {
-            _lyricPrev2.Text = prev2; _lyricPrev2.TranslationY = 0f; _lyricPrev2.Alpha = 0.55f;
-            _lyricPrev.Text = prev; _lyricPrev.TranslationY = 0f; _lyricPrev.Alpha = 0.7f;
-            _lyricNext.Text = next; _lyricNext.TranslationY = 0f; _lyricNext.Alpha = 1f;
-            _lyricNext2.Text = next2; _lyricNext2.TranslationY = 0f; _lyricNext2.Alpha = 0.55f;
+            _lyricPrev2.Text = prev2; _lyricPrev2.TranslationY = 0f;
+            _lyricPrev.Text = prev; _lyricPrev.TranslationY = 0f;
+            _lyricNext.Text = next; _lyricNext.TranslationY = 0f;
+            _lyricNext2.Text = next2; _lyricNext2.TranslationY = 0f;
             ApplyCurrentLineWithSpannable(curr);
             return;
         }
+
+        if (_lyricLineHeightPx < 0f)
+        {
+            var density = _lyricCurrent.Context?.Resources?.DisplayMetrics?.Density ?? 1f;
+            _lyricLineHeightPx = 40f * density;
+        }
+
         _lyricPrev2.Text = prev2;
         _lyricPrev.Text = prev;
         _lyricNext.Text = next;
@@ -862,40 +907,38 @@ public class LandscapeNowPlayingFragment : Fragment
         ApplyCurrentLineWithSpannable(curr);
 
         var allViews = new List<StrokeTextView> { _lyricPrev6, _lyricPrev5, _lyricPrev4, _lyricPrev3, _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2, _lyricNext3, _lyricNext4, _lyricNext5, _lyricNext6 };
-        var allStartY = new[] { -2f, -3f, -4f, -6f, -8f, -10f, 14f, 10f, 8f, 6f, 4f, 3f, 2f };
-        var allStartAlpha = new[] { 0.05f, 0.08f, 0.1f, 0.15f, 0.2f, 0.3f, 0f, 0.6f, 0.4f, 0.3f, 0.15f, 0.08f, 0.05f };
-        var allEndAlpha = new[] { 0.25f, 0.30f, 0.35f, 0.45f, 0.55f, 0.7f, 1f, 1f, 0.55f, 0.45f, 0.35f, 0.30f, 0.25f };
-        var allDurations = new long[] { 80, 100, 120, 150, 180, 200, 250, 200, 180, 150, 120, 100, 80 };
 
         for (int i = 0; i < allViews.Count; i++)
         {
             var v = allViews[i];
             if (v.Visibility != ViewStates.Visible) continue;
             v.Animate().Cancel();
-            v.TranslationY = allStartY[i];
-            v.Alpha = allStartAlpha[i];
-            v.Animate().TranslationY(0f).Alpha(allEndAlpha[i]).SetDuration(allDurations[i]).SetInterpolator(_lyricInterpolator).Start();
+            v.TranslationY = _lyricLineHeightPx;
+            v.Animate()
+                .TranslationY(0f)
+                .SetDuration(300L)
+                .SetInterpolator(_lyricInterpolator)
+                .Start();
         }
     }
-
-    private void ApplyLyricSpannable() => ApplyCurrentLineWithSpannable(null);
 
     private void ApplyCurrentLineWithSpannable(string? plainText)
     {
         if (_lyricCurrent == null) return;
-        var spannable = _viewModel.CurrentLyricSpannable;
-        if (spannable != null)
+        if (_viewModel.LyricStyle == 1 && _viewModel.CurrentLyricSpannable != null)
         {
-            _lyricCurrent.SetText(spannable, TextView.BufferType.Spannable);
-            _lyricCurrent.SetupLyricGradient();
-            CacheLyricLineTiming();
-            StartLyricGradientUpdates();
-        }
-        else if (plainText != null)
-        {
-            _lyricCurrent.Text = plainText;
+            _lyricCurrent.SetText(_viewModel.CurrentLyricSpannable, TextView.BufferType.Spannable);
+            _lyricCurrent.LyricProgress = _viewModel.CurrentLyricProgress;
             _lyricCurrent.Alpha = 1f;
-            StopLyricGradientUpdates();
+        }
+        else
+        {
+            _lyricCurrent.ResetLyricProgress();
+            if (plainText != null)
+            {
+                _lyricCurrent.Text = plainText;
+                _lyricCurrent.Alpha = 1f;
+            }
         }
         _lyricCurrent.TranslationY = 0f;
     }
@@ -1166,52 +1209,6 @@ public class LandscapeNowPlayingFragment : Fragment
             });
         };
         _visualizerHelper.Start(sessionId);
-    }
-
-    private void StartLyricGradientUpdates()
-    {
-        if (_lyricGradientActive) return;
-        _lyricGradientActive = true;
-        _lyricProgressCallback ??= new LyricProgressCallback(this);
-        Choreographer.Instance.PostFrameCallback(_lyricProgressCallback);
-    }
-
-    private void StopLyricGradientUpdates() => _lyricGradientActive = false;
-
-    private void CacheLyricLineTiming()
-    {
-        var lines = _viewModel.CurrentLyrics?.Lines;
-        var idx = _viewModel.CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx >= lines.Count) { _lyricLineDurationMs = 0; return; }
-        _lyricLineStartMs = lines[idx].Timestamp.TotalMilliseconds;
-        if (idx + 1 < lines.Count)
-        {
-            var gap = (lines[idx + 1].Timestamp - lines[idx].Timestamp).TotalMilliseconds;
-            _lyricLineDurationMs = gap > 0 && gap < 30000 ? gap : 5000;
-        }
-        else _lyricLineDurationMs = 5000;
-    }
-
-    private void UpdateLyricGradientProgress()
-    {
-        if (!_lyricGradientActive || _lyricCurrent == null || _lyricLineDurationMs <= 0) return;
-        var nowMs = _viewModel.CurrentPosition.TotalMilliseconds;
-        var progress = (float)Math.Clamp((nowMs - _lyricLineStartMs) / _lyricLineDurationMs, 0.0, 1.0);
-        _lyricCurrent.SetLyricProgress(progress);
-    }
-
-    private class LyricProgressCallback : Java.Lang.Object, Choreographer.IFrameCallback
-    {
-        private readonly WeakReference<LandscapeNowPlayingFragment> _fragment;
-        public LyricProgressCallback(LandscapeNowPlayingFragment f) => _fragment = new(f);
-        public void DoFrame(long frameTimeNanos)
-        {
-            if (_fragment.TryGetTarget(out var f))
-            {
-                f.UpdateLyricGradientProgress();
-                if (f._lyricGradientActive) Choreographer.Instance.PostFrameCallback(this);
-            }
-        }
     }
 
     internal class RecordAudioCallback : Java.Lang.Object, AndroidX.Activity.Result.IActivityResultCallback

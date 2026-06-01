@@ -329,7 +329,17 @@ public static class CoverColorExtractor
         var entries = new List<ColorEntry>();
         try
         {
-            using var bitmap = BitmapFactory.DecodeFile(filePath);
+            var options = new BitmapFactory.Options { InJustDecodeBounds = true };
+            BitmapFactory.DecodeFile(filePath, options);
+            var sampleSize = 1;
+            if (options.OutWidth > MaxSampleSize || options.OutHeight > MaxSampleSize)
+            {
+                var ratio = Math.Max(options.OutWidth, options.OutHeight) / MaxSampleSize;
+                var shift = 0;
+                while ((1 << (shift + 1)) <= ratio) shift++;
+                sampleSize = 1 << shift;
+            }
+            using var bitmap = BitmapFactory.DecodeFile(filePath, new BitmapFactory.Options { InSampleSize = sampleSize });
             if (bitmap != null)
             {
                 entries = Extract(bitmap);

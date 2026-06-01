@@ -1,7 +1,6 @@
 using Android.Content;
 using Android.Graphics;
 using Android.Util;
-using Android.Views;
 using Android.Widget;
 
 namespace CatClawMusic.UI.Helpers;
@@ -10,38 +9,16 @@ public class StrokeTextView : TextView
 {
     private Color _strokeColor = Color.Argb(128, 0, 0, 0);
     private float _strokeWidth = 2.5f;
-    private bool _strokeEnabled = true;
+    private bool _strokeEnabled = false;
+    private float _lyricProgress = -1f;
+    private Color _sungColor = Color.White;
+    private Color _unsungColor = Color.Argb(0xCC, 0xBB, 0xBB, 0xBB);
+    private bool _suppressInvalidate;
 
-    private LinearGradient? _lyricGradient;
-    private readonly Matrix _lyricMatrix = new();
-    private float _lyricProgress = -1;
-    private float _gradientTextWidth;
-    private float _textStartX;
-    private const float GradientTransitionRatio = 0.05f;
-    private static readonly int[] GradientColors = { unchecked((int)0xFFFFFFFF), unchecked((int)0xFF777777) };
-    private static readonly float[] GradientStops = { 0f, 1f };
-
-    private bool _useHardwareLayer = true;
-
-    public StrokeTextView(Context context) : base(context) => Init();
-    public StrokeTextView(Context context, IAttributeSet? attrs) : base(context, attrs) => InitAttrs(attrs);
-    public StrokeTextView(Context context, IAttributeSet? attrs, int defStyleAttr) : base(context, attrs, defStyleAttr) => InitAttrs(attrs);
-
-    private void Init()
-    {
-        SetLayerType(LayerType.Hardware, null);
-    }
-
-    private void InitAttrs(IAttributeSet? attrs)
-    {
-        Init();
-        if (attrs == null) return;
-        var a = Context!.ObtainStyledAttributes(attrs, new[] {
-            Android.Resource.Attribute.TextColor,
-            Android.Resource.Attribute.TextSize,
-        });
-        a.Recycle();
-    }
+    public StrokeTextView(Context context) : base(context) { }
+    public StrokeTextView(Context context, IAttributeSet? attrs) : base(context, attrs) { }
+    public StrokeTextView(Context context, IAttributeSet? attrs, int defStyleAttr) : base(context, attrs, defStyleAttr) { }
+    public StrokeTextView(IntPtr handle, Android.Runtime.JniHandleOwnership ownership) : base(handle, ownership) { }
 
     public Color StrokeColor
     {
@@ -61,62 +38,106 @@ public class StrokeTextView : TextView
         set { _strokeEnabled = value; Invalidate(); }
     }
 
-    public void SetupLyricGradient()
+    public float LyricProgress
     {
-        _lyricGradient?.Dispose();
-        _lyricGradient = null;
-        _lyricProgress = -1;
-
-        if (string.IsNullOrEmpty(Text)) return;
-
-        var paint = Paint;
-        paint.SetShader(null);
-        _gradientTextWidth = paint.MeasureText(Text);
-        var viewWidth = Width > 0 ? Width : _gradientTextWidth;
-        _textStartX = Math.Max((viewWidth - _gradientTextWidth) / 2f, 0f);
-        var transitionWidth = Math.Max(_gradientTextWidth * GradientTransitionRatio, 80f);
-
-        _lyricGradient = new LinearGradient(
-            0, 0, transitionWidth, 0,
-            GradientColors, GradientStops,
-            Shader.TileMode.Clamp);
+        get => _lyricProgress;
+        set
+        {
+            if (Math.Abs(_lyricProgress - value) < 0.001f) return;
+            _lyricProgress = value;
+            Invalidate();
+        }
     }
 
-    public void SetLyricProgress(float progress)
+    public Color SungColor
     {
-        if (_lyricGradient == null) return;
-        progress = Math.Clamp(progress, 0f, 1f);
-        if (Math.Abs(_lyricProgress - progress) < 0.001f) return;
-        _lyricProgress = progress;
+        get => _sungColor;
+        set { _sungColor = value; Invalidate(); }
+    }
 
-        var brightEnd = _textStartX + _gradientTextWidth * progress;
-        _lyricMatrix.Reset();
-        _lyricMatrix.SetTranslate(brightEnd, 0);
-        _lyricGradient.SetLocalMatrix(_lyricMatrix);
+    public Color UnsungColor
+    {
+        get => _unsungColor;
+        set { _unsungColor = value; Invalidate(); }
+    }
+
+    public void ResetLyricProgress()
+    {
+        _lyricProgress = -1f;
         Invalidate();
+    }
+
+    public override void Invalidate()
+    {
+        if (_suppressInvalidate) return;
+        base.Invalidate();
+    }
+
+    public override void Invalidate(int l, int t, int r, int b)
+    {
+        if (_suppressInvalidate) return;
+        base.Invalidate(l, t, r, b);
     }
 
     protected override void OnDraw(Canvas canvas)
     {
-        if (!_strokeEnabled || string.IsNullOrEmpty(Text))
+        if (string.IsNullOrEmpty(Text) || Layout == null)
         {
             base.OnDraw(canvas);
             return;
         }
 
-        var tp = Paint;
-        var savedShader = tp.Shader;
+        bool needsGradient = _lyricProgress >= 0f;
+        bool needsStroke = _strokeEnabled;
 
-        tp.SetShader(null);
-        tp.SetStyle(Android.Graphics.Paint.Style.Stroke);
-        tp.StrokeWidth = _strokeWidth;
-        tp.Color = _strokeColor;
-        tp.StrokeJoin = Android.Graphics.Paint.Join.Round;
-        base.OnDraw(canvas);
+        if (!needsGradient && !needsStroke)
+        {
+            base.OnDraw(canvas);
+            return;
+        }
 
-        tp.SetShader(_lyricGradient ?? savedShader);
-        tp.SetStyle(Android.Graphics.Paint.Style.Fill);
-        tp.StrokeWidth = 0;
-        base.OnDraw(canvas);
+        var originalTextColor = new Color(TextColors.DefaultColor);
+
+        _suppressInvalidate = true;
+        try
+        {
+            if (needsStroke)
+            {
+                SetTextColor(_strokeColor);
+                Paint.SetStyle(Android.Graphics.Paint.Style.Stroke);
+                Paint.StrokeWidth = _strokeWidth;
+                Paint.StrokeJoin = Android.Graphics.Paint.Join.Round;
+                base.OnDraw(canvas);
+            }
+
+            var fillColor = needsGradient ? _unsungColor : originalTextColor;
+            SetTextColor(fillColor);
+            Paint.SetStyle(Android.Graphics.Paint.Style.Fill);
+            Paint.StrokeWidth = 0;
+            base.OnDraw(canvas);
+
+            if (needsGradient && _lyricProgress > 0f)
+            {
+                float textWidth = 0f;
+                for (int i = 0; i < Layout.LineCount; i++)
+                    textWidth = Math.Max(textWidth, Layout.GetLineWidth(i));
+
+                float textStartX = Layout.GetLineLeft(0);
+                float clipX = textStartX + textWidth * Math.Clamp(_lyricProgress, 0f, 1f);
+
+                var saved = canvas.Save();
+                canvas.ClipRect(0, 0, clipX, Height);
+                SetTextColor(_sungColor);
+                base.OnDraw(canvas);
+                canvas.RestoreToCount(saved);
+            }
+        }
+        finally
+        {
+            SetTextColor(originalTextColor);
+            Paint.SetStyle(Android.Graphics.Paint.Style.Fill);
+            Paint.StrokeWidth = 0;
+            _suppressInvalidate = false;
+        }
     }
 }

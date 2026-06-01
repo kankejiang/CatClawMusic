@@ -57,12 +57,6 @@ public class FullLyricsFragment : Fragment
     // 上一次的封面路径
     private string? _lastCoverSource;
     
-    // 逐字歌词进度更新
-    private LyricProgressCallback? _lyricProgressCallback;
-    private bool _lyricGradientActive;
-    private double _lyricLineStartMs;
-    private double _lyricLineDurationMs;
-    
     // SharedPreferences用于保存用户设置
     private ISharedPreferences? _prefs;
     // 是否允许拖拽调整进度
@@ -71,6 +65,8 @@ public class FullLyricsFragment : Fragment
     private int _lyricFontSize = 16;
     // 歌词对齐方式：0=左，1=中，2=右
     private int _lyricAlignment = 1;
+    // 歌词样式：0=逐行，1=逐字
+    private int _lyricStyle = 0;
 
     /// <summary>
     /// 创建Fragment视图
@@ -376,13 +372,14 @@ public class FullLyricsFragment : Fragment
                     break;
                 case nameof(_viewModel.CurrentLyricIndex): 
                     HighlightCurrentLine();
-                    CacheLyricLineTiming();
-                    StartLyricGradientUpdates();
-                    break;
-                case nameof(_viewModel.CurrentLyricSpannable):
-                    UpdateWordByWordLyrics();
                     break;
                 case nameof(_viewModel.CurrentPosition):
+                    UpdateProgress();
+                    break;
+                case nameof(_viewModel.CurrentLyricProgress):
+                    if (_lyricStyle == 1)
+                        UpdateCurrentLineGradient();
+                    break;
                 case nameof(_viewModel.TotalDuration): 
                     UpdateProgress();
                     break;
@@ -444,17 +441,22 @@ public class FullLyricsFragment : Fragment
 
             var tv = new StrokeTextView(Context) { Text = line.Text };
             tv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
-            tv.SetTextColor(Color.ParseColor("#38FFFFFF"));
+            tv.SetTextColor(Color.ParseColor("#CCBBBBBB"));
             tv.SetTypeface(null, TypefaceStyle.Bold);
             tv.Gravity = GetLyricGravity();
             tv.SetLineSpacing(0, 1.4f);
+            tv.StrokeEnabled = _lyricStyle == 1;
+            tv.StrokeColor = Color.Black;
+            tv.StrokeWidth = 2f;
+            tv.UnsungColor = Color.ParseColor("#CCBBBBBB");
+            tv.SungColor = Color.ParseColor("#FFFFFFFF");
             lineLayout.AddView(tv);
 
             if (!string.IsNullOrEmpty(line.Translation))
             {
                 var transTv = new TextView(Context) { Text = line.Translation };
                 transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
-                transTv.SetTextColor(Color.ParseColor("#28FFFFFF"));
+                transTv.SetTextColor(Color.ParseColor("#99AAAAAA"));
                 transTv.SetTypeface(null, TypefaceStyle.Normal);
                 transTv.Gravity = GetLyricGravity();
                 transTv.SetLineSpacing(0, 1.3f);
@@ -494,7 +496,7 @@ public class FullLyricsFragment : Fragment
     private void HighlightCurrentLine()
     {
         var idx = _viewModel.CurrentLyricIndex;
-        if (idx == _lastLyricIndex && _lyricGradientActive) return;
+        if (idx == _lastLyricIndex) return;
 
         foreach (var v in _lyricViews)
         {
@@ -502,10 +504,15 @@ public class FullLyricsFragment : Fragment
             if (!string.IsNullOrEmpty(plain))
                 v.SetText(plain, TextView.BufferType.Normal);
             v.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
-            v.SetTextColor(Color.ParseColor("#38FFFFFF"));
+            v.SetTextColor(Color.ParseColor("#CCBBBBBB"));
             v.SetTypeface(null, TypefaceStyle.Bold);
             v.Background = null;
-            v.StrokeEnabled = true;
+            v.ResetLyricProgress();
+            v.StrokeEnabled = _lyricStyle == 1;
+            v.StrokeColor = Color.Black;
+            v.StrokeWidth = 2f;
+            v.UnsungColor = Color.ParseColor("#CCBBBBBB");
+            v.SungColor = Color.ParseColor("#FFFFFFFF");
 
             var parent = v.Parent as LinearLayout;
             if (parent != null && parent.ChildCount > 1)
@@ -514,7 +521,7 @@ public class FullLyricsFragment : Fragment
                 if (transTv != null)
                 {
                     transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
-                    transTv.SetTextColor(Color.ParseColor("#28FFFFFF"));
+                    transTv.SetTextColor(Color.ParseColor("#99AAAAAA"));
                 }
             }
         }
@@ -522,8 +529,16 @@ public class FullLyricsFragment : Fragment
         if (idx >= 0 && idx < _lyricViews.Count)
         {
             _lyricViews[idx].SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 4);
-            _lyricViews[idx].SetTextColor(Color.White);
-            _lyricViews[idx].SetupLyricGradient();
+            _lyricViews[idx].SetTextColor(Color.ParseColor("#FFFFFFFF"));
+            _lyricViews[idx].UnsungColor = Color.ParseColor("#CCBBBBBB");
+            _lyricViews[idx].SungColor = Color.ParseColor("#FFFFFFFF");
+            if (_lyricStyle == 1)
+            {
+                _lyricViews[idx].StrokeEnabled = true;
+                _lyricViews[idx].StrokeColor = Color.Black;
+                _lyricViews[idx].StrokeWidth = 3f;
+                _lyricViews[idx].LyricProgress = _viewModel.CurrentLyricProgress;
+            }
 
             var parent = _lyricViews[idx].Parent as LinearLayout;
             if (parent != null && parent.ChildCount > 1)
@@ -532,7 +547,7 @@ public class FullLyricsFragment : Fragment
                 if (transTv != null)
                 {
                     transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 2);
-                    transTv.SetTextColor(Color.ParseColor("#CCFFFFFF"));
+                    transTv.SetTextColor(Color.ParseColor("#DDCCCCCC"));
                 }
             }
         }
@@ -543,8 +558,12 @@ public class FullLyricsFragment : Fragment
             ScrollToCurrentLyric();
     }
 
-    public void UpdateWordByWordLyrics()
+    private void UpdateCurrentLineGradient()
     {
+        var idx = _viewModel.CurrentLyricIndex;
+        if (idx < 0 || idx >= _lyricViews.Count) return;
+
+        _lyricViews[idx].LyricProgress = _viewModel.CurrentLyricProgress;
     }
 
     /// <summary>
@@ -591,6 +610,8 @@ public class FullLyricsFragment : Fragment
         _allowDragSeek = _prefs.GetBoolean("allow_drag_seek", true);
         _lyricFontSize = _prefs.GetInt("lyric_font_size", 16);
         _lyricAlignment = _prefs.GetInt("lyric_alignment", 1);
+        var catclawPrefs = Activity?.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private);
+        _lyricStyle = catclawPrefs?.GetInt("lyric_style", 0) ?? 0;
     }
 
     /// <summary>
@@ -626,6 +647,50 @@ public class FullLyricsFragment : Fragment
         cbDragSeek.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
         cbDragSeek.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
         content.AddView(cbDragSeek);
+
+        var catclawPrefs = Activity.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private);
+        var currentLyricsMode = catclawPrefs?.GetInt("lyrics_mode", 0) ?? 0;
+        var currentLyricStyle = catclawPrefs?.GetInt("lyric_style", 0) ?? 0;
+
+        var styleLabel = new TextView(Context) { Text = "歌词样式" };
+        styleLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
+        styleLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+        styleLabel.SetPadding(0, dp * 12, 0, dp * 4);
+        content.AddView(styleLabel);
+
+        var rgLyricStyle = new RadioGroup(Context) { Orientation = Orientation.Horizontal };
+        var rbLineByLine = new RadioButton(Context) { Text = "逐行" };
+        var rbWordByWord = new RadioButton(Context) { Text = "逐字" };
+        rbLineByLine.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbWordByWord.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbLineByLine.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rbWordByWord.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rgLyricStyle.AddView(rbLineByLine);
+        rgLyricStyle.AddView(rbWordByWord);
+        rgLyricStyle.Check(currentLyricStyle == 1 ? rbWordByWord.Id : rbLineByLine.Id);
+        content.AddView(rgLyricStyle);
+
+        var modeLabel = new TextView(Context) { Text = "歌词模式" };
+        modeLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
+        modeLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+        modeLabel.SetPadding(0, dp * 12, 0, dp * 4);
+        content.AddView(modeLabel);
+
+        var rgLyricsMode = new RadioGroup(Context) { Orientation = Orientation.Vertical };
+        var modeOptions = new[] { "外挂歌词（.lrc 文件优先）", "内嵌歌词（音频标签优先）", "关闭歌词" };
+        for (int i = 0; i < modeOptions.Length; i++)
+        {
+            var rb = new RadioButton(Context) { Text = modeOptions[i] };
+            rb.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+            rb.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+            rb.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+            rb.SetPadding(0, dp * 4, 0, dp * 4);
+            rgLyricsMode.AddView(rb);
+        }
+        var initialModeRb = rgLyricsMode.GetChildAt(currentLyricsMode) as RadioButton;
+        if (initialModeRb != null)
+            rgLyricsMode.Check(initialModeRb.Id);
+        content.AddView(rgLyricsMode);
 
         var fontLabel = new TextView(Context) { Text = "字体大小" };
         fontLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
@@ -663,20 +728,48 @@ public class FullLyricsFragment : Fragment
         rbLeft.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
         rbCenter.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
         rbRight.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
-        rbCenter.Checked = _lyricAlignment == 1;
-        rbLeft.Checked = _lyricAlignment == 0;
-        rbRight.Checked = _lyricAlignment == 2;
         rgAlignment.AddView(rbLeft);
         rgAlignment.AddView(rbCenter);
         rgAlignment.AddView(rbRight);
+        rgAlignment.Check(_lyricAlignment switch { 0 => rbLeft.Id, 2 => rbRight.Id, _ => rbCenter.Id });
         content.AddView(rgAlignment);
 
         cbDragSeek.CheckedChange += (s, e) => { _allowDragSeek = e.IsChecked; SaveSettings(); RebuildLyrics(); };
+        rgLyricStyle.CheckedChange += (s, e) =>
+        {
+            var newStyle = e.CheckedId == rbWordByWord.Id ? 1 : 0;
+            if (newStyle == currentLyricStyle) return;
+            currentLyricStyle = newStyle;
+            _lyricStyle = newStyle;
+            catclawPrefs?.Edit().PutInt("lyric_style", newStyle).Apply();
+            var viewModel = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
+            viewModel.LyricStyle = newStyle;
+            viewModel.UpdateLyricSpannable();
+            _lastLyricIndex = -999;
+            HighlightCurrentLine();
+        };
+        rgLyricsMode.CheckedChange += (s, e) =>
+        {
+            int newMode = -1;
+            for (int i = 0; i < rgLyricsMode.ChildCount; i++)
+            {
+                if (rgLyricsMode.GetChildAt(i).Id == e.CheckedId)
+                { newMode = i; break; }
+            }
+            if (newMode < 0 || newMode == currentLyricsMode) return;
+            currentLyricsMode = newMode;
+            catclawPrefs?.Edit().PutInt("lyrics_mode", newMode).Apply();
+            var viewModel = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
+            viewModel.LyricsMode = newMode;
+            _ = viewModel.LoadLyricsAsync(viewModel.CurrentSong);
+        };
         sbFontSize.ProgressChanged += (s, e) => { _lyricFontSize = e.Progress; tvFontSizeValue.Text = $"{_lyricFontSize}sp"; };
         sbFontSize.StopTrackingTouch += (s, e) => { SaveSettings(); RebuildLyrics(); };
         rgAlignment.CheckedChange += (s, e) =>
         {
-            _lyricAlignment = rbLeft.Checked ? 0 : rbRight.Checked ? 2 : 1;
+            var newAlign = e.CheckedId == rbLeft.Id ? 0 : e.CheckedId == rbRight.Id ? 2 : 1;
+            if (newAlign == _lyricAlignment) return;
+            _lyricAlignment = newAlign;
             SaveSettings(); RebuildLyrics();
         };
 
@@ -703,7 +796,7 @@ public class FullLyricsFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
-        UpdateBackground();
+        UpdateLyricsContainerPadding();
         UpdateProgress();
         _songTitle.Text = _viewModel.CurrentSong?.Title ?? "";
         _songArtist.Text = _viewModel.CurrentSong?.Artist ?? "";
@@ -711,6 +804,7 @@ public class FullLyricsFragment : Fragment
             RebuildLyrics();
         else
             HighlightCurrentLine();
+        View?.Post(() => UpdateBackground());
     }
 
     /// <summary>
@@ -763,6 +857,20 @@ public class FullLyricsFragment : Fragment
     /// <summary>
     /// 布局监听器，用于动态设置歌词容器的顶部padding
     /// </summary>
+    private void UpdateLyricsContainerPadding()
+    {
+        if (_scrollView == null || _lyricsContainer == null) return;
+        var scrollViewHeight = _scrollView.Height;
+        if (scrollViewHeight <= 0) return;
+        var padding = scrollViewHeight / 2;
+        _lyricsContainer.SetPadding(
+            _lyricsContainer.PaddingLeft,
+            padding,
+            _lyricsContainer.PaddingRight,
+            padding
+        );
+    }
+
     private class OnGlobalLayoutListener : Java.Lang.Object, ViewTreeObserver.IOnGlobalLayoutListener
     {
         private readonly FullLyricsFragment _fragment;
@@ -776,22 +884,8 @@ public class FullLyricsFragment : Fragment
         {
             try
             {
-                // 移除监听器，避免重复调用
                 _fragment._scrollView.ViewTreeObserver.RemoveOnGlobalLayoutListener(this);
-                
-                // 获取ScrollView的高度
-                var scrollViewHeight = _fragment._scrollView.Height;
-                if (scrollViewHeight <= 0) return;
-                
-                // 设置顶部padding，让第一句歌词从页面中央白色长条位置开始显示
-                // scrollViewHeight/2 是ScrollView中心位置，这里直接用这个值
-                var topPadding = scrollViewHeight / 2;
-                _fragment._lyricsContainer.SetPadding(
-                    _fragment._lyricsContainer.PaddingLeft,
-                    topPadding,
-                    _fragment._lyricsContainer.PaddingRight,
-                    _fragment._lyricsContainer.PaddingBottom
-                );
+                _fragment.UpdateLyricsContainerPadding();
                 
                 // 只更新歌词高亮，不完整重建，避免递归
                 _fragment.HighlightCurrentLine();
@@ -855,61 +949,4 @@ public class FullLyricsFragment : Fragment
         }
     }
 
-    private void CacheLyricLineTiming()
-    {
-        var lines = _viewModel.CurrentLyrics?.Lines;
-        var idx = _viewModel.CurrentLyricIndex;
-        if (lines == null || idx < 0 || idx >= lines.Count) { _lyricLineDurationMs = 0; return; }
-
-        _lyricLineStartMs = lines[idx].Timestamp.TotalMilliseconds;
-        if (idx + 1 < lines.Count)
-        {
-            var gap = (lines[idx + 1].Timestamp - lines[idx].Timestamp).TotalMilliseconds;
-            _lyricLineDurationMs = gap > 0 && gap < 30000 ? gap : 5000;
-        }
-        else
-        {
-            _lyricLineDurationMs = 5000;
-        }
-    }
-
-    private void StartLyricGradientUpdates()
-    {
-        if (_lyricGradientActive) return;
-        _lyricGradientActive = true;
-        _lyricProgressCallback ??= new LyricProgressCallback(this);
-        Choreographer.Instance.PostFrameCallback(_lyricProgressCallback);
-    }
-
-    private void StopLyricGradientUpdates()
-    {
-        _lyricGradientActive = false;
-    }
-
-    private void UpdateLyricGradientProgress()
-    {
-        if (!_lyricGradientActive || _lyricLineDurationMs <= 0) return;
-        var idx = _viewModel.CurrentLyricIndex;
-        if (idx < 0 || idx >= _lyricViews.Count) return;
-
-        var nowMs = _viewModel.CurrentPosition.TotalMilliseconds;
-        var progress = (float)Math.Clamp((nowMs - _lyricLineStartMs) / _lyricLineDurationMs, 0.0, 1.0);
-        _lyricViews[idx].SetLyricProgress(progress);
-    }
-
-    private class LyricProgressCallback : Java.Lang.Object, Choreographer.IFrameCallback
-    {
-        private readonly WeakReference<FullLyricsFragment> _fragment;
-        public LyricProgressCallback(FullLyricsFragment f) => _fragment = new(f);
-
-        public void DoFrame(long frameTimeNanos)
-        {
-            if (_fragment.TryGetTarget(out var f))
-            {
-                f.UpdateLyricGradientProgress();
-                if (f._lyricGradientActive)
-                    Choreographer.Instance.PostFrameCallback(this);
-            }
-        }
-    }
 }

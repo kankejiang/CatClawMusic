@@ -177,18 +177,77 @@ public class TagReader
     /// </summary>
     public static string? ReadEmbeddedLyrics(string filePath)
     {
-        if (!IOFile.Exists(filePath)) return null;
+        if (string.IsNullOrEmpty(filePath)) return null;
+        if (filePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)) return null;
 
         try
         {
             using var file = TagLib.File.Create(filePath);
-            var lyrics = file.Tag.Lyrics;
-            return !string.IsNullOrWhiteSpace(lyrics) ? lyrics : null;
+            return ExtractLyricsFromFile(file);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[TagReader] ReadEmbeddedLyrics FAILED for {filePath}: {ex.GetType().Name}: {ex.Message}");
             return null;
         }
+    }
+
+    public static string? ReadEmbeddedLyricsFromStream(Stream stream, string fileName)
+    {
+        try
+        {
+            var abstraction = new ReadOnlyFileAbstraction(fileName, stream);
+            using var file = TagLibFile.Create(abstraction);
+            return ExtractLyricsFromFile(file);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TagReader] ReadEmbeddedLyricsFromStream FAILED: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string? ExtractLyricsFromFile(TagLibFile file)
+    {
+        var lyrics = file.Tag.Lyrics;
+        if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
+
+        var id3v2 = file.GetTag(TagTypes.Id3v2) as TagLib.Id3v2.Tag;
+        if (id3v2 != null)
+        {
+            foreach (var frame in id3v2.GetFrames())
+            {
+                if (frame is TagLib.Id3v2.UnsynchronisedLyricsFrame uslt
+                    && !string.IsNullOrWhiteSpace(uslt.Text))
+                {
+                    return uslt.Text;
+                }
+            }
+        }
+
+        if (file.GetTag(TagTypes.Xiph) is TagLib.Ogg.XiphComment xiph)
+        {
+            var fields = xiph.GetField("LYRICS");
+            if (fields.Length > 0 && !string.IsNullOrWhiteSpace(fields[0]))
+                return fields[0];
+            fields = xiph.GetField("UNSYNCEDLYRICS");
+            if (fields.Length > 0 && !string.IsNullOrWhiteSpace(fields[0]))
+                return fields[0];
+        }
+
+        if (file.GetTag(TagTypes.Ape) is TagLib.Ape.Tag ape)
+        {
+            var item = ape.GetItem("LYRICS");
+            var val = item?.ToString();
+            if (!string.IsNullOrWhiteSpace(val))
+                return val;
+            item = ape.GetItem("UNSYNCED LYRICS");
+            val = item?.ToString();
+            if (!string.IsNullOrWhiteSpace(val))
+                return val;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -272,22 +331,6 @@ public class TagReader
             using var file = TagLibFile.Create(abstraction);
             if (file.Tag.Pictures is { Length: > 0 })
                 return file.Tag.Pictures[0].Data.Data;
-        }
-        catch { }
-        return null;
-    }
-
-    /// <summary>
-    /// 从流中读取嵌入歌词
-    /// </summary>
-    public static string? ReadEmbeddedLyricsFromStream(Stream stream, string name)
-    {
-        try
-        {
-            var abstraction = new ReadOnlyFileAbstraction(name, stream);
-            using var file = TagLibFile.Create(abstraction);
-            var lyrics = file.Tag.Lyrics;
-            return !string.IsNullOrWhiteSpace(lyrics) ? lyrics : null;
         }
         catch { }
         return null;

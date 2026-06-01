@@ -56,8 +56,7 @@
                 android:paddingHorizontal="32dp">
                 <LinearLayout android:id="@+id/lyrics_container"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:gravity="center_horizontal"
-                    android:paddingBottom="200dp" />
+                    android:orientation="vertical" android:gravity="center_horizontal" />
             </ScrollView>
 
             <!-- 拖拽指示器：半透明圆角条 + 跳转按钮 -->

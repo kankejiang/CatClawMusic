@@ -15,6 +15,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 {
     private AndroidX.Media3.ExoPlayer.SimpleExoPlayer? _player;
     private bool _isPrepared;
+    private int _lastNotifiedSessionId;
     private System.Timers.Timer? _positionTimer;
     private int _volume = 100;
     private PowerManager.WakeLock? _wakeLock;
@@ -298,7 +299,10 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
             var newSessionId = AudioSessionId;
             if (newSessionId > 0)
+            {
+                _lastNotifiedSessionId = newSessionId;
                 _mainHandler.Post(() => AudioSessionIdChanged?.Invoke(newSessionId));
+            }
 
             if (autoPlay)
             {
@@ -347,6 +351,13 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                 AcquireWakeLock();
                 StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
                 ForegroundPlayerService.Start(global::Android.App.Application.Context);
+
+                var newSessionId = AudioSessionId;
+                if (newSessionId > 0 && newSessionId != _lastNotifiedSessionId)
+                {
+                    _lastNotifiedSessionId = newSessionId;
+                    AudioSessionIdChanged?.Invoke(newSessionId);
+                }
             });
         return Task.CompletedTask;
     }
