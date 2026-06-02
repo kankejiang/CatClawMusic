@@ -178,6 +178,7 @@ public class AgentService : IAgentService
             try
             {
                 response = await _llmClient.ChatAsync(_conversationHistory, toolDefs, ct);
+                _logService.Info("Agent", $"Agent LLM 响应: content='{Truncate(response.Content, 200)}', toolCalls={response.ToolCalls.Count}, finishReason={response.FinishReason}");
             }
             catch (Exception ex)
             {
@@ -237,14 +238,16 @@ public class AgentService : IAgentService
                     toolResult = JsonSerializer.Serialize(new { error = $"未知工具: {toolCall.Function.Name}" });
                 }
 
-                _conversationHistory.Add(new ChatMessage
+                var toolResultMsg = new ChatMessage
                 {
                     Role = "tool",
                     Content = toolResult,
                     ToolCallId = toolCall.Id,
                     Name = toolCall.Function.Name,
                     Songs = songs
-                });
+                };
+                _conversationHistory.Add(toolResultMsg);
+                onPartialMessage?.Invoke(toolResultMsg);
             }
         }
 
@@ -289,4 +292,7 @@ public class AgentService : IAgentService
         var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
         prefs.Edit().PutString("current_agent_id", agentId).Apply();
     }
+
+    private static string Truncate(string s, int maxLen) =>
+        s.Length <= maxLen ? s : s[..maxLen] + "...";
 }

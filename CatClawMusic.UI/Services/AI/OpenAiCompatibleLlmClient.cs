@@ -232,7 +232,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     private static LlmResponse ParseResponse(string responseBody)
     {
         var nativeResult = Services.NativeInterop.AiParseChatResponse(responseBody);
-        if (nativeResult != null) return nativeResult;
+        if (nativeResult != null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] AI ParseResponse (native): content='{Truncate(nativeResult.Content, 200)}', toolCalls={nativeResult.ToolCalls.Count}, finishReason={nativeResult.FinishReason}");
+            return nativeResult;
+        }
 
         var result = new LlmResponse();
         try
@@ -271,11 +275,17 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                 var msg = error.TryGetProperty("message", out var em) ? em.GetString() : error.GetRawText();
                 throw new InvalidOperationException($"API 错误: {msg}");
             }
+            else
+            {
+                throw new InvalidOperationException($"API 返回空响应（choices 为空），可能是限流或内容过滤。\n{Truncate(responseBody, 500)}");
+            }
         }
         catch (JsonException ex)
         {
             throw new InvalidOperationException($"解析 API 响应失败: {ex.Message}\n{Truncate(responseBody, 300)}");
         }
+
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] AI ParseResponse (C# fallback): content='{Truncate(result.Content, 200)}', toolCalls={result.ToolCalls.Count}, finishReason={result.FinishReason}");
         return result;
     }
 

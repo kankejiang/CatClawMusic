@@ -29,6 +29,7 @@ public class SearchFragment : Fragment
     private ImageButton _sendButton = null!;
     private ExploreMessageAdapter _chatAdapter = null!;
     private List<Song> _lastSearchResults = new();
+    private bool _hasShownSearchCards;
     private ImageView _agentAvatarHeader = null!;
     private TextView _agentNameHeader = null!;
     private View _agentSelectorLayout = null!;
@@ -633,6 +634,7 @@ public class SearchFragment : Fragment
 
     private async Task SendMessageToAiAsync(string userMessage)
     {
+        _hasShownSearchCards = false;
         var thinkingMsg = new ExploreMessage { Role = "assistant", Content = "思考中..." };
         _chatAdapter.AddMessage(thinkingMsg);
         ScrollToBottom();
@@ -645,7 +647,15 @@ public class SearchFragment : Fragment
                 {
                     if (msg.Role == "assistant" && msg.ToolCalls != null && msg.ToolCalls.Count > 0)
                     {
-                        _chatAdapter.UpdateLastMessage(new ExploreMessage { Role = "assistant", Content = "正在使用工具...", ToolCalls = msg.ToolCalls });
+                        if (!string.IsNullOrWhiteSpace(msg.Content))
+                        {
+                            _chatAdapter.UpdateLastMessage(new ExploreMessage { Role = "assistant", Content = msg.Content });
+                            _chatAdapter.AddMessage(new ExploreMessage { Role = "assistant", Content = "正在使用工具...", ToolCalls = msg.ToolCalls });
+                        }
+                        else
+                        {
+                            _chatAdapter.UpdateLastMessage(new ExploreMessage { Role = "assistant", Content = "正在使用工具...", ToolCalls = msg.ToolCalls });
+                        }
                         ScrollToBottom();
                     }
                     else if (msg.Role == "tool")
@@ -653,6 +663,7 @@ public class SearchFragment : Fragment
                         if (msg.Songs != null && msg.Songs.Count > 0)
                         {
                             _lastSearchResults = msg.Songs;
+                            _hasShownSearchCards = true;
                             _chatAdapter.AddMessage(new ExploreMessage { Role = "search", SearchKeyword = msg.Name == "search_music" ? "AI搜索" : "", Songs = msg.Songs });
                         }
                         else
@@ -667,7 +678,18 @@ public class SearchFragment : Fragment
 
             Activity?.RunOnUiThread(() =>
             {
-                _chatAdapter.UpdateLastMessage(new ExploreMessage { Role = "assistant", Content = response.Content, ToolCalls = response.ToolCalls });
+                if (_hasShownSearchCards)
+                {
+                    _chatAdapter.UpdateLastMessage(new ExploreMessage { Role = "assistant", Content = "已为你找到相关歌曲~" });
+                }
+                else if (!string.IsNullOrWhiteSpace(response.Content))
+                {
+                    _chatAdapter.UpdateLastMessage(new ExploreMessage { Role = "assistant", Content = response.Content });
+                }
+                else
+                {
+                    _chatAdapter.UpdateLastMessage(new ExploreMessage { Role = "assistant", Content = "已为你完成操作~" });
+                }
                 ScrollToBottom();
             });
         }

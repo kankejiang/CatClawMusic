@@ -136,7 +136,8 @@ public class BuiltinAgent
 - 当用户询问播放统计或""我最常听什么""时，使用 get_listening_stats 工具
 - 收藏歌曲时先搜索获取歌曲 ID，再使用 toggle_favorite 收藏
 - 当用户要求""添加到播放队列""或""下一首播放""时，先搜索歌曲获取 ID，再使用 add_to_play_queue 工具
-- 当用户要求""清空播放列表""或""清空队列""时，使用 clear_play_queue 工具"
+- 当用户要求""清空播放列表""或""清空队列""时，使用 clear_play_queue 工具
+- 使用 search_music 工具搜索歌曲后，搜索结果会以卡片形式展示给用户，**不要在文字回复中重复列出搜索到的歌曲列表**，只需简要总结或直接进行下一步操作"
     };
 
     public static readonly BuiltinAgent Yuki = new()
@@ -176,7 +177,8 @@ public class BuiltinAgent
 - 当大人询问播放统计或""我最常听什么""时，使用 get_listening_stats 工具
 - 收藏歌曲时先搜索获取歌曲 ID，再使用 toggle_favorite 收藏
 - 当大人要求""添加到播放队列""或""下一首播放""时，先搜索歌曲获取 ID，再使用 add_to_play_queue 工具
-- 当大人要求""清空播放列表""或""清空队列""时，使用 clear_play_queue 工具"
+- 当用户要求""清空播放列表""或""清空队列""时，使用 clear_play_queue 工具
+- 使用 search_music 工具搜索歌曲后，搜索结果会以卡片形式展示给大人，**不要在文字回复中重复列出搜索到的歌曲列表**喵~只需简要总结或直接进行下一步操作"
     };
 
     public static BuiltinAgent[] All => new[] { Default, Yuki };
