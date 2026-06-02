@@ -7,6 +7,8 @@ using CatClawMusic.UI.Services.AI;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
+using CatClawMusic.UI.ViewModels;
 using IAgentService = CatClawMusic.UI.Services.AI.IAgentService;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using Microsoft.Extensions.DependencyInjection;
@@ -721,6 +723,7 @@ public class SearchFragment : Fragment
                 _playQueue.SelectSong(song.Id);
                 if (!string.IsNullOrEmpty(song.FilePath))
                     await _audioPlayer.PlayAsync(song.FilePath);
+                _ = RecordPlayAsync(song);
                 _navigationService.PushFragment("NowPlaying");
             }
         }
@@ -728,6 +731,24 @@ public class SearchFragment : Fragment
         {
             System.Diagnostics.Debug.WriteLine($"[Explore] 播放失败: {ex}");
         }
+    }
+
+    private async Task RecordPlayAsync(Song song)
+    {
+        try
+        {
+            var db = MainApplication.Services.GetService<MusicDatabase>();
+            if (db == null) return;
+            await db.EnsureInitializedAsync();
+            await db.RecordPlayAsync(song.Id);
+            var playlistVm = MainApplication.Services.GetService(typeof(PlaylistViewModel)) as PlaylistViewModel;
+            if (playlistVm != null)
+            {
+                playlistVm.MarkDirty();
+                _ = playlistVm.RefreshSystemPlaylistCountsAsync();
+            }
+        }
+        catch { }
     }
 
     private void ScrollToBottom()

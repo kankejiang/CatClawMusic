@@ -25,7 +25,7 @@ public class NetworkMusicService : INetworkMusicService
     private readonly INetworkFileService _webDav;
     private readonly INetworkFileService _smb;
 
-    private static readonly SemaphoreSlim ScanSemaphore = new(2, 2);
+    private static readonly SemaphoreSlim ScanSemaphore = new(4, 4);
 
     /// <summary>
     /// 创建网络音乐服务实例
@@ -138,7 +138,7 @@ public class NetworkMusicService : INetworkMusicService
     /// <summary>
     /// 下载文件头部数据用于读取标签信息的大小（512KB）
     /// </summary>
-    private const int TagHeadSize = 128 * 1024;
+    private const int TagHeadSize = 512 * 1024;
 
     /// <summary>
     /// 下载远程文件的头部数据用于标签解析，失败时回退到完整下载

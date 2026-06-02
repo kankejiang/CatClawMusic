@@ -136,12 +136,7 @@ public class WebDavService : INetworkFileService, IDisposable
 
     private const string PropFindBody = @"<?xml version='1.0' encoding='utf-8'?>
 <D:propfind xmlns:D='DAV:'>
-  <D:prop>
-    <D:resourcetype/>
-    <D:getcontentlength/>
-    <D:getlastmodified/>
-    <D:displayname/>
-  </D:prop>
+  <D:allprop/>
 </D:propfind>";
 
     private async Task<XDocument?> PropFindAsync(string url, int depth = 1)
