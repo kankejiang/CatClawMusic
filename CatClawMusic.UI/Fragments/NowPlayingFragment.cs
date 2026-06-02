@@ -304,6 +304,11 @@ public class NowPlayingFragment : Fragment
     {
         if (_flowAnimator != null) return;
 
+        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        bool bgAnimEnabled = prefs?.GetBoolean("bg_animation_enabled", false) ?? false;
+
+        if (!bgAnimEnabled) return;
+
         _flowTimeOffset = SystemClock.ElapsedRealtime();
         _sweepAngle = 0f;
 

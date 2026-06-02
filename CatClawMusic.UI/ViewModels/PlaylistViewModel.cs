@@ -39,6 +39,65 @@ public partial class PlaylistViewModel : ObservableObject
 
     public void MarkDirty() => _isDirty = true;
 
+    public async Task RefreshSystemPlaylistCountsAsync()
+    {
+        if (Playlists.Count < 3) return;
+        try
+        {
+            var allCountTask = _musicLibrary.GetMergedSongCountAsync();
+            var favCountTask = _musicLibrary.GetFavoriteSongCountAsync();
+            var recentCountTask = _musicLibrary.GetRecentSongCountAsync();
+            var allFirstIdTask = _musicLibrary.GetFirstSongIdForAllAsync();
+            var favFirstIdTask = _musicLibrary.GetFirstFavoriteSongIdAsync();
+            var recentFirstIdTask = _musicLibrary.GetFirstRecentSongIdAsync();
+
+            await Task.WhenAll(allCountTask, favCountTask, recentCountTask,
+                allFirstIdTask, favFirstIdTask, recentFirstIdTask);
+
+            UpdateSystemPlaylist(-1, "全部歌曲", allCountTask.Result, allFirstIdTask.Result, _epoch);
+            UpdateSystemPlaylist(-2, "收藏歌曲", favCountTask.Result, favFirstIdTask.Result, _epoch + 1);
+            UpdateSystemPlaylist(-3, "最近播放", recentCountTask.Result, recentFirstIdTask.Result, _epoch + 2);
+        }
+        catch { }
+    }
+
+    private void UpdateSystemPlaylist(int id, string name, int songCount, int coverSongId, long createdAt)
+    {
+        var idx = Playlists.ToList().FindIndex(p => p.Id == id);
+        if (idx < 0) return;
+        var existing = Playlists[idx];
+        if (existing.SongCount == songCount && existing.CoverSongId == coverSongId) return;
+        Playlists[idx] = new Playlist
+        {
+            Id = id, Name = name, SongCount = songCount,
+            IsSystem = true, CoverSongId = coverSongId, CreatedAt = createdAt
+        };
+    }
+
+    public async Task RefreshUserPlaylistsAsync()
+    {
+        try
+        {
+            while (Playlists.Count > 3)
+                Playlists.RemoveAt(Playlists.Count - 1);
+
+            var userPlaylists = await _musicLibrary.GetAllPlaylistsAsync();
+            var coverTasks = userPlaylists.Select(async p =>
+            {
+                try
+                {
+                    var firstSong = await GetDb().GetFirstSongInPlaylistAsync(p.Id);
+                    p.CoverSongId = firstSong?.Id ?? 0;
+                }
+                catch { p.CoverSongId = 0; }
+            }).ToArray();
+            await Task.WhenAll(coverTasks);
+            foreach (var p in userPlaylists)
+                Playlists.Add(p);
+        }
+        catch { }
+    }
+
     public async Task RefreshIfChangedAsync()
     {
         if (!_isDirty && Playlists.Count > 0)
@@ -225,19 +284,14 @@ public partial class PlaylistViewModel : ObservableObject
     public async Task<int> CreatePlaylistAsync(string name)
     {
         int id = await _musicLibrary.CreatePlaylistAsync(name);
-        _isDirty = true;
-        await RefreshIfChangedAsync();
+        await RefreshUserPlaylistsAsync();
         return id;
     }
 
-    /// <summary>
-    /// 删除指定歌单并刷新列表
-    /// </summary>
     public async Task DeletePlaylistAsync(int playlistId)
     {
         await _musicLibrary.DeletePlaylistAsync(playlistId);
-        _isDirty = true;
-        await RefreshIfChangedAsync();
+        await RefreshUserPlaylistsAsync();
     }
 
     /// <summary>
@@ -248,7 +302,7 @@ public partial class PlaylistViewModel : ObservableObject
     public async Task AddSongToPlaylistAsync(int playlistId, int songId)
     {
         await _musicLibrary.AddSongToPlaylistAsync(playlistId, songId);
-        _isDirty = true;
+        await RefreshUserPlaylistsAsync();
     }
 
     /// <summary>
@@ -270,6 +324,8 @@ public partial class PlaylistViewModel : ObservableObject
     public async Task ToggleFavoriteAsync(int songId, bool isFav)
     {
         await GetDb().SetFavoriteAsync(songId, isFav);
+        MarkDirty();
+        _ = RefreshSystemPlaylistCountsAsync();
     }
 
     /// <summary>

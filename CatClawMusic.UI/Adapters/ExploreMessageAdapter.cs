@@ -29,9 +29,16 @@ public class ExploreMessage
 public class ExploreMessageAdapter : RecyclerView.Adapter
 {
     private readonly List<ExploreMessage> _messages = new();
+    private BuiltinAgent _currentAgent = BuiltinAgent.Default;
     public event EventHandler<Song>? OnSongPlay;
     public event EventHandler<int>? OnWizardCancel;
     public event EventHandler<int>? OnWizardNext;
+
+    public BuiltinAgent CurrentAgent
+    {
+        get => _currentAgent;
+        set => _currentAgent = value;
+    }
 
     public void AddMessage(ExploreMessage message)
     {
@@ -71,7 +78,7 @@ public class ExploreMessageAdapter : RecyclerView.Adapter
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         if (holder is ExploreViewHolder vh)
-            vh.Bind(_messages[position]);
+            vh.Bind(_messages[position], _currentAgent);
     }
 
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
@@ -98,6 +105,9 @@ public class ExploreViewHolder : RecyclerView.ViewHolder
     private readonly TextView _tvSearchSummary;
     private readonly RecyclerView _rvSongCards;
     private readonly Action<Song> _onSongPlay;
+    private readonly ImageView _ivAgentAvatar;
+    private readonly ImageView _ivAgentAvatarTool;
+    private readonly ImageView _ivAgentAvatarSearch;
 
     private readonly TextView _tvWizardTitle;
     private readonly RadioGroup _rgProviders;
@@ -130,6 +140,10 @@ public class ExploreViewHolder : RecyclerView.ViewHolder
         _tvSearchSummary = view.FindViewById<TextView>(Resource.Id.tv_search_summary)!;
         _rvSongCards = view.FindViewById<RecyclerView>(Resource.Id.rv_song_cards)!;
 
+        _ivAgentAvatar = view.FindViewById<ImageView>(Resource.Id.iv_agent_avatar)!;
+        _ivAgentAvatarTool = view.FindViewById<ImageView>(Resource.Id.iv_agent_avatar_tool)!;
+        _ivAgentAvatarSearch = view.FindViewById<ImageView>(Resource.Id.iv_agent_avatar_search)!;
+
         _tvWizardTitle = view.FindViewById<TextView>(Resource.Id.tv_wizard_title)!;
         _rgProviders = view.FindViewById<RadioGroup>(Resource.Id.rg_providers)!;
         _layoutApikeyInput = view.FindViewById<View>(Resource.Id.layout_apikey_input)!;
@@ -141,13 +155,16 @@ public class ExploreViewHolder : RecyclerView.ViewHolder
         _btnWizardNext = view.FindViewById<Button>(Resource.Id.btn_wizard_next)!;
     }
 
-    public void Bind(ExploreMessage message)
+    public void Bind(ExploreMessage message, BuiltinAgent agent)
     {
         _layoutUser.Visibility = ViewStates.Gone;
         _layoutAssistant.Visibility = ViewStates.Gone;
         _layoutTool.Visibility = ViewStates.Gone;
         _layoutSearchResults.Visibility = ViewStates.Gone;
         _layoutWizard.Visibility = ViewStates.Gone;
+        _ivAgentAvatar.Visibility = ViewStates.Gone;
+        _ivAgentAvatarTool.Visibility = ViewStates.Gone;
+        _ivAgentAvatarSearch.Visibility = ViewStates.Gone;
 
         if (message.IsWizard && !message.WizardCompleted)
         {
@@ -156,6 +173,7 @@ public class ExploreViewHolder : RecyclerView.ViewHolder
         else if (message.IsSearchResults)
         {
             _layoutSearchResults.Visibility = ViewStates.Visible;
+            SetAvatar(_ivAgentAvatarSearch, agent);
             var keyword = message.SearchKeyword ?? "";
             _tvSearchSummary.Text = string.IsNullOrEmpty(keyword)
                 ? $"找到 {message.Songs!.Count} 首相关歌曲"
@@ -177,6 +195,7 @@ public class ExploreViewHolder : RecyclerView.ViewHolder
         else if (message.Role == "assistant")
         {
             _layoutAssistant.Visibility = ViewStates.Visible;
+            SetAvatar(_ivAgentAvatar, agent);
             _tvAssistantMessage.Text = message.Content ?? "";
 
             if (message.ToolCalls != null && message.ToolCalls.Count > 0)
@@ -204,9 +223,26 @@ public class ExploreViewHolder : RecyclerView.ViewHolder
         else if (message.Role == "tool")
         {
             _layoutTool.Visibility = ViewStates.Visible;
+            SetAvatar(_ivAgentAvatarTool, agent);
             var toolName = message.Name ?? "工具";
             _tvToolInfo.Text = $"{toolName} 已执行";
         }
+    }
+
+    private void SetAvatar(ImageView imageView, BuiltinAgent agent)
+    {
+        if (!string.IsNullOrEmpty(agent.AvatarDrawableName))
+        {
+            var ctx = ItemView.Context!;
+            var resId = ctx.Resources?.GetIdentifier(agent.AvatarDrawableName, "drawable", ctx.PackageName) ?? 0;
+            if (resId != 0)
+            {
+                imageView.SetImageResource(resId);
+                imageView.Visibility = ViewStates.Visible;
+                return;
+            }
+        }
+        imageView.Visibility = ViewStates.Gone;
     }
 
     private void BindWizard(ExploreMessage message)

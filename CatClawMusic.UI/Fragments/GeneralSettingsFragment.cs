@@ -20,6 +20,10 @@ public class GeneralSettingsFragment : Fragment
     private TextView? _tvBatteryStatus;
     private TextView? _tvNotificationStatus;
     private TextView? _tvPermissionStatus;
+    private Switch? _switchBgAnimation;
+
+    public const string PrefsName = "catclaw_prefs";
+    public const string KeyBgAnimationEnabled = "bg_animation_enabled";
 
     /// <summary>
     /// 创建通用设置视图，初始化各项设置入口和返回按钮
@@ -32,6 +36,19 @@ public class GeneralSettingsFragment : Fragment
         var btnBack = view.FindViewById<ImageButton>(Resource.Id.btn_back);
         if (btnBack != null)
             btnBack.Click += (s, e) => nav.GoBack();
+
+        _switchBgAnimation = view.FindViewById<Switch>(Resource.Id.switch_bg_animation);
+        if (_switchBgAnimation != null)
+        {
+            var prefs = Context!.GetSharedPreferences(PrefsName, FileCreationMode.Private);
+            _switchBgAnimation.Checked = prefs.GetBoolean(KeyBgAnimationEnabled, false);
+            _switchBgAnimation.CheckedChange += (s, e) =>
+            {
+                var editor = Context!.GetSharedPreferences(PrefsName, FileCreationMode.Private).Edit();
+                editor.PutBoolean(KeyBgAnimationEnabled, e.IsChecked);
+                editor.Apply();
+            };
+        }
 
         var btnBattery = view.FindViewById<View>(Resource.Id.btn_battery_optimization);
         _tvBatteryStatus = view.FindViewById<TextView>(Resource.Id.tv_battery_status);

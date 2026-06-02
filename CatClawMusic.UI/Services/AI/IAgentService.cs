@@ -21,4 +21,6 @@ public interface IAgentService
     void ClearConversation();
     List<ChatMessage> GetConversationHistory();
     bool IsConfigured { get; }
+    BuiltinAgent GetCurrentAgent();
+    void SetCurrentAgent(string agentId);
 }

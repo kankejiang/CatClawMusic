@@ -133,6 +133,12 @@ public partial class PlaylistDetailViewModel : ObservableObject
     public async Task ToggleFavoriteAsync(int songId, bool isFav)
     {
         await GetDb().SetFavoriteAsync(songId, isFav);
+        var playlistVm = MainApplication.Services.GetService(typeof(PlaylistViewModel)) as PlaylistViewModel;
+        if (playlistVm != null)
+        {
+            playlistVm.MarkDirty();
+            _ = playlistVm.RefreshSystemPlaylistCountsAsync();
+        }
     }
 
     /// <summary>
@@ -141,6 +147,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
     public async Task AddSongToPlaylistAsync(int targetPlaylistId, int songId)
     {
         await _musicLibrary.AddSongToPlaylistAsync(targetPlaylistId, songId);
+        var playlistVm = MainApplication.Services.GetService(typeof(PlaylistViewModel)) as PlaylistViewModel;
+        if (playlistVm != null)
+            _ = playlistVm.RefreshUserPlaylistsAsync();
     }
 
     /// <summary>

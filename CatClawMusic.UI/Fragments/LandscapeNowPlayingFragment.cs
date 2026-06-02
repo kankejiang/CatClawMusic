@@ -175,6 +175,7 @@ public class LandscapeNowPlayingFragment : Fragment
         if (act == null || act.Window == null) return;
         WindowCompat.SetDecorFitsSystemWindows(act.Window, false);
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
+        controller.AppearanceLightStatusBars = true;
         controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
         controller.Hide(WindowInsetsCompat.Type.StatusBars());
     }
@@ -184,6 +185,7 @@ public class LandscapeNowPlayingFragment : Fragment
         var act = Activity;
         if (act == null || act.Window == null) return;
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
+        controller.AppearanceLightStatusBars = true;
         controller.Show(WindowInsetsCompat.Type.StatusBars());
         WindowCompat.SetDecorFitsSystemWindows(act.Window, true);
     }
@@ -512,6 +514,12 @@ public class LandscapeNowPlayingFragment : Fragment
     private void StartFlowAnimation()
     {
         if (_flowAnimator != null) return;
+
+        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        bool bgAnimEnabled = prefs?.GetBoolean("bg_animation_enabled", false) ?? false;
+
+        if (!bgAnimEnabled) return;
+
         _flowTimeOffset = SystemClock.ElapsedRealtime();
         _sweepAngle = 0f;
         _flowAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);

@@ -346,6 +346,12 @@ public class LibraryFragment : Fragment
         _ = MainApplication.Services.GetRequiredService<IAudioPlayerService>().PlayAsync(song.FilePath);
         MainApplication.Services.GetRequiredService<NowPlayingViewModel>().SyncWithQueue();
         _ = MainApplication.Services.GetRequiredService<MusicDatabase>().RecordPlayAsync(song.Id);
+        var playlistVm = MainApplication.Services.GetService<PlaylistViewModel>();
+        if (playlistVm != null)
+        {
+            playlistVm.MarkDirty();
+            _ = playlistVm.RefreshSystemPlaylistCountsAsync();
+        }
     }
 
     /// <summary>
@@ -382,6 +388,12 @@ public class LibraryFragment : Fragment
             var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
             bool isFav = await db.IsFavoriteAsync(song.Id);
             await db.SetFavoriteAsync(song.Id, !isFav);
+            var playlistVm = MainApplication.Services.GetService<PlaylistViewModel>();
+            if (playlistVm != null)
+            {
+                playlistVm.MarkDirty();
+                _ = playlistVm.RefreshSystemPlaylistCountsAsync();
+            }
             Activity?.RunOnUiThread(() =>
                 Toast.MakeText(ctx, isFav ? "已取消收藏" : "已收藏", ToastLength.Short)?.Show());
         });
