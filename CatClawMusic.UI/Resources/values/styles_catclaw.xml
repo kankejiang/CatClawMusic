@@ -168,4 +168,10 @@
         <item name="fontFamily">@font/happy_zcool_2016</item>
         <item name="android:textColor">?attr/catClawTextPrimary</item>
     </style>
+
+    <!-- 探索页 Tab 文字 -->
+    <style name="ExploreTabText" parent="TextAppearance.Design.Tab">
+        <item name="android:textSize">15sp</item>
+        <item name="fontFamily">@font/happy_zcool_2016</item>
+    </style>
 </resources>

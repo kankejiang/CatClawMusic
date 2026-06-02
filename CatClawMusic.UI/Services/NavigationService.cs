@@ -56,6 +56,8 @@ public class NavigationService : INavigationService
             "AiSettings" => MainApplication.Services.GetRequiredService<AiSettingsFragment>(),
             "ModelManager" => MainApplication.Services.GetRequiredService<ModelManagerFragment>(),
             "ModelEdit" => CreateModelEdit(parameters),
+            "ArtistDetail" => CreateArtistDetail(parameters),
+            "AlbumDetail" => CreateAlbumDetail(parameters),
             "LandscapeNowPlaying" => MainApplication.Services.GetRequiredService<LandscapeNowPlayingFragment>(),
             _ => throw new ArgumentException($"Unknown route: {route}")
         };
@@ -94,6 +96,34 @@ public class NavigationService : INavigationService
                 args.PutInt("playlistId", Convert.ToInt32(id));
             if (parameters.TryGetValue("playlistName", out var name))
                 args.PutString("playlistName", name?.ToString());
+            fragment.Arguments = args;
+        }
+        return fragment;
+    }
+
+    private Fragment CreateArtistDetail(Dictionary<string, object>? parameters)
+    {
+        var fragment = ArtistDetailFragment.NewInstance("");
+        if (parameters != null)
+        {
+            var args = new Android.OS.Bundle();
+            if (parameters.TryGetValue("artistName", out var name))
+                args.PutString("artist_name", name?.ToString());
+            fragment.Arguments = args;
+        }
+        return fragment;
+    }
+
+    private Fragment CreateAlbumDetail(Dictionary<string, object>? parameters)
+    {
+        var fragment = AlbumDetailFragment.NewInstance("", "");
+        if (parameters != null)
+        {
+            var args = new Android.OS.Bundle();
+            if (parameters.TryGetValue("albumTitle", out var title))
+                args.PutString("album_title", title?.ToString());
+            if (parameters.TryGetValue("albumArtist", out var artist))
+                args.PutString("album_artist", artist?.ToString());
             fragment.Arguments = args;
         }
         return fragment;

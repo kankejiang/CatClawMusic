@@ -3,12 +3,14 @@ using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.UI.Adapters;
+using CatClawMusic.UI.Services;
 using CatClawMusic.UI.Services.AI;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.ViewModels;
+using Google.Android.Material.Tabs;
 using IAgentService = CatClawMusic.UI.Services.AI.IAgentService;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,21 +26,42 @@ public class SearchFragment : Fragment
     private INavigationService _navigationService = null!;
     private IAudioPlayerService? _audioPlayer;
     private PlayQueue? _playQueue;
+    private ExploreDataService? _exploreData;
+    private NetEaseMusicScraper? _scraper;
 
+    // Explore mode views
+    private EditText _searchInput = null!;
+    private ImageView _yukiAvatar = null!;
+    private TabLayout _tabLayout = null!;
+    private RecyclerView _rvDailyRecommend = null!;
+    private RecyclerView _rvArtists = null!;
+    private RecyclerView _rvAlbums = null!;
+    private RecyclerView _rvTopPlayed = null!;
+    private RecyclerView _rvRecentAdded = null!;
+    private View _layoutExploreMain = null!;
+    private readonly RecyclerView[] _tabRecyclerViews = new RecyclerView[5];
+
+    // Explore adapters
+    private ExploreSongAdapter _dailyRecommendAdapter = null!;
+    private ArtistAdapter _artistAdapter = null!;
+    private AlbumAdapter _albumAdapter = null!;
+    private ExploreSongAdapter _topPlayedAdapter = null!;
+    private ExploreSongAdapter _recentAddedAdapter = null!;
+
+    // Chat mode views
+    private View _layoutChatOverlay = null!;
     private RecyclerView _chatMessages = null!;
     private EditText _chatInput = null!;
-    private View _inputLayout = null!;
     private ImageButton _sendButton = null!;
     private ExploreMessageAdapter _chatAdapter = null!;
     private List<Song> _lastSearchResults = new();
     private bool _hasShownSearchCards;
     private ImageView _agentAvatarHeader = null!;
     private TextView _agentNameHeader = null!;
-    private View _agentSelectorLayout = null!;
 
     private string? _wizardProviderId;
-    private string? _wizardApiKey;
     private LlmProviderInfo? _wizardProvider;
+    private string? _wizardApiKey;
     private List<string> _wizardModels = new();
     private bool _isInWizard;
     private bool _waitingForKeyInput;
@@ -56,23 +79,121 @@ public class SearchFragment : Fragment
         _audioPlayer = MainApplication.Services.GetService<IAudioPlayerService>();
         _playQueue = MainApplication.Services.GetService<PlayQueue>();
 
+        var db = MainApplication.Services.GetService<MusicDatabase>();
+        var library = MainApplication.Services.GetService<IMusicLibraryService>() as MusicLibraryService;
+        if (db != null)
+        {
+            _exploreData = new ExploreDataService(db, library!);
+            _scraper = new NetEaseMusicScraper(db);
+        }
+
+        InitExploreViews(view);
+        InitChatViews(view);
+        LoadExploreData();
+    }
+
+    private void InitExploreViews(View view)
+    {
+        _layoutExploreMain = view.FindViewById<View>(Resource.Id.layout_explore_main)!;
+        _searchInput = view.FindViewById<EditText>(Resource.Id.et_search_input)!;
+        _yukiAvatar = view.FindViewById<ImageView>(Resource.Id.iv_yuki_avatar)!;
+        _tabLayout = view.FindViewById<TabLayout>(Resource.Id.tab_layout)!;
+
+        _rvDailyRecommend = view.FindViewById<RecyclerView>(Resource.Id.rv_daily_recommend)!;
+        _rvArtists = view.FindViewById<RecyclerView>(Resource.Id.rv_artists)!;
+        _rvAlbums = view.FindViewById<RecyclerView>(Resource.Id.rv_albums)!;
+        _rvTopPlayed = view.FindViewById<RecyclerView>(Resource.Id.rv_top_played)!;
+        _rvRecentAdded = view.FindViewById<RecyclerView>(Resource.Id.rv_recent_added)!;
+
+        _tabRecyclerViews[0] = _rvDailyRecommend;
+        _tabRecyclerViews[1] = _rvArtists;
+        _tabRecyclerViews[2] = _rvAlbums;
+        _tabRecyclerViews[3] = _rvTopPlayed;
+        _tabRecyclerViews[4] = _rvRecentAdded;
+
+        // 每日推荐 - 垂直网格
+        _dailyRecommendAdapter = new ExploreSongAdapter { ShowPlayAllButton = true };
+        var dailyGrid = new GridLayoutManager(Context, 2);
+        dailyGrid.SetSpanSizeLookup(new DailyRecommendSpanLookup(_dailyRecommendAdapter));
+        _rvDailyRecommend.SetLayoutManager(dailyGrid);
+        _rvDailyRecommend.SetAdapter(_dailyRecommendAdapter);
+        _dailyRecommendAdapter.OnSongClick += async (s, song) => await PlaySongAsync(song);
+        _dailyRecommendAdapter.OnPlayAllClick += (s, e) => PlayAllDailyRecommend();
+
+        // 艺术家 - 垂直网格
+        _artistAdapter = new ArtistAdapter();
+        if (_scraper != null) _artistAdapter.SetScraper(_scraper);
+        _rvArtists.SetLayoutManager(new GridLayoutManager(Context, 3));
+        _rvArtists.SetAdapter(_artistAdapter);
+        _artistAdapter.OnArtistClick += (s, artist) => ShowArtistDetail(artist);
+
+        // 专辑 - 垂直网格
+        _albumAdapter = new AlbumAdapter();
+        _rvAlbums.SetLayoutManager(new GridLayoutManager(Context, 2));
+        _rvAlbums.SetAdapter(_albumAdapter);
+        _albumAdapter.OnAlbumClick += (s, album) => ShowAlbumDetail(album);
+
+        // 最多播放 - 垂直列表（显示播放次数）
+        _topPlayedAdapter = new ExploreSongAdapter { ShowPlayCount = true };
+        _rvTopPlayed.SetLayoutManager(new LinearLayoutManager(Context));
+        _rvTopPlayed.SetAdapter(_topPlayedAdapter);
+        _topPlayedAdapter.OnSongClick += async (s, song) => await PlaySongAsync(song);
+
+        // 最新音乐 - 垂直列表
+        _recentAddedAdapter = new ExploreSongAdapter();
+        _rvRecentAdded.SetLayoutManager(new LinearLayoutManager(Context));
+        _rvRecentAdded.SetAdapter(_recentAddedAdapter);
+        _recentAddedAdapter.OnSongClick += async (s, song) => await PlaySongAsync(song);
+
+        // 初始化 Tab
+        _tabLayout.AddTab(_tabLayout.NewTab().SetText("每日推荐"), 0, true);
+        _tabLayout.AddTab(_tabLayout.NewTab().SetText("艺术家"), 1);
+        _tabLayout.AddTab(_tabLayout.NewTab().SetText("专辑"), 2);
+        _tabLayout.AddTab(_tabLayout.NewTab().SetText("最多播放"), 3);
+        _tabLayout.AddTab(_tabLayout.NewTab().SetText("最新音乐"), 4);
+
+        _tabLayout.TabSelected += (s, e) =>
+        {
+            var index = e.Tab?.Position ?? 0;
+            SwitchTab(index);
+        };
+
+        // 搜索框回车进入聊天模式并搜索
+        _searchInput.EditorAction += (s, e) =>
+        {
+            if (e.ActionId == Android.Views.InputMethods.ImeAction.Search)
+            {
+                var keyword = _searchInput.Text?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(keyword))
+                {
+                    EnterChatMode();
+                    _chatInput.Text = keyword;
+                    SendMessage();
+                }
+                e.Handled = true;
+            }
+        };
+
+        // 点击 Yuki 头像进入聊天模式
+        _yukiAvatar.Click += (s, e) => EnterChatMode();
+    }
+
+    private void InitChatViews(View view)
+    {
+        _layoutChatOverlay = view.FindViewById<View>(Resource.Id.layout_chat_overlay)!;
         _chatMessages = view.FindViewById<RecyclerView>(Resource.Id.chat_messages)!;
         _chatInput = view.FindViewById<EditText>(Resource.Id.et_chat_input)!;
-        _inputLayout = view.FindViewById<View>(Resource.Id.layout_input)!;
         _sendButton = view.FindViewById<ImageButton>(Resource.Id.btn_send)!;
+        _agentAvatarHeader = view.FindViewById<ImageView>(Resource.Id.iv_agent_avatar_header)!;
+        _agentNameHeader = view.FindViewById<TextView>(Resource.Id.tv_agent_name)!;
 
+        var btnChatBack = view.FindViewById<ImageButton>(Resource.Id.btn_chat_back)!;
         var btnAiSettings = view.FindViewById<ImageButton>(Resource.Id.btn_ai_settings)!;
         var btnClearChat = view.FindViewById<ImageButton>(Resource.Id.btn_clear_chat)!;
 
         _chatAdapter = new ExploreMessageAdapter();
         _chatMessages.SetLayoutManager(new LinearLayoutManager(Context));
         _chatMessages.SetAdapter(_chatAdapter);
-
-        _agentAvatarHeader = view.FindViewById<ImageView>(Resource.Id.iv_agent_avatar_header)!;
-        _agentNameHeader = view.FindViewById<TextView>(Resource.Id.tv_agent_name)!;
-        _agentSelectorLayout = view.FindViewById<View>(Resource.Id.layout_agent_selector)!;
-
-        _agentSelectorLayout.Click += (s, e) => ShowAgentSelector();
 
         UpdateAgentHeader();
 
@@ -90,14 +211,9 @@ public class SearchFragment : Fragment
                 e.Handled = true;
             }
         };
-        _chatInput.FocusChange += (s, e) =>
-        {
-            if (e.HasFocus)
-                _chatMessages.Post(() => ScrollToBottom());
-        };
 
+        btnChatBack.Click += (s, e) => ExitChatMode();
         btnAiSettings.Click += (s, e) => _navigationService.PushFragment("AiSettings");
-
         btnClearChat.Click += (s, e) =>
         {
             _agentService.ClearConversation();
@@ -109,55 +225,106 @@ public class SearchFragment : Fragment
             _wizardModels.Clear();
             _isInWizard = false;
             _waitingForKeyInput = false;
-            ShowInputLayout();
             UpdateAgentHeader();
-            UpdateViewState();
         };
+    }
 
-        UpdateViewState();
+    private void SwitchTab(int index)
+    {
+        for (var i = 0; i < _tabRecyclerViews.Length; i++)
+        {
+            _tabRecyclerViews[i].Visibility = i == index ? ViewStates.Visible : ViewStates.Gone;
+        }
+    }
+
+    private void EnterChatMode()
+    {
+        _layoutChatOverlay.Visibility = ViewStates.Visible;
+        _layoutExploreMain.Visibility = ViewStates.Gone;
+    }
+
+    private void ExitChatMode()
+    {
+        _layoutChatOverlay.Visibility = ViewStates.Gone;
+        _layoutExploreMain.Visibility = ViewStates.Visible;
+        var imm = Context?.GetSystemService(Android.Content.Context.InputMethodService) as Android.Views.InputMethods.InputMethodManager;
+        imm?.HideSoftInputFromWindow(_chatInput.WindowToken, 0);
+    }
+
+    private async void LoadExploreData()
+    {
+        if (_exploreData == null) return;
+        try
+        {
+            // 读取来源筛选设置
+            var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
+            var sourceFilter = prefs?.GetString("source_filter_-1", "all") ?? "all";
+            _exploreData.SetSourceFilter(sourceFilter);
+
+            var dailyTask = _exploreData.GetDailyRecommendAsync();
+            var artistsTask = _exploreData.GetArtistsWithSongCountAsync();
+            var albumsTask = _exploreData.GetAlbumsWithSongCountAsync();
+            var topPlayedTask = _exploreData.GetTopPlayedSongsAsync(20);
+            var recentTask = _exploreData.GetRecentlyAddedSongsAsync(20);
+
+            await Task.WhenAll(dailyTask, artistsTask, albumsTask, topPlayedTask, recentTask);
+
+            Activity?.RunOnUiThread(() =>
+            {
+                _dailyRecommendAdapter.UpdateSongs(dailyTask.Result);
+                _artistAdapter.UpdateArtists(artistsTask.Result);
+                _albumAdapter.UpdateAlbums(albumsTask.Result);
+                _topPlayedAdapter.UpdateSongs(topPlayedTask.Result);
+                _recentAddedAdapter.UpdateSongs(recentTask.Result);
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Explore] 加载数据失败: {ex}");
+        }
     }
 
     public override void OnResume()
     {
         base.OnResume();
-        UpdateViewState();
+        // 每次回到探索页刷新数据
+        LoadExploreData();
     }
 
-    private void UpdateViewState()
+    private void ShowArtistDetail(ArtistWithCount artist)
     {
-        var view = View;
-        if (view == null) return;
-
-        var hasMessages = _chatAdapter.MessageCount > 0;
-        var notConfiguredLayout = view.FindViewById<View>(Resource.Id.layout_not_configured)!;
-
-        if (hasMessages)
-        {
-            _chatMessages.Visibility = ViewStates.Visible;
-            notConfiguredLayout.Visibility = ViewStates.Gone;
-        }
-        else
-        {
-            _chatMessages.Visibility = ViewStates.Gone;
-            notConfiguredLayout.Visibility = ViewStates.Visible;
-        }
+        _navigationService.PushFragment("ArtistDetail", new Dictionary<string, object> { ["artistName"] = artist.Name });
     }
+
+    private void ShowAlbumDetail(AlbumWithCount album)
+    {
+        _navigationService.PushFragment("AlbumDetail", new Dictionary<string, object>
+        {
+            ["albumTitle"] = album.Title,
+            ["albumArtist"] = album.ArtistName
+        });
+    }
+
+    // ═══════════ Chat 功能（保留原有逻辑）═══════════
 
     private void HideInputLayout()
     {
-        _inputLayout.Visibility = ViewStates.Gone;
+        _chatInput.Visibility = ViewStates.Gone;
+        _sendButton.Visibility = ViewStates.Gone;
         var imm = Context?.GetSystemService(Android.Content.Context.InputMethodService) as Android.Views.InputMethods.InputMethodManager;
         imm?.HideSoftInputFromWindow(_chatInput.WindowToken, 0);
     }
 
     private void ShowInputLayout()
     {
-        _inputLayout.Visibility = ViewStates.Visible;
+        _chatInput.Visibility = ViewStates.Visible;
+        _sendButton.Visibility = ViewStates.Visible;
     }
 
     private void ShowInputLayoutForKey()
     {
-        _inputLayout.Visibility = ViewStates.Visible;
+        _chatInput.Visibility = ViewStates.Visible;
+        _sendButton.Visibility = ViewStates.Visible;
         _chatInput.RequestFocus();
         var imm = Context?.GetSystemService(Android.Content.Context.InputMethodService) as Android.Views.InputMethods.InputMethodManager;
         imm?.ShowSoftInput(_chatInput, 0);
@@ -180,7 +347,6 @@ public class SearchFragment : Fragment
 
         _chatAdapter.AddMessage(new ExploreMessage { Role = "user", Content = text });
         ScrollToBottom();
-        UpdateViewState();
 
         if (TryHandleCommand(text))
             return;
@@ -247,7 +413,6 @@ public class SearchFragment : Fragment
             WizardProviders = providers
         });
         ScrollToBottom();
-        UpdateViewState();
     }
 
     private void OnWizardCancelled(int step)
@@ -705,6 +870,28 @@ public class SearchFragment : Fragment
         }
     }
 
+    private async void PlayAllDailyRecommend()
+    {
+        try
+        {
+            var songs = await _exploreData!.GetDailyRecommendAsync();
+            if (songs.Count == 0 || _audioPlayer == null || _playQueue == null) return;
+            _lastSearchResults = songs;
+            _playQueue.SetSongs(songs);
+            _playQueue.SelectSong(songs[0].Id);
+            if (!string.IsNullOrEmpty(songs[0].FilePath))
+            {
+                await _audioPlayer.PlayAsync(songs[0].FilePath);
+                _ = RecordPlayAsync(songs[0]);
+            }
+            _navigationService.PushFragment("NowPlaying");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Explore] 全部播放失败: {ex}");
+        }
+    }
+
     private async Task PlaySongAsync(Song song)
     {
         try
@@ -777,29 +964,12 @@ public class SearchFragment : Fragment
         _agentAvatarHeader.Visibility = ViewStates.Gone;
     }
 
-    private void ShowAgentSelector()
+    /// <summary>每日推荐 GridLayoutManager 的 SpanSizeLookup，让 header 占满整行</summary>
+    private class DailyRecommendSpanLookup : GridLayoutManager.SpanSizeLookup
     {
-        var agents = BuiltinAgent.All;
-        var names = agents.Select(a => a.Name).ToArray();
-        var currentId = _agentService.GetCurrentAgent().Id;
-
-        var dialog = new Android.App.AlertDialog.Builder(Context!)
-            .SetTitle("选择智能体")
-            .SetSingleChoiceItems(names, Array.FindIndex(agents, a => a.Id == currentId), (s, e) =>
-            {
-                var selected = agents[e.Which];
-                if (selected.Id != currentId)
-                {
-                    _agentService.SetCurrentAgent(selected.Id);
-                    _chatAdapter.Clear();
-                    _lastSearchResults.Clear();
-                    UpdateAgentHeader();
-                    UpdateViewState();
-                }
-                ((Android.App.AlertDialog)s).Dismiss();
-            })
-            .SetNegativeButton("取消", (s, e) => { })
-            .Create();
-        dialog.Show();
+        private readonly ExploreSongAdapter _adapter;
+        public DailyRecommendSpanLookup(ExploreSongAdapter adapter) => _adapter = adapter;
+        public override int GetSpanSize(int position)
+            => _adapter.ShowPlayAllButton && position == 0 ? 2 : 1;
     }
 }

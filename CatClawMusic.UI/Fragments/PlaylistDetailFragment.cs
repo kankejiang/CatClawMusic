@@ -100,6 +100,7 @@ public class PlaylistDetailFragment : Fragment
             _ = _viewModel.LoadAsync(_playlistId, name).ContinueWith(_ =>
             {
                 ApplySavedSort();
+                ApplySavedSourceFilter();
             });
         }
 
@@ -257,19 +258,20 @@ public class PlaylistDetailFragment : Fragment
         dialog.AddItemWithHighlight("全部音乐", _currentSourceFilter == "all", () =>
         {
             _currentSourceFilter = "all";
-            _adapter.UpdateSongs(_viewModel.Songs);
+            SaveSourceFilter("all");
+            _viewModel.ApplySourceFilter("all");
         });
         dialog.AddItemWithHighlight("仅本地音乐", _currentSourceFilter == "local", () =>
         {
             _currentSourceFilter = "local";
-            var filtered = _viewModel.Songs.Where(s => s.Source == SongSource.Local).ToList();
-            _adapter.UpdateSongs(filtered);
+            SaveSourceFilter("local");
+            _viewModel.ApplySourceFilter("local");
         });
         dialog.AddItemWithHighlight("仅网络音乐", _currentSourceFilter == "network", () =>
         {
             _currentSourceFilter = "network";
-            var filtered = _viewModel.Songs.Where(s => s.Source != SongSource.Local).ToList();
-            _adapter.UpdateSongs(filtered);
+            SaveSourceFilter("network");
+            _viewModel.ApplySourceFilter("network");
         });
 
         dialog.Show();
@@ -299,6 +301,24 @@ public class PlaylistDetailFragment : Fragment
         dialog.AddItemWithHighlight("添加时间", currentSort == "added", () => ApplySort("added", s => s.DateAdded.ToString(), false));
 
         dialog.Show();
+    }
+
+    private void ApplySavedSourceFilter()
+    {
+        if (_playlistId != -1) return;
+        var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
+        var savedFilter = prefs?.GetString($"source_filter_{_playlistId}", "all") ?? "all";
+        if (savedFilter != "all")
+        {
+            _currentSourceFilter = savedFilter;
+            _viewModel.ApplySourceFilter(savedFilter);
+        }
+    }
+
+    private void SaveSourceFilter(string filter)
+    {
+        var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
+        prefs?.Edit().PutString($"source_filter_{_playlistId}", filter).Apply();
     }
 
     private void ApplySavedSort()

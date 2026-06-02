@@ -278,11 +278,11 @@ public class AgentService : IAgentService
         {
             var ctx = global::Android.App.Application.Context;
             var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-            return prefs.GetString("current_agent_id", "default") ?? "default";
+            return prefs.GetString("current_agent_id", "yuki") ?? "yuki";
         }
         catch
         {
-            return "default";
+            return "yuki";
         }
     }
 

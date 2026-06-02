@@ -17,6 +17,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
     public BatchObservableCollection<Song> Songs { get; } = new();
 
+    /// <summary>未去重的全部歌曲列表（用于来源筛选）</summary>
+    private List<Song> _allSongsRaw = new();
+
     /// <summary>
     /// 歌单名称
     /// </summary>
@@ -64,7 +67,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
             switch (playlistId)
             {
                 case -1:
-                    songs = await _musicLibrary.GetAllSongsAsync();
+                    songs = await _musicLibrary.GetMergedSongsAsync();
                     break;
                 case -2:
                     songs = await _musicLibrary.GetFavoriteSongsAsync();
@@ -77,13 +80,12 @@ public partial class PlaylistDetailViewModel : ObservableObject
                     break;
             }
 
-            if (playlistId != -1)
-            {
-                var enabledProtocols = await GetDb().GetEnabledProtocolsAsync();
-                songs = GetDb().FilterByEnabledProtocols(songs, enabledProtocols);
-            }
+            var enabledProtocols = await GetDb().GetEnabledProtocolsAsync();
 
-            Songs.ReplaceAll(songs);
+            // 保存未去重的原始列表（用于来源筛选）
+            _allSongsRaw = GetDb().FilterByEnabledProtocols(songs, enabledProtocols);
+
+            Songs.ReplaceAll(_allSongsRaw);
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         }
         catch { StatusText = "加载失败"; }
@@ -169,5 +171,20 @@ public partial class PlaylistDetailViewModel : ObservableObject
     {
         if (_playlistId <= 0) return;
         await _musicLibrary.UpdatePlaylistOrderAsync(_playlistId, Songs.Select(s => s.Id).ToList());
+    }
+
+    /// <summary>
+    /// 按来源筛选歌曲并更新 Songs 集合
+    /// </summary>
+    public void ApplySourceFilter(string filter)
+    {
+        var filtered = filter switch
+        {
+            "local" => _allSongsRaw.Where(s => s.Source == SongSource.Local).ToList(),
+            "network" => _allSongsRaw.Where(s => s.Source != SongSource.Local).ToList(),
+            _ => _allSongsRaw.ToList()
+        };
+        Songs.ReplaceAll(filtered);
+        StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
     }
 }

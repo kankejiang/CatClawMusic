@@ -29,7 +29,7 @@ public class ExploreMessage
 public class ExploreMessageAdapter : RecyclerView.Adapter
 {
     private readonly List<ExploreMessage> _messages = new();
-    private BuiltinAgent _currentAgent = BuiltinAgent.Default;
+    private BuiltinAgent _currentAgent = BuiltinAgent.Yuki;
     public event EventHandler<Song>? OnSongPlay;
     public event EventHandler<int>? OnWizardCancel;
     public event EventHandler<int>? OnWizardNext;
