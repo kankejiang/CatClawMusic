@@ -356,8 +356,14 @@ public class SongAdapter : RecyclerView.Adapter
     /// <param name="position">被点击歌曲的位置</param>
     private void OnSongClick(int position)
     {
-        if (position >= 0 && position < _songs.Count)
-            SongClicked?.Invoke(this, _songs[position]);
+        if (position < 0 || position >= _songs.Count) return;
+        if (_multiSelectMode)
+        {
+            ToggleSelection(_songs[position].Id);
+            NotifyItemChanged(position);
+            return;
+        }
+        SongClicked?.Invoke(this, _songs[position]);
     }
 
     /// <summary>
@@ -629,15 +635,12 @@ public class SongAdapter : RecyclerView.Adapter
 
             if (adapter._multiSelectMode)
             {
+                bool selected = adapter._selectedSongIds.Contains(song.Id);
                 _checkbox.Visibility = ViewStates.Visible;
-                _checkbox.Checked = adapter._selectedSongIds.Contains(song.Id);
-                _checkbox.Click -= _checkboxClickHandler;
-                _checkboxClickHandler = (s, e) =>
-                {
-                    adapter.ToggleSelection(song.Id);
-                    _checkbox.Checked = adapter._selectedSongIds.Contains(song.Id);
-                };
-                _checkbox.Click += _checkboxClickHandler;
+                _checkbox.Clickable = false;
+                _checkbox.SetBackgroundResource(selected
+                    ? Resource.Drawable.ic_check_box
+                    : Resource.Drawable.ic_check_box_outline);
             }
             else
             {

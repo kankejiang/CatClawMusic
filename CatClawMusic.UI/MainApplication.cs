@@ -166,6 +166,15 @@ public class MainApplication : Application
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.DeletePlaylistTool>();
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.PlaySongTool>();
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.WebSearchTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.ControlPlaybackTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetCurrentSongTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetPlayQueueTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.ToggleFavoriteTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetFavoriteSongsTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetRecentSongsTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetListeningStatsTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.AddToPlayQueueTool>();
+        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.ClearPlayQueueTool>();
         services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentService, CatClawMusic.UI.Services.AI.AgentService>();
 
         // ViewModels
@@ -173,7 +182,7 @@ public class MainApplication : Application
         services.AddSingleton<NowPlayingViewModel>();    // 单例——迷你播放器和全屏播放器共享状态
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<SearchViewModel>();
-        services.AddTransient<PlaylistViewModel>();
+        services.AddSingleton<PlaylistViewModel>();
         services.AddTransient<WebDavSettingsViewModel>();
         services.AddTransient<NavidromeSettingsViewModel>();
         services.AddTransient<SmbSettingsViewModel>();

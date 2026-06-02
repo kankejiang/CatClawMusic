@@ -15,12 +15,24 @@
             android:scaleType="centerInside"
             android:padding="6dp"
             android:contentDescription="设置" />
-        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+        <LinearLayout android:id="@+id/layout_agent_selector"
+            android:layout_width="0dp" android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="探索" android:textSize="18sp"
-            android:textColor="?attr/catClawTextPrimary"
-            android:fontFamily="@font/happy_zcool_2016"
-            android:gravity="center" />
+            android:orientation="horizontal" android:gravity="center"
+            android:clickable="true" android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:paddingVertical="4dp">
+            <ImageView android:id="@+id/iv_agent_avatar_header"
+                android:layout_width="24dp" android:layout_height="24dp"
+                android:layout_marginEnd="6dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+            <TextView android:id="@+id/tv_agent_name"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="探索" android:textSize="18sp"
+                android:textColor="?attr/catClawTextPrimary"
+                android:fontFamily="@font/happy_zcool_2016" />
+        </LinearLayout>
         <ImageButton android:id="@+id/btn_clear_chat"
             android:layout_width="36dp" android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"

@@ -745,13 +745,35 @@ public partial class NowPlayingViewModel : ObservableObject
     private async Task RecordPlayAsync()
     {
         if (_database == null || CurrentSong == null) return;
-        try { await _database.EnsureInitializedAsync(); await _database.RecordPlayAsync(CurrentSong.Id); } catch { }
+        try
+        {
+            await _database.EnsureInitializedAsync();
+            await _database.RecordPlayAsync(CurrentSong.Id);
+            var playlistVm = MainApplication.Services.GetService(typeof(PlaylistViewModel)) as PlaylistViewModel;
+            if (playlistVm != null)
+            {
+                playlistVm.MarkDirty();
+                _ = playlistVm.RefreshSystemPlaylistCountsAsync();
+            }
+        }
+        catch { }
     }
 
     private async Task SaveFavoriteAsync()
     {
         if (_database == null || CurrentSong == null) return;
-        try { await _database.EnsureInitializedAsync(); await _database.SetFavoriteAsync(CurrentSong.Id, IsLiked); } catch { }
+        try
+        {
+            await _database.EnsureInitializedAsync();
+            await _database.SetFavoriteAsync(CurrentSong.Id, IsLiked);
+            var playlistVm = MainApplication.Services.GetService(typeof(PlaylistViewModel)) as PlaylistViewModel;
+            if (playlistVm != null)
+            {
+                playlistVm.MarkDirty();
+                _ = playlistVm.RefreshSystemPlaylistCountsAsync();
+            }
+        }
+        catch { }
     }
 
     /// <summary>切换歌曲时从数据库同步收藏状态，避免上一首歌的♥状态残留</summary>

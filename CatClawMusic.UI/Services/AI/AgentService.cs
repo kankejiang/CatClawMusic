@@ -13,21 +13,9 @@ public class AgentService : IAgentService
     private readonly ILogService _logService;
     private readonly IMusicLibraryService? _musicLibrary;
 
-    private const string SystemPrompt = @"你是猫爪音乐的 AI 助手，可以帮助用户管理音乐库和播放音乐。你可以：
-1. 搜索音乐库中的歌曲
-2. 创建、查看、删除播放列表（歌单）
-3. 将歌曲添加到歌单或从歌单移除
-4. 播放指定歌曲
-5. 当用户询问需要网络信息的问题时（如：最新音乐资讯、艺术家介绍、歌曲背景等），使用网络搜索工具获取信息
+    private string _currentAgentId = LoadCurrentAgentId();
 
-请用中文回复用户。当用户请求涉及音乐操作时，请使用提供的工具来完成。回复要简洁友好。
-
-重要规则：
-- 创建歌单前不需要确认，直接创建
-- 添加歌曲到歌单时，先搜索歌曲获取 ID，再添加
-- 如果用户说""帮我创建一个XX歌单""，直接调用创建歌单工具
-- 如果用户说""把XX添加到歌单""，先搜索歌曲，再添加到歌单
-- 当用户询问需要网络信息的问题时，主动使用 web_search 工具搜索";
+    private string CurrentSystemPrompt => BuiltinAgent.GetById(_currentAgentId).SystemPrompt;
 
     private static readonly LlmProviderInfo[] Providers = new[]
     {
@@ -174,7 +162,7 @@ public class AgentService : IAgentService
     {
         if (_conversationHistory.Count == 0)
         {
-            _conversationHistory.Add(new ChatMessage { Role = "system", Content = SystemPrompt });
+            _conversationHistory.Add(new ChatMessage { Role = "system", Content = CurrentSystemPrompt });
         }
 
         _conversationHistory.Add(new ChatMessage { Role = "user", Content = userMessage });
@@ -271,4 +259,34 @@ public class AgentService : IAgentService
     }
 
     public List<ChatMessage> GetConversationHistory() => _conversationHistory.ToList();
+
+    public BuiltinAgent GetCurrentAgent() => BuiltinAgent.GetById(_currentAgentId);
+
+    public void SetCurrentAgent(string agentId)
+    {
+        _currentAgentId = agentId;
+        SaveCurrentAgentId(agentId);
+        _conversationHistory.Clear();
+    }
+
+    public static string LoadCurrentAgentId()
+    {
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
+            return prefs.GetString("current_agent_id", "default") ?? "default";
+        }
+        catch
+        {
+            return "default";
+        }
+    }
+
+    public static void SaveCurrentAgentId(string agentId)
+    {
+        var ctx = global::Android.App.Application.Context;
+        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
+        prefs.Edit().PutString("current_agent_id", agentId).Apply();
+    }
 }

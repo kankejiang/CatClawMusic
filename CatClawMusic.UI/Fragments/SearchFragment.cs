@@ -29,6 +29,9 @@ public class SearchFragment : Fragment
     private ImageButton _sendButton = null!;
     private ExploreMessageAdapter _chatAdapter = null!;
     private List<Song> _lastSearchResults = new();
+    private ImageView _agentAvatarHeader = null!;
+    private TextView _agentNameHeader = null!;
+    private View _agentSelectorLayout = null!;
 
     private string? _wizardProviderId;
     private string? _wizardApiKey;
@@ -61,6 +64,14 @@ public class SearchFragment : Fragment
         _chatAdapter = new ExploreMessageAdapter();
         _chatMessages.SetLayoutManager(new LinearLayoutManager(Context));
         _chatMessages.SetAdapter(_chatAdapter);
+
+        _agentAvatarHeader = view.FindViewById<ImageView>(Resource.Id.iv_agent_avatar_header)!;
+        _agentNameHeader = view.FindViewById<TextView>(Resource.Id.tv_agent_name)!;
+        _agentSelectorLayout = view.FindViewById<View>(Resource.Id.layout_agent_selector)!;
+
+        _agentSelectorLayout.Click += (s, e) => ShowAgentSelector();
+
+        UpdateAgentHeader();
 
         _chatAdapter.OnSongPlay += async (s, song) => await PlaySongAsync(song);
         _chatAdapter.OnWizardCancel += (s, step) => OnWizardCancelled(step);
@@ -96,6 +107,7 @@ public class SearchFragment : Fragment
             _isInWizard = false;
             _waitingForKeyInput = false;
             ShowInputLayout();
+            UpdateAgentHeader();
             UpdateViewState();
         };
 
@@ -700,5 +712,51 @@ public class SearchFragment : Fragment
     {
         if (_chatAdapter.MessageCount > 0)
             _chatMessages.SmoothScrollToPosition(_chatAdapter.MessageCount - 1);
+    }
+
+    private void UpdateAgentHeader()
+    {
+        var agent = _agentService.GetCurrentAgent();
+        _agentNameHeader.Text = agent.Name;
+        _chatAdapter.CurrentAgent = agent;
+
+        if (!string.IsNullOrEmpty(agent.AvatarDrawableName))
+        {
+            var ctx = Context!;
+            var resId = ctx.Resources?.GetIdentifier(agent.AvatarDrawableName, "drawable", ctx.PackageName) ?? 0;
+            if (resId != 0)
+            {
+                _agentAvatarHeader.SetImageResource(resId);
+                _agentAvatarHeader.Visibility = ViewStates.Visible;
+                return;
+            }
+        }
+        _agentAvatarHeader.Visibility = ViewStates.Gone;
+    }
+
+    private void ShowAgentSelector()
+    {
+        var agents = BuiltinAgent.All;
+        var names = agents.Select(a => a.Name).ToArray();
+        var currentId = _agentService.GetCurrentAgent().Id;
+
+        var dialog = new Android.App.AlertDialog.Builder(Context!)
+            .SetTitle("选择智能体")
+            .SetSingleChoiceItems(names, Array.FindIndex(agents, a => a.Id == currentId), (s, e) =>
+            {
+                var selected = agents[e.Which];
+                if (selected.Id != currentId)
+                {
+                    _agentService.SetCurrentAgent(selected.Id);
+                    _chatAdapter.Clear();
+                    _lastSearchResults.Clear();
+                    UpdateAgentHeader();
+                    UpdateViewState();
+                }
+                ((Android.App.AlertDialog)s).Dismiss();
+            })
+            .SetNegativeButton("取消", (s, e) => { })
+            .Create();
+        dialog.Show();
     }
 }

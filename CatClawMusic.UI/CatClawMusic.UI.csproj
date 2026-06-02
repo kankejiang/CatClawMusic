@@ -65,18 +65,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0" />
-    <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.10.0" />
-    <PackageReference Include="Xamarin.AndroidX.Media3.Datasource" Version="1.10.0" />
-    <PackageReference Include="Xamarin.AndroidX.Media" Version="1.7.0" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0.10" />
+    <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.10.1" />
+    <PackageReference Include="Xamarin.AndroidX.Media3.Datasource" Version="1.10.1" />
+    <PackageReference Include="Xamarin.AndroidX.Media" Version="1.8.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
     <!-- Material 1.12.0 自带 AppCompat/CardView/RecyclerView，不要重复引用 -->
-    <PackageReference Include="Xamarin.AndroidX.Fragment" Version="1.8.4" />
-    <PackageReference Include="Xamarin.AndroidX.ConstraintLayout" Version="2.2.0" />
-    <PackageReference Include="Xamarin.Google.Android.Material" Version="1.12.0" />
-    <PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData.Core" Version="2.8.7" />
-    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Process" Version="2.8.7" />
-    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Common" Version="2.8.7" />
+    <PackageReference Include="Xamarin.AndroidX.Fragment" Version="1.8.9.2" />
+    <PackageReference Include="Xamarin.AndroidX.ConstraintLayout" Version="2.2.1.5" />
+    <PackageReference Include="Xamarin.Google.Android.Material" Version="1.14.0" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData.Core" Version="2.10.0.2" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Process" Version="2.10.0.2" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Common" Version="2.10.0.2" />
   </ItemGroup>
 </Project>
