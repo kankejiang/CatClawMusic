@@ -2,7 +2,7 @@ using Android.OS;
 using Android.Views;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.UI.Adapters;
-using CatClawMusic.UI.Services.AI;
+using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 

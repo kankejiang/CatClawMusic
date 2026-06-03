@@ -1,7 +1,7 @@
 using Android.OS;
 using Android.Views;
 using Android.Widget;
-using CatClawMusic.UI.Services.AI;
+using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using System.Text.Json;

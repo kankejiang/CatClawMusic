@@ -112,7 +112,7 @@ public static class CoverColorExtractor
         try
         {
             /* 优先使用 C++ 原生库取色（性能更优，避免 GetPixel JNI 开销） */
-            var nativeResult = NativeInterop.ExtractColorsFromBitmap(bitmap);
+            var nativeResult = NativeInteropAndroid.ExtractColorsFromBitmap(bitmap);
             if (nativeResult != null && nativeResult.Count > 0)
                 return nativeResult;
 

@@ -7,6 +7,7 @@ using Android.Widget;
 using System.Linq;
 using Android.Util;
 using Android.OS;
+using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Services;
 
 namespace CatClawMusic.UI.Helpers;

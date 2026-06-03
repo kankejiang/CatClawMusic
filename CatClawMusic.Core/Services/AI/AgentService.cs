@@ -1,9 +1,9 @@
 using System.Text.Json;
-using Android.Content;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
 
-namespace CatClawMusic.UI.Services.AI;
+namespace CatClawMusic.Core.Services.AI;
 
 public class AgentService : IAgentService
 {
@@ -13,21 +13,21 @@ public class AgentService : IAgentService
     private readonly ILogService _logService;
     private readonly IMusicLibraryService? _musicLibrary;
 
-    private string _currentAgentId = LoadCurrentAgentId();
+    private string _currentAgentId;
 
     private string CurrentSystemPrompt => BuiltinAgent.GetById(_currentAgentId).SystemPrompt;
 
-    private static readonly LlmProviderInfo[] Providers = new[]
+    /// <summary>静态配置存储实例，在 DI 初始化时设置</summary>
+    private static IAgentConfigStorage? _staticConfigStorage;
+
+    /// <summary>初始化静态配置存储（由 DI 容器在启动时调用）</summary>
+    public static void Initialize(IAgentConfigStorage configStorage)
     {
-        new LlmProviderInfo { Id = "deepseek", Name = "DeepSeek", DefaultApiUrl = "https://api.deepseek.com/v1", DefaultModel = "", PresetModels = new[] { "deepseek-chat", "deepseek-reasoner" } },
-        new LlmProviderInfo { Id = "modelscope", Name = "魔搭社区", DefaultApiUrl = "https://api-inference.modelscope.cn/v1", DefaultModel = "", PresetModels = new[] { "Qwen/Qwen3.5-35B-A3B", "Qwen/Qwen3-235B-A22B", "Qwen/Qwen2.5-Coder-32B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1" } },
-        new LlmProviderInfo { Id = "llamacpp", Name = "llama.cpp (本地)", DefaultApiUrl = "http://127.0.0.1:8080/v1", DefaultModel = "" },
-        new LlmProviderInfo { Id = "zhipu", Name = "智谱 AI", DefaultApiUrl = "https://open.bigmodel.cn/api/paas/v1", DefaultModel = "", PresetModels = new[] { "glm-4-flash", "glm-4-plus", "glm-4-air", "glm-4-long", "glm-4" } },
-        new LlmProviderInfo { Id = "moonshot", Name = "Moonshot (Kimi)", DefaultApiUrl = "https://api.moonshot.cn/v1", DefaultModel = "", PresetModels = new[] { "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k" } },
-        new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "", PresetModels = new[] { "qwen-turbo", "qwen-plus", "qwen-max", "qwen-long" } },
-        new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "", PresetModels = new[] { "generalv3.5", "generalv3", "4.0Ultra" } },
-        new LlmProviderInfo { Id = "custom", Name = "自定义 (OpenAI 兼容)", DefaultApiUrl = "", DefaultModel = "" },
-    };
+        _staticConfigStorage = configStorage;
+    }
+
+    private static IAgentConfigStorage ConfigStorage =>
+        _staticConfigStorage ?? throw new InvalidOperationException("AgentService 未初始化，请先调用 AgentService.Initialize()");
 
     public bool IsConfigured
     {
@@ -44,17 +44,16 @@ public class AgentService : IAgentService
         _tools = tools;
         _logService = logService;
         _musicLibrary = musicLibrary;
+        _currentAgentId = LoadCurrentAgentId();
     }
 
-    public static LlmProviderInfo[] GetProviders() => Providers;
+    public static LlmProviderInfo[] GetProviders() => LlmProviderInfo.GetAll();
 
     public static List<LlmConfig> LoadAllConfigs()
     {
         try
         {
-            var ctx = global::Android.App.Application.Context;
-            var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-            var json = prefs.GetString("all_configs", "[]") ?? "[]";
+            var json = ConfigStorage.GetString("all_configs", "[]") ?? "[]";
             var configs = JsonSerializer.Deserialize<List<LlmConfig>>(json) ?? new List<LlmConfig>();
             return configs;
         }
@@ -66,35 +65,31 @@ public class AgentService : IAgentService
 
     public static void SaveAllConfigs(List<LlmConfig> configs)
     {
-        var ctx = global::Android.App.Application.Context;
-        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
         var json = JsonSerializer.Serialize(configs);
-        prefs.Edit().PutString("all_configs", json).Apply();
+        ConfigStorage.SetString("all_configs", json);
     }
 
     public static LlmConfig LoadConfig()
     {
         try
         {
-            var ctx = global::Android.App.Application.Context;
-            var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-            var currentName = prefs.GetString("current_config_name", "默认配置") ?? "默认配置";
+            var currentName = ConfigStorage.GetString("current_config_name", "默认配置") ?? "默认配置";
             var allConfigs = LoadAllConfigs();
             var config = allConfigs.FirstOrDefault(c => c.Name == currentName);
-            
+
             if (config != null)
                 return config;
-            
+
             return new LlmConfig
             {
                 Name = currentName,
-                Provider = prefs.GetString("provider", "deepseek") ?? "deepseek",
-                ApiUrl = prefs.GetString("api_url", "https://api.deepseek.com/v1") ?? "",
-                ApiKey = prefs.GetString("api_key", "") ?? "",
-                Model = prefs.GetString("model", "deepseek-chat") ?? "deepseek-chat",
-                Temperature = (double)(prefs.GetFloat("temperature", 0.7f)),
-                MaxTokens = prefs.GetInt("max_tokens", 2048),
-                Enabled = prefs.GetBoolean("enabled", false)
+                Provider = ConfigStorage.GetString("provider", "deepseek") ?? "deepseek",
+                ApiUrl = ConfigStorage.GetString("api_url", "https://api.deepseek.com/v1") ?? "",
+                ApiKey = ConfigStorage.GetString("api_key", "") ?? "",
+                Model = ConfigStorage.GetString("model", "deepseek-chat") ?? "deepseek-chat",
+                Temperature = (double)ConfigStorage.GetFloat("temperature", 0.7f),
+                MaxTokens = ConfigStorage.GetInt("max_tokens", 2048),
+                Enabled = ConfigStorage.GetBool("enabled", false)
             };
         }
         catch
@@ -107,7 +102,7 @@ public class AgentService : IAgentService
     {
         var allConfigs = LoadAllConfigs();
         var existingIndex = allConfigs.FindIndex(c => c.Name == config.Name);
-        
+
         if (existingIndex >= 0)
         {
             allConfigs[existingIndex] = config;
@@ -116,21 +111,17 @@ public class AgentService : IAgentService
         {
             allConfigs.Add(config);
         }
-        
+
         SaveAllConfigs(allConfigs);
-        
-        var ctx = global::Android.App.Application.Context;
-        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-        prefs.Edit()
-            .PutString("current_config_name", config.Name)
-            .PutString("provider", config.Provider)
-            .PutString("api_url", config.ApiUrl)
-            .PutString("api_key", config.ApiKey)
-            .PutString("model", config.Model)
-            .PutFloat("temperature", (float)config.Temperature)
-            .PutInt("max_tokens", config.MaxTokens)
-            .PutBoolean("enabled", config.Enabled)
-            .Apply();
+
+        ConfigStorage.SetString("current_config_name", config.Name);
+        ConfigStorage.SetString("provider", config.Provider);
+        ConfigStorage.SetString("api_url", config.ApiUrl);
+        ConfigStorage.SetString("api_key", config.ApiKey);
+        ConfigStorage.SetString("model", config.Model);
+        ConfigStorage.SetFloat("temperature", (float)config.Temperature);
+        ConfigStorage.SetInt("max_tokens", config.MaxTokens);
+        ConfigStorage.SetBool("enabled", config.Enabled);
     }
 
     public static void DeleteConfig(string configName)
@@ -146,16 +137,12 @@ public class AgentService : IAgentService
 
     public static string GetCurrentConfigName()
     {
-        var ctx = global::Android.App.Application.Context;
-        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-        return prefs.GetString("current_config_name", "默认配置") ?? "默认配置";
+        return ConfigStorage.GetString("current_config_name", "默认配置") ?? "默认配置";
     }
 
     public static void SetCurrentConfigName(string name)
     {
-        var ctx = global::Android.App.Application.Context;
-        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-        prefs.Edit().PutString("current_config_name", name).Apply();
+        ConfigStorage.SetString("current_config_name", name);
     }
 
     public async Task<ChatMessage> SendMessageAsync(string userMessage, Action<ChatMessage>? onPartialMessage = null, CancellationToken ct = default)
@@ -207,7 +194,7 @@ public class AgentService : IAgentService
             foreach (var toolCall in response.ToolCalls)
             {
                 string toolResult;
-                List<Core.Models.Song>? songs = null;
+                List<Song>? songs = null;
                 if (toolMap.TryGetValue(toolCall.Function.Name, out var tool))
                 {
                     try
@@ -276,9 +263,7 @@ public class AgentService : IAgentService
     {
         try
         {
-            var ctx = global::Android.App.Application.Context;
-            var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-            return prefs.GetString("current_agent_id", "yuki") ?? "yuki";
+            return ConfigStorage.GetString("current_agent_id", "yuki") ?? "yuki";
         }
         catch
         {
@@ -288,9 +273,7 @@ public class AgentService : IAgentService
 
     public static void SaveCurrentAgentId(string agentId)
     {
-        var ctx = global::Android.App.Application.Context;
-        var prefs = ctx.GetSharedPreferences("catclaw_ai", FileCreationMode.Private);
-        prefs.Edit().PutString("current_agent_id", agentId).Apply();
+        ConfigStorage.SetString("current_agent_id", agentId);
     }
 
     private static string Truncate(string s, int maxLen) =>

@@ -1,9 +1,7 @@
-using Android.App;
 using CatClawMusic.Core.Models;
-using CatClawMusic.Data;
 using System.Text.Json;
 
-namespace CatClawMusic.UI.Services;
+namespace CatClawMusic.Data;
 
 /// <summary>
 /// 网易云音乐元数据刮削服务，用于获取艺术家头像
@@ -31,12 +29,12 @@ public class NetEaseMusicScraper
         public string? CoverUrl { get; set; }
     }
 
-    public NetEaseMusicScraper(MusicDatabase db)
+    public NetEaseMusicScraper(MusicDatabase db, string artistCoverCacheDir, string albumCoverCacheDir)
     {
         _db = db;
-        _artistCoverCacheDir = Path.Combine(Application.Context.CacheDir!.AbsolutePath, "artist_covers");
+        _artistCoverCacheDir = artistCoverCacheDir;
         Directory.CreateDirectory(_artistCoverCacheDir);
-        _albumCoverCacheDir = Path.Combine(Application.Context.CacheDir!.AbsolutePath, "album_covers");
+        _albumCoverCacheDir = albumCoverCacheDir;
         Directory.CreateDirectory(_albumCoverCacheDir);
 
         _httpClient = new HttpClient

@@ -3,15 +3,14 @@ using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.UI.Adapters;
-using CatClawMusic.UI.Services;
-using CatClawMusic.UI.Services.AI;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Core.Services.AI;
 using CatClawMusic.Data;
 using CatClawMusic.UI.ViewModels;
 using Google.Android.Material.Tabs;
-using IAgentService = CatClawMusic.UI.Services.AI.IAgentService;
+using IAgentService = CatClawMusic.Core.Interfaces.IAgentService;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
@@ -83,8 +82,8 @@ public class SearchFragment : Fragment
         var library = MainApplication.Services.GetService<IMusicLibraryService>() as MusicLibraryService;
         if (db != null)
         {
-            _exploreData = new ExploreDataService(db, library!);
-            _scraper = new NetEaseMusicScraper(db);
+            _exploreData = MainApplication.Services.GetService<ExploreDataService>();
+            _scraper = MainApplication.Services.GetService<NetEaseMusicScraper>();
         }
 
         InitExploreViews(view);

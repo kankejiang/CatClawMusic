@@ -146,6 +146,23 @@ public class MainApplication : Application
         services.AddSingleton<IPermissionService, PermissionService>();
         services.AddSingleton<PlayQueue>();
 
+        // Data services (with Android cache directory injection)
+        services.AddSingleton<ExploreDataService>(sp =>
+        {
+            var db = sp.GetRequiredService<MusicDatabase>();
+            var library = sp.GetRequiredService<MusicLibraryService>();
+            var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
+            return new ExploreDataService(db, library, cacheDir);
+        });
+        services.AddSingleton<NetEaseMusicScraper>(sp =>
+        {
+            var db = sp.GetRequiredService<MusicDatabase>();
+            var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
+            return new NetEaseMusicScraper(db,
+                Path.Combine(cacheDir, "artist_covers"),
+                Path.Combine(cacheDir, "album_covers"));
+        });
+
         // Android platform services
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<INavigationService, NavigationService>();
@@ -154,28 +171,34 @@ public class MainApplication : Application
         services.AddSingleton<ILogService, LogService>();
 
         // AI Agent services
-        services.AddSingleton<CatClawMusic.UI.Services.AI.ILlmClient>(sp =>
-            new CatClawMusic.UI.Services.AI.OpenAiCompatibleLlmClient(
-                () => CatClawMusic.UI.Services.AI.AgentService.LoadConfig()));
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.SearchMusicTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.CreatePlaylistTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.AddSongToPlaylistTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.RemoveSongFromPlaylistTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.ListPlaylistsTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetPlaylistSongsTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.DeletePlaylistTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.PlaySongTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.WebSearchTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.ControlPlaybackTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetCurrentSongTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetPlayQueueTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.ToggleFavoriteTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetFavoriteSongsTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetRecentSongsTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.GetListeningStatsTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.AddToPlayQueueTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentTool, CatClawMusic.UI.Services.AI.ClearPlayQueueTool>();
-        services.AddSingleton<CatClawMusic.UI.Services.AI.IAgentService, CatClawMusic.UI.Services.AI.AgentService>();
+        var agentConfigStorage = new AgentConfigStorage();
+        CatClawMusic.Core.Services.AI.AgentService.Initialize(agentConfigStorage);
+
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentConfigStorage>(agentConfigStorage);
+        services.AddSingleton<CatClawMusic.Core.Interfaces.ILlmClient>(sp =>
+            new CatClawMusic.Core.Services.AI.OpenAiCompatibleLlmClient(
+                () => CatClawMusic.Core.Services.AI.AgentService.LoadConfig()));
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.SearchMusicTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.CreatePlaylistTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.AddSongToPlaylistTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.RemoveSongFromPlaylistTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.ListPlaylistsTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.GetPlaylistSongsTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.DeletePlaylistTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.PlaySongTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.WebSearchTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.ControlPlaybackTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.GetCurrentSongTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.GetPlayQueueTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool>(sp =>
+            new CatClawMusic.Core.Services.AI.ToggleFavoriteTool((songId, isFav) =>
+                sp.GetRequiredService<MusicDatabase>().SetFavoriteAsync(songId, isFav)));
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.GetFavoriteSongsTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.GetRecentSongsTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.GetListeningStatsTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.AddToPlayQueueTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.ClearPlayQueueTool>();
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentService, CatClawMusic.Core.Services.AI.AgentService>();
 
         // ViewModels
         services.AddSingleton<LibraryViewModel>();       // 单例——Fragment 重建时不丢缓存

@@ -1,7 +1,6 @@
 using CatClawMusic.Core.Models;
-using CatClawMusic.Data;
 
-namespace CatClawMusic.UI.Services;
+namespace CatClawMusic.Data;
 
 /// <summary>
 /// 探索页面数据服务，封装每日推荐、艺术家、专辑、最多播放、最新音乐等查询
@@ -10,6 +9,7 @@ public class ExploreDataService
 {
     private readonly MusicDatabase _db;
     private readonly MusicLibraryService _library;
+    private readonly string _cacheFilePath;
 
     /// <summary>每日推荐缓存：Key 为日期字符串 "yyyy-MM-dd"，Value 为歌曲列表</summary>
     private string? _dailyRecommendDate;
@@ -18,10 +18,11 @@ public class ExploreDataService
     /// <summary>来源筛选：all, local, network</summary>
     private string _sourceFilter = "all";
 
-    public ExploreDataService(MusicDatabase db, MusicLibraryService library)
+    public ExploreDataService(MusicDatabase db, MusicLibraryService library, string cacheDir)
     {
         _db = db;
         _library = library;
+        _cacheFilePath = Path.Combine(cacheDir, "daily_recommend.json");
     }
 
     /// <summary>设置来源筛选</summary>
@@ -79,20 +80,14 @@ public class ExploreDataService
     {
         try
         {
-            var prefs = Android.App.Application.Context.GetSharedPreferences("explore_cache", Android.Content.FileCreationMode.Private);
-            var cachedDate = prefs.GetString("daily_date", "");
-            if (cachedDate != date) return null;
-
-            var idStr = prefs.GetString("daily_ids", "");
-            if (string.IsNullOrEmpty(idStr)) return null;
-
-            var ids = idStr.Split(',').Select(int.Parse).ToHashSet();
+            if (!File.Exists(_cacheFilePath)) return null;
+            var json = File.ReadAllText(_cacheFilePath);
+            var cache = System.Text.Json.JsonSerializer.Deserialize<DailyRecommendCache>(json);
+            if (cache?.Date != date) return null;
             var allSongs = _db.GetSongsAsync().GetAwaiter().GetResult();
             var filtered = ApplySourceFilter(allSongs);
-
-            // 按缓存顺序返回
             var result = new List<Song>();
-            foreach (var id in ids)
+            foreach (var id in cache.Ids)
             {
                 var song = filtered.FirstOrDefault(s => s.Id == id);
                 if (song != null) result.Add(song);
@@ -107,12 +102,13 @@ public class ExploreDataService
     {
         try
         {
-            var prefs = Android.App.Application.Context.GetSharedPreferences("explore_cache", Android.Content.FileCreationMode.Private);
-            var idStr = string.Join(",", songs.Select(s => s.Id));
-            prefs.Edit()
-                .PutString("daily_date", date)
-                .PutString("daily_ids", idStr)
-                .Apply();
+            var cache = new DailyRecommendCache
+            {
+                Date = date,
+                Ids = songs.Select(s => s.Id).ToList()
+            };
+            var json = System.Text.Json.JsonSerializer.Serialize(cache);
+            File.WriteAllText(_cacheFilePath, json);
         }
         catch { }
     }
@@ -228,6 +224,12 @@ public class ExploreDataService
             }
         }
         catch { }
+    }
+
+    private class DailyRecommendCache
+    {
+        public string Date { get; set; } = "";
+        public List<int> Ids { get; set; } = new();
     }
 }
 

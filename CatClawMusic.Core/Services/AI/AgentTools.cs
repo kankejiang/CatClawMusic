@@ -2,9 +2,8 @@ using System.Text.Json;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
-using CatClawMusic.Data;
 
-namespace CatClawMusic.UI.Services.AI;
+namespace CatClawMusic.Core.Services.AI;
 
 public class SearchMusicTool : IAgentTool
 {
@@ -346,8 +345,8 @@ public class WebSearchTool : IAgentTool
     {
         var query = NativeInterop.AiExtractStringArg(arguments, "query")
             ?? ArgHelper.ExtractStringArgFallback(arguments, "query");
-        
-        if (string.IsNullOrWhiteSpace(query)) 
+
+        if (string.IsNullOrWhiteSpace(query))
             return JsonSerializer.Serialize(new { error = "请提供搜索关键词" });
 
         try
@@ -357,14 +356,14 @@ public class WebSearchTool : IAgentTool
             var response = await _httpClient.GetAsync(searchUrl);
             response.EnsureSuccessStatusCode();
             var html = await response.Content.ReadAsStringAsync();
-            
+
             // 简单解析搜索结果（截取一些内容）
             var results = ExtractSearchResults(html, query);
-            
-            return JsonSerializer.Serialize(new 
-            { 
-                success = true, 
-                query = query, 
+
+            return JsonSerializer.Serialize(new
+            {
+                success = true,
+                query = query,
                 results = results,
                 message = "搜索完成，已找到相关信息"
             });
@@ -378,7 +377,7 @@ public class WebSearchTool : IAgentTool
     private List<object> ExtractSearchResults(string html, string query)
     {
         var results = new List<object>();
-        
+
         // 简单的 HTML 解析，提取搜索结果
         // 注意：这只是一个基础实现，实际项目中建议使用 HTML 解析库
         try
@@ -388,11 +387,11 @@ public class WebSearchTool : IAgentTool
             var currentTitle = "";
             var currentUrl = "";
             var currentSnippet = "";
-            
+
             foreach (var line in lines)
             {
                 if (resultCount >= 5) break;
-                
+
                 if (line.Contains("class=\"result__a\""))
                 {
                     // 提取 URL
@@ -403,7 +402,7 @@ public class WebSearchTool : IAgentTool
                         // 清理 URL
                         if (currentUrl.StartsWith("//")) currentUrl = "https:" + currentUrl;
                     }
-                    
+
                     // 提取标题
                     var titleMatch = System.Text.RegularExpressions.Regex.Match(line, ">([^<]+)</a>");
                     if (titleMatch.Success)
@@ -427,7 +426,7 @@ public class WebSearchTool : IAgentTool
                             currentSnippet = simpleMatch.Groups[1].Value.Trim();
                         }
                     }
-                    
+
                     if (!string.IsNullOrEmpty(currentTitle) && !string.IsNullOrEmpty(currentUrl))
                     {
                         results.Add(new
@@ -437,14 +436,14 @@ public class WebSearchTool : IAgentTool
                             snippet = currentSnippet
                         });
                         resultCount++;
-                        
+
                         currentTitle = "";
                         currentUrl = "";
                         currentSnippet = "";
                     }
                 }
             }
-            
+
             // 如果没有找到结果，返回简单的提示
             if (results.Count == 0)
             {
@@ -465,7 +464,7 @@ public class WebSearchTool : IAgentTool
                 snippet = $"已尝试搜索「{query}」，网络搜索功能可用，但解析网页内容时遇到限制"
             });
         }
-        
+
         return results;
     }
 }
@@ -652,11 +651,14 @@ public class GetPlayQueueTool : IAgentTool
 
 public class ToggleFavoriteTool : IAgentTool
 {
-    private readonly MusicDatabase _database;
+    private readonly Func<int, bool, Task> _toggleFavorite;
     public string Name => "toggle_favorite";
     public string Description => "收藏或取消收藏一首歌曲";
 
-    public ToggleFavoriteTool(MusicDatabase database) => _database = database;
+    public ToggleFavoriteTool(Func<int, bool, Task> toggleFavorite)
+    {
+        _toggleFavorite = toggleFavorite;
+    }
 
     public ToolDefinition GetDefinition() => new()
     {
@@ -688,8 +690,7 @@ public class ToggleFavoriteTool : IAgentTool
 
         try
         {
-            await _database.EnsureInitializedAsync();
-            await _database.SetFavoriteAsync(songId, favorite);
+            await _toggleFavorite(songId, favorite);
             return JsonSerializer.Serialize(new
             {
                 success = true,

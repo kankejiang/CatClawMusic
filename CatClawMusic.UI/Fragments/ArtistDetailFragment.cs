@@ -7,7 +7,6 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Adapters;
-using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Google.Android.Material.Button;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
@@ -63,8 +62,8 @@ public class ArtistDetailFragment : Fragment
         var library = MainApplication.Services.GetService<IMusicLibraryService>() as MusicLibraryService;
         if (db != null)
         {
-            _exploreData = new ExploreDataService(db, library!);
-            _scraper = new NetEaseMusicScraper(db);
+            _exploreData = MainApplication.Services.GetService<ExploreDataService>();
+            _scraper = MainApplication.Services.GetService<NetEaseMusicScraper>();
         }
 
         _artistPhoto = view.FindViewById<ImageView>(Resource.Id.iv_artist_photo)!;

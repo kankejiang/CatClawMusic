@@ -2,8 +2,9 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Services;
 
-namespace CatClawMusic.UI.Services.AI;
+namespace CatClawMusic.Core.Services.AI;
 
 public class OpenAiCompatibleLlmClient : ILlmClient
 {
@@ -134,7 +135,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 
     private static string BuildChatUrl(string apiUrl)
     {
-        var nativeUrl = Services.NativeInterop.AiBuildUrl(apiUrl);
+        var nativeUrl = NativeInterop.AiBuildUrl(apiUrl);
         if (nativeUrl != null) return nativeUrl;
 
         var url = apiUrl.TrimEnd('/');
@@ -149,7 +150,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 
     private static string BuildRequestBody(List<ChatMessage> messages, List<ToolDefinition>? tools, LlmConfig config)
     {
-        var nativeBody = Services.NativeInterop.AiBuildChatRequest(
+        var nativeBody = NativeInterop.AiBuildChatRequest(
             config.Model, messages, tools, config.Temperature, config.MaxTokens);
         if (nativeBody != null) return nativeBody;
 
@@ -231,7 +232,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 
     private static LlmResponse ParseResponse(string responseBody)
     {
-        var nativeResult = Services.NativeInterop.AiParseChatResponse(responseBody);
+        var nativeResult = NativeInterop.AiParseChatResponse(responseBody);
         if (nativeResult != null)
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] AI ParseResponse (native): content='{Truncate(nativeResult.Content, 200)}', toolCalls={nativeResult.ToolCalls.Count}, finishReason={nativeResult.FinishReason}");

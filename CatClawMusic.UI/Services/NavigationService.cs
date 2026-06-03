@@ -1,6 +1,7 @@
 using Android.Views;
 using AndroidX.Fragment.App;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Services.AI;
 using CatClawMusic.UI.Fragments;
 using Google.Android.Material.BottomNavigation;
 using Microsoft.Extensions.DependencyInjection;
@@ -137,7 +138,7 @@ public class NavigationService : INavigationService
             var args = new Android.OS.Bundle();
             if (parameters.TryGetValue("model", out var model))
             {
-                if (model is CatClawMusic.UI.Services.AI.LlmConfig config)
+                if (model is LlmConfig config)
                 {
                     args.PutString("modelName", config.Name);
                     args.PutString("provider", config.Provider);

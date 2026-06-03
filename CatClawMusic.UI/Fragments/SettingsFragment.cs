@@ -6,7 +6,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Platforms.Android;
-using CatClawMusic.UI.Services.AI;
+using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
@@ -252,7 +252,7 @@ public class SettingsFragment : Fragment
         // AI 助手状态
         try
         {
-            var aiConfig = CatClawMusic.UI.Services.AI.AgentService.LoadConfig();
+            var aiConfig = CatClawMusic.Core.Services.AI.AgentService.LoadConfig();
             var aiText = aiConfig.Enabled && !string.IsNullOrWhiteSpace(aiConfig.ApiKey)
                 ? $"已配置 ({aiConfig.Provider})"
                 : "未配置";
