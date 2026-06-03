@@ -57,6 +57,7 @@ public class NavigationService : INavigationService
             "AiSettings" => MainApplication.Services.GetRequiredService<AiSettingsFragment>(),
             "ModelManager" => MainApplication.Services.GetRequiredService<ModelManagerFragment>(),
             "ModelEdit" => CreateModelEdit(parameters),
+            "About" => MainApplication.Services.GetRequiredService<AboutFragment>(),
             "ArtistDetail" => CreateArtistDetail(parameters),
             "AlbumDetail" => CreateAlbumDetail(parameters),
             "LandscapeNowPlaying" => MainApplication.Services.GetRequiredService<LandscapeNowPlayingFragment>(),

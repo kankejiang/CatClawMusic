@@ -232,6 +232,7 @@ public class MainApplication : Application
         services.AddTransient<AiSettingsFragment>();
         services.AddTransient<ModelManagerFragment>();
         services.AddTransient<ModelEditFragment>();
+        services.AddTransient<AboutFragment>();
         services.AddTransient<ModelAdapter>();
 
         // Adapters

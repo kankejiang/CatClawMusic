@@ -85,6 +85,11 @@ public class SettingsFragment : Fragment
         if (btnAiSettings != null)
             btnAiSettings.SetOnClickListener(new ClickListener(() => nav.PushFragment("AiSettings")));
 
+        // 关于
+        var btnAbout = view.FindViewById<View>(Resource.Id.btn_about);
+        if (btnAbout != null)
+            btnAbout.SetOnClickListener(new ClickListener(() => nav.PushFragment("About")));
+
         return view;
     }
 

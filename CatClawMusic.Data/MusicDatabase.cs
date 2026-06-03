@@ -51,6 +51,8 @@ public class MusicDatabase
             await _database.CreateTableAsync<Playlist>();
             await _database.CreateTableAsync<PlaylistSong>();
 
+            // PlayHistory 迁移必须在 CreateTableAsync 之前，否则旧表缺少主键列会导致 "Cannot add a PRIMARY KEY column"
+            await MigratePlayHistoryTableAsync();
             await _database.CreateTableAsync<PlayHistory>();
             await _database.CreateTableAsync<Favorite>();
             await _database.CreateTableAsync<Lyric>();
@@ -61,7 +63,6 @@ public class MusicDatabase
 
             await MigratePlaylistsTableAsync();
             await MigratePlaylistSongsTableAsync();
-            await MigratePlayHistoryTableAsync();
 
             _isInitialized = true;
         }
@@ -1230,7 +1231,12 @@ public class MusicDatabase
                 "SELECT SongId, PlayedAt, PlayCount FROM PlayHistory_old");
             await _database.ExecuteAsync("DROP TABLE PlayHistory_old");
         }
-        catch { }
+        catch
+        {
+            // 迁移失败时删除旧表，让 CreateTableAsync 重新创建
+            try { await _database.ExecuteAsync("DROP TABLE IF EXISTS PlayHistory_old"); } catch { }
+            try { await _database.ExecuteAsync("DROP TABLE IF EXISTS PlayHistory"); } catch { }
+        }
     }
 
     /// <summary>

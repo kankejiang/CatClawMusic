@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="?attr/catClawPageBackground">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="16dp">
+
+        <!-- 标题栏 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+            <ImageButton android:id="@+id/btn_back"
+                android:layout_width="40dp" android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_arrow_back"
+                android:tint="?attr/catClawTextPrimary"
+                android:contentDescription="返回" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="关于" android:textSize="20sp"
+                android:textColor="?attr/catClawTextPrimary"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center" />
+            <View android:layout_width="40dp" android:layout_height="0dp" />
+        </LinearLayout>
+
+        <!-- 应用图标和名称 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center"
+            android:paddingTop="8dp" android:paddingBottom="24dp">
+            <ImageView android:id="@+id/iv_app_icon"
+                android:layout_width="72dp" android:layout_height="72dp"
+                android:src="@mipmap/ic_launcher"
+                android:contentDescription="应用图标" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="猫爪音乐" android:textSize="24sp"
+                android:textColor="?attr/catClawTextPrimary"
+                android:fontFamily="@font/happy_zcool_2016"
+                android:layout_marginTop="12dp" />
+            <TextView android:id="@+id/tv_version"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="版本 1.0.0"
+                android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- 作者信息 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="作者"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="lvjin"
+                        android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 开源地址 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_github"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="开源地址"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="https://github.com/lvjin123/CatClawMusic"
+                        android:textSize="12sp" android:textColor="?attr/catClawPrimaryColor"
+                        android:layout_marginTop="2dp"
+                        android:autoLink="web" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 开源协议 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_license"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="开源协议"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="MIT License"
+                        android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- QQ群 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_qq_group"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="16dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:padding="16dp"
+                android:gravity="center_vertical">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="QQ 交流群"
+                        android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="sans-serif-medium" />
+                    <TextView android:id="@+id/tv_qq_group"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="点击加入QQ群"
+                        android:textSize="13sp" android:textColor="?attr/catClawPrimaryColor"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</ScrollView>

@@ -123,12 +123,19 @@ public class PlaylistFragment : Fragment
             .Show();
     }
 
+    private bool _firstResume = true;
+
     /// <summary>
     /// Fragment恢复可见时重新加载歌单列表
     /// </summary>
     public override void OnResume()
     {
         base.OnResume();
+        if (_firstResume)
+        {
+            _firstResume = false;
+            return;
+        }
         _viewModel.MarkDirty();
         _ = _viewModel.RefreshIfChangedAsync();
     }

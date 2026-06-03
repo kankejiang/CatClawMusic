@@ -516,12 +516,19 @@ public class PlaylistDetailFragment : Fragment
         dialog.Show();
     }
 
+    private bool _firstResume = true;
+
     /// <summary>
     /// Fragment恢复可见时重新加载歌单数据（如果是用户歌单）
     /// </summary>
     public override void OnResume()
     {
         base.OnResume();
+        if (_firstResume)
+        {
+            _firstResume = false;
+            return;
+        }
         if (_playlistId != 0)
         {
             _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>

@@ -86,7 +86,7 @@ public class MainActivity : AppCompatActivity
 
         var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
         var isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
-        _lastAppearanceLightStatusBars = true;
+        insetsController.AppearanceLightStatusBars = true;
         insetsController.AppearanceLightNavigationBars = !isDark;
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
@@ -250,7 +250,7 @@ public class MainActivity : AppCompatActivity
         bool isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
 
         var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
-        _lastAppearanceLightStatusBars = true;
+        insetsController.AppearanceLightStatusBars = true;
         insetsController.AppearanceLightNavigationBars = !isDark;
 
         ApplySystemBarImmersive(_currentTab is 0 or 1);
@@ -378,7 +378,15 @@ public class MainActivity : AppCompatActivity
         if (_mainLayout != null)
             _mainLayout.SetPadding(0, immersive ? 0 : StatusBarHeight, 0, 0);
 
-        ApplySystemBarImmersive(immersive);
+        // 立即设置状态栏文字颜色，避免 Post 延迟期间系统自动切换导致闪烁
+        try
+        {
+            var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
+            insetsController.AppearanceLightStatusBars = true;
+        }
+        catch { }
+
+        _viewPager.Post(() => ApplySystemBarImmersive(immersive));
     }
 
     public void SetBottomNavVisible(bool visible)
@@ -641,7 +649,6 @@ public class MainActivity : AppCompatActivity
     private int _cachedNavBarColor;
     private int _currentNavBarColor;
     private bool _systemUiFlagsApplied;
-    private bool _lastAppearanceLightStatusBars;
 
     private void ApplySystemBarImmersive(bool immersive)
     {
@@ -658,12 +665,8 @@ public class MainActivity : AppCompatActivity
 
         Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
 
-        if (!_lastAppearanceLightStatusBars)
-        {
-            _lastAppearanceLightStatusBars = true;
-            var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
-            insetsController.AppearanceLightStatusBars = true;
-        }
+        var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
+        insetsController.AppearanceLightStatusBars = true;
 
         var targetNavBarColor = immersive
             ? Android.Graphics.Color.Transparent
