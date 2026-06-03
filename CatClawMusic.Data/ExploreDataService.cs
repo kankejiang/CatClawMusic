@@ -126,7 +126,7 @@ public class ExploreDataService
 
         // 从每个艺术家的第一首歌曲获取封面信息
         var artistSampleCover = songs
-            .Where(s => s.ArtistId > 0 && (!string.IsNullOrEmpty(s.CoverArtPath) || s.MediaStoreId > 0))
+            .Where(s => s.ArtistId > 0 && !string.IsNullOrEmpty(s.FilePath))
             .GroupBy(s => s.ArtistId)
             .ToDictionary(g => g.Key, g => g.First());
 
@@ -145,6 +145,7 @@ public class ExploreDataService
                 {
                     result.SampleCoverPath = sample.CoverArtPath;
                     result.SampleMediaStoreId = sample.MediaStoreId;
+                    result.SampleFilePath = sample.FilePath;
                 }
                 return result;
             })
@@ -166,7 +167,7 @@ public class ExploreDataService
 
         // 从每个专辑的第一首歌曲获取封面信息
         var albumSampleCover = songs
-            .Where(s => s.AlbumId > 0 && (!string.IsNullOrEmpty(s.CoverArtPath) || s.MediaStoreId > 0))
+            .Where(s => s.AlbumId > 0 && !string.IsNullOrEmpty(s.FilePath))
             .GroupBy(s => s.AlbumId)
             .ToDictionary(g => g.Key, g => g.First());
 
@@ -187,6 +188,7 @@ public class ExploreDataService
                 {
                     result.SampleCoverPath = sample.CoverArtPath;
                     result.SampleMediaStoreId = sample.MediaStoreId;
+                    result.SampleFilePath = sample.FilePath;
                 }
                 return result;
             })
@@ -275,6 +277,8 @@ public class ArtistWithCount
     public string? SampleCoverPath { get; set; }
     /// <summary>从该艺术家第一首歌曲获取的 MediaStoreId，用于快速加载封面</summary>
     public long SampleMediaStoreId { get; set; }
+    /// <summary>从该艺术家第一首歌曲获取的文件路径，用于通过 MediaStore 查询封面</summary>
+    public string? SampleFilePath { get; set; }
 }
 
 /// <summary>专辑及其歌曲数量</summary>
@@ -290,4 +294,6 @@ public class AlbumWithCount
     public string? SampleCoverPath { get; set; }
     /// <summary>从该专辑第一首歌曲获取的 MediaStoreId，用于快速加载封面</summary>
     public long SampleMediaStoreId { get; set; }
+    /// <summary>从该专辑第一首歌曲获取的文件路径，用于通过 MediaStore 查询封面</summary>
+    public string? SampleFilePath { get; set; }
 }

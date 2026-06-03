@@ -78,22 +78,13 @@ public class AboutFragment : Fragment
     {
         try
         {
-            var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(QqGroupKeyFallback + QqGroupNumber));
+            var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(QqGroupKeyFallback));
             intent.AddFlags(ActivityFlags.NewTask);
             StartActivity(intent);
         }
         catch
         {
-            try
-            {
-                var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(QqGroupKeyFallback + QqGroupNumber));
-                intent.AddFlags(ActivityFlags.NewTask);
-                StartActivity(intent);
-            }
-            catch
-            {
-                Toast.MakeText(Context, "请手动搜索QQ群: " + QqGroupNumber, ToastLength.Long)?.Show();
-            }
+            Toast.MakeText(Context, "请手动搜索QQ群: " + QqGroupNumber, ToastLength.Long)?.Show();
         }
     }
 

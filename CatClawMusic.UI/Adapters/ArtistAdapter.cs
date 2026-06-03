@@ -141,7 +141,20 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 3. 通过 MediaStore 加载
+                // 3. 通过歌曲文件路径从 MediaStore 加载封面
+                try
+                {
+                    if (!string.IsNullOrEmpty(artist.SampleFilePath))
+                    {
+                        var (b, _) = MediaStoreCoverHelper.LoadCoverByFilePath(artist.SampleFilePath, 200);
+                        if (b != null) return b;
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // 4. 通过 MediaStoreId 加载
                 try
                 {
                     if (artist.SampleMediaStoreId > 0)
@@ -154,7 +167,7 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 4. 网易云缓存封面
+                // 5. 网易云缓存封面
                 if (scraper != null)
                 {
                     var cachedPath = scraper.GetCachedCoverPath(artistName);

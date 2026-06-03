@@ -152,7 +152,20 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 4. 通过 MediaStore 加载
+                // 4. 通过歌曲文件路径从 MediaStore 加载封面
+                try
+                {
+                    if (!string.IsNullOrEmpty(album.SampleFilePath))
+                    {
+                        var (b, _) = MediaStoreCoverHelper.LoadCoverByFilePath(album.SampleFilePath, 200);
+                        if (b != null) return b;
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // 5. 通过 MediaStoreId 加载
                 try
                 {
                     if (album.SampleMediaStoreId > 0)
