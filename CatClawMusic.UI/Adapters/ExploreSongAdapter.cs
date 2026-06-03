@@ -4,6 +4,7 @@ using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Platforms.Android;
+using System.Collections.Concurrent;
 
 namespace CatClawMusic.UI.Adapters;
 
@@ -22,6 +23,9 @@ public class ExploreSongAdapter : RecyclerView.Adapter
 
     /// <summary>全部播放按钮点击事件</summary>
     public event EventHandler? OnPlayAllClick;
+
+    /// <summary>封面内存缓存，避免重复解码 Bitmap</summary>
+    private static readonly ConcurrentDictionary<int, Android.Graphics.Bitmap?> _coverCache = new();
 
     public void UpdateSongs(List<Song> songs)
     {
@@ -79,11 +83,18 @@ public class ExploreSongAdapter : RecyclerView.Adapter
         {
             var songIndex = ShowPlayAllButton ? position - 1 : position;
             var song = _songs[songIndex];
-            vh.Bind(song, ShowPlayCount);
+            vh.Bind(song, ShowPlayCount, _coverCache);
             vh.ItemView.Click -= vh.OnClick;
             vh.ItemView.Click += vh.OnClick;
             vh.SetSong(song, OnSongClick);
         }
+    }
+
+    public override void OnViewRecycled(Java.Lang.Object holder)
+    {
+        if (holder is ExploreSongViewHolder vh)
+            vh.CancelLoad();
+        base.OnViewRecycled(holder);
     }
 }
 
@@ -100,7 +111,8 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
     private readonly TextView _playCount;
     private Song? _currentSong;
     private EventHandler<Song>? _clickHandler;
-    private int _loadingSongId; // 当前正在加载封面的歌曲ID，防止复用错乱
+    private int _loadingSongId;
+    private CancellationTokenSource? _cts;
 
     public ExploreSongViewHolder(View view) : base(view)
     {
@@ -122,7 +134,7 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
             _clickHandler(this, _currentSong);
     }
 
-    public void Bind(Song song, bool showPlayCount)
+    public void Bind(Song song, bool showPlayCount, ConcurrentDictionary<int, Android.Graphics.Bitmap?> coverCache)
     {
         _title.Text = song.Title ?? "未知标题";
         _artist.Text = song.Artist ?? "未知艺术家";
@@ -137,92 +149,120 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
             _playCount.Visibility = ViewStates.Gone;
         }
 
-        LoadCoverAsync(song);
+        LoadCoverAsync(song, coverCache);
     }
 
-    private async void LoadCoverAsync(Song song)
+    private async void LoadCoverAsync(Song song, ConcurrentDictionary<int, Android.Graphics.Bitmap?> coverCache)
     {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
+
         _loadingSongId = song.Id;
+
+        // 1. 内存缓存命中（最快）
+        if (coverCache.TryGetValue(song.Id, out var cached) && cached != null)
+        {
+            try { _cover.SetImageBitmap(cached); } catch { }
+            return;
+        }
+
         _cover.SetImageResource(Resource.Drawable.ic_music_note);
 
-        // 先快速检查磁盘缓存（轻量操作）
-        try
-        {
-            var coverPath = GetCoverCachedPath(song.Id);
-            if (System.IO.File.Exists(coverPath))
-            {
-                _cover.SetImageBitmap(Android.Graphics.BitmapFactory.DecodeFile(coverPath));
-                return;
-            }
-        }
-        catch { }
-
-        try
-        {
-            if (!string.IsNullOrEmpty(song.CoverArtPath) && System.IO.File.Exists(song.CoverArtPath))
-            {
-                _cover.SetImageBitmap(Android.Graphics.BitmapFactory.DecodeFile(song.CoverArtPath));
-                return;
-            }
-        }
-        catch { }
-
-        // 重操作放到后台线程
+        // 2. 所有 IO 操作放到后台线程
         var songId = song.Id;
-        var bitmap = await Task.Run(() => LoadCoverBackground(song));
+        Android.Graphics.Bitmap? bitmap = null;
 
-        // 检查是否已被复用
-        if (_loadingSongId != songId) return;
+        try
+        {
+            bitmap = await Task.Run(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+
+                // 磁盘缓存
+                try
+                {
+                    var coverPath = GetCoverCachedPath(song.Id);
+                    if (System.IO.File.Exists(coverPath))
+                    {
+                        var b = Android.Graphics.BitmapFactory.DecodeFile(coverPath);
+                        if (b != null) return b;
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // CoverArtPath
+                try
+                {
+                    if (!string.IsNullOrEmpty(song.CoverArtPath) && System.IO.File.Exists(song.CoverArtPath))
+                    {
+                        var b = Android.Graphics.BitmapFactory.DecodeFile(song.CoverArtPath);
+                        if (b != null) return b;
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // MediaStore
+                try
+                {
+                    if (song.MediaStoreId > 0)
+                    {
+                        var b = MediaStoreCoverHelper.LoadCoverFromMediaStore(song.MediaStoreId, 120);
+                        if (b != null) return b;
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // 嵌入封面
+                try
+                {
+                    if (!string.IsNullOrEmpty(song.FilePath) && song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var retriever = new Android.Media.MediaMetadataRetriever();
+                        try
+                        {
+                            retriever.SetDataSource(Android.App.Application.Context,
+                                Android.Net.Uri.Parse(song.FilePath));
+                            var embedded = retriever.GetEmbeddedPicture();
+                            if (embedded != null && embedded.Length > 0)
+                                return Android.Graphics.BitmapFactory.DecodeByteArray(embedded, 0, embedded.Length);
+                        }
+                        finally { retriever.Release(); }
+                    }
+                    else if (!string.IsNullOrEmpty(song.FilePath) && System.IO.File.Exists(song.FilePath))
+                    {
+                        var coverBytes = TagReader.ExtractCoverArt(song.FilePath);
+                        if (coverBytes != null && coverBytes.Length > 0)
+                            return Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
+                    }
+                }
+                catch { }
+
+                return null;
+            }, ct);
+        }
+        catch (OperationCanceledException) { return; }
+        catch { }
+
+        if (ct.IsCancellationRequested || _loadingSongId != songId) return;
 
         if (bitmap != null)
         {
+            coverCache.TryAdd(songId, bitmap);
             try { _cover.SetImageBitmap(bitmap); } catch { }
         }
     }
 
-    private static Android.Graphics.Bitmap? LoadCoverBackground(Song song)
+    public void CancelLoad()
     {
-        // 1. 通过 MediaStore 加载
-        try
-        {
-            if (song.MediaStoreId > 0)
-            {
-                var bitmap = MediaStoreCoverHelper.LoadCoverFromMediaStore(song.MediaStoreId, 120);
-                if (bitmap != null) return bitmap;
-            }
-        }
-        catch { }
-
-        // 2. 从文件提取嵌入封面
-        try
-        {
-            if (!string.IsNullOrEmpty(song.FilePath) && song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
-            {
-                var retriever = new Android.Media.MediaMetadataRetriever();
-                try
-                {
-                    retriever.SetDataSource(Android.App.Application.Context,
-                        Android.Net.Uri.Parse(song.FilePath));
-                    var embedded = retriever.GetEmbeddedPicture();
-                    if (embedded != null && embedded.Length > 0)
-                    {
-                        return Android.Graphics.BitmapFactory.DecodeByteArray(embedded, 0, embedded.Length);
-                    }
-                }
-                finally { retriever.Release(); }
-            }
-            else if (!string.IsNullOrEmpty(song.FilePath) && System.IO.File.Exists(song.FilePath))
-            {
-                var coverBytes = TagReader.ExtractCoverArt(song.FilePath);
-                if (coverBytes != null && coverBytes.Length > 0)
-                {
-                    return Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
-                }
-            }
-        }
-        catch { }
-
-        return null;
+        _cts?.Cancel();
+        _loadingSongId = -1;
     }
 
     private static string GetCoverCachedPath(int songId)

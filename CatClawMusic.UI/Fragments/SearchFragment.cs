@@ -125,6 +125,8 @@ public class SearchFragment : Fragment
         dailyGrid.SetSpanSizeLookup(new DailyRecommendSpanLookup(_dailyRecommendAdapter));
         _rvDailyRecommend.SetLayoutManager(dailyGrid);
         _rvDailyRecommend.SetAdapter(_dailyRecommendAdapter);
+        _rvDailyRecommend.SetItemViewCacheSize(20);
+        _rvDailyRecommend.GetRecycledViewPool().SetMaxRecycledViews(1, 30);
         _dailyRecommendAdapter.OnSongClick += async (s, song) => await PlaySongAsync(song);
         _dailyRecommendAdapter.OnPlayAllClick += (s, e) => PlayAllDailyRecommend();
 

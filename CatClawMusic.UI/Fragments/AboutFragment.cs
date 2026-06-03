@@ -10,9 +10,9 @@ namespace CatClawMusic.UI.Fragments;
 /// <summary>关于页面，显示应用信息、作者、开源地址、协议和QQ群</summary>
 public class AboutFragment : Fragment
 {
-    private const string GithubUrl = "https://github.com/lvjin123/CatClawMusic";
+    private const string GithubUrl = "https://github.com/kankejiang/CatClawMusic";
     private const string QqGroupKey = "mqqopensdkapi://bizAgent/qm/qr?url=http%3A%2F%2Fqm.qq.com%2Fcgi-bin%2Fqm%2Fqr%3Ffrom%3Dapp%26p%3Dandroid%26jump_from%3Dwebapi%26k%3D";
-    private const string QqGroupKeyFallback = "https://qm.qq.com/q/BXbVnGfUzu";
+    private const string QqGroupKeyFallback = "https://qm.qq.com/q/P9GGhYEz6w";
     private const string QqGroupNumber = "855383639";
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)

@@ -63,7 +63,7 @@
                         android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="lvjin"
+                        android:text="kankejiang"
                         android:textSize="13sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
@@ -89,7 +89,7 @@
                         android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="https://github.com/lvjin123/CatClawMusic"
+                        android:text="https://github.com/kankejiang/CatClawMusic"
                         android:textSize="12sp" android:textColor="?attr/catClawPrimaryColor"
                         android:layout_marginTop="2dp"
                         android:autoLink="web" />

@@ -124,14 +124,29 @@ public class ExploreDataService
         var artistSongCount = songs.GroupBy(s => s.ArtistId)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        // 从每个艺术家的第一首歌曲获取封面信息
+        var artistSampleCover = songs
+            .Where(s => s.ArtistId > 0 && (!string.IsNullOrEmpty(s.CoverArtPath) || s.MediaStoreId > 0))
+            .GroupBy(s => s.ArtistId)
+            .ToDictionary(g => g.Key, g => g.First());
+
         return artists
             .Where(a => artistSongCount.ContainsKey(a.Id))
-            .Select(a => new ArtistWithCount
+            .Select(a =>
             {
-                Id = a.Id,
-                Name = a.Name,
-                Cover = a.Cover,
-                SongCount = artistSongCount.GetValueOrDefault(a.Id, 0)
+                var result = new ArtistWithCount
+                {
+                    Id = a.Id,
+                    Name = a.Name,
+                    Cover = a.Cover,
+                    SongCount = artistSongCount.GetValueOrDefault(a.Id, 0)
+                };
+                if (artistSampleCover.TryGetValue(a.Id, out var sample))
+                {
+                    result.SampleCoverPath = sample.CoverArtPath;
+                    result.SampleMediaStoreId = sample.MediaStoreId;
+                }
+                return result;
             })
             .OrderBy(a => a.Name)
             .ToList();
@@ -149,16 +164,31 @@ public class ExploreDataService
         var albumSongCount = songs.GroupBy(s => s.AlbumId)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        // 从每个专辑的第一首歌曲获取封面信息
+        var albumSampleCover = songs
+            .Where(s => s.AlbumId > 0 && (!string.IsNullOrEmpty(s.CoverArtPath) || s.MediaStoreId > 0))
+            .GroupBy(s => s.AlbumId)
+            .ToDictionary(g => g.Key, g => g.First());
+
         return albums
             .Where(a => albumSongCount.ContainsKey(a.Id))
-            .Select(a => new AlbumWithCount
+            .Select(a =>
             {
-                Id = a.Id,
-                Title = a.Title,
-                CoverArtPath = a.CoverArtPath,
-                Cover = a.Cover,
-                ArtistName = a.ArtistId > 0 ? artistDict.GetValueOrDefault(a.ArtistId, "未知艺术家") : "未知艺术家",
-                SongCount = albumSongCount.GetValueOrDefault(a.Id, 0)
+                var result = new AlbumWithCount
+                {
+                    Id = a.Id,
+                    Title = a.Title,
+                    CoverArtPath = a.CoverArtPath,
+                    Cover = a.Cover,
+                    ArtistName = a.ArtistId > 0 ? artistDict.GetValueOrDefault(a.ArtistId, "未知艺术家") : "未知艺术家",
+                    SongCount = albumSongCount.GetValueOrDefault(a.Id, 0)
+                };
+                if (albumSampleCover.TryGetValue(a.Id, out var sample))
+                {
+                    result.SampleCoverPath = sample.CoverArtPath;
+                    result.SampleMediaStoreId = sample.MediaStoreId;
+                }
+                return result;
             })
             .OrderBy(a => a.Title)
             .ToList();
@@ -241,6 +271,10 @@ public class ArtistWithCount
     public string Name { get; set; } = "";
     public string? Cover { get; set; }
     public int SongCount { get; set; }
+    /// <summary>从该艺术家第一首歌曲获取的封面路径，用于列表页快速显示</summary>
+    public string? SampleCoverPath { get; set; }
+    /// <summary>从该艺术家第一首歌曲获取的 MediaStoreId，用于快速加载封面</summary>
+    public long SampleMediaStoreId { get; set; }
 }
 
 /// <summary>专辑及其歌曲数量</summary>
@@ -252,4 +286,8 @@ public class AlbumWithCount
     public string? Cover { get; set; }
     public string ArtistName { get; set; } = "";
     public int SongCount { get; set; }
+    /// <summary>从该专辑第一首歌曲获取的封面路径，用于列表页快速显示</summary>
+    public string? SampleCoverPath { get; set; }
+    /// <summary>从该专辑第一首歌曲获取的 MediaStoreId，用于快速加载封面</summary>
+    public long SampleMediaStoreId { get; set; }
 }
