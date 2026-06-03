@@ -110,7 +110,7 @@ public class NavigationService : INavigationService
         {
             var args = new Android.OS.Bundle();
             if (parameters.TryGetValue("artistName", out var name))
-                args.PutString("artist_name", name?.ToString());
+                args.PutString("artistName", name?.ToString());
             fragment.Arguments = args;
         }
         return fragment;
@@ -123,9 +123,9 @@ public class NavigationService : INavigationService
         {
             var args = new Android.OS.Bundle();
             if (parameters.TryGetValue("albumTitle", out var title))
-                args.PutString("album_title", title?.ToString());
+                args.PutString("albumTitle", title?.ToString());
             if (parameters.TryGetValue("albumArtist", out var artist))
-                args.PutString("album_artist", artist?.ToString());
+                args.PutString("albumArtist", artist?.ToString());
             fragment.Arguments = args;
         }
         return fragment;

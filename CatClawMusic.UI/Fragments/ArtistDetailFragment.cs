@@ -108,26 +108,47 @@ public class ArtistDetailFragment : Fragment
                 _songAdapter.UpdateSongs(songs);
             });
 
-            // 加载艺术家封面和信息
+            // 优先从本地歌曲加载艺术家封面
+            var localCover = await Task.Run(() => LoadLocalArtistCover(songs));
+            if (localCover != null)
+            {
+                Activity?.RunOnUiThread(() =>
+                {
+                    try { _artistPhoto.SetImageBitmap(localCover); } catch { }
+                });
+            }
+
+            // 加载艺术家信息和网络封面（作为 fallback）
             if (_scraper != null)
             {
-                var coverTask = _scraper.GetArtistCoverAsync(_artistNameStr);
                 var infoTask = _scraper.GetArtistInfoAsync(_artistNameStr);
-                await Task.WhenAll(coverTask, infoTask);
 
-                var coverPath = coverTask.Result;
-                if (coverPath != null)
+                // 仅当本地封面加载失败时才尝试网络封面
+                Task<string?>? coverTask = localCover == null
+                    ? _scraper.GetArtistCoverAsync(_artistNameStr)
+                    : null;
+
+                if (coverTask != null)
+                    await Task.WhenAll(coverTask, infoTask);
+                else
+                    await infoTask;
+
+                if (coverTask != null)
                 {
-                    Activity?.RunOnUiThread(() =>
+                    var coverPath = coverTask.Result;
+                    if (coverPath != null)
                     {
-                        try
+                        Activity?.RunOnUiThread(() =>
                         {
-                            var bitmap = Android.Graphics.BitmapFactory.DecodeFile(coverPath);
-                            if (bitmap != null)
-                                _artistPhoto.SetImageBitmap(bitmap);
-                        }
-                        catch { }
-                    });
+                            try
+                            {
+                                var bitmap = Android.Graphics.BitmapFactory.DecodeFile(coverPath);
+                                if (bitmap != null)
+                                    _artistPhoto.SetImageBitmap(bitmap);
+                            }
+                            catch { }
+                        });
+                    }
                 }
 
                 var artistInfo = infoTask.Result;
@@ -158,6 +179,51 @@ public class ArtistDetailFragment : Fragment
         {
             System.Diagnostics.Debug.WriteLine($"[ArtistDetail] 加载失败: {ex}");
         }
+    }
+
+    private Android.Graphics.Bitmap? LoadLocalArtistCover(List<Song> songs)
+    {
+        foreach (var song in songs)
+        {
+            // 1. 从歌曲的 CoverArtPath 加载
+            try
+            {
+                if (!string.IsNullOrEmpty(song.CoverArtPath) && System.IO.File.Exists(song.CoverArtPath))
+                {
+                    var bitmap = Android.Graphics.BitmapFactory.DecodeFile(song.CoverArtPath);
+                    if (bitmap != null) return bitmap;
+                }
+            }
+            catch { }
+
+            // 2. 通过 MediaStore 加载
+            try
+            {
+                if (song.MediaStoreId > 0)
+                {
+                    var bitmap = Platforms.Android.MediaStoreCoverHelper.LoadCoverFromMediaStore(song.MediaStoreId, 480);
+                    if (bitmap != null) return bitmap;
+                }
+            }
+            catch { }
+
+            // 3. 从文件提取嵌入封面
+            try
+            {
+                if (!string.IsNullOrEmpty(song.FilePath)
+                    && !song.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    && !song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var coverBytes = Core.Services.TagReader.ExtractCoverArt(song.FilePath);
+                    if (coverBytes != null && coverBytes.Length > 0)
+                    {
+                        return Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
+                    }
+                }
+            }
+            catch { }
+        }
+        return null;
     }
 
     private async Task PlaySongAsync(Song song)
