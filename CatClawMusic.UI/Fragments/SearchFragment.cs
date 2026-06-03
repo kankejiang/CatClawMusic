@@ -47,6 +47,12 @@ public class SearchFragment : Fragment
     private ExploreSongAdapter _topPlayedAdapter = null!;
     private ExploreSongAdapter _recentAddedAdapter = null!;
 
+    // Search suggestion views
+    private View _cardSearchSuggestions = null!;
+    private RecyclerView _rvSearchSuggestions = null!;
+    private SearchSuggestionAdapter _suggestionAdapter = null!;
+    private CancellationTokenSource? _suggestionCts;
+
     // Chat mode views
     private View _layoutChatOverlay = null!;
     private RecyclerView _chatMessages = null!;
@@ -165,12 +171,48 @@ public class SearchFragment : Fragment
                 var keyword = _searchInput.Text?.ToString()?.Trim();
                 if (!string.IsNullOrWhiteSpace(keyword))
                 {
+                    HideSearchSuggestions();
                     EnterChatMode();
                     _chatInput.Text = keyword;
                     SendMessage();
                 }
                 e.Handled = true;
             }
+        };
+
+        // 搜索框文本变化时显示搜索建议
+        _searchInput.AfterTextChanged += (s, e) => OnSearchInputChanged();
+
+        // 搜索框获取焦点时，如果有文字则显示建议
+        _searchInput.FocusChange += (s, e) =>
+        {
+            if (e.HasFocus && !string.IsNullOrWhiteSpace(_searchInput.Text?.ToString()?.Trim()))
+                OnSearchInputChanged();
+            else if (!e.HasFocus)
+                HideSearchSuggestions();
+        };
+
+        // 搜索建议下拉框
+        _cardSearchSuggestions = view.FindViewById<View>(Resource.Id.card_search_suggestions)!;
+        _rvSearchSuggestions = view.FindViewById<RecyclerView>(Resource.Id.rv_search_suggestions)!;
+        _suggestionAdapter = new SearchSuggestionAdapter();
+        _rvSearchSuggestions.SetLayoutManager(new LinearLayoutManager(Context));
+        _rvSearchSuggestions.SetAdapter(_suggestionAdapter);
+        _suggestionAdapter.OnArtistClick += (s, artist) =>
+        {
+            HideSearchSuggestions();
+            _searchInput.ClearFocus();
+            var imm = Context?.GetSystemService(Android.Content.Context.InputMethodService) as Android.Views.InputMethods.InputMethodManager;
+            imm?.HideSoftInputFromWindow(_searchInput.WindowToken, 0);
+            ShowArtistDetail(artist);
+        };
+        _suggestionAdapter.OnSongClick += async (s, song) =>
+        {
+            HideSearchSuggestions();
+            _searchInput.ClearFocus();
+            var imm = Context?.GetSystemService(Android.Content.Context.InputMethodService) as Android.Views.InputMethods.InputMethodManager;
+            imm?.HideSoftInputFromWindow(_searchInput.WindowToken, 0);
+            await PlaySongAsync(song);
         };
 
         // 点击 Yuki 头像进入聊天模式
@@ -236,8 +278,80 @@ public class SearchFragment : Fragment
         }
     }
 
+    private void OnSearchInputChanged()
+    {
+        var keyword = _searchInput.Text?.ToString()?.Trim();
+        if (string.IsNullOrWhiteSpace(keyword) || keyword.Length < 1)
+        {
+            HideSearchSuggestions();
+            return;
+        }
+        _ = SearchSuggestionsAsync(keyword);
+    }
+
+    private async Task SearchSuggestionsAsync(string keyword)
+    {
+        _suggestionCts?.Cancel();
+        _suggestionCts?.Dispose();
+        _suggestionCts = new CancellationTokenSource();
+        var ct = _suggestionCts.Token;
+
+        try
+        {
+            await Task.Delay(250, ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (ct.IsCancellationRequested) return;
+
+        try
+        {
+            var artistsTask = _exploreData?.GetArtistsWithSongCountAsync() ?? Task.FromResult(new List<ArtistWithCount>());
+            var songsTask = _musicLibrary.SearchAsync(keyword);
+
+            await Task.WhenAll(artistsTask, songsTask);
+            if (ct.IsCancellationRequested) return;
+
+            var allArtists = artistsTask.Result;
+            var matchedArtists = allArtists
+                .Where(a => a.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                .Take(3)
+                .ToList();
+
+            var matchedSongs = songsTask.Result.Take(3).ToList();
+
+            Activity?.RunOnUiThread(() =>
+            {
+                if (ct.IsCancellationRequested) return;
+                if (matchedArtists.Count == 0 && matchedSongs.Count == 0)
+                {
+                    HideSearchSuggestions();
+                    return;
+                }
+                _suggestionAdapter.UpdateSuggestions(matchedArtists, matchedSongs);
+                _cardSearchSuggestions.Visibility = ViewStates.Visible;
+            });
+        }
+        catch (System.OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Explore] 搜索建议失败: {ex.Message}");
+        }
+    }
+
+    private void HideSearchSuggestions()
+    {
+        _suggestionCts?.Cancel();
+        _cardSearchSuggestions.Visibility = ViewStates.Gone;
+        _suggestionAdapter.Clear();
+    }
+
     private void EnterChatMode()
     {
+        HideSearchSuggestions();
         _layoutChatOverlay.Visibility = ViewStates.Visible;
         _layoutExploreMain.Visibility = ViewStates.Gone;
     }

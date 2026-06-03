@@ -705,7 +705,8 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
                 return _contentLength >= 0 ? _contentLength : -1;
             }
             catch (Java.IO.InterruptedIOException) { return -1; }
-            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }
+            catch (Java.Nio.Channels.ClosedByInterruptException) { return -1; }
+            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException or Java.Nio.Channels.ClosedByInterruptException) { return -1; }
             catch (System.IO.IOException ex) { throw new Java.IO.IOException(ex.Message); }
         }
         else if (scheme == "smb")
@@ -726,7 +727,8 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
                 return _contentLength >= 0 ? _contentLength : -1;
             }
             catch (Java.IO.InterruptedIOException) { return -1; }
-            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }
+            catch (Java.Nio.Channels.ClosedByInterruptException) { return -1; }
+            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException or Java.Nio.Channels.ClosedByInterruptException) { return -1; }
             catch (System.IO.IOException ex) { throw new Java.IO.IOException(ex.Message); }
             catch (Exception ex) { throw new Java.IO.IOException(ex.Message); }
         }
@@ -754,7 +756,8 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
                 return _contentLength;
             }
             catch (Java.IO.InterruptedIOException) { return -1; }
-            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException) { return -1; }
+            catch (Java.Nio.Channels.ClosedByInterruptException) { return -1; }
+            catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException or Java.Nio.Channels.ClosedByInterruptException) { return -1; }
             catch (System.IO.IOException ex) { throw new Java.IO.IOException(ex.Message); }
             catch (Exception ex) { throw new Java.IO.IOException(ex.Message); }
         }
@@ -770,7 +773,11 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         {
             return -1;
         }
-        catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException)
+        catch (Java.Nio.Channels.ClosedByInterruptException)
+        {
+            return -1;
+        }
+        catch (Java.Lang.Exception ex) when (ex.Cause is Java.IO.InterruptedIOException or Java.Nio.Channels.ClosedByInterruptException)
         {
             return -1;
         }
