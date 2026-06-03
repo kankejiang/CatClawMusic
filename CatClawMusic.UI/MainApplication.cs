@@ -150,7 +150,7 @@ public class MainApplication : Application
         services.AddSingleton<ExploreDataService>(sp =>
         {
             var db = sp.GetRequiredService<MusicDatabase>();
-            var library = sp.GetRequiredService<MusicLibraryService>();
+            var library = sp.GetRequiredService<IMusicLibraryService>();
             var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
             return new ExploreDataService(db, library, cacheDir);
         });

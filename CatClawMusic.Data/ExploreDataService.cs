@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Data;
@@ -8,7 +9,7 @@ namespace CatClawMusic.Data;
 public class ExploreDataService
 {
     private readonly MusicDatabase _db;
-    private readonly MusicLibraryService _library;
+    private readonly IMusicLibraryService _library;
     private readonly string _cacheFilePath;
 
     /// <summary>每日推荐缓存：Key 为日期字符串 "yyyy-MM-dd"，Value 为歌曲列表</summary>
@@ -18,7 +19,7 @@ public class ExploreDataService
     /// <summary>来源筛选：all, local, network</summary>
     private string _sourceFilter = "all";
 
-    public ExploreDataService(MusicDatabase db, MusicLibraryService library, string cacheDir)
+    public ExploreDataService(MusicDatabase db, IMusicLibraryService library, string cacheDir)
     {
         _db = db;
         _library = library;
