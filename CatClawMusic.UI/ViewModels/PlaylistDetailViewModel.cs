@@ -116,8 +116,25 @@ public partial class PlaylistDetailViewModel : ObservableObject
             _playQueue.SelectSong(song.Id);
             if (!string.IsNullOrEmpty(song.FilePath))
                 await _audioPlayer.PlayAsync(song.FilePath);
+            _ = RecordPlayAsync(song);
             _navigationService.PushFragment("NowPlaying");
         }
+    }
+
+    private async Task RecordPlayAsync(Song song)
+    {
+        try
+        {
+            var db = GetDb();
+            await db.RecordPlayAsync(song.Id);
+            var playlistVm = MainApplication.Services.GetService(typeof(PlaylistViewModel)) as PlaylistViewModel;
+            if (playlistVm != null)
+            {
+                playlistVm.MarkDirty();
+                _ = playlistVm.RefreshSystemPlaylistCountsAsync();
+            }
+        }
+        catch { }
     }
 
     /// <summary>

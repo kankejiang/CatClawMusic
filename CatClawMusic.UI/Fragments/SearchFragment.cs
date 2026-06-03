@@ -84,17 +84,20 @@ public class SearchFragment : Fragment
         _audioPlayer = MainApplication.Services.GetService<IAudioPlayerService>();
         _playQueue = MainApplication.Services.GetService<PlayQueue>();
 
-        var db = MainApplication.Services.GetService<MusicDatabase>();
-        var library = MainApplication.Services.GetService<IMusicLibraryService>() as MusicLibraryService;
-        if (db != null)
-        {
-            _exploreData = MainApplication.Services.GetService<ExploreDataService>();
-            _scraper = MainApplication.Services.GetService<NetEaseMusicScraper>();
-        }
-
         InitExploreViews(view);
         InitChatViews(view);
-        LoadExploreData();
+
+        // 在后台线程解析重量级服务和加载数据，避免阻塞主线程导致 ANR
+        _ = Task.Run(async () =>
+        {
+            var db = MainApplication.Services.GetService<MusicDatabase>();
+            if (db != null)
+            {
+                _exploreData = MainApplication.Services.GetService<ExploreDataService>();
+                _scraper = MainApplication.Services.GetService<NetEaseMusicScraper>();
+            }
+            await LoadExploreDataAsync();
+        });
     }
 
     private void InitExploreViews(View view)
@@ -364,12 +367,12 @@ public class SearchFragment : Fragment
         imm?.HideSoftInputFromWindow(_chatInput.WindowToken, 0);
     }
 
-    private async void LoadExploreData()
+    private async Task LoadExploreDataAsync()
     {
         if (_exploreData == null) return;
         try
         {
-            // 读取来源筛选设置
+            // 读取来源筛选设置（SharedPreferences 读取可能耗时，已在后台线程）
             var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
             var sourceFilter = prefs?.GetString("source_filter_-1", "all") ?? "all";
             _exploreData.SetSourceFilter(sourceFilter);
@@ -400,8 +403,8 @@ public class SearchFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
-        // 每次回到探索页刷新数据
-        LoadExploreData();
+        // 每次回到探索页刷新数据（后台线程执行避免阻塞 UI）
+        _ = Task.Run(() => LoadExploreDataAsync());
     }
 
     private void ShowArtistDetail(ArtistWithCount artist)
