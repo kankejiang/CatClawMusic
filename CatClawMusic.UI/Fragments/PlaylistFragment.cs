@@ -129,6 +129,7 @@ public class PlaylistFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
+        _viewModel.MarkDirty();
         _ = _viewModel.RefreshIfChangedAsync();
     }
 

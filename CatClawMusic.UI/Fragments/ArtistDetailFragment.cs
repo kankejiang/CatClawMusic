@@ -36,13 +36,13 @@ public class ArtistDetailFragment : Fragment
     public override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
-        _artistNameStr = Arguments?.GetString("artist_name", "") ?? "";
+        _artistNameStr = Arguments?.GetString("artistName", "") ?? "";
     }
 
     public static ArtistDetailFragment NewInstance(string artistName)
     {
         var args = new Bundle();
-        args.PutString("artist_name", artistName);
+        args.PutString("artistName", artistName);
         var fragment = new ArtistDetailFragment { Arguments = args };
         return fragment;
     }

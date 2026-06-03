@@ -61,6 +61,7 @@ public class MusicDatabase
 
             await MigratePlaylistsTableAsync();
             await MigratePlaylistSongsTableAsync();
+            await MigratePlayHistoryTableAsync();
 
             _isInitialized = true;
         }
@@ -1205,6 +1206,29 @@ public class MusicDatabase
                 "INSERT INTO PlaylistSongs(PlaylistId, SongId, Position) " +
                 "SELECT PlaylistId, SongId, Position FROM PlaylistSongs_old");
             await _database.ExecuteAsync("DROP TABLE PlaylistSongs_old");
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 迁移 PlayHistory 表：添加自增主键 Id 列
+    /// </summary>
+    private async Task MigratePlayHistoryTableAsync()
+    {
+        try
+        {
+            var exists = await TableExistsAsync("PlayHistory");
+            if (!exists) return;
+
+            var columns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(PlayHistory)");
+            if (columns.Any(c => c.pk > 0)) return;
+
+            await _database.ExecuteAsync("ALTER TABLE PlayHistory RENAME TO PlayHistory_old");
+            await _database.CreateTableAsync<PlayHistory>();
+            await _database.ExecuteAsync(
+                "INSERT INTO PlayHistory(SongId, PlayedAt, PlayCount) " +
+                "SELECT SongId, PlayedAt, PlayCount FROM PlayHistory_old");
+            await _database.ExecuteAsync("DROP TABLE PlayHistory_old");
         }
         catch { }
     }

@@ -522,6 +522,14 @@ public class PlaylistDetailFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
+        if (_playlistId != 0)
+        {
+            _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>
+            {
+                ApplySavedSort();
+                ApplySavedSourceFilter();
+            });
+        }
     }
 
     /// <summary>

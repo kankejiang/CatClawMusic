@@ -37,15 +37,15 @@ public class AlbumDetailFragment : Fragment
     public override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
-        _albumTitleStr = Arguments?.GetString("album_title", "") ?? "";
-        _albumArtistStr = Arguments?.GetString("album_artist", "") ?? "";
+        _albumTitleStr = Arguments?.GetString("albumTitle", "") ?? "";
+        _albumArtistStr = Arguments?.GetString("albumArtist", "") ?? "";
     }
 
     public static AlbumDetailFragment NewInstance(string albumTitle, string albumArtist)
     {
         var args = new Bundle();
-        args.PutString("album_title", albumTitle);
-        args.PutString("album_artist", albumArtist);
+        args.PutString("albumTitle", albumTitle);
+        args.PutString("albumArtist", albumArtist);
         var fragment = new AlbumDetailFragment { Arguments = args };
         return fragment;
     }

@@ -15,7 +15,7 @@
         <FrameLayout
             android:id="@+id/cover_container"
             android:layout_width="48dp" android:layout_height="48dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginEnd="20dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent">
