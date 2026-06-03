@@ -15,6 +15,7 @@ public class ArtistAdapter : RecyclerView.Adapter
 
     /// <summary>封面内存缓存</summary>
     private static readonly ConcurrentDictionary<string, Android.Graphics.Bitmap?> _coverCache = new();
+    private static readonly Android.OS.Handler _mainHandler = new(Android.OS.Looper.MainLooper!);
 
     public event EventHandler<ArtistWithCount>? OnArtistClick;
 
@@ -39,7 +40,7 @@ public class ArtistAdapter : RecyclerView.Adapter
         if (holder is ArtistViewHolder vh)
         {
             var artist = _artists[position];
-            vh.Bind(artist, _scraper, _coverCache);
+            vh.Bind(artist, _scraper, _coverCache, _mainHandler);
             vh.ItemView.Click -= vh.OnClick;
             vh.ItemView.Click += vh.OnClick;
             vh.SetArtist(artist, OnArtistClick);
@@ -63,6 +64,7 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
     private EventHandler<ArtistWithCount>? _clickHandler;
     private CancellationTokenSource? _cts;
     private string? _loadingArtistName;
+    private Android.OS.Handler? _mainHandler;
 
     public ArtistViewHolder(View view) : base(view)
     {
@@ -83,15 +85,15 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
             _clickHandler(this, _currentArtist);
     }
 
-    public void Bind(ArtistWithCount artist, NetEaseMusicScraper? scraper, ConcurrentDictionary<string, Android.Graphics.Bitmap?> coverCache)
+    public void Bind(ArtistWithCount artist, NetEaseMusicScraper? scraper, ConcurrentDictionary<string, Android.Graphics.Bitmap?> coverCache, Android.OS.Handler mainHandler)
     {
+        _mainHandler = mainHandler;
         _name.Text = artist.Name;
         _songCount.Text = $"{artist.SongCount}首";
 
-        // 内存缓存命中
         if (coverCache.TryGetValue(artist.Name, out var cached) && cached != null)
         {
-            try { _cover.SetImageBitmap(cached); } catch { }
+            _mainHandler.Post(() => { try { _cover.SetImageBitmap(cached); } catch { } });
             return;
         }
 
@@ -115,7 +117,6 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
             {
                 ct.ThrowIfCancellationRequested();
 
-                // 1. 数据库中的 Cover 字段
                 try
                 {
                     if (!string.IsNullOrEmpty(artist.Cover) && System.IO.File.Exists(artist.Cover))
@@ -128,7 +129,6 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 2. 从歌曲的 CoverArtPath 加载
                 try
                 {
                     if (!string.IsNullOrEmpty(artist.SampleCoverPath) && System.IO.File.Exists(artist.SampleCoverPath))
@@ -141,7 +141,6 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 3. 通过歌曲文件路径从 MediaStore 加载封面
                 try
                 {
                     if (!string.IsNullOrEmpty(artist.SampleFilePath))
@@ -154,7 +153,6 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 4. 通过 MediaStoreId 加载
                 try
                 {
                     if (artist.SampleMediaStoreId > 0)
@@ -167,7 +165,6 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 5. 网易云缓存封面
                 if (scraper != null)
                 {
                     var cachedPath = scraper.GetCachedCoverPath(artistName);
@@ -190,16 +187,23 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
         if (ct.IsCancellationRequested || _loadingArtistName != artistName) return;
 
-        if (bitmap != null)
+        var handler = _mainHandler;
+        if (handler == null) return;
+
+        handler.Post(() =>
         {
-            coverCache.TryAdd(artistName, bitmap);
-            try { _cover.SetImageBitmap(bitmap); } catch { }
-        }
-        else if (scraper != null)
-        {
-            // 异步刮削封面（下次加载时可用）
-            _ = ScrapeArtistCoverAsync(artistName, scraper, coverCache);
-        }
+            if (_currentArtist?.Name != artistName) return;
+
+            if (bitmap != null)
+            {
+                coverCache.TryAdd(artistName, bitmap);
+                try { _cover.SetImageBitmap(bitmap); } catch { }
+            }
+            else if (scraper != null)
+            {
+                _ = ScrapeArtistCoverAsync(artistName, scraper, coverCache);
+            }
+        });
     }
 
     private async Task ScrapeArtistCoverAsync(string artistName, NetEaseMusicScraper scraper, ConcurrentDictionary<string, Android.Graphics.Bitmap?> coverCache)
@@ -207,23 +211,25 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
         try
         {
             var coverPath = await scraper.GetArtistCoverAsync(artistName);
-            if (coverPath != null)
+            if (coverPath == null) return;
+
+            var handler = _mainHandler;
+            if (handler == null) return;
+
+            handler.Post(() =>
             {
-                ItemView.Post(() =>
+                try
                 {
-                    try
+                    if (_currentArtist?.Name != artistName) return;
+                    var bitmap = Android.Graphics.BitmapFactory.DecodeFile(coverPath);
+                    if (bitmap != null)
                     {
-                        if (_currentArtist?.Name != artistName) return;
-                        var bitmap = Android.Graphics.BitmapFactory.DecodeFile(coverPath);
-                        if (bitmap != null)
-                        {
-                            coverCache.TryAdd(artistName, bitmap);
-                            _cover.SetImageBitmap(bitmap);
-                        }
+                        coverCache.TryAdd(artistName, bitmap);
+                        _cover.SetImageBitmap(bitmap);
                     }
-                    catch { }
-                });
-            }
+                }
+                catch { }
+            });
         }
         catch { }
     }

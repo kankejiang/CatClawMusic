@@ -14,6 +14,7 @@ public class AlbumAdapter : RecyclerView.Adapter
 
     /// <summary>封面内存缓存</summary>
     private static readonly ConcurrentDictionary<string, Android.Graphics.Bitmap?> _coverCache = new();
+    private static readonly Android.OS.Handler _mainHandler = new(Android.OS.Looper.MainLooper!);
 
     public event EventHandler<AlbumWithCount>? OnAlbumClick;
 
@@ -36,7 +37,7 @@ public class AlbumAdapter : RecyclerView.Adapter
         if (holder is AlbumViewHolder vh)
         {
             var album = _albums[position];
-            vh.Bind(album, _coverCache);
+            vh.Bind(album, _coverCache, _mainHandler);
             vh.ItemView.Click -= vh.OnClick;
             vh.ItemView.Click += vh.OnClick;
             vh.SetAlbum(album, OnAlbumClick);
@@ -60,6 +61,7 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
     private EventHandler<AlbumWithCount>? _clickHandler;
     private CancellationTokenSource? _cts;
     private string? _loadingAlbumTitle;
+    private Android.OS.Handler? _mainHandler;
 
     public AlbumViewHolder(View view) : base(view)
     {
@@ -80,16 +82,16 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
             _clickHandler(this, _currentAlbum);
     }
 
-    public void Bind(AlbumWithCount album, ConcurrentDictionary<string, Android.Graphics.Bitmap?> coverCache)
+    public void Bind(AlbumWithCount album, ConcurrentDictionary<string, Android.Graphics.Bitmap?> coverCache, Android.OS.Handler mainHandler)
     {
+        _mainHandler = mainHandler;
         _title.Text = album.Title;
         _artist.Text = album.ArtistName;
 
-        // 内存缓存命中
         var cacheKey = album.Title + "|" + album.ArtistName;
         if (coverCache.TryGetValue(cacheKey, out var cached) && cached != null)
         {
-            try { _cover.SetImageBitmap(cached); } catch { }
+            _mainHandler.Post(() => { try { _cover.SetImageBitmap(cached); } catch { } });
             return;
         }
 
@@ -113,7 +115,6 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
             {
                 ct.ThrowIfCancellationRequested();
 
-                // 1. 专辑的 CoverArtPath
                 try
                 {
                     if (!string.IsNullOrEmpty(album.CoverArtPath) && System.IO.File.Exists(album.CoverArtPath))
@@ -126,7 +127,6 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 2. 专辑的 Cover 字段
                 try
                 {
                     if (!string.IsNullOrEmpty(album.Cover) && System.IO.File.Exists(album.Cover))
@@ -139,7 +139,6 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 3. 从歌曲的 CoverArtPath 加载
                 try
                 {
                     if (!string.IsNullOrEmpty(album.SampleCoverPath) && System.IO.File.Exists(album.SampleCoverPath))
@@ -152,7 +151,6 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 4. 通过歌曲文件路径从 MediaStore 加载封面
                 try
                 {
                     if (!string.IsNullOrEmpty(album.SampleFilePath))
@@ -165,7 +163,6 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 5. 通过 MediaStoreId 加载
                 try
                 {
                     if (album.SampleMediaStoreId > 0)
@@ -184,11 +181,19 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
 
         if (ct.IsCancellationRequested || _loadingAlbumTitle != album.Title) return;
 
-        if (bitmap != null)
+        var handler = _mainHandler;
+        if (handler == null) return;
+
+        handler.Post(() =>
         {
-            coverCache.TryAdd(cacheKey, bitmap);
-            try { _cover.SetImageBitmap(bitmap); } catch { }
-        }
+            if (_currentAlbum?.Title != album.Title) return;
+
+            if (bitmap != null)
+            {
+                coverCache.TryAdd(cacheKey, bitmap);
+                try { _cover.SetImageBitmap(bitmap); } catch { }
+            }
+        });
     }
 
     public void CancelLoad()
