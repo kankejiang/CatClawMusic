@@ -1,6 +1,7 @@
 using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
+using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Platforms.Android;
 using System.Collections.Concurrent;
@@ -121,7 +122,7 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
                 {
                     if (!string.IsNullOrEmpty(artist.Cover) && System.IO.File.Exists(artist.Cover))
                     {
-                        var b = Android.Graphics.BitmapFactory.DecodeFile(artist.Cover);
+                        var b = DecodeSampledBitmap(artist.Cover, 200);
                         if (b != null) return b;
                     }
                 }
@@ -133,7 +134,7 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
                 {
                     if (!string.IsNullOrEmpty(artist.SampleCoverPath) && System.IO.File.Exists(artist.SampleCoverPath))
                     {
-                        var b = Android.Graphics.BitmapFactory.DecodeFile(artist.SampleCoverPath);
+                        var b = DecodeSampledBitmap(artist.SampleCoverPath, 200);
                         if (b != null) return b;
                     }
                 }
@@ -165,6 +166,23 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
+                // 从音频文件嵌入标签提取封面
+                try
+                {
+                    if (!string.IsNullOrEmpty(artist.SampleFilePath) && !artist.SampleFilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(artist.SampleFilePath))
+                    {
+                        var coverBytes = TagReader.ExtractCoverArt(artist.SampleFilePath);
+                        if (coverBytes != null && coverBytes.Length > 0)
+                        {
+                            var b = Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
+                            if (b != null) return b;
+                        }
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
                 if (scraper != null)
                 {
                     var cachedPath = scraper.GetCachedCoverPath(artistName);
@@ -172,7 +190,7 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
                     {
                         try
                         {
-                            var b = Android.Graphics.BitmapFactory.DecodeFile(cachedPath);
+                            var b = DecodeSampledBitmap(cachedPath, 200);
                             if (b != null) return b;
                         }
                         catch { }
@@ -221,7 +239,7 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
                 try
                 {
                     if (_currentArtist?.Name != artistName) return;
-                    var bitmap = Android.Graphics.BitmapFactory.DecodeFile(coverPath);
+                    var bitmap = DecodeSampledBitmap(coverPath, 200);
                     if (bitmap != null)
                     {
                         coverCache.TryAdd(artistName, bitmap);
@@ -238,5 +256,33 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
     {
         _cts?.Cancel();
         _loadingArtistName = null;
+    }
+
+    private static Android.Graphics.Bitmap? DecodeSampledBitmap(string path, int targetSize)
+    {
+        try
+        {
+            var options = new Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
+            Android.Graphics.BitmapFactory.DecodeFile(path, options);
+            if (options.OutWidth <= 0 || options.OutHeight <= 0) return null;
+            options.InSampleSize = CalculateInSampleSize(options.OutWidth, options.OutHeight, targetSize);
+            options.InJustDecodeBounds = false;
+            options.InPreferredConfig = Android.Graphics.Bitmap.Config.Rgb565;
+            return Android.Graphics.BitmapFactory.DecodeFile(path, options);
+        }
+        catch { return null; }
+    }
+
+    private static int CalculateInSampleSize(int width, int height, int targetSize)
+    {
+        int inSampleSize = 1;
+        if (width > targetSize || height > targetSize)
+        {
+            var halfWidth = width / 2;
+            var halfHeight = height / 2;
+            while ((halfWidth / inSampleSize) >= targetSize && (halfHeight / inSampleSize) >= targetSize)
+                inSampleSize *= 2;
+        }
+        return inSampleSize;
     }
 }

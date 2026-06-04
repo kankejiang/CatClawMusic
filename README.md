@@ -239,6 +239,27 @@ CatClawMusic/
 
 ## 📦 版本更新
 
+### v1.2.3
+
+**稳定性修复**
+
+- 修复探索页面重启后数据不加载：_exploreData 初始化时序问题，改为同步初始化 + OnResume 兜底
+- 修复歌单最近播放进入后为空：TrimHistoryAsync SQL 按 SongId 误删改为按主键 Id 删除
+- 修复 PlayHistory 表迁移时数据丢失：迁移失败时恢复旧表数据而非直接丢弃
+- 修复 Canvas 试图绘制过大位图崩溃（314MB）：ArtistAdapter 和 AlbumAdapter 的 BitmapFactory.DecodeFile 全部改为降采样解码（InSampleSize + RGB_565）
+
+**内置智能体 Yuki**
+
+- 新增猫娘智能体 Yuki，称呼用户「大人」，语气软萌
+- 智能体切换 UI：探索页标题栏点击切换，对话消息显示对应头像
+- 智能体选择持久化到 SharedPreferences
+
+**探索页面优化**
+
+- 修复艺术家列表不加载照片：scraper 初始化时序修复
+- 修复专辑不加载封面：过滤网络歌曲 URL 被错误用作本地路径
+- 降低每日推荐封面图分辨率，减少卡顿
+
 ### v1.2.2
 
 **逐字歌词渐变高亮**

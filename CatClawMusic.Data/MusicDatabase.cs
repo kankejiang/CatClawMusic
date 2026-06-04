@@ -446,8 +446,9 @@ public class MusicDatabase
         {
             var count = await _database.Table<PlayHistory>().CountAsync();
             if (count <= keepCount) return;
+            // 按主键 Id 删除最旧的记录，避免按 SongId 误删多条
             await _database.ExecuteAsync(
-                "DELETE FROM PlayHistory WHERE SongId IN (SELECT SongId FROM PlayHistory ORDER BY PlayedAt ASC LIMIT ?)",
+                "DELETE FROM PlayHistory WHERE Id IN (SELECT Id FROM PlayHistory ORDER BY PlayedAt ASC LIMIT ?)",
                 count - keepCount);
         }
         catch { }
@@ -1219,10 +1220,24 @@ public class MusicDatabase
         try
         {
             var exists = await TableExistsAsync("PlayHistory");
-            if (!exists) return;
+            if (!exists)
+            {
+                // PlayHistory 不存在但 PlayHistory_old 可能残留 → 恢复
+                var oldExists = await TableExistsAsync("PlayHistory_old");
+                if (oldExists)
+                {
+                    await _database.ExecuteAsync("ALTER TABLE PlayHistory_old RENAME TO PlayHistory");
+                }
+                return;
+            }
 
             var columns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(PlayHistory)");
-            if (columns.Any(c => c.pk > 0)) return;
+            if (columns.Any(c => c.pk > 0))
+            {
+                // 表结构已正确，清理残留旧表
+                try { await _database.ExecuteAsync("DROP TABLE IF EXISTS PlayHistory_old"); } catch { }
+                return;
+            }
 
             await _database.ExecuteAsync("ALTER TABLE PlayHistory RENAME TO PlayHistory_old");
             await _database.CreateTableAsync<PlayHistory>();
@@ -1233,9 +1248,29 @@ public class MusicDatabase
         }
         catch
         {
-            // 迁移失败时删除旧表，让 CreateTableAsync 重新创建
-            try { await _database.ExecuteAsync("DROP TABLE IF EXISTS PlayHistory_old"); } catch { }
-            try { await _database.ExecuteAsync("DROP TABLE IF EXISTS PlayHistory"); } catch { }
+            // 迁移失败时尝试恢复旧表数据，而非直接丢弃
+            try
+            {
+                var oldExists = await TableExistsAsync("PlayHistory_old");
+                var newExists = await TableExistsAsync("PlayHistory");
+
+                if (oldExists && !newExists)
+                {
+                    await _database.ExecuteAsync("ALTER TABLE PlayHistory_old RENAME TO PlayHistory");
+                }
+                else if (oldExists && newExists)
+                {
+                    try
+                    {
+                        await _database.ExecuteAsync(
+                            "INSERT OR IGNORE INTO PlayHistory(SongId, PlayedAt, PlayCount) " +
+                            "SELECT SongId, PlayedAt, PlayCount FROM PlayHistory_old");
+                    }
+                    catch { }
+                    try { await _database.ExecuteAsync("DROP TABLE PlayHistory_old"); } catch { }
+                }
+            }
+            catch { }
         }
     }
 

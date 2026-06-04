@@ -1,6 +1,7 @@
 using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
+using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Platforms.Android;
 using System.Collections.Concurrent;
@@ -119,7 +120,7 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
                 {
                     if (!string.IsNullOrEmpty(album.CoverArtPath) && System.IO.File.Exists(album.CoverArtPath))
                     {
-                        var b = Android.Graphics.BitmapFactory.DecodeFile(album.CoverArtPath);
+                        var b = DecodeSampledBitmap(album.CoverArtPath, 200);
                         if (b != null) return b;
                     }
                 }
@@ -131,7 +132,7 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
                 {
                     if (!string.IsNullOrEmpty(album.Cover) && System.IO.File.Exists(album.Cover))
                     {
-                        var b = Android.Graphics.BitmapFactory.DecodeFile(album.Cover);
+                        var b = DecodeSampledBitmap(album.Cover, 200);
                         if (b != null) return b;
                     }
                 }
@@ -143,7 +144,7 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
                 {
                     if (!string.IsNullOrEmpty(album.SampleCoverPath) && System.IO.File.Exists(album.SampleCoverPath))
                     {
-                        var b = Android.Graphics.BitmapFactory.DecodeFile(album.SampleCoverPath);
+                        var b = DecodeSampledBitmap(album.SampleCoverPath, 200);
                         if (b != null) return b;
                     }
                 }
@@ -169,6 +170,23 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
                     {
                         var b = MediaStoreCoverHelper.LoadCoverFromMediaStore(album.SampleMediaStoreId, 200);
                         if (b != null) return b;
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // 从音频文件嵌入标签提取封面
+                try
+                {
+                    if (!string.IsNullOrEmpty(album.SampleFilePath) && !album.SampleFilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(album.SampleFilePath))
+                    {
+                        var coverBytes = TagReader.ExtractCoverArt(album.SampleFilePath);
+                        if (coverBytes != null && coverBytes.Length > 0)
+                        {
+                            var b = Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
+                            if (b != null) return b;
+                        }
                     }
                 }
                 catch { }
@@ -200,5 +218,33 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
     {
         _cts?.Cancel();
         _loadingAlbumTitle = null;
+    }
+
+    private static Android.Graphics.Bitmap? DecodeSampledBitmap(string path, int targetSize)
+    {
+        try
+        {
+            var options = new Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
+            Android.Graphics.BitmapFactory.DecodeFile(path, options);
+            if (options.OutWidth <= 0 || options.OutHeight <= 0) return null;
+            options.InSampleSize = CalculateInSampleSize(options.OutWidth, options.OutHeight, targetSize);
+            options.InJustDecodeBounds = false;
+            options.InPreferredConfig = Android.Graphics.Bitmap.Config.Rgb565;
+            return Android.Graphics.BitmapFactory.DecodeFile(path, options);
+        }
+        catch { return null; }
+    }
+
+    private static int CalculateInSampleSize(int width, int height, int targetSize)
+    {
+        int inSampleSize = 1;
+        if (width > targetSize || height > targetSize)
+        {
+            var halfWidth = width / 2;
+            var halfHeight = height / 2;
+            while ((halfWidth / inSampleSize) >= targetSize && (halfHeight / inSampleSize) >= targetSize)
+                inSampleSize *= 2;
+        }
+        return inSampleSize;
     }
 }

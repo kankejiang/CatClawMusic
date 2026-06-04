@@ -87,14 +87,16 @@ public class SearchFragment : Fragment
         InitExploreViews(view);
         InitChatViews(view);
 
-        // 在后台线程解析重量级服务和加载数据，避免阻塞主线程导致 ANR
+        // 同步初始化轻量级服务引用（GetService 对单例只是返回缓存实例，不会阻塞）
+        _exploreData = MainApplication.Services.GetService<ExploreDataService>();
+        _scraper = MainApplication.Services.GetService<NetEaseMusicScraper>();
+
+        // 在后台线程加载重量级数据，避免阻塞主线程导致 ANR
         _ = Task.Run(async () =>
         {
-            var db = MainApplication.Services.GetService<MusicDatabase>();
-            if (db != null)
+            if (_scraper != null)
             {
-                _exploreData = MainApplication.Services.GetService<ExploreDataService>();
-                _scraper = MainApplication.Services.GetService<NetEaseMusicScraper>();
+                Activity?.RunOnUiThread(() => _artistAdapter.SetScraper(_scraper));
             }
             await LoadExploreDataAsync();
         });
@@ -405,6 +407,8 @@ public class SearchFragment : Fragment
     public override void OnResume()
     {
         base.OnResume();
+        // 确保 _exploreData 已初始化（防止 OnViewCreated 中的 Task.Run 尚未完成）
+        _exploreData ??= MainApplication.Services.GetService<ExploreDataService>();
         // 每次回到探索页刷新数据（后台线程执行避免阻塞 UI）
         _ = Task.Run(() => LoadExploreDataAsync());
     }
