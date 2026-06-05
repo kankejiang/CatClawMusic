@@ -212,6 +212,11 @@ public class MainApplication : Application
         services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.ClearPlayQueueTool>();
         services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentService, CatClawMusic.Core.Services.AI.AgentService>();
 
+        // Backup service
+        services.AddSingleton<BackupService>(sp =>
+            new BackupService(sp.GetRequiredService<MusicDatabase>(),
+                sp.GetRequiredService<CatClawMusic.Core.Interfaces.IAgentConfigStorage>()));
+
         // ViewModels
         services.AddSingleton<LibraryViewModel>();       // 单例——Fragment 重建时不丢缓存
         services.AddSingleton<NowPlayingViewModel>();    // 单例——迷你播放器和全屏播放器共享状态

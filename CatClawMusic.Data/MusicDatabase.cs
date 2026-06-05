@@ -63,6 +63,7 @@ public class MusicDatabase
 
             await MigratePlaylistsTableAsync();
             await MigratePlaylistSongsTableAsync();
+            await MigrateArtistsTableAsync();
 
             _isInitialized = true;
         }
@@ -1203,6 +1204,28 @@ public class MusicDatabase
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] InsertSong 失败: {song.Title} - {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 迁移 Artists 表：添加 Gender/Birthday/Region/Description 列
+    /// </summary>
+    private async Task MigrateArtistsTableAsync()
+    {
+        try
+        {
+            var columns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Artists)");
+            var columnNames = columns.Select(c => c.name).ToHashSet();
+
+            if (!columnNames.Contains("Gender"))
+                try { await _database.ExecuteAsync("ALTER TABLE Artists ADD COLUMN Gender TEXT"); } catch { }
+            if (!columnNames.Contains("Birthday"))
+                try { await _database.ExecuteAsync("ALTER TABLE Artists ADD COLUMN Birthday TEXT"); } catch { }
+            if (!columnNames.Contains("Region"))
+                try { await _database.ExecuteAsync("ALTER TABLE Artists ADD COLUMN Region TEXT"); } catch { }
+            if (!columnNames.Contains("Description"))
+                try { await _database.ExecuteAsync("ALTER TABLE Artists ADD COLUMN Description TEXT"); } catch { }
+        }
+        catch { }
     }
 
     /// <summary>

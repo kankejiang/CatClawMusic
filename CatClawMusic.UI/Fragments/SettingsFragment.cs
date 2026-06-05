@@ -20,10 +20,13 @@ public class SettingsFragment : Fragment
     private TextView? _tvRemoteStatus;
     private TextView? _tvPluginStatus;
     private TextView? _tvAiStatus;
+    private TextView? _tvBackupStatus;
     private Spinner? _spinnerTheme;
     private ImageButton? _btnDarkModeToggle;
     private IThemeService? _themeService;
     private bool _isThemeSpinnerInitialized = false;
+
+    private const int RequestManageStorage = 1001;
 
     // 深浅色模式循环：Light → Dark → FollowSystem → Light
     private static readonly DarkModeSetting[] DarkModeCycle = {
@@ -85,6 +88,15 @@ public class SettingsFragment : Fragment
         if (btnAiSettings != null)
             btnAiSettings.SetOnClickListener(new ClickListener(() => nav.PushFragment("AiSettings")));
 
+        // 💾 备份与恢复
+        _tvBackupStatus = view.FindViewById<TextView>(Resource.Id.tv_backup_status);
+        var btnBackup = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.btn_backup);
+        var btnRestore = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.btn_restore);
+        if (btnBackup != null)
+            btnBackup.Click += OnBackupClick;
+        if (btnRestore != null)
+            btnRestore.Click += OnRestoreClick;
+
         // 关于
         var btnAbout = view.FindViewById<View>(Resource.Id.btn_about);
         if (btnAbout != null)
@@ -110,6 +122,43 @@ public class SettingsFragment : Fragment
         base.OnResume();
         // 每次恢复时更新图标（可能从其他地方改了设置）
         UpdateDarkModeIcon();
+        UpdateBackupStatus();
+    }
+
+    /// <summary>
+    /// 处理权限请求结果
+    /// </summary>
+    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Android.Content.PM.Permission[] grantResults)
+    {
+        if (requestCode == RequestManageStorage)
+        {
+            if (grantResults.Length > 0 && grantResults[0] == Android.Content.PM.Permission.Granted)
+            {
+                _ = DoBackupAsync();
+            }
+            else
+            {
+                Toast.MakeText(Context, "需要文件访问权限才能备份", ToastLength.Long)?.Show();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 处理 Activity Result（MANAGE_EXTERNAL_STORAGE）
+    /// </summary>
+    public override void OnActivityResult(int requestCode, int resultCode, Intent? data)
+    {
+        if (requestCode == RequestManageStorage)
+        {
+            if (HasStoragePermission())
+            {
+                _ = DoBackupAsync();
+            }
+            else
+            {
+                Toast.MakeText(Context, "需要文件访问权限才能备份", ToastLength.Long)?.Show();
+            }
+        }
     }
 
     /// <summary>
@@ -202,6 +251,218 @@ public class SettingsFragment : Fragment
         _btnDarkModeToggle.SetImageResource(iconRes);
     }
 
+    // ═══════════ 备份与恢复 ═══════════
+
+    /// <summary>检查是否有文件访问权限</summary>
+    private bool HasStoragePermission()
+    {
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+        {
+            return Android.OS.Environment.IsExternalStorageManager;
+        }
+        return Android.Content.PM.Permission.Granted ==
+            AndroidX.Core.Content.ContextCompat.CheckSelfPermission(
+                Context!, Android.Manifest.Permission.WriteExternalStorage);
+    }
+
+    /// <summary>请求文件访问权限</summary>
+    private void RequestStoragePermission()
+    {
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+        {
+            try
+            {
+                var intent = new Intent(Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
+                intent.SetData(Android.Net.Uri.Parse($"package:{Context?.PackageName}"));
+                StartActivityForResult(intent, RequestManageStorage);
+            }
+            catch
+            {
+                var intent = new Intent(Android.Provider.Settings.ActionManageAllFilesAccessPermission);
+                StartActivityForResult(intent, RequestManageStorage);
+            }
+        }
+        else
+        {
+            AndroidX.Core.App.ActivityCompat.RequestPermissions(
+                Activity!, new[] { Android.Manifest.Permission.WriteExternalStorage }, RequestManageStorage);
+        }
+    }
+
+    /// <summary>获取外部存储根目录</summary>
+    private static string GetExternalStoragePath()
+        => Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath
+           ?? "/storage/emulated/0";
+
+    /// <summary>备份按钮点击</summary>
+    private void OnBackupClick(object? sender, EventArgs e)
+    {
+        if (!HasStoragePermission())
+        {
+            ShowPermissionDialog(() => RequestStoragePermission());
+            return;
+        }
+        _ = DoBackupAsync();
+    }
+
+    /// <summary>恢复按钮点击</summary>
+    private void OnRestoreClick(object? sender, EventArgs e)
+    {
+        if (!HasStoragePermission())
+        {
+            ShowPermissionDialog(() => RequestStoragePermission());
+            return;
+        }
+        _ = ShowRestoreDialogAsync();
+    }
+
+    /// <summary>显示权限说明对话框</summary>
+    private void ShowPermissionDialog(Action onConfirm)
+    {
+        var dialog = new Android.App.AlertDialog.Builder(Context!)
+            .SetTitle("需要文件访问权限")
+            .SetMessage("备份和恢复功能需要访问手机存储来保存和读取备份文件。\n\n备份文件将保存在：手机存储/CatClawMusic/")
+            .SetPositiveButton("去授权", (s, e) => onConfirm())
+            .SetNegativeButton("取消", (s, e) => { })
+            .Create();
+        dialog.Show();
+    }
+
+    /// <summary>执行备份</summary>
+    private async Task DoBackupAsync()
+    {
+        try
+        {
+            var backupService = MainApplication.Services.GetRequiredService<BackupService>();
+            var path = await backupService.BackupAsync(GetExternalStoragePath());
+
+            Activity?.RunOnUiThread(() =>
+            {
+                Toast.MakeText(Context, $"备份成功\n已保存到 {path}", ToastLength.Long)?.Show();
+                UpdateBackupStatus();
+            });
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Settings] 备份失败: {ex.Message}");
+            Activity?.RunOnUiThread(() =>
+                Toast.MakeText(Context, $"备份失败: {ex.Message}", ToastLength.Long)?.Show());
+        }
+    }
+
+    /// <summary>显示恢复选择对话框</summary>
+    private async Task ShowRestoreDialogAsync()
+    {
+        try
+        {
+            var backups = BackupService.ListBackups(GetExternalStoragePath());
+            if (backups.Count == 0)
+            {
+                Toast.MakeText(Context, "未找到备份文件\n备份目录：手机存储/CatClawMusic/", ToastLength.Long)?.Show();
+                return;
+            }
+
+            // 读取备份信息用于显示
+            var displayItems = new System.Collections.Generic.List<string>();
+            foreach (var path in backups)
+            {
+                var info = await BackupService.ReadBackupInfoAsync(path);
+                var fileName = System.IO.Path.GetFileName(path);
+                if (info != null)
+                {
+                    var date = info.CreatedAt.ToString("yyyy-MM-dd HH:mm");
+                    var summary = $"{date}  |  {info.Playlists.Count}个歌单  {info.PlayHistory.Count}条记录  {info.Artists.Count}位歌手  {info.LlmConfigs.Count}个AI配置";
+                    displayItems.Add(summary);
+                }
+                else
+                {
+                    displayItems.Add(fileName);
+                }
+            }
+
+            int selectedIndex = -1;
+            var dialog = new Android.App.AlertDialog.Builder(Context!)
+                .SetTitle("选择备份文件恢复")
+                .SetSingleChoiceItems(displayItems.ToArray(), -1, (s, e) => selectedIndex = e.Which)
+                .SetPositiveButton("恢复", (s, e) =>
+                {
+                    if (selectedIndex >= 0 && selectedIndex < backups.Count)
+                    {
+                        ShowRestoreConfirmDialog(backups[selectedIndex]);
+                    }
+                    else
+                    {
+                        Toast.MakeText(Context, "请先选择一个备份文件", ToastLength.Short)?.Show();
+                    }
+                })
+                .SetNegativeButton("取消", (s, e) => { })
+                .Create();
+            dialog.Show();
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Settings] 读取备份列表失败: {ex.Message}");
+            Toast.MakeText(Context, $"读取备份列表失败: {ex.Message}", ToastLength.Long)?.Show();
+        }
+    }
+
+    /// <summary>恢复确认对话框</summary>
+    private void ShowRestoreConfirmDialog(string backupPath)
+    {
+        new Android.App.AlertDialog.Builder(Context!)
+            .SetTitle("确认恢复")
+            .SetMessage("恢复操作将：\n\n• 补充缺失的歌单（已有同名歌单不会覆盖）\n• 合并播放记录和收藏\n• 补充缺失的艺术家元数据\n• 覆盖AI模型配置\n\n确认恢复？")
+            .SetPositiveButton("恢复", async (s, e) =>
+            {
+                try
+                {
+                    var backupService = MainApplication.Services.GetRequiredService<BackupService>();
+                    await backupService.RestoreAsync(backupPath);
+                    Activity?.RunOnUiThread(() =>
+                    {
+                        Toast.MakeText(Context, "恢复成功", ToastLength.Short)?.Show();
+                        UpdateBackupStatus();
+                    });
+                }
+                catch (System.Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Settings] 恢复失败: {ex.Message}");
+                    Activity?.RunOnUiThread(() =>
+                        Toast.MakeText(Context, $"恢复失败: {ex.Message}", ToastLength.Long)?.Show());
+                }
+            })
+            .SetNegativeButton("取消", (s, e) => { })
+            .Create()
+            .Show();
+    }
+
+    /// <summary>更新备份状态文本</summary>
+    private void UpdateBackupStatus()
+    {
+        try
+        {
+            var backups = BackupService.ListBackups(GetExternalStoragePath());
+            if (backups.Count > 0)
+            {
+                var latest = System.IO.Path.GetFileNameWithoutExtension(backups[0]);
+                // 从 backup_20250101_120000 提取日期
+                var datePart = latest.Replace("backup_", "").Replace("_", " ");
+                _tvBackupStatus?.Post(() =>
+                    _tvBackupStatus.Text = $"最近备份: {datePart}  |  共 {backups.Count} 个备份");
+            }
+            else
+            {
+                _tvBackupStatus?.Post(() =>
+                    _tvBackupStatus.Text = "备份歌单、播放记录、艺术家元数据、AI配置");
+            }
+        }
+        catch
+        {
+            _tvBackupStatus?.Post(() =>
+                _tvBackupStatus.Text = "备份歌单、播放记录、艺术家元数据、AI配置");
+        }
+    }
+
     /// <summary>
     /// 异步加载本地音乐、远程服务和插件状态信息，更新状态文本
     /// </summary>
@@ -267,6 +528,9 @@ public class SettingsFragment : Fragment
         {
             _tvAiStatus?.Post(() => _tvAiStatus.Text = "未配置");
         }
+
+        // 备份状态
+        UpdateBackupStatus();
     }
 
     /// <summary>

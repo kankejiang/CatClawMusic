@@ -187,13 +187,14 @@ public class ArtistMatchDetailFragment : Fragment
         {
             var scrapers = MainApplication.Services.GetServices<IArtistMetadataScraper>();
 
-            // 按信息丰富度排序尝试：AI搜索 > Wikidata > MusicBrainz > 网易云
+            // 按信息丰富度排序尝试：AI搜索 > 网易云
             var orderedScrapers = new List<IArtistMetadataScraper>();
             var aiScraper = scrapers.FirstOrDefault(s => s.SourceName == "AI 搜索");
             if (aiScraper is AiArtistScraper ai && ai.IsConfigured)
                 orderedScrapers.Add(aiScraper!);
-            orderedScrapers.Add(scrapers.FirstOrDefault(s => s.SourceName == "Wikidata")!);
-            orderedScrapers.Add(scrapers.FirstOrDefault(s => s.SourceName == "MusicBrainz")!);
+            var neteaseScraper = scrapers.FirstOrDefault(s => s.SourceName == "网易云");
+            if (neteaseScraper != null)
+                orderedScrapers.Add(neteaseScraper);
             orderedScrapers = orderedScrapers.Where(s => s != null).ToList();
 
             foreach (var scraper in orderedScrapers)
