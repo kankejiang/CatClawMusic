@@ -239,6 +239,26 @@ CatClawMusic/
 
 ## 📦 版本更新
 
+### v1.2.4
+
+**数据持久化修复**
+
+- 修复探索页面和最近播放显示空白：移除权限过期时的 `ClearLocalSongsAsync` 调用，保留数据等重新授权
+- 修复 `LoadExploreDataAsync` 改为独立容错，一个子任务失败不影响其他
+- 修复 `RecordPlayAsync` 添加 try-catch，防止静默吞异常导致 PlayHistory 写不进去
+- 修复 `GetRecentSongsAsync`/`GetTopPlayedSongsAsync` 只过滤不删除孤立记录
+- 修复 `LoadDailyRecommendFromDisk` 改为异步避免死锁
+- 修复 `CleanupOrphanedPlayHistoryAndFavoritesAsync` 内 `EnsureInitializedAsync` 信号量死锁
+- 修复 Canvas 试图绘制过大位图崩溃（314MB）：ArtistAdapter 和 AlbumAdapter 降采样解码
+
+**新增功能**
+
+- AI 艺术家元数据刮削（AiArtistScraper）
+- 艺术家匹配界面（ArtistMatchFragment / ArtistMatchDetailFragment）
+- 数据备份服务（BackupService）
+- 设置页面（SettingsFragment）
+- 艺术家详情页增强
+
 ### v1.2.3
 
 **稳定性修复**
