@@ -35,6 +35,11 @@ public class MusicDatabase
     private bool _isInitialized;
 
     /// <summary>
+    /// 从文件路径提取艺术家名称的回调（由 UI 层设置，用于修复 ArtistId=0 的歌曲）
+    /// </summary>
+    public Func<string, string?>? ExtractArtistNameCallback { get; set; }
+
+    /// <summary>
     /// 初始化信号量，确保并发安全
     /// </summary>
     private readonly SemaphoreSlim _initSemaphore = new(1, 1);
@@ -642,8 +647,8 @@ public class MusicDatabase
         var neededAlbumIds = favSongs.Select(s => s.AlbumId).Distinct().ToList();
         var artists = await _database.Table<Artist>().Where(a => neededArtistIds.Contains(a.Id)).ToListAsync();
         var albums = await _database.Table<Album>().Where(a => neededAlbumIds.Contains(a.Id)).ToListAsync();
-        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
-        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+        var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
 
         foreach (var s in favSongs)
         {
@@ -651,7 +656,7 @@ public class MusicDatabase
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
         }
 
-        var favDict = favs.ToDictionary(f => f.SongId, f => f.AddedAt);
+        var favDict = SafeToDict(favs, f => f.SongId, f => f.AddedAt);
         return favSongs.OrderByDescending(s => favDict.TryGetValue(s.Id, out var t) ? t : 0).ToList();
     }
 
@@ -838,10 +843,10 @@ public class MusicDatabase
         var songs = await _database.Table<Song>().Where(s => songIds.Contains(s.Id)).ToListAsync();
         var artists = await _database.Table<Artist>().ToListAsync();
         var albums = await _database.Table<Album>().ToListAsync();
-        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
-        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+        var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
 
-        var songMap = songs.ToDictionary(s => s.Id);
+        var songMap = SafeToDict(songs, s => s.Id, s => s);
 
         var sorted = new List<Song>(entries.Count);
         foreach (var entry in entries)
@@ -889,7 +894,7 @@ public class MusicDatabase
 
         System.Diagnostics.Debug.WriteLine($"[DB] UpdatePlaylistOrderAsync: playlistId={playlistId}, orderedSongIds.Count={orderedSongIds.Count}, existingEntries.Count={allEntries.Count}");
 
-        var entryDict = allEntries.ToDictionary(e => e.SongId);
+        var entryDict = SafeToDict(allEntries, e => e.SongId, e => e);
 
         int updatedCount = 0;
         int missingCount = 0;
@@ -1012,7 +1017,7 @@ public class MusicDatabase
 
         // Phase 1: 批量处理 Artist
         var allArtists = await _database.Table<Artist>().ToListAsync();
-        var artistNameToId = allArtists.ToDictionary(a => a.Name, a => a.Id);
+        var artistNameToId = SafeToDict(allArtists, a => a.Name, a => a.Id);
         var newArtistNames = new HashSet<string>();
 
         foreach (var s in songs)
@@ -1038,7 +1043,7 @@ public class MusicDatabase
 
         // Phase 3: 批量处理 Album（依赖已解析的 ArtistId）
         var allAlbums = await _database.Table<Album>().ToListAsync();
-        var albumKeyToId = allAlbums.ToDictionary(a => (a.Title ?? "", a.ArtistId), a => a.Id);
+        var albumKeyToId = SafeToDict(allAlbums, a => (a.Title ?? "", a.ArtistId), a => a.Id);
         var newAlbumKeys = new HashSet<(string Title, int ArtistId)>();
         var newAlbums = new List<Album>();
 
@@ -1082,8 +1087,8 @@ public class MusicDatabase
         // 填充 Artist/Album 名称
         var artists = await _database.Table<Artist>().ToListAsync();
         var albums = await _database.Table<Album>().ToListAsync();
-        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
-        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+        var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
         foreach (var s in songs)
         {
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
@@ -1367,19 +1372,20 @@ public class MusicDatabase
         }
 
         // 7. 修复 ArtistId=0 的歌曲：尝试从文件元数据重新关联
-        await FixOrphanedArtistIdsAsync(nameToNewId);
+        await FixOrphanedArtistIdsAsync(nameToNewId, ExtractArtistNameCallback);
     }
 
     /// <summary>
-    /// 修复 ArtistId=0 的歌曲：从 Songs 表中提取艺术家名称信息重新关联
+    /// 修复 ArtistId=0 的歌曲：通过回调提取艺术家名称重新关联
     /// </summary>
-    private async Task FixOrphanedArtistIdsAsync(Dictionary<string, int> nameToNewId)
+    private async Task FixOrphanedArtistIdsAsync(Dictionary<string, int> nameToNewId, Func<string, string?>? extractArtistName = null)
     {
         try
         {
             // 获取所有 ArtistId=0 的歌曲
             var orphanSongs = await _database.Table<Song>().Where(s => s.ArtistId == 0).ToListAsync();
             if (orphanSongs.Count == 0) return;
+            if (extractArtistName == null) return;
 
             // 尝试从文件元数据提取艺术家名称
             foreach (var song in orphanSongs)
@@ -1389,10 +1395,7 @@ public class MusicDatabase
 
                 try
                 {
-                    var retriever = new Android.Media.MediaMetadataRetriever();
-                    retriever.SetDataSource(song.FilePath);
-                    var artistName = retriever.ExtractMetadata(Android.Media.MetadataKey.Artist);
-                    retriever.Release();
+                    var artistName = extractArtistName(song.FilePath);
 
                     if (string.IsNullOrEmpty(artistName)) continue;
 

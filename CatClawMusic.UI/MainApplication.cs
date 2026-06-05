@@ -48,6 +48,18 @@ public class MainApplication : Application
             File.WriteAllText(Path.Combine(externalDir, "catclaw_v5.marker"), "1");
         }
         var database = new MusicDatabase(dbPath);
+        database.ExtractArtistNameCallback = (filePath) =>
+        {
+            try
+            {
+                var retriever = new Android.Media.MediaMetadataRetriever();
+                retriever.SetDataSource(filePath);
+                var artistName = retriever.ExtractMetadata(Android.Media.MetadataKey.Artist);
+                retriever.Release();
+                return artistName;
+            }
+            catch { return null; }
+        };
         services.AddSingleton(database);
 
         // Core services
