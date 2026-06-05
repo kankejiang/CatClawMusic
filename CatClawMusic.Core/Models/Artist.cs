@@ -1,11 +1,13 @@
-using CatClawMusic.Core.Models;
+using SQLite;
 
 namespace CatClawMusic.Core.Models;
 
 /// <summary>艺术家模型</summary>
+[Table("Artists")]
 public class Artist
 {
     /// <summary>主键 ID</summary>
+    [PrimaryKey, AutoIncrement]
     public int Id { get; set; }
 
     /// <summary>艺术家名称</summary>

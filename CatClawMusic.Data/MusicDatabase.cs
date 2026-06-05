@@ -64,6 +64,7 @@ public class MusicDatabase
             await MigratePlaylistsTableAsync();
             await MigratePlaylistSongsTableAsync();
             await MigrateArtistsTableAsync();
+            await RecoverArtistsTableAsync();
 
             _isInitialized = true;
         }
@@ -1224,6 +1225,39 @@ public class MusicDatabase
                 try { await _database.ExecuteAsync("ALTER TABLE Artists ADD COLUMN Region TEXT"); } catch { }
             if (!columnNames.Contains("Description"))
                 try { await _database.ExecuteAsync("ALTER TABLE Artists ADD COLUMN Description TEXT"); } catch { }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 恢复 Artist 表数据：之前 [Table] 属性丢失导致 ORM 创建了错误的 "Artist" 单数表，
+    /// 将其数据合并回 "Artists" 复数表后删除
+    /// </summary>
+    private async Task RecoverArtistsTableAsync()
+    {
+        try
+        {
+            var hasArtistTable = await TableExistsAsync("Artist");
+            if (!hasArtistTable) return;
+
+            // 获取 Artist 表的列
+            var artistColumns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Artist)");
+            var artistColumnNames = artistColumns.Select(c => c.name).ToHashSet();
+
+            // 获取 Artists 表的列
+            var artistsColumns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Artists)");
+            var artistsColumnNames = artistsColumns.Select(c => c.name).ToHashSet();
+
+            // 找出两表共有的列
+            var commonColumns = artistColumnNames.Where(c => artistsColumnNames.Contains(c)).ToList();
+
+            if (commonColumns.Count == 0) return;
+
+            var columnsStr = string.Join(", ", commonColumns);
+            await _database.ExecuteAsync(
+                $"INSERT OR IGNORE INTO Artists ({columnsStr}) SELECT {columnsStr} FROM Artist");
+
+            await _database.ExecuteAsync("DROP TABLE Artist");
         }
         catch { }
     }
