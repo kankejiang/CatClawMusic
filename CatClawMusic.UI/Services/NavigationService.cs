@@ -58,6 +58,8 @@ public class NavigationService : INavigationService
             "ModelManager" => MainApplication.Services.GetRequiredService<ModelManagerFragment>(),
             "ModelEdit" => CreateModelEdit(parameters),
             "About" => MainApplication.Services.GetRequiredService<AboutFragment>(),
+            "ArtistMatch" => MainApplication.Services.GetRequiredService<ArtistMatchFragment>(),
+            "ArtistMatchDetail" => CreateArtistMatchDetail(parameters),
             "ArtistDetail" => CreateArtistDetail(parameters),
             "AlbumDetail" => CreateAlbumDetail(parameters),
             "LandscapeNowPlaying" => MainApplication.Services.GetRequiredService<LandscapeNowPlayingFragment>(),
@@ -109,6 +111,21 @@ public class NavigationService : INavigationService
         if (parameters != null)
         {
             var args = new Android.OS.Bundle();
+            if (parameters.TryGetValue("artistName", out var name))
+                args.PutString("artistName", name?.ToString());
+            fragment.Arguments = args;
+        }
+        return fragment;
+    }
+
+    private Fragment CreateArtistMatchDetail(Dictionary<string, object>? parameters)
+    {
+        var fragment = MainApplication.Services.GetRequiredService<ArtistMatchDetailFragment>();
+        if (parameters != null)
+        {
+            var args = new Android.OS.Bundle();
+            if (parameters.TryGetValue("artistId", out var id))
+                args.PutInt("artistId", Convert.ToInt32(id));
             if (parameters.TryGetValue("artistName", out var name))
                 args.PutString("artistName", name?.ToString());
             fragment.Arguments = args;

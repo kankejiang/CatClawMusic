@@ -88,7 +88,11 @@ public partial class PlaylistDetailViewModel : ObservableObject
             Songs.ReplaceAll(_allSongsRaw);
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         }
-        catch { StatusText = "加载失败"; }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PlaylistDetail] LoadAsync({playlistId}) failed: {ex}");
+            StatusText = "加载失败";
+        }
     }
 
     /// <summary>

@@ -423,11 +423,7 @@ public partial class LibraryViewModel : ObservableObject
                 return;
             }
 
-            // 无缓存，清空数据库中的本地歌曲记录
-            if (_database != null)
-            {
-                try { await _database.EnsureInitializedAsync(); await _database.ClearLocalSongsAsync(); } catch { }
-            }
+            // 无缓存但保留数据库记录，不清空（等用户重新授权后可继续使用）
             Songs.Clear();
             StatusText = "未选择音乐文件夹";
             ShowPermissionPrompt = true;

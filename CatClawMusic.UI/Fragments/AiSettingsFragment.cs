@@ -41,6 +41,11 @@ public class AiSettingsFragment : Fragment
         if (cardAddModel != null)
             cardAddModel.Click += (s, e) => nav.PushFragment("ModelEdit");
 
+        // 艺术家元数据匹配
+        var cardArtistMatch = view.FindViewById<View>(Resource.Id.card_artist_match);
+        if (cardArtistMatch != null)
+            cardArtistMatch.Click += (s, e) => nav.PushFragment("ArtistMatch");
+
         LoadConfig();
 
         _switchEnabled?.CheckedChange += (s, e) =>

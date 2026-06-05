@@ -125,29 +125,45 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
         {
             try
             {
+                var activity = Activity;
+                if (activity == null) return;
+                var packageName = activity.PackageName ?? "com.catclaw.music";
+
                 if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
                 {
                     try
                     {
                         var intent = new Intent(global::Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
-                        intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
-                        StartActivity(intent);
-                        return;
+                        intent.SetData(global::Android.Net.Uri.Parse($"package:{packageName}"));
+                        // 检查 Intent 是否可解析
+                        if (intent.ResolveActivity(activity.PackageManager!) != null)
+                        {
+                            activity.StartActivity(intent);
+                            return;
+                        }
                     }
                     catch { }
                 }
                 try
                 {
                     var intent = new Intent(global::Android.Provider.Settings.ActionApplicationDetailsSettings);
-                    intent.SetData(global::Android.Net.Uri.Parse("package:com.catclaw.music"));
+                    intent.SetData(global::Android.Net.Uri.Parse($"package:{packageName}"));
                     intent.AddFlags(ActivityFlags.NewTask);
-                    StartActivity(intent);
-                    return;
+                    if (intent.ResolveActivity(activity.PackageManager!) != null)
+                    {
+                        activity.StartActivity(intent);
+                        return;
+                    }
                 }
                 catch { }
                 try
                 {
-                    StartActivity(new Intent(global::Android.Provider.Settings.ActionSettings));
+                    var intent = new Intent(global::Android.Provider.Settings.ActionSettings);
+                    intent.AddFlags(ActivityFlags.NewTask);
+                    if (intent.ResolveActivity(activity.PackageManager!) != null)
+                    {
+                        activity.StartActivity(intent);
+                    }
                 }
                 catch { }
             }

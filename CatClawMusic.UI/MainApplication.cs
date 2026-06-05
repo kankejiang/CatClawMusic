@@ -162,6 +162,30 @@ public class MainApplication : Application
                 Path.Combine(cacheDir, "artist_covers"),
                 Path.Combine(cacheDir, "album_covers"));
         });
+        services.AddSingleton<MusicBrainzScraper>(sp =>
+        {
+            var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
+            return new MusicBrainzScraper(Path.Combine(cacheDir, "artist_covers"));
+        });
+        services.AddSingleton<WikidataScraper>(sp =>
+        {
+            var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
+            var mbScraper = sp.GetRequiredService<MusicBrainzScraper>();
+            return new WikidataScraper(Path.Combine(cacheDir, "artist_covers"), mbScraper);
+        });
+        services.AddSingleton<AiArtistScraper>(sp =>
+        {
+            var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
+            var llmClient = sp.GetRequiredService<CatClawMusic.Core.Interfaces.ILlmClient>();
+            var agentService = sp.GetService<CatClawMusic.Core.Interfaces.IAgentService>();
+            return new AiArtistScraper(llmClient, Path.Combine(cacheDir, "artist_covers"),
+                () => agentService?.IsConfigured ?? false);
+        });
+        // 注册所有 IArtistMetadataScraper 实现
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<NetEaseMusicScraper>());
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<MusicBrainzScraper>());
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<WikidataScraper>());
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<AiArtistScraper>());
 
         // Android platform services
         services.AddSingleton<IDialogService, DialogService>();
@@ -233,6 +257,8 @@ public class MainApplication : Application
         services.AddTransient<ModelManagerFragment>();
         services.AddTransient<ModelEditFragment>();
         services.AddTransient<AboutFragment>();
+        services.AddTransient<ArtistMatchFragment>();
+        services.AddTransient<ArtistMatchDetailFragment>();
         services.AddTransient<ModelAdapter>();
 
         // Adapters

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/catClawPageBackground">
+
+    <!-- 标题栏 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:padding="16dp">
+        <ImageButton android:id="@+id/btn_back"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_back"
+            android:tint="?attr/catClawTextPrimary"
+            android:contentDescription="返回" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="艺术家元数据匹配" android:textSize="20sp"
+            android:textColor="?attr/catClawTextPrimary"
+            android:fontFamily="@font/happy_zcool_2016"
+            android:gravity="center" />
+        <View android:layout_width="40dp" android:layout_height="0dp" />
+    </LinearLayout>
+
+    <!-- 搜索栏 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
+        android:layout_marginBottom="12dp"
+        app:cardCornerRadius="24dp" app:cardElevation="0dp"
+        app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+        app:cardBackgroundColor="?attr/catClawCardBackground">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="12dp"
+            android:minHeight="44dp">
+            <ImageView android:layout_width="20dp" android:layout_height="20dp"
+                android:src="@drawable/ic_search"
+                android:tint="?attr/catClawTextHint" />
+            <EditText android:id="@+id/et_search"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="搜索艺术家"
+                android:textSize="14sp"
+                android:textColor="?attr/catClawTextPrimary"
+                android:textColorHint="?attr/catClawTextHint"
+                android:background="@android:color/transparent"
+                android:inputType="text"
+                android:imeOptions="actionSearch"
+                android:singleLine="true"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 提示文字 -->
+    <TextView android:id="@+id/tv_hint"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="点击艺术家进入匹配页面，从网络搜索结果中选择正确的封面"
+        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 一键匹配按钮 + 来源切换 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
+        android:layout_marginBottom="12dp">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_auto_match"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="一键匹配"
+            android:textSize="14sp"
+            app:cornerRadius="12dp" />
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chip_group_source"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:singleSelection="true"
+            app:selectionRequired="true"
+            app:chipSpacingHorizontal="6dp">
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_netease"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="网易云"
+                android:checked="true"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_musicbrainz"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="MusicBrainz"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_wikidata"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Wikidata"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_ai"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="AI 搜索"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+        </com.google.android.material.chip.ChipGroup>
+    </LinearLayout>
+
+    <!-- 艺术家列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_artists"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:paddingBottom="16dp" />
+
+    <!-- 加载中 -->
+    <ProgressBar android:id="@+id/progress"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+</LinearLayout>

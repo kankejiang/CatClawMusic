@@ -6,12 +6,14 @@ namespace CatClawMusic.Data;
 /// <summary>
 /// 网易云音乐元数据刮削服务，用于获取艺术家头像
 /// </summary>
-public class NetEaseMusicScraper
+public class NetEaseMusicScraper : IArtistMetadataScraper
 {
     private readonly HttpClient _httpClient;
     private readonly MusicDatabase _db;
     private readonly string _artistCoverCacheDir;
     private readonly string _albumCoverCacheDir;
+
+    public string SourceName => "网易云";
 
     /// <summary>艺术家详细信息</summary>
     public class ArtistInfo
@@ -182,6 +184,90 @@ public class NetEaseMusicScraper
             System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 获取艺术家信息失败: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>搜索结果项</summary>
+    public class SearchResult
+    {
+        public long Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? CoverUrl { get; set; }
+        public string? Alias { get; set; }
+        public int SongCount { get; set; }
+        public string? Description { get; set; }
+    }
+
+    /// <summary>搜索艺术家，返回多个匹配结果（供用户手动选择）</summary>
+    public async Task<List<SearchResult>> SearchArtistsAsync(string name, int limit = 10)
+    {
+        var results = new List<SearchResult>();
+        try
+        {
+            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["s"] = name,
+                ["type"] = "100",
+                ["offset"] = "0",
+                ["limit"] = limit.ToString()
+            });
+
+            var response = await _httpClient.PostAsync("http://music.163.com/api/search/pc", content);
+            if (!response.IsSuccessStatusCode) return results;
+
+            var body = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+
+            if (!doc.RootElement.TryGetProperty("result", out var result)) return results;
+            if (!result.TryGetProperty("artists", out var artists)) return results;
+
+            foreach (var artist in artists.EnumerateArray())
+            {
+                var item = new SearchResult();
+                if (artist.TryGetProperty("id", out var idProp))
+                    item.Id = idProp.GetInt64();
+                if (artist.TryGetProperty("name", out var nameProp))
+                    item.Name = nameProp.GetString() ?? "";
+                if (artist.TryGetProperty("picUrl", out var picUrl))
+                    item.CoverUrl = picUrl.GetString();
+                if (artist.TryGetProperty("alias", out var aliasArr) && aliasArr.ValueKind == JsonValueKind.Array)
+                {
+                    var aliases = aliasArr.EnumerateArray()
+                        .Select(a => a.GetString())
+                        .Where(a => !string.IsNullOrEmpty(a))
+                        .ToList();
+                    if (aliases.Count > 0) item.Alias = string.Join(" / ", aliases);
+                }
+                if (artist.TryGetProperty("albumSize", out var albumSize))
+                    item.SongCount = albumSize.GetInt32();
+
+                results.Add(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 搜索艺术家列表失败: {ex.Message}");
+        }
+        return results;
+    }
+
+    /// <summary>下载并保存艺术家封面到缓存</summary>
+    public async Task<string?> DownloadAndCacheArtistCoverAsync(string coverUrl, string artistName)
+    {
+        try
+        {
+            var cachePath = GetArtistCoverPath(artistName);
+            var bytes = await _httpClient.GetByteArrayAsync(coverUrl);
+            if (bytes.Length > 0)
+            {
+                await File.WriteAllBytesAsync(cachePath, bytes);
+                return cachePath;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 下载艺术家封面失败: {ex.Message}");
+        }
+        return null;
     }
 
     /// <summary>搜索艺术家，返回网易云艺术家 ID</summary>
@@ -446,5 +532,26 @@ public class NetEaseMusicScraper
     {
         var safeName = string.Join("_", albumTitle.Split(Path.GetInvalidFileNameChars()));
         return Path.Combine(_albumCoverCacheDir, $"{safeName}.jpg");
+    }
+
+    // IArtistMetadataScraper 显式实现
+    Task<List<ArtistSearchResult>> IArtistMetadataScraper.SearchArtistsAsync(string name, int limit)
+    {
+        return SearchArtistsInternalAsync(name, limit);
+    }
+
+    private async Task<List<ArtistSearchResult>> SearchArtistsInternalAsync(string name, int limit)
+    {
+        var oldResults = await SearchArtistsAsync(name, limit);
+        return oldResults.Select(r => new ArtistSearchResult
+        {
+            Source = SourceName,
+            Id = r.Id.ToString(),
+            Name = r.Name,
+            CoverUrl = r.CoverUrl,
+            Alias = r.Alias,
+            Description = r.Description,
+            ExtraInfo = r.SongCount > 0 ? $"{r.SongCount} 张专辑" : null
+        }).ToList();
     }
 }

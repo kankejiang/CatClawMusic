@@ -376,32 +376,38 @@ public class SearchFragment : Fragment
         if (_exploreData == null) return;
         try
         {
-            // 读取来源筛选设置（SharedPreferences 读取可能耗时，已在后台线程）
             var prefs = Activity?.GetSharedPreferences("playlist_sort", Android.Content.FileCreationMode.Private);
             var sourceFilter = prefs?.GetString("source_filter_-1", "all") ?? "all";
             _exploreData.SetSourceFilter(sourceFilter);
-
-            var dailyTask = _exploreData.GetDailyRecommendAsync();
-            var artistsTask = _exploreData.GetArtistsWithSongCountAsync();
-            var albumsTask = _exploreData.GetAlbumsWithSongCountAsync();
-            var topPlayedTask = _exploreData.GetTopPlayedSongsAsync(20);
-            var recentTask = _exploreData.GetRecentlyAddedSongsAsync(20);
-
-            await Task.WhenAll(dailyTask, artistsTask, albumsTask, topPlayedTask, recentTask);
-
-            Activity?.RunOnUiThread(() =>
-            {
-                _dailyRecommendAdapter.UpdateSongs(dailyTask.Result);
-                _artistAdapter.UpdateArtists(artistsTask.Result);
-                _albumAdapter.UpdateAlbums(albumsTask.Result);
-                _topPlayedAdapter.UpdateSongs(topPlayedTask.Result);
-                _recentAddedAdapter.UpdateSongs(recentTask.Result);
-            });
         }
-        catch (Exception ex)
+        catch { }
+
+        // 每个任务独立 try-catch，一个失败不影响其他
+        List<Song> daily = new(), topPlayed = new(), recent = new();
+        List<ArtistWithCount> artists = new();
+        List<AlbumWithCount> albums = new();
+
+        async Task SafeLoadAsync(Func<Task> loadAction) { try { await loadAction(); } catch { } }
+
+        await Task.WhenAll(
+            SafeLoadAsync(async () => daily = await _exploreData.GetDailyRecommendAsync()),
+            SafeLoadAsync(async () => artists = await _exploreData.GetArtistsWithSongCountAsync()),
+            SafeLoadAsync(async () => albums = await _exploreData.GetAlbumsWithSongCountAsync()),
+            SafeLoadAsync(async () => topPlayed = await _exploreData.GetTopPlayedSongsAsync(20)),
+            SafeLoadAsync(async () => recent = await _exploreData.GetRecentlyAddedSongsAsync(20))
+        );
+
+        var activity = Activity;
+        if (activity == null) return;
+
+        activity.RunOnUiThread(() =>
         {
-            System.Diagnostics.Debug.WriteLine($"[Explore] 加载数据失败: {ex}");
-        }
+            _dailyRecommendAdapter.UpdateSongs(daily);
+            _artistAdapter.UpdateArtists(artists);
+            _albumAdapter.UpdateAlbums(albums);
+            _topPlayedAdapter.UpdateSongs(topPlayed);
+            _recentAddedAdapter.UpdateSongs(recent);
+        });
     }
 
     public override void OnResume()

@@ -160,7 +160,6 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
 
         _loadingSongId = song.Id;
 
-        // 1. 内存缓存命中（最快）
         if (coverCache.TryGetValue(song.Id, out var cached) && cached != null)
         {
             try { _cover.SetImageBitmap(cached); } catch { }
@@ -169,7 +168,6 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
 
         _cover.SetImageResource(Resource.Drawable.ic_music_note);
 
-        // 2. 所有 IO 操作放到后台线程
         var songId = song.Id;
         Android.Graphics.Bitmap? bitmap = null;
 
@@ -179,13 +177,12 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
             {
                 ct.ThrowIfCancellationRequested();
 
-                // 磁盘缓存
                 try
                 {
                     var coverPath = GetCoverCachedPath(song.Id);
                     if (System.IO.File.Exists(coverPath))
                     {
-                        var b = Android.Graphics.BitmapFactory.DecodeFile(coverPath);
+                        var b = DecodeFileWithSize(coverPath, 200);
                         if (b != null) return b;
                     }
                 }
@@ -193,12 +190,11 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // CoverArtPath
                 try
                 {
                     if (!string.IsNullOrEmpty(song.CoverArtPath) && System.IO.File.Exists(song.CoverArtPath))
                     {
-                        var b = Android.Graphics.BitmapFactory.DecodeFile(song.CoverArtPath);
+                        var b = DecodeFileWithSize(song.CoverArtPath, 200);
                         if (b != null) return b;
                     }
                 }
@@ -206,7 +202,6 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // MediaStore
                 try
                 {
                     if (song.MediaStoreId > 0)
@@ -219,7 +214,6 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
 
                 ct.ThrowIfCancellationRequested();
 
-                // 嵌入封面
                 try
                 {
                     if (!string.IsNullOrEmpty(song.FilePath) && song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
@@ -231,7 +225,7 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
                                 Android.Net.Uri.Parse(song.FilePath));
                             var embedded = retriever.GetEmbeddedPicture();
                             if (embedded != null && embedded.Length > 0)
-                                return Android.Graphics.BitmapFactory.DecodeByteArray(embedded, 0, embedded.Length);
+                                return DecodeBytesWithSize(embedded, 200);
                         }
                         finally { retriever.Release(); }
                     }
@@ -239,7 +233,7 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
                     {
                         var coverBytes = TagReader.ExtractCoverArt(song.FilePath);
                         if (coverBytes != null && coverBytes.Length > 0)
-                            return Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
+                            return DecodeBytesWithSize(coverBytes, 200);
                     }
                 }
                 catch { }
@@ -263,6 +257,49 @@ public class ExploreSongViewHolder : RecyclerView.ViewHolder
     {
         _cts?.Cancel();
         _loadingSongId = -1;
+    }
+
+    private static Android.Graphics.Bitmap? DecodeFileWithSize(string path, int targetSize)
+    {
+        try
+        {
+            var options = new Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
+            Android.Graphics.BitmapFactory.DecodeFile(path, options);
+
+            options.InSampleSize = CalculateInSampleSize(options.OutWidth, options.OutHeight, targetSize);
+            options.InJustDecodeBounds = false;
+            options.InPreferredConfig = Android.Graphics.Bitmap.Config.Rgb565;
+            return Android.Graphics.BitmapFactory.DecodeFile(path, options);
+        }
+        catch { return null; }
+    }
+
+    private static Android.Graphics.Bitmap? DecodeBytesWithSize(byte[] data, int targetSize)
+    {
+        try
+        {
+            var options = new Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
+            Android.Graphics.BitmapFactory.DecodeByteArray(data, 0, data.Length, options);
+
+            options.InSampleSize = CalculateInSampleSize(options.OutWidth, options.OutHeight, targetSize);
+            options.InJustDecodeBounds = false;
+            options.InPreferredConfig = Android.Graphics.Bitmap.Config.Rgb565;
+            return Android.Graphics.BitmapFactory.DecodeByteArray(data, 0, data.Length, options);
+        }
+        catch { return null; }
+    }
+
+    private static int CalculateInSampleSize(int width, int height, int targetSize)
+    {
+        int inSampleSize = 1;
+        if (height > targetSize || width > targetSize)
+        {
+            var halfH = height / 2;
+            var halfW = width / 2;
+            while ((halfH / inSampleSize) >= targetSize && (halfW / inSampleSize) >= targetSize)
+                inSampleSize *= 2;
+        }
+        return inSampleSize;
     }
 
     private static string GetCoverCachedPath(int songId)
