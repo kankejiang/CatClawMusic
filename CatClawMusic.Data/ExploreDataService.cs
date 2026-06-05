@@ -57,7 +57,7 @@ public class ExploreDataService
             return _dailyRecommendCache;
 
         // 尝试从磁盘缓存恢复
-        var diskCache = LoadDailyRecommendFromDisk(today);
+        var diskCache = await LoadDailyRecommendFromDiskAsync(today);
         if (diskCache != null)
         {
             _dailyRecommendCache = diskCache;
@@ -76,8 +76,8 @@ public class ExploreDataService
         return shuffled;
     }
 
-    /// <summary>从磁盘缓存加载每日推荐</summary>
-    private List<Song>? LoadDailyRecommendFromDisk(string date)
+    /// <summary>从磁盘缓存加载每日推荐（异步版本，避免死锁）</summary>
+    private async Task<List<Song>?> LoadDailyRecommendFromDiskAsync(string date)
     {
         try
         {
@@ -85,7 +85,7 @@ public class ExploreDataService
             var json = File.ReadAllText(_cacheFilePath);
             var cache = System.Text.Json.JsonSerializer.Deserialize<DailyRecommendCache>(json);
             if (cache?.Date != date) return null;
-            var allSongs = _db.GetSongsAsync().GetAwaiter().GetResult();
+            var allSongs = await _db.GetSongsAsync();
             var filtered = ApplySourceFilter(allSongs);
             var result = new List<Song>();
             foreach (var id in cache.Ids)
@@ -124,9 +124,10 @@ public class ExploreDataService
         var artistSongCount = songs.GroupBy(s => s.ArtistId)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // 从每个艺术家的第一首歌曲获取封面信息
+        // 从每个艺术家的第一首本地歌曲获取封面信息
         var artistSampleCover = songs
-            .Where(s => s.ArtistId > 0 && !string.IsNullOrEmpty(s.FilePath))
+            .Where(s => s.ArtistId > 0 && !string.IsNullOrEmpty(s.FilePath)
+                && s.Source == SongSource.Local)
             .GroupBy(s => s.ArtistId)
             .ToDictionary(g => g.Key, g => g.First());
 
@@ -165,9 +166,10 @@ public class ExploreDataService
         var albumSongCount = songs.GroupBy(s => s.AlbumId)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // 从每个专辑的第一首歌曲获取封面信息
+        // 从每个专辑的第一首本地歌曲获取封面信息
         var albumSampleCover = songs
-            .Where(s => s.AlbumId > 0 && !string.IsNullOrEmpty(s.FilePath))
+            .Where(s => s.AlbumId > 0 && !string.IsNullOrEmpty(s.FilePath)
+                && s.Source == SongSource.Local)
             .GroupBy(s => s.AlbumId)
             .ToDictionary(g => g.Key, g => g.First());
 
