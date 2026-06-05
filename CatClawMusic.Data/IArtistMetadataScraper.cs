@@ -3,7 +3,7 @@ namespace CatClawMusic.Data;
 /// <summary>艺术家元数据刮削器统一接口</summary>
 public interface IArtistMetadataScraper
 {
-    /// <summary>来源名称（如"网易云"、"MusicBrainz"）</summary>
+    /// <summary>来源名称（如"网易云"、"AI 搜索"）</summary>
     string SourceName { get; }
 
     /// <summary>搜索艺术家，返回多个匹配结果</summary>
@@ -22,6 +22,7 @@ public class ArtistSearchResult
     public string? CoverUrl { get; set; }
     public string? Alias { get; set; }
     public string? Gender { get; set; }
+    public string? Birthday { get; set; }
     public string? Region { get; set; }
     public string? Description { get; set; }
     public string? ExtraInfo { get; set; }

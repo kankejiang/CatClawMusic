@@ -164,22 +164,6 @@
                 app:chipStrokeColor="?attr/catClawAccentColor"
                 app:chipStrokeWidth="1dp" />
             <com.google.android.material.chip.Chip
-                android:id="@+id/chip_musicbrainz"
-                style="@style/Widget.MaterialComponents.Chip.Choice"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="MusicBrainz"
-                app:chipBackgroundColor="?attr/catClawCardBackground"
-                app:chipStrokeColor="?attr/catClawAccentColor"
-                app:chipStrokeWidth="1dp" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_wikidata"
-                style="@style/Widget.MaterialComponents.Chip.Choice"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="Wikidata"
-                app:chipBackgroundColor="?attr/catClawCardBackground"
-                app:chipStrokeColor="?attr/catClawAccentColor"
-                app:chipStrokeWidth="1dp" />
-            <com.google.android.material.chip.Chip
                 android:id="@+id/chip_ai"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"

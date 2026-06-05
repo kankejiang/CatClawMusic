@@ -32,8 +32,6 @@ public class ArtistMatchDetailFragment : Fragment
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
         ["chip_netease"] = "网易云",
-        ["chip_musicbrainz"] = "MusicBrainz",
-        ["chip_wikidata"] = "Wikidata",
         ["chip_ai"] = "AI 搜索"
     };
 
@@ -297,16 +295,14 @@ public class ArtistMatchDetailFragment : Fragment
         }
     }
 
-    /// <summary>从搜索结果更新艺术家性别、国籍/地区和简介</summary>
+    /// <summary>从搜索结果更新艺术家性别、生日、国籍/地区和简介</summary>
     private void UpdateArtistInfo(List<ArtistSearchResult> results)
     {
-        // 优先精确匹配，否则取第一个
         var best = results.FirstOrDefault(r =>
             r.Name.Equals(_artistName, StringComparison.OrdinalIgnoreCase))
             ?? results.FirstOrDefault();
         if (best == null) return;
 
-        // 性别
         if (!string.IsNullOrEmpty(best.Gender))
         {
             if (_tvArtistGender != null)
@@ -316,11 +312,18 @@ public class ArtistMatchDetailFragment : Fragment
             }
         }
 
-        // 国籍/地区
-        var region = best.Region;
-        if (!string.IsNullOrEmpty(region))
+        if (!string.IsNullOrEmpty(best.Birthday))
         {
-            region = CountryCodeToName(region);
+            // 在性别和国籍之间显示生日
+            if (_tvArtistRegion != null)
+            {
+                _tvArtistRegion.Text = best.Birthday + "  ·  " + (best.Region != null ? CountryCodeToName(best.Region) : "");
+                _tvArtistRegion.Visibility = ViewStates.Visible;
+            }
+        }
+        else if (!string.IsNullOrEmpty(best.Region))
+        {
+            var region = CountryCodeToName(best.Region);
             if (_tvArtistRegion != null)
             {
                 _tvArtistRegion.Text = region;
@@ -328,7 +331,6 @@ public class ArtistMatchDetailFragment : Fragment
             }
         }
 
-        // 简介
         if (!string.IsNullOrEmpty(best.Description))
         {
             if (_tvArtistDesc != null)

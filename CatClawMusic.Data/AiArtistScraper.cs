@@ -5,28 +5,32 @@ using System.Text.Json;
 namespace CatClawMusic.Data;
 
 /// <summary>
-/// AI 联网搜索刮削服务，利用已配置的 AI 模型搜索艺术家封面
+/// AI 联网搜索刮削服务，利用已配置的 AI 模型搜索艺术家信息
+/// 封面 fallback 到网易云
 /// </summary>
 public class AiArtistScraper : IArtistMetadataScraper
 {
     private readonly ILlmClient _llmClient;
     private readonly string _artistCoverCacheDir;
     private readonly Func<bool> _isConfiguredCheck;
+    private readonly Func<NetEaseMusicScraper?> _neteaseScraperFactory;
 
     public string SourceName => "AI 搜索";
 
-    public AiArtistScraper(ILlmClient llmClient, string artistCoverCacheDir, Func<bool>? isConfiguredCheck = null)
+    public AiArtistScraper(ILlmClient llmClient, string artistCoverCacheDir,
+        Func<bool>? isConfiguredCheck = null, Func<NetEaseMusicScraper?>? neteaseScraperFactory = null)
     {
         _llmClient = llmClient;
         _artistCoverCacheDir = artistCoverCacheDir;
         _isConfiguredCheck = isConfiguredCheck ?? (() => true);
+        _neteaseScraperFactory = neteaseScraperFactory ?? (() => null);
         Directory.CreateDirectory(_artistCoverCacheDir);
     }
 
     /// <summary>检查 AI 服务是否已配置</summary>
     public bool IsConfigured => _isConfiguredCheck();
 
-    /// <summary>通过 AI 搜索艺术家封面</summary>
+    /// <summary>通过 AI 搜索艺术家信息</summary>
     public async Task<List<ArtistSearchResult>> SearchArtistsAsync(string name, int limit = 10)
     {
         var results = new List<ArtistSearchResult>();
@@ -43,27 +47,25 @@ public class AiArtistScraper : IArtistMetadataScraper
                 new()
                 {
                     Role = "system",
-                    Content = @"你是一个音乐元数据搜索助手。用户会给你一个艺术家名称，你需要搜索并提供该艺术家的信息。
+                    Content = @"你是一个音乐百科助手。用户会给你一个艺术家名称，你需要提供该艺术家的详细信息。
 
 请严格按照以下 JSON 数组格式返回结果，不要包含任何其他文字说明：
 [
   {
     ""name"": ""艺术家名称"",
-    ""alias"": ""别名/艺名（如有）"",
+    ""alias"": ""别名/艺名（如有，多个用/分隔）"",
     ""gender"": ""性别（男/女/组合）"",
+    ""birthday"": ""出生日期（如：1990-01-15，组合填成立日期）"",
     ""region"": ""国籍或地区（如：中国、日本、韩国、美国、英国等）"",
-    ""description"": ""简短描述（风格、代表作、成就等，50字以内）"",
-    ""cover_url"": ""艺术家官方照片或代表性图片的直链URL"",
-    ""source_url"": ""图片来源网页URL""
+    ""description"": ""详细介绍（风格、代表作、主要成就等，100字以内）""
   }
 ]
 
 要求：
-1. cover_url 必须是可直接访问的图片URL（jpg/png/webp），不是网页链接
-2. 如果找不到图片直链，cover_url 设为 null
-3. 最多返回3个可能的匹配结果
-4. 优先返回最知名、最匹配的结果
-5. 只返回 JSON，不要有其他文字"
+1. 信息必须准确，不确定的字段填 null
+2. 最多返回3个可能的匹配结果
+3. 优先返回最知名、最匹配的结果
+4. 只返回 JSON，不要有其他文字"
                 },
                 new()
                 {
@@ -93,20 +95,32 @@ public class AiArtistScraper : IArtistMetadataScraper
                     result.Alias = aliasProp.GetString();
                 if (item.TryGetProperty("gender", out var genderProp))
                     result.Gender = genderProp.GetString();
+                if (item.TryGetProperty("birthday", out var birthdayProp))
+                    result.Birthday = birthdayProp.GetString();
                 if (item.TryGetProperty("region", out var regionProp))
                     result.Region = regionProp.GetString();
                 if (item.TryGetProperty("description", out var descProp))
                     result.Description = descProp.GetString();
-                if (item.TryGetProperty("cover_url", out var coverProp) && coverProp.ValueKind == JsonValueKind.String)
-                {
-                    var url = coverProp.GetString();
-                    if (!string.IsNullOrEmpty(url) && url.StartsWith("http"))
-                        result.CoverUrl = url;
-                }
 
                 result.Id = $"ai_{result.Name.GetHashCode():x}";
-                results.Add(result);
 
+                // AI 不返回封面 URL，尝试从网易云获取封面
+                if (!string.IsNullOrEmpty(result.Name))
+                {
+                    try
+                    {
+                        var netease = _neteaseScraperFactory();
+                        if (netease != null)
+                        {
+                            var coverPath = await netease.GetArtistCoverAsync(result.Name);
+                            if (coverPath != null)
+                                result.CoverUrl = coverPath; // 本地路径，直接可用
+                        }
+                    }
+                    catch { }
+                }
+
+                results.Add(result);
                 if (results.Count >= limit) break;
             }
         }
@@ -120,6 +134,10 @@ public class AiArtistScraper : IArtistMetadataScraper
     /// <summary>下载并保存艺术家封面到缓存</summary>
     public async Task<string?> DownloadAndCacheArtistCoverAsync(string coverUrl, string artistName)
     {
+        // 如果已经是本地路径，直接返回
+        if (!string.IsNullOrEmpty(coverUrl) && System.IO.File.Exists(coverUrl))
+            return coverUrl;
+
         try
         {
             var cachePath = GetArtistCoverPath(artistName);

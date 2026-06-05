@@ -67,11 +67,21 @@
                         android:layout_marginTop="2dp"
                         android:maxLines="1" android:ellipsize="end"
                         android:visibility="gone" />
-                    <TextView android:id="@+id/tv_artist_country"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"
-                        android:layout_marginTop="2dp"
-                        android:visibility="gone" />
+                    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginTop="2dp">
+                        <TextView android:id="@+id/tv_artist_gender"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"
+                            android:visibility="gone" />
+                        <TextView android:id="@+id/tv_artist_birthday"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"
+                            android:visibility="gone" />
+                        <TextView android:id="@+id/tv_artist_country"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"
+                            android:visibility="gone" />
+                    </LinearLayout>
                     <TextView android:id="@+id/tv_song_count"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"

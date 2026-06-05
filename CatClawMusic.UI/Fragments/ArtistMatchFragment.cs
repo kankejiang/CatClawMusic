@@ -29,8 +29,6 @@ public class ArtistMatchFragment : Fragment
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
         ["chip_netease"] = "网易云",
-        ["chip_musicbrainz"] = "MusicBrainz",
-        ["chip_wikidata"] = "Wikidata",
         ["chip_ai"] = "AI 搜索"
     };
 
@@ -291,6 +289,8 @@ public class ArtistMatchFragment : Fragment
                         artist.Region = CountryCodeToName(bestMatch.Region);
                     if (_matchDesc && !string.IsNullOrEmpty(bestMatch.Description) && (_skipExisting ? string.IsNullOrEmpty(artist.Description) : true))
                         artist.Description = bestMatch.Description;
+                    if (!string.IsNullOrEmpty(bestMatch.Birthday) && (_skipExisting ? string.IsNullOrEmpty(artist.Birthday) : true))
+                        artist.Birthday = bestMatch.Birthday;
                 }
 
                 await db.UpdateArtistAsync(artist);
