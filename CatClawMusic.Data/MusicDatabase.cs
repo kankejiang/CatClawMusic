@@ -9,6 +9,22 @@ namespace CatClawMusic.Data;
 public class MusicDatabase
 {
     /// <summary>
+    /// 安全的 ToDictionary：遇到重复键时保留第一个，避免异常
+    /// </summary>
+    private static Dictionary<TKey, TValue> SafeToDict<TSource, TKey, TValue>(
+        IEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TValue> valueSelector)
+        where TKey : notnull
+    {
+        var dict = new Dictionary<TKey, TValue>();
+        foreach (var item in source)
+        {
+            var key = keySelector(item);
+            if (!dict.ContainsKey(key))
+                dict[key] = valueSelector(item);
+        }
+        return dict;
+    }
+    /// <summary>
     /// SQLite 异步数据库连接
     /// </summary>
     private readonly SQLiteAsyncConnection _database;
@@ -203,8 +219,8 @@ public class MusicDatabase
         // 批量预加载艺术家和专辑，避免 N+1 查询
         var artists = await _database.Table<Artist>().ToListAsync();
         var albums = await _database.Table<Album>().ToListAsync();
-        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
-        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+        var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
         foreach (var s in songs)
         {
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
@@ -522,8 +538,8 @@ public class MusicDatabase
 
         var artists = await _database.Table<Artist>().ToListAsync();
         var albums = await _database.Table<Album>().ToListAsync();
-        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
-        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+        var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
 
         foreach (var s in songs)
         {
@@ -556,8 +572,8 @@ public class MusicDatabase
 
         var artists = await _database.Table<Artist>().ToListAsync();
         var albums = await _database.Table<Album>().ToListAsync();
-        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
-        var albumDict = albums.ToDictionary(a => a.Id, a => a.Title);
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+        var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
 
         foreach (var s in songs)
         {
@@ -1230,36 +1246,190 @@ public class MusicDatabase
     }
 
     /// <summary>
-    /// 恢复 Artist 表数据：之前 [Table] 属性丢失导致 ORM 创建了错误的 "Artist" 单数表，
-    /// 将其数据合并回 "Artists" 复数表后删除
+    /// 恢复 Artist 表数据：之前 [Table] 属性和 [PrimaryKey,AutoIncrement] 丢失导致：
+    /// 1. ORM 创建了错误的 "Artist" 单数表（所有 Id=0）
+    /// 2. "Artists" 复数表可能也有 Id=0 的脏数据
+    /// 按 Name 合并数据，重建 Artists 表结构
     /// </summary>
     private async Task RecoverArtistsTableAsync()
     {
         try
         {
+            // 检查 Artists 表是否有主键（没有说明表结构损坏需要重建）
+            var artistsCols = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Artists)");
+            var hasPrimaryKey = artistsCols.Any(c => c.pk > 0);
+
+            // 检查是否存在错误的 "Artist" 单数表
             var hasArtistTable = await TableExistsAsync("Artist");
-            if (!hasArtistTable) return;
 
-            // 获取 Artist 表的列
-            var artistColumns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Artist)");
-            var artistColumnNames = artistColumns.Select(c => c.name).ToHashSet();
-
-            // 获取 Artists 表的列
-            var artistsColumns = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Artists)");
-            var artistsColumnNames = artistsColumns.Select(c => c.name).ToHashSet();
-
-            // 找出两表共有的列
-            var commonColumns = artistColumnNames.Where(c => artistsColumnNames.Contains(c)).ToList();
-
-            if (commonColumns.Count == 0) return;
-
-            var columnsStr = string.Join(", ", commonColumns);
-            await _database.ExecuteAsync(
-                $"INSERT OR IGNORE INTO Artists ({columnsStr}) SELECT {columnsStr} FROM Artist");
-
-            await _database.ExecuteAsync("DROP TABLE Artist");
+            if (!hasPrimaryKey || hasArtistTable)
+            {
+                await RebuildArtistsTableAsync(hasArtistTable);
+            }
         }
         catch { }
+    }
+
+    /// <summary>
+    /// 重建 Artists 表：合并 Artist 和 Artists 表数据，按 Name 去重，重建正确表结构
+    /// </summary>
+    private async Task RebuildArtistsTableAsync(bool hasArtistTable)
+    {
+        // 读取两个表的所有数据（按 Name 去重合并）
+        var mergedArtists = new Dictionary<string, ArtistRecoveryRow>();
+
+        // 1. 从 Artists 表读取
+        try
+        {
+            var artistsData = await _database.QueryAsync<ArtistRecoveryRow>(
+                "SELECT Name, Cover, Gender, Birthday, Region, Description FROM Artists");
+            foreach (var a in artistsData)
+            {
+                if (!string.IsNullOrEmpty(a.Name) && !mergedArtists.ContainsKey(a.Name))
+                    mergedArtists[a.Name] = a;
+            }
+        }
+        catch { }
+
+        // 2. 从 Artist 表读取（补充 Artists 表没有的）
+        if (hasArtistTable)
+        {
+            try
+            {
+                var artistData = await _database.QueryAsync<ArtistRecoveryRow>(
+                    "SELECT Name, Cover, Gender, Birthday, Region, Description FROM Artist");
+                foreach (var a in artistData)
+                {
+                    if (!string.IsNullOrEmpty(a.Name) && !mergedArtists.ContainsKey(a.Name))
+                        mergedArtists[a.Name] = a;
+                }
+            }
+            catch { }
+        }
+
+        // 3. 获取 Songs 表中引用的 ArtistId → 需要保留的映射
+        // 先读取旧 Artists 表的 Id 映射
+        var oldIdToName = new Dictionary<int, string>();
+        try
+        {
+            var idNameRows = await _database.QueryAsync<IdNameRow>("SELECT Id, Name FROM Artists");
+            foreach (var r in idNameRows)
+                oldIdToName[r.Id] = r.Name;
+        }
+        catch { }
+
+        // 4. 重建 Artists 表
+        await _database.ExecuteAsync("DROP TABLE IF EXISTS Artists");
+        if (hasArtistTable)
+            await _database.ExecuteAsync("DROP TABLE IF EXISTS Artist");
+
+        await _database.CreateTableAsync<Artist>();
+
+        // 5. 插入合并后的数据，构建 Name → 新Id 映射
+        var nameToNewId = new Dictionary<string, int>();
+        foreach (var kvp in mergedArtists)
+        {
+            var a = kvp.Value;
+            var artist = new Artist
+            {
+                Name = a.Name,
+                Cover = a.Cover,
+                Gender = a.Gender,
+                Birthday = a.Birthday,
+                Region = a.Region,
+                Description = a.Description,
+            };
+            await _database.InsertAsync(artist);
+            nameToNewId[a.Name] = artist.Id;
+        }
+
+        // 6. 更新 Songs 表的 ArtistId
+        // 对于每个旧 ArtistId，找到对应的 Name，再找到新 Id
+        var oldIdToNewId = new Dictionary<int, int>();
+        foreach (var kvp in oldIdToName)
+        {
+            if (nameToNewId.TryGetValue(kvp.Value, out var newId))
+                oldIdToNewId[kvp.Key] = newId;
+        }
+
+        // 批量更新 Songs.ArtistId
+        foreach (var mapping in oldIdToNewId)
+        {
+            if (mapping.Key != mapping.Value)
+            {
+                try
+                {
+                    await _database.ExecuteAsync("UPDATE Songs SET ArtistId = ? WHERE ArtistId = ?",
+                        mapping.Value, mapping.Key);
+                }
+                catch { }
+            }
+        }
+
+        // 7. 修复 ArtistId=0 的歌曲：尝试从文件元数据重新关联
+        await FixOrphanedArtistIdsAsync(nameToNewId);
+    }
+
+    /// <summary>
+    /// 修复 ArtistId=0 的歌曲：从 Songs 表中提取艺术家名称信息重新关联
+    /// </summary>
+    private async Task FixOrphanedArtistIdsAsync(Dictionary<string, int> nameToNewId)
+    {
+        try
+        {
+            // 获取所有 ArtistId=0 的歌曲
+            var orphanSongs = await _database.Table<Song>().Where(s => s.ArtistId == 0).ToListAsync();
+            if (orphanSongs.Count == 0) return;
+
+            // 尝试从文件元数据提取艺术家名称
+            foreach (var song in orphanSongs)
+            {
+                if (string.IsNullOrEmpty(song.FilePath) || !System.IO.File.Exists(song.FilePath))
+                    continue;
+
+                try
+                {
+                    var retriever = new Android.Media.MediaMetadataRetriever();
+                    retriever.SetDataSource(song.FilePath);
+                    var artistName = retriever.ExtractMetadata(Android.Media.MetadataKey.Artist);
+                    retriever.Release();
+
+                    if (string.IsNullOrEmpty(artistName)) continue;
+
+                    // 在 nameToNewId 中查找或创建
+                    if (!nameToNewId.TryGetValue(artistName, out var artistId))
+                    {
+                        var newArtist = new Artist { Name = artistName };
+                        await _database.InsertAsync(newArtist);
+                        artistId = newArtist.Id;
+                        nameToNewId[artistName] = artistId;
+                    }
+
+                    song.ArtistId = artistId;
+                    await _database.UpdateAsync(song);
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>用于恢复时读取艺术家行的辅助类</summary>
+    private class ArtistRecoveryRow
+    {
+        public string Name { get; set; } = "";
+        public string? Cover { get; set; }
+        public string? Gender { get; set; }
+        public string? Birthday { get; set; }
+        public string? Region { get; set; }
+        public string? Description { get; set; }
+    }
+
+    /// <summary>用于读取 Id-Name 映射的辅助类</summary>
+    private class IdNameRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
     }
 
     /// <summary>
