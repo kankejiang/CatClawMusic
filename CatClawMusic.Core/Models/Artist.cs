@@ -18,4 +18,13 @@ public class Artist
 
     /// <summary>封面 URL 或路径</summary>
     public string? Cover { get; set; }
+
+    /// <summary>性别</summary>
+    public string? Gender { get; set; }
+
+    /// <summary>国籍/地区</summary>
+    public string? Region { get; set; }
+
+    /// <summary>简介</summary>
+    public string? Description { get; set; }
 }

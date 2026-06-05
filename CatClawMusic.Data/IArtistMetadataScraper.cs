@@ -21,6 +21,8 @@ public class ArtistSearchResult
     public string Name { get; set; } = "";
     public string? CoverUrl { get; set; }
     public string? Alias { get; set; }
+    public string? Gender { get; set; }
+    public string? Region { get; set; }
     public string? Description { get; set; }
     public string? ExtraInfo { get; set; }
 }

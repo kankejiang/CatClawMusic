@@ -550,6 +550,8 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
             Name = r.Name,
             CoverUrl = r.CoverUrl,
             Alias = r.Alias,
+            Gender = null,
+            Region = null,
             Description = r.Description,
             ExtraInfo = r.SongCount > 0 ? $"{r.SongCount} 张专辑" : null
         }).ToList();

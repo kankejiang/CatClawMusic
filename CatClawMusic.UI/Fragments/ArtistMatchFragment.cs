@@ -20,6 +20,11 @@ public class ArtistMatchFragment : Fragment
     private List<Artist> _allArtists = new();
     private Button? _btnAutoMatch;
     private string _autoMatchSource = "网易云";
+    private bool _matchCover = true;
+    private bool _matchGender = true;
+    private bool _matchRegion = true;
+    private bool _matchDesc = true;
+    private bool _skipExisting = true; // true=跳过已有, false=重新匹配
 
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
@@ -81,6 +86,29 @@ public class ArtistMatchFragment : Fragment
             _btnAutoMatch.Click += async (s, e) => await AutoMatchAsync();
         }
 
+        // 匹配字段多选框
+        var chipFieldCover = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_cover);
+        var chipFieldGender = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_gender);
+        var chipFieldRegion = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_region);
+        var chipFieldDesc = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_desc);
+
+        if (chipFieldCover != null) chipFieldCover.CheckedChange += (s, e) => _matchCover = e.IsChecked;
+        if (chipFieldGender != null) chipFieldGender.CheckedChange += (s, e) => _matchGender = e.IsChecked;
+        if (chipFieldRegion != null) chipFieldRegion.CheckedChange += (s, e) => _matchRegion = e.IsChecked;
+        if (chipFieldDesc != null) chipFieldDesc.CheckedChange += (s, e) => _matchDesc = e.IsChecked;
+
+        // 跳过已有 / 重新匹配 切换
+        var chipModeGroup = view.FindViewById<Google.Android.Material.Chip.ChipGroup>(Resource.Id.chip_group_mode);
+        if (chipModeGroup != null)
+        {
+            chipModeGroup.CheckedChange += (s, e) =>
+            {
+                var checkedId = chipModeGroup.CheckedChipId;
+                var chipName = Context?.Resources?.GetResourceEntryName(checkedId) ?? "";
+                _skipExisting = chipName == "chip_mode_skip";
+            };
+        }
+
         // 来源切换 Chips
         var chipGroup = view.FindViewById<Google.Android.Material.Chip.ChipGroup>(Resource.Id.chip_group_source);
         if (chipGroup != null)
@@ -130,9 +158,29 @@ public class ArtistMatchFragment : Fragment
         }
     }
 
-    /// <summary>一键自动匹配 - 跳过已有封面的艺术家，使用选定的来源</summary>
+    /// <summary>检查艺术家是否缺少选中的字段</summary>
+    private bool ArtistNeedsMatch(Artist artist)
+    {
+        if (_matchCover && (string.IsNullOrEmpty(artist.Cover) || !System.IO.File.Exists(artist.Cover)))
+            return true;
+        if (_matchGender && string.IsNullOrEmpty(artist.Gender))
+            return true;
+        if (_matchRegion && string.IsNullOrEmpty(artist.Region))
+            return true;
+        if (_matchDesc && string.IsNullOrEmpty(artist.Description))
+            return true;
+        return false;
+    }
+
+    /// <summary>一键自动匹配 - 根据选中的字段和来源</summary>
     private async Task AutoMatchAsync()
     {
+        if (!_matchCover && !_matchGender && !_matchRegion && !_matchDesc)
+        {
+            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "请至少选择一个匹配字段", ToastLength.Short)?.Show());
+            return;
+        }
+
         var scrapers = MainApplication.Services.GetServices<IArtistMetadataScraper>();
         var scraper = scrapers.FirstOrDefault(s => s.SourceName == _autoMatchSource);
 
@@ -142,7 +190,6 @@ public class ArtistMatchFragment : Fragment
             return;
         }
 
-        // AI 搜索特殊检查
         if (scraper is AiArtistScraper aiScraper && !aiScraper.IsConfigured)
         {
             Activity?.RunOnUiThread(() => Toast.MakeText(Context, "AI 服务未配置，请先在设置中配置 AI 模型", ToastLength.Long)?.Show());
@@ -153,67 +200,108 @@ public class ArtistMatchFragment : Fragment
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
         var artists = await db.GetAllArtistsAsync();
 
-        // 过滤出没有封面的艺术家
-        var noCoverArtists = artists.Where(a =>
+        List<Artist> needMatchArtists;
+        if (_skipExisting)
         {
-            if (!string.IsNullOrEmpty(a.Cover) && System.IO.File.Exists(a.Cover)) return false;
-            if (neteaseScraper != null)
+            // 跳过已有：只匹配缺少选中字段的艺术家
+            needMatchArtists = artists.Where(a =>
             {
-                var cachedPath = neteaseScraper.GetCachedCoverPath(a.Name);
-                if (cachedPath != null) return false;
-            }
-            return true;
-        }).ToList();
-
-        if (noCoverArtists.Count == 0)
+                if (_matchCover)
+                {
+                    var hasCover = !string.IsNullOrEmpty(a.Cover) && System.IO.File.Exists(a.Cover);
+                    if (!hasCover && neteaseScraper != null)
+                    {
+                        var cachedPath = neteaseScraper.GetCachedCoverPath(a.Name);
+                        if (cachedPath != null) hasCover = true;
+                    }
+                    if (!hasCover) return true;
+                }
+                if (_matchGender && string.IsNullOrEmpty(a.Gender)) return true;
+                if (_matchRegion && string.IsNullOrEmpty(a.Region)) return true;
+                if (_matchDesc && string.IsNullOrEmpty(a.Description)) return true;
+                return false;
+            }).ToList();
+        }
+        else
         {
-            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "所有艺术家都已有封面", ToastLength.Short)?.Show());
+            // 重新匹配：匹配所有艺术家
+            needMatchArtists = artists;
+        }
+
+        if (needMatchArtists.Count == 0)
+        {
+            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "所有艺术家已无缺少的字段", ToastLength.Short)?.Show());
             return;
         }
 
         _btnAutoMatch!.Enabled = false;
-        _btnAutoMatch.Text = $"匹配中 0/{noCoverArtists.Count}";
+        _btnAutoMatch.Text = $"匹配中 0/{needMatchArtists.Count}";
         _progress!.Visibility = ViewStates.Visible;
 
         var matched = 0;
-        for (var i = 0; i < noCoverArtists.Count; i++)
+        for (var i = 0; i < needMatchArtists.Count; i++)
         {
-            var artist = noCoverArtists[i];
+            var artist = needMatchArtists[i];
             try
             {
-                string? cachePath = null;
+                ArtistSearchResult? bestMatch = null;
 
                 if (_autoMatchSource == "网易云" && neteaseScraper != null)
                 {
-                    // 网易云有专用的 GetArtistCoverAsync（自动搜索+下载）
-                    cachePath = await neteaseScraper.GetArtistCoverAsync(artist.Name);
+                    // 网易云：封面用专用方法，元数据从搜索结果获取
+                    if (_matchCover)
+                    {
+                        var cachePath = await neteaseScraper.GetArtistCoverAsync(artist.Name);
+                        if (cachePath != null)
+                            artist.Cover = cachePath;
+                    }
+
+                    // 如果还需要其他字段，也搜索一下
+                    if (_matchGender || _matchRegion || _matchDesc)
+                    {
+                        var results = await scraper.SearchArtistsAsync(artist.Name, 3);
+                        bestMatch = results.FirstOrDefault(r =>
+                            r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
+                            ?? results.FirstOrDefault();
+                    }
                 }
                 else
                 {
-                    // 其他来源：搜索 → 取第一个匹配 → 下载封面
+                    // 其他来源：搜索 → 取最佳匹配
                     var results = await scraper.SearchArtistsAsync(artist.Name, 3);
-                    var bestMatch = results.FirstOrDefault(r =>
+                    bestMatch = results.FirstOrDefault(r =>
                         r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
                         ?? results.FirstOrDefault();
-                    if (bestMatch?.CoverUrl != null)
+
+                    // 封面
+                    if (_matchCover && bestMatch?.CoverUrl != null)
                     {
-                        cachePath = await scraper.DownloadAndCacheArtistCoverAsync(bestMatch.CoverUrl, artist.Name);
+                        var cachePath = await scraper.DownloadAndCacheArtistCoverAsync(bestMatch.CoverUrl, artist.Name);
+                        if (cachePath != null)
+                            artist.Cover = cachePath;
                     }
                 }
 
-                if (cachePath != null)
+                // 更新元数据字段
+                if (bestMatch != null)
                 {
-                    artist.Cover = cachePath;
-                    await db.UpdateArtistAsync(artist);
-                    matched++;
+                    if (_matchGender && !string.IsNullOrEmpty(bestMatch.Gender) && (_skipExisting ? string.IsNullOrEmpty(artist.Gender) : true))
+                        artist.Gender = bestMatch.Gender;
+                    if (_matchRegion && !string.IsNullOrEmpty(bestMatch.Region) && (_skipExisting ? string.IsNullOrEmpty(artist.Region) : true))
+                        artist.Region = CountryCodeToName(bestMatch.Region);
+                    if (_matchDesc && !string.IsNullOrEmpty(bestMatch.Description) && (_skipExisting ? string.IsNullOrEmpty(artist.Description) : true))
+                        artist.Description = bestMatch.Description;
                 }
+
+                await db.UpdateArtistAsync(artist);
+                matched++;
             }
             catch { }
 
             var idx = i + 1;
             Activity?.RunOnUiThread(() =>
             {
-                _btnAutoMatch.Text = $"匹配中 {idx}/{noCoverArtists.Count}";
+                _btnAutoMatch.Text = $"匹配中 {idx}/{needMatchArtists.Count}";
             });
 
             await Task.Delay(300);
@@ -224,10 +312,31 @@ public class ArtistMatchFragment : Fragment
             _progress!.Visibility = ViewStates.Gone;
             _btnAutoMatch.Enabled = true;
             _btnAutoMatch.Text = "一键匹配";
-            Toast.MakeText(Context, $"已匹配 {matched}/{noCoverArtists.Count} 位艺术家（{_autoMatchSource}）", ToastLength.Long)?.Show();
+            Toast.MakeText(Context, $"已匹配 {matched}/{needMatchArtists.Count} 位艺术家（{_autoMatchSource}）", ToastLength.Long)?.Show();
             _adapter?.UpdateArtists(_allArtists);
         });
     }
+
+    /// <summary>ISO 国家代码转可读名称</summary>
+    private static string CountryCodeToName(string code) => code.ToUpperInvariant() switch
+    {
+        "CN" => "中国", "HK" => "中国香港", "TW" => "中国台湾", "MO" => "中国澳门",
+        "JP" => "日本", "KR" => "韩国", "KP" => "朝鲜",
+        "US" => "美国", "GB" => "英国", "UK" => "英国",
+        "FR" => "法国", "DE" => "德国", "IT" => "意大利", "ES" => "西班牙",
+        "RU" => "俄罗斯", "BR" => "巴西", "IN" => "印度",
+        "AU" => "澳大利亚", "CA" => "加拿大", "NZ" => "新西兰",
+        "SE" => "瑞典", "NO" => "挪威", "DK" => "丹麦", "FI" => "芬兰",
+        "NL" => "荷兰", "BE" => "比利时", "CH" => "瑞士", "AT" => "奥地利",
+        "PT" => "葡萄牙", "PL" => "波兰", "CZ" => "捷克",
+        "IE" => "爱尔兰", "GR" => "希腊", "TR" => "土耳其",
+        "TH" => "泰国", "VN" => "越南", "PH" => "菲律宾", "MY" => "马来西亚",
+        "SG" => "新加坡", "ID" => "印度尼西亚", "MM" => "缅甸",
+        "MX" => "墨西哥", "AR" => "阿根廷", "CL" => "智利", "CO" => "哥伦比亚",
+        "IL" => "以色列", "SA" => "沙特阿拉伯", "AE" => "阿联酋",
+        "ZA" => "南非", "EG" => "埃及", "NG" => "尼日利亚",
+        _ => code
+    };
 }
 
 /// <summary>艺术家匹配列表适配器</summary>
@@ -308,8 +417,25 @@ public class ArtistMatchViewHolder : RecyclerView.ViewHolder
     public void Bind(Artist artist, ConcurrentDictionary<string, Android.Graphics.Bitmap?> coverCache, Android.OS.Handler mainHandler)
     {
         _name.Text = artist.Name;
-        _alias.Text = "";
-        _info.Text = artist.Cover != null ? "已有封面" : "未设置封面";
+
+        // 性别 + 国籍
+        var aliasParts = new List<string>();
+        if (!string.IsNullOrEmpty(artist.Gender)) aliasParts.Add(artist.Gender);
+        if (!string.IsNullOrEmpty(artist.Region)) aliasParts.Add(artist.Region);
+        _alias.Text = aliasParts.Count > 0 ? string.Join(" · ", aliasParts) : "";
+        _alias.Visibility = aliasParts.Count > 0 ? ViewStates.Visible : ViewStates.Gone;
+
+        // 简介摘要（截断显示）
+        if (!string.IsNullOrEmpty(artist.Description))
+        {
+            var desc = artist.Description.Length > 30 ? artist.Description[..30] + "…" : artist.Description;
+            _info.Text = desc;
+        }
+        else
+        {
+            _info.Text = artist.Cover != null ? "已有封面" : "未设置封面";
+        }
+
         _source.Text = "本地";
         _source.SetBackgroundColor(Android.Graphics.Color.Transparent);
 
@@ -380,7 +506,6 @@ public class ArtistMatchViewHolder : RecyclerView.ViewHolder
         }
     }
 
-    /// <summary>降采样解码图片，避免 OOM</summary>
     private static Android.Graphics.Bitmap? DecodeSampledBitmap(string path, int reqWidth, int reqHeight)
     {
         var options = new Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };

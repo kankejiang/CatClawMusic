@@ -62,7 +62,7 @@
         android:paddingStart="16dp" android:paddingEnd="16dp"
         android:layout_marginBottom="8dp" />
 
-    <!-- 一键匹配按钮 + 来源切换 -->
+    <!-- 一键匹配按钮 + 匹配选项 + 来源切换 -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
@@ -73,6 +73,80 @@
             android:text="一键匹配"
             android:textSize="14sp"
             app:cornerRadius="12dp" />
+        <!-- 匹配选项多选框 -->
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chip_group_fields"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:chipSpacingHorizontal="6dp">
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_field_cover"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="封面"
+                android:checked="true"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_field_gender"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="性别"
+                android:checked="true"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_field_region"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="国籍"
+                android:checked="true"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_field_desc"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="简介"
+                android:checked="true"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+        </com.google.android.material.chip.ChipGroup>
+        <!-- 跳过已有 / 重新匹配 切换 -->
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chip_group_mode"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:singleSelection="true"
+            app:selectionRequired="true"
+            app:chipSpacingHorizontal="6dp">
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_mode_skip"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="跳过已有"
+                android:checked="true"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_mode_rematch"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="重新匹配"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+        </com.google.android.material.chip.ChipGroup>
+        <!-- 来源切换 -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="来源"
+            android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+            android:layout_marginTop="4dp" />
         <com.google.android.material.chip.ChipGroup
             android:id="@+id/chip_group_source"
             android:layout_width="match_parent" android:layout_height="wrap_content"

@@ -19,6 +19,9 @@ public class ArtistMatchDetailFragment : Fragment
     private ImageView? _ivCurrentCover;
     private TextView? _tvArtistName;
     private TextView? _tvCoverStatus;
+    private TextView? _tvArtistGender;
+    private TextView? _tvArtistRegion;
+    private TextView? _tvArtistDesc;
     private EditText? _etSearchKeyword;
     private ArtistSearchResultAdapter? _adapter;
     private string _artistName = "";
@@ -50,6 +53,9 @@ public class ArtistMatchDetailFragment : Fragment
         _ivCurrentCover = view.FindViewById<ImageView>(Resource.Id.iv_current_cover);
         _tvArtistName = view.FindViewById<TextView>(Resource.Id.tv_artist_name);
         _tvCoverStatus = view.FindViewById<TextView>(Resource.Id.tv_cover_status);
+        _tvArtistGender = view.FindViewById<TextView>(Resource.Id.tv_artist_gender);
+        _tvArtistRegion = view.FindViewById<TextView>(Resource.Id.tv_artist_region);
+        _tvArtistDesc = view.FindViewById<TextView>(Resource.Id.tv_artist_desc);
         _rvResults = view.FindViewById<RecyclerView>(Resource.Id.rv_search_results);
         _progress = view.FindViewById<ProgressBar>(Resource.Id.progress);
         _tvEmpty = view.FindViewById<TextView>(Resource.Id.tv_empty);
@@ -125,6 +131,7 @@ public class ArtistMatchDetailFragment : Fragment
 
         LoadCurrentCoverAsync();
         SearchBySourceAsync(_artistName, _currentSource);
+        LoadArtistInfoAsync(); // 后台加载艺术家元数据
     }
 
     private async Task LoadCurrentCoverAsync()
@@ -173,6 +180,55 @@ public class ArtistMatchDetailFragment : Fragment
             });
         }
         catch { }
+    }
+
+    /// <summary>后台从多个来源加载艺术家性别、国籍和简介</summary>
+    private async Task LoadArtistInfoAsync()
+    {
+        try
+        {
+            var scrapers = MainApplication.Services.GetServices<IArtistMetadataScraper>();
+
+            // 按信息丰富度排序尝试：AI搜索 > Wikidata > MusicBrainz > 网易云
+            var orderedScrapers = new List<IArtistMetadataScraper>();
+            var aiScraper = scrapers.FirstOrDefault(s => s.SourceName == "AI 搜索");
+            if (aiScraper is AiArtistScraper ai && ai.IsConfigured)
+                orderedScrapers.Add(aiScraper!);
+            orderedScrapers.Add(scrapers.FirstOrDefault(s => s.SourceName == "Wikidata")!);
+            orderedScrapers.Add(scrapers.FirstOrDefault(s => s.SourceName == "MusicBrainz")!);
+            orderedScrapers = orderedScrapers.Where(s => s != null).ToList();
+
+            foreach (var scraper in orderedScrapers)
+            {
+                try
+                {
+                    var results = await scraper.SearchArtistsAsync(_artistName, 3);
+                    if (results.Count > 0)
+                    {
+                        var best = results.FirstOrDefault(r =>
+                            r.Name.Equals(_artistName, StringComparison.OrdinalIgnoreCase))
+                            ?? results.FirstOrDefault();
+
+                        // 检查是否有有用信息
+                        if (!string.IsNullOrEmpty(best?.Gender) ||
+                            !string.IsNullOrEmpty(best?.Region) ||
+                            !string.IsNullOrEmpty(best?.Description))
+                        {
+                            Activity?.RunOnUiThread(() => UpdateArtistInfo(results));
+                            return; // 找到信息就停止
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ArtistMatchDetail] {scraper.SourceName} 获取信息失败: {ex.Message}");
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ArtistMatchDetail] 加载艺术家信息失败: {ex.Message}");
+        }
     }
 
     /// <summary>按指定来源搜索</summary>
@@ -224,6 +280,8 @@ public class ArtistMatchDetailFragment : Fragment
                 else
                 {
                     _adapter?.UpdateResults(results);
+                    // 从最佳匹配结果更新艺术家信息
+                    UpdateArtistInfo(results);
                 }
             });
         }
@@ -238,6 +296,82 @@ public class ArtistMatchDetailFragment : Fragment
             });
         }
     }
+
+    /// <summary>从搜索结果更新艺术家性别、国籍/地区和简介</summary>
+    private void UpdateArtistInfo(List<ArtistSearchResult> results)
+    {
+        // 优先精确匹配，否则取第一个
+        var best = results.FirstOrDefault(r =>
+            r.Name.Equals(_artistName, StringComparison.OrdinalIgnoreCase))
+            ?? results.FirstOrDefault();
+        if (best == null) return;
+
+        // 性别
+        if (!string.IsNullOrEmpty(best.Gender))
+        {
+            if (_tvArtistGender != null)
+            {
+                _tvArtistGender.Text = best.Gender + "  ·  ";
+                _tvArtistGender.Visibility = ViewStates.Visible;
+            }
+        }
+
+        // 国籍/地区
+        var region = best.Region;
+        if (!string.IsNullOrEmpty(region))
+        {
+            region = CountryCodeToName(region);
+            if (_tvArtistRegion != null)
+            {
+                _tvArtistRegion.Text = region;
+                _tvArtistRegion.Visibility = ViewStates.Visible;
+            }
+        }
+
+        // 简介
+        if (!string.IsNullOrEmpty(best.Description))
+        {
+            if (_tvArtistDesc != null)
+            {
+                _tvArtistDesc.Text = best.Description;
+                _tvArtistDesc.Visibility = ViewStates.Visible;
+            }
+        }
+    }
+
+    /// <summary>ISO 国家代码转可读名称</summary>
+    private static string CountryCodeToName(string code) => code.ToUpperInvariant() switch
+    {
+        "CN" => "中国", "HK" => "中国香港", "TW" => "中国台湾", "MO" => "中国澳门",
+        "JP" => "日本", "KR" => "韩国", "KP" => "朝鲜",
+        "US" => "美国", "GB" => "英国", "UK" => "英国",
+        "FR" => "法国", "DE" => "德国", "IT" => "意大利", "ES" => "西班牙",
+        "RU" => "俄罗斯", "BR" => "巴西", "IN" => "印度",
+        "AU" => "澳大利亚", "CA" => "加拿大", "NZ" => "新西兰",
+        "SE" => "瑞典", "NO" => "挪威", "DK" => "丹麦", "FI" => "芬兰",
+        "NL" => "荷兰", "BE" => "比利时", "CH" => "瑞士", "AT" => "奥地利",
+        "PT" => "葡萄牙", "PL" => "波兰", "CZ" => "捷克",
+        "IE" => "爱尔兰", "GR" => "希腊", "TR" => "土耳其",
+        "TH" => "泰国", "VN" => "越南", "PH" => "菲律宾", "MY" => "马来西亚",
+        "SG" => "新加坡", "ID" => "印度尼西亚", "MM" => "缅甸",
+        "MX" => "墨西哥", "AR" => "阿根廷", "CL" => "智利", "CO" => "哥伦比亚",
+        "IL" => "以色列", "SA" => "沙特阿拉伯", "AE" => "阿联酋",
+        "ZA" => "南非", "EG" => "埃及", "NG" => "尼日利亚",
+        "IS" => "冰岛", "HU" => "匈牙利", "RO" => "罗马尼亚",
+        "UA" => "乌克兰", "HR" => "克罗地亚", "RS" => "塞尔维亚",
+        // Wikidata 实体 ID
+        "Q148" => "中国", "Q17" => "日本", "Q884" => "韩国",
+        "Q30" => "美国", "Q145" => "英国", "Q142" => "法国",
+        "Q183" => "德国", "Q38" => "意大利", "Q39" => "瑞士",
+        "Q40" => "奥地利", "Q29" => "西班牙", "Q159" => "俄罗斯",
+        "Q408" => "澳大利亚", "Q16" => "加拿大", "Q55" => "荷兰",
+        "Q35" => "丹麦", "Q20" => "挪威", "Q34" => "瑞典",
+        "Q33" => "芬兰", "Q668" => "印度", "Q155" => "巴西",
+        "Q96" => "墨西哥", "Q252" => "印度尼西亚", "Q869" => "泰国",
+        "Q881" => "越南", "Q928" => "菲律宾", "Q833" => "马来西亚",
+        "Q334" => "新加坡", "Q842" => "沙特阿拉伯", "Q79" => "埃及",
+        _ => code
+    };
 
     private async Task ApplyCoverAsync(ArtistSearchResult result)
     {

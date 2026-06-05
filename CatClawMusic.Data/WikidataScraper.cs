@@ -112,6 +112,27 @@ public class WikidataScraper : IArtistMetadataScraper
                 result.Description = desc;
             }
 
+            // P27 = 国籍 / P495 = 原产国
+            if (entity.TryGetProperty("claims", out var claimsForRegion))
+            {
+                var regionValue = GetClaimLabel(claimsForRegion, "P27")
+                    ?? GetClaimLabel(claimsForRegion, "P495");
+                if (!string.IsNullOrEmpty(regionValue))
+                    result.Region = regionValue;
+
+                // P21 = 性别
+                var genderId = GetClaimLabel(claimsForRegion, "P21");
+                if (!string.IsNullOrEmpty(genderId))
+                    result.Gender = genderId switch
+                    {
+                        "Q6581097" => "男",
+                        "Q6581072" => "女",
+                        "Q1097630" => "非二元",
+                        "Q48270" => "非二元",
+                        _ => genderId
+                    };
+            }
+
             // P18 = 图片
             if (entity.TryGetProperty("claims", out var claims) &&
                 claims.TryGetProperty("P18", out var p18) &&
@@ -174,6 +195,26 @@ public class WikidataScraper : IArtistMetadataScraper
             label.TryGetProperty("value", out var value))
             return value.GetString();
         return null;
+    }
+
+    /// <summary>从 Wikidata claims 中提取指定属性的标签值</summary>
+    private static string? GetClaimLabel(JsonElement claims, string propertyId)
+    {
+        if (!claims.TryGetProperty(propertyId, out var claimArray) || claimArray.ValueKind != JsonValueKind.Array)
+            return null;
+
+        var first = claimArray.EnumerateArray().FirstOrDefault();
+        if (!first.TryGetProperty("mainsnak", out var mainsnak)) return null;
+        if (!mainsnak.TryGetProperty("datavalue", out var datavalue)) return null;
+        if (!datavalue.TryGetProperty("value", out var value)) return null;
+
+        // 实体类型: value.entity-type == "item" -> value.id
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            if (value.TryGetProperty("id", out var idProp))
+                return idProp.GetString();
+        }
+        return value.GetString();
     }
 
     private string GetArtistCoverPath(string artistName)

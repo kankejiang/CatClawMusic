@@ -65,10 +65,32 @@ public class MusicBrainzScraper : IArtistMetadataScraper
                         item.Alias = string.Join(" / ", aliasList);
                 }
 
+                // 国家/地区
+                if (artist.TryGetProperty("country", out var country) && country.ValueKind == JsonValueKind.String)
+                {
+                    var countryStr = country.GetString();
+                    if (!string.IsNullOrEmpty(countryStr))
+                        item.Region = countryStr;
+                }
+
+                // 性别
+                if (artist.TryGetProperty("gender", out var gender) && gender.ValueKind == JsonValueKind.String)
+                {
+                    var genderStr = gender.GetString();
+                    if (!string.IsNullOrEmpty(genderStr))
+                        item.Gender = genderStr switch
+                        {
+                            "male" => "男",
+                            "female" => "女",
+                            "other" => "其他",
+                            _ => genderStr
+                        };
+                }
+
                 // 国家 + 类型
                 var extraParts = new List<string>();
-                if (artist.TryGetProperty("country", out var country) && country.ValueKind == JsonValueKind.String)
-                    extraParts.Add(country.GetString() ?? "");
+                if (!string.IsNullOrEmpty(item.Region))
+                    extraParts.Add(item.Region);
                 if (artist.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String)
                     extraParts.Add(type.GetString() ?? "");
                 if (artist.TryGetProperty("disambiguation", out var disambig) && disambig.ValueKind == JsonValueKind.String)

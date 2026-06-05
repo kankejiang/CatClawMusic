@@ -50,7 +50,9 @@ public class AiArtistScraper : IArtistMetadataScraper
   {
     ""name"": ""艺术家名称"",
     ""alias"": ""别名/艺名（如有）"",
-    ""description"": ""简短描述（国家、风格、代表作等）"",
+    ""gender"": ""性别（男/女/组合）"",
+    ""region"": ""国籍或地区（如：中国、日本、韩国、美国、英国等）"",
+    ""description"": ""简短描述（风格、代表作、成就等，50字以内）"",
     ""cover_url"": ""艺术家官方照片或代表性图片的直链URL"",
     ""source_url"": ""图片来源网页URL""
   }
@@ -89,6 +91,10 @@ public class AiArtistScraper : IArtistMetadataScraper
                     result.Name = nameProp.GetString() ?? "";
                 if (item.TryGetProperty("alias", out var aliasProp))
                     result.Alias = aliasProp.GetString();
+                if (item.TryGetProperty("gender", out var genderProp))
+                    result.Gender = genderProp.GetString();
+                if (item.TryGetProperty("region", out var regionProp))
+                    result.Region = regionProp.GetString();
                 if (item.TryGetProperty("description", out var descProp))
                     result.Description = descProp.GetString();
                 if (item.TryGetProperty("cover_url", out var coverProp) && coverProp.ValueKind == JsonValueKind.String)
