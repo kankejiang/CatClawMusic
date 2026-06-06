@@ -131,24 +131,45 @@ public class StrokeTextView : TextView
             Paint.StrokeWidth = 0;
             base.OnDraw(canvas);
 
-            // 第三层：已唱颜色覆盖，通过 ClipRect 裁剪实现左右渐变
+            // 第三层：已唱颜色覆盖，逐行裁剪实现逐行着色（第一行唱完再着色第二行）
             if (needsGradient && _lyricProgress > 0f)
             {
-                // 计算文字最大宽度（取所有行中最宽的）
-                float textWidth = 0f;
-                for (int i = 0; i < Layout.LineCount; i++)
-                    textWidth = Math.Max(textWidth, Layout.GetLineWidth(i));
+                // 计算每行宽度和总宽度（逐行累加），进度按总宽度比例分配
+                int lineCount = Layout.LineCount;
+                var lineWidths = new float[lineCount];
+                float totalWidth = 0f;
+                for (int i = 0; i < lineCount; i++)
+                {
+                    lineWidths[i] = Layout.GetLineWidth(i);
+                    totalWidth += lineWidths[i];
+                }
 
-                float textStartX = Layout.GetLineLeft(0);
-                // 根据进度计算裁剪右边界
-                float clipX = textStartX + textWidth * Math.Clamp(_lyricProgress, 0f, 1f);
+                // 将进度映射到逐行累计宽度上的位置
+                float progressWidth = totalWidth * Math.Clamp(_lyricProgress, 0f, 1f);
 
-                var saved = canvas.Save();
-                // 裁剪区域：从左侧到 clipX，只在这个范围内绘制已唱颜色
-                canvas.ClipRect(0, 0, clipX, Height);
-                SetTextColor(_sungColor);
-                base.OnDraw(canvas);
-                canvas.RestoreToCount(saved);
+                float accumulated = 0f;
+                for (int i = 0; i < lineCount; i++)
+                {
+                    if (accumulated >= progressWidth) break;
+
+                    float lineLeft = Layout.GetLineLeft(i);
+                    float lineTop = Layout.GetLineTop(i);
+                    float lineBottom = Layout.GetLineBottom(i);
+                    float remainingProgress = progressWidth - accumulated;
+
+                    // 本行着色右边界：整行已唱则到行尾，否则按剩余进度截断
+                    float lineClipRight = remainingProgress >= lineWidths[i]
+                        ? lineLeft + lineWidths[i]
+                        : lineLeft + remainingProgress;
+
+                    var saved = canvas.Save();
+                    canvas.ClipRect(lineLeft, lineTop, lineClipRight, lineBottom);
+                    SetTextColor(_sungColor);
+                    base.OnDraw(canvas);
+                    canvas.RestoreToCount(saved);
+
+                    accumulated += lineWidths[i];
+                }
             }
         }
         finally

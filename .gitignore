@@ -372,3 +372,4 @@ FodyWeavers.xsd
 /build_native_test3.txt
 /build_native_test4.txt
 /install-dotnet9.ps1
+/publish-apk
