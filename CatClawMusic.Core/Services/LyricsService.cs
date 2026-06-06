@@ -467,17 +467,20 @@ public class LyricsService : ILyricsService
         return script1 != script2 && script1 != ScriptType.Unknown && script2 != ScriptType.Unknown;
     }
 
-    private enum ScriptType { Unknown, Cjk, Hangul, Latin }
+    private enum ScriptType { Unknown, Cjk, Japanese, Hangul, Latin }
 
     private static ScriptType GetDominantScript(string text)
     {
-        int cjk = 0, hangul = 0, latin = 0;
+        int cjk = 0, japanese = 0, hangul = 0, latin = 0;
         foreach (var ch in text)
         {
-            if (IsCjk(ch)) cjk++;
+            if (IsJapanese(ch)) japanese++;
             else if (IsHangul(ch)) hangul++;
+            else if (IsCjk(ch)) cjk++;
             else if (char.IsLetter(ch) && ch <= 0x007F) latin++;
         }
+        // 日文判定：含假名字符则视为日文（即使也有汉字）
+        if (japanese > 0) return ScriptType.Japanese;
         var max = Math.Max(cjk, Math.Max(hangul, latin));
         if (max == 0) return ScriptType.Unknown;
         if (max == cjk) return ScriptType.Cjk;
@@ -571,11 +574,23 @@ public class LyricsService : ILyricsService
     {
         if (string.IsNullOrEmpty(text)) return (text, null);
 
+        // 策略1：日文+中文分割 — 日文含假名，中文纯汉字
+        // 找到"含假名的区域"结束后、"纯汉字区域"开始前的空白分隔点
+        var jpCnSplit = FindJapaneseChineseSplit(text);
+        if (jpCnSplit > 0)
+        {
+            var orig = text.Substring(0, jpCnSplit).TrimEnd();
+            var trans = text.Substring(jpCnSplit).TrimStart();
+            if (!string.IsNullOrEmpty(orig) && !string.IsNullOrEmpty(trans))
+                return (orig, trans);
+        }
+
+        // 策略2：通用 CJK + 非 CJK 分割（韩文+中文等）
         bool hasCjk = false;
         bool hasNonCjk = false;
         foreach (var ch in text)
         {
-            if (IsCjk(ch)) hasCjk = true;
+            if (IsCjk(ch) || IsJapanese(ch) || IsHangul(ch)) hasCjk = true;
             else if (char.IsLetter(ch)) hasNonCjk = true;
         }
         if (!hasCjk || !hasNonCjk) return (text, null);
@@ -651,6 +666,63 @@ public class LyricsService : ILyricsService
         }
 
         return (text, null);
+    }
+
+    /// <summary>
+    /// 查找日文+中文的分隔点
+    /// <para>日文特征：含假名（ひらがな/カタカナ）；中文特征：纯汉字（无假名）</para>
+    /// <para>策略：找到最后一个假名位置，在其后找空白分隔点，确保分隔后无假名</para>
+    /// </summary>
+    /// <returns>分割位置（空白字符位置），0 表示未找到</returns>
+    private static int FindJapaneseChineseSplit(string text)
+    {
+        // 找到最后一个假名字符的位置
+        int lastKanaPos = -1;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (IsJapanese(text[i]))
+                lastKanaPos = i;
+        }
+
+        // 没有假名，无法判断为日文
+        if (lastKanaPos < 0) return 0;
+
+        // 检查最后一个假名之后是否还有汉字（中文翻译）
+        bool hasCjkAfterLastKana = false;
+        for (int i = lastKanaPos + 1; i < text.Length; i++)
+        {
+            if (IsCjk(text[i])) { hasCjkAfterLastKana = true; break; }
+        }
+        if (!hasCjkAfterLastKana) return 0;
+
+        // 从最后一个假名之后，找空白分隔点
+        // 空白后面必须只有纯汉字（无假名），才认为是中文翻译
+        for (int i = lastKanaPos + 1; i < text.Length; i++)
+        {
+            if (!char.IsWhiteSpace(text[i])) continue;
+
+            // 跳过连续空白
+            int nextStart = i + 1;
+            while (nextStart < text.Length && char.IsWhiteSpace(text[nextStart]))
+                nextStart++;
+
+            if (nextStart >= text.Length) break;
+
+            // 空白后第一个字符必须是 CJK
+            if (!IsCjk(text[nextStart])) continue;
+
+            // 确认空白后面到文本末尾没有假名（纯中文翻译）
+            bool hasKanaAfter = false;
+            for (int k = nextStart; k < text.Length; k++)
+            {
+                if (IsJapanese(text[k])) { hasKanaAfter = true; break; }
+            }
+            if (!hasKanaAfter) return i;
+        }
+
+        // 如果没有空白分隔，但最后一个假名后紧跟汉字（无空格情况）
+        // 尝试在假名后直接分割（不太常见但作为兜底）
+        return 0;
     }
 
     private static bool IsCjk(char ch)

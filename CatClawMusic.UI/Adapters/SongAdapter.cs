@@ -268,8 +268,20 @@ public class SongAdapter : RecyclerView.Adapter
         _songIdToIndex.Clear();
         for (int i = 0; i < newList.Count; i++)
             _songIdToIndex[newList[i].Id] = i;
-        var diffResult = DiffUtil.CalculateDiff(new SongDiffCallback(oldList, newList));
-        diffResult.DispatchUpdatesTo(this);
+
+        // 当旧列表为空时，直接 NotifyDataSetChanged 避免后台 DiffUtil 延迟
+        if (oldList.Count == 0)
+        {
+            NotifyDataSetChanged();
+            return;
+        }
+
+        // 将 DiffUtil 计算移到后台线程，避免主线程卡顿
+        _ = Task.Run(() =>
+        {
+            var diffResult = DiffUtil.CalculateDiff(new SongDiffCallback(oldList, newList));
+            diffResult.DispatchUpdatesTo(this);
+        });
     }
 
     /// <summary>
