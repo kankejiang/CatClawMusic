@@ -507,6 +507,12 @@ public class MainActivity : AppCompatActivity
         if (!_panelOpen) return;
         _panelOpen = false;
         NavigationService.ExitSidePanelMode();
+
+        // 清除侧面板中推入的所有 Fragment，防止关闭后残留的 BackStack 条目
+        // 影响后续主区 Fragment 的返回逻辑（导致底部导航栏无法恢复）
+        if (SupportFragmentManager.BackStackEntryCount > 0)
+            SupportFragmentManager.PopBackStackImmediate(null, AndroidX.Fragment.App.FragmentManager.PopBackStackInclusive);
+
         int screenW = Resources?.DisplayMetrics?.WidthPixels ?? 1080;
         _sidePanelContent.Animate().TranslationX(-screenW * 0.8f).SetDuration(200).Start();
         _sidePanelMask.Animate().Alpha(0f).SetDuration(200)
