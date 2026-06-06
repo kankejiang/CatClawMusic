@@ -86,7 +86,7 @@ public class MainActivity : AppCompatActivity
 
         var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
         var isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
-        insetsController.AppearanceLightStatusBars = true;
+        insetsController.AppearanceLightStatusBars = _currentStatusBarLight;
         insetsController.AppearanceLightNavigationBars = !isDark;
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
@@ -250,7 +250,7 @@ public class MainActivity : AppCompatActivity
         bool isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
 
         var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
-        insetsController.AppearanceLightStatusBars = true;
+        insetsController.AppearanceLightStatusBars = _currentStatusBarLight;
         insetsController.AppearanceLightNavigationBars = !isDark;
 
         ApplySystemBarImmersive(_currentTab is 0 or 1);
@@ -378,15 +378,7 @@ public class MainActivity : AppCompatActivity
         if (_mainLayout != null)
             _mainLayout.SetPadding(0, immersive ? 0 : StatusBarHeight, 0, 0);
 
-        // 立即设置状态栏文字颜色，避免 Post 延迟期间系统自动切换导致闪烁
-        try
-        {
-            var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
-            insetsController.AppearanceLightStatusBars = true;
-        }
-        catch { }
-
-        _viewPager.Post(() => ApplySystemBarImmersive(immersive));
+        ApplySystemBarImmersive(immersive);
     }
 
     public void SetBottomNavVisible(bool visible)
@@ -649,6 +641,8 @@ public class MainActivity : AppCompatActivity
     private int _cachedNavBarColor;
     private int _currentNavBarColor;
     private bool _systemUiFlagsApplied;
+    /// <summary>当前状态栏文字颜色模式：true=浅色(白字深底)，false=深色(黑字浅底)</summary>
+    private bool _currentStatusBarLight = true;
 
     private void ApplySystemBarImmersive(bool immersive)
     {
@@ -666,7 +660,7 @@ public class MainActivity : AppCompatActivity
         Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
 
         var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
-        insetsController.AppearanceLightStatusBars = true;
+        insetsController.AppearanceLightStatusBars = _currentStatusBarLight;
 
         var targetNavBarColor = immersive
             ? Android.Graphics.Color.Transparent
@@ -679,6 +673,20 @@ public class MainActivity : AppCompatActivity
             _currentNavBarColor = targetNavBarColor;
             Window.SetNavigationBarColor(new Android.Graphics.Color(targetNavBarColor));
         }
+    }
+
+    /// <summary>由 NowPlayingFragment 调用，根据封面提取的背景色亮度动态设置状态栏文字颜色</summary>
+    /// <param name="useLight">true=浅色状态栏(白字深底)，false=深色状态栏(黑字浅底)</param>
+    public void UpdateStatusBarAppearance(bool useLight)
+    {
+        if (_currentStatusBarLight == useLight) return;
+        _currentStatusBarLight = useLight;
+        try
+        {
+            var insetsController = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
+            insetsController.AppearanceLightStatusBars = useLight;
+        }
+        catch { }
     }
 
     private void FitSystemBars()

@@ -360,7 +360,8 @@ public class LyricsService : ILyricsService
 
                 var wordTimestamps = ParseWordTimestamps(text, timestamp);
                 var lineText = wordTimestamps != null ? string.Join("", wordTimestamps.Select(w => w.Word)) : text;
-                var (orig, trans) = SplitBilingual(lineText);
+                // 有逐字时间戳时不做 SplitBilingual（翻译行会通过 MergeTranslationLines 合并）
+                var (orig, trans) = wordTimestamps != null ? (lineText, (string?)null) : SplitBilingual(lineText);
 
                 lyrics.Lines.Add(new LrcLyricLine
                 {
@@ -375,7 +376,121 @@ public class LyricsService : ILyricsService
         // 按时间戳排序（LRC 文件通常已有序，仅兜底排序）
         lyrics.Lines = lyrics.Lines.OrderBy(l => l.Timestamp).ToList();
 
+        // 合并同时间戳的翻译行：
+        // 格式如 [00:07.24]<00:07.24>미안해 ... 和 [00:07.24]对不起 ...
+        // 两个行时间戳相同，翻译行没有逐字时间戳且文本较短（纯翻译），
+        // 应合并为原文行的 Translation 字段
+        MergeTranslationLines(lyrics);
+
         return lyrics.Lines.Count > 0 ? lyrics : null;
+    }
+
+    /// <summary>
+    /// 合并同时间戳的翻译行到原文行
+    /// <para>判断条件：两行时间戳相同，且其中一行没有逐字时间戳（或文本明显是翻译）</para>
+    /// </summary>
+    private static void MergeTranslationLines(LrcLyrics lyrics)
+    {
+        if (lyrics.Lines.Count < 2) return;
+
+        var merged = new List<LrcLyricLine>();
+        var i = 0;
+        while (i < lyrics.Lines.Count)
+        {
+            var current = lyrics.Lines[i];
+
+            // 查找后续同时间戳的行
+            var j = i + 1;
+            while (j < lyrics.Lines.Count && lyrics.Lines[j].Timestamp == current.Timestamp)
+            {
+                var next = lyrics.Lines[j];
+
+                // 判断哪行是原文、哪行是翻译
+                // 规则：有逐字时间戳的是原文；都没有时，第一行是原文
+                if (current.WordTimestamps != null && current.WordTimestamps.Count > 0
+                    && (next.WordTimestamps == null || next.WordTimestamps.Count == 0))
+                {
+                    // 当前行有逐字时间戳（原文），next 是翻译
+                    if (string.IsNullOrEmpty(current.Translation))
+                        current.Translation = next.Text;
+                    i = j + 1;
+                    goto AddCurrent;
+                }
+
+                if ((next.WordTimestamps != null && next.WordTimestamps.Count > 0)
+                    && (current.WordTimestamps == null || current.WordTimestamps.Count == 0))
+                {
+                    // next 有逐字时间戳（原文），当前行是翻译
+                    if (string.IsNullOrEmpty(next.Translation))
+                        next.Translation = current.Text;
+                    current = next;
+                    i = j + 1;
+                    goto AddCurrent;
+                }
+
+                // 两行都没有逐字时间戳，用 SplitBilingual 的结果判断
+                // 如果当前行已有翻译，或者 next 的文本看起来是翻译（更短、不同语言）
+                if (string.IsNullOrEmpty(current.Translation) && !string.IsNullOrEmpty(next.Text))
+                {
+                    // 检查是否是不同语言（如韩文+中文）
+                    if (IsDifferentScript(current.Text, next.Text))
+                    {
+                        current.Translation = next.Text;
+                        i = j + 1;
+                        goto AddCurrent;
+                    }
+                }
+
+                // 无法判断，保留两行
+                j++;
+            }
+
+            i = j;
+
+        AddCurrent:
+            merged.Add(current);
+        }
+
+        lyrics.Lines = merged;
+    }
+
+    /// <summary>
+    /// 判断两段文本是否使用了不同的文字系统（如韩文 vs 中文）
+    /// </summary>
+    private static bool IsDifferentScript(string text1, string text2)
+    {
+        if (string.IsNullOrEmpty(text1) || string.IsNullOrEmpty(text2)) return false;
+
+        var script1 = GetDominantScript(text1);
+        var script2 = GetDominantScript(text2);
+
+        return script1 != script2 && script1 != ScriptType.Unknown && script2 != ScriptType.Unknown;
+    }
+
+    private enum ScriptType { Unknown, Cjk, Hangul, Latin }
+
+    private static ScriptType GetDominantScript(string text)
+    {
+        int cjk = 0, hangul = 0, latin = 0;
+        foreach (var ch in text)
+        {
+            if (IsCjk(ch)) cjk++;
+            else if (IsHangul(ch)) hangul++;
+            else if (char.IsLetter(ch) && ch <= 0x007F) latin++;
+        }
+        var max = Math.Max(cjk, Math.Max(hangul, latin));
+        if (max == 0) return ScriptType.Unknown;
+        if (max == cjk) return ScriptType.Cjk;
+        if (max == hangul) return ScriptType.Hangul;
+        return ScriptType.Latin;
+    }
+
+    /// <summary>判断字符是否为韩文字母</summary>
+    private static bool IsHangul(char ch)
+    {
+        return (ch >= 0xAC00 && ch <= 0xD7AF) ||   // 韩文音节
+               (ch >= 0x1100 && ch <= 0x11FF) ||   // 韩文字母 Jamo
+               (ch >= 0x3130 && ch <= 0x318F);     // 韩文兼容字母
     }
 
     /// <summary>

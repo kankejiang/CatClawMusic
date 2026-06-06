@@ -245,6 +245,19 @@ public class NowPlayingFragment : Fragment
         var newPalette = MaterialYouPalette.FromSeedColor(newEntries[0].Color);
         _targetBackgroundColor = newPalette.Background;
 
+        // 根据背景色亮度动态设置状态栏文字颜色
+        // 感知亮度计算: luminance = 0.299*R + 0.587*G + 0.114*B
+        int r = Android.Graphics.Color.GetRedComponent(_targetBackgroundColor);
+        int g = Android.Graphics.Color.GetGreenComponent(_targetBackgroundColor);
+        int b = Android.Graphics.Color.GetBlueComponent(_targetBackgroundColor);
+        float luminance = (0.299f * r + 0.587f * g + 0.114f * b) / 255f;
+        // 暗背景 (luminance < 0.5) 使用浅色状态栏(白色文字)，亮背景使用深色状态栏(黑色文字)
+        bool useLightStatusBar = luminance < 0.5f;
+        if (Activity is CatClawMusic.UI.MainActivity mainActivity)
+        {
+            mainActivity.UpdateStatusBarAppearance(useLightStatusBar);
+        }
+
         if (_currentEntries == null || _currentEntries.Count == 0)
         {
             _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(_targetBackgroundColor));
@@ -469,6 +482,16 @@ public class NowPlayingFragment : Fragment
 
         var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
 
+        // 根据背景色亮度动态设置状态栏文字颜色
+        int r = Android.Graphics.Color.GetRedComponent(palette.Background);
+        int g = Android.Graphics.Color.GetGreenComponent(palette.Background);
+        int b = Android.Graphics.Color.GetBlueComponent(palette.Background);
+        float luminance = (0.299f * r + 0.587f * g + 0.114f * b) / 255f;
+        if (Activity is CatClawMusic.UI.MainActivity mainActivity)
+        {
+            mainActivity.UpdateStatusBarAppearance(luminance < 0.5f);
+        }
+
         var sorted = entries.OrderByDescending(e => e.Weight).ToList();
         var totalWeight = sorted.Sum(e => Math.Max(e.Weight, 0.01f));
         var topEntries = sorted.Where(e => e.Weight / totalWeight >= 0.20f).Take(3).ToList();
@@ -662,6 +685,12 @@ public class NowPlayingFragment : Fragment
         if (_gradientBackground == null) return;
         var defaultBg = Android.Graphics.Color.ParseColor("#1A0E28");
         _gradientBackground.SetBackgroundColor(defaultBg);
+
+        // 默认深色背景 → 浅色状态栏(白色文字)
+        if (Activity is CatClawMusic.UI.MainActivity mainActivity)
+        {
+            mainActivity.UpdateStatusBarAppearance(true);
+        }
 
         if (_reflectionMaskBottom != null) _reflectionMaskBottom.Background = null;
 
