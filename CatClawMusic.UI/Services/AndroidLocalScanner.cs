@@ -201,7 +201,7 @@ public class AndroidLocalScanner
 
                 Parallel.ForEach(newPaths, new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 4)
+                    MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 8)
                 }, path =>
                 {
                     try

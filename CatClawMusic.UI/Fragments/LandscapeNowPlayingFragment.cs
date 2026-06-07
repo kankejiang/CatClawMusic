@@ -46,6 +46,7 @@ public class LandscapeNowPlayingFragment : Fragment
     private ActivityResultLauncher? _recordAudioLauncher;
     private int _modeActiveColor;
     private bool _visualizerEnabled = false;
+    private bool _recordAudioDenied;
     private string? _lastCoverSource;
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
@@ -75,10 +76,15 @@ public class LandscapeNowPlayingFragment : Fragment
             {
                 if (granted)
                 {
+                    _recordAudioDenied = false;
                     var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
                     var sessionId = playerService.AudioSessionId;
                     if (sessionId != 0)
                         StartVisualizerWithSession(sessionId);
+                }
+                else
+                {
+                    _recordAudioDenied = true;
                 }
             }));
     }
@@ -1183,7 +1189,8 @@ public class LandscapeNowPlayingFragment : Fragment
         if (_visualizerHelper != null && _visualizerHelper.IsEnabled && sessionId == _lastVisualizerSessionId) return;
         if (Activity?.CheckSelfPermission(Android.Manifest.Permission.RecordAudio) != Android.Content.PM.Permission.Granted)
         {
-            _recordAudioLauncher?.Launch(Android.Manifest.Permission.RecordAudio);
+            if (!_recordAudioDenied)
+                _recordAudioLauncher?.Launch(Android.Manifest.Permission.RecordAudio);
             return;
         }
         _lastVisualizerSessionId = sessionId;

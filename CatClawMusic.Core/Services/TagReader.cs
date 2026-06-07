@@ -60,9 +60,6 @@ public class TagReader
     {
         if (!IOFile.Exists(filePath)) return null;
 
-        // 只在 try/catch 前计算一次，避免异常时重复文件系统查询
-        var lyricsPath = MusicUtility.FindLyricsFile(filePath);
-
         try
         {
             using var file = TagLib.File.Create(filePath);
@@ -85,7 +82,7 @@ public class TagReader
                 FileSize = fileInfo.Length,
                 Bitrate = props.AudioBitrate,
                 FilePath = filePath,
-                LyricsPath = lyricsPath,
+                LyricsPath = null, // 延迟到播放时查找，避免扫描时逐文件 I/O
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
 
@@ -100,7 +97,7 @@ public class TagReader
                 Artist = "未知艺术家",
                 Album = "未知专辑",
                 FilePath = filePath,
-                LyricsPath = lyricsPath,
+                LyricsPath = null,
                 FileSize = fileInfo.Length,
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };

@@ -47,6 +47,7 @@ public class NowPlayingFragment : Fragment
     private ActivityResultLauncher? _recordAudioLauncher;
     private int _modeActiveColor;
     private bool _visualizerEnabled = false;
+    private bool _recordAudioDenied;
     private string? _lastCoverSource;
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
@@ -75,10 +76,15 @@ public class NowPlayingFragment : Fragment
             {
                 if (granted)
                 {
+                    _recordAudioDenied = false;
                     var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
                     var sessionId = playerService.AudioSessionId;
                     if (sessionId != 0)
                         StartVisualizerWithSession(sessionId);
+                }
+                else
+                {
+                    _recordAudioDenied = true;
                 }
             }));
     }
@@ -1483,14 +1489,17 @@ public class NowPlayingFragment : Fragment
                 }
             });
         }
-        TryStartVisualizer();
-        if (_visualizerEnabled && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+        if (_visualizerEnabled)
         {
-            View?.PostDelayed(() =>
+            TryStartVisualizer();
+            if (_visualizerHelper == null || !_visualizerHelper.IsEnabled)
             {
-                if (_visualizerEnabled && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
-                    TryStartVisualizer();
-            }, 1500);
+                View?.PostDelayed(() =>
+                {
+                    if (_visualizerEnabled && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+                        TryStartVisualizer();
+                }, 1500);
+            }
         }
     }
     public override void OnPause()
@@ -1536,7 +1545,8 @@ public class NowPlayingFragment : Fragment
 
         if (Activity?.CheckSelfPermission(Android.Manifest.Permission.RecordAudio) != Android.Content.PM.Permission.Granted)
         {
-            _recordAudioLauncher?.Launch(Android.Manifest.Permission.RecordAudio);
+            if (!_recordAudioDenied)
+                _recordAudioLauncher?.Launch(Android.Manifest.Permission.RecordAudio);
             return;
         }
 

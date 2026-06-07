@@ -557,10 +557,7 @@ public partial class LibraryViewModel : ObservableObject
                     var newSongs = batch.Where(s => scannedPaths.Add(s.FilePath)).ToList();
                     if (newSongs.Count == 0) return;
 
-                    foreach (var song in newSongs)
-                    {
-                        await scanner.AddSongAsync(song);
-                    }
+                    await scanner.AddSongsBatchAsync(newSongs);
                 });
 
             // 刷新扫描器缓冲区，确保所有歌曲已写入数据库
