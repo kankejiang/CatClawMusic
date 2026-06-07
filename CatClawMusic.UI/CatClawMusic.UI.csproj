@@ -7,8 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
-    <ApplicationVersion>22</ApplicationVersion>
-    <ApplicationDisplayVersion>1.2.5</ApplicationDisplayVersion>
+    <ApplicationVersion>23</ApplicationVersion>
+    <ApplicationDisplayVersion>1.2.6</ApplicationDisplayVersion>
     <LangVersion>preview</LangVersion>
     <NoWarn>NU1605;NU1608</NoWarn>
     <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
