@@ -83,6 +83,14 @@ public class Song
     /// <summary>播放次数（运行时赋值，不持久化，来自 PlayHistory）</summary>
     [Ignore]
     public int PlayCount { get; set; }
+
+    /// <summary>标记本地歌曲是否同时存在于网络（运行时赋值，不持久化）</summary>
+    [Ignore]
+    public bool IsAlsoOnNetwork { get; set; }
+
+    /// <summary>标记网络歌曲是否同时存在于本地（运行时赋值，不持久化）</summary>
+    [Ignore]
+    public bool IsAlsoLocal { get; set; }
 }
 
 /// <summary>

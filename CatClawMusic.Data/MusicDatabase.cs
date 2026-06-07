@@ -87,6 +87,9 @@ public class MusicDatabase
             await MigrateArtistsTableAsync();
             await RecoverArtistsTableAsync();
 
+            // 修复早期版本中 ArtistId=0 导致 AlbumId 关联错误的问题
+            await RepairAlbumAssociationsAsync();
+
             _isInitialized = true;
         }
         finally
@@ -164,14 +167,10 @@ public class MusicDatabase
     public async Task<int> GetMergedDedupedCountAsync()
     {
         await EnsureInitializedAsync();
-        var songs = await _database.Table<Song>()
-            .OrderBy(s => s.Title)
-            .ToListAsync();
-        var enabledProtocols = await GetEnabledProtocolsAsync();
-        var filtered = FilterByEnabledProtocols(songs, enabledProtocols);
-        return filtered
-            .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
-            .Count();
+        // 只统计本地歌曲数量，与本地音乐标签页一致
+        return await _database.Table<Song>()
+            .Where(s => s.Source == SongSource.Local)
+            .CountAsync();
     }
 
     public async Task<int> GetFavoriteCountAsync()
@@ -446,6 +445,62 @@ public class MusicDatabase
     {
         await EnsureInitializedAsync();
         return await _database.Table<Album>().ToListAsync();
+    }
+
+    /// <summary>
+    /// 修复歌曲的 AlbumId 关联：根据歌曲的 Album 名称和 Artist 名称重新匹配正确的专辑 ID。
+    /// 解决早期版本中 ArtistId=0 导致 AlbumId 关联错误的问题。
+    /// </summary>
+    public async Task RepairAlbumAssociationsAsync()
+    {
+        // 注意：此方法可能从 EnsureInitializedAsync 内部调用，不能再调 EnsureInitializedAsync 以避免信号量死锁
+        try
+        {
+            var songs = await _database.Table<Song>().ToListAsync();
+            var artists = await _database.Table<Artist>().ToListAsync();
+            var albums = await _database.Table<Album>().ToListAsync();
+
+            var artistDict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var a in artists)
+                if (!artistDict.ContainsKey(a.Name))
+                    artistDict[a.Name] = a.Id;
+
+            var albumDict = new Dictionary<(string title, int artistId), int>();
+            foreach (var a in albums)
+                if (!albumDict.ContainsKey((a.Title, a.ArtistId)))
+                    albumDict[(a.Title, a.ArtistId)] = a.Id;
+
+            int fixedCount = 0;
+            await _database.RunInTransactionAsync(tran =>
+            {
+                foreach (var song in songs)
+                {
+                    // 重新计算正确的 ArtistId
+                    int correctArtistId = song.ArtistId;
+                    if (!string.IsNullOrEmpty(song.Artist) && artistDict.TryGetValue(song.Artist, out var aid))
+                        correctArtistId = aid;
+
+                    // 重新计算正确的 AlbumId
+                    int correctAlbumId = song.AlbumId;
+                    if (!string.IsNullOrEmpty(song.Album) && albumDict.TryGetValue((song.Album, correctArtistId), out var albId))
+                        correctAlbumId = albId;
+
+                    // 如果 ArtistId 或 AlbumId 有误，更新
+                    if (correctArtistId != song.ArtistId || correctAlbumId != song.AlbumId)
+                    {
+                        song.ArtistId = correctArtistId;
+                        song.AlbumId = correctAlbumId;
+                        tran.Update(song);
+                        fixedCount++;
+                    }
+                }
+            });
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 专辑关联修复完成，修正 {fixedCount} 首歌曲");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 专辑关联修复失败: {ex.Message}");
+        }
     }
 
     /// <summary>

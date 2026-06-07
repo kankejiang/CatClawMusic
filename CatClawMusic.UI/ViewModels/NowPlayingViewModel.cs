@@ -701,27 +701,30 @@ public partial class NowPlayingViewModel : ObservableObject
 
         if (CurrentSong?.Id != songId) return;
 
+        // 将 CurrentLyrics 快照到局部变量，防止切歌时另一个 LoadLyricsAsync 将其置 null
+        var lyrics = CurrentLyrics;
+
         if (LyricsMode == 2) { CurrentLyricLine = ""; NextLyricLine = ""; }
-        else if (CurrentLyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
-        else if (CurrentLyrics.Lines.Count > 0)
+        else if (lyrics == null) { CurrentLyricLine = "暂无歌词"; NextLyricLine = ""; }
+        else if (lyrics.Lines.Count > 0)
         {
             var pos = _audioPlayer.CurrentPosition;
-            var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, pos);
-            if (idx >= 0 && idx < CurrentLyrics!.Lines.Count)
+            var idx = _lyricsService.GetCurrentLyricIndex(lyrics, pos);
+            if (idx >= 0 && idx < lyrics.Lines.Count)
             {
-                PrevLyricLine6 = idx > 5 ? CurrentLyrics.Lines[idx - 6].Text : "";
-                PrevLyricLine5 = idx > 4 ? CurrentLyrics.Lines[idx - 5].Text : "";
-                PrevLyricLine4 = idx > 3 ? CurrentLyrics.Lines[idx - 4].Text : "";
-                PrevLyricLine3 = idx > 2 ? CurrentLyrics.Lines[idx - 3].Text : "";
-                PrevLyricLine2 = idx > 1 ? CurrentLyrics.Lines[idx - 2].Text : "";
-                PrevLyricLine = idx > 0 ? CurrentLyrics.Lines[idx - 1].Text : "";
-                NextLyricLine = idx + 1 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 1].Text : "";
-                NextLyricLine2 = idx + 2 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 2].Text : "";
-                NextLyricLine3 = idx + 3 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 3].Text : "";
-                NextLyricLine4 = idx + 4 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 4].Text : "";
-                NextLyricLine5 = idx + 5 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 5].Text : "";
-                NextLyricLine6 = idx + 6 < CurrentLyrics.Lines.Count ? CurrentLyrics.Lines[idx + 6].Text : "";
-                CurrentLyricLine = CurrentLyrics.Lines[idx].Text;
+                PrevLyricLine6 = idx > 5 ? lyrics.Lines[idx - 6].Text : "";
+                PrevLyricLine5 = idx > 4 ? lyrics.Lines[idx - 5].Text : "";
+                PrevLyricLine4 = idx > 3 ? lyrics.Lines[idx - 4].Text : "";
+                PrevLyricLine3 = idx > 2 ? lyrics.Lines[idx - 3].Text : "";
+                PrevLyricLine2 = idx > 1 ? lyrics.Lines[idx - 2].Text : "";
+                PrevLyricLine = idx > 0 ? lyrics.Lines[idx - 1].Text : "";
+                NextLyricLine = idx + 1 < lyrics.Lines.Count ? lyrics.Lines[idx + 1].Text : "";
+                NextLyricLine2 = idx + 2 < lyrics.Lines.Count ? lyrics.Lines[idx + 2].Text : "";
+                NextLyricLine3 = idx + 3 < lyrics.Lines.Count ? lyrics.Lines[idx + 3].Text : "";
+                NextLyricLine4 = idx + 4 < lyrics.Lines.Count ? lyrics.Lines[idx + 4].Text : "";
+                NextLyricLine5 = idx + 5 < lyrics.Lines.Count ? lyrics.Lines[idx + 5].Text : "";
+                NextLyricLine6 = idx + 6 < lyrics.Lines.Count ? lyrics.Lines[idx + 6].Text : "";
+                CurrentLyricLine = lyrics.Lines[idx].Text;
             }
             else
             {
@@ -732,12 +735,12 @@ public partial class NowPlayingViewModel : ObservableObject
                 PrevLyricLine2 = "";
                 PrevLyricLine = "";
                 CurrentLyricLine = "";
-                NextLyricLine = CurrentLyrics.Lines[0].Text;
-                NextLyricLine2 = CurrentLyrics.Lines.Count > 1 ? CurrentLyrics.Lines[1].Text : "";
-                NextLyricLine3 = CurrentLyrics.Lines.Count > 2 ? CurrentLyrics.Lines[2].Text : "";
-                NextLyricLine4 = CurrentLyrics.Lines.Count > 3 ? CurrentLyrics.Lines[3].Text : "";
-                NextLyricLine5 = CurrentLyrics.Lines.Count > 4 ? CurrentLyrics.Lines[4].Text : "";
-                NextLyricLine6 = CurrentLyrics.Lines.Count > 5 ? CurrentLyrics.Lines[5].Text : "";
+                NextLyricLine = lyrics.Lines[0].Text;
+                NextLyricLine2 = lyrics.Lines.Count > 1 ? lyrics.Lines[1].Text : "";
+                NextLyricLine3 = lyrics.Lines.Count > 2 ? lyrics.Lines[2].Text : "";
+                NextLyricLine4 = lyrics.Lines.Count > 3 ? lyrics.Lines[3].Text : "";
+                NextLyricLine5 = lyrics.Lines.Count > 4 ? lyrics.Lines[4].Text : "";
+                NextLyricLine6 = lyrics.Lines.Count > 5 ? lyrics.Lines[5].Text : "";
             }
         }
     }

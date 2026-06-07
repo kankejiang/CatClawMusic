@@ -6,7 +6,9 @@ using Android.Views.InputMethods;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using System.Linq;
+using System.Net.Http;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Adapters;
@@ -118,7 +120,10 @@ public class LibraryFragment : Fragment
         
         // 如果已有歌曲，更新适配器
         if (_viewModel.Songs.Count > 0)
+        {
             _adapter.UpdateSongs(_viewModel.Songs);
+            UpdateSyncIcons();
+        }
         // 否则，根据当前标签自动加载音乐
         else
         {
@@ -265,6 +270,7 @@ public class LibraryFragment : Fragment
                     _adapter.Clear();
                     _adapter.AddRange(_viewModel.Songs);
                 });
+                UpdateSyncIcons();
                 break;
 
             case NotifyCollectionChangedAction.Remove:
@@ -354,6 +360,16 @@ public class LibraryFragment : Fragment
         });
         dialog.AddItem("ℹ  歌曲详情", () => ShowSongInfoDialog(song));
 
+        // 本地音乐显示上传选项，网络音乐显示下载选项
+        if (song.Source == CoreModels.SongSource.Local)
+        {
+            dialog.AddItem("☁  上传到NAS", () => UploadSongAsync(song));
+        }
+        else if (song.Source == CoreModels.SongSource.WebDAV || song.Source == CoreModels.SongSource.SMB)
+        {
+            dialog.AddItem("⬇  下载到本地", () => DownloadSongAsync(song));
+        }
+
         var pluginManager = MainApplication.Services.GetService<IPluginManager>();
         if (pluginManager != null)
         {
@@ -413,7 +429,7 @@ public class LibraryFragment : Fragment
         var ctx = Context;
         if (ctx == null) return;
 
-        var durationStr = TimeSpan.FromMilliseconds(song.Duration).ToString(@"mm\:ss");
+        var durationStr = TimeSpan.FromSeconds(song.Duration).ToString(@"mm\:ss");
         var sourceStr = song.Source switch
         {
             CoreModels.SongSource.Local => "本地",
@@ -426,7 +442,7 @@ public class LibraryFragment : Fragment
             + $"专辑：{song.Album}\n"
             + $"时长：{durationStr}\n"
             + $"来源：{sourceStr}\n"
-            + $"比特率：{(song.Bitrate > 0 ? $"{song.Bitrate / 1000}kbps" : "未知")}\n"
+            + $"比特率：{(song.Bitrate > 0 ? $"{song.Bitrate}kbps" : "未知")}\n"
             + $"文件大小：{FormatFileSize(song.FileSize)}\n"
             + $"路径：{song.FilePath}";
 
@@ -514,6 +530,303 @@ public class LibraryFragment : Fragment
                 }
             })
             .Show();
+    }
+
+    private async void UploadSongAsync(CoreModels.Song song)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
+        var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+        if (networkMusic == null)
+        {
+            Toast.MakeText(ctx, "网络服务不可用", ToastLength.Short)?.Show();
+            return;
+        }
+
+        var profiles = await networkMusic.GetProfilesAsync();
+        var enabledProfiles = profiles.Where(p => p.IsEnabled).ToList();
+        if (enabledProfiles.Count == 0)
+        {
+            Toast.MakeText(ctx, "请先在设置中配置网络连接", ToastLength.Short)?.Show();
+            return;
+        }
+
+        // 如果有多个协议，让用户选择
+        ConnectionProfile? selectedProfile = null;
+        if (enabledProfiles.Count == 1)
+        {
+            selectedProfile = enabledProfiles[0];
+        }
+        else
+        {
+            var dialog = new GlassDialog(ctx).SetTitle("选择上传目标");
+            foreach (var p in enabledProfiles)
+            {
+                var profile = p;
+                dialog.AddItem($"{p.Name} ({p.Protocol})", async () =>
+                {
+                    await DoUploadAsync(song, profile, ctx, db, networkMusic);
+                });
+            }
+            dialog.AddNegativeButton("取消");
+            dialog.Show();
+            return;
+        }
+
+        await DoUploadAsync(song, selectedProfile, ctx, db, networkMusic);
+    }
+
+    private async Task DoUploadAsync(CoreModels.Song song, ConnectionProfile profile, Android.Content.Context ctx, MusicDatabase db, INetworkMusicService networkMusic)
+    {
+        try
+        {
+            Activity?.RunOnUiThread(() => Toast.MakeText(ctx, $"正在上传: {song.Title}", ToastLength.Short)?.Show());
+
+            var filePath = song.FilePath;
+            if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+            {
+                Activity?.RunOnUiThread(() => Toast.MakeText(ctx, "文件不存在", ToastLength.Short)?.Show());
+                return;
+            }
+
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            var fileName = System.IO.Path.GetFileName(filePath);
+            var basePath = profile.BasePath?.TrimEnd('/') ?? "/";
+            if (string.IsNullOrEmpty(basePath)) basePath = "/";
+            var remotePath = $"{basePath}/{fileName}";
+
+            INetworkFileService? fileService = null;
+            if (profile.Protocol == ProtocolType.WebDAV)
+            {
+                var webDav = MainApplication.Services.GetServices<INetworkFileService>()
+                    .FirstOrDefault(s => s is WebDavService) as WebDavService;
+                if (webDav != null)
+                {
+                    webDav.Configure(profile);
+                    fileService = webDav;
+                }
+            }
+            else if (profile.Protocol == ProtocolType.SMB)
+            {
+                var smb = MainApplication.Services.GetServices<INetworkFileService>()
+                    .FirstOrDefault(s => s is SmbService) as SmbService;
+                if (smb != null)
+                {
+                    smb.Configure(profile);
+                    fileService = smb;
+                }
+            }
+
+            if (fileService == null)
+            {
+                Activity?.RunOnUiThread(() => Toast.MakeText(ctx, "不支持的上传协议", ToastLength.Short)?.Show());
+                return;
+            }
+
+            var (success, msg) = await fileService.UploadFileAsync(remotePath, fileBytes);
+            if (!success)
+            {
+                Activity?.RunOnUiThread(() => Toast.MakeText(ctx, $"上传失败: {msg}", ToastLength.Long)?.Show());
+                return;
+            }
+
+            // 上传歌词文件（如果存在）
+            var lyricsPath = MusicUtility.FindLyricsFile(filePath);
+            if (!string.IsNullOrEmpty(lyricsPath) && System.IO.File.Exists(lyricsPath))
+            {
+                try
+                {
+                    var lrcBytes = await System.IO.File.ReadAllBytesAsync(lyricsPath);
+                    var lrcName = System.IO.Path.GetFileName(lyricsPath);
+                    var lrcRemotePath = $"{basePath}/{lrcName}";
+                    await fileService.UploadFileAsync(lrcRemotePath, lrcBytes);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 歌词上传失败: {ex.Message}");
+                }
+            }
+
+            Activity?.RunOnUiThread(() => Toast.MakeText(ctx, $"上传成功: {song.Title}", ToastLength.Short)?.Show());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 上传异常: {ex.Message}");
+            Activity?.RunOnUiThread(() => Toast.MakeText(ctx, $"上传失败: {ex.Message}", ToastLength.Long)?.Show());
+        }
+    }
+
+    private async void DownloadSongAsync(CoreModels.Song song)
+    {
+        var ctx = Context;
+        if (ctx == null) return;
+
+        try
+        {
+            Activity?.RunOnUiThread(() => Toast.MakeText(ctx, $"正在下载: {song.Title}", ToastLength.Short)?.Show());
+
+            var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
+            var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+            if (networkMusic == null) return;
+
+            var profiles = await networkMusic.GetProfilesAsync();
+            var profile = profiles.FirstOrDefault(p =>
+                p.IsEnabled && (
+                    (song.Source == CoreModels.SongSource.WebDAV && p.Protocol == ProtocolType.WebDAV) ||
+                    (song.Source == CoreModels.SongSource.SMB && p.Protocol == ProtocolType.SMB) ||
+                    (song.Protocol == ProtocolType.Navidrome && p.Protocol == ProtocolType.Navidrome)
+                ));
+            if (profile == null)
+            {
+                Activity?.RunOnUiThread(() => Toast.MakeText(ctx, "未找到对应的网络连接", ToastLength.Short)?.Show());
+                return;
+            }
+
+            // 下载目录: /storage/emulated/0/CatClawMusic/Music
+            var downloadDir = "/storage/emulated/0/CatClawMusic/Music";
+            Directory.CreateDirectory(downloadDir);
+
+            var fileName = SanitizeFileName(song.Title ?? "unknown") + GetExtensionFromSong(song);
+            var localPath = Path.Combine(downloadDir, fileName);
+
+            // 获取远程文件流
+            Stream? stream = null;
+            if (profile.Protocol == ProtocolType.Navidrome)
+            {
+                var streamUrl = await networkMusic.GetStreamUrlAsync(song, profile);
+                using var httpClient = new HttpClient();
+                var response = await httpClient.GetAsync(streamUrl, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+                stream = await response.Content.ReadAsStreamAsync();
+            }
+            else if (profile.Protocol == ProtocolType.WebDAV)
+            {
+                var webDav = MainApplication.Services.GetServices<INetworkFileService>()
+                    .FirstOrDefault(s => s is WebDavService) as WebDavService;
+                if (webDav != null)
+                {
+                    webDav.Configure(profile);
+                    var remotePath = song.RemoteId ?? song.CoverArtPath;
+                    if (!string.IsNullOrEmpty(remotePath))
+                        stream = await webDav.OpenReadAsync(remotePath);
+                }
+            }
+            else if (profile.Protocol == ProtocolType.SMB)
+            {
+                var smb = MainApplication.Services.GetServices<INetworkFileService>()
+                    .FirstOrDefault(s => s is SmbService) as SmbService;
+                if (smb != null)
+                {
+                    smb.Configure(profile);
+                    var remotePath = song.RemoteId ?? song.CoverArtPath;
+                    if (!string.IsNullOrEmpty(remotePath))
+                        stream = await smb.OpenReadAsync(remotePath);
+                }
+            }
+
+            if (stream == null)
+            {
+                Activity?.RunOnUiThread(() => Toast.MakeText(ctx, "下载失败: 无法获取文件流", ToastLength.Short)?.Show());
+                return;
+            }
+
+            using (stream)
+            {
+                using var fs = File.Create(localPath);
+                await stream.CopyToAsync(fs);
+            }
+
+            // 下载歌词文件
+            try
+            {
+                var lyricsText = await networkMusic.GetLyricsAsync(song.RemoteId ?? song.CoverArtPath ?? "", profile);
+                if (!string.IsNullOrWhiteSpace(lyricsText))
+                {
+                    var lrcPath = Path.Combine(downloadDir, SanitizeFileName(song.Title ?? "unknown") + ".lrc");
+                    await File.WriteAllTextAsync(lrcPath, lyricsText);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 歌词下载失败: {ex.Message}");
+            }
+
+            Activity?.RunOnUiThread(() => Toast.MakeText(ctx, $"下载完成: {song.Title}", ToastLength.Short)?.Show());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 下载异常: {ex.Message}");
+            Activity?.RunOnUiThread(() => Toast.MakeText(ctx, $"下载失败: {ex.Message}", ToastLength.Long)?.Show());
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c, '_');
+        return name.Trim();
+    }
+
+    private static string GetExtensionFromSong(CoreModels.Song song)
+    {
+        var path = song.FilePath ?? "";
+        var ext = Path.GetExtension(path);
+        if (string.IsNullOrEmpty(ext) || ext.Length > 5)
+            ext = ".mp3";
+        return ext;
+    }
+
+    private void UpdateSyncIcons()
+    {
+        var db = MainApplication.Services.GetService<MusicDatabase>();
+        if (db == null) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var localSongs = await db.GetSongsWithDetailsAsync();
+                var networkSongs = await db.GetCachedNetworkSongsAsync();
+
+                var localPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var localTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var s in localSongs)
+                {
+                    if (!string.IsNullOrEmpty(s.FilePath))
+                        localPaths.Add(System.IO.Path.GetFileNameWithoutExtension(s.FilePath));
+                    if (!string.IsNullOrEmpty(s.Title))
+                        localTitles.Add(s.Title.Trim().ToLowerInvariant());
+                }
+
+                var networkTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var s in networkSongs)
+                {
+                    if (!string.IsNullOrEmpty(s.Title))
+                        networkTitles.Add(s.Title.Trim().ToLowerInvariant());
+                }
+
+                Activity?.RunOnUiThread(() =>
+                {
+                    foreach (var s in _viewModel.Songs)
+                    {
+                        if (s.Source == CoreModels.SongSource.Local)
+                        {
+                            var titleKey = s.Title?.Trim().ToLowerInvariant() ?? "";
+                            s.IsAlsoOnNetwork = networkTitles.Contains(titleKey);
+                        }
+                        else
+                        {
+                            var titleKey = s.Title?.Trim().ToLowerInvariant() ?? "";
+                            s.IsAlsoLocal = localTitles.Contains(titleKey);
+                        }
+                    }
+                    _adapter.UpdateSongs(_viewModel.Songs);
+                });
+            }
+            catch { }
+        });
     }
 
     private Android.App.Dialog? _contextMenuDialog;

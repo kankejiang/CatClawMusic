@@ -228,6 +228,7 @@ public class MusicScanner
         }
 
         // 预处理：批量确保所有艺术家和专辑存在，减少逐条数据库查询
+        // 第一步：确保艺术家存在
         var artistNames = toInsert
             .Where(s => !string.IsNullOrEmpty(s.Artist) && !_artistCache.ContainsKey(s.Artist))
             .Select(s => s.Artist!)
@@ -243,6 +244,16 @@ public class MusicScanner
             }
         }
 
+        // 第二步：先设置 ArtistId，再计算 albumKeys（否则 ArtistId=0 会导致专辑关联错误）
+        foreach (var s in toInsert)
+        {
+            if (!string.IsNullOrEmpty(s.Artist) && _artistCache.TryGetValue(s.Artist, out var aid))
+                s.ArtistId = aid;
+            else
+                s.ArtistId = defaultArtistId;
+        }
+
+        // 第三步：确保专辑存在（此时 ArtistId 已正确设置）
         var albumKeys = toInsert
             .Where(s => !string.IsNullOrEmpty(s.Album))
             .Select(s => (s.Album!, s.ArtistId))
@@ -259,13 +270,13 @@ public class MusicScanner
             }
         }
 
-        // 设置所有歌曲的 ArtistId/AlbumId 和 DateAdded
+        // 第四步：设置 AlbumId 和 DateAdded
         foreach (var s in toInsert)
         {
-            if (!string.IsNullOrEmpty(s.Artist) && _artistCache.TryGetValue(s.Artist, out var aid))
-                s.ArtistId = aid;
             if (!string.IsNullOrEmpty(s.Album) && _albumCache.TryGetValue((s.Album, s.ArtistId), out var albId))
                 s.AlbumId = albId;
+            else
+                s.AlbumId = defaultAlbumId;
             s.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         }
 

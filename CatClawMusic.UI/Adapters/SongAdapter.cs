@@ -549,7 +549,9 @@ public class SongAdapter : RecyclerView.Adapter
             return old.Title == @new.Title
                 && old.Artist == @new.Artist
                 && old.Album == @new.Album
-                && old.Source == @new.Source;
+                && old.Source == @new.Source
+                && old.IsAlsoOnNetwork == @new.IsAlsoOnNetwork
+                && old.IsAlsoLocal == @new.IsAlsoLocal;
         }
     }
 
@@ -576,6 +578,7 @@ public class SongAdapter : RecyclerView.Adapter
         private readonly ImageView _cover;
         private readonly Helpers.WaveformView _pauseIcon;
         private readonly CheckBox _checkbox;
+        private readonly TextView _syncIcon;
         private readonly View _cardView;
 
         /// <summary>
@@ -615,6 +618,7 @@ public class SongAdapter : RecyclerView.Adapter
             _cover = view.FindViewById<ImageView>(Resource.Id.song_cover)!;
             _pauseIcon = view.FindViewById<Helpers.WaveformView>(Resource.Id.playing_pause_icon)!;
             _checkbox = view.FindViewById<CheckBox>(Resource.Id.checkbox_select)!;
+            _syncIcon = view.FindViewById<TextView>(Resource.Id.song_sync_icon)!;
             _title.ImportantForAutofill = ImportantForAutofill.No;
             _artist.ImportantForAutofill = ImportantForAutofill.No;
             _album.ImportantForAutofill = ImportantForAutofill.No;
@@ -644,6 +648,21 @@ public class SongAdapter : RecyclerView.Adapter
             _artist.Text = string.IsNullOrEmpty(song.Artist) ? "未知艺术家" : song.Artist;
             _album.Text = song.Album ?? "";
             _boundSongId = song.Id;
+
+            if (song.IsAlsoOnNetwork)
+            {
+                _syncIcon.Text = "☁";
+                _syncIcon.Visibility = ViewStates.Visible;
+            }
+            else if (song.IsAlsoLocal)
+            {
+                _syncIcon.Text = "✅";
+                _syncIcon.Visibility = ViewStates.Visible;
+            }
+            else
+            {
+                _syncIcon.Visibility = ViewStates.Gone;
+            }
 
             if (adapter._multiSelectMode)
             {
