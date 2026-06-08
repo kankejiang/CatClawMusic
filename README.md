@@ -1,11 +1,11 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
-> 萌系 Android 音乐播放器，.NET 9 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、SMB/CIFS 协议、桌面悬浮歌词（可拖拽/锁定/双行KTV）、逐字歌词渐变高亮、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题、AI 对话式搜索。
+> 萌系 Android 音乐播放器，.NET 10 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、SMB/CIFS 协议、桌面悬浮歌词（可拖拽/锁定/双行KTV）、逐字歌词渐变高亮、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题、AI 对话式搜索。
 
 <div align="center">
 
 ![平台](https://img.shields.io/badge/平台-Android-green)
-![.NET](https://img.shields.io/badge/.NET-9.0-512bd4)
+![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-12.0-blue)
 ![最低版本](https://img.shields.io/badge/最低版本-Android%2012%20(API%2031)-orange)
 ![协议](https://img.shields.io/badge/协议-MIT-yellow)
@@ -94,7 +94,7 @@ CatClawMusic/
     └── Platforms/Android/      # ExoPlayer / SAF / 主题 / MediaStoreCoverHelper / AndroidMediaScanner
 ```
 
-**技术栈**：.NET 9 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | SMBLibrary | Material 3 | Android Visualizer API
+**技术栈**：.NET 10 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | SMBLibrary | Material 3 | Android Visualizer API
 
 ***
 
@@ -238,6 +238,19 @@ CatClawMusic/
 ***
 
 ## 📦 版本更新
+
+### v1.3.0
+
+**框架升级**
+
+- 升级到 .NET 10 (LTS)，长期支持到 2028 年 11 月
+- Android SDK 升级到 API 36
+- global.json SDK 版本从 9.0 更新到 10.0
+
+**状态栏修复**
+
+- 修复播放页状态栏字体颜色闪烁：动态根据封面背景色感知亮度设置状态栏文字颜色
+- 移除硬编码 AppearanceLightStatusBars 和 Post 延迟
 
 ### v1.2.4
 
