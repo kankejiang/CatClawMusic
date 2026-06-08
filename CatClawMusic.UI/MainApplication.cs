@@ -146,14 +146,7 @@ public class MainApplication : Application
             }
             return null;
         };
-        /* 注入 C++ 原生编码检测器到歌词服务，优先使用原生库进行编码检测 */
-        LyricsService.NativeEncodingDetector = rawBytes =>
-        {
-            try { return NativeInterop.DetectAndConvertToUtf8(rawBytes); }
-            catch { return null; }
-        };
-        /* 初始化原生库（CPU 特性检测等） */
-        try { NativeInterop.Init(); } catch { }
+        /* 编码检测由 LyricsService 内置 C# 实现处理 */
         services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
         services.AddSingleton<IPermissionService, PermissionService>();
         services.AddSingleton<PlayQueue>();

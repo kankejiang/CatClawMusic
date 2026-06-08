@@ -111,10 +111,7 @@ public static class CoverColorExtractor
 
         try
         {
-            /* 优先使用 C++ 原生库取色（性能更优，避免 GetPixel JNI 开销） */
-            var nativeResult = NativeInteropAndroid.ExtractColorsFromBitmap(bitmap);
-            if (nativeResult != null && nativeResult.Count > 0)
-                return nativeResult;
+            /* 纯 C# 色彩提取（NativeAOT 编译为原生代码） */
 
             bool isGrayscaleCover = DetectGrayscaleCover(bitmap);
             if (isGrayscaleCover)

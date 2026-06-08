@@ -428,6 +428,8 @@ public class LandscapeNowPlayingFragment : Fragment
                         _songArtist.Text = "正在加载...";
                     else
                         _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
+                    // 切歌时重启频谱图，防止 AudioSessionIdChanged 未触发导致频谱停止
+                    RestartVisualizer();
                     break;
                 case nameof(_viewModel.CurrentLyricLine):
                     UpdateLyrics();
@@ -1179,6 +1181,15 @@ public class LandscapeNowPlayingFragment : Fragment
             _visualizerHelper = null;
             StartVisualizerWithSession(newSessionId);
         });
+    }
+
+    public void RestartVisualizer()
+    {
+        if (!_visualizerEnabled) return;
+        _visualizerHelper?.Stop();
+        _visualizerHelper = null;
+        _lastVisualizerSessionId = 0;
+        TryStartVisualizer();
     }
 
     private void TryStartVisualizer()

@@ -14,9 +14,6 @@ public class TeeAudioProcessor : BaseAudioProcessor
     private readonly float[] _tempBuffer = new float[4096];
     private int _tempCount;
 
-    /* 原生库用的 short 缓冲区，避免每帧分配 */
-    private short[]? _nativeShortBuffer;
-    private float[]? _nativeSpectrumBuffer;
     private float[]? _fallbackSpectrumBuffer;
 
     /// <summary>最新的频谱数据（32 个频带，0~1 归一化值）</summary>
@@ -48,42 +45,8 @@ public class TeeAudioProcessor : BaseAudioProcessor
 
         if (monoCount == 0) return;
 
-        /* 优先使用 C++ 原生库处理 PCM 数据（NEON SIMD 加速） */
-        if (NativeInterop.IsAvailable)
-        {
-            try
-            {
-                ProcessAudioDataNative(buffer, size, channelCount, monoCount);
-                return;
-            }
-            catch { }
-        }
-
-        /* C# 回退实现 */
+        /* 纯 C# PCM 处理（NativeAOT 编译为原生代码，性能等同 C++） */
         ProcessAudioDataFallback(buffer, size, channelCount, monoCount);
-    }
-
-    /// <summary>
-    /// 使用 C++ 原生库处理 PCM 数据
-    /// 一次性将 ByteBuffer 中的 short 数据复制到数组，然后调用原生函数
-    /// </summary>
-    private void ProcessAudioDataNative(Java.Nio.ByteBuffer buffer, int size, int channelCount, int monoCount)
-    {
-        var shortBuffer = buffer.AsShortBuffer();
-        shortBuffer.Position(0);
-        var shortCount = size / 2;
-
-        /* 确保 short 缓冲区足够大 */
-        if (_nativeShortBuffer == null || _nativeShortBuffer.Length < shortCount)
-            _nativeShortBuffer = new short[shortCount];
-        shortBuffer.Get(_nativeShortBuffer, 0, shortCount);
-
-        /* 调用原生 PCM → 单声道绝对值浮点转换 */
-        var samples = monoCount > _tempBuffer.Length ? _tempBuffer.Length : monoCount;
-        _tempCount = NativeInterop.PcmToMonoAbs(_nativeShortBuffer, shortCount, channelCount, _tempBuffer);
-        if (_tempCount > samples) _tempCount = samples;
-
-        ComputeSpectrumBands();
     }
 
     /// <summary>
@@ -106,22 +69,7 @@ public class TeeAudioProcessor : BaseAudioProcessor
     {
         const int bands = 32;
 
-        /* 优先使用 C++ 原生库计算频谱条带 */
-        if (NativeInterop.IsAvailable)
-        {
-            try
-            {
-                if (_nativeSpectrumBuffer == null || _nativeSpectrumBuffer.Length < bands)
-                    _nativeSpectrumBuffer = new float[bands];
-                NativeInterop.ComputeSpectrumBands(_tempBuffer, _tempCount, bands, _nativeSpectrumBuffer, 3.5f);
-                LatestSpectrum = _nativeSpectrumBuffer;
-                SpectrumUpdated?.Invoke(_nativeSpectrumBuffer);
-                return;
-            }
-            catch { }
-        }
-
-        /* C# 回退实现 */
+        /* 纯 C# 频谱条带计算（NativeAOT 编译为原生代码） */
         if (_fallbackSpectrumBuffer == null || _fallbackSpectrumBuffer.Length < bands)
             _fallbackSpectrumBuffer = new float[bands];
         var spectrum = _fallbackSpectrumBuffer;

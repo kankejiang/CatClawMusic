@@ -191,6 +191,60 @@ public class AlbumViewHolder : RecyclerView.ViewHolder
                 }
                 catch { }
 
+                ct.ThrowIfCancellationRequested();
+
+                // 从音频文件所在目录查找封面图片文件（folder.jpg / cover.jpg 等）
+                try
+                {
+                    if (!string.IsNullOrEmpty(album.SampleFilePath) && !album.SampleFilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var dir = System.IO.Path.GetDirectoryName(album.SampleFilePath);
+                        if (!string.IsNullOrEmpty(dir) && System.IO.Directory.Exists(dir))
+                        {
+                            var coverFileNames = new[] { "folder.jpg", "folder.png", "cover.jpg", "cover.png", "album.jpg", "album.png", "AlbumArtSmall.jpg", "AlbumArt.jpg" };
+                            foreach (var name in coverFileNames)
+                            {
+                                var coverPath = System.IO.Path.Combine(dir, name);
+                                if (System.IO.File.Exists(coverPath))
+                                {
+                                    var b = DecodeSampledBitmap(coverPath, 200);
+                                    if (b != null) return b;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // 从 content:// URI 提取封面（SAF 扫描的文件）
+                try
+                {
+                    if (!string.IsNullOrEmpty(album.SampleFilePath) && album.SampleFilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var ctx = global::Android.App.Application.Context;
+                        if (ctx != null)
+                        {
+                            var uri = Android.Net.Uri.Parse(album.SampleFilePath);
+                            if (uri != null)
+                            {
+                                using var stream = ctx.ContentResolver!.OpenInputStream(uri);
+                                if (stream != null)
+                                {
+                                    var coverBytes = TagReader.ExtractCoverFromStream(stream, album.SampleFilePath);
+                                    if (coverBytes != null && coverBytes.Length > 0)
+                                    {
+                                        var b = Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
+                                        if (b != null) return b;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
                 return null;
             }, ct);
         }

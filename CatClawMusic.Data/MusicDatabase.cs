@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
 using SQLite;
 
 namespace CatClawMusic.Data;
@@ -454,6 +455,8 @@ public class MusicDatabase
     public async Task RepairAlbumAssociationsAsync()
     {
         // 注意：此方法可能从 EnsureInitializedAsync 内部调用，不能再调 EnsureInitializedAsync 以避免信号量死锁
+        // Song.Artist 和 Song.Album 是 [Ignore] 字段，不存储在数据库中
+        // 需要从文件标签重新读取来修复关联
         try
         {
             var songs = await _database.Table<Song>().ToListAsync();
@@ -475,15 +478,63 @@ public class MusicDatabase
             {
                 foreach (var song in songs)
                 {
+                    // 从文件标签重新读取艺术家和专辑名
+                    string? artistName = null;
+                    string? albumName = null;
+
+                    if (!string.IsNullOrEmpty(song.FilePath) && System.IO.File.Exists(song.FilePath))
+                    {
+                        try
+                        {
+                            var tagInfo = TagReader.ReadSongInfo(song.FilePath);
+                            if (tagInfo != null)
+                            {
+                                artistName = tagInfo.Artist;
+                                albumName = tagInfo.Album;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    // 回退到 ExtractArtistNameCallback
+                    if (string.IsNullOrEmpty(artistName) && ExtractArtistNameCallback != null && !string.IsNullOrEmpty(song.FilePath))
+                        artistName = ExtractArtistNameCallback(song.FilePath);
+
                     // 重新计算正确的 ArtistId
                     int correctArtistId = song.ArtistId;
-                    if (!string.IsNullOrEmpty(song.Artist) && artistDict.TryGetValue(song.Artist, out var aid))
-                        correctArtistId = aid;
+                    if (!string.IsNullOrEmpty(artistName))
+                    {
+                        if (artistDict.TryGetValue(artistName, out var aid))
+                        {
+                            correctArtistId = aid;
+                        }
+                        else
+                        {
+                            // 艺术家不在数据库中，创建新的
+                            var newArtist = new Artist { Name = artistName };
+                            tran.Insert(newArtist);
+                            correctArtistId = newArtist.Id;
+                            artistDict[artistName] = correctArtistId;
+                        }
+                    }
 
                     // 重新计算正确的 AlbumId
                     int correctAlbumId = song.AlbumId;
-                    if (!string.IsNullOrEmpty(song.Album) && albumDict.TryGetValue((song.Album, correctArtistId), out var albId))
-                        correctAlbumId = albId;
+                    if (!string.IsNullOrEmpty(albumName))
+                    {
+                        if (albumDict.TryGetValue((albumName, correctArtistId), out var albId))
+                        {
+                            correctAlbumId = albId;
+                        }
+                        else
+                        {
+                            // 创建新的专辑
+                            var newAlbum = new Album { Title = albumName, ArtistId = correctArtistId };
+                            tran.Insert(newAlbum);
+                            correctAlbumId = newAlbum.Id;
+                            albumDict[(albumName, correctArtistId)] = correctAlbumId;
+                        }
+                    }
 
                     // 如果 ArtistId 或 AlbumId 有误，更新
                     if (correctArtistId != song.ArtistId || correctAlbumId != song.AlbumId)

@@ -239,13 +239,23 @@ CatClawMusic/
 
 ## 📦 版本更新
 
-### v1.3.0
+### v1.3.1
+
+**C++ → NativeAOT 迁移**
+
+- 彻底移除 C++ 原生库 (libcatclaw_native.so)，不再依赖 NDK 编译
+- 所有性能关键代码改为纯 C# 实现，由 Mono AOT 编译为原生机器码
+- 新增 C# StackBlur 实现，替代 C++ 版模糊算法
+- AI JSON 处理改用 System.Text.Json
+- 频谱分析、取色、编码检测改用 C# 回退（现为主力）实现
+- APK 体积从 70.4 MB 降至 36.9 MB（-48%）
 
 **框架升级**
 
 - 升级到 .NET 10 (LTS)，长期支持到 2028 年 11 月
 - Android SDK 升级到 API 36
-- global.json SDK 版本从 9.0 更新到 10.0
+
+### v1.3.0
 
 **状态栏修复**
 

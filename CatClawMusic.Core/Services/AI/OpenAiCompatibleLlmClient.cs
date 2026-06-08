@@ -135,9 +135,6 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 
     private static string BuildChatUrl(string apiUrl)
     {
-        var nativeUrl = NativeInterop.AiBuildUrl(apiUrl);
-        if (nativeUrl != null) return nativeUrl;
-
         var url = apiUrl.TrimEnd('/');
         if (url.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
             return url;
@@ -150,10 +147,6 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 
     private static string BuildRequestBody(List<ChatMessage> messages, List<ToolDefinition>? tools, LlmConfig config)
     {
-        var nativeBody = NativeInterop.AiBuildChatRequest(
-            config.Model, messages, tools, config.Temperature, config.MaxTokens);
-        if (nativeBody != null) return nativeBody;
-
         var msgList = new List<object>();
         foreach (var m in messages)
         {
@@ -232,13 +225,6 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 
     private static LlmResponse ParseResponse(string responseBody)
     {
-        var nativeResult = NativeInterop.AiParseChatResponse(responseBody);
-        if (nativeResult != null)
-        {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] AI ParseResponse (native): content='{Truncate(nativeResult.Content, 200)}', toolCalls={nativeResult.ToolCalls.Count}, finishReason={nativeResult.FinishReason}");
-            return nativeResult;
-        }
-
         var result = new LlmResponse();
         try
         {
