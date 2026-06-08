@@ -144,6 +144,21 @@ public class NowPlayingFragment : Fragment
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
 
         _progressSlider.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
+        _progressSlider.TickVisible = false;
+        // 隐藏 Material Slider 末端的 stop indicator 黑点
+        try
+        {
+            var handle = _progressSlider.Handle;
+            var classHandle = Android.Runtime.JNIEnv.GetObjectClass(handle);
+            var methodId = Android.Runtime.JNIEnv.GetMethodID(classHandle, "setStopIndicatorSize", "(I)V");
+            if (methodId != IntPtr.Zero)
+            {
+                var val = new Android.Runtime.JValue(0);
+                Android.Runtime.JNIEnv.CallVoidMethod(handle, methodId, val);
+            }
+            Android.Runtime.JNIEnv.DeleteLocalRef(classHandle);
+        }
+        catch { }
         _gradientBackground.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _reflectionMaskBottom.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _coverFog.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
@@ -160,7 +175,7 @@ public class NowPlayingFragment : Fragment
         _btnSleepTimer.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _btnLandscape.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
 
-        _audioVisualizer.Visibility = ViewStates.Gone;
+        _audioVisualizer.Visibility = ViewStates.Invisible;
         var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
         var visEnabled = visPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
         if (visEnabled)
@@ -1344,8 +1359,6 @@ public class NowPlayingFragment : Fragment
         if (enabled)
         {
             _audioVisualizer.Visibility = ViewStates.Visible;
-            if (_coverLayoutParams != null)
-                _coverLayoutParams.Weight = 3.0f;
             TryStartVisualizer();
         }
         else
@@ -1353,9 +1366,7 @@ public class NowPlayingFragment : Fragment
             _visualizerHelper?.Stop();
             _visualizerHelper = null;
             _audioVisualizer.Clear();
-            _audioVisualizer.Visibility = ViewStates.Gone;
-            if (_coverLayoutParams != null)
-                _coverLayoutParams.Weight = 2.6f;
+            _audioVisualizer.Visibility = ViewStates.Invisible;
         }
     }
 

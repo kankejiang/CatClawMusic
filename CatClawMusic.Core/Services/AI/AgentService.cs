@@ -206,8 +206,7 @@ public class AgentService : IAgentService
                         {
                             try
                             {
-                                var keyword = NativeInterop.AiExtractStringArg(toolCall.Function.Arguments, "keyword")
-                                    ?? ArgHelper.ExtractStringArgFallback(toolCall.Function.Arguments, "keyword");
+                                var keyword = ArgHelper.ExtractStringArgFallback(toolCall.Function.Arguments, "keyword");
                                 if (!string.IsNullOrWhiteSpace(keyword))
                                     songs = await _musicLibrary.SearchAsync(keyword);
                             }

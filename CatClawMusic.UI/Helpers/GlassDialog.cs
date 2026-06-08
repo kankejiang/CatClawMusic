@@ -351,13 +351,8 @@ public class GlassDialog : Android.App.Dialog
             var scaled = Bitmap.CreateScaledBitmap(bitmap,
                 bitmap.Width / 8, bitmap.Height / 8, false);
 
-            /* 优先使用 C++ Stack Blur（比 RenderScript 更快且无 API 版本限制） */
-            Bitmap? blurred = null;
-            if (NativeInterop.IsAvailable)
-            {
-                try { blurred = ApplyStackBlur(scaled, 15); }
-                catch { }
-            }
+            /* 使用纯 C# Stack Blur（NativeAOT 兼容，无 P/Invoke 依赖） */
+            Bitmap? blurred = ApplyStackBlurCSharp(scaled, 15);
             /* 回退到 RenderScript */
             blurred ??= ApplyBlur(scaled, 15);
 
@@ -370,26 +365,78 @@ public class GlassDialog : Android.App.Dialog
         catch { }
     }
 
-    /// <summary>
-    /// 使用 C++ Stack Blur 模糊位图
-    /// 将像素数据传入原生库处理，无需 RenderScript 上下文
-    /// </summary>
-    private static Bitmap ApplyStackBlur(Bitmap src, int radius)
+    /// <summary>纯 C# Stack Blur 实现（NativeAOT 兼容，无 P/Invoke 依赖）</summary>
+    private static Bitmap ApplyStackBlurCSharp(Bitmap src, int radius)
     {
-        var pixels = new int[src.Width * src.Height];
-        src.GetPixels(pixels, 0, src.Width, 0, 0, src.Width, src.Height);
+        int w = src.Width;
+        int h = src.Height;
+        int wh = w * h;
+        int[] pixels = new int[wh];
+        src.GetPixels(pixels, 0, w, 0, 0, w, h);
 
-        /* 转换为 uint[] 传给原生库 */
-        var uintPixels = new uint[pixels.Length];
-        for (int i = 0; i < pixels.Length; i++)
-            uintPixels[i] = (uint)pixels[i];
+        byte[] r = new byte[wh];
+        byte[] g = new byte[wh];
+        byte[] b = new byte[wh];
+        for (int i = 0; i < wh; i++)
+        {
+            int p = pixels[i];
+            r[i] = (byte)((p >> 16) & 0xFF);
+            g[i] = (byte)((p >> 8) & 0xFF);
+            b[i] = (byte)(p & 0xFF);
+        }
 
-        NativeInterop.StackBlurArgb(uintPixels, src.Width, src.Height, radius);
+        int div = radius + radius + 1;
+        byte[] rout = new byte[wh];
+        byte[] gout = new byte[wh];
+        byte[] bout = new byte[wh];
 
-        /* 写回 Bitmap */
-        for (int i = 0; i < uintPixels.Length; i++)
-            pixels[i] = (int)uintPixels[i];
-        src.SetPixels(pixels, 0, src.Width, 0, 0, src.Width, src.Height);
+        // Horizontal pass
+        for (int y = 0; y < h; y++)
+        {
+            int yw = y * w;
+            int sr = 0, sg = 0, sb = 0;
+            for (int i = -radius; i <= radius; i++)
+            {
+                int idx = yw + Math.Clamp(i, 0, w - 1);
+                sr += r[idx]; sg += g[idx]; sb += b[idx];
+            }
+            for (int x = 0; x < w; x++)
+            {
+                int idx = yw + x;
+                rout[idx] = (byte)(sr / div);
+                gout[idx] = (byte)(sg / div);
+                bout[idx] = (byte)(sb / div);
+                int rmvIdx = yw + Math.Max(0, x - radius);
+                int addIdx = yw + Math.Min(w - 1, x + radius + 1);
+                sr += r[addIdx] - r[rmvIdx];
+                sg += g[addIdx] - g[rmvIdx];
+                sb += b[addIdx] - b[rmvIdx];
+            }
+        }
+
+        // Vertical pass
+        for (int x = 0; x < w; x++)
+        {
+            int sr = 0, sg = 0, sb = 0;
+            for (int i = -radius; i <= radius; i++)
+            {
+                int idx = Math.Clamp(i, 0, h - 1) * w + x;
+                sr += rout[idx]; sg += gout[idx]; sb += bout[idx];
+            }
+            for (int y = 0; y < h; y++)
+            {
+                int idx = y * w + x;
+                pixels[idx] = unchecked((int)(0xFF000000u | ((uint)(
+                    sb / div) | ((uint)(sg / div) << 8) | ((uint)(sr / div) << 16))));
+                int rmvIdx = Math.Max(0, y - radius) * w + x;
+                int addIdx = Math.Min(h - 1, y + radius + 1) * w + x;
+                sr += rout[addIdx] - rout[rmvIdx];
+                sg += gout[addIdx] - gout[rmvIdx];
+                sb += bout[addIdx] - bout[rmvIdx];
+            }
+        }
+
+        src.SetPixels(pixels, 0, w, 0, 0, w, h);
         return src;
     }
 

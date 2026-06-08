@@ -32,8 +32,7 @@ public class SearchMusicTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var keyword = NativeInterop.AiExtractStringArg(arguments, "keyword")
-            ?? ArgHelper.ExtractStringArgFallback(arguments, "keyword");
+        var keyword = ArgHelper.ExtractStringArgFallback(arguments, "keyword");
         if (string.IsNullOrWhiteSpace(keyword)) return JsonSerializer.Serialize(new { error = "请提供搜索关键词" });
 
         var songs = await _musicLibrary.SearchAsync(keyword);
@@ -73,8 +72,7 @@ public class CreatePlaylistTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var name = NativeInterop.AiExtractStringArg(arguments, "name")
-            ?? ArgHelper.ExtractStringArgFallback(arguments, "name");
+        var name = ArgHelper.ExtractStringArgFallback(arguments, "name");
         if (string.IsNullOrWhiteSpace(name)) return JsonSerializer.Serialize(new { error = "请提供歌单名称" });
 
         var id = await _musicLibrary.CreatePlaylistAsync(name);
@@ -110,10 +108,8 @@ public class AddSongToPlaylistTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var playlistId = NativeInterop.AiExtractIntArg(arguments, "playlist_id", 0);
-        if (playlistId == 0) playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
-        var songId = NativeInterop.AiExtractIntArg(arguments, "song_id", 0);
-        if (songId == 0) songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
+        var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
+        var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
 
         if (playlistId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌单 ID" });
         if (songId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌曲 ID" });
@@ -151,10 +147,8 @@ public class RemoveSongFromPlaylistTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var playlistId = NativeInterop.AiExtractIntArg(arguments, "playlist_id", 0);
-        if (playlistId == 0) playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
-        var songId = NativeInterop.AiExtractIntArg(arguments, "song_id", 0);
-        if (songId == 0) songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
+        var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
+        var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
 
         if (playlistId <= 0 || songId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌单 ID 和歌曲 ID" });
 
@@ -216,8 +210,7 @@ public class GetPlaylistSongsTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var playlistId = NativeInterop.AiExtractIntArg(arguments, "playlist_id", 0);
-        if (playlistId == 0) playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
+        var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
         if (playlistId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌单 ID" });
 
         var songs = await _musicLibrary.GetPlaylistSongsAsync(playlistId);
@@ -253,8 +246,7 @@ public class DeletePlaylistTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var playlistId = NativeInterop.AiExtractIntArg(arguments, "playlist_id", 0);
-        if (playlistId == 0) playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
+        var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
         if (playlistId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌单 ID" });
 
         await _musicLibrary.DeletePlaylistAsync(playlistId);
@@ -296,8 +288,7 @@ public class PlaySongTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var songId = NativeInterop.AiExtractIntArg(arguments, "song_id", 0);
-        if (songId == 0) songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
+        var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
         if (songId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌曲 ID" });
 
         var allSongs = await _musicLibrary.GetMergedSongsAsync();
@@ -343,8 +334,7 @@ public class WebSearchTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var query = NativeInterop.AiExtractStringArg(arguments, "query")
-            ?? ArgHelper.ExtractStringArgFallback(arguments, "query");
+        var query = ArgHelper.ExtractStringArgFallback(arguments, "query");
 
         if (string.IsNullOrWhiteSpace(query))
             return JsonSerializer.Serialize(new { error = "请提供搜索关键词" });
@@ -503,8 +493,7 @@ public class ControlPlaybackTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var action = NativeInterop.AiExtractStringArg(arguments, "action")
-            ?? ArgHelper.ExtractStringArgFallback(arguments, "action");
+        var action = ArgHelper.ExtractStringArgFallback(arguments, "action");
 
         try
         {
@@ -534,15 +523,13 @@ public class ControlPlaybackTool : IAgentTool
                     await _player.StopAsync();
                     return JsonSerializer.Serialize(new { success = true, message = "已停止播放" });
                 default:
-                    var volume = NativeInterop.AiExtractIntArg(arguments, "volume", -1);
-                    if (volume == -1) volume = ArgHelper.ExtractIntArgFallback(arguments, "volume");
+                    var volume = ArgHelper.ExtractIntArgFallback(arguments, "volume");
                     if (volume >= 0 && volume <= 100)
                     {
                         _player.Volume = volume;
                         return JsonSerializer.Serialize(new { success = true, message = $"音量已设置为 {volume}" });
                     }
-                    var seekTo = NativeInterop.AiExtractIntArg(arguments, "seek_to", -1);
-                    if (seekTo == -1) seekTo = ArgHelper.ExtractIntArgFallback(arguments, "seek_to");
+                    var seekTo = ArgHelper.ExtractIntArgFallback(arguments, "seek_to");
                     if (seekTo >= 0)
                     {
                         await _player.SeekAsync(TimeSpan.FromSeconds(seekTo));
@@ -680,10 +667,8 @@ public class ToggleFavoriteTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var songId = NativeInterop.AiExtractIntArg(arguments, "song_id", 0);
-        if (songId == 0) songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
-        var favStr = NativeInterop.AiExtractStringArg(arguments, "favorite")
-            ?? ArgHelper.ExtractStringArgFallback(arguments, "favorite");
+        var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
+        var favStr = ArgHelper.ExtractStringArgFallback(arguments, "favorite");
         var favorite = favStr?.ToLower() != "false" && favStr != "0";
 
         if (songId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌曲 ID" });
@@ -730,8 +715,7 @@ public class GetFavoriteSongsTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var limit = NativeInterop.AiExtractIntArg(arguments, "limit", 20);
-        if (limit == 0) limit = ArgHelper.ExtractIntArgFallback(arguments, "limit");
+        var limit = ArgHelper.ExtractIntArgFallback(arguments, "limit");
         if (limit <= 0) limit = 20;
 
         try
@@ -776,8 +760,7 @@ public class GetRecentSongsTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var limit = NativeInterop.AiExtractIntArg(arguments, "limit", 20);
-        if (limit == 0) limit = ArgHelper.ExtractIntArgFallback(arguments, "limit");
+        var limit = ArgHelper.ExtractIntArgFallback(arguments, "limit");
         if (limit <= 0) limit = 20;
 
         try
@@ -822,8 +805,7 @@ public class GetListeningStatsTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var topN = NativeInterop.AiExtractIntArg(arguments, "top_n", 10);
-        if (topN == 0) topN = ArgHelper.ExtractIntArgFallback(arguments, "top_n");
+        var topN = ArgHelper.ExtractIntArgFallback(arguments, "top_n");
         if (topN <= 0) topN = 10;
 
         try
@@ -884,12 +866,10 @@ public class AddToPlayQueueTool : IAgentTool
 
     public async Task<string> ExecuteAsync(string arguments)
     {
-        var songId = NativeInterop.AiExtractIntArg(arguments, "song_id", 0);
-        if (songId == 0) songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
+        var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
         if (songId <= 0) return JsonSerializer.Serialize(new { error = "请提供有效的歌曲 ID" });
 
-        var position = NativeInterop.AiExtractStringArg(arguments, "position")
-            ?? ArgHelper.ExtractStringArgFallback(arguments, "position") ?? "next";
+        var position = ArgHelper.ExtractStringArgFallback(arguments, "position") ?? "next";
 
         try
         {
