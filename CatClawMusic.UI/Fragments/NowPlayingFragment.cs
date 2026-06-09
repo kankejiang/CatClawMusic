@@ -145,18 +145,23 @@ public class NowPlayingFragment : Fragment
 
         _progressSlider.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _progressSlider.TickVisible = false;
-        // 隐藏 Material Slider 末端的 stop indicator 黑点
+        _progressSlider.ThumbRadius = 8;
+        // 隐藏 Material Slider 右端黑色 stop indicator（改为白色透明不可见）
         try
         {
-            var handle = _progressSlider.Handle;
-            var classHandle = Android.Runtime.JNIEnv.GetObjectClass(handle);
-            var methodId = Android.Runtime.JNIEnv.GetMethodID(classHandle, "setStopIndicatorSize", "(I)V");
-            if (methodId != IntPtr.Zero)
+            _progressSlider.ThumbTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
+        }
+        catch { }
+        try
+        {
+            // 通过反射/内部 API 隐藏 stop indicator
+            var sliderClass = Java.Lang.Class.FromType(typeof(GoogleSlider));
+            var setStopIndicatorMethod = sliderClass.GetDeclaredMethod("setTrackStopIndicatorSize", Java.Lang.Integer.Type);
+            if (setStopIndicatorMethod != null)
             {
-                var val = new Android.Runtime.JValue(0);
-                Android.Runtime.JNIEnv.CallVoidMethod(handle, methodId, val);
+                setStopIndicatorMethod.Accessible = true;
+                setStopIndicatorMethod.Invoke(_progressSlider, 0);
             }
-            Android.Runtime.JNIEnv.DeleteLocalRef(classHandle);
         }
         catch { }
         _gradientBackground.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
@@ -672,9 +677,9 @@ public class NowPlayingFragment : Fragment
         _timeCurrent.SetTextColor(onSurfaceSemi);
         _timeTotal.SetTextColor(onSurfaceSemi);
 
-        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
         _progressSlider.ThumbTintList = sliderCs;
-        _progressSlider.TrackActiveTintList = sliderCs;
+        _progressSlider.TrackActiveTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _audioVisualizer.SetColors(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(
             new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
@@ -745,9 +750,9 @@ public class NowPlayingFragment : Fragment
         _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
         _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
 
-        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
+        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
         _progressSlider.ThumbTintList = sliderCs;
-        _progressSlider.TrackActiveTintList = sliderCs;
+        _progressSlider.TrackActiveTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _audioVisualizer.SetColors(Android.Graphics.Color.ParseColor("#FFFFFF"));
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(
             new Android.Graphics.Color(Android.Graphics.Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));

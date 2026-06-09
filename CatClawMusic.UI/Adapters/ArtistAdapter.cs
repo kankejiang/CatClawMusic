@@ -98,7 +98,23 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
             return;
         }
 
-        _cover.SetImageResource(Resource.Drawable.ic_person);
+        // 优先使用专辑封面作为占位图，等待网络获取艺术家照片后替换
+        bool shownInitial = false;
+        if (!string.IsNullOrEmpty(artist.SampleCoverPath) && System.IO.File.Exists(artist.SampleCoverPath))
+        {
+            try
+            {
+                var placeBmp = DecodeSampledBitmap(artist.SampleCoverPath, 200);
+                if (placeBmp != null)
+                {
+                    _cover.SetImageBitmap(placeBmp);
+                    shownInitial = true;
+                }
+            }
+            catch { }
+        }
+        if (!shownInitial)
+            _cover.SetImageResource(Resource.Drawable.ic_person);
         _ = LoadCoverAsync(artist, scraper, coverCache);
     }
 
@@ -217,7 +233,9 @@ public class ArtistViewHolder : RecyclerView.ViewHolder
                 coverCache.TryAdd(artistName, bitmap);
                 try { _cover.SetImageBitmap(bitmap); } catch { }
             }
-            else if (scraper != null)
+
+            // 始终尝试获取网络艺术家照片，替换本地封面占位图
+            if (scraper != null)
             {
                 _ = ScrapeArtistCoverAsync(artistName, scraper, coverCache);
             }

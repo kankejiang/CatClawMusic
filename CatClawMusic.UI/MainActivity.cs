@@ -24,7 +24,7 @@ namespace CatClawMusic.UI;
 /// 应用主界面 Activity，管理 ViewPager2 + BottomNavigation 的 Tab 切换、
 /// 迷你播放器、侧面板（设置）、Fragment 导航栈和系统栏沉浸式适配
 /// </summary>
-[Activity(Theme = "@style/CatClaw.Splash", MainLauncher = true,
+[Activity(Theme = "@style/CatClaw.Splash",
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode,
     ScreenOrientation = Android.Content.PM.ScreenOrientation.Portrait)]
 public class MainActivity : AppCompatActivity
@@ -102,7 +102,7 @@ public class MainActivity : AppCompatActivity
 
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
         /* 异步初始化数据库，RestoreAsync 内部也会调用 EnsureInitializedAsync 并等待完成 */
-        _ = db.EnsureInitializedAsync();
+        var dbInitTask = db.EnsureInitializedAsync();
 
         SetContentView(Resource.Layout.activity_main);
 
@@ -141,7 +141,7 @@ public class MainActivity : AppCompatActivity
         var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
         var subsonic = MainApplication.Services.GetService<ISubsonicService>();
         /* 后台恢复播放状态，不阻塞 UI 线程；异常已内部处理不会导致闪退 */
-        _ = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm, networkMusic, subsonic));
+        var restoreTask = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm, networkMusic, subsonic));
 
         _toolbar = FindViewById<View>(Resource.Id.toolbar)!;
         _btnMenu = FindViewById<ImageButton>(Resource.Id.btn_menu)!;
@@ -193,6 +193,40 @@ public class MainActivity : AppCompatActivity
         _currentTab = 1;
         _isUserSwipe = true;
         UpdateTabUI(1);
+
+        // 等待异步初始化完成后再关闭启动页
+        _ = WaitForInitAndFinishSplashAsync(dbInitTask, restoreTask);
+    }
+
+    /// <summary>等待数据库初始化、播放恢复和 UI 渲染完成后再关闭启动页</summary>
+    private async Task WaitForInitAndFinishSplashAsync(Task dbInitTask, Task restoreTask)
+    {
+        try
+        {
+            await Task.WhenAll(dbInitTask, restoreTask);
+        }
+        catch { /* 异常已由各任务内部处理 */ }
+
+        // 等待 DecorView 完成至少一帧渲染
+        var tcs = new TaskCompletionSource<bool>();
+        RunOnUiThread(() =>
+        {
+            Window!.DecorView.Post(() =>
+            {
+                // Post 执行时说明上一帧已完成布局和绘制
+                // 再 Post 一次确保第二帧也完成（ViewPager2 等复杂组件可能需要两帧）
+                Window!.DecorView.Post(() =>
+                {
+                    tcs.TrySetResult(true);
+                });
+            });
+        });
+
+        try { await tcs.Task; } catch { }
+
+        // 额外等待确保 UI 稳定
+        await Task.Delay(500);
+        SplashActivity.FinishSplash();
     }
 
     public override void Recreate()

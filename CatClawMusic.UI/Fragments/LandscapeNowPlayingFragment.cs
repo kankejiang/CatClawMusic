@@ -127,6 +127,26 @@ public class LandscapeNowPlayingFragment : Fragment
         _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
         _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
+        _progressSlider.TickVisible = false;
+        _progressSlider.ThumbRadius = 8;
+        // 隐藏 Material Slider 右端黑色 stop indicator
+        try
+        {
+            _progressSlider.ThumbTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
+        }
+        catch { }
+        try
+        {
+            var sliderClass = Java.Lang.Class.FromType(typeof(GoogleSlider));
+            var setStopIndicatorMethod = sliderClass.GetDeclaredMethod("setTrackStopIndicatorSize", Java.Lang.Integer.Type);
+            if (setStopIndicatorMethod != null)
+            {
+                setStopIndicatorMethod.Accessible = true;
+                setStopIndicatorMethod.Invoke(_progressSlider, 0);
+            }
+        }
+        catch { }
+
         _gradientBackground = view.FindViewById<SweepGradientView>(Resource.Id.gradient_background)!;
         _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
         _coverFog = view.FindViewById<View>(Resource.Id.cover_fog)!;
@@ -759,9 +779,9 @@ public class LandscapeNowPlayingFragment : Fragment
         var onSurfaceSemi = Color.Argb((int)(0xEE * 255f / 0xFF), onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B);
         _timeCurrent.SetTextColor(onSurfaceSemi);
         _timeTotal.SetTextColor(onSurfaceSemi);
-        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
+        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
         _progressSlider.ThumbTintList = sliderCs;
-        _progressSlider.TrackActiveTintList = sliderCs;
+        _progressSlider.TrackActiveTintList = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
         _audioVisualizer.SetColors(Color.ParseColor("#FFFFFF"));
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
@@ -806,9 +826,9 @@ public class LandscapeNowPlayingFragment : Fragment
         var visGray = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#88FFFFFF"));
         _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
         _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
-        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
+        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
         _progressSlider.ThumbTintList = sliderCs;
-        _progressSlider.TrackActiveTintList = sliderCs;
+        _progressSlider.TrackActiveTintList = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
         _audioVisualizer.SetColors(Color.ParseColor("#FFFFFF"));
         _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));

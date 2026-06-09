@@ -66,6 +66,8 @@
         
         <meta-data android:name="android.max_aspect" android:value="2.4" />
         
+        <!-- 启动画面（由 SplashActivity 的 [Activity] 特性自动生成声明） -->
+        
         <!-- 主活动配置 -->
         <activity 
             android:name=".MainActivity"
@@ -73,10 +75,6 @@
             android:windowSoftInputMode="adjustResize|stateHidden"
             android:configChanges="screenSize|orientation|uiMode"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
         
         <!-- 前台服务（后台播放，适配 Android 14+） -->
