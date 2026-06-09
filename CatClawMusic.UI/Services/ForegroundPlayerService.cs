@@ -21,10 +21,9 @@ namespace CatClawMusic.UI.Services;
     ForegroundServiceType = global::Android.Content.PM.ForegroundService.TypeMediaPlayback)]
 public class ForegroundPlayerService : Service
 {
-    private const string ChannelId = "catclaw_playback_v3";
+    private const string ChannelId = "catclaw_playback_v6";
     private const string NotifGroup = "catclaw_playback_group";
     private const int NotifIdMain = 1001;
-    private const int NotifIdTools = 1002;
     private const string PrefKeyDesktopLyric = "desktop_lyric";
     private const string PrefKeyDesktopLyricEnabled = "desktop_lyric_enabled";
 
@@ -35,6 +34,7 @@ public class ForegroundPlayerService : Service
     private Handler? _progressHandler;
     private bool _started;
     private ScreenOnReceiver? _screenOnReceiver;
+    
 
     /// <summary>返回 null，此服务不绑定</summary>
     public override IBinder? OnBind(Intent? intent) => null;
@@ -80,7 +80,6 @@ public class ForegroundPlayerService : Service
         if (!_started)
         {
             StartForeground(NotifIdMain, BuildMainNotification());
-            NotifyTools();
             _started = true;
             StartProgressUpdates();
         }
@@ -105,7 +104,6 @@ public class ForegroundPlayerService : Service
 
         _started = false;
         StopForeground(StopForegroundFlags.Remove);
-        CancelToolsNotification();
         ReleaseWifiLock();
         StopProgressUpdates();
         ReleaseMediaSession();
@@ -161,12 +159,11 @@ public class ForegroundPlayerService : Service
         }
     }
 
-    /// <summary>进度定时器回调，更新播放状态、通知进度并延时递归调用</summary>
+    /// <summary>进度定时器回调，更新 MediaSession 播放状态（系统自动同步通知进度条）</summary>
     private void ProgressTick()
     {
         if (_progressHandler == null) return;
         UpdateMediaSessionPlaybackState();
-        UpdateNotificationProgress();
         _progressHandler.PostDelayed(ProgressTick, 1000);
     }
 
@@ -205,6 +202,12 @@ public class ForegroundPlayerService : Service
         public override void OnSkipToNext() => _service._nowPlayingVm?.NextCommand.Execute(null);
         public override void OnSkipToPrevious() => _service._nowPlayingVm?.PreviousCommand.Execute(null);
         public override void OnSeekTo(long pos) => _service._audioPlayer?.SeekAsync(TimeSpan.FromMilliseconds(pos));
+
+        /// <summary>处理自定义按钮点击（收藏、歌词等），HyperOS 通过 PlaybackState.CustomAction 触发</summary>
+        public override void OnCustomAction(string action, Bundle? extras)
+        {
+            _service.HandleAction(action);
+        }
 
         /// <summary>处理媒体按钮事件，支持耳机线控（播放/暂停/上一曲/下一曲/快进/快退）</summary>
         public override bool OnMediaButtonEvent(Intent? mediaButtonIntent)
@@ -280,6 +283,7 @@ public class ForegroundPlayerService : Service
     }
 
     /// <summary>更新 MediaSession 播放状态（播放/暂停/进度位置），使用实时位置确保锁屏/通知栏进度同步</summary>
+    /// <remarks>HyperOS 从 PlaybackState 的 Actions + CustomActions 读取通知按钮，而非从 Notification.Builder.AddAction()</remarks>
     private void UpdateMediaSessionPlaybackState()
     {
         if (_mediaSession == null) return;
@@ -289,17 +293,28 @@ public class ForegroundPlayerService : Service
             var state = isPlaying ? PlaybackStateCode.Playing : PlaybackStateCode.Paused;
             var positionMs = _audioPlayer?.RealtimePositionMs ?? 0;
 
-            var playbackState = new Android.Media.Session.PlaybackState.Builder()
+            var isLiked = _nowPlayingVm?.IsLiked ?? false;
+            var isLyricOn = IsDesktopLyricEnabled();
+
+            var builder = new Android.Media.Session.PlaybackState.Builder()
                 .SetState(state, positionMs, 1.0f)
                 .SetActions(
                     Android.Media.Session.PlaybackState.ActionPlay |
                     Android.Media.Session.PlaybackState.ActionPause |
                     Android.Media.Session.PlaybackState.ActionSkipToNext |
                     Android.Media.Session.PlaybackState.ActionSkipToPrevious |
-                    Android.Media.Session.PlaybackState.ActionSeekTo)
-                .Build();
+                    Android.Media.Session.PlaybackState.ActionSeekTo);
 
-            _mediaSession.SetPlaybackState(playbackState);
+            // HyperOS 从 PlaybackState 读取 CustomAction 来显示自定义按钮
+            var favIcon = isLiked ? Resource.Drawable.ic_notif_favorite : Resource.Drawable.ic_notif_favorite_border;
+            builder.AddCustomAction(new Android.Media.Session.PlaybackState.CustomAction.Builder(
+                "favorite", isLiked ? "取消收藏" : "收藏", favIcon).Build());
+
+            var lyricIcon = isLyricOn ? Resource.Drawable.ic_notif_lyric_on : Resource.Drawable.ic_notif_lyric_off;
+            builder.AddCustomAction(new Android.Media.Session.PlaybackState.CustomAction.Builder(
+                "lyric_toggle", isLyricOn ? "关闭歌词" : "桌面歌词", lyricIcon).Build());
+
+            _mediaSession.SetPlaybackState(builder.Build());
         }
         catch (System.Exception ex)
         {
@@ -347,16 +362,17 @@ public class ForegroundPlayerService : Service
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
         var manager = (NotificationManager)GetSystemService(NotificationService)!;
+        // 先删除旧频道确保干净状态
+        manager.DeleteNotificationChannel(ChannelId);
+        // 删除旧版本频道
+        manager.DeleteNotificationChannel("catclaw_playback_v5");
+        manager.DeleteNotificationChannel("catclaw_playback_v4");
 
-        var channel = new NotificationChannel(ChannelId, "猫爪音乐", NotificationImportance.High)
+        var channel = new NotificationChannel(ChannelId, "猫爪音乐", NotificationImportance.Default)
         {
-            Description = "播放控制与快捷操作",
+            Description = "播放控制",
             LockscreenVisibility = NotificationVisibility.Public
         };
-        channel.SetSound(null, null);
-        channel.EnableVibration(false);
-        channel.SetShowBadge(false);
-        channel.SetBypassDnd(true);
         manager.CreateNotificationChannel(channel);
     }
 
@@ -378,85 +394,30 @@ public class ForegroundPlayerService : Service
         var mediaStyle = new Notification.MediaStyle();
         if (_mediaSession != null)
             mediaStyle.SetMediaSession(_mediaSession.SessionToken);
+        mediaStyle.SetShowActionsInCompactView(1, 2, 3);
+
+        var isLiked = _nowPlayingVm?.IsLiked ?? false;
+        var isLyricOn = IsDesktopLyricEnabled();
+        var favIcon = isLiked ? Resource.Drawable.ic_notif_favorite : Resource.Drawable.ic_notif_favorite_border;
 
         var builder = new Notification.Builder(this, ChannelId)
             .SetContentTitle(title)
             .SetContentText(artist)
             .SetSmallIcon(Resource.Drawable.ic_play)
             .SetLargeIcon(LoadCoverBitmap())
-            .SetVisibility(NotificationVisibility.Public)
             .SetOngoing(true)
-            .SetShowWhen(false)
-            .SetCategory(Notification.CategoryTransport)
-            .SetColor(unchecked((int)0xFF9B7ED8))
             .SetContentIntent(BuildContentPendingIntent())
             .SetStyle(mediaStyle);
 
+        // 5 个按钮：收藏 | 上一曲 | 播放/暂停 | 下一曲 | 桌面歌词
+        builder.AddAction(BuildAction(favIcon, isLiked ? "取消收藏" : "收藏", "favorite"));
         builder.AddAction(BuildAction(Resource.Drawable.ic_notif_previous, "上一曲", "previous"));
         builder.AddAction(BuildAction(playIcon, playLabel, isPlaying ? "pause" : "play"));
         builder.AddAction(BuildAction(Resource.Drawable.ic_notif_next, "下一曲", "next"));
+        builder.AddAction(BuildAction(isLyricOn ? Resource.Drawable.ic_notif_lyric_on : Resource.Drawable.ic_notif_lyric_off,
+            isLyricOn ? "关闭歌词" : "桌面歌词", "lyric_toggle"));
 
         return builder.Build();
-    }
-
-    /// <summary>发送快捷操作工具通知</summary>
-    private void NotifyTools()
-    {
-        try
-        {
-            var manager = (NotificationManager)GetSystemService(NotificationService)!;
-            manager.Notify(NotifIdTools, BuildToolsNotification());
-        }
-        catch (System.Exception ex)
-        {
-            ALog.Warn("CatClaw", $"NotifyTools failed: {ex.Message}");
-        }
-    }
-
-    /// <summary>取消快捷操作工具通知</summary>
-    private void CancelToolsNotification()
-    {
-        try
-        {
-            var manager = (NotificationManager)GetSystemService(NotificationService)!;
-            manager.Cancel(NotifIdTools);
-        }
-        catch { }
-    }
-
-    /// <summary>构建快捷操作工具通知（收藏/桌面歌词开关/锁定/模式切换）</summary>
-    private Notification BuildToolsNotification()
-    {
-        var isLiked = _nowPlayingVm?.IsLiked ?? false;
-        var isLyricOn = IsDesktopLyricEnabled();
-        var isLocked = DesktopLyricService.Instance.IsLocked;
-        var isDualMode = DesktopLyricService.Instance.GetDisplayMode() == 1;
-
-        var favIcon = isLiked ? Resource.Drawable.ic_notif_favorite : Resource.Drawable.ic_notif_favorite_border;
-        var lyricIcon = isLyricOn ? Resource.Drawable.ic_notif_lyric_on : Resource.Drawable.ic_notif_lyric_off;
-
-        var remoteViews = new RemoteViews(PackageName!, Resource.Layout.notification_tools);
-        remoteViews.SetImageViewResource(Resource.Id.tool_favorite, favIcon);
-        remoteViews.SetImageViewResource(Resource.Id.tool_lyric, lyricIcon);
-        remoteViews.SetImageViewResource(Resource.Id.tool_lock, isLocked
-            ? Resource.Drawable.ic_lock_locked : Resource.Drawable.ic_lock);
-        remoteViews.SetImageViewResource(Resource.Id.tool_mode, isDualMode
-            ? Resource.Drawable.ic_mode_dual : Resource.Drawable.ic_mode_single);
-
-        remoteViews.SetOnClickPendingIntent(Resource.Id.tool_favorite, BuildActionIntent("favorite"));
-        remoteViews.SetOnClickPendingIntent(Resource.Id.tool_lyric, BuildActionIntent("lyric_toggle"));
-        remoteViews.SetOnClickPendingIntent(Resource.Id.tool_lock, BuildActionIntent("lyric_lock"));
-        remoteViews.SetOnClickPendingIntent(Resource.Id.tool_mode,
-            BuildActionIntent(isDualMode ? "lyric_single" : "lyric_dual"));
-
-        return new Notification.Builder(this, ChannelId)
-            .SetSmallIcon(Resource.Drawable.ic_play)
-            .SetVisibility(NotificationVisibility.Public)
-            .SetOngoing(true)
-            .SetShowWhen(false)
-            .SetContentTitle("快捷操作")
-            .SetCustomContentView(remoteViews)
-            .Build();
     }
 
     #endregion
@@ -534,71 +495,17 @@ public class ForegroundPlayerService : Service
 
     #region Actions + Update
 
-    /// <summary>刷新主通知和快捷操作通知</summary>
+    /// <summary>刷新主通知</summary>
     private void UpdateNotification()
     {
         try
         {
             var manager = (NotificationManager)GetSystemService(NotificationService)!;
             manager.Notify(NotifIdMain, BuildMainNotification());
-            manager.Notify(NotifIdTools, BuildToolsNotification());
         }
         catch (System.Exception ex)
         {
             ALog.Warn("CatClaw", $"UpdateNotification failed: {ex.Message}");
-        }
-    }
-
-    /// <summary>仅更新通知进度条，不重建整个通知（轻量级，每秒调用）</summary>
-    private void UpdateNotificationProgress()
-    {
-        try
-        {
-            var manager = (NotificationManager)GetSystemService(NotificationService)!;
-            var song = _nowPlayingVm?.CurrentSong;
-            var title = song?.Title ?? "猫爪音乐";
-            var artist = string.IsNullOrEmpty(song?.Artist) ? "未在播放" : song!.Artist;
-            var isPlaying = _audioPlayer?.IsPlaying ?? false;
-            var positionMs = _audioPlayer?.RealtimePositionMs ?? 0;
-            var durationMs = (long)(_audioPlayer?.Duration.TotalMilliseconds ?? 0);
-
-            if (durationMs <= 0 && song?.Duration > 0)
-                durationMs = song.Duration;
-
-            var playIcon = isPlaying ? Resource.Drawable.ic_notif_pause : Resource.Drawable.ic_notif_play;
-            var playLabel = isPlaying ? "暂停" : "播放";
-
-            var mediaStyle = new Notification.MediaStyle();
-            if (_mediaSession != null)
-                mediaStyle.SetMediaSession(_mediaSession.SessionToken);
-
-            var builder = new Notification.Builder(this, ChannelId)
-                .SetContentTitle(title)
-                .SetContentText(artist)
-                .SetSmallIcon(Resource.Drawable.ic_play)
-                .SetLargeIcon(LoadCoverBitmap())
-                .SetVisibility(NotificationVisibility.Public)
-                .SetOngoing(true)
-                .SetShowWhen(false)
-                .SetCategory(Notification.CategoryTransport)
-                .SetColor(unchecked((int)0xFF9B7ED8))
-                .SetContentIntent(BuildContentPendingIntent())
-                .SetStyle(mediaStyle);
-
-            if (durationMs > 0)
-                builder.SetProgress((int)durationMs, (int)positionMs, false);
-            else
-                builder.SetProgress(1, 0, false);
-
-            builder.AddAction(BuildAction(Resource.Drawable.ic_notif_previous, "上一曲", "previous"));
-            builder.AddAction(BuildAction(playIcon, playLabel, isPlaying ? "pause" : "play"));
-            builder.AddAction(BuildAction(Resource.Drawable.ic_notif_next, "下一曲", "next"));
-
-            manager.Notify(NotifIdMain, builder.Build());
-        }
-        catch (System.Exception ex)
-        {
-            ALog.Warn("CatClaw", $"UpdateNotificationProgress failed: {ex.Message}");
         }
     }
 
@@ -623,13 +530,18 @@ public class ForegroundPlayerService : Service
                 _nowPlayingVm?.ToggleLikeCommand.Execute(null);
                 new Handler(Looper.MainLooper!).PostDelayed(() =>
                 {
+                    UpdateMediaSessionPlaybackState();
                     UpdateMediaSessionMetadata();
                     UpdateNotification();
                 }, 200);
                 return;
             case "lyric_toggle":
                 ToggleDesktopLyric();
-                new Handler(Looper.MainLooper!).PostDelayed(() => UpdateNotification(), 200);
+                new Handler(Looper.MainLooper!).PostDelayed(() =>
+                {
+                    UpdateMediaSessionPlaybackState();
+                    UpdateNotification();
+                }, 200);
                 return;
             case "lyric_lock":
                 DesktopLyricService.Instance.ToggleLock();
@@ -682,7 +594,10 @@ public class ForegroundPlayerService : Service
     private void OnPlaybackStateChanged(object? sender, PlaybackStateChangedEventArgs e)
     {
         UpdateMediaSessionPlaybackState();
-        UpdateNotification();
+        // 播放状态变化时同步更新元数据（修复切歌时通知栏时长显示 00:00）
+        UpdateMediaSessionMetadata();
+        // 延迟更新通知确保播放状态已同步到系统
+        new Handler(Looper.MainLooper!).PostDelayed(() => UpdateNotification(), 150);
     }
 
     /// <summary>ViewModel 属性变化时按需更新 MediaSession 元数据和通知</summary>
@@ -690,6 +605,7 @@ public class ForegroundPlayerService : Service
     {
         if (e.PropertyName == nameof(NowPlayingViewModel.IsLiked))
         {
+            UpdateMediaSessionPlaybackState();
             UpdateNotification();
         }
         else if (e.PropertyName == nameof(NowPlayingViewModel.CurrentSong) ||
