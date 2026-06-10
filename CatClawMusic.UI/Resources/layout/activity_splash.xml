@@ -12,6 +12,21 @@
         android:scaleType="centerCrop"
         android:importantForAccessibility="no" />
 
+    <!-- 初始化状态（左下角） -->
+    <TextView
+        android:id="@+id/splash_init_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="24dp"
+        android:layout_marginBottom="32dp"
+        android:textColor="#4DFFFFFF"
+        android:textSize="12sp"
+        android:shadowColor="#80000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="2" />
+
     <!-- 底部渐变遮罩 + 信息 -->
     <LinearLayout
         android:layout_width="match_parent"

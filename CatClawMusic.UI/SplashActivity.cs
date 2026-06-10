@@ -4,11 +4,17 @@ using Android.Graphics;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
+using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
+using CatClawMusic.UI.Services;
+using CatClawMusic.UI.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI;
 
 /// <summary>
-/// 启动画面 Activity：加载网络动漫图片作为启动背景，等待主界面完全加载后再关闭。
+/// 启动画面 Activity：加载网络动漫图片作为启动背景，等待主界面初始化完成后再跳转。
 /// 网络图片会缓存在本地，下次启动优先使用缓存。
 /// </summary>
 [Activity(
@@ -24,18 +30,16 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
     private ImageView _imageView = null!;
     private ProgressBar _progressBar = null!;
     private TextView _subtitleText = null!;
+    private TextView _initStatusText = null!;
 
     private bool _imageLoaded;
     private bool _minTimeReached;
+    private bool _initCompleted;
     private bool _transitionStarted;
-
-    /// <summary>静态实例，供 MainActivity 在初始化完成后调用关闭</summary>
-    public static SplashActivity? Instance { get; private set; }
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
-        Instance = this;
 
         // 全屏沉浸
         if (Window != null)
@@ -54,6 +58,7 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         _imageView = FindViewById<ImageView>(Resource.Id.splash_image)!;
         _progressBar = FindViewById<ProgressBar>(Resource.Id.splash_progress)!;
         _subtitleText = FindViewById<TextView>(Resource.Id.splash_subtitle)!;
+        _initStatusText = FindViewById<TextView>(Resource.Id.splash_init_status)!;
 
         // 最小显示时间计时器
         _ = Task.Delay(MinDisplayMs).ContinueWith(_ =>
@@ -64,28 +69,37 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
 
         // 加载启动图
         _ = LoadSplashImageAsync();
+
+        // 在启动页等待核心初始化完成，确保跳转后主界面立即可用
+        _ = WaitForInitAsync();
     }
 
-    /// <summary>由 MainActivity 在初始化完成后调用，关闭启动页</summary>
-    public static void FinishSplash()
+    /// <summary>等待数据库初始化和播放状态恢复完成</summary>
+    private async Task WaitForInitAsync()
     {
-        var activity = Instance;
-        if (activity == null) return;
-        Instance = null;
         try
         {
-            activity.RunOnUiThread(() =>
-            {
-                activity.Finish();
-                activity.OverridePendingTransition(0, 0);
-            });
+            UpdateInitStatus("正在初始化数据库...");
+            var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+            await db.EnsureInitializedAsync();
+            UpdateInitStatus("数据库就绪");
+
+            UpdateInitStatus("正在恢复播放状态...");
+            var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
+            var npVm = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
+            PlaybackStateManager.RestorePrefsToViewModel(queue, npVm);
+            UpdateInitStatus("播放状态已恢复");
         }
-        catch { /* Activity 可能已销毁 */ }
+        catch { /* 异常已由各任务内部处理 */ }
+
+        _initCompleted = true;
+        UpdateSubtitle("喵~ 准备就绪！");
+        UpdateInitStatus("加载完成");
+        TryTransition();
     }
 
     protected override void OnDestroy()
     {
-        if (Instance == this) Instance = null;
         base.OnDestroy();
     }
 
@@ -223,11 +237,18 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         RunOnUiThread(() => { _subtitleText.Text = text; });
     }
 
-    /// <summary>条件满足后启动主界面（但不关闭自身，等 MainActivity 初始化完成后关闭）</summary>
+    /// <summary>更新左下角初始化状态文字（白色30%透明）</summary>
+    private void UpdateInitStatus(string text)
+    {
+        RunOnUiThread(() => { _initStatusText.Text = text; });
+    }
+
+    /// <summary>所有条件满足后跳转到主界面并关闭启动页</summary>
+    /// <remarks>必须同时满足：最小显示时间、图片加载完成、核心初始化完成</remarks>
     private void TryTransition()
     {
         if (_transitionStarted) return;
-        if (!_minTimeReached || !_imageLoaded) return;
+        if (!_minTimeReached || !_imageLoaded || !_initCompleted) return;
 
         _transitionStarted = true;
         RunOnUiThread(() =>
@@ -235,7 +256,8 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
             var intent = new Intent(this, typeof(MainActivity));
             intent.AddFlags(ActivityFlags.NoAnimation);
             StartActivity(intent);
-            // 不调用 Finish()，等 MainActivity 初始化完成后调用 FinishSplash()
+            Finish();
+            OverridePendingTransition(0, 0);
         });
     }
 }
