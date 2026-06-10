@@ -9,8 +9,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
-    <ApplicationVersion>28</ApplicationVersion>
-    <ApplicationDisplayVersion>1.4.1</ApplicationDisplayVersion>
+    <ApplicationVersion>29</ApplicationVersion>
+    <ApplicationDisplayVersion>1.4.2</ApplicationDisplayVersion>
     <LangVersion>preview</LangVersion>
     <NoWarn>NU1605;NU1608</NoWarn>
     <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
@@ -36,6 +36,20 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <AndroidKeyStore>False</AndroidKeyStore>
   </PropertyGroup>
+
+  <!-- 构建后自动复制APK到项目根目录的 publish-apk 文件夹 -->
+  <Target Name="CopyApkToPublishFolder" AfterTargets="Publish" Condition="'$(AndroidPackageFormat)' == 'apk'">
+    <PropertyGroup>
+      <ApkSourceDir>$(OutputPath)publish\</ApkSourceDir>
+      <ApkDestDir>$(MSBuildProjectDirectory)\..\publish-apk\</ApkDestDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(ApkDestDir)" />
+    <ItemGroup>
+      <ApkToCopy Include="$(ApkSourceDir)*-Signed.apk" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ApkToCopy)" DestinationFolder="$(ApkDestDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="APK 已复制到: $(ApkDestDir)" />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
