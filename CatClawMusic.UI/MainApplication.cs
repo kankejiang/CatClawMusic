@@ -255,6 +255,7 @@ public class MainApplication : Application
         services.AddTransient<ModelManagerFragment>();
         services.AddTransient<ModelEditFragment>();
         services.AddTransient<AboutFragment>();
+        services.AddTransient<PermissionManagementFragment>();
         services.AddTransient<ArtistMatchFragment>();
         services.AddTransient<ArtistMatchDetailFragment>();
         services.AddTransient<ModelAdapter>();

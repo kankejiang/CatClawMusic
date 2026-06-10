@@ -107,34 +107,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/card_storage_permission"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp" android:clickable="true" android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                app:cardCornerRadius="16dp" app:cardElevation="0dp"
-                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
-                app:cardBackgroundColor="?attr/catClawCardBackground">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:padding="16dp"
-                    android:gravity="center_vertical">
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:orientation="vertical">
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="管理外部存储权限"
-                            android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
-                            android:fontFamily="sans-serif-medium" />
-                        <TextView android:id="@+id/tv_permission_status"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="检查中…"
-                            android:textSize="12sp" android:textColor="?attr/catClawTextHint"
-                            android:layout_marginTop="2dp" />
-                    </LinearLayout>
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:text="开启「使用 Android 媒体库」可极速扫描系统已索引的音乐文件。若需扫描系统未索引的文件夹，请添加自定义文件夹并关闭此选项。"
                 android:textSize="12sp" android:textColor="?attr/catClawTextHint"

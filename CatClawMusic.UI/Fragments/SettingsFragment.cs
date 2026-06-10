@@ -21,6 +21,7 @@ public class SettingsFragment : Fragment
     private TextView? _tvPluginStatus;
     private TextView? _tvAiStatus;
     private TextView? _tvBackupStatus;
+    private TextView? _tvPermissionStatus;
     private Spinner? _spinnerTheme;
     private ImageButton? _btnDarkModeToggle;
     private IThemeService? _themeService;
@@ -77,6 +78,12 @@ public class SettingsFragment : Fragment
         if (btnPluginManagement != null)
             btnPluginManagement.SetOnClickListener(new ClickListener(() => nav.PushFragment("PluginManagement")));
 
+        // 🔐 权限管理
+        var btnPermission = view.FindViewById<View>(Resource.Id.btn_permission_management);
+        _tvPermissionStatus = view.FindViewById<TextView>(Resource.Id.tv_permission_status);
+        if (btnPermission != null)
+            btnPermission.SetOnClickListener(new ClickListener(() => nav.PushFragment("PermissionManagement")));
+
         // 通用设置
         var btnGeneralSettings = view.FindViewById<View>(Resource.Id.card_general_settings);
         if (btnGeneralSettings != null)
@@ -123,6 +130,7 @@ public class SettingsFragment : Fragment
         // 每次恢复时更新图标（可能从其他地方改了设置）
         UpdateDarkModeIcon();
         UpdateBackupStatus();
+        UpdatePermissionStatus();
     }
 
     /// <summary>
@@ -464,6 +472,69 @@ public class SettingsFragment : Fragment
     }
 
     /// <summary>
+    /// 更新权限管理状态文本
+    /// </summary>
+    private void UpdatePermissionStatus()
+    {
+        try
+        {
+            var permService = MainApplication.Services.GetRequiredService<IPermissionService>();
+            var storageOk = permService.CheckStoragePermissionAsync().Result;
+            var overlayOk = permService.CheckOverlayPermissionAsync().Result;
+            var manageStorageOk = permService.CheckManageStoragePermissionAsync().Result;
+
+            bool notificationOk = true;
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
+            {
+                var nm = (Android.App.NotificationManager?)Context?.GetSystemService(Context.NotificationService);
+                notificationOk = nm?.AreNotificationsEnabled() ?? false;
+            }
+
+            var recordAudioOk = Context?.CheckSelfPermission(Android.Manifest.Permission.RecordAudio)
+                == Android.Content.PM.Permission.Granted;
+
+            bool mediaImagesOk = false;
+            if (Context != null)
+            {
+                if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
+                    mediaImagesOk = Context.CheckSelfPermission(Android.Manifest.Permission.ReadMediaImages)
+                        == Android.Content.PM.Permission.Granted;
+                else
+                    mediaImagesOk = Context.CheckSelfPermission(Android.Manifest.Permission.ReadExternalStorage)
+                        == Android.Content.PM.Permission.Granted;
+            }
+
+            int total = 6;
+            int granted = (notificationOk ? 1 : 0) + (overlayOk ? 1 : 0) + (recordAudioOk ? 1 : 0)
+                + (mediaImagesOk ? 1 : 0) + (storageOk ? 1 : 0) + (manageStorageOk ? 1 : 0);
+
+            string statusText;
+            Android.Graphics.Color statusColor;
+            if (granted == total)
+            {
+                statusText = "✅ 所有权限已开启";
+                statusColor = Android.Graphics.Color.ParseColor("#4CAF50");
+            }
+            else
+            {
+                statusText = $"⚠️ {granted}/{total} 项权限已开启";
+                statusColor = Android.Graphics.Color.ParseColor("#FF9800");
+            }
+
+            _tvPermissionStatus?.Post(() =>
+            {
+                _tvPermissionStatus.Text = statusText;
+                _tvPermissionStatus.SetTextColor(statusColor);
+            });
+        }
+        catch
+        {
+            _tvPermissionStatus?.Post(() =>
+                _tvPermissionStatus.Text = "权限状态检测中…");
+        }
+    }
+
+    /// <summary>
     /// 异步加载本地音乐、远程服务和插件状态信息，更新状态文本
     /// </summary>
     private async Task LoadStatusAsync()
@@ -531,6 +602,9 @@ public class SettingsFragment : Fragment
 
         // 备份状态
         UpdateBackupStatus();
+
+        // 权限状态
+        UpdatePermissionStatus();
     }
 
     /// <summary>

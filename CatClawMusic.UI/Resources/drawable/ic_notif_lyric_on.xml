@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp" android:viewportWidth="1024" android:viewportHeight="1024">
+    android:width="16dp" android:height="16dp" android:viewportWidth="1024" android:viewportHeight="1024">
     <!-- 外框：歌词页图标（开启） -->
     <path android:fillColor="#FFFFFF" android:pathData="M793.941,160H230.06C191.36,160 160,191.616 160,230.059v563.84C160,832.64 191.616,864 230.059,864h563.84c38.698,0 70.058,-31.616 70.058,-70.059V230.06C864,191.36 832.384,160 793.941,160z m5.718,640c0,-0.299 -575.659,-0.341 -575.659,-0.341 0.299,0 0.341,-575.659 0.341,-575.659 0,0.299 575.659,0.341 575.659,0.341 -0.299,0 -0.341,575.659 -0.341,575.659z" />
     <!-- 文字行 -->

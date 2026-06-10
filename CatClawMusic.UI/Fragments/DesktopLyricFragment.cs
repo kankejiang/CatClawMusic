@@ -120,15 +120,6 @@ public class DesktopLyricFragment : Fragment
 
         SetupEventHandlers(service, nav, permissionService);
 
-        var btnOverlayPermission = view.FindViewById<View>(Resource.Id.btn_overlay_permission);
-        if (btnOverlayPermission != null)
-        {
-            btnOverlayPermission.Click += async (s, e) =>
-            {
-                await permissionService.RequestOverlayPermissionAsync();
-            };
-        }
-
         var btnFontColor = view.FindViewById<View>(Resource.Id.btn_font_color);
         if (btnFontColor != null)
         {
@@ -333,34 +324,5 @@ public class DesktopLyricFragment : Fragment
                 return name;
         }
         return hex;
-    }
-
-    /// <summary>
-    /// Fragment恢复时检查悬浮窗权限状态
-    /// </summary>
-    public override void OnResume()
-    {
-        base.OnResume();
-        CheckOverlayPermissionStatusAsync().ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// 异步检查悬浮窗权限状态并更新UI
-    /// </summary>
-    private async Task CheckOverlayPermissionStatusAsync()
-    {
-        if (Context == null) return;
-        var permissionService = MainApplication.Services.GetRequiredService<IPermissionService>();
-        var hasPermission = await permissionService.CheckOverlayPermissionAsync();
-        var statusText = hasPermission ? "悬浮窗权限已开启" : "请开启悬浮窗权限";
-        var statusColor = hasPermission
-            ? Color.Green
-            : Color.ParseColor("#FF9800");
-        var tvStatus = View?.FindViewById<TextView>(Resource.Id.tv_overlay_status);
-        if (tvStatus != null)
-        {
-            tvStatus.Text = statusText;
-            tvStatus.SetTextColor(statusColor);
-        }
     }
 }

@@ -1,8 +1,6 @@
-using Android.Content;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
-using CatClawMusic.UI.Platforms.Android;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +15,6 @@ namespace CatClawMusic.UI.Fragments;
 ///   <item>是否过滤短音频文件</item>
 ///   <item>自定义音乐文件夹的添加与删除</item>
 ///   <item>手动触发本地音乐扫描</item>
-///   <item>存储权限状态展示与跳转授权</item>
 /// </list>
 /// <para>继承自 <see cref="SettingsSubPageFragment"/>，作为设置页的子页面呈现。</para>
 /// </summary>
@@ -47,11 +44,6 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
     /// 扫描状态文本，显示当前扫描的进度信息或状态描述。
     /// </summary>
     private TextView? _scanStatus;
-
-    /// <summary>
-    /// 存储权限状态文本，显示当前应用是否已获得存储访问权限。
-    /// </summary>
-    private TextView? _tvPermissionStatus;
 
     /// <summary>
     /// 设置页面的 ViewModel，用于管理音乐文件夹的增删操作及与 UI 的数据绑定。
@@ -84,8 +76,7 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
     ///   <item>注册开关状态变更事件，将用户操作写回 <see cref="ScanSettings"/></item>
     ///   <item>注册"添加文件夹"按钮点击事件</item>
     ///   <item>注册"开始扫描"按钮点击事件</item>
-    ///   <item>注册存储权限卡片点击事件，跳转系统权限设置页</item>
-    ///   <item>刷新文件夹列表和权限状态显示</item>
+///   <item>刷新文件夹列表</item>
     /// </list>
     /// </summary>
     /// <param name="view">已创建的根视图。</param>
@@ -99,7 +90,6 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
         _folderListContainer = view.FindViewById<LinearLayout>(Resource.Id.folder_list);
         _scanProgress = view.FindViewById<ProgressBar>(Resource.Id.scan_progress);
         _scanStatus = view.FindViewById<TextView>(Resource.Id.scan_status);
-        _tvPermissionStatus = view.FindViewById<TextView>(Resource.Id.tv_permission_status);
 
         _switchMediaStore!.Checked = ScanSettings.UseMediaStore;
         _switchFilterShort!.Checked = ScanSettings.FilterShortAudio;
@@ -117,91 +107,15 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
         var btnScan = view.FindViewById<Button>(Resource.Id.btn_start_scan);
         btnScan!.Click += async (s, e) => await StartScanAsync();
 
-        // 存储权限卡片点击事件：跳转到系统权限管理页面
-        // 优先尝试跳转 Android 11+ 的"所有文件访问权限"页面，
-        // 若不可用则回退到应用详情页，最终回退到系统设置主页
-        var cardPermission = view.FindViewById<View>(Resource.Id.card_storage_permission);
-        cardPermission!.Click += (s, e) =>
-        {
-            try
-            {
-                var activity = Activity;
-                if (activity == null) return;
-                var packageName = activity.PackageName ?? "com.catclaw.music";
-
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
-                {
-                    try
-                    {
-                        var intent = new Intent(global::Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
-                        intent.SetData(global::Android.Net.Uri.Parse($"package:{packageName}"));
-                        // 检查 Intent 是否可解析
-                        if (intent.ResolveActivity(activity.PackageManager!) != null)
-                        {
-                            activity.StartActivity(intent);
-                            return;
-                        }
-                    }
-                    catch { }
-                }
-                try
-                {
-                    var intent = new Intent(global::Android.Provider.Settings.ActionApplicationDetailsSettings);
-                    intent.SetData(global::Android.Net.Uri.Parse($"package:{packageName}"));
-                    intent.AddFlags(ActivityFlags.NewTask);
-                    if (intent.ResolveActivity(activity.PackageManager!) != null)
-                    {
-                        activity.StartActivity(intent);
-                        return;
-                    }
-                }
-                catch { }
-                try
-                {
-                    var intent = new Intent(global::Android.Provider.Settings.ActionSettings);
-                    intent.AddFlags(ActivityFlags.NewTask);
-                    if (intent.ResolveActivity(activity.PackageManager!) != null)
-                    {
-                        activity.StartActivity(intent);
-                    }
-                }
-                catch { }
-            }
-            catch { }
-        };
-
         RefreshFolderList();
-        UpdatePermissionStatus();
     }
 
     /// <summary>
     /// Fragment 恢复可见时调用。
-    /// <para>在此刷新存储权限状态，因为用户可能从系统权限设置页返回后权限发生了变化。</para>
     /// </summary>
     public override void OnResume()
     {
         base.OnResume();
-        UpdatePermissionStatus();
-    }
-
-    /// <summary>
-    /// 更新存储权限状态显示。
-    /// <para>检测当前应用是否拥有 Android 11+ 的"所有文件访问权限"（MANAGE_EXTERNAL_STORAGE），
-    /// 并根据授权结果更新状态文本和颜色：</para>
-    /// <list type="bullet">
-    ///   <item>已授权：显示绿色 "已授权"</item>
-    ///   <item>未授权：显示红色 "未授权"</item>
-    /// </list>
-    /// </summary>
-    private void UpdatePermissionStatus()
-    {
-        if (_tvPermissionStatus == null) return;
-        bool hasPermission = Build.VERSION.SdkInt >= BuildVersionCodes.R
-            && global::Android.OS.Environment.IsExternalStorageManager;
-        _tvPermissionStatus.Text = hasPermission ? "已授权" : "未授权";
-        _tvPermissionStatus.SetTextColor(hasPermission
-            ? Android.Graphics.Color.ParseColor("#4CAF50")
-            : Android.Graphics.Color.ParseColor("#E04040"));
     }
 
     /// <summary>
