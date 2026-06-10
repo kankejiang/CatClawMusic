@@ -4,10 +4,8 @@ using CatClawMusic.Core.Services;
 namespace CatClawMusic.UI.Services;
 
 /// <summary>
-/// TeeAudioProcessor: 从 ExoPlayer 音频管道无损截取 PCM 数据用于可视化，
-/// 不修改音频数据（完全透传），无需 RECORD_AUDIO 权限。
-///
-/// PCM 处理优先使用 C++ 原生库（NEON SIMD 加速），失败时回退到 C# 实现。
+/// TeeAudioProcessor: 从 ExoPlayer 音频管道截取 PCM 数据用于可视化和软件 EQ。
+/// EQ 处理时修改音频数据，否则完全透传。无需 RECORD_AUDIO 权限。
 /// </summary>
 public class TeeAudioProcessor : BaseAudioProcessor
 {
@@ -15,13 +13,21 @@ public class TeeAudioProcessor : BaseAudioProcessor
     private int _tempCount;
 
     private float[]? _fallbackSpectrumBuffer;
+    private float[]? _eqBuffer;
+    private float[]? _eqInterleavedBuffer;
+
+    /// <summary>软件 10 段均衡器（可为 null）</summary>
+    public EqBandProcessor? EqProcessor { get; set; }
 
     /// <summary>最新的频谱数据（32 个频带，0~1 归一化值）</summary>
     public float[] LatestSpectrum { get; private set; } = Array.Empty<float>();
     /// <summary>频谱数据更新时触发</summary>
     public event Action<float[]>? SpectrumUpdated;
 
-    /// <summary>队列输入音频数据，透传原始数据并处理 PCM 用于频谱计算</summary>
+    /// <summary>采样率（由 ExoPlayer 设置）</summary>
+    public float CurrentSampleRate { get; set; } = 44100;
+
+    /// <summary>队列输入音频数据，处理可视化 + EQ</summary>
     public override void QueueInput(Java.Nio.ByteBuffer? inputBuffer)
     {
         if (inputBuffer == null) return;
@@ -30,39 +36,56 @@ public class TeeAudioProcessor : BaseAudioProcessor
         if (outputBuffer != null)
         {
             var pos = inputBuffer.Position();
-            ProcessAudioData(inputBuffer, remaining);
-            inputBuffer.Position(pos);
-            outputBuffer.Put(inputBuffer);
+            var shortBuf = inputBuffer.AsShortBuffer();
+            shortBuf.Position(0);
+
+            int sampleCount = remaining / 2;
+            int frameCount = sampleCount / 2;
+
+            // 频谱计算：从左声道提取幅度
+            var monoCount = Math.Min(frameCount, _tempBuffer.Length);
+            for (int i = 0; i < monoCount; i++)
+                _tempBuffer[i] = Math.Abs((float)shortBuf.Get(i * 2) / 32768f);
+            _tempCount = monoCount;
+            ComputeSpectrumBands();
+
+            // EQ 处理：读写 short 样本到 output
+            var eq = EqProcessor;
+            if (eq != null && eq.Enabled)
+            {
+                ApplyEq(shortBuf, sampleCount, frameCount, eq);
+                inputBuffer.Position(pos);
+                for (int i = 0; i < sampleCount; i++)
+                    outputBuffer.PutShort(shortBuf.Get(i));
+            }
+            else
+            {
+                inputBuffer.Position(pos);
+                outputBuffer.Put(inputBuffer);
+            }
             outputBuffer.Flip();
         }
     }
 
-    private void ProcessAudioData(Java.Nio.ByteBuffer buffer, int size)
+    private void ApplyEq(Java.Nio.ShortBuffer shortBuf, int sampleCount, int frameCount, EqBandProcessor eq)
     {
-        var channelCount = 2;
-        var sampleCount = size / 2;
-        var monoCount = sampleCount / channelCount;
+        eq.SetSampleRate(CurrentSampleRate);
 
-        if (monoCount == 0) return;
+        if (_eqInterleavedBuffer == null || _eqInterleavedBuffer.Length < sampleCount)
+            _eqInterleavedBuffer = new float[sampleCount];
 
-        /* 纯 C# PCM 处理（NativeAOT 编译为原生代码，性能等同 C++） */
-        ProcessAudioDataFallback(buffer, size, channelCount, monoCount);
-    }
+        for (int i = 0; i < sampleCount; i++)
+            _eqInterleavedBuffer[i] = (float)shortBuf.Get(i) / 32768f;
 
-    /// <summary>
-    /// C# 回退实现：逐样本从 ByteBuffer 读取 short 并转换
-    /// </summary>
-    private void ProcessAudioDataFallback(Java.Nio.ByteBuffer buffer, int size, int channelCount, int monoCount)
-    {
-        var shortBuffer = buffer.AsShortBuffer();
-        shortBuffer.Position(0);
+        eq.ProcessInterleaved(_eqInterleavedBuffer, frameCount);
 
-        var samples = monoCount > _tempBuffer.Length ? _tempBuffer.Length : monoCount;
-        for (int i = 0; i < samples; i++)
-            _tempBuffer[i] = Math.Abs((float)shortBuffer.Get(i * channelCount) / 32768f);
-
-        _tempCount = samples;
-        ComputeSpectrumBands();
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float v = _eqInterleavedBuffer[i];
+            if (v > 1f) v = 1f;
+            if (v < -1f) v = -1f;
+            shortBuf.Put(i, (short)(v * 32767f));
+        }
     }
 
     private void ComputeSpectrumBands()

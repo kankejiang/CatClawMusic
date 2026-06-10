@@ -22,10 +22,8 @@ public class SettingsFragment : Fragment
     private TextView? _tvAiStatus;
     private TextView? _tvBackupStatus;
     private TextView? _tvPermissionStatus;
-    private Spinner? _spinnerTheme;
     private ImageButton? _btnDarkModeToggle;
     private IThemeService? _themeService;
-    private bool _isThemeSpinnerInitialized = false;
 
     private const int RequestManageStorage = 1001;
 
@@ -45,12 +43,10 @@ public class SettingsFragment : Fragment
         var nav = MainApplication.Services.GetRequiredService<INavigationService>();
         _themeService = MainApplication.Services.GetRequiredService<IThemeService>();
 
-        // 🎨 主题选择
-        _spinnerTheme = view.FindViewById<Spinner>(Resource.Id.spinner_theme);
-        if (_spinnerTheme != null)
-        {
-            SetupThemeSpinner();
-        }
+        // 🎨 外观与个性化
+        var btnAppearance = view.FindViewById<View>(Resource.Id.btn_appearance_settings);
+        if (btnAppearance != null)
+            btnAppearance.SetOnClickListener(new ClickListener(() => nav.PushFragment("AppearanceSettings")));
 
         // ☀🌙 深浅色切换按钮
         _btnDarkModeToggle = view.FindViewById<ImageButton>(Resource.Id.btn_dark_mode_toggle);
@@ -167,50 +163,6 @@ public class SettingsFragment : Fragment
                 Toast.MakeText(Context, "需要文件访问权限才能备份", ToastLength.Long)?.Show();
             }
         }
-    }
-
-    /// <summary>
-    /// 初始化主题选择下拉框，加载主题列表并设置当前选中项
-    /// </summary>
-    private void SetupThemeSpinner()
-    {
-        if (_themeService == null || _spinnerTheme == null) return;
-
-        var themeNames = new List<string>
-        {
-            "💜 紫色主题",
-            "💗 粉色主题",
-            "💙 蓝色主题",
-            "💚 绿色主题",
-            "🧡 橙色主题"
-        };
-
-        var adapter = new ArrayAdapter<string>(
-            Context!,
-            Android.Resource.Layout.SimpleSpinnerItem,
-            themeNames);
-        adapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
-
-        _spinnerTheme.Adapter = adapter;
-
-        var currentTheme = _themeService.CurrentTheme;
-        _spinnerTheme.SetSelection((int)currentTheme, false);
-
-        _spinnerTheme.ItemSelected += (sender, e) =>
-        {
-            if (!_isThemeSpinnerInitialized)
-            {
-                _isThemeSpinnerInitialized = true;
-                return;
-            }
-
-            var selectedTheme = (AppTheme)e.Position;
-            if (selectedTheme != _themeService.CurrentTheme)
-            {
-                _themeService.SetTheme(selectedTheme);
-                MainActivity.Instance?.ApplyThemeAndRefresh();
-            }
-        };
     }
 
     /// <summary>

@@ -78,6 +78,14 @@ public class MainApplication : Application
             var smb = fileServices.FirstOrDefault(s => s is SmbService) ?? fileServices.LastOrDefault();
             return new NetworkMusicService(db, subsonic, webDav!, smb!);
         });
+        // 10段软件均衡器（单例，供 EqualizerDialog 和 TeeAudioProcessor 共享）
+        services.AddSingleton<EqBandProcessor>();
+        // TeeAudioProcessor 截取 PCM 数据（含软件 EQ 处理），单例
+        services.AddSingleton<TeeAudioProcessor>(sp =>
+        {
+            var eq = sp.GetRequiredService<EqBandProcessor>();
+            return new TeeAudioProcessor { EqProcessor = eq };
+        });
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
         services.AddSingleton<IPluginManager>(sp =>
@@ -256,6 +264,8 @@ public class MainApplication : Application
         services.AddTransient<ModelEditFragment>();
         services.AddTransient<AboutFragment>();
         services.AddTransient<PermissionManagementFragment>();
+        services.AddTransient<SplashSettingsFragment>();
+        services.AddTransient<AppearanceSettingsFragment>();
         services.AddTransient<ArtistMatchFragment>();
         services.AddTransient<ArtistMatchDetailFragment>();
         services.AddTransient<ModelAdapter>();

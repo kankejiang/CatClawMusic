@@ -444,7 +444,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
-    /// <summary>确保 ExoPlayer 实例已创建，支持 Basic Auth 认证头</summary>
+    /// <summary>确保 ExoPlayer 实例已创建，支持 Basic Auth 认证头，并注入软件 EQ 音频处理器</summary>
     private void EnsurePlayer(string? authHeader = null)
     {
         var ctx = global::Android.App.Application.Context;
@@ -477,9 +477,35 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var mediaSourceFactory = new AndroidX.Media3.ExoPlayer.Source.DefaultMediaSourceFactory(ctx)
             .SetDataSourceFactory(new CatClawDataSourceFactory(httpFactory, ctx));
 
-        _player = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-            .SetMediaSourceFactory(mediaSourceFactory)
-            .Build();
+        var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+            .SetMediaSourceFactory(mediaSourceFactory);
+
+        // 注入 TeeAudioProcessor（含 10 段软件 EQ）到 ExoPlayer 音频管道
+        // 注意：Xamarin 绑定未暴露 SimpleExoPlayer.Builder.SetAudioSink()，
+        // 因此通过 JNI 直接调用底层 Java ExoPlayer.Builder.setAudioSink()
+        try
+        {
+            var teeProcessor = MainApplication.Services.GetService<TeeAudioProcessor>();
+            if (teeProcessor != null)
+            {
+                var audioSink = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
+                    .SetAudioProcessors(new AndroidX.Media3.Common.Audio.BaseAudioProcessor[] { teeProcessor })
+                    .Build();
+
+                var builderClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.ExoPlayer$Builder");
+                var audioSinkClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink");
+                var setAudioSinkMethod = builderClass.GetMethod("setAudioSink", audioSinkClass);
+                setAudioSinkMethod.Invoke(builder, audioSink);
+
+                ALog.Debug("CatClaw", "[CatClaw] TeeAudioProcessor (10-band EQ) injected via JNI");
+            }
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"[CatClaw] Failed to inject TeeAudioProcessor: {ex.Message}");
+        }
+
+        _player = builder.Build();
 
         try
         {

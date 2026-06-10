@@ -32,6 +32,7 @@ public class LandscapeNowPlayingFragment : Fragment
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
     private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
     private ImageButton _btnVisualizerToggle = null!;
+    private ImageButton _btnEq = null!;
     private ImageButton _btnSleepTimer = null!;
     private ImageButton _btnBack = null!;
     private GoogleSlider _progressSlider = null!;
@@ -125,6 +126,7 @@ public class LandscapeNowPlayingFragment : Fragment
         _btnModeCycle = view.FindViewById<ImageButton>(Resource.Id.btn_mode_cycle)!;
         _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
         _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
+        _btnEq = view.FindViewById<ImageButton>(Resource.Id.btn_eq)!;
         _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
         _progressSlider.TickVisible = false;
@@ -170,6 +172,7 @@ public class LandscapeNowPlayingFragment : Fragment
         _btnModeCycle.Click += OnModeClick;
         _btnPlaylist.Click += OnPlaylistClick;
         _btnVisualizerToggle.Click += OnVisualizerToggleClick;
+        _btnEq.Click += OnEqClick;
         _btnSleepTimer.Click += OnSleepTimerClick;
 
         _lyricsArea.Click += OnLyricsAreaClick;
@@ -994,6 +997,20 @@ public class LandscapeNowPlayingFragment : Fragment
         var enabled = !(prefs?.GetBoolean("visualizer_enabled", false) ?? false);
         prefs?.Edit().PutBoolean("visualizer_enabled", enabled).Apply();
         ApplyVisualizerState(enabled);
+    }
+
+    private void OnEqClick(object? s, EventArgs e)
+    {
+        try
+        {
+            var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+            var dialog = new Services.EqualizerDialog(Activity!, player);
+            dialog.Show();
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("CatClaw", $"打开均衡器失败: {ex.Message}");
+        }
     }
 
     private void OnSleepTimerClick(object? s, EventArgs e)

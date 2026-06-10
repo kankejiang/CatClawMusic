@@ -156,6 +156,10 @@
                         android:layout_height="28dp" android:src="@drawable/ic_equalizer"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:padding="2dp" android:layout_marginStart="4dp" />
+                    <ImageButton android:id="@+id/btn_eq" android:layout_width="28dp"
+                        android:layout_height="28dp" android:src="@drawable/ic_eq"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="2dp" android:layout_marginStart="4dp" />
                     <ImageButton android:id="@+id/btn_sleep_timer" android:layout_width="28dp"
                         android:layout_height="28dp" android:src="@drawable/ic_sleep"
                         android:background="?attr/selectableItemBackgroundBorderless"

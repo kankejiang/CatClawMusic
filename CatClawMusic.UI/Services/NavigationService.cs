@@ -59,6 +59,8 @@ public class NavigationService : INavigationService
             "ModelEdit" => CreateModelEdit(parameters),
             "About" => MainApplication.Services.GetRequiredService<AboutFragment>(),
             "PermissionManagement" => MainApplication.Services.GetRequiredService<PermissionManagementFragment>(),
+            "SplashSettings" => MainApplication.Services.GetRequiredService<SplashSettingsFragment>(),
+            "AppearanceSettings" => MainApplication.Services.GetRequiredService<AppearanceSettingsFragment>(),
             "ArtistMatch" => MainApplication.Services.GetRequiredService<ArtistMatchFragment>(),
             "ArtistMatchDetail" => CreateArtistMatchDetail(parameters),
             "ArtistDetail" => CreateArtistDetail(parameters),

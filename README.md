@@ -1,6 +1,6 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
-> 萌系 Android 音乐播放器，.NET 10 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、SMB/CIFS 协议、桌面悬浮歌词（可拖拽/锁定/双行KTV）、逐字歌词渐变高亮、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏媒体控制 + MediaSession、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题、AI 对话式搜索。
+> 萌系 Android 音乐播放器，.NET 10 + C# 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、SMB/CIFS 协议、桌面悬浮歌词（可拖拽/锁定/双行KTV）、逐字歌词渐变高亮、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏5按钮媒体控制（HyperOS/MIUI适配）、权限统一管理、自定义启动页（API/本地图片）、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题、AI 对话式搜索。
 
 <div align="center">
 
@@ -85,13 +85,17 @@ CatClawMusic/
 │   └── src/                    # catclaw_native.so 源码
 │
 └── CatClawMusic.UI/            # UI 层（Android 原生界面）
-    ├── MainActivity.cs         # ViewPager2 + BottomNav + 侧滑面板 + 迷你播放器
-    ├── Fragments/              # 18 个 Fragment
-    ├── ViewModels/             # MVVM（CommunityToolkit.Mvvm 源生成器）
-    ├── Helpers/                # StrokeTextView / SweepGradientView / AudioVisualizerView / GlassDialog
-    ├── Services/               # 桌面歌词 / 导航 / 播放状态 / MaterialYou 取色 / AI 对话
-    ├── Adapters/               # 歌曲列表 / 播放列表 适配器（MediaStore 封面优先加载）
-    └── Platforms/Android/      # ExoPlayer / SAF / 主题 / MediaStoreCoverHelper / AndroidMediaScanner
+    ├── SplashActivity.cs        # 启动页（支持自定义API/本地图片，等待核心初始化）
+    ├── MainActivity.cs          # ViewPager2 + BottomNav + 侧滑面板 + 迷你播放器
+    ├── Fragments/               # 20 个 Fragment
+    │   ├── SettingsFragment.cs          # 设置主页（主题/深浅色/权限/启动页入口）
+    │   ├── PermissionManagementFragment # 权限统一管理（通知/悬浮窗/麦克风/照片/音频/存储）
+    │   ├── SplashSettingsFragment      # 启动页设置（自定义API/本地图片/缓存清除）
+    │   ├── LocalMusicSettingsFragment   # 本地音乐设置（文件夹/扫描）
+    │   ├── DesktopLyricFragment         # 桌面歌词设置
+    │   ├── GeneralSettingsFragment      # 省电策略/背景动画
+    │   ├── NowPlayingFragment           # 播放页
+    │   └── ...                          # 其他Fragment
 ```
 
 **技术栈**：.NET 10 | C# 12 | AndroidX Media3 ExoPlayer 1.10.0 | CommunityToolkit.Mvvm 8.2.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | SMBLibrary | Material 3 | Android Visualizer API
@@ -179,8 +183,8 @@ CatClawMusic/
 
 | 特性 | 说明 |
 |------|------|
-| 双通知设计 | 主通知(播放控制) + 工具通知(快捷操作) |
-| MediaStyle 主通知 | 上一曲/播放暂停/下一曲 + 大尺寸专辑封面 |
+| HyperOS/MIUI 5按钮通知 | 收藏/上一曲/播放暂停/下一曲/桌面歌词，通过 PlaybackState.CustomAction 实现 |
+| MediaStyle 主通知 | 大尺寸专辑封面 + 5个控制按钮 |
 | MediaSession | 蓝牙耳机/车载音响/穿戴设备控制 |
 | 前台 Service | foregroundServiceType=mediaPlayback 保活 |
 
@@ -228,6 +232,29 @@ CatClawMusic/
 | IMenuContributorPlugin | 菜单贡献者：GetMenuItems |
 
 **已发布插件**：[猫爪标签 (CatClawTag)](https://github.com/kankejiang/CatClawTagPlugin) — 歌词/封面多源搜索、匹配元数据、标签读写
+
+### 🔐 权限管理
+
+| 特性 | 说明 |
+|------|------|
+| 统一权限管理页 | 设置页一键进入，6项权限状态一目了然 |
+| 通知权限 | 播放控制通知、锁屏控件，Android 13+ 适配 |
+| 悬浮窗权限 | 桌面歌词悬浮显示，多厂商适配（MIUI/ColorOS 等） |
+| 麦克风 | 音频频谱可视化 |
+| 照片和视频 | 读取专辑封面、艺术家图片，Android 13+ 细粒度权限 |
+| 音乐和音频 | 扫描和播放本地音乐文件 |
+| 管理外部存储 | 备份恢复、全盘扫描音乐，Android 11+ 适配 |
+| 一键跳转系统设置 | 未授权权限点击直达对应系统设置页 |
+
+### 🖼️ 启动页
+
+| 特性 | 说明 |
+|------|------|
+| 自定义 API | 可配置任意图片 API 作为启动页背景 |
+| 自定义本地图片 | 从相册选择图片作为启动页背景 |
+| 缓存机制 | 网络图片自动缓存，下次启动秒开 |
+| 预览功能 | 设置页内实时预览当前启动页效果 |
+| 初始化等待 | 启动页等待数据库初始化 + 播放状态恢复完成后才跳转 |
 
 ***
 

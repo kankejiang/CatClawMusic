@@ -7,6 +7,7 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Fragments;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,8 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CatClawMusic.UI;
 
 /// <summary>
-/// 启动画面 Activity：加载网络动漫图片作为启动背景，等待主界面初始化完成后再跳转。
-/// 网络图片会缓存在本地，下次启动优先使用缓存。
+/// 启动画面 Activity：根据用户设置加载启动背景图，等待主界面初始化完成后再跳转。
+/// 支持自定义API图片源和本地图片，网络图片缓存在本地。
 /// </summary>
 [Activity(
     Theme = "@style/CatClaw.SplashTheme",
@@ -23,7 +24,6 @@ namespace CatClawMusic.UI;
     ScreenOrientation = Android.Content.PM.ScreenOrientation.Portrait)]
 public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
 {
-    private const string ImageUrl = "https://t.alcy.cc/mp";
     private const int MinDisplayMs = 1500;
     private const int NetworkTimeoutMs = 4000;
 
@@ -103,10 +103,45 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         base.OnDestroy();
     }
 
-    /// <summary>加载启动图：优先本地缓存，其次网络下载</summary>
+    /// <summary>加载启动图：根据设置选择图片来源（自定义图片 > 自定义API），优先本地缓存</summary>
     private async Task LoadSplashImageAsync()
     {
+        var ctx = global::Android.App.Application.Context;
+        var sourceMode = SplashSettingsFragment.GetSourceMode(ctx);
         string cachePath = GetCachePath();
+
+        // 模式1：自定义本地图片
+        if (sourceMode == 1)
+        {
+            var customPath = SplashSettingsFragment.GetCustomImageFilePath();
+            if (File.Exists(customPath))
+            {
+                var bitmap = await Task.Run(() => DecodeBitmap(customPath));
+                if (bitmap != null)
+                {
+                    RunOnUiThread(() =>
+                    {
+                        _imageView.SetImageBitmap(bitmap);
+                        _imageView.Visibility = ViewStates.Visible;
+                    });
+                    _imageLoaded = true;
+                    UpdateSubtitle("喵~ 正在加载...");
+                    TryTransition();
+                    return;
+                }
+            }
+        }
+
+        // 模式0：自定义API
+        var imageUrl = SplashSettingsFragment.GetCustomApiUrl(ctx);
+        if (string.IsNullOrEmpty(imageUrl))
+        {
+            // 未配置API地址，使用默认启动图
+            _imageLoaded = true;
+            UpdateSubtitle("喵~ 正在加载...");
+            TryTransition();
+            return;
+        }
 
         try
         {
@@ -125,7 +160,7 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
                     UpdateSubtitle("喵~ 正在加载...");
 
                     // 后台尝试更新缓存
-                    _ = RefreshCacheAsync(cachePath);
+                    _ = RefreshCacheAsync(imageUrl, cachePath);
                     TryTransition();
                     return;
                 }
@@ -135,7 +170,7 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
             using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(NetworkTimeoutMs));
 
             // 3. 后台下载
-            var data = await DownloadImageAsync(cts.Token);
+            var data = await DownloadImageAsync(imageUrl, cts.Token);
 
             if (data != null)
             {
@@ -179,12 +214,12 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
     }
 
     /// <summary>后台异步刷新缓存（不阻塞主流程）</summary>
-    private async Task RefreshCacheAsync(string cachePath)
+    private async Task RefreshCacheAsync(string url, string cachePath)
     {
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(NetworkTimeoutMs));
-            var data = await DownloadImageAsync(cts.Token);
+            var data = await DownloadImageAsync(url, cts.Token);
             if (data != null)
             {
                 await File.WriteAllBytesAsync(cachePath, data);
@@ -193,18 +228,20 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         catch { /* 静默失败 */ }
     }
 
-    private static async Task<byte[]?> DownloadImageAsync(CancellationToken ct)
+    /// <summary>从URL下载图片数据</summary>
+    private async Task<byte[]?> DownloadImageAsync(string url, CancellationToken ct)
     {
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(NetworkTimeoutMs) };
-            var response = await client.GetAsync(ImageUrl, ct);
+            var response = await client.GetAsync(url, ct);
             if (!response.IsSuccessStatusCode) return null;
             return await response.Content.ReadAsByteArrayAsync(ct);
         }
         catch { return null; }
     }
 
+    /// <summary>从文件路径解码Bitmap，自动计算采样率避免OOM</summary>
     private static Bitmap? DecodeBitmap(string path)
     {
         try
@@ -226,6 +263,7 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         catch { return null; }
     }
 
+    /// <summary>获取启动图缓存路径</summary>
     private static string GetCachePath()
     {
         var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
