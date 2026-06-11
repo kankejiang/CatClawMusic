@@ -19,7 +19,7 @@ namespace CatClawMusic.UI.Fragments;
 public class SplashSettingsFragment : SettingsSubPageFragment
 {
     private const string PrefsName = "splash_prefs";
-    private const string KeySourceMode = "source_mode"; // 0=custom_api, 1=custom_image
+    private const string KeySourceMode = "source_mode"; // 0=default, 1=custom_api, 2=custom_image
     private const string KeyCustomApi = "custom_api_url";
     private const string CacheFileName = "splash_cache.jpg";
     private const string CustomImageFileName = "splash_custom.jpg";
@@ -59,11 +59,12 @@ public class SplashSettingsFragment : SettingsSubPageFragment
         var mode = prefs.GetInt(KeySourceMode, 0);
         var customApi = prefs.GetString(KeyCustomApi, "") ?? "";
 
-        // 恢复选中状态
+        // 恢复选中状态（0=默认, 1=自定义API, 2=自定义图片）
         var rbId = mode switch
         {
-            1 => Resource.Id.rb_custom_image,
-            _ => Resource.Id.rb_custom_api
+            2 => Resource.Id.rb_custom_image,
+            1 => Resource.Id.rb_custom_api,
+            _ => Resource.Id.rb_default_image
         };
         _rgSource?.Check(rbId);
         if (_etCustomApi != null && !string.IsNullOrEmpty(customApi))
@@ -79,11 +80,13 @@ public class SplashSettingsFragment : SettingsSubPageFragment
             {
                 var selectedMode = e.CheckedId switch
                 {
-                    Resource.Id.rb_custom_image => 1,
-                    _ => 0
+                    Resource.Id.rb_custom_image => 2,
+                    Resource.Id.rb_custom_api => 1,
+                    _ => 0 // 默认
                 };
                 prefs.Edit().PutInt(KeySourceMode, selectedMode).Apply();
                 UpdateVisibility(selectedMode);
+                LoadPreview();
             };
         }
 
@@ -103,9 +106,9 @@ public class SplashSettingsFragment : SettingsSubPageFragment
     private void UpdateVisibility(int mode)
     {
         if (_cardCustomApi != null)
-            _cardCustomApi.Visibility = mode == 0 ? ViewStates.Visible : ViewStates.Gone;
+            _cardCustomApi.Visibility = mode == 1 ? ViewStates.Visible : ViewStates.Gone;
         if (_cardCustomImage != null)
-            _cardCustomImage.Visibility = mode == 1 ? ViewStates.Visible : ViewStates.Gone;
+            _cardCustomImage.Visibility = mode == 2 ? ViewStates.Visible : ViewStates.Gone;
     }
 
     /// <summary>加载预览图</summary>
@@ -116,9 +119,17 @@ public class SplashSettingsFragment : SettingsSubPageFragment
         var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
         var mode = prefs.GetInt(KeySourceMode, 0);
 
+        // 默认模式：显示默认猫图
+        if (mode == 0)
+        {
+            bool isDark = (Resources?.Configuration?.UiMode ?? Android.Content.Res.UiMode.NightUndefined & Android.Content.Res.UiMode.NightMask) == Android.Content.Res.UiMode.NightYes;
+            _ivPreview.SetImageResource(isDark ? Resource.Drawable.splash_cat_dark : Resource.Drawable.splash_cat_light);
+            return;
+        }
+
         string? imagePath = mode switch
         {
-            1 => GetCustomImagePath(),
+            2 => GetCustomImagePath(),
             _ => GetCachePath()
         };
 

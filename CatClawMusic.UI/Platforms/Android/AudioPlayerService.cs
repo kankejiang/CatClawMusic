@@ -2,6 +2,7 @@ using Android.OS;
 using Android.Runtime;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.Services;
+
 using Microsoft.Extensions.DependencyInjection;
 using System.Timers;
 using AndroidHandler = Android.OS.Handler;
@@ -478,9 +479,11 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var mediaSourceFactory = new AndroidX.Media3.ExoPlayer.Source.DefaultMediaSourceFactory(ctx)
             .SetDataSourceFactory(new CatClawDataSourceFactory(httpFactory, ctx));
 
-        // 注入 TeeAudioProcessor（含 10 段软件 EQ）到 ExoPlayer 音频管道
-        // 注意：Xamarin 绑定未暴露 SimpleExoPlayer.Builder.SetAudioSink()，
-        // 因此完全通过 JNI 构建 ExoPlayer，确保 TeeAudioProcessor 进入音频管道
+        var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+            .SetMediaSourceFactory(mediaSourceFactory);
+
+        // 注入 TeeAudioProcessor（含 10 段软件 EQ）到 ExoPlayer Builder 的 AudioSink
+        // 必须在 Build() 之前通过 JNI 调用 setAudioSink，否则无效
         var teeProcessor = MainApplication.Services.GetService<TeeAudioProcessor>();
         if (teeProcessor != null)
         {
@@ -490,39 +493,42 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                     .SetAudioProcessors(new AndroidX.Media3.Common.Audio.BaseAudioProcessor[] { teeProcessor })
                     .Build();
 
-                // 通过 JNI 创建 Java ExoPlayer.Builder
-                var builderClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.ExoPlayer$Builder");
-                var ctxClass = Java.Lang.Class.ForName("android.content.Context");
-                var javaBuilder = builderClass.GetConstructor(ctxClass)!.NewInstance(ctx);
+                // 通过 JNI 在 Builder 上调用 setAudioSink（Xamarin 绑定未暴露该方法）
+                var builderJavaClass = builder.Class;
+                var audioSinkIfaceClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink");
 
-                // JNI: setMediaSourceFactory
-                var msfClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.source.MediaSource$Factory");
-                builderClass.GetMethod("setMediaSourceFactory", msfClass)!.Invoke(javaBuilder, mediaSourceFactory);
+                // 遍历类层次查找 setAudioSink 方法（可能在 ExoPlayer.Builder 父类中）
+                Java.Lang.Reflect.Method? setMethod = null;
+                var currentClass = builderJavaClass;
+                while (currentClass != null && setMethod == null)
+                {
+                    try { setMethod = currentClass.GetDeclaredMethod("setAudioSink", audioSinkIfaceClass); }
+                    catch { }
+                    try
+                    {
+                        var getSuper = Java.Lang.Class.ForName("java.lang.Class").GetMethod("getSuperclass");
+                        currentClass = getSuper.Invoke(currentClass)?.JavaCast<Java.Lang.Class>();
+                    }
+                    catch { break; }
+                }
 
-                // JNI: setAudioSink（注入 TeeAudioProcessor）
-                var audioSinkClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink");
-                builderClass.GetMethod("setAudioSink", audioSinkClass)!.Invoke(javaBuilder, audioSink);
-
-                // JNI: build() — 完全在 Java 侧构建，确保 audioSink 被使用
-                var javaPlayer = builderClass.GetMethod("build")!.Invoke(javaBuilder)!;
-                _player = javaPlayer.JavaCast<AndroidX.Media3.ExoPlayer.SimpleExoPlayer>()!;
-
-                ALog.Debug("CatClaw", "[CatClaw] TeeAudioProcessor (10-band EQ) injected via JNI (full build)");
+                if (setMethod != null)
+                {
+                    setMethod.Invoke(builder, audioSink);
+                    ALog.Debug("CatClaw", "[CatClaw] TeeAudioProcessor injected via JNI setAudioSink on Builder");
+                }
+                else
+                {
+                    ALog.Warn("CatClaw", "[CatClaw] setAudioSink method not found via JNI");
+                }
             }
             catch (Exception ex)
             {
-                ALog.Warn("CatClaw", $"[CatClaw] JNI build failed, falling back: {ex.Message}");
-                var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-                    .SetMediaSourceFactory(mediaSourceFactory);
-                _player = builder.Build();
+                ALog.Warn("CatClaw", $"[CatClaw] JNI setAudioSink failed: {ex.Message}");
             }
         }
-        else
-        {
-            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-                .SetMediaSourceFactory(mediaSourceFactory);
-            _player = builder.Build();
-        }
+
+        _player = builder.Build();
 
         try
         {
@@ -538,46 +544,47 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         ALog.Debug("CatClaw", $"[CatClaw] Player created, AudioSessionId={AudioSessionId}");
 
         // 启动时从 SharedPreferences 恢复音效设置
-        RestoreEqSettings();
+        RestoreAudioSettings();
     }
 
     /// <summary>
-    /// 启动时从 SharedPreferences 恢复均衡器设置（确保 EQ 在打开对话框之前就能生效）
+    /// 启动时从 SharedPreferences 恢复音效设置（EQ），确保音效在打开对话框之前就能生效
     /// </summary>
-    private void RestoreEqSettings()
+    private void RestoreAudioSettings()
     {
         try
         {
-            var eqProcessor = MainApplication.Services.GetService<EqBandProcessor>();
-            if (eqProcessor == null) return;
-
+            var sp = MainApplication.Services;
             var prefs = global::Android.App.Application.Context
                 .GetSharedPreferences("catclaw_eq10_prefs", global::Android.Content.FileCreationMode.Private);
             if (prefs == null) return;
 
-            bool eqEnabled = prefs.GetBoolean("eq_enabled", false);
-            eqProcessor.Enabled = eqEnabled;
-
-            if (eqEnabled)
+            // === EQ ===
+            var eqProcessor = sp.GetService<EqBandProcessor>();
+            if (eqProcessor != null)
             {
-                int savedPreset = prefs.GetInt("eq_preset", -1);
-                if (savedPreset < 0)
+                bool eqEnabled = prefs.GetBoolean("eq_enabled", false);
+                eqProcessor.Enabled = eqEnabled;
+                if (eqEnabled)
                 {
-                    // 自定义模式：恢复各频段增益
-                    for (int i = 0; i < EqBandProcessor.Bands; i++)
+                    int savedPreset = prefs.GetInt("eq_preset", -1);
+                    if (savedPreset < 0)
                     {
-                        int saved = prefs.GetInt($"eq_band_{i}", int.MinValue);
-                        if (saved != int.MinValue)
-                            eqProcessor.SetBandLevelMillibels(i, (short)saved);
+                        for (int i = 0; i < EqBandProcessor.Bands; i++)
+                        {
+                            int saved = prefs.GetInt($"eq_band_{i}", int.MinValue);
+                            if (saved != int.MinValue)
+                                eqProcessor.SetBandLevelMillibels(i, (short)saved);
+                        }
                     }
                 }
             }
 
-            ALog.Debug("CatClaw", $"[CatClaw] EQ settings restored: enabled={eqEnabled}");
+            ALog.Debug("CatClaw", "[CatClaw] Audio settings restored: EQ initialized");
         }
         catch (Exception ex)
         {
-            ALog.Warn("CatClaw", $"[CatClaw] Failed to restore EQ settings: {ex.Message}");
+            ALog.Warn("CatClaw", $"[CatClaw] Failed to restore audio settings: {ex.Message}");
         }
     }
 

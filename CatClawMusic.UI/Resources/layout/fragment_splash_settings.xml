@@ -63,10 +63,15 @@
                     <RadioGroup android:id="@+id/rg_image_source"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="vertical">
+                        <RadioButton android:id="@+id/rb_default_image"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="默认（浅色白猫 / 深色黑猫）"
+                            android:textSize="14sp" android:checked="true"
+                            android:paddingVertical="8dp" />
                         <RadioButton android:id="@+id/rb_custom_api"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:text="自定义 API"
-                            android:textSize="14sp" android:checked="true"
+                            android:textSize="14sp"
                             android:paddingVertical="8dp" />
                         <RadioButton android:id="@+id/rb_custom_image"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
