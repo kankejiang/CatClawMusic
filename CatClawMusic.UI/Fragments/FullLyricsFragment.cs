@@ -81,6 +81,7 @@ public class FullLyricsFragment : Fragment
     private Color _lyricInactiveColor = Color.ParseColor("#CCBBBBBB");
     private int _lyricActiveArgb = unchecked((int)0xFFFFFFFF);
     private int _lyricInactiveArgb = unchecked((int)0xCCBBBBBB);
+    private int _lyricColorMode = 0; // 0=自适应, 1=自定义
     private int _lyricBgColorIndex = 0;
     // 歌词是否加粗
     private bool _lyricBold = true;
@@ -429,11 +430,25 @@ public class FullLyricsFragment : Fragment
     /// <summary>
     /// 重建歌词视图
     /// </summary>
+    /// <summary>
+    /// 根据当前设置计算自适应歌词颜色（深色背景用白灰，浅色背景用黑灰）
+    /// </summary>
+    private void ApplyAdaptiveColors()
+    {
+        // 全歌词页背景遮罩均为深色调，自适应使用白色/灰色
+        _lyricActiveColor = Color.White;
+        _lyricInactiveColor = Color.ParseColor("#88BBBBBB");
+    }
+
     private void RebuildLyrics()
     {
         _lyricsContainer.RemoveAllViews(); 
         _lyricViews.Clear(); 
         _lastLyricIndex = -1;
+
+        // 自适应模式：根据背景自动设置歌词颜色
+        if (_lyricColorMode == 0)
+            ApplyAdaptiveColors();
 
         var lyrics = _viewModel.CurrentLyrics;
         if (lyrics?.Lines == null || lyrics.Lines.Count == 0)
@@ -461,15 +476,13 @@ public class FullLyricsFragment : Fragment
 
             var tv = new StrokeTextView(Context) { Text = line.Text };
             tv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
-            tv.SetTextColor(_lyricInactiveColor);
             tv.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
             tv.Gravity = GetLyricGravity();
             tv.SetLineSpacing(0, 1.4f);
-            tv.StrokeEnabled = _lyricStyle == 1;
-            tv.StrokeColor = Color.Black;
-            tv.StrokeWidth = 2f;
+            tv.StrokeEnabled = false; // 不再使用描边
             tv.UnsungColor = _lyricInactiveColor;
             tv.SungColor = _lyricActiveColor;
+            tv.SetTextColor(_lyricInactiveColor);
             lineLayout.AddView(tv);
 
             if (!string.IsNullOrEmpty(line.Translation))
@@ -529,6 +542,10 @@ public class FullLyricsFragment : Fragment
         var idx = _viewModel.CurrentLyricIndex;
         if (idx == _lastLyricIndex) return;
 
+        // 自适应模式：根据背景自动设置歌词颜色
+        if (_lyricColorMode == 0)
+            ApplyAdaptiveColors();
+
         foreach (var v in _lyricViews)
         {
             var plain = v.Text;
@@ -539,9 +556,7 @@ public class FullLyricsFragment : Fragment
             v.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
             v.Background = null;
             v.ResetLyricProgress();
-            v.StrokeEnabled = _lyricStyle == 1;
-            v.StrokeColor = Color.Black;
-            v.StrokeWidth = 2f;
+            v.StrokeEnabled = false; // 不再使用描边
             v.UnsungColor = _lyricInactiveColor;
             v.SungColor = _lyricActiveColor;
 
@@ -565,9 +580,7 @@ public class FullLyricsFragment : Fragment
             _lyricViews[idx].SungColor = _lyricActiveColor;
             if (_lyricStyle == 1)
             {
-                _lyricViews[idx].StrokeEnabled = true;
-                _lyricViews[idx].StrokeColor = Color.Black;
-                _lyricViews[idx].StrokeWidth = 3f;
+                _lyricViews[idx].StrokeEnabled = false; // 不再使用描边
                 _lyricViews[idx].LyricProgress = _viewModel.CurrentLyricProgress;
             }
 
@@ -669,6 +682,7 @@ public class FullLyricsFragment : Fragment
 
         _lyricActiveColor = new Color(_lyricActiveArgb);
         _lyricInactiveColor = new Color(_lyricInactiveArgb);
+        _lyricColorMode = _prefs.GetInt("lyric_color_mode", 0);
 
         var catclawPrefs = Activity?.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private);
         _lyricStyle = catclawPrefs?.GetInt("lyric_style", 0) ?? 0;
@@ -687,6 +701,7 @@ public class FullLyricsFragment : Fragment
         e.PutInt("lyric_active_argb", _lyricActiveArgb);
         e.PutInt("lyric_inactive_argb", _lyricInactiveArgb);
         e.PutInt("lyric_bg_color", _lyricBgColorIndex);
+        e.PutInt("lyric_color_mode", _lyricColorMode);
         e.PutBoolean("lyric_bold", _lyricBold);
         e.Apply();
     }
@@ -805,16 +820,39 @@ public class FullLyricsFragment : Fragment
         rgAlignment.Check(_lyricAlignment switch { 0 => rbLeft.Id, 2 => rbRight.Id, _ => rbCenter.Id });
         content.AddView(rgAlignment);
 
+        // ---- 字体颜色模式（自适应 / 自定义） ----
+        var colorModeLabel = new TextView(Context) { Text = "字体颜色" };
+        colorModeLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
+        colorModeLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+        colorModeLabel.SetPadding(0, dp * 12, 0, dp * 4);
+        content.AddView(colorModeLabel);
+
+        var rgColorMode = new RadioGroup(Context) { Orientation = Orientation.Horizontal };
+        var rbAdaptive = new RadioButton(Context) { Text = "自适应" };
+        var rbCustom = new RadioButton(Context) { Text = "自定义" };
+        rbAdaptive.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbCustom.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbAdaptive.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rbCustom.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rgColorMode.AddView(rbAdaptive);
+        rgColorMode.AddView(rbCustom);
+        rgColorMode.Check(_lyricColorMode == 0 ? rbAdaptive.Id : rbCustom.Id);
+        content.AddView(rgColorMode);
+
+        // 自定义颜色容器（自适应模式下隐藏）
+        var customColorContainer = new LinearLayout(Context) { Orientation = Orientation.Vertical };
+        customColorContainer.Visibility = _lyricColorMode == 0 ? ViewStates.Gone : ViewStates.Visible;
+
         // ---- 当前行颜色（取色盘） ----
         var activeColorLabel = new TextView(Context) { Text = "当前行颜色" };
         activeColorLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
         activeColorLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
         activeColorLabel.SetPadding(0, dp * 12, 0, dp * 4);
-        content.AddView(activeColorLabel);
+        customColorContainer.AddView(activeColorLabel);
 
         var activePicker = new ColorPickerView(Context);
         activePicker.SetColor(_lyricActiveColor);
-        content.AddView(activePicker);
+        customColorContainer.AddView(activePicker);
 
         // 快速预设色按钮
         var activePresetRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal };
@@ -839,18 +877,18 @@ public class FullLyricsFragment : Fragment
         var activePresetScroll = new HorizontalScrollView(Context);
         activePresetScroll.AddView(activePresetRow);
         activePresetScroll.HorizontalScrollBarEnabled = false;
-        content.AddView(activePresetScroll);
+        customColorContainer.AddView(activePresetScroll);
 
         // ---- 非当前行颜色（取色盘） ----
         var inactiveColorLabel = new TextView(Context) { Text = "非当前行颜色" };
         inactiveColorLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
         inactiveColorLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
         inactiveColorLabel.SetPadding(0, dp * 12, 0, dp * 4);
-        content.AddView(inactiveColorLabel);
+        customColorContainer.AddView(inactiveColorLabel);
 
         var inactivePicker = new ColorPickerView(Context);
         inactivePicker.SetColor(_lyricInactiveColor);
-        content.AddView(inactivePicker);
+        customColorContainer.AddView(inactivePicker);
 
         // 快速预设色按钮
         var inactivePresetRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal };
@@ -875,7 +913,8 @@ public class FullLyricsFragment : Fragment
         var inactivePresetScroll = new HorizontalScrollView(Context);
         inactivePresetScroll.AddView(inactivePresetRow);
         inactivePresetScroll.HorizontalScrollBarEnabled = false;
-        content.AddView(inactivePresetScroll);
+        customColorContainer.AddView(inactivePresetScroll);
+        content.AddView(customColorContainer);
 
         // ---- 背景遮罩 ----
         var bgColorLabel = new TextView(Context) { Text = "背景遮罩" };
@@ -898,6 +937,16 @@ public class FullLyricsFragment : Fragment
         content.AddView(rgBgColor);
 
         cbDragSeek.CheckedChange += (s, e) => { _allowDragSeek = e.IsChecked; SaveSettings(); RebuildLyrics(); };
+        rgColorMode.CheckedChange += (s, e) =>
+        {
+            var newMode = e.CheckedId == rbAdaptive.Id ? 0 : 1;
+            if (newMode == _lyricColorMode) return;
+            _lyricColorMode = newMode;
+            customColorContainer.Visibility = _lyricColorMode == 0 ? ViewStates.Gone : ViewStates.Visible;
+            SaveSettings();
+            _lastLyricIndex = -999;
+            RebuildLyrics();
+        };
         rgLyricStyle.CheckedChange += (s, e) =>
         {
             var newStyle = e.CheckedId == rbWordByWord.Id ? 1 : 0;
@@ -937,9 +986,10 @@ public class FullLyricsFragment : Fragment
             SaveSettings(); RebuildLyrics();
         };
 
-        // 取色盘事件
+        // 取色盘事件（仅自定义模式下生效）
         activePicker.ColorChanged += (c) =>
         {
+            if (_lyricColorMode != 1) return;
             _lyricActiveColor = c;
             _lyricActiveArgb = c.ToArgb();
             SaveSettings();
@@ -948,6 +998,7 @@ public class FullLyricsFragment : Fragment
         };
         inactivePicker.ColorChanged += (c) =>
         {
+            if (_lyricColorMode != 1) return;
             _lyricInactiveColor = c;
             _lyricInactiveArgb = c.ToArgb();
             SaveSettings(); RebuildLyrics();

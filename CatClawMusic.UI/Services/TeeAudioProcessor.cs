@@ -16,7 +16,7 @@ public class TeeAudioProcessor : BaseAudioProcessor
     private float[]? _eqBuffer;
     private float[]? _eqInterleavedBuffer;
 
-    /// <summary>软件 10 段均衡器（可为 null）</summary>
+    /// <summary>软件 10 段均衡器（FFmpeg anequalizer 算法，可为 null）</summary>
     public EqBandProcessor? EqProcessor { get; set; }
 
     /// <summary>最新的频谱数据（32 个频带，0~1 归一化值）</summary>

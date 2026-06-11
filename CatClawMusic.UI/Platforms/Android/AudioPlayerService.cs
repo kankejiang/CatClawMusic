@@ -536,6 +536,49 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
         _lastPlaybackState = _player.PlaybackState;
         ALog.Debug("CatClaw", $"[CatClaw] Player created, AudioSessionId={AudioSessionId}");
+
+        // 启动时从 SharedPreferences 恢复音效设置
+        RestoreEqSettings();
+    }
+
+    /// <summary>
+    /// 启动时从 SharedPreferences 恢复均衡器设置（确保 EQ 在打开对话框之前就能生效）
+    /// </summary>
+    private void RestoreEqSettings()
+    {
+        try
+        {
+            var eqProcessor = MainApplication.Services.GetService<EqBandProcessor>();
+            if (eqProcessor == null) return;
+
+            var prefs = global::Android.App.Application.Context
+                .GetSharedPreferences("catclaw_eq10_prefs", global::Android.Content.FileCreationMode.Private);
+            if (prefs == null) return;
+
+            bool eqEnabled = prefs.GetBoolean("eq_enabled", false);
+            eqProcessor.Enabled = eqEnabled;
+
+            if (eqEnabled)
+            {
+                int savedPreset = prefs.GetInt("eq_preset", -1);
+                if (savedPreset < 0)
+                {
+                    // 自定义模式：恢复各频段增益
+                    for (int i = 0; i < EqBandProcessor.Bands; i++)
+                    {
+                        int saved = prefs.GetInt($"eq_band_{i}", int.MinValue);
+                        if (saved != int.MinValue)
+                            eqProcessor.SetBandLevelMillibels(i, (short)saved);
+                    }
+                }
+            }
+
+            ALog.Debug("CatClaw", $"[CatClaw] EQ settings restored: enabled={eqEnabled}");
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"[CatClaw] Failed to restore EQ settings: {ex.Message}");
+        }
     }
 
     private static string? _smbCacheDir;

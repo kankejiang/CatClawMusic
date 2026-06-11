@@ -132,23 +132,31 @@ public class StrokeTextView : TextView
             base.OnDraw(canvas);
 
             // 第三层：已唱颜色覆盖，逐行裁剪实现逐行着色（第一行唱完再着色第二行）
+            // 有译文时，仅对原文行着色，译文行保持底色不被渐变染色
             if (needsGradient && _lyricProgress > 0f)
             {
                 // 计算每行宽度和总宽度（逐行累加），进度按总宽度比例分配
                 int lineCount = Layout.LineCount;
+                // 查找原文行数量（换行符之前），译文行不参与渐变着色
+                int mainLineCount = lineCount;
+                int nlIndex = Text?.IndexOf('\n') ?? -1;
+                if (nlIndex >= 0)
+                    mainLineCount = Layout.GetLineForOffset(nlIndex) + 1;
+
                 var lineWidths = new float[lineCount];
                 float totalWidth = 0f;
                 for (int i = 0; i < lineCount; i++)
                 {
                     lineWidths[i] = Layout.GetLineWidth(i);
-                    totalWidth += lineWidths[i];
+                    if (i < mainLineCount)
+                        totalWidth += lineWidths[i];
                 }
 
-                // 将进度映射到逐行累计宽度上的位置
+                // 将进度映射到逐行累计宽度上的位置（仅基于原文行宽度）
                 float progressWidth = totalWidth * Math.Clamp(_lyricProgress, 0f, 1f);
 
                 float accumulated = 0f;
-                for (int i = 0; i < lineCount; i++)
+                for (int i = 0; i < mainLineCount; i++)
                 {
                     if (accumulated >= progressWidth) break;
 

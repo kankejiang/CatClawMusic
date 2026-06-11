@@ -76,6 +76,8 @@ public class LandscapeNowPlayingFragment : Fragment
     private Color _lpLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
     private int _lpLyricFontSize = 16;
     private bool _lpLyricBold = true;
+    private int _lpLyricColorMode = 0; // 0=自适应, 1=自定义
+    private float _currentBgLuminance = 0.3f;
 
     public override void OnCreate(Bundle? savedInstanceState)
     {
@@ -692,6 +694,7 @@ public class LandscapeNowPlayingFragment : Fragment
 
         _lpLyricFontSize = prefs.GetInt("lyric_font_size", 16);
         _lpLyricBold = prefs.GetBoolean("lyric_bold", true);
+        _lpLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
 
         // 读取 ARGB 颜色值（向后兼容旧版索引存储）
         if (prefs.Contains("lyric_active_argb"))
@@ -746,6 +749,21 @@ public class LandscapeNowPlayingFragment : Fragment
     /// </summary>
     private void ApplyDefaultLyricColors()
     {
+        // 自适应模式：根据背景亮度自动设置歌词颜色
+        if (_lpLyricColorMode == 0)
+        {
+            if (_currentBgLuminance >= 0.5f)
+            {
+                _lpLyricActiveColor = Color.Black;
+                _lpLyricInactiveColor = Color.ParseColor("#88333333");
+            }
+            else
+            {
+                _lpLyricActiveColor = Color.White;
+                _lpLyricInactiveColor = Color.ParseColor("#88BBBBBB");
+            }
+        }
+
         var farUnsungColor = Color.Argb(
             (byte)(_lpLyricInactiveColor.A / 2),
             _lpLyricInactiveColor.R,
@@ -769,6 +787,13 @@ public class LandscapeNowPlayingFragment : Fragment
     {
         if (_gradientBackground == null || entries.Count == 0) return;
         var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
+
+        // 根据种子色计算背景亮度，用于自适应歌词颜色
+        int seedR = Android.Graphics.Color.GetRedComponent(entries[0].Color);
+        int seedG = Android.Graphics.Color.GetGreenComponent(entries[0].Color);
+        int seedB = Android.Graphics.Color.GetBlueComponent(entries[0].Color);
+        _currentBgLuminance = (0.299f * seedR + 0.587f * seedG + 0.114f * seedB) / 255f;
+
         var sorted = entries.OrderByDescending(e => e.Weight).ToList();
         var totalWeight = sorted.Sum(e => Math.Max(e.Weight, 0.01f));
         var topEntries = sorted.Where(e => e.Weight / totalWeight >= 0.20f).Take(3).ToList();
@@ -784,6 +809,20 @@ public class LandscapeNowPlayingFragment : Fragment
         var onSurfaceColor = new Color(palette.OnSurface);
         _songTitle.SetTextColor(onSurfaceColor);
         _songArtist.SetTextColor(new Color(palette.OnSurfaceVariant));
+        // 自适应模式：根据背景亮度自动设置歌词颜色
+        if (_lpLyricColorMode == 0)
+        {
+            if (_currentBgLuminance >= 0.5f)
+            {
+                _lpLyricActiveColor = Color.Black;
+                _lpLyricInactiveColor = Color.ParseColor("#88333333");
+            }
+            else
+            {
+                _lpLyricActiveColor = Color.White;
+                _lpLyricInactiveColor = Color.ParseColor("#88BBBBBB");
+            }
+        }
         // 使用设置中的歌词颜色
         var farUnsungColor = Color.Argb(
             (byte)(_lpLyricInactiveColor.A / 2),
@@ -1121,12 +1160,12 @@ public class LandscapeNowPlayingFragment : Fragment
         try
         {
             var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-            var dialog = new Services.EqualizerDialog(Activity!, player);
+            var dialog = new Services.SoundEffectDialog(Activity!, player);
             dialog.Show();
         }
         catch (Exception ex)
         {
-            Android.Util.Log.Warn("CatClaw", $"打开均衡器失败: {ex.Message}");
+            Android.Util.Log.Warn("CatClaw", $"打开音效失败: {ex.Message}");
         }
     }
 

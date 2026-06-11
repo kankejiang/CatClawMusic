@@ -76,6 +76,8 @@ public class NowPlayingFragment : Fragment
     private Color _npLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
     private int _npLyricFontSize = 16;
     private bool _npLyricBold = true;
+    private int _npLyricColorMode = 0; // 0=自适应, 1=自定义
+    private float _currentBgLuminance = 0.3f; // 当前背景亮度（用于自适应模式）
 
     public override void OnCreate(Bundle? savedInstanceState)
     {
@@ -525,6 +527,12 @@ public class NowPlayingFragment : Fragment
 
         var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
 
+        // 根据种子色（封面主色调）计算背景亮度，用于自适应歌词颜色
+        int seedR = Android.Graphics.Color.GetRedComponent(entries[0].Color);
+        int seedG = Android.Graphics.Color.GetGreenComponent(entries[0].Color);
+        int seedB = Android.Graphics.Color.GetBlueComponent(entries[0].Color);
+        _currentBgLuminance = (0.299f * seedR + 0.587f * seedG + 0.114f * seedB) / 255f;
+
         // 根据背景色亮度动态设置状态栏文字颜色
         int r = Android.Graphics.Color.GetRedComponent(palette.Background);
         int g = Android.Graphics.Color.GetGreenComponent(palette.Background);
@@ -802,6 +810,7 @@ public class NowPlayingFragment : Fragment
 
         _npLyricFontSize = prefs.GetInt("lyric_font_size", 16);
         _npLyricBold = prefs.GetBoolean("lyric_bold", true);
+        _npLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
 
         // 读取 ARGB 颜色值（向后兼容旧版索引存储）
         if (prefs.Contains("lyric_active_argb"))
@@ -847,6 +856,23 @@ public class NowPlayingFragment : Fragment
 
     private void ApplyLyricColors()
     {
+        // 自适应模式：根据背景亮度自动设置歌词颜色
+        if (_npLyricColorMode == 0)
+        {
+            if (_currentBgLuminance >= 0.5f)
+            {
+                // 浅色背景：黑色已唱，灰色未唱
+                _npLyricActiveColor = Color.Black;
+                _npLyricInactiveColor = Color.ParseColor("#88333333");
+            }
+            else
+            {
+                // 深色背景：白色已唱，灰色未唱
+                _npLyricActiveColor = Color.White;
+                _npLyricInactiveColor = Color.ParseColor("#88BBBBBB");
+            }
+        }
+
         var sungColor = _npLyricActiveColor;
         var nearUnsungColor = _npLyricInactiveColor;
         // 远端歌词颜色在近端基础上再降低透明度
@@ -1150,12 +1176,12 @@ public class NowPlayingFragment : Fragment
         try
         {
             var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-            var dialog = new Services.EqualizerDialog(Activity!, player);
+            var dialog = new Services.SoundEffectDialog(Activity!, player);
             dialog.Show();
         }
         catch (Exception ex)
         {
-            Android.Util.Log.Warn("CatClaw", $"打开均衡器失败: {ex.Message}");
+            Android.Util.Log.Warn("CatClaw", $"打开音效失败: {ex.Message}");
         }
     }
 
