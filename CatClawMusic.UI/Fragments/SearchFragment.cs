@@ -9,6 +9,7 @@ using CatClawMusic.Core.Services;
 using CatClawMusic.Core.Services.AI;
 using CatClawMusic.Data;
 using CatClawMusic.UI.ViewModels;
+using Google.Android.Material.Button;
 using Google.Android.Material.Tabs;
 using IAgentService = CatClawMusic.Core.Interfaces.IAgentService;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
@@ -37,6 +38,7 @@ public class SearchFragment : Fragment
     private RecyclerView _rvAlbums = null!;
     private RecyclerView _rvTopPlayed = null!;
     private RecyclerView _rvRecentAdded = null!;
+    private TextView? _exploreSectionTitle;
     private View _layoutExploreMain = null!;
     private readonly RecyclerView[] _tabRecyclerViews = new RecyclerView[5];
 
@@ -222,6 +224,50 @@ public class SearchFragment : Fragment
             await PlaySongAsync(song);
         };
 
+        // Pill tabs
+        var pillDaily = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_daily);
+        var pillArtists = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_artists);
+        var pillAlbums = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_albums);
+        var pillTopPlayed = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_top_played);
+        var pillRecent = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_recent);
+        var pills = new[] { pillDaily, pillArtists, pillAlbums, pillTopPlayed, pillRecent };
+
+        for (int i = 0; i < pills.Length; i++)
+        {
+            int tabIndex = i;
+            var pill = pills[i];
+            if (pill == null) continue;
+            pill.Click += (s, e) =>
+            {
+                // Switch content
+                SwitchExploreTab(tabIndex);
+                // Also sync hidden TabLayout for code that depends on it
+                if (_tabLayout.TabCount > tabIndex)
+                {
+                    var tab = _tabLayout.GetTabAt(tabIndex);
+                    if (tab != null) tab.Select();
+                }
+                // Update pill styles
+                foreach (var p in pills)
+                {
+                    if (p == null) continue;
+                    if (p == pill)
+                    {
+                        p.SetBackgroundColor(Android.Graphics.Color.ParseColor("#9B7ED8"));
+                        p.SetTextColor(Android.Graphics.Color.White);
+                    }
+                    else
+                    {
+                        p.SetBackgroundColor(Android.Graphics.Color.ParseColor("#1E787880"));
+                        p.SetTextColor(Android.Graphics.Color.ParseColor("#6B5E7A"));
+                    }
+                }
+            };
+        }
+
+        // 内容区标题
+        _exploreSectionTitle = view.FindViewById<TextView>(Resource.Id.tv_explore_section_title);
+
         // 点击 Yuki 头像进入聊天模式
         _yukiAvatar.Click += (s, e) => EnterChatMode();
     }
@@ -282,6 +328,28 @@ public class SearchFragment : Fragment
         for (var i = 0; i < _tabRecyclerViews.Length; i++)
         {
             _tabRecyclerViews[i].Visibility = i == index ? ViewStates.Visible : ViewStates.Gone;
+        }
+    }
+
+    private void SwitchExploreTab(int index)
+    {
+        _rvDailyRecommend.Visibility = index == 0 ? ViewStates.Visible : ViewStates.Gone;
+        _rvArtists.Visibility = index == 1 ? ViewStates.Visible : ViewStates.Gone;
+        _rvAlbums.Visibility = index == 2 ? ViewStates.Visible : ViewStates.Gone;
+        _rvTopPlayed.Visibility = index == 3 ? ViewStates.Visible : ViewStates.Gone;
+        _rvRecentAdded.Visibility = index == 4 ? ViewStates.Visible : ViewStates.Gone;
+
+        if (_exploreSectionTitle != null)
+        {
+            _exploreSectionTitle.Text = index switch
+            {
+                0 => "每日推荐",
+                1 => "艺术家",
+                2 => "专辑",
+                3 => "最多播放",
+                4 => "最新音乐",
+                _ => "每日推荐"
+            };
         }
     }
 
@@ -1017,6 +1085,29 @@ public class SearchFragment : Fragment
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[Explore] 全部播放失败: {ex}");
+        }
+    }
+
+    private async void ShuffleDailyRecommend()
+    {
+        try
+        {
+            var songs = await _exploreData!.GetDailyRecommendAsync();
+            if (songs.Count == 0 || _audioPlayer == null || _playQueue == null) return;
+            var shuffled = songs.OrderBy(_ => Guid.NewGuid()).ToList();
+            _lastSearchResults = shuffled;
+            _playQueue.SetSongs(shuffled);
+            _playQueue.SelectSong(shuffled[0].Id);
+            if (!string.IsNullOrEmpty(shuffled[0].FilePath))
+            {
+                await _audioPlayer.PlayAsync(shuffled[0].FilePath);
+                _ = RecordPlayAsync(shuffled[0]);
+            }
+            _navigationService.PushFragment("NowPlaying");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Explore] 随机播放失败: {ex}");
         }
     }
 

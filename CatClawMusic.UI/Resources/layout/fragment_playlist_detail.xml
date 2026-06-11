@@ -6,6 +6,7 @@
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingHorizontal="4dp" android:paddingTop="8dp"
         android:layout_marginBottom="4dp">
 
         <ImageButton android:id="@+id/btn_back" android:layout_width="40dp"
@@ -18,44 +19,50 @@
         <TextView android:id="@+id/title_text" android:layout_width="0dp"
             android:layout_height="wrap_content" android:layout_weight="1"
             android:textSize="20sp" android:textColor="?attr/catClawTextPrimary"
-            android:fontFamily="@font/happy_zcool_2016"
+            android:fontFamily="sans-serif"
+            android:textStyle="bold"
             android:text="@string/playlist_detail" android:maxLines="1"
             android:ellipsize="end" />
     </LinearLayout>
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:gravity="center_vertical"
-        android:layout_marginBottom="12dp">
+        android:paddingHorizontal="4dp" android:paddingBottom="8dp"
+        android:layout_marginBottom="4dp">
 
-        <ImageButton android:id="@+id/btn_shuffle" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_shuffle"
+        <ImageButton android:id="@+id/btn_shuffle" android:layout_width="40dp"
+            android:layout_height="40dp" android:src="@drawable/ic_shuffle"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="?attr/catClawTextHint"
+            android:padding="8dp"
             android:contentDescription="随机播放"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="4dp" />
 
         <View android:layout_width="0dp" android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <ImageButton android:id="@+id/btn_sort" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_sort"
+        <ImageButton android:id="@+id/btn_sort" android:layout_width="40dp"
+            android:layout_height="40dp" android:src="@drawable/ic_sort"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="?attr/catClawTextHint"
+            android:padding="8dp"
             android:contentDescription="排序"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="4dp" />
 
-        <ImageButton android:id="@+id/btn_filter" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_filter"
+        <ImageButton android:id="@+id/btn_filter" android:layout_width="40dp"
+            android:layout_height="40dp" android:src="@drawable/ic_filter"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="?attr/catClawTextHint"
+            android:padding="8dp"
             android:contentDescription="筛选"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="4dp"
             android:visibility="gone" />
 
-        <ImageButton android:id="@+id/btn_multi_select" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_check_box_outline"
+        <ImageButton android:id="@+id/btn_multi_select" android:layout_width="40dp"
+            android:layout_height="40dp" android:src="@drawable/ic_check_box_outline"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="?attr/catClawTextHint"
+            android:padding="8dp"
             android:contentDescription="多选" />
     </LinearLayout>
 

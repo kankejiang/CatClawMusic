@@ -114,10 +114,10 @@
 
     <!-- 毛玻璃卡片 -->
     <style name="CatClawCard" parent="Widget.Material3.CardView.Elevated">
-        <item name="cardCornerRadius">20dp</item>
+        <item name="cardCornerRadius">16dp</item>
         <item name="cardElevation">0dp</item>
         <item name="strokeColor">?attr/catClawCardBorder</item>
-        <item name="strokeWidth">1dp</item>
+        <item name="strokeWidth">0.5dp</item>
         <item name="cardBackgroundColor">?attr/catClawCardBackground</item>
     </style>
 
@@ -145,6 +145,11 @@
         <item name="android:textColor">?attr/catClawTextOnPrimary</item>
         <item name="cornerRadius">16dp</item>
         <item name="android:elevation">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
     </style>
 
     <!-- 次按钮 -->
@@ -153,11 +158,17 @@
         <item name="android:textColor">?attr/catClawPrimaryDark</item>
         <item name="cornerRadius">16dp</item>
         <item name="android:elevation">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
     </style>
 
     <!-- 标题 -->
     <style name="CatClawHeading" parent="TextAppearance.Material3.HeadlineSmall">
-        <item name="fontFamily">@font/happy_zcool_2016</item>
+        <item name="fontFamily">sans-serif</item>
+        <item name="android:textStyle">bold</item>
         <item name="android:textColor">?attr/catClawTextPrimary</item>
     </style>
     <style name="CatClawBody" parent="TextAppearance.Material3.BodyMedium">
@@ -165,13 +176,39 @@
         <item name="android:textColor">?attr/catClawTextSecondary</item>
     </style>
     <style name="CatClawTitle" parent="TextAppearance.Material3.TitleLarge">
-        <item name="fontFamily">@font/happy_zcool_2016</item>
+        <item name="fontFamily">sans-serif</item>
         <item name="android:textColor">?attr/catClawTextPrimary</item>
     </style>
 
     <!-- 探索页 Tab 文字 -->
     <style name="ExploreTabText" parent="TextAppearance.Design.Tab">
-        <item name="android:textSize">15sp</item>
-        <item name="fontFamily">@font/happy_zcool_2016</item>
+        <item name="android:textSize">14sp</item>
+        <item name="fontFamily">sans-serif</item>
+    </style>
+
+    <!-- iOS 大标题 -->
+    <style name="CatClawLargeTitle" parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="android:textSize">32sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="fontFamily">sans-serif</item>
+        <item name="android:textColor">?attr/catClawTextPrimary</item>
+    </style>
+
+    <!-- iOS 分组卡片 -->
+    <style name="CatClawGroupedCard" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">?attr/catClawCardBorder</item>
+        <item name="strokeWidth">0.5dp</item>
+        <item name="cardBackgroundColor">?attr/catClawCardBackground</item>
+    </style>
+
+    <!-- iOS Section Header 文本 -->
+    <style name="CatClawSectionHeader" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="fontFamily">sans-serif</item>
+        <item name="android:textColor">?attr/catClawTextHint</item>
     </style>
 </resources>

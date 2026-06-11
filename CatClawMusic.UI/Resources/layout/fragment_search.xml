@@ -9,29 +9,45 @@
         android:layout_width="match_parent" android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top bar: search input + Yuki avatar -->
+        <!-- 大标题 -->
+        <TextView android:id="@+id/page_title_explore"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="探索" android:textSize="28sp" android:textStyle="bold"
+            android:fontFamily="sans-serif" android:textColor="?attr/catClawTextPrimary"
+            android:paddingHorizontal="20dp" android:paddingTop="36dp"
+            android:paddingBottom="4dp" />
+
+        <!-- 搜索输入 + Yuki 头像 -->
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical"
-            android:paddingHorizontal="16dp" android:paddingVertical="12dp">
+            android:paddingHorizontal="16dp" android:paddingTop="8dp" android:paddingBottom="10dp">
 
             <com.google.android.material.card.MaterialCardView
-                android:layout_width="0dp" android:layout_height="44dp"
+                android:layout_width="0dp" android:layout_height="38dp"
                 android:layout_weight="1"
-                app:cardCornerRadius="22dp" app:cardElevation="0dp"
-                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+                app:cardCornerRadius="10dp" app:cardElevation="0dp"
+                app:strokeWidth="0.5dp" app:strokeColor="?attr/catClawCardBorder"
                 app:cardBackgroundColor="?attr/catClawCardBackground">
-                <EditText android:id="@+id/et_search_input"
-                    android:layout_width="match_parent" android:layout_height="match_parent"
-                    android:hint="搜索歌曲、艺术家、专辑"
-                    android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
-                    android:background="@null" android:paddingHorizontal="16dp"
-                    android:textSize="14sp" android:maxLines="1"
-                    android:imeOptions="actionSearch" android:inputType="text"
-                    android:importantForAutofill="no" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:paddingHorizontal="10dp">
+                    <ImageView android:layout_width="16dp" android:layout_height="16dp"
+                        android:src="@android:drawable/ic_menu_search"
+                        android:tint="?attr/catClawTextHint"
+                        android:layout_marginEnd="6dp" />
+                    <EditText android:id="@+id/et_search_input"
+                        android:layout_width="match_parent" android:layout_height="match_parent"
+                        android:hint="搜索或输入指令..."
+                        android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                        android:background="@null"
+                        android:textSize="14sp" android:maxLines="1"
+                        android:imeOptions="actionSearch" android:inputType="text"
+                        android:importantForAutofill="no" />
+                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <ImageView android:id="@+id/iv_yuki_avatar"
-                android:layout_width="40dp" android:layout_height="40dp"
+                android:layout_width="36dp" android:layout_height="36dp"
                 android:layout_marginStart="12dp"
                 android:src="@drawable/avatar_yuki"
                 android:scaleType="centerCrop"
@@ -40,63 +56,129 @@
                 android:contentDescription="AI助手" />
         </LinearLayout>
 
-        <!-- Sub tabs -->
+        <!-- Pill 标签栏 -->
+        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:scrollbars="none" android:paddingHorizontal="16dp"
+            android:layout_marginBottom="8dp">
+            <LinearLayout android:id="@+id/tab_pills"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/pill_daily"
+                    android:layout_width="wrap_content" android:layout_height="36dp"
+                    android:text="每日推荐" android:textSize="13sp"
+                    android:textAllCaps="false"
+                    android:insetTop="0dp" android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    app:cornerRadius="18dp"
+                    style="@style/CatClawButtonPrimary"
+                    android:layout_marginEnd="8dp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/pill_artists"
+                    android:layout_width="wrap_content" android:layout_height="36dp"
+                    android:text="艺术家" android:textSize="13sp"
+                    android:textAllCaps="false"
+                    android:insetTop="0dp" android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    app:cornerRadius="18dp"
+                    style="@style/CatClawButtonSecondary"
+                    android:layout_marginEnd="8dp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/pill_albums"
+                    android:layout_width="wrap_content" android:layout_height="36dp"
+                    android:text="专辑" android:textSize="13sp"
+                    android:textAllCaps="false"
+                    android:insetTop="0dp" android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    app:cornerRadius="18dp"
+                    style="@style/CatClawButtonSecondary"
+                    android:layout_marginEnd="8dp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/pill_top_played"
+                    android:layout_width="wrap_content" android:layout_height="36dp"
+                    android:text="最多播放" android:textSize="13sp"
+                    android:textAllCaps="false"
+                    android:insetTop="0dp" android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    app:cornerRadius="18dp"
+                    style="@style/CatClawButtonSecondary"
+                    android:layout_marginEnd="8dp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/pill_recent"
+                    android:layout_width="wrap_content" android:layout_height="36dp"
+                    android:text="最新音乐" android:textSize="13sp"
+                    android:textAllCaps="false"
+                    android:insetTop="0dp" android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    app:cornerRadius="18dp"
+                    style="@style/CatClawButtonSecondary" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <!-- 内容区标题 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingHorizontal="20dp" android:paddingTop="4dp" android:paddingBottom="8dp">
+            <TextView android:id="@+id/tv_explore_section_title"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="每日推荐" android:textSize="18sp" android:textStyle="bold"
+                android:fontFamily="sans-serif"
+                android:textColor="?attr/catClawTextPrimary" />
+            <TextView android:id="@+id/tv_explore_count"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="?attr/catClawTextHint" />
+        </LinearLayout>
+
+        <!-- 隐藏原始 TabLayout（保留ID给代码引用） -->
         <com.google.android.material.tabs.TabLayout android:id="@+id/tab_layout"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_width="0dp" android:layout_height="0dp"
+            android:visibility="gone"
             app:tabMode="scrollable" app:tabGravity="start"
             app:tabIndicatorColor="?attr/catClawPrimaryColor"
             app:tabSelectedTextColor="?attr/catClawPrimaryColor"
             app:tabTextColor="?attr/catClawTextSecondary"
-            app:tabTextAppearance="@style/ExploreTabText"
-            android:paddingHorizontal="8dp" />
+            app:tabTextAppearance="@style/ExploreTabText" />
 
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="?attr/catClawCardBorder" />
-
-        <!-- Tab content container -->
+        <!-- Tab 内容：RecyclerView 直接滚动 -->
         <FrameLayout android:id="@+id/tab_content"
             android:layout_width="match_parent" android:layout_height="0dp"
             android:layout_weight="1">
 
-            <!-- 每日推荐 -->
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_daily_recommend"
                 android:layout_width="match_parent" android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingHorizontal="12dp" android:paddingVertical="8dp"
+                android:paddingHorizontal="16dp" android:paddingVertical="4dp"
                 android:visibility="visible" />
 
-            <!-- 艺术家 -->
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_artists"
                 android:layout_width="match_parent" android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingHorizontal="12dp" android:paddingVertical="8dp"
+                android:paddingHorizontal="16dp" android:paddingVertical="4dp"
                 android:visibility="gone" />
 
-            <!-- 专辑 -->
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_albums"
                 android:layout_width="match_parent" android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingHorizontal="12dp" android:paddingVertical="8dp"
+                android:paddingHorizontal="16dp" android:paddingVertical="4dp"
                 android:visibility="gone" />
 
-            <!-- 最多播放 -->
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_top_played"
                 android:layout_width="match_parent" android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingHorizontal="12dp" android:paddingVertical="8dp"
+                android:paddingHorizontal="16dp" android:paddingVertical="4dp"
                 android:visibility="gone" />
 
-            <!-- 最新音乐 -->
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_recent_added"
                 android:layout_width="match_parent" android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingHorizontal="12dp" android:paddingVertical="8dp"
+                android:paddingHorizontal="16dp" android:paddingVertical="4dp"
                 android:visibility="gone" />
-
         </FrameLayout>
     </LinearLayout>
 
-    <!-- Search suggestion dropdown (positioned over content, initially gone) -->
+    <!-- 搜索建议下拉框 -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/card_search_suggestions"
         android:layout_width="match_parent"
@@ -117,7 +199,7 @@
             android:clipToPadding="false" />
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- AI Chat overlay (initially gone) -->
+    <!-- AI 聊天覆盖层 -->
     <LinearLayout android:id="@+id/layout_chat_overlay"
         android:layout_width="match_parent" android:layout_height="match_parent"
         android:orientation="vertical"
@@ -146,7 +228,7 @@
                 android:layout_weight="1"
                 android:text="Yuki" android:textSize="18sp"
                 android:textColor="?attr/catClawTextPrimary"
-                android:fontFamily="@font/happy_zcool_2016"
+                android:fontFamily="sans-serif-medium"
                 android:layout_marginStart="8dp" />
             <ImageButton android:id="@+id/btn_ai_settings"
                 android:layout_width="36dp" android:layout_height="36dp"
@@ -184,23 +266,24 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp" android:layout_height="44dp"
                 android:layout_weight="1"
-                app:cardCornerRadius="22dp" app:cardElevation="0dp"
-                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
-                app:cardBackgroundColor="?attr/catClawCardBackground">
+                app:cardCornerRadius="10dp" app:cardElevation="0dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="#1E787880">
                 <EditText android:id="@+id/et_chat_input"
                     android:layout_width="match_parent" android:layout_height="match_parent"
                     android:hint="和 Yuki 聊聊..."
                     android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
                     android:background="@null" android:paddingHorizontal="16dp"
-                    android:textSize="14sp" android:maxLines="3"
+                    android:textSize="15sp" android:maxLines="3"
                     android:importantForAutofill="no" android:inputType="textMultiLine" />
             </com.google.android.material.card.MaterialCardView>
             <ImageButton android:id="@+id/btn_send"
                 android:layout_width="44dp" android:layout_height="44dp"
                 android:layout_marginStart="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/bg_circle_primary"
+                android:backgroundTint="?attr/catClawPrimaryColor"
                 android:src="@drawable/ic_send"
-                android:tint="?attr/catClawPrimaryColor"
+                android:tint="#FFFFFF"
                 android:scaleType="centerInside"
                 android:padding="10dp"
                 android:contentDescription="发送" />

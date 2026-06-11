@@ -4,10 +4,12 @@
     android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
     <TextView android:id="@+id/title_text" android:layout_width="wrap_content"
-        android:layout_height="wrap_content" android:text="@string/tab_playlist"
-        android:textSize="22sp" android:fontFamily="@font/happy_zcool_2016"
-        android:textColor="?attr/catClawTextPrimary" android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="24dp" android:layout_marginBottom="8dp" />
+        android:layout_height="wrap_content" android:text="歌单"
+        android:textSize="32sp" android:fontFamily="sans-serif"
+        android:textStyle="bold"
+        android:textColor="?attr/catClawTextPrimary"
+        android:paddingHorizontal="20dp" android:paddingTop="36dp"
+        android:paddingBottom="12dp" />
 
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/playlist_list"
         android:layout_width="match_parent" android:layout_height="0dp"
