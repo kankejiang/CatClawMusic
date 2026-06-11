@@ -1,11 +1,13 @@
 using AndroidX.Media3.Common.Audio;
 using CatClawMusic.Core.Services;
+using CatClawMusic.UI.Services.Effects;
 
 namespace CatClawMusic.UI.Services;
 
 /// <summary>
-/// TeeAudioProcessor: 从 ExoPlayer 音频管道截取 PCM 数据用于可视化和软件 EQ。
-/// EQ 处理时修改音频数据，否则完全透传。无需 RECORD_AUDIO 权限。
+/// TeeAudioProcessor: 从 ExoPlayer 音频管道截取 PCM 数据用于可视化和软件音效处理链。
+/// 音效处理链由 AudioEffectChain 编排（EQ + 压限器 + 混响 + 其他效果）。
+/// 无需 RECORD_AUDIO 权限。
 /// </summary>
 public class TeeAudioProcessor : BaseAudioProcessor
 {
@@ -13,11 +15,10 @@ public class TeeAudioProcessor : BaseAudioProcessor
     private int _tempCount;
 
     private float[]? _fallbackSpectrumBuffer;
-    private float[]? _eqBuffer;
-    private float[]? _eqInterleavedBuffer;
+    private float[]? _processBuffer;
 
-    /// <summary>软件 10 段均衡器（FFmpeg anequalizer 算法，可为 null）</summary>
-    public EqBandProcessor? EqProcessor { get; set; }
+    /// <summary>音效处理链（包含 EQ 和所有软件效果，可为 null）</summary>
+    public AudioEffectChain? EffectChain { get; set; }
 
     /// <summary>最新的频谱数据（32 个频带，0~1 归一化值）</summary>
     public float[] LatestSpectrum { get; private set; } = Array.Empty<float>();
@@ -27,7 +28,7 @@ public class TeeAudioProcessor : BaseAudioProcessor
     /// <summary>采样率（由 ExoPlayer 设置）</summary>
     public float CurrentSampleRate { get; set; } = 44100;
 
-    /// <summary>队列输入音频数据，处理可视化 + EQ</summary>
+    /// <summary>队列输入音频数据，处理可视化 + 音效链</summary>
     public override void QueueInput(Java.Nio.ByteBuffer? inputBuffer)
     {
         if (inputBuffer == null) return;
@@ -42,21 +43,38 @@ public class TeeAudioProcessor : BaseAudioProcessor
             int sampleCount = remaining / 2;
             int frameCount = sampleCount / 2;
 
-            // 频谱计算：从左声道提取幅度
+            // 频谱计算：从左声道提取幅度（从原始输入读取，不受效果处理影响）
             var monoCount = Math.Min(frameCount, _tempBuffer.Length);
             for (int i = 0; i < monoCount; i++)
                 _tempBuffer[i] = Math.Abs((float)shortBuf.Get(i * 2) / 32768f);
             _tempCount = monoCount;
             ComputeSpectrumBands();
 
-            // EQ 处理：读写 short 样本到 output
-            var eq = EqProcessor;
-            if (eq != null && eq.Enabled)
+            // 音效链处理：EQ + 所有软件效果
+            var chain = EffectChain;
+            if (chain != null)
             {
-                ApplyEq(shortBuf, sampleCount, frameCount, eq);
+                chain.SetSampleRate(CurrentSampleRate);
+
+                if (_processBuffer == null || _processBuffer.Length < sampleCount)
+                    _processBuffer = new float[sampleCount];
+
+                // short → float
+                for (int i = 0; i < sampleCount; i++)
+                    _processBuffer[i] = (float)shortBuf.Get(i) / 32768f;
+
+                // 处理链: EQ → Compressor → Reverb → Widener → Saturation → DeEsser → Limiter
+                chain.Process(_processBuffer, frameCount);
+
+                // float → short (带钳位)
                 inputBuffer.Position(pos);
                 for (int i = 0; i < sampleCount; i++)
-                    outputBuffer.PutShort(shortBuf.Get(i));
+                {
+                    float v = _processBuffer[i];
+                    if (v > 1f) v = 1f;
+                    if (v < -1f) v = -1f;
+                    outputBuffer.PutShort((short)(v * 32767f));
+                }
             }
             else
             {
@@ -64,27 +82,6 @@ public class TeeAudioProcessor : BaseAudioProcessor
                 outputBuffer.Put(inputBuffer);
             }
             outputBuffer.Flip();
-        }
-    }
-
-    private void ApplyEq(Java.Nio.ShortBuffer shortBuf, int sampleCount, int frameCount, EqBandProcessor eq)
-    {
-        eq.SetSampleRate(CurrentSampleRate);
-
-        if (_eqInterleavedBuffer == null || _eqInterleavedBuffer.Length < sampleCount)
-            _eqInterleavedBuffer = new float[sampleCount];
-
-        for (int i = 0; i < sampleCount; i++)
-            _eqInterleavedBuffer[i] = (float)shortBuf.Get(i) / 32768f;
-
-        eq.ProcessInterleaved(_eqInterleavedBuffer, frameCount);
-
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float v = _eqInterleavedBuffer[i];
-            if (v > 1f) v = 1f;
-            if (v < -1f) v = -1f;
-            shortBuf.Put(i, (short)(v * 32767f));
         }
     }
 

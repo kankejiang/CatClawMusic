@@ -2,6 +2,7 @@ using Android.OS;
 using Android.Runtime;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.Services;
+using CatClawMusic.UI.Services.Effects;
 using Microsoft.Extensions.DependencyInjection;
 using System.Timers;
 using AndroidHandler = Android.OS.Handler;
@@ -538,46 +539,127 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         ALog.Debug("CatClaw", $"[CatClaw] Player created, AudioSessionId={AudioSessionId}");
 
         // 启动时从 SharedPreferences 恢复音效设置
-        RestoreEqSettings();
+        RestoreAudioSettings();
     }
 
     /// <summary>
-    /// 启动时从 SharedPreferences 恢复均衡器设置（确保 EQ 在打开对话框之前就能生效）
+    /// 启动时从 SharedPreferences 恢复所有音效设置（EQ + 压限器 + 混响 + 其他效果）
+    /// 确保音效在打开对话框之前就能生效
     /// </summary>
-    private void RestoreEqSettings()
+    private void RestoreAudioSettings()
     {
         try
         {
-            var eqProcessor = MainApplication.Services.GetService<EqBandProcessor>();
-            if (eqProcessor == null) return;
-
+            var sp = MainApplication.Services;
             var prefs = global::Android.App.Application.Context
                 .GetSharedPreferences("catclaw_eq10_prefs", global::Android.Content.FileCreationMode.Private);
             if (prefs == null) return;
 
-            bool eqEnabled = prefs.GetBoolean("eq_enabled", false);
-            eqProcessor.Enabled = eqEnabled;
-
-            if (eqEnabled)
+            // === EQ ===
+            var eqProcessor = sp.GetService<EqBandProcessor>();
+            if (eqProcessor != null)
             {
-                int savedPreset = prefs.GetInt("eq_preset", -1);
-                if (savedPreset < 0)
+                bool eqEnabled = prefs.GetBoolean("eq_enabled", false);
+                eqProcessor.Enabled = eqEnabled;
+                if (eqEnabled)
                 {
-                    // 自定义模式：恢复各频段增益
-                    for (int i = 0; i < EqBandProcessor.Bands; i++)
+                    int savedPreset = prefs.GetInt("eq_preset", -1);
+                    if (savedPreset < 0)
                     {
-                        int saved = prefs.GetInt($"eq_band_{i}", int.MinValue);
-                        if (saved != int.MinValue)
-                            eqProcessor.SetBandLevelMillibels(i, (short)saved);
+                        for (int i = 0; i < EqBandProcessor.Bands; i++)
+                        {
+                            int saved = prefs.GetInt($"eq_band_{i}", int.MinValue);
+                            if (saved != int.MinValue)
+                                eqProcessor.SetBandLevelMillibels(i, (short)saved);
+                        }
                     }
                 }
             }
 
-            ALog.Debug("CatClaw", $"[CatClaw] EQ settings restored: enabled={eqEnabled}");
+            // === 压限器 ===
+            var compressor = sp.GetService<CompressorProcessor>();
+            if (compressor != null)
+            {
+                compressor.Enabled = prefs.GetBoolean("comp_enabled", false);
+                int thr = prefs.GetInt("comp_threshold", 667);
+                compressor.ThresholdDb = -60f + thr / 1000f * 60f;
+                int rat = prefs.GetInt("comp_ratio", 40);
+                compressor.Ratio = rat / 10f;
+                int atk = prefs.GetInt("comp_attack", 91);
+                compressor.AttackMs = 1f + atk / 1000f * 99f;
+                int rel = prefs.GetInt("comp_release", 91);
+                compressor.ReleaseMs = 10f + rel / 1000f * 990f;
+                int mk = prefs.GetInt("comp_makeup", 0);
+                compressor.MakeupDb = mk / 10f;
+            }
+
+            // === 混响 ===
+            var reverb = sp.GetService<ReverbProcessor>();
+            if (reverb != null)
+            {
+                reverb.Enabled = prefs.GetBoolean("reverb_enabled", false);
+                reverb.Preset = (ReverbProcessor.ReverbPreset)prefs.GetInt("reverb_preset", (int)ReverbProcessor.ReverbPreset.Hall);
+                int decay = prefs.GetInt("reverb_decay", 367);
+                reverb.DecayTime = 0.1f + decay / 1000f * 4.9f;
+                int wd = prefs.GetInt("reverb_wetdry", 300);
+                reverb.WetDry = wd / 1000f;
+                int pd = prefs.GetInt("reverb_predelay", 200);
+                reverb.PreDelayMs = pd / 1000f * 100f;
+                int damp = prefs.GetInt("reverb_damping", 500);
+                reverb.Damping = damp / 1000f;
+            }
+
+            // === 立体声扩展 ===
+            var widener = sp.GetService<StereoWidenerProcessor>();
+            if (widener != null)
+            {
+                widener.Enabled = prefs.GetBoolean("widener_enabled", false);
+                int w = prefs.GetInt("widener_width", 1000);
+                widener.Width = w / 1000f * 200f - 100f;
+            }
+
+            // === 磁带饱和 ===
+            var sat = sp.GetService<TapeSaturationProcessor>();
+            if (sat != null)
+            {
+                sat.Enabled = prefs.GetBoolean("sat_enabled", false);
+                int drv = prefs.GetInt("sat_drive", 600);
+                sat.DriveDb = drv / 100f;
+                int warm = prefs.GetInt("sat_warmth", 500);
+                sat.Warmth = warm / 1000f;
+                int tone = prefs.GetInt("sat_tone", 1000);
+                sat.Tone = (int)(tone / 1000f * 200f - 100f);
+            }
+
+            // === 去齿音 ===
+            var deEsser = sp.GetService<DeEsserProcessor>();
+            if (deEsser != null)
+            {
+                deEsser.Enabled = prefs.GetBoolean("deesser_enabled", false);
+                int freq = prefs.GetInt("deesser_freq", 400);
+                deEsser.Frequency = 2000f + freq / 1000f * 10000f;
+                int sens = prefs.GetInt("deesser_sens", 500);
+                deEsser.Sensitivity = sens / 10f;
+                int red = prefs.GetInt("deesser_reduction", 1000);
+                deEsser.ReductionDb = -red / 100f;
+            }
+
+            // === 限幅器 ===
+            var limiter = sp.GetService<LimiterProcessor>();
+            if (limiter != null)
+            {
+                limiter.Enabled = prefs.GetBoolean("limiter_enabled", false);
+                int ceil = prefs.GetInt("limiter_ceiling", 597);
+                limiter.CeilingDb = -6f + ceil / 100f;
+                int lrel = prefs.GetInt("limiter_release", 82);
+                limiter.ReleaseMs = 10f + lrel / 1000f * 490f;
+            }
+
+            ALog.Debug("CatClaw", "[CatClaw] Audio settings restored: all effects initialized");
         }
         catch (Exception ex)
         {
-            ALog.Warn("CatClaw", $"[CatClaw] Failed to restore EQ settings: {ex.Message}");
+            ALog.Warn("CatClaw", $"[CatClaw] Failed to restore audio settings: {ex.Message}");
         }
     }
 

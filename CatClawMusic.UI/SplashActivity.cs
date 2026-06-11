@@ -103,7 +103,7 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         base.OnDestroy();
     }
 
-    /// <summary>加载启动图：根据设置选择图片来源（自定义图片 > 自定义API），优先本地缓存</summary>
+    /// <summary>加载启动图：根据设置选择图片来源（自定义图片 > 自定义API > 默认猫图），优先本地缓存</summary>
     private async Task LoadSplashImageAsync()
     {
         var ctx = global::Android.App.Application.Context;
@@ -136,7 +136,8 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         var imageUrl = SplashSettingsFragment.GetCustomApiUrl(ctx);
         if (string.IsNullOrEmpty(imageUrl))
         {
-            // 未配置API地址，使用默认启动图
+            // 未配置API地址，使用默认猫图（浅色模式=白猫，深色模式=黑猫）
+            ShowDefaultCatImage();
             _imageLoaded = true;
             UpdateSubtitle("喵~ 正在加载...");
             TryTransition();
@@ -207,6 +208,9 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         _imageLoaded = true;
         RunOnUiThread(() =>
         {
+            // 网络图片加载失败时回退到默认猫图
+            if (_imageView.Visibility != ViewStates.Visible)
+                ShowDefaultCatImage();
             _progressBar.Visibility = ViewStates.Gone;
             UpdateSubtitle("喵~ 正在加载...");
         });
@@ -261,6 +265,33 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
             return BitmapFactory.DecodeFile(path, opts);
         }
         catch { return null; }
+    }
+
+    /// <summary>根据当前深浅模式显示默认猫图：浅色=白猫，深色=黑猫</summary>
+    private void ShowDefaultCatImage()
+    {
+        bool isDark = IsDarkMode();
+        int resId = isDark
+            ? Resource.Drawable.splash_cat_dark
+            : Resource.Drawable.splash_cat_light;
+
+        _imageView.SetImageResource(resId);
+        _imageView.Visibility = ViewStates.Visible;
+
+        // 深色模式用深色背景，浅色模式用浅色背景
+        if (_imageView.Parent is View parent)
+            parent.SetBackgroundColor(isDark ? Color.ParseColor("#0A0A0A") : Color.ParseColor("#F5F5F5"));
+    }
+
+    /// <summary>判断当前是否为深色模式</summary>
+    private bool IsDarkMode()
+    {
+        try
+        {
+            var uiMode = Resources?.Configuration?.UiMode ?? Android.Content.Res.UiMode.NightUndefined;
+            return (uiMode & Android.Content.Res.UiMode.NightMask) == Android.Content.Res.UiMode.NightYes;
+        }
+        catch { return true; } // 默认深色
     }
 
     /// <summary>获取启动图缓存路径</summary>

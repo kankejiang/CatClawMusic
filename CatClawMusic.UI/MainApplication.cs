@@ -13,6 +13,8 @@ using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
+using CatClawMusic.UI.Services.Effects;
+
 namespace CatClawMusic.UI;
 
 /// <summary>Android Application 入口，配置依赖注入容器并初始化所有服务</summary>
@@ -78,13 +80,35 @@ public class MainApplication : Application
             var smb = fileServices.FirstOrDefault(s => s is SmbService) ?? fileServices.LastOrDefault();
             return new NetworkMusicService(db, subsonic, webDav!, smb!);
         });
-        // 10段软件均衡器（FFmpeg anequalizer 算法，单例，供 SoundEffectDialog 和 TeeAudioProcessor 共享）
+        // 10段软件均衡器（FFmpeg anequalizer 算法，单例，供 SoundEffectDialog 和 AudioEffectChain 共享）
         services.AddSingleton<EqBandProcessor>();
-        // TeeAudioProcessor 截取 PCM 数据（含软件 EQ 处理），单例
-        services.AddSingleton<TeeAudioProcessor>(sp =>
+        // 软件音效处理器（单例，SoundEffectDialog 和 AudioEffectChain 共享）
+        services.AddSingleton<CompressorProcessor>();
+        services.AddSingleton<ReverbProcessor>();
+        services.AddSingleton<StereoWidenerProcessor>();
+        services.AddSingleton<TapeSaturationProcessor>();
+        services.AddSingleton<DeEsserProcessor>();
+        services.AddSingleton<LimiterProcessor>();
+        // 音效处理链编排器（组合 EQ + 所有软件效果）
+        services.AddSingleton<AudioEffectChain>(sp =>
         {
             var eq = sp.GetRequiredService<EqBandProcessor>();
-            return new TeeAudioProcessor { EqProcessor = eq };
+            var effects = new IAudioEffect[]
+            {
+                sp.GetRequiredService<CompressorProcessor>(),
+                sp.GetRequiredService<ReverbProcessor>(),
+                sp.GetRequiredService<StereoWidenerProcessor>(),
+                sp.GetRequiredService<TapeSaturationProcessor>(),
+                sp.GetRequiredService<DeEsserProcessor>(),
+                sp.GetRequiredService<LimiterProcessor>(),
+            };
+            return new AudioEffectChain(eq, effects);
+        });
+        // TeeAudioProcessor 截取 PCM 数据，委托给 AudioEffectChain 处理，单例
+        services.AddSingleton<TeeAudioProcessor>(sp =>
+        {
+            var chain = sp.GetRequiredService<AudioEffectChain>();
+            return new TeeAudioProcessor { EffectChain = chain };
         });
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
