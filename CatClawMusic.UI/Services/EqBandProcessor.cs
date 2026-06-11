@@ -28,7 +28,7 @@ public class EqBandProcessor
     private readonly float[][] _z1; // [channels * bands]
     private readonly float[][] _z2;
     private int _channels;
-    private float _q = 1.0f; // Q factor for bandwidth
+    private float _q = 0.7f; // Q factor — 0.7 (≈1.4 octaves) 让 EQ 更明显可听
 
     public EqBandProcessor(int channels = 2, float sampleRate = 44100)
     {

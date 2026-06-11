@@ -1,4 +1,5 @@
 using Android.OS;
+using Android.Runtime;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -477,35 +478,51 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var mediaSourceFactory = new AndroidX.Media3.ExoPlayer.Source.DefaultMediaSourceFactory(ctx)
             .SetDataSourceFactory(new CatClawDataSourceFactory(httpFactory, ctx));
 
-        var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
-            .SetMediaSourceFactory(mediaSourceFactory);
-
         // 注入 TeeAudioProcessor（含 10 段软件 EQ）到 ExoPlayer 音频管道
         // 注意：Xamarin 绑定未暴露 SimpleExoPlayer.Builder.SetAudioSink()，
-        // 因此通过 JNI 直接调用底层 Java ExoPlayer.Builder.setAudioSink()
-        try
+        // 因此完全通过 JNI 构建 ExoPlayer，确保 TeeAudioProcessor 进入音频管道
+        var teeProcessor = MainApplication.Services.GetService<TeeAudioProcessor>();
+        if (teeProcessor != null)
         {
-            var teeProcessor = MainApplication.Services.GetService<TeeAudioProcessor>();
-            if (teeProcessor != null)
+            try
             {
                 var audioSink = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
                     .SetAudioProcessors(new AndroidX.Media3.Common.Audio.BaseAudioProcessor[] { teeProcessor })
                     .Build();
 
+                // 通过 JNI 创建 Java ExoPlayer.Builder
                 var builderClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.ExoPlayer$Builder");
-                var audioSinkClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink");
-                var setAudioSinkMethod = builderClass.GetMethod("setAudioSink", audioSinkClass);
-                setAudioSinkMethod.Invoke(builder, audioSink);
+                var ctxClass = Java.Lang.Class.ForName("android.content.Context");
+                var javaBuilder = builderClass.GetConstructor(ctxClass)!.NewInstance(ctx);
 
-                ALog.Debug("CatClaw", "[CatClaw] TeeAudioProcessor (10-band EQ) injected via JNI");
+                // JNI: setMediaSourceFactory
+                var msfClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.source.MediaSource$Factory");
+                builderClass.GetMethod("setMediaSourceFactory", msfClass)!.Invoke(javaBuilder, mediaSourceFactory);
+
+                // JNI: setAudioSink（注入 TeeAudioProcessor）
+                var audioSinkClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink");
+                builderClass.GetMethod("setAudioSink", audioSinkClass)!.Invoke(javaBuilder, audioSink);
+
+                // JNI: build() — 完全在 Java 侧构建，确保 audioSink 被使用
+                var javaPlayer = builderClass.GetMethod("build")!.Invoke(javaBuilder)!;
+                _player = javaPlayer.JavaCast<AndroidX.Media3.ExoPlayer.SimpleExoPlayer>()!;
+
+                ALog.Debug("CatClaw", "[CatClaw] TeeAudioProcessor (10-band EQ) injected via JNI (full build)");
+            }
+            catch (Exception ex)
+            {
+                ALog.Warn("CatClaw", $"[CatClaw] JNI build failed, falling back: {ex.Message}");
+                var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+                    .SetMediaSourceFactory(mediaSourceFactory);
+                _player = builder.Build();
             }
         }
-        catch (Exception ex)
+        else
         {
-            ALog.Warn("CatClaw", $"[CatClaw] Failed to inject TeeAudioProcessor: {ex.Message}");
+            var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
+                .SetMediaSourceFactory(mediaSourceFactory);
+            _player = builder.Build();
         }
-
-        _player = builder.Build();
 
         try
         {
