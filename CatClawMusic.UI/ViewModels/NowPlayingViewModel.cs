@@ -5,6 +5,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Helpers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -564,17 +565,17 @@ public partial class NowPlayingViewModel : ObservableObject
         });
     }
 
-    /// <summary>在 UI 线程弹出错误对话框</summary>
+    /// <summary>在 UI 线程弹出错误对话框（毛玻璃风格）</summary>
     private static void ShowErrorDialog(string message)
     {
         var activity = MainActivity.Instance;
         if (activity == null) return;
         try
         {
-            new global::Android.App.AlertDialog.Builder(activity)
+            new GlassDialog(activity)
                 .SetTitle("播放失败")
-                .SetMessage(message)
-                .SetPositiveButton("确定", (s, e) => { })
+                .AddMessage(message)
+                .AddPositiveButton("确定", (_) => { })
                 .Show();
         }
         catch { }

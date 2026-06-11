@@ -33,8 +33,9 @@ public class GlassDialog : Android.App.Dialog
         _density = ctx.Resources!.DisplayMetrics!.Density;
         _dp = (int)_density;
 
+        // 从应用自定义主题属性读取主题色
         var tv = new TypedValue();
-        _themeColor = ctx.Theme?.ResolveAttribute(global::Android.Resource.Attribute.ColorPrimary, tv, true) == true
+        _themeColor = ctx.Theme?.ResolveAttribute(Resource.Attribute.catClawPrimaryColor, tv, true) == true
             ? new Color(tv.Data)
             : Color.ParseColor("#9B7ED8");
 
@@ -43,12 +44,19 @@ public class GlassDialog : Android.App.Dialog
         _cardLayout = new LinearLayout(ctx) { Orientation = Orientation.Vertical };
         _cardLayout.SetPadding(_dp * 6, _dp * 8, _dp * 6, _dp * 8);
 
-        var bg = new GradientDrawable();
-        bg.SetShape(ShapeType.Rectangle);
-        bg.SetCornerRadius(24 * _density);
-        bg.SetColor(Color.ParseColor("#CC000000"));
-        bg.SetStroke(_dp, Color.ParseColor("#33FFFFFF"));
-        _cardLayout.Background = bg;
+        // 毛玻璃背景：深色底 + 主题色微染，让模糊效果透出同时保持可读性
+        var bgBase = new GradientDrawable();
+        bgBase.SetShape(ShapeType.Rectangle);
+        bgBase.SetCornerRadius(24 * _density);
+        bgBase.SetColor(Color.ParseColor("#E60D0D18")); // 深色底 (~90% 不透明度)
+        bgBase.SetStroke(_dp, Color.ParseColor("#30FFFFFF")); // 亮色边框增强玻璃质感
+
+        var bgTint = new GradientDrawable();
+        bgTint.SetShape(ShapeType.Rectangle);
+        bgTint.SetCornerRadius(24 * _density);
+        bgTint.SetColor(WithAlpha(_themeColor, 0x24)); // 主题色微染 (~14% 不透明度)
+
+        _cardLayout.Background = new LayerDrawable(new Drawable[] { bgBase, bgTint });
     }
 
     private static Color WithAlpha(Color c, int alpha)
@@ -312,7 +320,7 @@ public class GlassDialog : Android.App.Dialog
         SetContentView(_cardLayout);
         SetCanceledOnTouchOutside(true);
         Window?.SetBackgroundDrawable(new ColorDrawable(Color.Transparent));
-        Window?.SetDimAmount(0.55f);
+        Window?.SetDimAmount(0.3f); // 降低遮罩透明度，让模糊效果透出来
         Window?.SetGravity(GravityFlags.Center);
         Window?.SetLayout(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent);
 
@@ -320,7 +328,9 @@ public class GlassDialog : Android.App.Dialog
         {
             try
             {
-                Window?.SetBackgroundBlurRadius(300);
+                // 启用窗口后方模糊 + 大半径模糊
+                Window?.AddFlags(WindowManagerFlags.BlurBehind);
+                Window?.SetBackgroundBlurRadius(500);
             }
             catch { }
         }

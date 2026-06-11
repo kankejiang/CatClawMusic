@@ -39,6 +39,11 @@ public class LibraryFragment : Fragment
     private ArrayAdapter<string>? _protocolAdapter = null!;
     private EditText _searchBox = null!;
     private SongAdapter _adapter = null!;
+    private TextView _statSongCount = null!;
+    private TextView _statAlbumCount = null!;
+    private TextView _statArtistCount = null!;
+    private TextView _sectionTitle = null!;
+    private TextView _songCountText = null!;
 
     /// <summary>
     /// 创建音乐库视图
@@ -70,6 +75,11 @@ public class LibraryFragment : Fragment
         _searchBox = view.FindViewById<EditText>(Resource.Id.search_box)!;
         _networkProtocolRow = view.FindViewById<LinearLayout>(Resource.Id.network_protocol_row)!;
         _protocolSpinner = view.FindViewById<Spinner>(Resource.Id.spinner_protocol)!;
+        _statSongCount = view.FindViewById<TextView>(Resource.Id.stat_song_count)!;
+        _statAlbumCount = view.FindViewById<TextView>(Resource.Id.stat_album_count)!;
+        _statArtistCount = view.FindViewById<TextView>(Resource.Id.stat_artist_count)!;
+        _sectionTitle = view.FindViewById<TextView>(Resource.Id.tv_section_title)!;
+        _songCountText = view.FindViewById<TextView>(Resource.Id.tv_song_count)!;
 
         _adapter = sp.GetRequiredService<SongAdapter>();
         _adapter.SongClicked += OnSongClicked;
@@ -107,10 +117,12 @@ public class LibraryFragment : Fragment
         BindViews();
         if (_viewModel.CurrentTab == "Network")
         {
-            _btnLocal.SetTextColor(Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#4A0072")));
+            var primaryColor = UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawPrimaryColor, Android.Graphics.Color.ParseColor("#9B7ED8"));
+            var inactiveColor = UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTabInactive, Android.Graphics.Color.ParseColor("#C0B8CA"));
+            _btnLocal.SetTextColor(Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#8E8E93")));
             _btnNetwork.SetTextColor(Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White));
-            _btnLocal.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#C0B8CA"));
-            _btnNetwork.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.ParseColor("#9B7ED8"));
+            _btnLocal.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(new Android.Graphics.Color(inactiveColor));
+            _btnNetwork.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(new Android.Graphics.Color(primaryColor));
             _networkProtocolRow.Visibility = ViewStates.Visible;
         }
         else
@@ -122,6 +134,7 @@ public class LibraryFragment : Fragment
         if (_viewModel.Songs.Count > 0)
         {
             _adapter.UpdateSongs(_viewModel.Songs);
+            UpdateStats();
             UpdateSyncIcons();
         }
         // 否则，根据当前标签自动加载音乐
@@ -251,6 +264,7 @@ public class LibraryFragment : Fragment
         if (!string.IsNullOrWhiteSpace(_viewModel.SearchQuery))
         {
             a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.FilteredSongs));
+            UpdateStats();
             return;
         }
 
@@ -262,6 +276,7 @@ public class LibraryFragment : Fragment
                     var newSongs = e.NewItems.Cast<CoreModels.Song>().ToList();
                     a.RunOnUiThread(() => _adapter.AddRange(newSongs));
                 }
+                UpdateStats();
                 break;
 
             case NotifyCollectionChangedAction.Reset:
@@ -271,14 +286,17 @@ public class LibraryFragment : Fragment
                     _adapter.AddRange(_viewModel.Songs);
                 });
                 UpdateSyncIcons();
+                UpdateStats();
                 break;
 
             case NotifyCollectionChangedAction.Remove:
                 a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
+                UpdateStats();
                 break;
 
             default:
                 a.RunOnUiThread(() => _adapter.UpdateSongs(_viewModel.Songs));
+                UpdateStats();
                 break;
         }
     }
@@ -293,7 +311,7 @@ public class LibraryFragment : Fragment
         btn.SetTextColor(isActive
             ? Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White)
             : Android.Content.Res.ColorStateList.ValueOf(
-                Android.Graphics.Color.ParseColor("#4A0072"))); // primaryDark
+                Android.Graphics.Color.ParseColor("#8E8E93"))); // iOS hint gray
     }
 
     /// <summary>
@@ -778,6 +796,25 @@ public class LibraryFragment : Fragment
         return ext;
     }
 
+    private void UpdateStats()
+    {
+        var songs = _viewModel.Songs;
+        _statSongCount.Text = songs.Count.ToString();
+        _songCountText.Text = $"共 {songs.Count} 首";
+        // 使用后台线程计算去重统计，避免大量歌曲时阻塞 UI
+        var songList = songs.ToList();
+        _ = Task.Run(() =>
+        {
+            var albums = songList.Select(s => s.Album ?? "未知专辑").Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            var artists = songList.Select(s => s.Artist ?? "未知艺术家").Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            Activity?.RunOnUiThread(() =>
+            {
+                _statAlbumCount.Text = albums.ToString();
+                _statArtistCount.Text = artists.ToString();
+            });
+        });
+    }
+
     private void UpdateSyncIcons()
     {
         var db = MainApplication.Services.GetService<MusicDatabase>();
@@ -823,6 +860,7 @@ public class LibraryFragment : Fragment
                         }
                     }
                     _adapter.UpdateSongs(_viewModel.Songs);
+                    UpdateStats();
                 });
             }
             catch { }

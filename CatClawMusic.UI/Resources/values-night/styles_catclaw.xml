@@ -1,0 +1,104 @@
+<resources>
+    <!-- 深色模式下的主主题（紫色）颜色覆盖 -->
+    <style name="CatClawTheme">
+        <item name="catClawPageBackground">@color/pageBackground</item>
+        <item name="catClawPageBackgroundDark">@color/pageBackgroundDark</item>
+        <item name="catClawCardBackground">@color/cardBackground</item>
+        <item name="catClawCardBackgroundSolid">@color/cardBackgroundSolid</item>
+        <item name="catClawCardBorder">@color/cardBorder</item>
+        <item name="catClawCardBorderDark">@color/cardBorderDark</item>
+        <item name="catClawPrimaryColor">@color/primaryColor</item>
+        <item name="catClawPrimaryLight">@color/primaryLight</item>
+        <item name="catClawPrimaryDark">@color/primaryDark</item>
+        <item name="catClawPrimaryGlow">@color/primaryGlow</item>
+        <item name="catClawSecondaryColor">@color/secondaryColor</item>
+        <item name="catClawSecondaryLight">@color/secondaryLight</item>
+        <item name="catClawAccentColor">@color/accentColor</item>
+        <item name="catClawAccentLight">@color/accentLight</item>
+        <item name="catClawTextPrimary">@color/textPrimary</item>
+        <item name="catClawTextSecondary">@color/textSecondary</item>
+        <item name="catClawTextHint">@color/textHint</item>
+        <item name="catClawTextOnPrimary">@color/textOnPrimary</item>
+        <item name="catClawTabActive">@color/tabActive</item>
+        <item name="catClawTabInactive">@color/tabInactive</item>
+        <item name="catClawNavBarBackground">@color/navBarBackground</item>
+        <item name="catClawGradientStart">@color/gradientStart</item>
+        <item name="catClawGradientEnd">@color/gradientEnd</item>
+    </style>
+
+    <!-- 深色模式 粉色主题覆盖 -->
+    <style name="CatClawTheme.Pink">
+        <item name="colorPrimary">#FF80AB</item>
+        <item name="colorPrimaryContainer">#4D1A2D</item>
+        <item name="colorOnPrimaryContainer">#E84E7F</item>
+        <item name="catClawPrimaryColor">#FF80AB</item>
+        <item name="catClawPrimaryLight">#FFB3D6</item>
+        <item name="catClawPrimaryDark">#E84E7F</item>
+        <item name="catClawPrimaryGlow">#4D1A2D</item>
+        <item name="catClawSecondaryColor">#F8A4C8</item>
+        <item name="catClawSecondaryLight">#3D1A2D</item>
+        <item name="catClawTabActive">#FF80AB</item>
+        <item name="catClawTabInactive">#666068</item>
+        <item name="catClawTextHint">#706068</item>
+        <item name="catClawNavBarBackground">#1A1A2E</item>
+        <item name="catClawGradientStart">#3F1A2D</item>
+        <item name="catClawGradientEnd">#1A3F2D</item>
+    </style>
+
+    <!-- 深色模式 蓝色主题覆盖 -->
+    <style name="CatClawTheme.Blue">
+        <item name="colorPrimary">#64B5F6</item>
+        <item name="colorPrimaryContainer">#1A3D5C</item>
+        <item name="colorOnPrimaryContainer">#3D98E0</item>
+        <item name="catClawPrimaryColor">#64B5F6</item>
+        <item name="catClawPrimaryLight">#A3D9FF</item>
+        <item name="catClawPrimaryDark">#3D98E0</item>
+        <item name="catClawPrimaryGlow">#1A3D5C</item>
+        <item name="catClawSecondaryColor">#78C0F0</item>
+        <item name="catClawSecondaryLight">#1A2D4D</item>
+        <item name="catClawTabActive">#64B5F6</item>
+        <item name="catClawTabInactive">#606878</item>
+        <item name="catClawTextHint">#606870</item>
+        <item name="catClawNavBarBackground">#1A1A2E</item>
+        <item name="catClawGradientStart">#1A3D5C</item>
+        <item name="catClawGradientEnd">#1A2D4D</item>
+    </style>
+
+    <!-- 深色模式 绿色主题覆盖 -->
+    <style name="CatClawTheme.Green">
+        <item name="colorPrimary">#81C784</item>
+        <item name="colorPrimaryContainer">#1A3D2A</item>
+        <item name="colorOnPrimaryContainer">#5CA35F</item>
+        <item name="catClawPrimaryColor">#81C784</item>
+        <item name="catClawPrimaryLight">#B9F6CA</item>
+        <item name="catClawPrimaryDark">#5CA35F</item>
+        <item name="catClawPrimaryGlow">#1A3D2A</item>
+        <item name="catClawSecondaryColor">#88D090</item>
+        <item name="catClawSecondaryLight">#1A3D2A</item>
+        <item name="catClawTabActive">#81C784</item>
+        <item name="catClawTabInactive">#607064</item>
+        <item name="catClawTextHint">#607060</item>
+        <item name="catClawNavBarBackground">#1A1A2E</item>
+        <item name="catClawGradientStart">#1A3D2A</item>
+        <item name="catClawGradientEnd">#1A2D3F</item>
+    </style>
+
+    <!-- 深色模式 橙色主题覆盖 -->
+    <style name="CatClawTheme.Orange">
+        <item name="colorPrimary">#FFAB91</item>
+        <item name="colorPrimaryContainer">#4D2A1A</item>
+        <item name="colorOnPrimaryContainer">#E87F67</item>
+        <item name="catClawPrimaryColor">#FFAB91</item>
+        <item name="catClawPrimaryLight">#FFCCBC</item>
+        <item name="catClawPrimaryDark">#E87F67</item>
+        <item name="catClawPrimaryGlow">#4D2A1A</item>
+        <item name="catClawSecondaryColor">#F0B098</item>
+        <item name="catClawSecondaryLight">#4D2A1A</item>
+        <item name="catClawTabActive">#FFAB91</item>
+        <item name="catClawTabInactive">#706460</item>
+        <item name="catClawTextHint">#706860</item>
+        <item name="catClawNavBarBackground">#1A1A2E</item>
+        <item name="catClawGradientStart">#4D2A1A</item>
+        <item name="catClawGradientEnd">#3F1A2D</item>
+    </style>
+</resources>

@@ -68,6 +68,15 @@ public class NowPlayingFragment : Fragment
     private int _flowFrameSkip;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
 
+    // --- 歌词自定义设置（与 FullLyricsFragment 共享） ---
+    private static readonly string[] LyricActiveColorHex   = { "#FFFFFFFF", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1", "#FFFFD54F" };
+    private static readonly string[] LyricInactiveColorHex = { "#CCBBBBBB", "#DDDDDDDD", "#CC90A4AE", "#CCB39DDB", "#CCBDBDBD", "#CCA8B8C8", "#CC78909C", "#CCD7CCC8" };
+
+    private Color _npLyricActiveColor = Color.White;
+    private Color _npLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
+    private int _npLyricFontSize = 16;
+    private bool _npLyricBold = true;
+
     public override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
@@ -188,6 +197,10 @@ public class NowPlayingFragment : Fragment
         var visEnabled = visPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
         if (visEnabled)
             ApplyVisualizerState(true);
+
+        // 加载歌词颜色和字号设置
+        LoadLyricSettings();
+        ApplyLyricFontSize();
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
@@ -546,13 +559,19 @@ public class NowPlayingFragment : Fragment
         _songTitle.SetTextColor(onSurfaceColor);
         _songArtist.SetTextColor(new Android.Graphics.Color(palette.OnSurfaceVariant));
 
-        _lyricCurrent.SetTextColor(onSurfaceColor);
-        _lyricPrev.SetTextColor(Android.Graphics.Color.ParseColor("#CC000000"));
-        _lyricNext.SetTextColor(Android.Graphics.Color.ParseColor("#CC000000"));
-        _lyricPrev2.SetTextColor(Android.Graphics.Color.ParseColor("#99000000"));
-        _lyricNext2.SetTextColor(Android.Graphics.Color.ParseColor("#99000000"));
-        _lyricCurrent.SungColor = Android.Graphics.Color.White;
-        _lyricCurrent.UnsungColor = Android.Graphics.Color.Argb(0xCC, 0x00, 0x00, 0x00);
+        // 远端歌词使用更低透明度的非活跃色
+        var farUnsungColor = Color.Argb(
+            (byte)(_npLyricInactiveColor.A / 2),
+            _npLyricInactiveColor.R,
+            _npLyricInactiveColor.G,
+            _npLyricInactiveColor.B);
+        _lyricCurrent.SetTextColor(_npLyricActiveColor);
+        _lyricPrev.SetTextColor(_npLyricInactiveColor);
+        _lyricNext.SetTextColor(_npLyricInactiveColor);
+        _lyricPrev2.SetTextColor(farUnsungColor);
+        _lyricNext2.SetTextColor(farUnsungColor);
+        _lyricCurrent.SungColor = _npLyricActiveColor;
+        _lyricCurrent.UnsungColor = _npLyricInactiveColor;
         _lyricCurrent.StrokeEnabled = false;
         _lyricPrev.StrokeEnabled = false;
         _lyricNext.StrokeEnabled = false;
@@ -617,14 +636,17 @@ public class NowPlayingFragment : Fragment
 
             if (hsv[1] < 0.15f)
             {
-                float sat = Math.Clamp(hsv[2] * 0.06f, 0.02f, 0.06f);
-                float val = Math.Clamp(hsv[2] * 0.35f + 0.50f, 0.30f, 1.0f);
+                // 低饱和度颜色：保持微妙色调，明度根据原始亮度适度调整
+                float sat = Math.Clamp(hsv[2] * 0.08f, 0.02f, 0.08f);
+                float val = Math.Clamp(hsv[2] * 0.45f + 0.40f, 0.25f, 0.90f);
                 result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
             }
             else
             {
-                float sat = Math.Clamp(hsv[1] * 0.60f + 0.10f, 0.12f, 0.45f);
-                float val = Math.Clamp(hsv[2] * 0.40f + 0.55f, 0.85f, 0.98f);
+                // 正常颜色：保持中等饱和度，明度根据原始亮度自适应
+                // 暗色封面保持较暗渐变，亮色封面保持较亮渐变
+                float sat = Math.Clamp(hsv[1] * 0.55f + 0.10f, 0.12f, 0.45f);
+                float val = Math.Clamp(hsv[2] * 0.50f + 0.40f, 0.55f, 0.95f);
                 result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
             }
         }
@@ -770,11 +792,69 @@ public class NowPlayingFragment : Fragment
         ApplyLyricColors();
     }
 
+    /// <summary>
+    /// 从 SharedPreferences 加载歌词颜色和字号设置（与 FullLyricsFragment 共享）
+    /// </summary>
+    private void LoadLyricSettings()
+    {
+        var prefs = Activity?.GetSharedPreferences("lyric_settings", Android.Content.FileCreationMode.Private);
+        if (prefs == null) return;
+
+        _npLyricFontSize = prefs.GetInt("lyric_font_size", 16);
+        _npLyricBold = prefs.GetBoolean("lyric_bold", true);
+
+        // 读取 ARGB 颜色值（向后兼容旧版索引存储）
+        if (prefs.Contains("lyric_active_argb"))
+        {
+            _npLyricActiveColor = new Color(prefs.GetInt("lyric_active_argb", unchecked((int)0xFFFFFFFF)));
+        }
+        else
+        {
+            var activeIdx = prefs.GetInt("lyric_active_color", 0);
+            _npLyricActiveColor = Color.ParseColor(LyricActiveColorHex[Math.Clamp(activeIdx, 0, LyricActiveColorHex.Length - 1)]);
+        }
+        if (prefs.Contains("lyric_inactive_argb"))
+        {
+            _npLyricInactiveColor = new Color(prefs.GetInt("lyric_inactive_argb", unchecked((int)0xCCBBBBBB)));
+        }
+        else
+        {
+            var inactiveIdx = prefs.GetInt("lyric_inactive_color", 0);
+            _npLyricInactiveColor = Color.ParseColor(LyricInactiveColorHex[Math.Clamp(inactiveIdx, 0, LyricInactiveColorHex.Length - 1)]);
+        }
+    }
+
+    /// <summary>
+    /// 将歌词字号和加粗设置应用到5个歌词视图（按比例缩放）
+    /// </summary>
+    private void ApplyLyricFontSize()
+    {
+        float baseSp = _npLyricFontSize;
+        var boldStyle = _npLyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal;
+        // 保持与 XML 默认值相同的比例: 11:13:16
+        _lyricCurrent.TextSize = baseSp;
+        _lyricPrev.TextSize = baseSp * 0.8125f;   // 13/16
+        _lyricNext.TextSize = baseSp * 0.8125f;
+        _lyricPrev2.TextSize = baseSp * 0.6875f;  // 11/16
+        _lyricNext2.TextSize = baseSp * 0.6875f;
+        // 应用加粗设置
+        _lyricCurrent.SetTypeface(null, boldStyle);
+        _lyricPrev.SetTypeface(null, boldStyle);
+        _lyricNext.SetTypeface(null, boldStyle);
+        _lyricPrev2.SetTypeface(null, boldStyle);
+        _lyricNext2.SetTypeface(null, boldStyle);
+    }
+
     private void ApplyLyricColors()
     {
-        var sungColor = Android.Graphics.Color.ParseColor("#FFFFFFFF");
-        var nearUnsungColor = Android.Graphics.Color.ParseColor("#CC000000");
-        var farUnsungColor = Android.Graphics.Color.ParseColor("#99000000");
+        var sungColor = _npLyricActiveColor;
+        var nearUnsungColor = _npLyricInactiveColor;
+        // 远端歌词颜色在近端基础上再降低透明度
+        var farUnsungColor = Color.Argb(
+            (byte)(_npLyricInactiveColor.A / 2),
+            _npLyricInactiveColor.R,
+            _npLyricInactiveColor.G,
+            _npLyricInactiveColor.B);
 
         _lyricCurrent.SetTextColor(sungColor);
         _lyricPrev.SetTextColor(nearUnsungColor);
@@ -1486,7 +1566,16 @@ public class NowPlayingFragment : Fragment
     {
         base.OnHiddenChanged(hidden);
         if (!hidden)
+        {
+            LoadLyricSettings();
+            ApplyLyricFontSize();
+            // 强制刷新歌词颜色（用户可能在歌词页修改了设置）
+            if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+                UpdateGradientBackground();
+            else
+                ApplyLyricColors();
             SyncUIFromViewModel();
+        }
     }
 
     /// <summary>
@@ -1498,6 +1587,9 @@ public class NowPlayingFragment : Fragment
         var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
         var visEnabled = visPrefs?.GetBoolean("visualizer_enabled", false) ?? false;
         ApplyVisualizerState(visEnabled);
+        // 重新加载歌词设置（用户可能在歌词页修改了颜色/字号）
+        LoadLyricSettings();
+        ApplyLyricFontSize();
         var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
         if (queue.CurrentSong != null)
         {
@@ -1512,6 +1604,11 @@ public class NowPlayingFragment : Fragment
                 UpdateTimeDisplay();
                 UpdateSlider();
                 UpdateLyrics();
+                // 确保歌词颜色反映最新设置
+                if (!string.IsNullOrEmpty(_viewModel.CoverSource))
+                    UpdateGradientBackground();
+                else
+                    ApplyLyricColors();
                 var coverSource = _viewModel.CoverSource;
                 if (!string.IsNullOrEmpty(coverSource) && coverSource != _lastCoverSource)
                 {
@@ -1801,14 +1898,19 @@ public class NowPlayingFragment : Fragment
             text2.Text = $"{song!.Artist} · {song!.Album}";
             text2.Visibility = ViewStates.Visible;
 
-            // 高亮当前歌曲
-            view.SetBackgroundColor(isCurrent
-                ? Android.Graphics.Color.Argb(40, 155, 126, 216)
-                : Android.Graphics.Color.Transparent);
-
-            text1.SetTextColor(isCurrent
-                ? Android.Graphics.Color.ParseColor("#9B7ED8")
-                : Android.Graphics.Color.ParseColor("#DDDDDD"));
+            // 高亮当前歌曲（从主题读取颜色）
+            if (isCurrent)
+            {
+                var themeColor = UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawPrimaryColor, Android.Graphics.Color.ParseColor("#9B7ED8"));
+                var c = new Android.Graphics.Color(themeColor);
+                view.SetBackgroundColor(Android.Graphics.Color.Argb(40, c.R, c.G, c.B));
+                text1.SetTextColor(new Android.Graphics.Color(themeColor));
+            }
+            else
+            {
+                view.SetBackgroundColor(Android.Graphics.Color.Transparent);
+                text1.SetTextColor(Android.Graphics.Color.ParseColor("#DDDDDD"));
+            }
 
             text2.SetTextColor(Android.Graphics.Color.ParseColor("#999999"));
             return view;

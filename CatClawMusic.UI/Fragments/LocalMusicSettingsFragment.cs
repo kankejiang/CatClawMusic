@@ -1,6 +1,7 @@
 using Android.OS;
 using Android.Views;
 using Android.Widget;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -251,7 +252,7 @@ public class LocalMusicSettingsFragment : SettingsSubPageFragment
                 TextSize = 13,
                 Gravity = Android.Views.GravityFlags.Center,
             };
-            empty.SetTextColor(Android.Graphics.Color.ParseColor("#B0A8BA"));
+            empty.SetTextColor(new Android.Graphics.Color(UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, Android.Graphics.Color.ParseColor("#B0A8BA").ToArgb())));
             empty.SetPadding(16, 24, 16, 24);
             _folderListContainer.AddView(empty);
         }

@@ -28,6 +28,8 @@ public class PlaylistDetailFragment : Fragment
     private int _playlistId;
     private bool _isUserPlaylist;
     private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
+    private EventHandler<Song>? _songClickedHandler;
+    private EventHandler<Song>? _songLongClickedHandler;
     private ImageButton _btnShuffle = null!;
     private ImageButton _btnSort = null!;
     private ImageButton _btnFilter = null!;
@@ -74,8 +76,10 @@ public class PlaylistDetailFragment : Fragment
         _btnMultiSelect.Click += OnMultiSelectClicked;
 
         _adapter = MainApplication.Services.GetRequiredService<SongAdapter>();
-        _adapter.SongClicked += (s, song) => _ = _viewModel.PlaySongAsync(song);
-        _adapter.SongLongClicked += (s, song) => ShowSongContextMenu(song);
+        _songClickedHandler = (s, song) => _ = _viewModel.PlaySongAsync(song);
+        _songLongClickedHandler = (s, song) => ShowSongContextMenu(song);
+        _adapter.SongClicked += _songClickedHandler;
+        _adapter.SongLongClicked += _songLongClickedHandler;
         _songList.SetAdapter(_adapter);
         _songList.AddOnScrollListener(new SongAdapter.ScrollListener(_adapter));
 
@@ -540,10 +544,14 @@ public class PlaylistDetailFragment : Fragment
     }
 
     /// <summary>
-    /// Fragment销毁时解绑事件处理器
+    /// Fragment销毁时解绑所有事件处理器，防止单例适配器事件泄漏
     /// </summary>
     public override void OnDestroyView()
     {
+        if (_songClickedHandler != null)
+            _adapter.SongClicked -= _songClickedHandler;
+        if (_songLongClickedHandler != null)
+            _adapter.SongLongClicked -= _songLongClickedHandler;
         if (_collectionChangedHandler != null)
             _viewModel.Songs.CollectionChanged -= _collectionChangedHandler;
         if (_audioPlayer != null)

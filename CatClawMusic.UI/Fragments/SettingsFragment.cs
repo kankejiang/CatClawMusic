@@ -5,6 +5,7 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Platforms.Android;
 using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -276,16 +277,15 @@ public class SettingsFragment : Fragment
         _ = ShowRestoreDialogAsync();
     }
 
-    /// <summary>显示权限说明对话框</summary>
+    /// <summary>显示权限说明对话框（毛玻璃风格）</summary>
     private void ShowPermissionDialog(Action onConfirm)
     {
-        var dialog = new Android.App.AlertDialog.Builder(Context!)
+        new GlassDialog(Context!)
             .SetTitle("需要文件访问权限")
-            .SetMessage("备份和恢复功能需要访问手机存储来保存和读取备份文件。\n\n备份文件将保存在：手机存储/CatClawMusic/")
-            .SetPositiveButton("去授权", (s, e) => onConfirm())
-            .SetNegativeButton("取消", (s, e) => { })
-            .Create();
-        dialog.Show();
+            .AddMessage("备份和恢复功能需要访问手机存储来保存和读取备份文件。\n\n备份文件将保存在：手机存储/CatClawMusic/")
+            .AddPositiveButton("去授权", (_) => onConfirm())
+            .AddNegativeButton("取消")
+            .Show();
     }
 
     /// <summary>执行备份</summary>
@@ -310,7 +310,7 @@ public class SettingsFragment : Fragment
         }
     }
 
-    /// <summary>显示恢复选择对话框</summary>
+    /// <summary>显示恢复选择对话框（毛玻璃风格）</summary>
     private async Task ShowRestoreDialogAsync()
     {
         try
@@ -322,42 +322,28 @@ public class SettingsFragment : Fragment
                 return;
             }
 
-            // 读取备份信息用于显示
-            var displayItems = new System.Collections.Generic.List<string>();
+            var dialog = new GlassDialog(Context!).SetTitle("选择备份文件恢复");
+
             foreach (var path in backups)
             {
                 var info = await BackupService.ReadBackupInfoAsync(path);
                 var fileName = System.IO.Path.GetFileName(path);
+                string label;
                 if (info != null)
                 {
                     var date = info.CreatedAt.ToString("yyyy-MM-dd HH:mm");
-                    var summary = $"{date}  |  {info.Playlists.Count}个歌单  {info.PlayHistory.Count}条记录  {info.Artists.Count}位歌手  {info.LlmConfigs.Count}个AI配置";
-                    displayItems.Add(summary);
+                    label = $"{date}  |  {info.Playlists.Count}个歌单  {info.PlayHistory.Count}条记录  {info.Artists.Count}位歌手  {info.LlmConfigs.Count}个AI配置";
                 }
                 else
                 {
-                    displayItems.Add(fileName);
+                    label = fileName;
                 }
+
+                var capturedPath = path;
+                dialog.AddItem(label, () => ShowRestoreConfirmDialog(capturedPath));
             }
 
-            int selectedIndex = -1;
-            var dialog = new Android.App.AlertDialog.Builder(Context!)
-                .SetTitle("选择备份文件恢复")
-                .SetSingleChoiceItems(displayItems.ToArray(), -1, (s, e) => selectedIndex = e.Which)
-                .SetPositiveButton("恢复", (s, e) =>
-                {
-                    if (selectedIndex >= 0 && selectedIndex < backups.Count)
-                    {
-                        ShowRestoreConfirmDialog(backups[selectedIndex]);
-                    }
-                    else
-                    {
-                        Toast.MakeText(Context, "请先选择一个备份文件", ToastLength.Short)?.Show();
-                    }
-                })
-                .SetNegativeButton("取消", (s, e) => { })
-                .Create();
-            dialog.Show();
+            dialog.AddNegativeButton("取消").Show();
         }
         catch (System.Exception ex)
         {
@@ -366,13 +352,13 @@ public class SettingsFragment : Fragment
         }
     }
 
-    /// <summary>恢复确认对话框</summary>
+    /// <summary>恢复确认对话框（毛玻璃风格）</summary>
     private void ShowRestoreConfirmDialog(string backupPath)
     {
-        new Android.App.AlertDialog.Builder(Context!)
+        new GlassDialog(Context!)
             .SetTitle("确认恢复")
-            .SetMessage("恢复操作将：\n\n• 补充缺失的歌单（已有同名歌单不会覆盖）\n• 合并播放记录和收藏\n• 补充缺失的艺术家元数据\n• 覆盖AI模型配置\n\n确认恢复？")
-            .SetPositiveButton("恢复", async (s, e) =>
+            .AddMessage("恢复操作将：\n\n• 补充缺失的歌单（已有同名歌单不会覆盖）\n• 合并播放记录和收藏\n• 补充缺失的艺术家元数据\n• 覆盖AI模型配置\n\n确认恢复？")
+            .AddPositiveButton("恢复", async (_) =>
             {
                 try
                 {
@@ -391,8 +377,7 @@ public class SettingsFragment : Fragment
                         Toast.MakeText(Context, $"恢复失败: {ex.Message}", ToastLength.Long)?.Show());
                 }
             })
-            .SetNegativeButton("取消", (s, e) => { })
-            .Create()
+            .AddNegativeButton("取消")
             .Show();
     }
 

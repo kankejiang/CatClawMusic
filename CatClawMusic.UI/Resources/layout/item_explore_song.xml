@@ -23,12 +23,12 @@
         android:layout_marginStart="12dp">
         <TextView android:id="@+id/song_title"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary"
+            android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
             android:maxLines="1" android:ellipsize="end"
             android:fontFamily="sans-serif-medium" />
         <TextView android:id="@+id/song_artist"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textSize="12sp" android:textColor="?attr/catClawTextSecondary"
+            android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"
             android:maxLines="1" android:ellipsize="end" />
     </LinearLayout>
 

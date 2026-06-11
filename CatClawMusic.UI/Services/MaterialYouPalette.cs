@@ -32,14 +32,14 @@ public class MaterialYouPalette
 {
     /// <summary>
     /// 背景色 — 页面最底层的大面积底色
-    /// <para>算法：饱和度降至种子色的 25%（上限 15%），明度向 0.95 插值（ratio=0.35，偏向高明度）</para>
-    /// <para>效果：呈现极淡的种子色调，作为整体页面的柔和底色</para>
+    /// <para>算法：饱和度降至种子色的 40%（上限 22%），明度向 0.88 插值（ratio=0.40，更多保留种子色特征）</para>
+    /// <para>效果：呈现柔和的种子色调，作为整体页面的底色，与封面色彩更贴合</para>
     /// </summary>
     public int Background { get; set; }
 
     /// <summary>
     /// 表面色 — 卡片、对话框等浮层组件的底色
-    /// <para>算法：饱和度降至种子色的 30%（上限 15%），明度向 0.91 插值（ratio=0.30）</para>
+    /// <para>算法：饱和度降至种子色的 35%（上限 18%），明度向 0.84 插值（ratio=0.35）</para>
     /// <para>效果：比背景色略深，形成视觉层次，同时保持与背景的色调统一</para>
     /// </summary>
     public int Surface { get; set; }
@@ -119,8 +119,8 @@ public class MaterialYouPalette
         // 明度调整策略：通过 Lerp 插值，在种子色明度和目标明度之间取值
         var palette = new MaterialYouPalette
         {
-            Background   = HsvToColor(hue, Math.Min(sat * 0.35f, 0.20f), Lerp(val, 0.95f, 0.35f)),
-            Surface      = HsvToColor(hue, Math.Min(sat * 0.30f, 0.15f), Lerp(val, 0.91f, 0.30f)),
+            Background   = HsvToColor(hue, Math.Min(sat * 0.40f, 0.22f), Lerp(val, 0.88f, 0.40f)),
+            Surface      = HsvToColor(hue, Math.Min(sat * 0.35f, 0.18f), Lerp(val, 0.84f, 0.35f)),
             OnSurface    = HsvToColor(hue, Math.Min(sat * 0.15f, 0.05f), Lerp(val, 0.12f, 0.33f)),
             OnSurfaceVariant = HsvToColor(hue, Math.Min(sat * 0.25f, 0.12f), Lerp(val, 0.42f, 0.28f)),
             Primary      = HsvToColor(hue, Math.Max(sat, 0.25f), Lerp(val, 0.50f, 0.40f)),

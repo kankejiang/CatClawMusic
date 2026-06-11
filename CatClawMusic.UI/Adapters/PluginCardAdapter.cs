@@ -4,6 +4,7 @@ using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.UI.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Adapters;
@@ -109,17 +110,17 @@ public class PluginCardAdapter : RecyclerView.Adapter
         var plugin = pluginManager.GetAllPlugins().FirstOrDefault(p => p.PluginTypeId == pluginTypeId);
         if (plugin == null) return;
 
-        new AlertDialog.Builder(MainActivity.Instance ?? ctx)
+        new GlassDialog(MainActivity.Instance ?? ctx)
             .SetTitle("卸载插件")
-            .SetMessage($"确定要卸载「{plugin.DisplayName}」吗？")
-            .SetPositiveButton("卸载", async (s, e) =>
+            .AddMessage($"确定要卸载「{plugin.DisplayName}」吗？")
+            .AddItem("🗑  确认卸载", async () =>
             {
                 var success = await pluginManager.UninstallPluginAsync(pluginTypeId);
                 var msg = success ? "已卸载" : "卸载失败";
                 Toast.MakeText(ctx, msg, ToastLength.Short)?.Show();
                 UninstallClicked?.Invoke(this, pluginTypeId);
             })
-            .SetNegativeButton("取消", (s, e) => { })
+            .AddNegativeButton("取消")
             .Show();
     }
 

@@ -107,11 +107,11 @@ public partial class LibraryViewModel : ObservableObject
     /// </summary>
     [ObservableProperty] private string _statusText = "";
     /// <summary>
-    /// 本地标签页颜色，激活时为紫色 #9B7ED8，非激活时为灰色 #C0B8CA
+    /// 本地标签页颜色，激活时为主题色，非激活时为灰色
     /// </summary>
     [ObservableProperty] private string _localTabColor = "#9B7ED8";
     /// <summary>
-    /// 网络标签页颜色，激活时为紫色 #9B7ED8，非激活时为灰色 #C0B8CA
+    /// 网络标签页颜色，激活时为主题色，非激活时为灰色
     /// </summary>
     [ObservableProperty] private string _networkTabColor = "#C0B8CA";
     /// <summary>
@@ -225,12 +225,19 @@ public partial class LibraryViewModel : ObservableObject
             var ctx = global::Android.App.Application.Context;
             var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
             _selectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
+            var activeColor = UiHelper.ResolveThemeColorHex(ctx, Resource.Attribute.catClawPrimaryColor, "#9B7ED8");
+            var inactiveColor = UiHelper.ResolveThemeColorHex(ctx, Resource.Attribute.catClawTabInactive, "#C0B8CA");
             var savedTab = prefs.GetString(PrefCurrentTab, "Local");
             if (savedTab == "Network")
             {
                 _currentTab = "Network";
-                _localTabColor = "#C0B8CA";
-                _networkTabColor = "#9B7ED8";
+                _localTabColor = inactiveColor;
+                _networkTabColor = activeColor;
+            }
+            else
+            {
+                _localTabColor = activeColor;
+                _networkTabColor = inactiveColor;
             }
         }
         catch { }
@@ -312,10 +319,18 @@ public partial class LibraryViewModel : ObservableObject
         else
             _networkSongsCache = Songs.ToList();
 
-        // 切换标签和颜色
+        // 切换标签和颜色（从主题属性读取，跟随主题配色）
         CurrentTab = tab;
+#if ANDROID
+        var ctx = global::Android.App.Application.Context;
+        var activeColor = UiHelper.ResolveThemeColorHex(ctx, Resource.Attribute.catClawPrimaryColor, "#9B7ED8");
+        var inactiveColor = UiHelper.ResolveThemeColorHex(ctx, Resource.Attribute.catClawTabInactive, "#C0B8CA");
+        LocalTabColor = tab == "Local" ? activeColor : inactiveColor;
+        NetworkTabColor = tab == "Network" ? activeColor : inactiveColor;
+#else
         LocalTabColor = tab == "Local" ? "#9B7ED8" : "#C0B8CA";
         NetworkTabColor = tab == "Network" ? "#9B7ED8" : "#C0B8CA";
+#endif
 
         // 从缓存恢复目标标签的歌曲
         Songs.Clear();
@@ -339,8 +354,8 @@ public partial class LibraryViewModel : ObservableObject
         // 持久化当前标签到 SharedPreferences
         try
         {
-            var ctx = global::Android.App.Application.Context;
-            var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
+            var prefsCtx = global::Android.App.Application.Context;
+            var prefs = prefsCtx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
             prefs.Edit().PutString(PrefCurrentTab, tab).Apply();
         }
         catch { }

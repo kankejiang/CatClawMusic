@@ -6,6 +6,7 @@ using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.Adapters;
+using CatClawMusic.UI.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
@@ -198,7 +199,7 @@ public class PluginManagementFragment : Fragment
             Text = "输入 GitHub 仓库地址，应用将自动从最新 Release 下载编译好的 .dll 或 .ccp 插件。\n\n" +
                    "格式示例: https://github.com/用户名/仓库名"
         };
-        hintText.SetTextColor(Android.Graphics.Color.ParseColor("#B0A8BA"));
+        hintText.SetTextColor(new Android.Graphics.Color(UiHelper.ResolveThemeColor(ctx, Resource.Attribute.catClawTextHint, Android.Graphics.Color.ParseColor("#B0A8BA").ToArgb())));
         hintText.TextSize = 13;
         hintText.SetPadding(0, 0, 0, 20);
         layout.AddView(hintText);
@@ -208,8 +209,8 @@ public class PluginManagementFragment : Fragment
             Hint = "https://github.com/user/repo",
             InputType = Android.Text.InputTypes.ClassText | Android.Text.InputTypes.TextVariationUri
         };
-        urlInput.SetTextColor(Android.Graphics.Color.ParseColor("#2D2438"));
-        urlInput.SetHintTextColor(Android.Graphics.Color.ParseColor("#B0A8BA"));
+        urlInput.SetTextColor(new Android.Graphics.Color(UiHelper.ResolveThemeColor(ctx, Resource.Attribute.catClawTextPrimary, Android.Graphics.Color.ParseColor("#2D2438").ToArgb())));
+        urlInput.SetHintTextColor(new Android.Graphics.Color(UiHelper.ResolveThemeColor(ctx, Resource.Attribute.catClawTextHint, Android.Graphics.Color.ParseColor("#B0A8BA").ToArgb())));
         layout.AddView(urlInput);
 
         var noteText = new TextView(ctx)
@@ -221,10 +222,10 @@ public class PluginManagementFragment : Fragment
         noteText.SetPadding(0, 12, 0, 0);
         layout.AddView(noteText);
 
-        new AlertDialog.Builder(ctx)
+        new GlassDialog(ctx)
             .SetTitle("从 GitHub 安装")
-            .SetView(layout)
-            .SetPositiveButton("安装", async (s, e) =>
+            .AddCustomView(layout)
+            .AddPositiveButton("安装", async (_) =>
             {
                 var url = urlInput.Text?.Trim();
                 if (string.IsNullOrEmpty(url))
@@ -270,7 +271,7 @@ public class PluginManagementFragment : Fragment
                     Toast.MakeText(ctx, "安装失败，请确保仓库有包含 .dll 或 .ccp 的 Release", ToastLength.Long)?.Show();
                 }
             })
-            .SetNegativeButton("取消", (s, e) => { })
+            .AddNegativeButton("取消")
             .Show();
     }
 }

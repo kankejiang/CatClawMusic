@@ -192,8 +192,13 @@ public class NavigationService : INavigationService
 
         if (_fm.BackStackEntryCount == 0 && _sidePanelContainerId == null)
         {
+            // 延迟隐藏 overlay 容器，让退出动画播完（动画时长 200ms）
             var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
-            if (overlay != null) overlay.Visibility = ViewStates.Gone;
+            overlay?.PostDelayed(() =>
+            {
+                if (overlay != null) overlay.Visibility = ViewStates.Gone;
+            }, 220);
+
             if (isLandscape)
             {
                 MainActivity.Instance?.UpdateTabUIForCurrentTab();

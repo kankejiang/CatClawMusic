@@ -4,64 +4,144 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="?attr/catClawPageBackground">
 
-    <!-- 顶部搜索区 -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:paddingHorizontal="16dp"
-        android:paddingTop="16dp" android:paddingBottom="4dp"
-        android:gravity="center_vertical">
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="0dp" android:layout_height="40dp"
-            android:layout_weight="1" android:layout_marginEnd="8dp"
-            app:cardCornerRadius="16dp" app:cardElevation="0dp"
-            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
-            app:cardBackgroundColor="?attr/catClawCardBackground">
-            <EditText android:id="@+id/search_box" android:layout_width="match_parent"
-                android:layout_height="match_parent" android:hint="搜索歌曲..."
-                android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
-                android:background="@null" android:paddingHorizontal="14dp"
-                android:fontFamily="sans-serif" android:textSize="14sp"
-                android:singleLine="true" android:imeOptions="actionSearch"
-                android:importantForAutofill="no" />
-        </com.google.android.material.card.MaterialCardView>
-        <ImageButton android:id="@+id/btn_sort" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_sort"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?attr/catClawTextHint" android:padding="6dp"
-            android:layout_marginEnd="4dp" />
-        <ImageButton android:id="@+id/btn_refresh" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_refresh"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?attr/catClawTextHint" android:padding="6dp"
-            android:layout_marginEnd="4dp" />
-        <ImageButton android:id="@+id/btn_clear" android:layout_width="36dp"
-            android:layout_height="36dp" android:src="@drawable/ic_close"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="?attr/catClawTextHint" android:padding="6dp" />
-    </LinearLayout>
-
-    <!-- Tab 切换：毛玻璃胶囊 -->
-    <com.google.android.material.card.MaterialCardView
+    <!-- 大标题 -->
+    <TextView android:id="@+id/page_title"
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp" android:layout_marginBottom="12dp"
-        app:cardCornerRadius="16dp" app:cardElevation="0dp"
-        app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+        android:text="音乐库" android:textSize="28sp" android:textStyle="bold"
+        android:fontFamily="sans-serif" android:textColor="?attr/catClawTextPrimary"
+        android:paddingHorizontal="20dp" android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
+
+    <!-- 搜索栏 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent" android:layout_height="38dp"
+        android:layout_marginHorizontal="16dp" android:layout_marginBottom="10dp"
+        app:cardCornerRadius="10dp" app:cardElevation="0dp"
+        app:strokeWidth="0.5dp" app:strokeColor="?attr/catClawCardBorder"
         app:cardBackgroundColor="?attr/catClawCardBackground">
-        <LinearLayout android:id="@+id/tab_row" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:orientation="horizontal"
-            android:padding="4dp">
-            <Button android:id="@+id/btn_local" android:layout_width="0dp"
-                android:layout_height="36dp" android:layout_weight="1" android:text="@string/local_music"
-                style="@style/CatClawButtonPrimary" android:layout_marginEnd="4dp" />
-            <Button android:id="@+id/btn_network" android:layout_width="0dp"
-                android:layout_height="36dp" android:layout_weight="1" android:text="@string/network_music"
-                style="@style/CatClawButtonSecondary" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingHorizontal="10dp">
+            <ImageView android:layout_width="16dp" android:layout_height="16dp"
+                android:src="@android:drawable/ic_menu_search"
+                android:tint="?attr/catClawTextHint"
+                android:layout_marginEnd="6dp" />
+            <EditText android:id="@+id/search_box" android:layout_width="0dp"
+                android:layout_height="match_parent" android:layout_weight="1"
+                android:hint="搜索歌曲、艺术家、专辑"
+                android:textColor="?attr/catClawTextPrimary" android:textColorHint="?attr/catClawTextHint"
+                android:background="@null" android:fontFamily="sans-serif"
+                android:textSize="14sp" android:singleLine="true"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no" />
+            <ImageButton android:id="@+id/btn_sort" android:layout_width="30dp"
+                android:layout_height="30dp" android:src="@drawable/ic_sort"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="?attr/catClawTextHint" android:padding="5dp"
+                android:layout_marginStart="2dp" />
+            <ImageButton android:id="@+id/btn_refresh" android:layout_width="30dp"
+                android:layout_height="30dp" android:src="@drawable/ic_refresh"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="?attr/catClawTextHint" android:padding="5dp"
+                android:layout_marginStart="2dp" />
+            <ImageButton android:id="@+id/btn_clear" android:layout_width="30dp"
+                android:layout_height="30dp" android:src="@drawable/ic_close"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="?attr/catClawTextHint" android:padding="5dp"
+                android:layout_marginStart="2dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
+
+    <!-- 统计卡片行 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:paddingHorizontal="16dp"
+        android:layout_marginBottom="10dp">
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginEnd="5dp"
+            app:cardCornerRadius="12dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="0.5dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:gravity="center"
+                android:paddingVertical="10dp">
+                <TextView android:id="@+id/stat_song_count"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="0" android:textSize="20sp" android:textStyle="bold"
+                    android:textColor="?attr/catClawPrimaryColor" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="歌曲" android:textSize="10sp"
+                    android:textColor="?attr/catClawTextHint"
+                    android:layout_marginTop="1dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginHorizontal="5dp"
+            app:cardCornerRadius="12dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="0.5dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:gravity="center"
+                android:paddingVertical="10dp">
+                <TextView android:id="@+id/stat_album_count"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="0" android:textSize="20sp" android:textStyle="bold"
+                    android:textColor="?attr/catClawPrimaryColor" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="专辑" android:textSize="10sp"
+                    android:textColor="?attr/catClawTextHint"
+                    android:layout_marginTop="1dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="5dp"
+            app:cardCornerRadius="12dp" app:cardElevation="0dp"
+            app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="0.5dp"
+            app:cardBackgroundColor="?attr/catClawCardBackground">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:gravity="center"
+                android:paddingVertical="10dp">
+                <TextView android:id="@+id/stat_artist_count"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="0" android:textSize="20sp" android:textStyle="bold"
+                    android:textColor="?attr/catClawPrimaryColor" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="艺术家" android:textSize="10sp"
+                    android:textColor="?attr/catClawTextHint"
+                    android:layout_marginTop="1dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+
+    <!-- Tab 切换 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="#1E787880"
+        android:padding="2dp"
+        android:id="@+id/tab_row">
+        <Button android:id="@+id/btn_local" android:layout_width="0dp"
+            android:layout_height="34dp" android:layout_weight="1"
+            android:text="@string/local_music" android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:textAllCaps="false"
+            android:insetTop="0dp" android:insetBottom="0dp"
+            style="@style/CatClawButtonPrimary" android:layout_marginEnd="2dp" />
+        <Button android:id="@+id/btn_network" android:layout_width="0dp"
+            android:layout_height="34dp" android:layout_weight="1"
+            android:text="@string/network_music" android:textSize="13sp"
+            android:fontFamily="sans-serif-medium"
+            android:textAllCaps="false"
+            android:insetTop="0dp" android:insetBottom="0dp"
+            style="@style/CatClawButtonSecondary" />
+    </LinearLayout>
 
     <!-- 网络协议选择下拉框 -->
     <LinearLayout android:id="@+id/network_protocol_row" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:orientation="horizontal"
-        android:paddingHorizontal="16dp" android:paddingBottom="8dp"
+        android:paddingHorizontal="16dp" android:paddingBottom="4dp"
         android:visibility="gone">
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="网络协议：" android:textColor="?attr/catClawTextSecondary"
@@ -72,11 +152,28 @@
             android:padding="8dp" android:minHeight="40dp" />
     </LinearLayout>
 
-    <!-- 歌曲列表 -->
+    <!-- 歌曲列表标题 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingHorizontal="20dp" android:paddingTop="4dp" android:paddingBottom="6dp">
+        <TextView android:id="@+id/tv_section_title"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="全部歌曲" android:textSize="18sp" android:textStyle="bold"
+            android:fontFamily="sans-serif"
+            android:textColor="?attr/catClawTextPrimary" />
+        <TextView android:id="@+id/tv_song_count"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:textColor="?attr/catClawTextHint" />
+    </LinearLayout>
+
+    <!-- 歌曲列表：RecyclerView 自身处理滚动 -->
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/song_list"
         android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:clipToPadding="false"
-        android:paddingTop="4dp" android:paddingBottom="8dp" />
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingHorizontal="12dp" android:paddingVertical="4dp" />
 
     <!-- 状态文本 -->
     <TextView android:id="@+id/status_text" android:layout_width="match_parent"

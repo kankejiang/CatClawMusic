@@ -406,8 +406,12 @@ public class MainActivity : AppCompatActivity
             if (SupportFragmentManager.BackStackEntryCount == 0)
             {
                 SetOverlayOpen(false);
+                // 延迟隐藏 overlay 容器，让退出动画播完（动画时长 200ms）
                 var overlay = FindViewById<View>(Resource.Id.overlay_container);
-                if (overlay != null) overlay.Visibility = ViewStates.Gone;
+                overlay?.PostDelayed(() =>
+                {
+                    if (overlay != null) overlay.Visibility = ViewStates.Gone;
+                }, 220);
                 if (isLandscape)
                 {
                     UpdateTabUI(_currentTab);

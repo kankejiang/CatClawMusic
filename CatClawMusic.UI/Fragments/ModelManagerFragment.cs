@@ -2,6 +2,7 @@ using Android.OS;
 using Android.Views;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.UI.Adapters;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
@@ -88,15 +89,15 @@ public class ModelManagerFragment : Fragment
 
     private async System.Threading.Tasks.Task DeleteModelAsync(LlmConfig model)
     {
-        // 显示确认对话框
-        var dialog = new AndroidX.AppCompat.App.AlertDialog.Builder(Context!)
+        // 显示确认对话框（毛玻璃风格）
+        new GlassDialog(Context!)
             .SetTitle("删除模型")
-            .SetMessage($"确定要删除模型 \"{model.Name}\" 吗？")
-            .SetPositiveButton("删除", async (s, e) =>
+            .AddMessage($"确定要删除模型 \"{model.Name}\" 吗？")
+            .AddItem("🗑  确认删除", () =>
             {
                 AgentService.DeleteConfig(model.Name);
                 RefreshModels();
-                
+
                 // 如果删除的是当前配置，尝试切换到其他配置
                 var currentName = AgentService.GetCurrentConfigName();
                 _allConfigs = AgentService.LoadAllConfigs();
@@ -105,9 +106,8 @@ public class ModelManagerFragment : Fragment
                     AgentService.SetCurrentConfigName(_allConfigs[0].Name);
                 }
             })
-            .SetNegativeButton("取消", (s, e) => { })
-            .Create();
-        dialog?.Show();
+            .AddNegativeButton("取消")
+            .Show();
     }
 
     public override void OnResume()

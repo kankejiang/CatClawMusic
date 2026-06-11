@@ -7,6 +7,7 @@ using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using System.Linq;
 
@@ -237,7 +238,7 @@ public class WebDavBrowserDialog : Dialog
             var file = _files[position];
             var vh = (FileViewHolder)holder;
             vh.Name.Text = file.Name;
-            vh.Icon.SetColorFilter(Color.ParseColor("#9B7ED8"), PorterDuff.Mode.SrcIn);
+            vh.Icon.SetColorFilter(new Color(UiHelper.ResolveThemeColor(vh.Icon.Context!, Resource.Attribute.catClawPrimaryColor, Color.ParseColor("#9B7ED8"))), PorterDuff.Mode.SrcIn);
             vh.Position = position;
         }
 

@@ -4,6 +4,7 @@ using Android.OS;
 using Android.Views;
 using Android.Widget;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -260,14 +261,11 @@ public class DesktopLyricFragment : Fragment
     private Android.App.Dialog? _colorDialog;
 
     /// <summary>
-    /// 显示颜色选择器对话框，提供预设颜色供用户选择
+    /// 显示颜色选择器对话框，提供预设颜色供用户选择（毛玻璃风格）
     /// </summary>
     private void ShowColorPickerDialog()
     {
         if (Context == null) return;
-
-        var builder = new Android.App.AlertDialog.Builder(Context);
-        builder.SetTitle("选择歌词颜色");
 
         var gridLayout = new GridLayout(Context)
         {
@@ -307,10 +305,11 @@ public class DesktopLyricFragment : Fragment
             gridLayout.AddView(colorView);
         }
 
-        builder.SetView(gridLayout);
-        builder.SetNegativeButton("取消", (s, e) => { });
-        _colorDialog = builder.Create();
-        _colorDialog?.Show();
+        _colorDialog = new GlassDialog(Context)
+            .SetTitle("选择歌词颜色")
+            .AddCustomView(gridLayout)
+            .AddNegativeButton("取消")
+            .Show();
     }
 
     /// <summary>

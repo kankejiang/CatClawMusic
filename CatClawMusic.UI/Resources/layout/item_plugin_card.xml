@@ -34,8 +34,8 @@
                     <TextView android:id="@+id/tv_plugin_source"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:layout_marginStart="4dp"
-                        android:textSize="9sp" android:textColor="#9B7ED8"
-                        android:background="#209B7ED8"
+                        android:textSize="9sp" android:textColor="?attr/catClawPrimaryColor"
+                        android:background="?attr/catClawPrimaryGlow"
                         android:paddingHorizontal="4dp" android:paddingVertical="1dp"
                         android:visibility="gone" />
                 </LinearLayout>

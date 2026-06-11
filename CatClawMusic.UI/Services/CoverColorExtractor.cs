@@ -117,15 +117,14 @@ public static class CoverColorExtractor
             if (isGrayscaleCover)
                 return ExtractGrayscaleColors(bitmap);
 
-            /* C# 回退实现：当原生库不可用时使用 */
             // 第一步：降采样，将大图缩放至 MaxSampleSize 以内以减少计算量
             Bitmap? sampled = null;
             if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)
             {
                 var scale = (float)MaxSampleSize / Math.Max(bitmap.Width, bitmap.Height);
-                var w = (int)(bitmap.Width * scale);
-                var h = (int)(bitmap.Height * scale);
-                sampled = Bitmap.CreateScaledBitmap(bitmap, Math.Max(w, 1), Math.Max(h, 1), false);
+                var w = Math.Max((int)(bitmap.Width * scale), 1);
+                var h = Math.Max((int)(bitmap.Height * scale), 1);
+                sampled = Bitmap.CreateScaledBitmap(bitmap, w, h, true);
             }
             else
             {
@@ -326,12 +325,16 @@ public static class CoverColorExtractor
         var entries = new List<ColorEntry>();
         try
         {
+            // 使用适度的 InSampleSize 加载位图，Extract 内部会进一步精确缩放至 MaxSampleSize
             var options = new BitmapFactory.Options { InJustDecodeBounds = true };
             BitmapFactory.DecodeFile(filePath, options);
             var sampleSize = 1;
-            if (options.OutWidth > MaxSampleSize || options.OutHeight > MaxSampleSize)
+            var maxDim = Math.Max(options.OutWidth, options.OutHeight);
+            // 粗采样：确保加载后的位图不超过 MaxSampleSize * 4，减少内存占用
+            // Extract 内部会用 CreateScaledBitmap 做精确缩放
+            if (maxDim > MaxSampleSize * 4)
             {
-                var ratio = Math.Max(options.OutWidth, options.OutHeight) / MaxSampleSize;
+                var ratio = maxDim / (MaxSampleSize * 4);
                 var shift = 0;
                 while ((1 << (shift + 1)) <= ratio) shift++;
                 sampleSize = 1 << shift;
@@ -378,7 +381,9 @@ public static class CoverColorExtractor
         if (bitmap.Width > MaxSampleSize || bitmap.Height > MaxSampleSize)
         {
             var scale = (float)MaxSampleSize / Math.Max(bitmap.Width, bitmap.Height);
-            sampled = Bitmap.CreateScaledBitmap(bitmap, Math.Max((int)(bitmap.Width * scale), 1), Math.Max((int)(bitmap.Height * scale), 1), false);
+            sampled = Bitmap.CreateScaledBitmap(bitmap,
+                Math.Max((int)(bitmap.Width * scale), 1),
+                Math.Max((int)(bitmap.Height * scale), 1), true);
         }
         else
         {

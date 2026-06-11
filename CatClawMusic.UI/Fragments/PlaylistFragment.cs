@@ -22,6 +22,9 @@ public class PlaylistFragment : Fragment
     private LibraryViewModel? _libraryVm;
     private EventHandler? _scanCompletedHandler;
     private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
+    private EventHandler<Playlist>? _playlistClickedHandler;
+    private EventHandler<Playlist>? _playlistLongClickedHandler;
+    private EventHandler? _newPlaylistClickedHandler;
 
     /// <summary>
     /// 创建歌单列表视图
@@ -46,15 +49,17 @@ public class PlaylistFragment : Fragment
         _statusText = view.FindViewById<TextView>(Resource.Id.status_text)!;
 
         _adapter = MainApplication.Services.GetRequiredService<PlaylistAdapter>();
-        _adapter.PlaylistClicked += (s, playlist) =>
+        _playlistClickedHandler = (s, playlist) =>
         {
             _viewModel.NavigateToPlaylist(playlist.Id, playlist.Name);
         };
-        _adapter.PlaylistLongClicked += (s, playlist) =>
+        _playlistLongClickedHandler = (s, playlist) =>
         {
             if (!playlist.IsSystem)
                 ShowDeletePlaylistDialog(playlist);
         };
+        _adapter.PlaylistClicked += _playlistClickedHandler;
+        _adapter.PlaylistLongClicked += _playlistLongClickedHandler;
         _playlistList.SetAdapter(_adapter);
 
         _collectionChangedHandler = (s, e) =>
@@ -70,7 +75,8 @@ public class PlaylistFragment : Fragment
         };
         _viewModel.Playlists.CollectionChanged += _collectionChangedHandler;
 
-        _adapter.NewPlaylistClicked += (s, e) => ShowCreatePlaylistDialog();
+        _newPlaylistClickedHandler = (s, e) => ShowCreatePlaylistDialog();
+        _adapter.NewPlaylistClicked += _newPlaylistClickedHandler;
 
         _libraryVm = MainApplication.Services.GetService<LibraryViewModel>();
         if (_libraryVm != null)
@@ -141,10 +147,16 @@ public class PlaylistFragment : Fragment
     }
 
     /// <summary>
-    /// Fragment销毁时解绑集合变化事件和扫描完成事件
+    /// Fragment销毁时解绑所有事件，防止重复订阅导致多次弹窗
     /// </summary>
     public override void OnDestroyView()
     {
+        if (_playlistClickedHandler != null)
+            _adapter.PlaylistClicked -= _playlistClickedHandler;
+        if (_playlistLongClickedHandler != null)
+            _adapter.PlaylistLongClicked -= _playlistLongClickedHandler;
+        if (_newPlaylistClickedHandler != null)
+            _adapter.NewPlaylistClicked -= _newPlaylistClickedHandler;
         if (_collectionChangedHandler != null)
             _viewModel.Playlists.CollectionChanged -= _collectionChangedHandler;
         if (_libraryVm != null && _scanCompletedHandler != null)

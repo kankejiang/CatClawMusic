@@ -6,6 +6,7 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidX.AppCompat.Widget;
@@ -126,7 +127,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
                     {
                         SetDotColor(_dotNavidrome, ColorDisconnected);
                         _tvNavidromeStatus?.SetText($"{_navidromeProfile.Name} | {addr}", TextView.BufferType.Normal);
-                        _tvNavidromeStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                        _tvNavidromeStatus?.SetTextColor(new Color(UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, Color.ParseColor("#B0A8BA").ToArgb())));
                     }
                     if (_swNavidrome != null) _swNavidrome.Checked = _navidromeProfile.IsEnabled;
                 }
@@ -134,7 +135,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
                 {
                     SetDotColor(_dotNavidrome, ColorDisconnected);
                     _tvNavidromeStatus?.SetText("未配置", TextView.BufferType.Normal);
-                    _tvNavidromeStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                    _tvNavidromeStatus?.SetTextColor(new Color(UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, Color.ParseColor("#B0A8BA").ToArgb())));
                     if (_swNavidrome != null) _swNavidrome.Checked = false;
                 }
 
@@ -152,7 +153,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
                     {
                         SetDotColor(_dotWebdav, ColorDisconnected);
                         _tvWebdavStatus?.SetText($"{_webdavProfile.Name} | {addr}", TextView.BufferType.Normal);
-                        _tvWebdavStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                        _tvWebdavStatus?.SetTextColor(new Color(UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, Color.ParseColor("#B0A8BA").ToArgb())));
                     }
                     if (_swWebdav != null) _swWebdav.Checked = _webdavProfile.IsEnabled;
                 }
@@ -160,7 +161,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
                 {
                     SetDotColor(_dotWebdav, ColorDisconnected);
                     _tvWebdavStatus?.SetText("未配置", TextView.BufferType.Normal);
-                    _tvWebdavStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                    _tvWebdavStatus?.SetTextColor(new Color(UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, Color.ParseColor("#B0A8BA").ToArgb())));
                     if (_swWebdav != null) _swWebdav.Checked = false;
                 }
 
@@ -178,7 +179,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
                     {
                         SetDotColor(_dotSmb, ColorDisconnected);
                         _tvSmbStatus?.SetText($"{_smbProfile.Name} | {addr}", TextView.BufferType.Normal);
-                        _tvSmbStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                        _tvSmbStatus?.SetTextColor(new Color(UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, Color.ParseColor("#B0A8BA").ToArgb())));
                     }
                     if (_swSmb != null) _swSmb.Checked = _smbProfile.IsEnabled;
                 }
@@ -186,7 +187,7 @@ public class RemoteMusicFragment : SettingsSubPageFragment
                 {
                     SetDotColor(_dotSmb, ColorDisconnected);
                     _tvSmbStatus?.SetText("未配置", TextView.BufferType.Normal);
-                    _tvSmbStatus?.SetTextColor(Color.ParseColor("#B0A8BA"));
+                    _tvSmbStatus?.SetTextColor(new Color(UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, Color.ParseColor("#B0A8BA").ToArgb())));
                     if (_swSmb != null) _swSmb.Checked = false;
                 }
             });

@@ -3,6 +3,7 @@ using Android.Widget;
 using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Platforms.Android;
 using System.Collections.Concurrent;
 
@@ -52,7 +53,7 @@ public class ExploreSongAdapter : RecyclerView.Adapter
                 Gravity = Android.Views.GravityFlags.CenterVertical
             };
             btn.SetPadding(32, 24, 32, 24);
-            btn.SetTextColor(Android.Graphics.Color.ParseColor("#8B5CF6"));
+            btn.SetTextColor(new Android.Graphics.Color(UiHelper.ResolveThemeColor(parent.Context!, Resource.Attribute.catClawPrimaryColor, Android.Graphics.Color.ParseColor("#8B5CF6").ToArgb())));
             btn.SetTypeface(null, Android.Graphics.TypefaceStyle.Bold);
             btn.Clickable = true;
             btn.Focusable = true;

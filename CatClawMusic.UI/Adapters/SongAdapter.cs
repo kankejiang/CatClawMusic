@@ -680,7 +680,13 @@ public class SongAdapter : RecyclerView.Adapter
 
             if (song.Id == adapter._currentPlayingSongId)
             {
-                _cachedPlayingColor ??= Color.ParseColor("#9B7ED8");
+                if (_cachedPlayingColor == null)
+                {
+                    var tv = new Android.Util.TypedValue();
+                    _cachedPlayingColor = ItemView.Context?.Theme?.ResolveAttribute(Resource.Attribute.catClawPrimaryColor, tv, true) == true
+                        ? new Color(tv.Data)
+                        : Color.ParseColor("#9B7ED8");
+                }
                 _title.SetTextColor(_cachedPlayingColor.Value);
                 _pauseIcon.SetPlaying(adapter._isPlaying);
             }
