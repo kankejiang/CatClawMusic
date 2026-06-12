@@ -80,8 +80,8 @@ public class MainApplication : Application
             var smb = fileServices.FirstOrDefault(s => s is SmbService) ?? fileServices.LastOrDefault();
             return new NetworkMusicService(db, subsonic, webDav!, smb!);
         });
-        // 系统硬件均衡器（10段UI均布映射到设备频段）
-        services.AddSingleton<EqualizerManager>();
+        // 音效管理器（预设音效方案，管理EQ+混响+环绕+低音）
+        services.AddSingleton<SoundEffectManager>();
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
         services.AddSingleton<IPluginManager>(sp =>
