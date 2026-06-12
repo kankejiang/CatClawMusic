@@ -18,7 +18,7 @@ namespace CatClawMusic.UI.Services;
 public class SoundEffectDialog : Dialog
 {
     private readonly IAudioPlayerService _playerService;
-    private readonly EqBandProcessor _eqProcessor;
+    private readonly EqualizerManager _eqManager;
     private int _audioSessionId;
 
     // JNI 硬件效果
@@ -37,8 +37,8 @@ public class SoundEffectDialog : Dialog
     private Switch? _eqSwitch;
     private Spinner? _presetSpinner;
     private LinearLayout? _slidersContainer;
-    private readonly VerticalSliderView?[] _bandSliders = new VerticalSliderView[EqBandProcessor.Bands];
-    private readonly TextView?[] _bandDbTexts = new TextView[EqBandProcessor.Bands];
+    private readonly VerticalSliderView?[] _bandSliders = new VerticalSliderView[EqualizerManager.BandCount];
+    private readonly TextView?[] _bandDbTexts = new TextView[EqualizerManager.BandCount];
 
     // UI — 低音增强
     private Switch? _bassSwitch;
@@ -66,30 +66,30 @@ public class SoundEffectDialog : Dialog
     private const string KeyVirStrength = "vir_strength";
     private const string KeyMaxAudioEnabled = "maxaudio_enabled";
 
-    /// <summary>10段预设均衡器曲线（单位：millibels）</summary>
+    /// <summary>5段预设均衡器曲线（单位：millibels）</summary>
     private static readonly IReadOnlyDictionary<string, short[]> PresetCurves = new Dictionary<string, short[]>
     {
-        ["普通"] =        [    0,    0,    0,    0,    0,    0,    0,    0,    0,    0],
-        ["古典"] =        [  400,  400,  300,  200, -200, -200, -100,  100,  300,  400],
-        ["舞曲"] =        [  500,  400,  100,    0,    0, -200, -300, -200,    0,  200],
-        ["平坦"] =        [    0,    0,    0,    0,    0,    0,    0,    0,    0,    0],
-        ["民谣"] =        [  200,  300,  200,  100, -100, -200, -200, -100,  100,  200],
-        ["重金属"] =      [  400,  500,  200, -300, -400, -300,  100,  300,  400,  400],
-        ["嘻哈"] =        [  500,  400,  100, -100, -200,  100,  200,  100,    0,  100],
-        ["爵士"] =        [  300,  200,    0,  100,  200,  200,  100,  200,  300,  300],
-        ["流行"] =        [  -50,  200,  400,  300, -100, -200, -100,  200,  300,  200],
-        ["摇滚"] =        [  400,  300, -200, -400, -200,  100,  300,  400,  400,  400],
-        ["节奏布鲁斯"] =  [  500,  400,  100, -300, -100,  100,  200,  300,  300,  200],
-        ["拉丁"] =        [  300,  200, -100, -200, -200, -100,  100,  200,  300,  400],
-        ["乡村"] =        [  200,  200,  100, -100, -200, -200, -100,  100,  200,  200],
-        ["原声"] =        [  200,  300,  200,  100,  100,  100,  100,  200,  300,  300],
-        ["人声增强"] =    [ -200, -100,  200,  400,  400,  300,  200,  100,    0, -100],
-        ["低音增强"] =    [  600,  500,  300,  100,    0,    0,    0,    0,    0,    0],
-        ["高音增强"] =    [    0,    0,    0,    0,    0,    0,  200,  400,  500,  600],
-        ["响度"] =        [  400,  300,  100,    0,    0,    0,    0,  100,  200,  300],
-        ["电子"] =        [  400,  300,    0, -200, -400, -200,  100,  300,  400,  400],
-        ["小扬声器"] =    [  400,  300,  200,  100, -100, -200, -100,  100,  200,  300],
-        ["现场"] =        [ -100,  200,  300,  200,  100,  100,  200,  300,  200,  100],
+        ["普通"] =        [    0,    0,    0,    0,    0],
+        ["古典"] =        [  300,  200, -100,  200,  400],
+        ["舞曲"] =        [  400,  200,    0, -100,  200],
+        ["平坦"] =        [    0,    0,    0,    0,    0],
+        ["民谣"] =        [  200,  200, -100,    0,  200],
+        ["重金属"] =      [  400,    0, -200,  300,  400],
+        ["嘻哈"] =        [  400,  100,    0,  100,  100],
+        ["爵士"] =        [  200,  100,  200,  200,  300],
+        ["流行"] =        [  200,  300, -100,  200,  200],
+        ["摇滚"] =        [  400, -100, -200,  300,  400],
+        ["节奏布鲁斯"] =  [  400,  100,    0,  200,  200],
+        ["拉丁"] =        [  200, -100, -100,  200,  400],
+        ["乡村"] =        [  200,  100, -100,  100,  200],
+        ["原声"] =        [  200,  200,  100,  200,  300],
+        ["人声增强"] =    [ -100,  200,  400,  100,    0],
+        ["低音增强"] =    [  600,  300,    0,    0,    0],
+        ["高音增强"] =    [    0,    0,    0,  300,  600],
+        ["响度"] =        [  400,  100,    0,  200,  300],
+        ["电子"] =        [  400,    0, -300,  300,  400],
+        ["小扬声器"] =    [  300,  200,    0,  200,  300],
+        ["现场"] =        [  100,  200,  100,  200,  100],
     };
 
     private static readonly List<string> PresetNames = new(PresetCurves.Keys);
@@ -108,7 +108,7 @@ public class SoundEffectDialog : Dialog
         : base(context, Android.Resource.Style.ThemeOverlayMaterialDark)
     {
         _playerService = playerService;
-        _eqProcessor = MainApplication.Services.GetRequiredService<EqBandProcessor>();
+        _eqManager = MainApplication.Services.GetRequiredService<EqualizerManager>();
     }
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -230,7 +230,7 @@ public class SoundEffectDialog : Dialog
         };
         content.SetPadding(0, 0, 0, dp(16));
 
-        content.AddView(MakeMenuEntry("\u266B", "均衡器", "10 Band Equalizer", (s, e) => NavigateTo("eq")));
+        content.AddView(MakeMenuEntry("\u266B", "均衡器", "5 Band Equalizer", (s, e) => NavigateTo("eq")));
         content.AddView(MakeDivider(dp));
         content.AddView(MakeMaxAudioSection(dp));
         if (IsXiaomiDevice())
@@ -279,12 +279,16 @@ public class SoundEffectDialog : Dialog
         presetRow.AddView(_presetSpinner);
         content.AddView(presetRow);
 
-        // 10-band sliders
-        var hScrollView = new HorizontalScrollView(Context) { LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, dp(210)) };
-        _slidersContainer = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.MatchParent) };
+        // 5-band sliders (均布)
+        _slidersContainer = new LinearLayout(Context)
+        {
+            Orientation = Orientation.Horizontal,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, dp(210))
+        };
         _slidersContainer.SetGravity(GravityFlags.CenterHorizontal);
-        hScrollView.AddView(_slidersContainer);
-        content.AddView(hScrollView);
+        _slidersContainer.SetPadding(dp(8), 0, dp(8), 0);
+        content.AddView(_slidersContainer);
         _eqSwitch.SetOnCheckedChangeListener(new EqSwitchListener(this));
 
         // dB Scale
@@ -488,6 +492,10 @@ public class SoundEffectDialog : Dialog
         {
             _audioSessionId = _playerService.AudioSessionId;
 
+            // 挂载系统硬件 EQ（5段，如果设备支持）
+            if (_audioSessionId > 0)
+                _eqManager.Attach(_audioSessionId);
+
             // 硬件 BassBoost / Virtualizer / PresetReverb（音乐厅混响）
             if (_audioSessionId > 0)
             {
@@ -503,9 +511,8 @@ public class SoundEffectDialog : Dialog
             var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
 
             // === 均衡器 ===
-            bool eqEnabled = prefs.GetBoolean(KeyEqEnabled, false);
+            bool eqEnabled = _eqManager.Enabled;
             _eqSwitch!.Checked = eqEnabled;
-            _eqProcessor.Enabled = eqEnabled;
             int savedPreset = prefs.GetInt(KeyPreset, -1);
             if (savedPreset >= 0 && savedPreset < PresetNames.Count)
             {
@@ -548,19 +555,24 @@ public class SoundEffectDialog : Dialog
     private void CreateBandSliders()
     {
         if (_slidersContainer == null) return;
-        for (int i = 0; i < EqBandProcessor.Bands; i++)
+        for (int i = 0; i < EqualizerManager.BandCount; i++)
         {
-            var bandLayout = new LinearLayout(Context) { Orientation = Orientation.Vertical, LayoutParameters = new LinearLayout.LayoutParams(Dp(38), ViewGroup.LayoutParams.MatchParent) };
-            bandLayout.SetGravity(GravityFlags.CenterHorizontal); bandLayout.SetPadding(Dp(3), Dp(2), Dp(3), Dp(2));
-            int freqHz = EqBandProcessor.Freqs[i];
+            var bandLayout = new LinearLayout(Context)
+            {
+                Orientation = Orientation.Vertical,
+                LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1f)
+            };
+            bandLayout.SetGravity(GravityFlags.CenterHorizontal);
+            bandLayout.SetPadding(Dp(4), Dp(2), Dp(4), Dp(2));
+            int freqHz = EqualizerManager.StandardFreqs[i];
             string freqLabel = freqHz >= 1000 ? $"{freqHz / 1000}k" : $"{freqHz}";
             var freqText = new TextView(Context) { Text = freqLabel, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
-            freqText.SetTextColor(Color.ParseColor("#AAFFFFFF")); freqText.TextSize = 9f; freqText.Gravity = GravityFlags.Center;
-            var slider = new VerticalSliderView(Context) { LayoutParameters = new LinearLayout.LayoutParams(Dp(32), 0, 1f), Min = -1500, Max = 1500, Value = 0 };
+            freqText.SetTextColor(Color.ParseColor("#AAFFFFFF")); freqText.TextSize = 11f; freqText.Gravity = GravityFlags.Center;
+            var slider = new VerticalSliderView(Context) { LayoutParameters = new LinearLayout.LayoutParams(Dp(40), 0, 1f), Min = -1500, Max = 1500, Value = 0 };
             var bandIdx = i;
             slider.ValueChanged += (s, v) => OnBandSliderChanged(bandIdx, (short)(int)v);
             var dbText = new TextView(Context) { Text = "0.0", LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
-            dbText.SetTextColor(Color.White); dbText.TextSize = 9f; dbText.Gravity = GravityFlags.Center;
+            dbText.SetTextColor(Color.White); dbText.TextSize = 10f; dbText.Gravity = GravityFlags.Center;
             _bandSliders[i] = slider; _bandDbTexts[i] = dbText;
             bandLayout.AddView(freqText); bandLayout.AddView(slider); bandLayout.AddView(dbText);
             _slidersContainer.AddView(bandLayout);
@@ -582,7 +594,7 @@ public class SoundEffectDialog : Dialog
     private void OnBandSliderChanged(int band, short millibels)
     {
         if (_isInitializing) return;
-        _eqProcessor.SetBandLevelMillibels(band, millibels);
+        _eqManager.SetBandLevel(band, millibels);
         if (_bandDbTexts[band] != null)
         {
             float db = millibels / 100f;
@@ -599,9 +611,9 @@ public class SoundEffectDialog : Dialog
 
     private void ApplyCurve(short[] curve)
     {
-        for (int i = 0; i < EqBandProcessor.Bands && i < curve.Length; i++)
+        for (int i = 0; i < EqualizerManager.BandCount && i < curve.Length; i++)
         {
-            _eqProcessor.SetBandLevelMillibels(i, curve[i]);
+            _eqManager.SetBandLevel(i, curve[i]);
             if (_bandSliders[i] != null) _bandSliders[i]!.Value = curve[i];
             if (_bandDbTexts[i] != null) { float db = curve[i] / 100f; _bandDbTexts[i]!.Text = $"{db:+0.0;-0.0;0.0}"; }
         }
@@ -609,9 +621,9 @@ public class SoundEffectDialog : Dialog
 
     private void UpdateSlidersFromProcessor()
     {
-        for (int i = 0; i < EqBandProcessor.Bands; i++)
+        for (int i = 0; i < EqualizerManager.BandCount; i++)
         {
-            var mb = _eqProcessor.GetBandLevelMillibels(i);
+            var mb = _eqManager.GetBandLevel(i);
             if (_bandSliders[i] != null) _bandSliders[i]!.Value = mb;
             if (_bandDbTexts[i] != null) { float db = mb / 100f; _bandDbTexts[i]!.Text = $"{db:+0.0;-0.0;0.0}"; }
         }
@@ -628,7 +640,7 @@ public class SoundEffectDialog : Dialog
         var presetName = PresetNames[e.Position - 1];
         if (PresetCurves.TryGetValue(presetName, out var curve))
         {
-            _eqSwitch!.Checked = true; _eqProcessor.Enabled = true;
+            _eqSwitch!.Checked = true; _eqManager.Enabled = true;
             ApplyCurve(curve); SaveSettings();
         }
     }
@@ -640,7 +652,7 @@ public class SoundEffectDialog : Dialog
         public void OnCheckedChanged(CompoundButton? b, bool enabled)
         {
             if (!_ref.TryGetTarget(out var d)) return;
-            d._eqProcessor.Enabled = enabled; d.SaveSettings();
+            d._eqManager.Enabled = enabled; d.SaveSettings();
         }
     }
 
@@ -800,8 +812,8 @@ public class SoundEffectDialog : Dialog
             // EQ
             editor.PutBoolean(KeyEqEnabled, _eqSwitch?.Checked ?? false);
             editor.PutInt(KeyPreset, (_presetSpinner?.SelectedItemPosition ?? 0) - 1);
-            for (int i = 0; i < EqBandProcessor.Bands; i++)
-                editor.PutInt(KeyBandLevelPrefix + i, _eqProcessor.GetBandLevelMillibels(i));
+            for (int i = 0; i < EqualizerManager.BandCount; i++)
+                editor.PutInt(KeyBandLevelPrefix + i, _eqManager.GetBandLevel(i));
 
             // Bass / Vir
             editor.PutBoolean(KeyBassEnabled, _bassSwitch?.Checked ?? false);
@@ -820,10 +832,10 @@ public class SoundEffectDialog : Dialog
     private void RestoreBandLevels()
     {
         var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
-        for (int i = 0; i < EqBandProcessor.Bands; i++)
+        for (int i = 0; i < EqualizerManager.BandCount; i++)
         {
             int saved = prefs.GetInt(KeyBandLevelPrefix + i, int.MinValue);
-            if (saved != int.MinValue) _eqProcessor.SetBandLevelMillibels(i, (short)saved);
+            if (saved != int.MinValue) _eqManager.SetBandLevel(i, (short)saved);
         }
         UpdateSlidersFromProcessor();
     }

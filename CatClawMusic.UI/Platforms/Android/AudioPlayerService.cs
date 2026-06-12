@@ -1,8 +1,6 @@
 using Android.OS;
-using Android.Runtime;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.Services;
-
 using Microsoft.Extensions.DependencyInjection;
 using System.Timers;
 using AndroidHandler = Android.OS.Handler;
@@ -114,6 +112,13 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var ctx = global::Android.App.Application.Context;
         _audioManager = (Am)ctx.GetSystemService(global::Android.Content.Context.AudioService)!;
         _focusListener = new AudioFocusChangeListener(this);
+
+        // 音频会话变化时重新挂载 EqualizerManager
+        AudioSessionIdChanged += sid =>
+        {
+            if (sid > 0)
+                MainApplication.Services.GetService<EqualizerManager>()?.Attach(sid);
+        };
     }
 
     /// <summary>音频焦点变化监听器</summary>
@@ -482,52 +487,6 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
             .SetMediaSourceFactory(mediaSourceFactory);
 
-        // 注入 TeeAudioProcessor（含 10 段软件 EQ）到 ExoPlayer Builder 的 AudioSink
-        // 必须在 Build() 之前通过 JNI 调用 setAudioSink，否则无效
-        var teeProcessor = MainApplication.Services.GetService<TeeAudioProcessor>();
-        if (teeProcessor != null)
-        {
-            try
-            {
-                var audioSink = new AndroidX.Media3.ExoPlayer.Audio.DefaultAudioSink.Builder(ctx)
-                    .SetAudioProcessors(new AndroidX.Media3.Common.Audio.BaseAudioProcessor[] { teeProcessor })
-                    .Build();
-
-                // 通过 JNI 在 Builder 上调用 setAudioSink（Xamarin 绑定未暴露该方法）
-                var builderJavaClass = builder.Class;
-                var audioSinkIfaceClass = Java.Lang.Class.ForName("androidx.media3.exoplayer.audio.AudioSink");
-
-                // 遍历类层次查找 setAudioSink 方法（可能在 ExoPlayer.Builder 父类中）
-                Java.Lang.Reflect.Method? setMethod = null;
-                var currentClass = builderJavaClass;
-                while (currentClass != null && setMethod == null)
-                {
-                    try { setMethod = currentClass.GetDeclaredMethod("setAudioSink", audioSinkIfaceClass); }
-                    catch { }
-                    try
-                    {
-                        var getSuper = Java.Lang.Class.ForName("java.lang.Class").GetMethod("getSuperclass");
-                        currentClass = getSuper.Invoke(currentClass)?.JavaCast<Java.Lang.Class>();
-                    }
-                    catch { break; }
-                }
-
-                if (setMethod != null)
-                {
-                    setMethod.Invoke(builder, audioSink);
-                    ALog.Debug("CatClaw", "[CatClaw] TeeAudioProcessor injected via JNI setAudioSink on Builder");
-                }
-                else
-                {
-                    ALog.Warn("CatClaw", "[CatClaw] setAudioSink method not found via JNI");
-                }
-            }
-            catch (Exception ex)
-            {
-                ALog.Warn("CatClaw", $"[CatClaw] JNI setAudioSink failed: {ex.Message}");
-            }
-        }
-
         _player = builder.Build();
 
         try
@@ -548,39 +507,19 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     }
 
     /// <summary>
-    /// 启动时从 SharedPreferences 恢复音效设置（EQ），确保音效在打开对话框之前就能生效
+    /// 启动时从 SharedPreferences 恢复音效设置，将 EqualizerManager 挂载到当前音频会话
     /// </summary>
     private void RestoreAudioSettings()
     {
         try
         {
-            var sp = MainApplication.Services;
-            var prefs = global::Android.App.Application.Context
-                .GetSharedPreferences("catclaw_eq10_prefs", global::Android.Content.FileCreationMode.Private);
-            if (prefs == null) return;
-
-            // === EQ ===
-            var eqProcessor = sp.GetService<EqBandProcessor>();
-            if (eqProcessor != null)
+            var eqManager = MainApplication.Services.GetService<EqualizerManager>();
+            var sessionId = AudioSessionId;
+            if (eqManager != null && sessionId > 0)
             {
-                bool eqEnabled = prefs.GetBoolean("eq_enabled", false);
-                eqProcessor.Enabled = eqEnabled;
-                if (eqEnabled)
-                {
-                    int savedPreset = prefs.GetInt("eq_preset", -1);
-                    if (savedPreset < 0)
-                    {
-                        for (int i = 0; i < EqBandProcessor.Bands; i++)
-                        {
-                            int saved = prefs.GetInt($"eq_band_{i}", int.MinValue);
-                            if (saved != int.MinValue)
-                                eqProcessor.SetBandLevelMillibels(i, (short)saved);
-                        }
-                    }
-                }
+                eqManager.Attach(sessionId);
+                ALog.Debug("CatClaw", $"[CatClaw] Equalizer attached to session {sessionId}");
             }
-
-            ALog.Debug("CatClaw", "[CatClaw] Audio settings restored: EQ initialized");
         }
         catch (Exception ex)
         {
