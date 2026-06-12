@@ -17,7 +17,7 @@ namespace CatClawMusic.UI.Services;
 /// <summary>前台播放服务，提供通知栏播放控制、MediaSession 集成和桌面歌词快捷操作</summary>
 [Service(
     Name = "com.catclaw.music.ForegroundPlayerService",
-    Exported = true,
+    Exported = false,
     ForegroundServiceType = global::Android.Content.PM.ForegroundService.TypeMediaPlayback)]
 public class ForegroundPlayerService : Service
 {
@@ -61,7 +61,7 @@ public class ForegroundPlayerService : Service
         var filter = new IntentFilter();
         filter.AddAction(Intent.ActionScreenOn);
         filter.AddAction(Intent.ActionUserPresent);
-        RegisterReceiver(_screenOnReceiver, filter);
+        RegisterReceiver(_screenOnReceiver, filter, (ReceiverFlags)0x4 /* RECEIVER_NOT_EXPORTED */);
     }
 
     /// <summary>处理启动命令：首次启动时进入前台模式并显示通知，或根据 Intent Action 执行播放控制</summary>

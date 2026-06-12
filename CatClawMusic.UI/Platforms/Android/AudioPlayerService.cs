@@ -113,11 +113,11 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         _audioManager = (Am)ctx.GetSystemService(global::Android.Content.Context.AudioService)!;
         _focusListener = new AudioFocusChangeListener(this);
 
-        // 音频会话变化时重新挂载 EqualizerManager
+        // 音频会话变化时重新挂载 SoundEffectManager
         AudioSessionIdChanged += sid =>
         {
             if (sid > 0)
-                MainApplication.Services.GetService<EqualizerManager>()?.Attach(sid);
+                MainApplication.Services.GetService<SoundEffectManager>()?.Attach(sid);
         };
     }
 
@@ -507,18 +507,18 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     }
 
     /// <summary>
-    /// 启动时从 SharedPreferences 恢复音效设置，将 EqualizerManager 挂载到当前音频会话
+    /// 启动时从 SharedPreferences 恢复音效设置，将 SoundEffectManager 挂载到当前音频会话
     /// </summary>
     private void RestoreAudioSettings()
     {
         try
         {
-            var eqManager = MainApplication.Services.GetService<EqualizerManager>();
+            var sfxManager = MainApplication.Services.GetService<SoundEffectManager>();
             var sessionId = AudioSessionId;
-            if (eqManager != null && sessionId > 0)
+            if (sfxManager != null && sessionId > 0)
             {
-                eqManager.Attach(sessionId);
-                ALog.Debug("CatClaw", $"[CatClaw] Equalizer attached to session {sessionId}");
+                sfxManager.Attach(sessionId);
+                ALog.Debug("CatClaw", $"[CatClaw] SoundEffectManager attached to session {sessionId}");
             }
         }
         catch (Exception ex)

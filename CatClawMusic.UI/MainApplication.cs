@@ -80,8 +80,8 @@ public class MainApplication : Application
             var smb = fileServices.FirstOrDefault(s => s is SmbService) ?? fileServices.LastOrDefault();
             return new NetworkMusicService(db, subsonic, webDav!, smb!);
         });
-        // 系统硬件均衡器（10段UI均布映射到设备频段）
-        services.AddSingleton<EqualizerManager>();
+        // 音效管理器（预设音效方案，管理EQ+混响+环绕+低音）
+        services.AddSingleton<SoundEffectManager>();
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
         services.AddSingleton<IPluginManager>(sp =>
@@ -316,7 +316,7 @@ public class MainApplication : Application
         {
             var receiver = new RescanLibraryReceiver();
             var filter = new global::Android.Content.IntentFilter("catclawmusic.action.RESCAN_LIBRARY");
-            RegisterReceiver(receiver, filter);
+            RegisterReceiver(receiver, filter, (global::Android.Content.ReceiverFlags)0x4 /* RECEIVER_NOT_EXPORTED */);
             Android.Util.Log.Info("CatClaw", "RescanLibraryReceiver registered ✅");
         }
         catch (Exception ex)

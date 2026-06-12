@@ -12,10 +12,16 @@
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:padding="12dp">
 
+        <!-- 文字起始参考线：12dp(card padding) + 48dp(cover) + 16dp(gap) = 76dp -->
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideline_text_start"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_begin="64dp" />
+
         <FrameLayout
             android:id="@+id/cover_container"
             android:layout_width="48dp" android:layout_height="48dp"
-            android:layout_marginEnd="20dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent">
@@ -45,7 +51,7 @@
             android:textColor="?attr/catClawTextPrimary" android:maxLines="1"
             android:ellipsize="end" android:fontFamily="sans-serif-medium"
             android:text="歌曲名"
-            app:layout_constraintStart_toEndOf="@id/cover_container"
+            app:layout_constraintStart_toEndOf="@id/guideline_text_start"
             app:layout_constraintEnd_toStartOf="@id/checkbox_select"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toTopOf="@id/song_artist" />
@@ -54,7 +60,7 @@
             android:layout_height="wrap_content" android:textSize="12sp"
             android:textColor="?attr/catClawTextSecondary" android:fontFamily="sans-serif"
             android:text="艺术家" android:maxLines="1" android:ellipsize="end"
-            app:layout_constraintStart_toEndOf="@id/cover_container"
+            app:layout_constraintStart_toEndOf="@id/guideline_text_start"
             app:layout_constraintEnd_toStartOf="@id/checkbox_select"
             app:layout_constraintTop_toBottomOf="@id/song_title"
             app:layout_constraintBottom_toTopOf="@id/song_album" />
@@ -63,7 +69,7 @@
             android:layout_height="wrap_content" android:textSize="11sp"
             android:textColor="?attr/catClawTextHint" android:fontFamily="sans-serif"
             android:text="专辑" android:maxLines="1" android:ellipsize="end"
-            app:layout_constraintStart_toEndOf="@id/cover_container"
+            app:layout_constraintStart_toEndOf="@id/guideline_text_start"
             app:layout_constraintEnd_toStartOf="@id/song_sync_icon"
             app:layout_constraintTop_toBottomOf="@id/song_artist"
             app:layout_constraintBottom_toBottomOf="parent" />

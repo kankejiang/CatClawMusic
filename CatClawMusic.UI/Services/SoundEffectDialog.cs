@@ -11,20 +11,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CatClawMusic.UI.Services;
 
 /// <summary>
-/// 音效对话框 — 栈式多页面导航结构:
-/// 主页: 均衡器入口、MAX Audio、MISOUND
-/// 均衡器子页: 10 段 EQ + 低音增强 + 环绕声
+/// 音效对话框 — 预设音效选择 + MAX Audio + MISOUND
 /// </summary>
 public class SoundEffectDialog : Dialog
 {
     private readonly IAudioPlayerService _playerService;
-    private readonly EqualizerManager _eqManager;
+    private readonly SoundEffectManager _sfxManager;
     private int _audioSessionId;
-
-    // JNI 硬件效果
-    private Java.Lang.Object? _bass;
-    private Java.Lang.Object? _virtual;
-    private Java.Lang.Object? _presetReverb;
 
     // ===== 栈式导航 =====
     private readonly Stack<string> _navStack = new();
@@ -33,82 +26,24 @@ public class SoundEffectDialog : Dialog
     private TextView? _headerTitle;
     private TextView? _backBtn;
 
-    // UI — 均衡器
-    private Switch? _eqSwitch;
-    private Spinner? _presetSpinner;
-    private LinearLayout? _slidersContainer;
-    private readonly VerticalSliderView?[] _bandSliders = new VerticalSliderView[EqualizerManager.BandCount];
-    private readonly TextView?[] _bandDbTexts = new TextView[EqualizerManager.BandCount];
-
-    // UI — 低音增强
-    private Switch? _bassSwitch;
-    private SeekBar? _bassSeekBar;
-    private TextView? _bassValue;
-
-    // UI — 环绕声
-    private Switch? _virSwitch;
-    private SeekBar? _virSeekBar;
-    private TextView? _virValue;
+    // UI — 音效预设
+    private TextView? _currentPresetLabel;
+    private LinearLayout? _presetGrid;
 
     // UI — MAX Audio
     private Switch? _maxAudioSwitch;
+    private Java.Lang.Object? _maxAudioReverb;
 
     private bool _isInitializing = true;
 
-    // 持久化
-    private const string PrefsName = "catclaw_eq10_prefs";
-    private const string KeyEqEnabled = "eq_enabled";
-    private const string KeyPreset = "eq_preset";
-    private const string KeyBandLevelPrefix = "eq_band_";
-    private const string KeyBassEnabled = "bass_enabled";
-    private const string KeyBassStrength = "bass_strength";
-    private const string KeyVirEnabled = "vir_enabled";
-    private const string KeyVirStrength = "vir_strength";
+    private const string PrefsName = "catclaw_sfx_dialog";
     private const string KeyMaxAudioEnabled = "maxaudio_enabled";
-
-    /// <summary>5段预设均衡器曲线（单位：millibels）</summary>
-    private static readonly IReadOnlyDictionary<string, short[]> PresetCurves = new Dictionary<string, short[]>
-    {
-        ["普通"] =        [    0,    0,    0,    0,    0],
-        ["古典"] =        [  300,  200, -100,  200,  400],
-        ["舞曲"] =        [  400,  200,    0, -100,  200],
-        ["平坦"] =        [    0,    0,    0,    0,    0],
-        ["民谣"] =        [  200,  200, -100,    0,  200],
-        ["重金属"] =      [  400,    0, -200,  300,  400],
-        ["嘻哈"] =        [  400,  100,    0,  100,  100],
-        ["爵士"] =        [  200,  100,  200,  200,  300],
-        ["流行"] =        [  200,  300, -100,  200,  200],
-        ["摇滚"] =        [  400, -100, -200,  300,  400],
-        ["节奏布鲁斯"] =  [  400,  100,    0,  200,  200],
-        ["拉丁"] =        [  200, -100, -100,  200,  400],
-        ["乡村"] =        [  200,  100, -100,  100,  200],
-        ["原声"] =        [  200,  200,  100,  200,  300],
-        ["人声增强"] =    [ -100,  200,  400,  100,    0],
-        ["低音增强"] =    [  600,  300,    0,    0,    0],
-        ["高音增强"] =    [    0,    0,    0,  300,  600],
-        ["响度"] =        [  400,  100,    0,  200,  300],
-        ["电子"] =        [  400,    0, -300,  300,  400],
-        ["小扬声器"] =    [  300,  200,    0,  200,  300],
-        ["现场"] =        [  100,  200,  100,  200,  100],
-    };
-
-    private static readonly List<string> PresetNames = new(PresetCurves.Keys);
-
-    static SoundEffectDialog()
-    {
-        PresetNames.Sort((a, b) =>
-        {
-            if (a == "普通") return -1;
-            if (b == "普通") return 1;
-            return string.Compare(a, b, StringComparison.Ordinal);
-        });
-    }
 
     public SoundEffectDialog(Activity context, IAudioPlayerService playerService)
         : base(context, Android.Resource.Style.ThemeOverlayMaterialDark)
     {
         _playerService = playerService;
-        _eqManager = MainApplication.Services.GetRequiredService<EqualizerManager>();
+        _sfxManager = MainApplication.Services.GetRequiredService<SoundEffectManager>();
     }
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -121,8 +56,6 @@ public class SoundEffectDialog : Dialog
         Window?.SetBackgroundDrawable(new ColorDrawable(Color.Transparent));
         Init();
     }
-
-    #region View Creation
 
     private int Dp(int dp) => (int)(dp * (Context.Resources?.DisplayMetrics?.Density ?? 1f));
 
@@ -190,15 +123,14 @@ public class SoundEffectDialog : Dialog
 
         // ===== 创建各页面 =====
         var mainScreen = CreateMainScreen(dp);
-        var eqScreen = CreateEqScreen(dp);
+        var presetScreen = CreatePresetScreen(dp);
 
         _screens["main"] = mainScreen;
-        _screens["eq"] = eqScreen;
+        _screens["presets"] = presetScreen;
 
         _screenTitles["main"] = "音效";
-        _screenTitles["eq"] = "均衡器";
+        _screenTitles["presets"] = "音效选择";
 
-        // 初始: 只显示主页
         foreach (var kv in _screens)
         {
             kv.Value.Visibility = kv.Key == "main" ? ViewStates.Visible : ViewStates.Gone;
@@ -209,6 +141,7 @@ public class SoundEffectDialog : Dialog
     }
 
     #region Main Screen
+
     private LinearLayout CreateMainScreen(Func<int, int> dp)
     {
         var screen = new LinearLayout(Context)
@@ -230,20 +163,52 @@ public class SoundEffectDialog : Dialog
         };
         content.SetPadding(0, 0, 0, dp(16));
 
-        content.AddView(MakeMenuEntry("\u266B", "均衡器", "5 Band Equalizer", (s, e) => NavigateTo("eq")));
+        // 音效选择入口
+        var sfxRow = new LinearLayout(Context)
+        {
+            Orientation = Orientation.Horizontal,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent),
+            Clickable = true, Focusable = true
+        };
+        sfxRow.SetGravity(GravityFlags.CenterVertical);
+        sfxRow.SetPadding(dp(16), dp(14), dp(16), dp(14));
+
+        var sfxIcon = new TextView(Context) { Text = "\U0001F3A7", LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
+        sfxIcon.TextSize = 22f; sfxIcon.Gravity = GravityFlags.Center; sfxIcon.SetPadding(dp(0), dp(0), dp(12), dp(0));
+
+        var sfxText = new LinearLayout(Context) { Orientation = Orientation.Vertical, LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f) };
+        var sfxTitle = new TextView(Context) { Text = "音效选择", LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
+        sfxTitle.SetTextColor(Color.White); sfxTitle.TextSize = 15f;
+        _currentPresetLabel = new TextView(Context) { Text = _sfxManager.CurrentPreset, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
+        _currentPresetLabel.SetTextColor(Color.ParseColor("#88FFFFFF")); _currentPresetLabel.TextSize = 12f;
+        sfxText.AddView(sfxTitle); sfxText.AddView(_currentPresetLabel);
+
+        var sfxChevron = new TextView(Context) { Text = "\u203A", LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
+        sfxChevron.SetTextColor(Color.ParseColor("#88FFFFFF")); sfxChevron.TextSize = 22f; sfxChevron.Gravity = GravityFlags.Center;
+
+        sfxRow.AddView(sfxIcon); sfxRow.AddView(sfxText); sfxRow.AddView(sfxChevron);
+        sfxRow.Click += (s, e) => NavigateTo("presets");
+        content.AddView(sfxRow);
+
         content.AddView(MakeDivider(dp));
+
+        // MAX Audio
         content.AddView(MakeMaxAudioSection(dp));
-        if (IsXiaomiDevice())
-            content.AddView(MakeMenuEntry("\u2669", "MISOUND", "Xiaomi Audio Effect", (s, e) => LaunchMiSound()));
+
+        // 系统音效
+        content.AddView(MakeMenuEntry("\u2669", "系统音效", "打开系统声音设置", (s, e) => OpenSystemSoundSettings(), dp));
 
         scroll.AddView(content);
         screen.AddView(scroll);
         return screen;
     }
+
     #endregion
 
-    #region EQ Screen
-    private LinearLayout CreateEqScreen(Func<int, int> dp)
+    #region Preset Screen
+
+    private LinearLayout CreatePresetScreen(Func<int, int> dp)
     {
         var screen = new LinearLayout(Context)
         {
@@ -262,83 +227,128 @@ public class SoundEffectDialog : Dialog
             LayoutParameters = new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
         };
-        content.SetPadding(0, 0, 0, dp(16));
+        content.SetPadding(dp(8), dp(8), dp(8), dp(16));
 
-        content.AddView(MakeSectionHeader("均衡器", out _eqSwitch));
-
-        // Preset row
-        var presetRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        presetRow.SetGravity(GravityFlags.CenterVertical);
-        presetRow.SetPadding(dp(16), 0, dp(16), dp(4));
-        var userLabel = new TextView(Context) { Text = "用户 ", LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
-        userLabel.SetTextColor(Color.ParseColor("#88FFFFFF"));
-        userLabel.TextSize = 13f;
-        presetRow.AddView(userLabel);
-        _presetSpinner = new Spinner(Context) { LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f) };
-        _presetSpinner.ItemSelected += OnPresetSelected;
-        presetRow.AddView(_presetSpinner);
-        content.AddView(presetRow);
-
-        // 5-band sliders (均布)
-        _slidersContainer = new LinearLayout(Context)
+        _presetGrid = new LinearLayout(Context)
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = Orientation.Vertical,
             LayoutParameters = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MatchParent, dp(210))
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
         };
-        _slidersContainer.SetGravity(GravityFlags.CenterHorizontal);
-        _slidersContainer.SetPadding(dp(8), 0, dp(8), 0);
-        content.AddView(_slidersContainer);
-        _eqSwitch.SetOnCheckedChangeListener(new EqSwitchListener(this));
-
-        // dB Scale
-        var scaleRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        scaleRow.SetPadding(dp(16), 0, dp(16), dp(4));
-        scaleRow.SetGravity(GravityFlags.CenterVertical);
-        AddScaleLabel(scaleRow, "+15 dB", GravityFlags.Start, 1f);
-        AddScaleLabel(scaleRow, "0 dB", GravityFlags.Center, 1f);
-        AddScaleLabel(scaleRow, "-15 dB", GravityFlags.End, 1f);
-        content.AddView(scaleRow);
-
-        content.AddView(MakeDivider(dp));
-
-        // Bass Boost
-        content.AddView(MakeSectionHeader("低音增强", out _bassSwitch));
-        var bassRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        bassRow.SetGravity(GravityFlags.CenterVertical);
-        bassRow.SetPadding(dp(16), 0, dp(16), dp(8));
-        _bassSeekBar = new SeekBar(Context) { LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f), Max = 1000 };
-        _bassSeekBar.SetOnSeekBarChangeListener(new BassSeekBarListener(this));
-        _bassValue = new TextView(Context) { LayoutParameters = new LinearLayout.LayoutParams(dp(50), ViewGroup.LayoutParams.WrapContent) };
-        _bassValue.SetTextColor(Color.White); _bassValue.TextSize = 13f; _bassValue.Gravity = GravityFlags.Center; _bassValue.Text = "0%";
-        bassRow.AddView(_bassSeekBar); bassRow.AddView(_bassValue);
-        content.AddView(bassRow);
-        _bassSwitch.SetOnCheckedChangeListener(new BassSwitchListener(this));
-
-        // Virtualizer
-        content.AddView(MakeSectionHeader("环绕声", out _virSwitch));
-        var virRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        virRow.SetGravity(GravityFlags.CenterVertical);
-        virRow.SetPadding(dp(16), 0, dp(16), dp(8));
-        _virSeekBar = new SeekBar(Context) { LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f), Max = 1000 };
-        _virSeekBar.SetOnSeekBarChangeListener(new VirSeekBarListener(this));
-        _virValue = new TextView(Context) { LayoutParameters = new LinearLayout.LayoutParams(dp(50), ViewGroup.LayoutParams.WrapContent) };
-        _virValue.SetTextColor(Color.White); _virValue.TextSize = 13f; _virValue.Gravity = GravityFlags.Center; _virValue.Text = "0%";
-        virRow.AddView(_virSeekBar); virRow.AddView(_virValue);
-        content.AddView(virRow);
-        _virSwitch.SetOnCheckedChangeListener(new VirSwitchListener(this));
+        content.AddView(_presetGrid);
 
         scroll.AddView(content);
         screen.AddView(scroll);
         return screen;
     }
+
+    private void BuildPresetGrid()
+    {
+        if (_presetGrid == null) return;
+        _presetGrid.RemoveAllViews();
+
+        var presets = SoundEffectManager.Presets;
+        var current = _sfxManager.CurrentPreset;
+
+        int dp(int v) => (int)(v * (Context.Resources?.DisplayMetrics?.Density ?? 1f));
+
+        for (int row = 0; row < presets.Length; row += 2)
+        {
+            var rowLayout = new LinearLayout(Context)
+            {
+                Orientation = Orientation.Horizontal,
+                LayoutParameters = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+            };
+            rowLayout.SetPadding(0, 0, 0, dp(6));
+
+            for (int col = 0; col < 2 && row + col < presets.Length; col++)
+            {
+                var preset = presets[row + col];
+                var card = CreatePresetCard(preset, preset.Name == current, dp);
+                rowLayout.AddView(card);
+            }
+
+            _presetGrid.AddView(rowLayout);
+        }
+    }
+
+    private LinearLayout CreatePresetCard(SoundEffectManager.Preset preset, bool isSelected, Func<int, int> dp)
+    {
+        var card = new LinearLayout(Context)
+        {
+            Orientation = Orientation.Vertical,
+            LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f),
+            Clickable = true, Focusable = true
+        };
+        card.SetPadding(dp(8), dp(10), dp(8), dp(10));
+        card.SetGravity(GravityFlags.CenterHorizontal);
+
+        // 选中状态背景
+        var bgColor = isSelected ? Color.ParseColor("#3344AAFF") : Color.ParseColor("#11FFFFFF");
+        var bgDrawable = new GradientDrawable();
+        bgDrawable.SetCornerRadius(dp(10));
+        bgDrawable.SetColor(bgColor);
+        if (isSelected)
+        {
+            bgDrawable.SetStroke(dp(1), Color.ParseColor("#44AAFF"));
+        }
+        card.Background = bgDrawable;
+
+        // 图标
+        var icon = new TextView(Context)
+        {
+            Text = preset.Icon,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent)
+        };
+        icon.TextSize = 28f;
+        icon.Gravity = GravityFlags.Center;
+        card.AddView(icon);
+
+        // 名称
+        var name = new TextView(Context)
+        {
+            Text = preset.Name,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent)
+        };
+        name.SetTextColor(isSelected ? Color.ParseColor("#44AAFF") : Color.White);
+        name.TextSize = 13f;
+        name.SetTypeface(null, isSelected ? TypefaceStyle.Bold : TypefaceStyle.Normal);
+        name.Gravity = GravityFlags.Center;
+        name.SetPadding(0, dp(4), 0, 0);
+        card.AddView(name);
+
+        // 描述
+        var desc = new TextView(Context)
+        {
+            Text = preset.Description,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent)
+        };
+        desc.SetTextColor(isSelected ? Color.ParseColor("#6644AAFF") : Color.ParseColor("#66FFFFFF"));
+        desc.TextSize = 10f;
+        desc.Gravity = GravityFlags.Center;
+        desc.SetPadding(dp(4), dp(2), dp(4), 0);
+        card.AddView(desc);
+
+        card.Click += (s, e) =>
+        {
+            _sfxManager.ApplyPreset(preset.Name);
+            _currentPresetLabel!.Text = preset.Name;
+            BuildPresetGrid();
+        };
+
+        return card;
+    }
+
     #endregion
 
     #region UI Helpers
 
-    private LinearLayout MakeMenuEntry(string icon, string title, string subtitle, EventHandler onClick)
+    private LinearLayout MakeMenuEntry(string icon, string title, string subtitle, EventHandler onClick, Func<int, int> dp)
     {
-        int dp(int v) => (int)(v * (Context.Resources?.DisplayMetrics?.Density ?? 1f));
         var row = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent), Clickable = true, Focusable = true };
         row.SetGravity(GravityFlags.CenterVertical);
         row.SetPadding(dp(16), dp(14), dp(16), dp(14));
@@ -358,30 +368,11 @@ public class SoundEffectDialog : Dialog
         return row;
     }
 
-    private LinearLayout MakeSectionHeader(string title, out Switch sw)
-    {
-        int dp(int v) => (int)(v * (Context.Resources?.DisplayMetrics?.Density ?? 1f));
-        var row = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        row.SetGravity(GravityFlags.CenterVertical); row.SetPadding(dp(16), dp(10), dp(16), 0);
-        var tv = new TextView(Context) { Text = title, LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f) };
-        tv.SetTextColor(Color.White); tv.TextSize = 15f; tv.SetTypeface(null, TypefaceStyle.Bold);
-        sw = new Switch(Context) { LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
-        row.AddView(tv); row.AddView(sw);
-        return row;
-    }
-
     private View MakeDivider(Func<int, int> dp)
     {
         var d = new View(Context) { LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, dp(1)) };
         d.SetBackgroundColor(Color.ParseColor("#22FFFFFF"));
         return d;
-    }
-
-    private void AddScaleLabel(LinearLayout parent, string text, GravityFlags gravity, float weight)
-    {
-        var tv = new TextView(Context) { Text = text, LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, weight) };
-        tv.SetTextColor(Color.ParseColor("#66FFFFFF")); tv.TextSize = 10f; tv.Gravity = gravity;
-        parent.AddView(tv);
     }
 
     #endregion
@@ -407,8 +398,6 @@ public class SoundEffectDialog : Dialog
 
     #endregion
 
-    #endregion // View Creation
-
     #region Navigation
 
     private void NavigateTo(string screenName)
@@ -419,6 +408,9 @@ public class SoundEffectDialog : Dialog
         _navStack.Push(screenName);
         _backBtn!.Visibility = ViewStates.Visible;
         _headerTitle!.Text = _screenTitles[screenName];
+
+        if (screenName == "presets")
+            BuildPresetGrid();
     }
 
     private void NavigateBack()
@@ -442,241 +434,80 @@ public class SoundEffectDialog : Dialog
 
     #endregion
 
-    #region JNI Helpers (BassBoost / Virtualizer / PresetReverb)
-
-    private static Java.Lang.Class? _bassClass, _virClass, _presetReverbClass;
-    private static Java.Lang.Class BassClass => _bassClass ??= Java.Lang.Class.ForName("android.media.audiofx.BassBoost");
-    private static Java.Lang.Class VirClass => _virClass ??= Java.Lang.Class.ForName("android.media.audiofx.Virtualizer");
-    private static Java.Lang.Class PresetReverbClass => _presetReverbClass ??= Java.Lang.Class.ForName("android.media.audiofx.PresetReverb");
-
-    private static Java.Lang.Object NewEffect(Java.Lang.Class cls, int priority, int sessionId)
-    {
-        var ctor = cls.GetConstructor(Java.Lang.Integer.Type, Java.Lang.Integer.Type);
-        return ctor.NewInstance(Java.Lang.Integer.ValueOf(priority), Java.Lang.Integer.ValueOf(sessionId));
-    }
-    private static void JniCallBool(Java.Lang.Object? obj, Java.Lang.Class cls, string name, bool arg)
-    { var m = cls.GetMethod(name, Java.Lang.Boolean.Type); m.Invoke(obj, Java.Lang.Boolean.ValueOf(arg)); }
-    private static void JniCallShort(Java.Lang.Object? obj, Java.Lang.Class cls, string name, short arg)
-    { var m = cls.GetMethod(name, Java.Lang.Short.Type); m.Invoke(obj, Java.Lang.Short.ValueOf(arg)); }
-
-    private void BassSetEnabled(bool enabled) => JniCallBool(_bass, BassClass, "setEnabled", enabled);
-    private void BassSetStrength(short strength) => JniCallShort(_bass, BassClass, "setStrength", strength);
-    private void VirSetEnabled(bool enabled) => JniCallBool(_virtual, VirClass, "setEnabled", enabled);
-    private void VirSetStrength(short strength) => JniCallShort(_virtual, VirClass, "setStrength", strength);
-    private void HwReverbSetEnabled(bool enabled) => JniCallBool(_presetReverb, PresetReverbClass, "setEnabled", enabled);
-
-    private void ApplyConcertHallPreset()
-    {
-        if (_presetReverb == null) return;
-        try
-        {
-            // PresetReverb.SHORT_PRESETS → PRESET_LARGEHALL (index 2)
-            // 短整型参数名: "preset", 值: PRESET_LARGEHALL
-            var presetMethod = PresetReverbClass.GetMethod("setPreset", Java.Lang.Short.Type);
-            presetMethod.Invoke(_presetReverb, Java.Lang.Short.ValueOf(2)); // PRESET_LARGEHALL
-        }
-        catch
-        {
-            Android.Util.Log.Warn("CatClaw.SFX", "PresetReverb.setPreset failed, trying JNI call");
-            try { JniCallShort(_presetReverb, PresetReverbClass, "setPreset", 2); } catch { }
-        }
-    }
-
-    #endregion
-
-    #region Initialization
+    #region Init
 
     private void Init()
     {
         try
         {
             _audioSessionId = _playerService.AudioSessionId;
-
-            // 挂载系统硬件 EQ（5段，如果设备支持）
             if (_audioSessionId > 0)
-                _eqManager.Attach(_audioSessionId);
-
-            // 硬件 BassBoost / Virtualizer / PresetReverb（音乐厅混响）
-            if (_audioSessionId > 0)
-            {
-                try { _bass = NewEffect(BassClass, 0, _audioSessionId); } catch { }
-                try { _virtual = NewEffect(VirClass, 0, _audioSessionId); } catch { }
-                try { _presetReverb = NewEffect(PresetReverbClass, 0, _audioSessionId); } catch (Exception ex) { Android.Util.Log.Warn("CatClaw.SFX", $"PresetReverb not supported: {ex.Message}"); }
-            }
-
-            CreateBandSliders();
-            FillPresets();
+                _sfxManager.Attach(_audioSessionId);
 
             _isInitializing = true;
+
             var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
 
-            // === 均衡器 ===
-            bool eqEnabled = _eqManager.Enabled;
-            _eqSwitch!.Checked = eqEnabled;
-            int savedPreset = prefs.GetInt(KeyPreset, -1);
-            if (savedPreset >= 0 && savedPreset < PresetNames.Count)
-            {
-                _presetSpinner!.SetSelection(savedPreset + 1);
-                if (PresetCurves.TryGetValue(PresetNames[savedPreset], out var curve)) ApplyCurve(curve);
-            }
-            else if (eqEnabled) { RestoreBandLevels(); }
-
-            // === 低音增强 ===
-            _bassSwitch!.Checked = prefs.GetBoolean(KeyBassEnabled, false);
-            if (_bass != null) BassSetEnabled(_bassSwitch.Checked);
-            _bassSeekBar!.Progress = prefs.GetInt(KeyBassStrength, 0);
-            _bassValue!.Text = $"{_bassSeekBar.Progress / 10}%";
-            if (_bassSwitch.Checked && _bass != null) BassSetStrength((short)_bassSeekBar.Progress);
-
-            // === 环绕声 ===
-            _virSwitch!.Checked = prefs.GetBoolean(KeyVirEnabled, false);
-            if (_virtual != null) VirSetEnabled(_virSwitch.Checked);
-            _virSeekBar!.Progress = prefs.GetInt(KeyVirStrength, 0);
-            _virValue!.Text = $"{_virSeekBar.Progress / 10}%";
-            if (_virSwitch.Checked && _virtual != null) VirSetStrength((short)_virSeekBar.Progress);
-
-            // === MAX Audio ===
+            // MAX Audio
             bool maxAudioEnabled = prefs.GetBoolean(KeyMaxAudioEnabled, false);
             _maxAudioSwitch!.Checked = maxAudioEnabled;
-            if (maxAudioEnabled && _presetReverb != null)
-            {
-                HwReverbSetEnabled(true);
-                ApplyConcertHallPreset();
-            }
+            if (maxAudioEnabled)
+                ApplyMaxAudio();
 
             _isInitializing = false;
+
+            _currentPresetLabel!.Text = _sfxManager.CurrentPreset;
         }
         catch (Exception ex)
         {
-            Android.Util.Log.Warn("CatClaw.SFX", $"音效初始化失败: {ex.Message}\n{ex.StackTrace}");
+            Android.Util.Log.Warn("CatClaw.SFX", $"音效初始化失败: {ex.Message}");
         }
     }
 
-    private void CreateBandSliders()
+    private void ApplyMaxAudio()
     {
-        if (_slidersContainer == null) return;
-        for (int i = 0; i < EqualizerManager.BandCount; i++)
+        try
         {
-            var bandLayout = new LinearLayout(Context)
+            if (_maxAudioReverb == null)
             {
-                Orientation = Orientation.Vertical,
-                LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1f)
-            };
-            bandLayout.SetGravity(GravityFlags.CenterHorizontal);
-            bandLayout.SetPadding(Dp(4), Dp(2), Dp(4), Dp(2));
-            int freqHz = EqualizerManager.StandardFreqs[i];
-            string freqLabel = freqHz >= 1000 ? $"{freqHz / 1000}k" : $"{freqHz}";
-            var freqText = new TextView(Context) { Text = freqLabel, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
-            freqText.SetTextColor(Color.ParseColor("#AAFFFFFF")); freqText.TextSize = 11f; freqText.Gravity = GravityFlags.Center;
-            var slider = new VerticalSliderView(Context) { LayoutParameters = new LinearLayout.LayoutParams(Dp(40), 0, 1f), Min = -1500, Max = 1500, Value = 0 };
-            var bandIdx = i;
-            slider.ValueChanged += (s, v) => OnBandSliderChanged(bandIdx, (short)(int)v);
-            var dbText = new TextView(Context) { Text = "0.0", LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
-            dbText.SetTextColor(Color.White); dbText.TextSize = 10f; dbText.Gravity = GravityFlags.Center;
-            _bandSliders[i] = slider; _bandDbTexts[i] = dbText;
-            bandLayout.AddView(freqText); bandLayout.AddView(slider); bandLayout.AddView(dbText);
-            _slidersContainer.AddView(bandLayout);
+                var cls = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb");
+                var ctor = cls.GetConstructor(Java.Lang.Integer.Type, Java.Lang.Integer.Type);
+                _maxAudioReverb = ctor.NewInstance(
+                    Java.Lang.Integer.ValueOf(0),
+                    Java.Lang.Integer.ValueOf(_audioSessionId));
+            }
+
+            var setEnabled = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb")
+                .GetMethod("setEnabled", Java.Lang.Boolean.Type);
+            setEnabled.Invoke(_maxAudioReverb, Java.Lang.Boolean.True);
+
+            var setPreset = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb")
+                .GetMethod("setPreset", Java.Lang.Short.Type);
+            setPreset.Invoke(_maxAudioReverb, Java.Lang.Short.ValueOf(2)); // PRESET_LARGEHALL
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Warn("CatClaw.SFX", $"MAX Audio 启用失败: {ex.Message}");
         }
     }
 
-    private void FillPresets()
+    private void DisableMaxAudio()
     {
-        if (_presetSpinner == null) return;
-        var items = new List<string> { "自定义" };
-        items.AddRange(PresetNames);
-        _presetSpinner.Adapter = new ArrayAdapter<string>(Context, Android.Resource.Layout.SimpleSpinnerDropDownItem, items);
-    }
-
-    #endregion
-
-    #region Band Slider Logic
-
-    private void OnBandSliderChanged(int band, short millibels)
-    {
-        if (_isInitializing) return;
-        _eqManager.SetBandLevel(band, millibels);
-        if (_bandDbTexts[band] != null)
+        try
         {
-            float db = millibels / 100f;
-            _bandDbTexts[band]!.Text = $"{db:+0.0;-0.0;0.0}";
+            if (_maxAudioReverb != null)
+            {
+                var setEnabled = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb")
+                    .GetMethod("setEnabled", Java.Lang.Boolean.Type);
+                setEnabled.Invoke(_maxAudioReverb, Java.Lang.Boolean.False);
+            }
         }
-        if (_presetSpinner != null && _presetSpinner.SelectedItemPosition != 0)
-        {
-            _isInitializing = true;
-            _presetSpinner.SetSelection(0);
-            _isInitializing = false;
-        }
-        SaveSettings();
-    }
-
-    private void ApplyCurve(short[] curve)
-    {
-        for (int i = 0; i < EqualizerManager.BandCount && i < curve.Length; i++)
-        {
-            _eqManager.SetBandLevel(i, curve[i]);
-            if (_bandSliders[i] != null) _bandSliders[i]!.Value = curve[i];
-            if (_bandDbTexts[i] != null) { float db = curve[i] / 100f; _bandDbTexts[i]!.Text = $"{db:+0.0;-0.0;0.0}"; }
-        }
-    }
-
-    private void UpdateSlidersFromProcessor()
-    {
-        for (int i = 0; i < EqualizerManager.BandCount; i++)
-        {
-            var mb = _eqManager.GetBandLevel(i);
-            if (_bandSliders[i] != null) _bandSliders[i]!.Value = mb;
-            if (_bandDbTexts[i] != null) { float db = mb / 100f; _bandDbTexts[i]!.Text = $"{db:+0.0;-0.0;0.0}"; }
-        }
+        catch { }
     }
 
     #endregion
 
     #region Event Handlers
-
-    private void OnPresetSelected(object? sender, AdapterView.ItemSelectedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (e.Position == 0) return;
-        var presetName = PresetNames[e.Position - 1];
-        if (PresetCurves.TryGetValue(presetName, out var curve))
-        {
-            _eqSwitch!.Checked = true; _eqManager.Enabled = true;
-            ApplyCurve(curve); SaveSettings();
-        }
-    }
-
-    private class EqSwitchListener : Java.Lang.Object, CompoundButton.IOnCheckedChangeListener
-    {
-        private readonly WeakReference<SoundEffectDialog> _ref;
-        public EqSwitchListener(SoundEffectDialog d) => _ref = new(d);
-        public void OnCheckedChanged(CompoundButton? b, bool enabled)
-        {
-            if (!_ref.TryGetTarget(out var d)) return;
-            d._eqManager.Enabled = enabled; d.SaveSettings();
-        }
-    }
-
-    private class BassSwitchListener : Java.Lang.Object, CompoundButton.IOnCheckedChangeListener
-    {
-        private readonly WeakReference<SoundEffectDialog> _ref;
-        public BassSwitchListener(SoundEffectDialog d) => _ref = new(d);
-        public void OnCheckedChanged(CompoundButton? b, bool enabled)
-        {
-            if (!_ref.TryGetTarget(out var d) || d._bass == null) return;
-            d.BassSetEnabled(enabled); if (enabled) d.BassSetStrength((short)d._bassSeekBar!.Progress); d.SaveSettings();
-        }
-    }
-
-    private class VirSwitchListener : Java.Lang.Object, CompoundButton.IOnCheckedChangeListener
-    {
-        private readonly WeakReference<SoundEffectDialog> _ref;
-        public VirSwitchListener(SoundEffectDialog d) => _ref = new(d);
-        public void OnCheckedChanged(CompoundButton? b, bool enabled)
-        {
-            if (!_ref.TryGetTarget(out var d) || d._virtual == null) return;
-            d.VirSetEnabled(enabled); if (enabled) d.VirSetStrength((short)d._virSeekBar!.Progress); d.SaveSettings();
-        }
-    }
 
     private class MaxAudioSwitchListener : Java.Lang.Object, CompoundButton.IOnCheckedChangeListener
     {
@@ -685,116 +516,28 @@ public class SoundEffectDialog : Dialog
         public void OnCheckedChanged(CompoundButton? b, bool enabled)
         {
             if (!_ref.TryGetTarget(out var d) || d._isInitializing) return;
-            if (d._presetReverb != null) { d.HwReverbSetEnabled(enabled); if (enabled) d.ApplyConcertHallPreset(); }
+            if (enabled) d.ApplyMaxAudio(); else d.DisableMaxAudio();
             d.SaveSettings();
         }
-    }
-
-    private class BassSeekBarListener : Java.Lang.Object, SeekBar.IOnSeekBarChangeListener
-    {
-        private readonly WeakReference<SoundEffectDialog> _ref;
-        public BassSeekBarListener(SoundEffectDialog d) => _ref = new(d);
-        public void OnProgressChanged(SeekBar? sb, int p, bool fromUser)
-        {
-            if (!_ref.TryGetTarget(out var d) || d._bass == null) return;
-            d._bassValue!.Text = $"{p / 10}%";
-            if (fromUser && d._bassSwitch!.Checked) d.BassSetStrength((short)p);
-            if (fromUser) d.SaveSettings();
-        }
-        public void OnStartTrackingTouch(SeekBar? sb) { }
-        public void OnStopTrackingTouch(SeekBar? sb) { }
-    }
-
-    private class VirSeekBarListener : Java.Lang.Object, SeekBar.IOnSeekBarChangeListener
-    {
-        private readonly WeakReference<SoundEffectDialog> _ref;
-        public VirSeekBarListener(SoundEffectDialog d) => _ref = new(d);
-        public void OnProgressChanged(SeekBar? sb, int p, bool fromUser)
-        {
-            if (!_ref.TryGetTarget(out var d) || d._virtual == null) return;
-            d._virValue!.Text = $"{p / 10}%";
-            if (fromUser && d._virSwitch!.Checked) d.VirSetStrength((short)p);
-            if (fromUser) d.SaveSettings();
-        }
-        public void OnStartTrackingTouch(SeekBar? sb) { }
-        public void OnStopTrackingTouch(SeekBar? sb) { }
     }
 
     #endregion
 
     #region External Audio Effects
 
-    private static bool IsXiaomiDevice()
-    {
-        var m = Android.OS.Build.Manufacturer ?? "";
-        return m.Equals("Xiaomi", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void LaunchMiSound()
+    private void OpenSystemSoundSettings()
     {
         try
         {
-            // 尝试多种 MiSound 跳转方式（MIUI / HyperOS 不同版本）
-            var candidates = new (string pkg, string cls)[]
-            {
-                // HyperOS 2+ / MIUI 14+
-                ("com.miui.misound", "com.miui.misound.MainActivity"),
-                ("com.miui.misound", "com.miui.misound.MiSoundActivity"),
-                ("com.miui.misound", "com.miui.misound.SoundEffectActivity"),
-                // MIUI 旧版
-                ("com.miui.misound", "com.miui.misound.ui.MiSoundActivity"),
-                ("com.miui.misound", "com.miui.misound.ui.SoundEffectActivity"),
-            };
-
-            foreach (var (pkg, cls) in candidates)
-            {
-                try
-                {
-                    var intent = new Intent();
-                    intent.SetComponent(new ComponentName(pkg, cls));
-                    intent.SetFlags(ActivityFlags.NewTask);
-                    if (intent.ResolveActivity(Context.PackageManager!) != null)
-                    {
-                        Context.StartActivity(intent);
-                        return;
-                    }
-                }
-                catch { }
-            }
-
-            // 尝试隐式 Intent
-            var implicitIntents = new[]
-            {
-                new Intent("miui.intent.action.MISOUND_MAIN"),
-                new Intent("miui.intent.action.SOUND_EFFECT"),
-            };
-            foreach (var intent in implicitIntents)
-            {
-                intent.SetFlags(ActivityFlags.NewTask);
-                if (intent.ResolveActivity(Context.PackageManager!) != null)
-                {
-                    Context.StartActivity(intent);
-                    return;
-                }
-            }
-
-            // 最后尝试打开系统声音设置
-            try
-            {
-                var soundSettings = new Intent(Android.Provider.Settings.ActionSoundSettings);
-                soundSettings.SetFlags(ActivityFlags.NewTask);
-                Context.StartActivity(soundSettings);
-                Toast.MakeText(Context, "已跳转到系统声音设置", ToastLength.Short)?.Show();
-            }
-            catch
-            {
-                Toast.MakeText(Context, "未找到音质音效设置", ToastLength.Short)?.Show();
-            }
+            var soundSettings = new Intent(Android.Provider.Settings.ActionSoundSettings);
+            soundSettings.SetFlags(ActivityFlags.NewTask);
+            Context.StartActivity(soundSettings);
+            Toast.MakeText(Context, "已跳转到系统声音设置", ToastLength.Short)?.Show();
         }
         catch (Exception ex)
         {
-            Android.Util.Log.Warn("CatClaw.SFX", $"打开 MiSound 失败: {ex.Message}");
-            Toast.MakeText(Context, "打开 MiSound 失败", ToastLength.Short)?.Show();
+            Android.Util.Log.Warn("CatClaw.SFX", $"打开系统声音设置失败: {ex.Message}");
+            Toast.MakeText(Context, "打开系统声音设置失败", ToastLength.Short)?.Show();
         }
     }
 
@@ -808,36 +551,10 @@ public class SoundEffectDialog : Dialog
         {
             var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
             var editor = prefs.Edit();
-
-            // EQ
-            editor.PutBoolean(KeyEqEnabled, _eqSwitch?.Checked ?? false);
-            editor.PutInt(KeyPreset, (_presetSpinner?.SelectedItemPosition ?? 0) - 1);
-            for (int i = 0; i < EqualizerManager.BandCount; i++)
-                editor.PutInt(KeyBandLevelPrefix + i, _eqManager.GetBandLevel(i));
-
-            // Bass / Vir
-            editor.PutBoolean(KeyBassEnabled, _bassSwitch?.Checked ?? false);
-            editor.PutInt(KeyBassStrength, _bassSeekBar?.Progress ?? 0);
-            editor.PutBoolean(KeyVirEnabled, _virSwitch?.Checked ?? false);
-            editor.PutInt(KeyVirStrength, _virSeekBar?.Progress ?? 0);
-
-            // MAX Audio
             editor.PutBoolean(KeyMaxAudioEnabled, _maxAudioSwitch?.Checked ?? false);
-
             editor.Apply();
         }
         catch { }
-    }
-
-    private void RestoreBandLevels()
-    {
-        var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
-        for (int i = 0; i < EqualizerManager.BandCount; i++)
-        {
-            int saved = prefs.GetInt(KeyBandLevelPrefix + i, int.MinValue);
-            if (saved != int.MinValue) _eqManager.SetBandLevel(i, (short)saved);
-        }
-        UpdateSlidersFromProcessor();
     }
 
     #endregion
@@ -846,9 +563,15 @@ public class SoundEffectDialog : Dialog
 
     public void Release()
     {
-        try { BassClass.GetMethod("release").Invoke(_bass); } catch { }
-        try { VirClass.GetMethod("release").Invoke(_virtual); } catch { }
-        try { PresetReverbClass.GetMethod("release").Invoke(_presetReverb); } catch { }
-        _bass = _virtual = _presetReverb = null;
+        try
+        {
+            if (_maxAudioReverb != null)
+            {
+                var cls = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb");
+                cls.GetMethod("release").Invoke(_maxAudioReverb);
+            }
+        }
+        catch { }
+        _maxAudioReverb = null;
     }
 }

@@ -3,6 +3,7 @@ using Android.Content.Res;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
+using AndroidX.Activity;
 using AndroidX.AppCompat.App;
 using AndroidX.Core.View;
 using AndroidX.ViewPager2.Widget;
@@ -17,6 +18,7 @@ using Google.Android.Material.BottomNavigation;
 using Google.Android.Material.Card;
 using Google.Android.Material.Navigation;
 using Microsoft.Extensions.DependencyInjection;
+using ALog = Android.Util.Log;
 
 namespace CatClawMusic.UI;
 
@@ -328,6 +330,45 @@ public class MainActivity : AppCompatActivity
                 .Attach(_settingsFragment)
                 .CommitNow();
         }
+
+        // Android 16 (Target 36) 适配：注册预测性返回手势回调
+        OnBackPressedDispatcher.AddCallback(this, new MainBackCallback(this));
+    }
+
+    /// <summary>兼容 MIUI 等不走 OnBackPressedDispatcher 的场景</summary>
+    [System.Obsolete]
+    public override void OnBackPressed()
+    {
+        ALog.Debug("CatClaw.Nav", $"OnBackPressed: backStack={SupportFragmentManager.BackStackEntryCount}, panelOpen={_panelOpen}");
+        if (_panelOpen) { CloseSidePanel(); return; }
+        if (SupportFragmentManager.BackStackEntryCount > 0)
+        {
+            var topEntry = SupportFragmentManager.GetBackStackEntryAt(
+                SupportFragmentManager.BackStackEntryCount - 1);
+            var isLandscape = topEntry.Name == "LandscapeNowPlaying";
+            SupportFragmentManager.PopBackStackImmediate();
+            if (SupportFragmentManager.BackStackEntryCount == 0)
+            {
+                ALog.Debug("CatClaw.Nav", "OnBackPressed: restoring bottom nav + toolbar");
+                SetOverlayOpen(false);
+                var overlay = FindViewById<View>(Resource.Id.overlay_container);
+                if (overlay != null) overlay.Visibility = ViewStates.Gone;
+                if (isLandscape)
+                {
+                    UpdateTabUI(_currentTab);
+                }
+                else
+                {
+                    SetToolbarVisible(true);
+                    SetBottomNavVisible(true);
+                    SetMiniPlayerVisible(true);
+                }
+            }
+        }
+        else
+        {
+            base.OnBackPressed();
+        }
     }
 
     private void RefreshViewPager()
@@ -379,9 +420,15 @@ public class MainActivity : AppCompatActivity
     }
 
     public void SetBottomNavVisible(bool visible)
-        => _bottomNav.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
+    {
+        _bottomNav.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
+        ALog.Debug("CatClaw.Nav", $"SetBottomNavVisible({visible}): actual={_bottomNav.Visibility}");
+    }
 
     public void UpdateTabUIForCurrentTab() => UpdateTabUI(_currentTab);
+
+    /// <summary>同步底部导航栏选中项到当前 Tab（供 NavigationService 调用）</summary>
+    public void UpdateNavSelectionForCurrentTab() => UpdateNavSelection(_currentTab);
 
     public void SetToolbarVisible(bool visible)
         => _toolbar.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
@@ -394,38 +441,57 @@ public class MainActivity : AppCompatActivity
             ? ViewStates.Visible : ViewStates.Gone;
     }
 
-    /// <summary>返回键处理：优先关闭侧面板 → 弹出 Fragment 栈 → 系统默认行为</summary>
-    public override void OnBackPressed()
+    /// <summary>
+    /// Android 16 (Target 36) 预测性返回手势回调。
+    /// 优先关闭侧面板 → 弹出 Fragment 栈 → 系统默认返回行为。
+    /// </summary>
+    private class MainBackCallback : OnBackPressedCallback
     {
-        if (_panelOpen) { CloseSidePanel(); return; }
-        if (SupportFragmentManager.BackStackEntryCount > 0)
+        private readonly WeakReference<MainActivity> _ref;
+        public MainBackCallback(MainActivity activity) : base(true)
         {
-            var topEntry = SupportFragmentManager.GetBackStackEntryAt(SupportFragmentManager.BackStackEntryCount - 1);
-            var isLandscape = topEntry.Name == "LandscapeNowPlaying";
-            SupportFragmentManager.PopBackStackImmediate();
-            if (SupportFragmentManager.BackStackEntryCount == 0)
+            _ref = new WeakReference<MainActivity>(activity);
+        }
+
+        public override void HandleOnBackPressed()
+        {
+            if (!_ref.TryGetTarget(out var activity)) return;
+
+            ALog.Debug("CatClaw.Nav", $"MainBackCallback: panelOpen={activity._panelOpen}, backStack={activity.SupportFragmentManager.BackStackEntryCount}");
+
+            if (activity._panelOpen) { activity.CloseSidePanel(); return; }
+            if (activity.SupportFragmentManager.BackStackEntryCount > 0)
             {
-                SetOverlayOpen(false);
-                // 延迟隐藏 overlay 容器，让退出动画播完（动画时长 200ms）
-                var overlay = FindViewById<View>(Resource.Id.overlay_container);
-                overlay?.PostDelayed(() =>
+                var topEntry = activity.SupportFragmentManager.GetBackStackEntryAt(
+                    activity.SupportFragmentManager.BackStackEntryCount - 1);
+                var isLandscape = topEntry.Name == "LandscapeNowPlaying";
+                activity.SupportFragmentManager.PopBackStackImmediate();
+                ALog.Debug("CatClaw.Nav", $"MainBackCallback after pop: backStack={activity.SupportFragmentManager.BackStackEntryCount}");
+                if (activity.SupportFragmentManager.BackStackEntryCount == 0)
                 {
+                    ALog.Debug("CatClaw.Nav", "MainBackCallback: restoring bottom nav + toolbar");
+                    activity.SetOverlayOpen(false);
+                    var overlay = activity.FindViewById<View>(Resource.Id.overlay_container);
                     if (overlay != null) overlay.Visibility = ViewStates.Gone;
-                }, 220);
-                if (isLandscape)
-                {
-                    UpdateTabUI(_currentTab);
-                }
-                else
-                {
-                    SetToolbarVisible(true);
-                    SetBottomNavVisible(true);
-                    SetMiniPlayerVisible(true);
-                    UpdateNavSelection(_currentTab);
+                    if (isLandscape)
+                    {
+                        activity.UpdateTabUI(activity._currentTab);
+                    }
+                    else
+                    {
+                        activity.SetToolbarVisible(true);
+                        activity.SetBottomNavVisible(true);
+                        activity.SetMiniPlayerVisible(true);
+                    }
                 }
             }
+            else
+            {
+                // 默认返回行为（退出 Activity）
+                Enabled = false;
+                activity.OnBackPressedDispatcher.OnBackPressed();
+            }
         }
-        else base.OnBackPressed();
     }
 
     /// <summary>程序化切换到指定 Tab 页（供 NavigationService 等外部调用）</summary>
@@ -655,12 +721,13 @@ public class MainActivity : AppCompatActivity
     {
         if (Window == null) return;
 
+        // Android 16 (Target 36): 使用 WindowInsetsController 替代废弃的 SystemUiVisibility
+        // SetDecorFitsSystemWindows(false) 已在 OnCreate 中设置，等效于旧的 Layout* 标志
         if (!_systemUiFlagsApplied)
         {
-            Window.DecorView.SystemUiVisibility =
-                (StatusBarVisibility)(SystemUiFlags.LayoutStable
-                    | SystemUiFlags.LayoutFullscreen
-                    | SystemUiFlags.LayoutHideNavigation);
+            var insetsCtrl = WindowCompat.GetInsetsController(Window!, Window!.DecorView);
+            insetsCtrl.SystemBarsBehavior =
+                WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
             _systemUiFlagsApplied = true;
         }
 

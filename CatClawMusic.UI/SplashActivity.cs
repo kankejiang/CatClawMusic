@@ -4,6 +4,7 @@ using Android.Graphics;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
+using AndroidX.Core.View;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
@@ -41,16 +42,14 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
     {
         base.OnCreate(savedInstanceState);
 
-        // 全屏沉浸
+        // 全屏沉浸 — Android 16 (Target 36): 使用 WindowInsetsController 替代废弃的 SystemUiVisibility
         if (Window != null)
         {
-            Window.DecorView.SystemUiVisibility = (StatusBarVisibility)(
-                SystemUiFlags.Fullscreen |
-                SystemUiFlags.HideNavigation |
-                SystemUiFlags.ImmersiveSticky |
-                SystemUiFlags.LayoutStable |
-                SystemUiFlags.LayoutFullscreen |
-                SystemUiFlags.LayoutHideNavigation);
+            WindowCompat.SetDecorFitsSystemWindows(Window, false);
+            var insetsController = WindowCompat.GetInsetsController(Window, Window.DecorView);
+            insetsController.Hide(WindowInsetsCompat.Type.SystemBars());
+            insetsController.SystemBarsBehavior =
+                WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
         }
 
         SetContentView(Resource.Layout.activity_splash);
@@ -336,7 +335,13 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
             intent.AddFlags(ActivityFlags.NoAnimation);
             StartActivity(intent);
             Finish();
-            OverridePendingTransition(0, 0);
+            // OverridePendingTransition 在 API 34 已废弃，使用 OverrideActivityTransition 替代
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.UpsideDownCake)
+                OverrideActivityTransition(OverrideTransition.Close, 0, 0);
+            else
+#pragma warning disable CA1422 // 旧版 API 兼容
+                OverridePendingTransition(0, 0);
+#pragma warning restore CA1422
         });
     }
 }

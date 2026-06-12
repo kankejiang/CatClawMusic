@@ -5,6 +5,7 @@ using CatClawMusic.Core.Services.AI;
 using CatClawMusic.UI.Fragments;
 using Google.Android.Material.BottomNavigation;
 using Microsoft.Extensions.DependencyInjection;
+using ALog = Android.Util.Log;
 
 namespace CatClawMusic.UI.Services;
 
@@ -74,6 +75,7 @@ public class NavigationService : INavigationService
         // 主区推入：隐藏底部导航 + 工具栏 + 迷你播放器，显示 overlay
         if (_sidePanelContainerId == null)
         {
+            ALog.Debug("CatClaw.Nav", $"PushFragment({route}): main area push, hiding bottom nav");
             _bottomNav?.Visibility = ViewStates.Gone;
             MainActivity.Instance?.SetToolbarVisible(false);
             MainActivity.Instance?.SetMiniPlayerVisible(false);
@@ -186,18 +188,22 @@ public class NavigationService : INavigationService
         {
             var topEntry = _fm.GetBackStackEntryAt(_fm.BackStackEntryCount - 1);
             isLandscape = topEntry.Name == "LandscapeNowPlaying";
+            ALog.Debug("CatClaw.Nav", $"GoBack: top={topEntry.Name}, backStackCount={_fm.BackStackEntryCount}, sidePanel={_sidePanelContainerId}");
         }
 
         _fm.PopBackStackImmediate();
 
+        ALog.Debug("CatClaw.Nav", $"GoBack after pop: backStackCount={_fm.BackStackEntryCount}, sidePanel={_sidePanelContainerId}, isLandscape={isLandscape}");
+
         if (_fm.BackStackEntryCount == 0 && _sidePanelContainerId == null)
         {
-            // 延迟隐藏 overlay 容器，让退出动画播完（动画时长 200ms）
+            ALog.Debug("CatClaw.Nav", "GoBack: restoring bottom nav + toolbar + mini player");
+
+            // 立即隐藏 overlay 容器
             var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
-            overlay?.PostDelayed(() =>
-            {
-                if (overlay != null) overlay.Visibility = ViewStates.Gone;
-            }, 220);
+            if (overlay != null) overlay.Visibility = ViewStates.Gone;
+
+            MainActivity.Instance?.SetOverlayOpen(false);
 
             if (isLandscape)
             {
@@ -205,11 +211,14 @@ public class NavigationService : INavigationService
             }
             else
             {
-                if (_bottomNav != null) _bottomNav.Visibility = ViewStates.Visible;
-                MainActivity.Instance?.SetOverlayOpen(false);
                 MainActivity.Instance?.SetToolbarVisible(true);
+                MainActivity.Instance?.SetBottomNavVisible(true);
                 MainActivity.Instance?.SetMiniPlayerVisible(true);
             }
+        }
+        else
+        {
+            ALog.Warn("CatClaw.Nav", $"GoBack: NOT restoring UI. backStack={_fm.BackStackEntryCount}, sidePanel={_sidePanelContainerId}");
         }
     }
 
