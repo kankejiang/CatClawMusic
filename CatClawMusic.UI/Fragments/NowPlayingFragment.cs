@@ -71,6 +71,8 @@ public class NowPlayingFragment : Fragment
     // --- 歌词自定义设置（与 FullLyricsFragment 共享） ---
     private static readonly string[] LyricActiveColorHex   = { "#FFFFFFFF", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1", "#FFFFD54F" };
     private static readonly string[] LyricInactiveColorHex = { "#CCBBBBBB", "#DDDDDDDD", "#CC90A4AE", "#CCB39DDB", "#CCBDBDBD", "#CCA8B8C8", "#CC78909C", "#CCD7CCC8" };
+    /// <summary>背景遮罩颜色预设（与 FullLyricsFragment 共享）</summary>
+    private static readonly string[] BgColorHex = { "#CC0F0D16", "#CC0A1628", "#CC1A0A28", "#00000000", "#CCF0EBE3" };
 
     private Color _npLyricActiveColor = Color.White;
     private Color _npLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
@@ -78,6 +80,8 @@ public class NowPlayingFragment : Fragment
     private bool _npLyricBold = true;
     private int _npLyricColorMode = 0; // 0=自适应, 1=自定义
     private float _currentBgLuminance = 0.3f; // 当前背景亮度（用于自适应模式）
+    private int _lyricBgColorIndex = 0; // 背景遮罩颜色索引
+    private View? _bgDimOverlay;
 
     public override void OnCreate(Bundle? savedInstanceState)
     {
@@ -155,6 +159,7 @@ public class NowPlayingFragment : Fragment
         _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
+        _bgDimOverlay = view.FindViewById<View>(Resource.Id.bg_dim_overlay);
 
         _progressSlider.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _progressSlider.TickVisible = false;
@@ -811,6 +816,8 @@ public class NowPlayingFragment : Fragment
         _npLyricFontSize = prefs.GetInt("lyric_font_size", 16);
         _npLyricBold = prefs.GetBoolean("lyric_bold", true);
         _npLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
+        _lyricBgColorIndex = prefs.GetInt("lyric_bg_color", 0);
+        UpdateBgOverlay();
 
         // 读取 ARGB 颜色值（向后兼容旧版索引存储）
         if (prefs.Contains("lyric_active_argb"))
@@ -856,18 +863,18 @@ public class NowPlayingFragment : Fragment
 
     private void ApplyLyricColors()
     {
-        // 自适应模式：根据背景亮度自动设置歌词颜色
+        // 自适应模式：根据遮罩背景亮度自动设置歌词颜色
         if (_npLyricColorMode == 0)
         {
-            if (_currentBgLuminance >= 0.5f)
+            if (GetBgOverlayLuminance() >= 0.5f)
             {
-                // 浅色背景：黑色已唱，灰色未唱
+                // 浅色遮罩：黑字，深灰未唱
                 _npLyricActiveColor = Color.Black;
                 _npLyricInactiveColor = Color.ParseColor("#88333333");
             }
             else
             {
-                // 深色背景：白色已唱，灰色未唱
+                // 深色遮罩：白字，浅灰未唱
                 _npLyricActiveColor = Color.White;
                 _npLyricInactiveColor = Color.ParseColor("#88BBBBBB");
             }
@@ -897,6 +904,24 @@ public class NowPlayingFragment : Fragment
         _lyricNext.StrokeEnabled = false;
         _lyricPrev2.StrokeEnabled = false;
         _lyricNext2.StrokeEnabled = false;
+    }
+
+    /// <summary>更新背景遮罩颜色</summary>
+    private void UpdateBgOverlay()
+    {
+        if (_bgDimOverlay == null) return;
+        _bgDimOverlay.SetBackgroundColor(Color.ParseColor(BgColorHex[Math.Clamp(_lyricBgColorIndex, 0, BgColorHex.Length - 1)]));
+    }
+
+    /// <summary>获取背景遮罩的实际亮度</summary>
+    private float GetBgOverlayLuminance()
+    {
+        if (_bgDimOverlay?.Background is ColorDrawable cd)
+        {
+            var c = cd.Color;
+            return (0.299f * c.R + 0.587f * c.G + 0.114f * c.B) / 255f;
+        }
+        return 0.1f; // 默认深色
     }
 
     private void SyncUIFromViewModel()

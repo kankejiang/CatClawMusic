@@ -8,6 +8,11 @@
     <CatClawMusic.UI.Helpers.SweepGradientView android:id="@+id/gradient_background" android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- 背景遮罩层：半透明暗色蒙版，颜色由代码根据设置动态切换 -->
+    <View android:id="@+id/bg_dim_overlay" android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#990F0D16" />
+
     <!-- 光晕底部遮罩：透明→背景色（底部自然收尾） -->
     <View android:id="@+id/reflection_mask_bottom" android:layout_width="match_parent"
         android:layout_height="100dp" android:layout_gravity="bottom" />

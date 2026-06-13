@@ -71,6 +71,8 @@ public class LandscapeNowPlayingFragment : Fragment
     // --- 歌词自定义设置（与 FullLyricsFragment 共享） ---
     private static readonly string[] LyricActiveColorHex   = { "#FFFFFFFF", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1", "#FFFFD54F" };
     private static readonly string[] LyricInactiveColorHex = { "#CCBBBBBB", "#DDDDDDDD", "#CC90A4AE", "#CCB39DDB", "#CCBDBDBD", "#CCA8B8C8", "#CC78909C", "#CCD7CCC8" };
+    /// <summary>背景遮罩颜色预设（与 FullLyricsFragment 共享）</summary>
+    private static readonly string[] BgColorHex = { "#CC0F0D16", "#CC0A1628", "#CC1A0A28", "#00000000", "#CCF0EBE3" };
 
     private Color _lpLyricActiveColor = Color.White;
     private Color _lpLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
@@ -78,6 +80,8 @@ public class LandscapeNowPlayingFragment : Fragment
     private bool _lpLyricBold = true;
     private int _lpLyricColorMode = 0; // 0=自适应, 1=自定义
     private float _currentBgLuminance = 0.3f;
+    private int _lyricBgColorIndex = 0;
+    private View? _bgDimOverlay;
 
     public override void OnCreate(Bundle? savedInstanceState)
     {
@@ -166,6 +170,7 @@ public class LandscapeNowPlayingFragment : Fragment
         _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
+        _bgDimOverlay = view.FindViewById<View>(Resource.Id.bg_dim_overlay);
 
         var btnLandscape = view.FindViewById<ImageButton>(Resource.Id.btn_landscape)!;
         btnLandscape.SetImageResource(Resource.Drawable.ic_landscape);
@@ -231,7 +236,9 @@ public class LandscapeNowPlayingFragment : Fragment
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
         controller.AppearanceLightStatusBars = true;
         controller.Show(WindowInsetsCompat.Type.StatusBars());
-        WindowCompat.SetDecorFitsSystemWindows(act.Window, true);
+        // 恢复为 false，与 MainActivity 的 SetDecorFitsSystemWindows(false) 保持一致
+        // MainActivity 通过 FitSystemBars() 的 WindowInsetsListener 手动处理 padding
+        WindowCompat.SetDecorFitsSystemWindows(act.Window, false);
     }
 
     private void OnExitLandscape(object? s, EventArgs e)
@@ -695,6 +702,8 @@ public class LandscapeNowPlayingFragment : Fragment
         _lpLyricFontSize = prefs.GetInt("lyric_font_size", 16);
         _lpLyricBold = prefs.GetBoolean("lyric_bold", true);
         _lpLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
+        _lyricBgColorIndex = prefs.GetInt("lyric_bg_color", 0);
+        UpdateBgOverlay();
 
         // 读取 ARGB 颜色值（向后兼容旧版索引存储）
         if (prefs.Contains("lyric_active_argb"))
@@ -749,10 +758,10 @@ public class LandscapeNowPlayingFragment : Fragment
     /// </summary>
     private void ApplyDefaultLyricColors()
     {
-        // 自适应模式：根据背景亮度自动设置歌词颜色
+        // 自适应模式：根据遮罩背景亮度自动设置歌词颜色
         if (_lpLyricColorMode == 0)
         {
-            if (_currentBgLuminance >= 0.5f)
+            if (GetBgOverlayLuminance() >= 0.5f)
             {
                 _lpLyricActiveColor = Color.Black;
                 _lpLyricInactiveColor = Color.ParseColor("#88333333");
@@ -783,6 +792,24 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricNext2.StrokeEnabled = false;
     }
 
+    /// <summary>更新背景遮罩颜色</summary>
+    private void UpdateBgOverlay()
+    {
+        if (_bgDimOverlay == null) return;
+        _bgDimOverlay.SetBackgroundColor(Color.ParseColor(BgColorHex[Math.Clamp(_lyricBgColorIndex, 0, BgColorHex.Length - 1)]));
+    }
+
+    /// <summary>获取背景遮罩的实际亮度</summary>
+    private float GetBgOverlayLuminance()
+    {
+        if (_bgDimOverlay?.Background is ColorDrawable cd)
+        {
+            var c = cd.Color;
+            return (0.299f * c.R + 0.587f * c.G + 0.114f * c.B) / 255f;
+        }
+        return 0.1f; // 默认深色
+    }
+
     private void ApplySweepGradientBackground(List<ColorEntry> entries)
     {
         if (_gradientBackground == null || entries.Count == 0) return;
@@ -809,10 +836,10 @@ public class LandscapeNowPlayingFragment : Fragment
         var onSurfaceColor = new Color(palette.OnSurface);
         _songTitle.SetTextColor(onSurfaceColor);
         _songArtist.SetTextColor(new Color(palette.OnSurfaceVariant));
-        // 自适应模式：根据背景亮度自动设置歌词颜色
+        // 自适应模式：根据遮罩背景亮度自动设置歌词颜色
         if (_lpLyricColorMode == 0)
         {
-            if (_currentBgLuminance >= 0.5f)
+            if (GetBgOverlayLuminance() >= 0.5f)
             {
                 _lpLyricActiveColor = Color.Black;
                 _lpLyricInactiveColor = Color.ParseColor("#88333333");

@@ -26,8 +26,8 @@ public class FullLyricsFragment : Fragment
     private static readonly string[] PresetColorHex = { "#FFFFFFFF", "#FF000000", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1" };
     private static readonly string[] InactivePresetNames = { "灰色", "深灰", "黑色", "浅灰", "蓝灰", "淡紫", "暖灰", "石板" };
     private static readonly string[] InactivePresetHex = { "#CCBBBBBB", "#CC555555", "#CC000000", "#DDDDDDDD", "#CC90A4AE", "#CCB39DDB", "#CCBDBDBD", "#CC78909C" };
-    private static readonly string[] BgColorNames = { "深色", "深蓝", "深紫", "透明" };
-    private static readonly string[] BgColorHex = { "#990F0D16", "#990D1B2A", "#991A0D2E", "#33000000" };
+    private static readonly string[] BgColorNames = { "深色", "深蓝", "深紫", "透明", "浅色" };
+    private static readonly string[] BgColorHex = { "#990F0D16", "#990D1B2A", "#991A0D2E", "#33000000", "#99F0EBE3" };
 
     // ViewModel
     private NowPlayingViewModel _viewModel = null!;
@@ -87,6 +87,8 @@ public class FullLyricsFragment : Fragment
     private bool _lyricBold = true;
     // 背景遮罩View
     private View? _bgDimOverlay;
+    // 译文TextView列表，用于自适应颜色更新
+    private readonly List<WeakReference<TextView>> _translationViews = new();
 
     /// <summary>
     /// 创建Fragment视图
@@ -431,13 +433,59 @@ public class FullLyricsFragment : Fragment
     /// 重建歌词视图
     /// </summary>
     /// <summary>
-    /// 根据当前设置计算自适应歌词颜色（深色背景用白灰，浅色背景用黑灰）
+    /// 根据遮罩背景的实际颜色计算自适应歌词颜色（深色遮罩用白字，浅色遮罩用黑字）
     /// </summary>
     private void ApplyAdaptiveColors()
     {
-        // 全歌词页背景遮罩均为深色调，自适应使用白色/灰色
-        _lyricActiveColor = Color.White;
-        _lyricInactiveColor = Color.ParseColor("#88BBBBBB");
+        float lum = GetBgOverlayLuminance();
+        if (lum >= 0.5f)
+        {
+            _lyricActiveColor = Color.Black;
+            _lyricInactiveColor = Color.ParseColor("#88333333");
+        }
+        else
+        {
+            _lyricActiveColor = Color.White;
+            _lyricInactiveColor = Color.ParseColor("#88BBBBBB");
+        }
+
+        // 同步更新译文颜色
+        UpdateTranslationColors();
+    }
+
+    /// <summary>获取背景遮罩的实际亮度</summary>
+    private float GetBgOverlayLuminance()
+    {
+        if (_bgDimOverlay?.Background is ColorDrawable cd)
+        {
+            var c = cd.Color;
+            return (0.299f * c.R + 0.587f * c.G + 0.114f * c.B) / 255f;
+        }
+        return 0.1f; // 默认深色
+    }
+
+    /// <summary>根据当前活跃/非活跃颜色更新所有译文的字体颜色</summary>
+    private void UpdateTranslationColors()
+    {
+        // 译文色 = 非活跃色的更低透明度版本
+        var transColor = new Color(
+            (byte)(_lyricInactiveColor.A * 3 / 4),
+            _lyricInactiveColor.R,
+            _lyricInactiveColor.G,
+            _lyricInactiveColor.B);
+        var transHighlightColor = new Color(
+            (byte)(Math.Min(_lyricActiveColor.A + 40, 255)),
+            _lyricActiveColor.R,
+            _lyricActiveColor.G,
+            _lyricActiveColor.B);
+
+        for (int i = _translationViews.Count - 1; i >= 0; i--)
+        {
+            if (_translationViews[i].TryGetTarget(out var tv))
+                tv.SetTextColor(transColor);
+            else
+                _translationViews.RemoveAt(i);
+        }
     }
 
     private void RebuildLyrics()
@@ -487,9 +535,14 @@ public class FullLyricsFragment : Fragment
 
             if (!string.IsNullOrEmpty(line.Translation))
             {
+                var transColor = new Color(
+                    (byte)(_lyricInactiveColor.A * 3 / 4),
+                    _lyricInactiveColor.R,
+                    _lyricInactiveColor.G,
+                    _lyricInactiveColor.B);
                 var transTv = new TextView(Context) { Text = line.Translation };
                 transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
-                transTv.SetTextColor(Color.ParseColor("#99AAAAAA"));
+                transTv.SetTextColor(transColor);
                 transTv.SetTypeface(null, TypefaceStyle.Normal);
                 transTv.Gravity = GetLyricGravity();
                 transTv.SetLineSpacing(0, 1.3f);
@@ -497,6 +550,7 @@ public class FullLyricsFragment : Fragment
                 transLp.TopMargin = 4;
                 transTv.LayoutParameters = transLp;
                 lineLayout.AddView(transTv);
+                _translationViews.Add(new WeakReference<TextView>(transTv));
             }
 
             var lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
@@ -567,7 +621,12 @@ public class FullLyricsFragment : Fragment
                 if (transTv != null)
                 {
                     transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
-                    transTv.SetTextColor(Color.ParseColor("#99AAAAAA"));
+                    var transNormalColor = new Color(
+                        (byte)(_lyricInactiveColor.A * 3 / 4),
+                        _lyricInactiveColor.R,
+                        _lyricInactiveColor.G,
+                        _lyricInactiveColor.B);
+                    transTv.SetTextColor(transNormalColor);
                 }
             }
         }
@@ -584,14 +643,19 @@ public class FullLyricsFragment : Fragment
                 _lyricViews[idx].LyricProgress = _viewModel.CurrentLyricProgress;
             }
 
-            var parent = _lyricViews[idx].Parent as LinearLayout;
-            if (parent != null && parent.ChildCount > 1)
+            var parent2 = _lyricViews[idx].Parent as LinearLayout;
+            if (parent2 != null && parent2.ChildCount > 1)
             {
-                var transTv = parent.GetChildAt(1) as TextView;
-                if (transTv != null)
+                var transTv2 = parent2.GetChildAt(1) as TextView;
+                if (transTv2 != null)
                 {
-                    transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 2);
-                    transTv.SetTextColor(Color.ParseColor("#DDCCCCCC"));
+                    transTv2.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
+                    var transHighlightColor = new Color(
+                        (byte)Math.Min(_lyricActiveColor.A + 40, 255),
+                        _lyricActiveColor.R,
+                        _lyricActiveColor.G,
+                        _lyricActiveColor.B);
+                    transTv2.SetTextColor(transHighlightColor);
                 }
             }
         }
