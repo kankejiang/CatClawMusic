@@ -477,12 +477,12 @@ public class FullLyricsFragment : Fragment
         if (lum >= 0.5f)
         {
             _lyricActiveColor = Color.Black;
-            _lyricInactiveColor = Color.ParseColor("#88333333");
+            _lyricInactiveColor = Color.ParseColor("#AA333333");
         }
         else
         {
             _lyricActiveColor = Color.White;
-            _lyricInactiveColor = Color.ParseColor("#88BBBBBB");
+            _lyricInactiveColor = Color.ParseColor("#EEBBBBBB");
         }
 
         // 同步更新译文颜色
@@ -609,6 +609,66 @@ public class FullLyricsFragment : Fragment
         if (_bgDimOverlay == null) return;
         var hex = BgColorHex[Math.Clamp(_lyricBgColorIndex, 0, BgColorHex.Length - 1)];
         _bgDimOverlay.SetBackgroundColor(Color.ParseColor(hex));
+        // 遮罩变化后重新计算自适应歌词颜色
+        if (_lyricColorMode == 0)
+            ApplyAdaptiveColors();
+        // 刷新所有歌词视图的颜色
+        RefreshLyricColors();
+    }
+
+    /// <summary>
+    /// 刷新所有歌词视图的颜色（不重置进度）
+    /// </summary>
+    private void RefreshLyricColors()
+    {
+        var idx = _lastLyricIndex;
+        foreach (var v in _lyricViews)
+        {
+            v.SetTextColor(_lyricInactiveColor);
+            v.UnsungColor = _lyricInactiveColor;
+            v.SungColor = _lyricActiveColor;
+
+            var parent = v.Parent as LinearLayout;
+            if (parent != null && parent.ChildCount > 1)
+            {
+                var transTv = parent.GetChildAt(1) as TextView;
+                if (transTv != null)
+                {
+                    var transNormalColor = new Color(
+                        (byte)(_lyricInactiveColor.A * 3 / 4),
+                        _lyricInactiveColor.R,
+                        _lyricInactiveColor.G,
+                        _lyricInactiveColor.B);
+                    transTv.SetTextColor(transNormalColor);
+                }
+            }
+        }
+
+        // 当前行使用活跃色
+        if (idx >= 0 && idx < _lyricViews.Count)
+        {
+            _lyricViews[idx].SetTextColor(_lyricActiveColor);
+            _lyricViews[idx].UnsungColor = _lyricInactiveColor;
+            _lyricViews[idx].SungColor = _lyricActiveColor;
+
+            var parent2 = _lyricViews[idx].Parent as LinearLayout;
+            if (parent2 != null && parent2.ChildCount > 1)
+            {
+                var transTv = parent2.GetChildAt(1) as TextView;
+                if (transTv != null)
+                {
+                    var transActiveColor = new Color(
+                        (byte)(_lyricActiveColor.A * 3 / 4),
+                        _lyricActiveColor.R,
+                        _lyricActiveColor.G,
+                        _lyricActiveColor.B);
+                    transTv.SetTextColor(transActiveColor);
+                }
+            }
+        }
+
+        // 更新译文颜色
+        UpdateTranslationColors();
     }
 
     /// <summary>

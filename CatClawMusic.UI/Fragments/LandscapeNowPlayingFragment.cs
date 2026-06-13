@@ -36,8 +36,6 @@ public class LandscapeNowPlayingFragment : Fragment
     private ImageButton _btnSleepTimer = null!;
     private ImageButton _btnBack = null!;
     private GoogleSlider _progressSlider = null!;
-    private SweepGradientView _gradientBackground = null!;
-    private View _reflectionMaskBottom = null!, _coverFog = null!, _coverGlow = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
     private AudioVisualizerView _audioVisualizer = null!;
     private VisualizerHelper? _visualizerHelper;
@@ -45,26 +43,12 @@ public class LandscapeNowPlayingFragment : Fragment
     private int _spectrumUpdateQueued;
     private float[] _latestSpectrum = Array.Empty<float>();
     private ActivityResultLauncher? _recordAudioLauncher;
-    private int _modeActiveColor;
     private bool _visualizerEnabled = false;
     private bool _recordAudioDenied;
     private string? _lastCoverSource;
     private CancellationTokenSource? _sleepCts;
     private int _sleepRemainingSeconds;
     private bool _sleepFinishSong;
-    private Android.Animation.ValueAnimator? _flowAnimator;
-    private Android.Animation.ValueAnimator? _colorTransitionAnimator;
-    private int _currentBackgroundColor;
-    private int _targetBackgroundColor;
-    private List<ColorEntry>? _currentEntries;
-    private int[]? _flowColors;
-    private float[]? _flowPositions;
-
-    private bool _flowPaused;
-    private long _flowPauseTime;
-    private long _flowTimeOffset;
-    private float _sweepAngle;
-    private int _flowFrameSkip;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
     private Android.App.Dialog? _playlistDialog;
 
@@ -82,6 +66,8 @@ public class LandscapeNowPlayingFragment : Fragment
     private float _currentBgLuminance = 0.3f;
     private int _lyricBgColorIndex = 0;
     private View? _bgDimOverlay;
+    private ImageView _bgCover = null!;
+    private FlowLightView _flowLight = null!;
 
     public override void OnCreate(Bundle? savedInstanceState)
     {
@@ -168,13 +154,13 @@ public class LandscapeNowPlayingFragment : Fragment
         }
         catch { }
 
-        _gradientBackground = view.FindViewById<SweepGradientView>(Resource.Id.gradient_background)!;
-        _reflectionMaskBottom = view.FindViewById<View>(Resource.Id.reflection_mask_bottom)!;
-        _coverFog = view.FindViewById<View>(Resource.Id.cover_fog)!;
-        _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
         _bgDimOverlay = view.FindViewById<View>(Resource.Id.bg_dim_overlay);
+        _bgCover = view.FindViewById<ImageView>(Resource.Id.bg_cover)!;
+        ApplyBlur();
+        _flowLight = view.FindViewById<FlowLightView>(Resource.Id.flow_light)!;
+        InitFlowLight();
 
         var btnLandscape = view.FindViewById<ImageButton>(Resource.Id.btn_landscape)!;
         btnLandscape.SetImageResource(Resource.Drawable.ic_landscape);
@@ -278,18 +264,20 @@ public class LandscapeNowPlayingFragment : Fragment
             _lyricNext6.Visibility = ViewStates.Visible;
             _lyricNext7.Visibility = ViewStates.Visible;
             _lyricNext8.Visibility = ViewStates.Visible;
-            _lyricPrev8.Alpha = 0f; _lyricPrev8.Animate().Alpha(0.18f).SetDuration(duration).Start();
-            _lyricPrev7.Alpha = 0f; _lyricPrev7.Animate().Alpha(0.22f).SetDuration(duration).Start();
-            _lyricPrev6.Alpha = 0f; _lyricPrev6.Animate().Alpha(0.28f).SetDuration(duration).Start();
-            _lyricPrev5.Alpha = 0f; _lyricPrev5.Animate().Alpha(0.33f).SetDuration(duration).Start();
-            _lyricPrev4.Alpha = 0f; _lyricPrev4.Animate().Alpha(0.40f).SetDuration(duration).Start();
-            _lyricPrev3.Alpha = 0f; _lyricPrev3.Animate().Alpha(0.50f).SetDuration(duration).Start();
-            _lyricNext3.Alpha = 0f; _lyricNext3.Animate().Alpha(0.50f).SetDuration(duration).Start();
-            _lyricNext4.Alpha = 0f; _lyricNext4.Animate().Alpha(0.40f).SetDuration(duration).Start();
-            _lyricNext5.Alpha = 0f; _lyricNext5.Animate().Alpha(0.33f).SetDuration(duration).Start();
-            _lyricNext6.Alpha = 0f; _lyricNext6.Animate().Alpha(0.28f).SetDuration(duration).Start();
-            _lyricNext7.Alpha = 0f; _lyricNext7.Animate().Alpha(0.22f).SetDuration(duration).Start();
-            _lyricNext8.Alpha = 0f; _lyricNext8.Animate().Alpha(0.18f).SetDuration(duration).Start();
+            // 全屏歌词模式：文字颜色用完全不透明，仅靠 View.Alpha 控制深度，避免双重透明度叠加
+            var farViews = new[] { _lyricPrev8, _lyricPrev7, _lyricPrev6, _lyricPrev5, _lyricPrev4, _lyricPrev3,
+                _lyricNext3, _lyricNext4, _lyricNext5, _lyricNext6, _lyricNext7, _lyricNext8 };
+            foreach (var v in farViews)
+            {
+                v.SetTextColor(_lpLyricInactiveColor);        // 文字用完全不透明色
+                v.StrokeEnabled = true;
+                v.StrokeColor = _lpLyricActiveColor == Color.Black
+                    ? Color.Argb(0x50, 0xFF, 0xFF, 0xFF)
+                    : Color.Argb(0x50, 0x00, 0x00, 0x00);
+                v.StrokeWidth = 1f;
+                v.Alpha = 0f;
+                v.Animate().Alpha(0.55f).SetDuration(duration).Start();
+            }
         }
         else
         {
@@ -328,10 +316,9 @@ public class LandscapeNowPlayingFragment : Fragment
             // 重新加载歌词设置（用户可能在歌词页修改了颜色/字号）
             LoadLyricSettings();
             ApplyLyricFontSize();
-            if (!string.IsNullOrEmpty(_viewModel.CoverSource))
-                UpdateGradientBackground();
-            else
-                ApplyDefaultLyricColors();
+            InitFlowLight();
+            UpdateBackground();
+            ApplyDefaultLyricColors();
             SyncUIFromViewModel();
         }
         var resumeVisPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
@@ -378,8 +365,8 @@ public class LandscapeNowPlayingFragment : Fragment
 
     public override void OnDestroyView()
     {
+        StopFlowLight();
         _isFullLyricMode = false;
-        StopFlowAnimation();
         var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
         if (playerSvc != null)
             playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;
@@ -407,14 +394,13 @@ public class LandscapeNowPlayingFragment : Fragment
 
             var coverSource = _viewModel.CoverSource;
             var coverChanged = coverSource != _lastCoverSource;
-            _lastCoverSource = coverSource;
 
             if (!string.IsNullOrEmpty(coverSource))
             {
                 if (coverChanged)
                 {
                     AnimateCoverChange(coverSource);
-                    UpdateGradientBackground();
+                    UpdateBackground();
                 }
             }
             else
@@ -437,6 +423,8 @@ public class LandscapeNowPlayingFragment : Fragment
             UpdatePlayPauseIcon();
             UpdateModeIcon();
             UpdateLikeIcon();
+            if (_viewModel.LyricStyle == 1 && _viewModel.CurrentLyricSpannable == null)
+                _viewModel.UpdateLyricSpannable();
             UpdateLyrics();
         }
         catch { }
@@ -457,11 +445,10 @@ public class LandscapeNowPlayingFragment : Fragment
                     var cover = _viewModel.CoverSource;
                     if (cover != _lastCoverSource && !string.IsNullOrEmpty(cover))
                     {
-                        _lastCoverSource = cover;
                         Activity?.RunOnUiThread(() =>
                         {
                             AnimateCoverChange(cover);
-                            UpdateGradientBackground();
+                            UpdateBackground();
                         });
                     }
                     else if (string.IsNullOrEmpty(cover))
@@ -480,9 +467,9 @@ public class LandscapeNowPlayingFragment : Fragment
                 case nameof(_viewModel.PlayPauseIcon):
                     UpdatePlayPauseIcon();
                     if (_viewModel.PlayPauseIcon == "▶")
-                        PauseFlowAnimation();
+                        PauseFlowLight();
                     else
-                        ResumeFlowAnimation();
+                        ResumeFlowLight();
                     break;
                 case nameof(_viewModel.PlayModeIcon):
                     UpdateModeIcon();
@@ -496,15 +483,14 @@ public class LandscapeNowPlayingFragment : Fragment
                         _songArtist.Text = "正在加载...";
                     else
                         _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
-                    // 切歌时重启频谱图，防止 AudioSessionIdChanged 未触发导致频谱停止
-                    RestartVisualizer();
+                    // 切歌时无需重启 Visualizer：ExoPlayer 复用同一 SessionId，已绑定 Visualizer 自动继续工作
                     break;
                 case nameof(_viewModel.CurrentLyricLine):
                     UpdateLyrics();
                     break;
                 case nameof(_viewModel.CurrentLyricSpannable):
                     if (_viewModel.LyricStyle == 1 && _viewModel.CurrentLyricSpannable != null && _lyricCurrent != null)
-                        _lyricCurrent.SetText(_viewModel.CurrentLyricSpannable, TextView.BufferType.Spannable);
+                        _lyricCurrent.SetSpannableWithProgress(_viewModel.CurrentLyricSpannable, _viewModel.CurrentLyricProgress);
                     else if (_lyricCurrent != null)
                         _lyricCurrent.Text = _viewModel.CurrentLyricLine ?? "";
                     break;
@@ -514,137 +500,6 @@ public class LandscapeNowPlayingFragment : Fragment
                     break;
             }
         });
-    }
-
-    private void UpdateGradientBackground()
-    {
-        if (_gradientBackground == null) return;
-        var coverPath = _viewModel.CoverSource;
-        if (string.IsNullOrEmpty(coverPath) || !System.IO.File.Exists(coverPath))
-        {
-            ApplyDefaultBackground();
-            return;
-        }
-        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
-        {
-            try
-            {
-                var colors = CoverColorExtractor.ExtractFromFile(coverPath);
-                if (colors.Count == 0) return;
-                Activity?.RunOnUiThread(() => TransitionToColors(colors));
-            }
-            catch { }
-        });
-    }
-
-    private void TransitionToColors(List<ColorEntry> newEntries)
-    {
-        if (_gradientBackground == null || newEntries.Count == 0) return;
-        var newPalette = MaterialYouPalette.FromSeedColor(newEntries[0].Color);
-        _targetBackgroundColor = newPalette.Background;
-        if (_currentEntries == null || _currentEntries.Count == 0)
-        {
-            _gradientBackground.SetBackgroundColor(new Android.Graphics.Color(_targetBackgroundColor));
-            _currentEntries = newEntries;
-            _currentBackgroundColor = _targetBackgroundColor;
-            _flowColors = PickVividColors(newEntries);
-            ApplySweepGradientBackground(newEntries);
-            StartFlowAnimation();
-            return;
-        }
-        _colorTransitionAnimator?.Cancel();
-        _colorTransitionAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
-        _colorTransitionAnimator.SetDuration(800);
-        _colorTransitionAnimator.SetInterpolator(new Android.Views.Animations.AccelerateDecelerateInterpolator());
-        var oldColors = _flowColors != null ? (int[])_flowColors.Clone() : null;
-        var newColors = PickVividColors(newEntries);
-        _colorTransitionAnimator.Update += (s, e) =>
-        {
-            var fraction = (float)e.Animation.AnimatedValue;
-            if (oldColors != null && _flowColors != null && newColors != null)
-            {
-                var len = Math.Min(oldColors.Length, newColors.Length);
-                for (int i = 0; i < len - 1; i++)
-                    _flowColors[i] = BlendColor(oldColors[i], newColors[i], fraction);
-                _flowColors[_flowColors.Length - 1] = _flowColors[0];
-            }
-        };
-        _colorTransitionAnimator.AnimationEnd += (s, e) =>
-        {
-            _currentEntries = newEntries;
-            _currentBackgroundColor = _targetBackgroundColor;
-            ApplySweepGradientBackground(newEntries);
-        };
-        _colorTransitionAnimator.Start();
-    }
-
-    private static int BlendColor(int from, int to, float fraction)
-    {
-        var a = (int)(Color.GetAlphaComponent(from) + (Color.GetAlphaComponent(to) - Color.GetAlphaComponent(from)) * fraction);
-        var r = (int)(Color.GetRedComponent(from) + (Color.GetRedComponent(to) - Color.GetRedComponent(from)) * fraction);
-        var g = (int)(Color.GetGreenComponent(from) + (Color.GetGreenComponent(to) - Color.GetGreenComponent(from)) * fraction);
-        var b = (int)(Color.GetBlueComponent(from) + (Color.GetBlueComponent(to) - Color.GetBlueComponent(from)) * fraction);
-        return Color.Argb(a, r, g, b);
-    }
-
-    private void StartFlowAnimation()
-    {
-        if (_flowAnimator != null) return;
-
-        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
-        bool bgAnimEnabled = prefs?.GetBoolean("bg_animation_enabled", false) ?? false;
-
-        if (!bgAnimEnabled) return;
-
-        _flowTimeOffset = SystemClock.ElapsedRealtime();
-        _sweepAngle = 0f;
-        _flowAnimator = Android.Animation.ValueAnimator.OfFloat(0f, 1f);
-        _flowAnimator.SetDuration(24000);
-        _flowAnimator.RepeatCount = -1;
-        _flowAnimator.RepeatMode = Android.Animation.ValueAnimatorRepeatMode.Restart;
-        _flowAnimator.SetInterpolator(new Android.Views.Animations.LinearInterpolator());
-        _flowAnimator.Update += (s, e) =>
-        {
-            if (++_flowFrameSkip % 3 != 0) return;
-            var rawTime = SystemClock.ElapsedRealtime();
-            var t = (rawTime - _flowTimeOffset) / 1000f;
-            _sweepAngle = (t * 15f) % 360f;
-            _gradientBackground?.SetRotationAngle(_sweepAngle);
-        };
-        _flowAnimator.Start();
-        if (_flowPaused || _viewModel.PlayPauseIcon == "▶")
-        {
-            _flowPaused = true;
-            _flowAnimator.Pause();
-        }
-    }
-
-    private void PauseFlowAnimation()
-    {
-        _flowPaused = true;
-        _flowPauseTime = SystemClock.ElapsedRealtime();
-        if (_flowAnimator != null && _flowAnimator.IsRunning)
-            _flowAnimator.Pause();
-    }
-
-    private void ResumeFlowAnimation()
-    {
-        _flowPaused = false;
-        _flowTimeOffset += SystemClock.ElapsedRealtime() - _flowPauseTime;
-        if (_flowAnimator != null && _flowAnimator.IsStarted)
-            _flowAnimator.Resume();
-    }
-
-    private void StopFlowAnimation()
-    {
-        _flowAnimator?.Cancel();
-        _flowAnimator = null;
-        _colorTransitionAnimator?.Cancel();
-        _colorTransitionAnimator = null;
-        _flowPaused = false;
-        _flowTimeOffset = 0;
-        _flowPauseTime = 0;
-        _sweepAngle = 0f;
     }
 
     private void AnimateCoverChange(string newCoverPath)
@@ -789,21 +644,28 @@ public class LandscapeNowPlayingFragment : Fragment
 
             if (luminance >= 0.5f)
             {
+                // 浅色封面/遮罩：黑字，深灰未唱（与竖屏一致）
                 _lpLyricActiveColor = Color.Black;
-                _lpLyricInactiveColor = Color.ParseColor("#88333333");
+                _lpLyricInactiveColor = Color.ParseColor("#AA333333");
             }
             else
             {
+                // 深色封面/遮罩：白字，浅灰未唱（与竖屏一致）
                 _lpLyricActiveColor = Color.White;
-                _lpLyricInactiveColor = Color.ParseColor("#88BBBBBB");
+                _lpLyricInactiveColor = Color.ParseColor("#EEBBBBBB");
             }
         }
 
-        // 当前行：活跃色
+        // 横屏模式当前行支持逐字着色
         _lyricCurrent.SetTextColor(_lpLyricActiveColor);
         _lyricCurrent.SungColor = _lpLyricActiveColor;
         _lyricCurrent.UnsungColor = _lpLyricInactiveColor;
         _lyricCurrent.StrokeEnabled = false;
+
+        // 未唱行描边增强可读性（与竖屏一致）
+        var strokeColor = _lpLyricActiveColor == Color.Black
+            ? Color.Argb(0x50, 0xFF, 0xFF, 0xFF)  // 浅色背景：淡白描边
+            : Color.Argb(0x50, 0x00, 0x00, 0x00);  // 深色背景：淡黑描边
 
         // 远端行：按距离逐级降低透明度（offset 1~8）
         var allFarViews = new[] {
@@ -819,10 +681,12 @@ public class LandscapeNowPlayingFragment : Fragment
 
         foreach (var (view, offset) in allFarViews)
         {
-            var alpha = (byte)(_lpLyricInactiveColor.A / (offset + 1));
+            var alpha = (byte)Math.Max(_lpLyricInactiveColor.A * 2 / 3, 100);
             var color = Color.Argb(alpha, _lpLyricInactiveColor.R, _lpLyricInactiveColor.G, _lpLyricInactiveColor.B);
             view.SetTextColor(color);
-            view.StrokeEnabled = false;
+            view.StrokeEnabled = true;
+            view.StrokeColor = strokeColor;
+            view.StrokeWidth = 1f;
         }
     }
 
@@ -844,180 +708,132 @@ public class LandscapeNowPlayingFragment : Fragment
         return 0.1f; // 默认深色
     }
 
-    private void ApplySweepGradientBackground(List<ColorEntry> entries)
+    /// <summary>应用毛玻璃模糊效果（Android 12+）</summary>
+    private void ApplyBlur()
     {
-        if (_gradientBackground == null || entries.Count == 0) return;
-        var palette = MaterialYouPalette.FromSeedColor(entries[0].Color);
-
-        // 根据种子色计算背景亮度，用于自适应歌词颜色
-        int seedR = Android.Graphics.Color.GetRedComponent(entries[0].Color);
-        int seedG = Android.Graphics.Color.GetGreenComponent(entries[0].Color);
-        int seedB = Android.Graphics.Color.GetBlueComponent(entries[0].Color);
-        _currentBgLuminance = (0.299f * seedR + 0.587f * seedG + 0.114f * seedB) / 255f;
-
-        var sorted = entries.OrderByDescending(e => e.Weight).ToList();
-        var totalWeight = sorted.Sum(e => Math.Max(e.Weight, 0.01f));
-        var topEntries = sorted.Where(e => e.Weight / totalWeight >= 0.20f).Take(3).ToList();
-        if (topEntries.Count == 0) topEntries.Add(sorted[0]);
-        if (topEntries.Count == 1) topEntries.Add(topEntries[0]);
-        _flowColors = PickVividColors(topEntries);
-        _flowPositions = CalculateWeightedPositions(topEntries);
-        BuildAndApplySweepGradient();
-        if (_reflectionMaskBottom != null) _reflectionMaskBottom.Background = null;
-        ApplyFogToCover(palette.Background);
-        ApplyCoverGlow(entries);
-        ApplyCardTheme(palette);
-        var onSurfaceColor = new Color(palette.OnSurface);
-        _songTitle.SetTextColor(onSurfaceColor);
-        _songArtist.SetTextColor(new Color(palette.OnSurfaceVariant));
-        ApplyDefaultLyricColors();
+        if (OperatingSystem.IsAndroidVersionAtLeast(31))
+            _bgCover.SetRenderEffect(RenderEffect.CreateBlurEffect(120f, 120f, Shader.TileMode.Clamp));
     }
 
-    private void BuildAndApplySweepGradient()
+    /// <summary>更新背景封面图片</summary>
+    private void UpdateBackground()
     {
-        if (_gradientBackground == null || _flowColors == null || _flowColors.Length < 3) return;
-        var positions = _flowPositions;
-        if (positions == null || positions.Length != _flowColors.Length)
+        var cover = _viewModel.CoverSource;
+        if (cover == _lastCoverSource) return;
+        _lastCoverSource = cover;
+
+        try
         {
-            var n = _flowColors.Length - 1;
-            positions = new float[_flowColors.Length];
-            for (int i = 0; i <= n; i++) positions[i] = (float)i / n;
-            _flowPositions = positions;
-        }
-        _gradientBackground.SetGradient(_flowColors!, positions);
-        _gradientBackground.SetRotationAngle(_sweepAngle);
-    }
+            var oldDrawable = _bgCover.Drawable as Android.Graphics.Drawables.BitmapDrawable;
+            if (oldDrawable?.Bitmap != null && oldDrawable.Bitmap.IsRecycled)
+                _bgCover.SetImageResource(Resource.Drawable.cover_default);
 
-    private static float[] CalculateWeightedPositions(List<ColorEntry> entries)
-    {
-        if (entries.Count < 2) return new float[] { 0f, 0.5f, 1f };
-        var totalWeight = entries.Sum(e => Math.Max(e.Weight, 0.01f));
-        var positions = new float[entries.Count + 1];
-        positions[0] = 0f;
-        var cumulative = 0f;
-        for (int i = 0; i < entries.Count; i++) { cumulative += entries[i].Weight / totalWeight; positions[i + 1] = Math.Clamp(cumulative, 0f, 1f); }
-        return positions;
-    }
-
-    private static int[] PickVividColors(List<ColorEntry> entries)
-    {
-        if (entries.Count == 0) return new[] { (int)Color.Argb(0xFF, 0xF0, 0xF2, 0xF5), (int)Color.Argb(0xFF, 0xEE, 0xF0, 0xF5), (int)Color.Argb(0xFF, 0xF0, 0xF0, 0xF5), (int)Color.Argb(0xFF, 0xF0, 0xF2, 0xF5) };
-        var n = entries.Count;
-        var result = new int[n + 1];
-        for (int i = 0; i < n; i++)
-        {
-            float[] hsv = { 0, 0, 0 };
-            Color.RGBToHSV(Color.GetRedComponent(entries[i].Color), Color.GetGreenComponent(entries[i].Color), Color.GetBlueComponent(entries[i].Color), hsv);
-            if (hsv[1] < 0.15f)
+            if (!string.IsNullOrEmpty(cover) && System.IO.File.Exists(cover))
             {
-                // 低饱和度颜色：保持微妙色调，明度根据原始亮度适度调整
-                float sat = Math.Clamp(hsv[2] * 0.08f, 0.02f, 0.08f);
-                float val = Math.Clamp(hsv[2] * 0.45f + 0.40f, 0.25f, 0.90f);
-                result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
-            }
-            else
-            {
-                // 正常颜色：保持中等饱和度，明度根据原始亮度自适应
-                float sat = Math.Clamp(hsv[1] * 0.55f + 0.10f, 0.12f, 0.45f);
-                float val = Math.Clamp(hsv[2] * 0.50f + 0.40f, 0.55f, 0.95f);
-                result[i] = (int)Color.HSVToColor(new[] { hsv[0], sat, val });
+                var drawable = Drawable.CreateFromPath(cover);
+                if (drawable != null)
+                {
+                    _bgCover.SetImageDrawable(drawable);
+                    ComputeCoverLuminance(drawable);
+                    UpdateFlowLightColors();
+                    return;
+                }
             }
         }
-        result[n] = result[0];
-        return result;
+        catch { }
+
+        _bgCover.SetImageResource(Resource.Drawable.cover_default);
+        _currentBgLuminance = 0.3f;
+        UpdateFlowLightColors();
     }
 
-    private void ApplyFogToCover(int backgroundColor)
+    /// <summary>从封面 Drawable 提取平均亮度</summary>
+    private void ComputeCoverLuminance(Android.Graphics.Drawables.Drawable drawable)
     {
-        if (_coverFog == null) return;
-        var fog = new GradientDrawable(GradientDrawable.Orientation.TopBottom, new int[] { Color.Argb(0, 0, 0, 0), backgroundColor });
-        fog.SetGradientType(GradientType.LinearGradient);
-        _coverFog.Background = fog;
-    }
-
-    private void ApplyCoverGlow(List<ColorEntry> entries)
-    {
-        if (_coverGlow == null || entries.Count == 0) return;
-        var seedColor = entries[0].Color;
-        var r = Color.GetRedComponent(seedColor);
-        var g = Color.GetGreenComponent(seedColor);
-        var b = Color.GetBlueComponent(seedColor);
-        var glowCenter = Color.Argb(0x40, r, g, b);
-        var glowEdge = Color.Argb(0x00, r, g, b);
-        var gd = new GradientDrawable();
-        gd.SetGradientType(GradientType.RadialGradient);
-        gd.SetGradientCenter(0.5f, 0.8f);
-        gd.SetGradientRadius(300f);
-        gd.SetColors(new int[] { glowCenter, glowEdge });
-        _coverGlow.Background = gd;
-    }
-
-    private void ApplyCardTheme(MaterialYouPalette palette)
-    {
-        if (_controlsCard == null) return;
-        var surfaceColor = new Color(palette.Surface);
-        _controlsCard.SetCardBackgroundColor(Color.Argb(0x30, surfaceColor.R, surfaceColor.G, surfaceColor.B));
-        _controlsCard.StrokeColor = palette.Outline;
-        var onSurfaceColor = new Color(palette.OnSurface);
-        var onSurfaceSemi = Color.Argb((int)(0xEE * 255f / 0xFF), onSurfaceColor.R, onSurfaceColor.G, onSurfaceColor.B);
-        _timeCurrent.SetTextColor(onSurfaceSemi);
-        _timeTotal.SetTextColor(onSurfaceSemi);
-        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
-        _progressSlider.ThumbTintList = sliderCs;
-        _progressSlider.TrackActiveTintList = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
-        _audioVisualizer.SetColors(Color.ParseColor("#FFFFFF"));
-        _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
-        _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
-        _modeActiveColor = onSurfaceColor;
-        var white = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
-        var whiteSemi = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#DDFFFFFF"));
-        _btnPlayPause.ImageTintList = white;
-        _btnNext.ImageTintList = white;
-        _btnPrev.ImageTintList = white;
-        _btnLike.ImageTintList = white;
-        _btnModeCycle.ImageTintList = white;
-        _btnPlaylist.ImageTintList = whiteSemi;
-        var visWhite = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
-        var visGray = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#88FFFFFF"));
-        _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
-        _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
-    }
-
-    private void ApplyDefaultBackground()
-    {
-        if (_gradientBackground == null) return;
-        _gradientBackground.SetBackgroundColor(Color.ParseColor("#1A0E28"));
-        if (_reflectionMaskBottom != null) _reflectionMaskBottom.Background = null;
-        if (_coverFog != null) _coverFog.Background = null;
-        if (_controlsCard != null)
+        try
         {
-            _controlsCard.SetCardBackgroundColor(Color.ParseColor("#26000000"));
-            _controlsCard.StrokeColor = Color.ParseColor("#15CCCCCC");
+            var bd = drawable as Android.Graphics.Drawables.BitmapDrawable;
+            var bitmap = bd?.Bitmap;
+            if (bitmap == null || bitmap.IsRecycled) { _currentBgLuminance = 0.3f; return; }
+
+            var scaled = Bitmap.CreateScaledBitmap(bitmap, 1, 1, false);
+            if (scaled == null) { _currentBgLuminance = 0.3f; return; }
+
+            var pixel = new int[1];
+            scaled.GetPixels(pixel, 0, 1, 0, 0, 1, 1);
+            var c = new Color(pixel[0]);
+            _currentBgLuminance = (0.299f * c.R + 0.587f * c.G + 0.114f * c.B) / 255f;
+
+            if (!ReferenceEquals(scaled, bitmap)) scaled.Recycle();
         }
-        var defaultWhite = Color.ParseColor("#FFFFFF");
-        var defaultLight = Color.ParseColor("#DDFFFFFF");
-        _modeActiveColor = defaultWhite;
-        _timeCurrent.SetTextColor(defaultLight);
-        _timeTotal.SetTextColor(defaultLight);
-        _btnPlayPause.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
-        _btnNext.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
-        _btnPrev.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
-        _btnLike.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
-        _btnModeCycle.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultWhite);
-        _btnPlaylist.ImageTintList = Android.Content.Res.ColorStateList.ValueOf(defaultLight);
-        var visWhite = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
-        var visGray = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#88FFFFFF"));
-        _btnVisualizerToggle.ImageTintList = _visualizerEnabled ? visWhite : visGray;
-        _btnSleepTimer.ImageTintList = _sleepCts != null ? visWhite : visGray;
-        var sliderCs = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
-        _progressSlider.ThumbTintList = sliderCs;
-        _progressSlider.TrackActiveTintList = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
-        _audioVisualizer.SetColors(Color.ParseColor("#FFFFFF"));
-        _progressSlider.HaloTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x30, 0xFF, 0xFF, 0xFF)));
-        _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
-        _songTitle.SetTextColor(Color.ParseColor("#FFEEEEEE"));
-        _songArtist.SetTextColor(Color.ParseColor("#CCFFFFFF"));
-        ApplyDefaultLyricColors();
+        catch { _currentBgLuminance = 0.3f; }
+    }
+
+    /// <summary>初始化流光背景动画</summary>
+    private void InitFlowLight()
+    {
+        if (_flowLight == null) return;
+        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
+        bool enabled = prefs?.GetBoolean("bg_animation_enabled", false) ?? false;
+        if (enabled)
+        {
+            _flowLight.Visibility = ViewStates.Visible;
+            _flowLight.SetDefaultColors();
+            _flowLight.Start();
+            if (_viewModel.PlayPauseIcon == "▶")
+                _flowLight.Pause();
+            UpdateFlowLightColors();
+        }
+        else
+        {
+            _flowLight.Visibility = ViewStates.Gone;
+        }
+    }
+
+    /// <summary>从封面提取主色调并更新流光颜色</summary>
+    private void UpdateFlowLightColors()
+    {
+        if (_flowLight == null || _flowLight.Visibility != ViewStates.Visible) return;
+        var coverPath = _viewModel.CoverSource;
+        if (string.IsNullOrEmpty(coverPath) || !System.IO.File.Exists(coverPath))
+        {
+            _flowLight.SetDefaultColors();
+            return;
+        }
+        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                var colors = CoverColorExtractor.ExtractFromFile(coverPath);
+                if (colors.Count == 0) return;
+                var topColors = colors.OrderByDescending(e => e.Weight).Take(3).Select(e => e.Color).ToArray();
+                Activity?.RunOnUiThread(() => _flowLight.SetCoverColors(topColors));
+            }
+            catch { }
+        });
+    }
+
+    private void StartFlowLight()
+    {
+        if (_flowLight == null || _flowLight.Visibility != ViewStates.Visible) return;
+        _flowLight.Start();
+    }
+
+    private void PauseFlowLight()
+    {
+        if (_flowLight == null || _flowLight.Visibility != ViewStates.Visible) return;
+        _flowLight.Pause();
+    }
+
+    private void ResumeFlowLight()
+    {
+        if (_flowLight == null || _flowLight.Visibility != ViewStates.Visible) return;
+        _flowLight.Resume();
+    }
+
+    private void StopFlowLight()
+    {
+        _flowLight?.Stop();
     }
 
     private void UpdateTimeDisplay()
@@ -1145,17 +961,19 @@ public class LandscapeNowPlayingFragment : Fragment
         if (_lyricCurrent == null) return;
         if (_viewModel.LyricStyle == 1 && _viewModel.CurrentLyricSpannable != null)
         {
-            _lyricCurrent.SetText(_viewModel.CurrentLyricSpannable, TextView.BufferType.Spannable);
-            _lyricCurrent.LyricProgress = _viewModel.CurrentLyricProgress;
+            _lyricCurrent.SetSpannableWithProgress(_viewModel.CurrentLyricSpannable, _viewModel.CurrentLyricProgress);
             _lyricCurrent.Alpha = 1f;
         }
         else
         {
-            _lyricCurrent.ResetLyricProgress();
             if (plainText != null)
             {
-                _lyricCurrent.Text = plainText;
+                _lyricCurrent.SetPlainTextNoGradient(plainText);
                 _lyricCurrent.Alpha = 1f;
+            }
+            else
+            {
+                _lyricCurrent.ResetLyricProgress();
             }
         }
         _lyricCurrent.TranslationY = 0f;
@@ -1381,6 +1199,10 @@ public class LandscapeNowPlayingFragment : Fragment
 
     private int _lastVisualizerSessionId;
 
+    /// <summary>
+    /// 音频会话 ID 变化回调。与 NowPlayingFragment 逻辑一致。
+    /// 同一 SessionId 时无需重建，Visualizer 会自动接收新轨道 FFT 数据。
+    /// </summary>
     private void OnAudioSessionIdChanged(int newSessionId)
     {
         if (Activity == null) return;
@@ -1388,12 +1210,20 @@ public class LandscapeNowPlayingFragment : Fragment
         {
             if (!_visualizerEnabled) return;
             if (newSessionId == 0) return;
-            if (newSessionId == _lastVisualizerSessionId && _visualizerHelper != null && _visualizerHelper.IsEnabled)
+
+            if (_visualizerHelper != null && _visualizerHelper.IsEnabled && newSessionId == _lastVisualizerSessionId)
                 return;
-            _lastVisualizerSessionId = newSessionId;
+
             _visualizerHelper?.Stop();
             _visualizerHelper = null;
-            StartVisualizerWithSession(newSessionId);
+            _lastVisualizerSessionId = 0;
+            View?.PostDelayed(() =>
+            {
+                if (!_visualizerEnabled) return;
+                var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+                if (playerService.AudioSessionId == newSessionId)
+                    StartVisualizerWithSession(newSessionId);
+            }, 600);
         });
     }
 
@@ -1403,7 +1233,29 @@ public class LandscapeNowPlayingFragment : Fragment
         _visualizerHelper?.Stop();
         _visualizerHelper = null;
         _lastVisualizerSessionId = 0;
-        TryStartVisualizer();
+        View?.PostDelayed(() =>
+        {
+            if (!_visualizerEnabled) return;
+            var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+            var sessionId = playerService.AudioSessionId;
+            if (sessionId > 0 && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+                StartVisualizerWithSession(sessionId);
+        }, 800);
+    }
+
+    private void TryStartVisualizerWithRetry(int attempt)
+    {
+        if (!_visualizerEnabled || attempt > 8) return;
+        var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+        var sessionId = playerService.AudioSessionId;
+        if (sessionId > 0 && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+        {
+            StartVisualizerWithSession(sessionId);
+        }
+        else if (_visualizerHelper == null || !_visualizerHelper.IsEnabled)
+        {
+            View?.PostDelayed(() => TryStartVisualizerWithRetry(attempt + 1), 400);
+        }
     }
 
     private void TryStartVisualizer()

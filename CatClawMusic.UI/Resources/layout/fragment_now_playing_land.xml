@@ -4,24 +4,28 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:clipChildren="false">
 
-    <CatClawMusic.UI.Helpers.SweepGradientView android:id="@+id/gradient_background" android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+    <!-- 底层：模糊封面背景（与歌词页方案一致） -->
+    <ImageView android:id="@+id/bg_cover" android:layout_width="match_parent"
+        android:layout_height="match_parent" android:scaleType="centerCrop"
+        android:src="@drawable/cover_default" />
 
     <!-- 背景遮罩层：半透明暗色蒙版 -->
     <View android:id="@+id/bg_dim_overlay" android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#990F0D16" />
 
-    <View android:id="@+id/reflection_mask_bottom" android:layout_width="match_parent"
-        android:layout_height="100dp" android:layout_gravity="bottom" />
+    <!-- 流光背景动画层 -->
+    <CatClawMusic.UI.Helpers.FlowLightView android:id="@+id/flow_light"
+        android:layout_width="match_parent" android:layout_height="match_parent" />
 
     <LinearLayout android:id="@+id/content_area" android:layout_width="match_parent" android:layout_height="match_parent"
         android:orientation="horizontal" android:clipChildren="false"
         android:paddingHorizontal="24dp" android:paddingVertical="16dp">
 
-        <FrameLayout android:id="@+id/cover_panel" android:layout_width="0dp" android:layout_height="match_parent"
+        <CatClawMusic.UI.Helpers.SquareFrameLayout android:id="@+id/cover_panel" android:layout_width="0dp" android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginEnd="16dp">
+            android:layout_marginEnd="16dp"
+            android:layout_gravity="center_vertical">
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cover_card"
@@ -60,7 +64,7 @@
                     </LinearLayout>
                 </FrameLayout>
             </com.google.android.material.card.MaterialCardView>
-        </FrameLayout>
+        </CatClawMusic.UI.Helpers.SquareFrameLayout>
 
         <LinearLayout android:layout_width="0dp" android:layout_height="match_parent"
             android:layout_weight="1"

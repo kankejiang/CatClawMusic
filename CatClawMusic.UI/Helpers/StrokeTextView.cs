@@ -77,6 +77,43 @@ public class StrokeTextView : TextView
         Invalidate();
     }
 
+    /// <summary>
+    /// 原子更新 Spannable 文本和歌词进度，避免中间状态闪烁。
+    /// 抑制 SetText 产生的中间重绘，设置完进度后统一刷新一次。
+    /// </summary>
+    public void SetSpannableWithProgress(Java.Lang.ICharSequence spannable, float progress)
+    {
+        _suppressInvalidate = true;
+        try
+        {
+            SetText(spannable, BufferType.Spannable);
+            _lyricProgress = progress;
+        }
+        finally
+        {
+            _suppressInvalidate = false;
+            Invalidate();
+        }
+    }
+
+    /// <summary>
+    /// 原子设置纯文本并重置歌词进度，避免 ResetLyricProgress + Text 两次重绘导致的闪烁。
+    /// </summary>
+    public void SetPlainTextNoGradient(string text)
+    {
+        _suppressInvalidate = true;
+        try
+        {
+            _lyricProgress = -1f;
+            Text = text;
+        }
+        finally
+        {
+            _suppressInvalidate = false;
+            Invalidate();
+        }
+    }
+
     public override void Invalidate()
     {
         if (_suppressInvalidate) return;

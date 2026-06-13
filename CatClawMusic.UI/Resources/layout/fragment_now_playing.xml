@@ -4,28 +4,29 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:clipChildren="false">
 
-    <!-- 锥形渐变背景：从封面取色，三色光带顺时针旋转，圆心藏在封面后 -->
-    <CatClawMusic.UI.Helpers.SweepGradientView android:id="@+id/gradient_background" android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+    <!-- 底层：模糊封面背景（与歌词页方案一致） -->
+    <ImageView android:id="@+id/bg_cover" android:layout_width="match_parent"
+        android:layout_height="match_parent" android:scaleType="centerCrop"
+        android:src="@drawable/cover_default" />
 
     <!-- 背景遮罩层：半透明暗色蒙版，颜色由代码根据设置动态切换 -->
     <View android:id="@+id/bg_dim_overlay" android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#990F0D16" />
 
-    <!-- 光晕底部遮罩：透明→背景色（底部自然收尾） -->
-    <View android:id="@+id/reflection_mask_bottom" android:layout_width="match_parent"
-        android:layout_height="100dp" android:layout_gravity="bottom" />
+    <!-- 流光背景动画层 -->
+    <CatClawMusic.UI.Helpers.FlowLightView android:id="@+id/flow_light"
+        android:layout_width="match_parent" android:layout_height="match_parent" />
 
     <LinearLayout android:id="@+id/content_area" android:layout_width="match_parent" android:layout_height="match_parent"
         android:orientation="vertical" android:clipChildren="false">
 
-        <!-- 专辑封面：圆角大图 -->
-        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp"
-            android:layout_weight="2.6"
+        <!-- 专辑封面：圆角大图（正方形） -->
+        <CatClawMusic.UI.Helpers.SquareFrameLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginHorizontal="36dp"
             android:layout_marginTop="48dp"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="8dp"
+            android:layout_gravity="center_horizontal">
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cover_card"
@@ -65,11 +66,11 @@
                     </LinearLayout>
                 </FrameLayout>
             </com.google.android.material.card.MaterialCardView>
-        </FrameLayout>
+        </CatClawMusic.UI.Helpers.SquareFrameLayout>
 
-        <!-- 歌词区 -->
+        <!-- 歌词区：weight=1 撑满剩余空间，将控制区推到底部 -->
         <LinearLayout android:id="@+id/lyrics_area" android:layout_width="match_parent"
-            android:layout_height="0dp" android:layout_weight="1.2"
+            android:layout_height="0dp" android:layout_weight="1"
             android:orientation="vertical" android:gravity="bottom|center_horizontal"
             android:clipChildren="false" android:paddingHorizontal="24dp"
             android:paddingBottom="4dp">

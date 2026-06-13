@@ -40,11 +40,11 @@
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
                     android:layout_weight="1" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="🎨 播放页面背景动画"
+                        android:text="🎨 流光背景动画"
                         android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
                         android:fontFamily="sans-serif-medium" />
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="开启后背景渐变将缓慢旋转"
+                        android:text="开启后背景将显示缓慢漂移的流光效果"
                         android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
