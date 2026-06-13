@@ -176,6 +176,9 @@ public class MainActivity : AppCompatActivity
 
         NavigationService.Initialize(SupportFragmentManager, Resource.Id.overlay_container, _bottomNav);
 
+        // Android 16 (Target 36) 适配：已在OnCreate中注册
+        OnBackPressedDispatcher.AddCallback(this, new MainBackCallback(this));
+
         _sidePanelOverlay = FindViewById<View>(Resource.Id.side_panel_overlay)!;
         _sidePanelMask = FindViewById<View>(Resource.Id.side_panel_mask)!;
         _sidePanelContent = FindViewById<View>(Resource.Id.side_panel_content)!;
@@ -331,8 +334,6 @@ public class MainActivity : AppCompatActivity
                 .CommitNow();
         }
 
-        // Android 16 (Target 36) 适配：注册预测性返回手势回调
-        OnBackPressedDispatcher.AddCallback(this, new MainBackCallback(this));
     }
 
     /// <summary>兼容 MIUI 等不走 OnBackPressedDispatcher 的场景</summary>

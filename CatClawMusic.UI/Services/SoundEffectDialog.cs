@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CatClawMusic.UI.Services;
 
 /// <summary>
-/// 音效对话框 — 预设音效选择 + MAX Audio + MISOUND
+/// 音效对话框 — 预设音效选择 + MISOUND
 /// </summary>
 public class SoundEffectDialog : Dialog
 {
@@ -30,14 +30,7 @@ public class SoundEffectDialog : Dialog
     private TextView? _currentPresetLabel;
     private LinearLayout? _presetGrid;
 
-    // UI — MAX Audio
-    private Switch? _maxAudioSwitch;
-    private Java.Lang.Object? _maxAudioReverb;
-
     private bool _isInitializing = true;
-
-    private const string PrefsName = "catclaw_sfx_dialog";
-    private const string KeyMaxAudioEnabled = "maxaudio_enabled";
 
     public SoundEffectDialog(Activity context, IAudioPlayerService playerService)
         : base(context, Android.Resource.Style.ThemeOverlayMaterialDark)
@@ -192,9 +185,6 @@ public class SoundEffectDialog : Dialog
         content.AddView(sfxRow);
 
         content.AddView(MakeDivider(dp));
-
-        // MAX Audio
-        content.AddView(MakeMaxAudioSection(dp));
 
         // 系统音效
         content.AddView(MakeMenuEntry("\u2669", "系统音效", "打开系统声音设置", (s, e) => OpenSystemSoundSettings(), dp));
@@ -377,27 +367,6 @@ public class SoundEffectDialog : Dialog
 
     #endregion
 
-    #region MAX Audio Section
-
-    private LinearLayout MakeMaxAudioSection(Func<int, int> dp)
-    {
-        var container = new LinearLayout(Context) { Orientation = Orientation.Vertical, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        var row = new LinearLayout(Context) { Orientation = Orientation.Horizontal, LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        row.SetGravity(GravityFlags.CenterVertical); row.SetPadding(dp(16), dp(10), dp(16), 0);
-        var titleTv = new TextView(Context) { Text = "MAX Audio 音乐厅氛围", LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f) };
-        titleTv.SetTextColor(Color.White); titleTv.TextSize = 15f; titleTv.SetTypeface(null, TypefaceStyle.Bold);
-        _maxAudioSwitch = new Switch(Context) { LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent) };
-        _maxAudioSwitch.SetOnCheckedChangeListener(new MaxAudioSwitchListener(this));
-        row.AddView(titleTv); row.AddView(_maxAudioSwitch);
-        container.AddView(row);
-        var desc = new TextView(Context) { Text = "沉浸式音乐厅混响效果，增强空间感与临场感", LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) };
-        desc.SetTextColor(Color.ParseColor("#88FFFFFF")); desc.TextSize = 12f; desc.SetPadding(dp(16), dp(4), dp(16), dp(8));
-        container.AddView(desc);
-        return container;
-    }
-
-    #endregion
-
     #region Navigation
 
     private void NavigateTo(string screenName)
@@ -446,14 +415,6 @@ public class SoundEffectDialog : Dialog
 
             _isInitializing = true;
 
-            var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
-
-            // MAX Audio
-            bool maxAudioEnabled = prefs.GetBoolean(KeyMaxAudioEnabled, false);
-            _maxAudioSwitch!.Checked = maxAudioEnabled;
-            if (maxAudioEnabled)
-                ApplyMaxAudio();
-
             _isInitializing = false;
 
             _currentPresetLabel!.Text = _sfxManager.CurrentPreset;
@@ -461,63 +422,6 @@ public class SoundEffectDialog : Dialog
         catch (Exception ex)
         {
             Android.Util.Log.Warn("CatClaw.SFX", $"音效初始化失败: {ex.Message}");
-        }
-    }
-
-    private void ApplyMaxAudio()
-    {
-        try
-        {
-            if (_maxAudioReverb == null)
-            {
-                var cls = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb");
-                var ctor = cls.GetConstructor(Java.Lang.Integer.Type, Java.Lang.Integer.Type);
-                _maxAudioReverb = ctor.NewInstance(
-                    Java.Lang.Integer.ValueOf(0),
-                    Java.Lang.Integer.ValueOf(_audioSessionId));
-            }
-
-            var setEnabled = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb")
-                .GetMethod("setEnabled", Java.Lang.Boolean.Type);
-            setEnabled.Invoke(_maxAudioReverb, Java.Lang.Boolean.True);
-
-            var setPreset = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb")
-                .GetMethod("setPreset", Java.Lang.Short.Type);
-            setPreset.Invoke(_maxAudioReverb, Java.Lang.Short.ValueOf(2)); // PRESET_LARGEHALL
-        }
-        catch (Exception ex)
-        {
-            Android.Util.Log.Warn("CatClaw.SFX", $"MAX Audio 启用失败: {ex.Message}");
-        }
-    }
-
-    private void DisableMaxAudio()
-    {
-        try
-        {
-            if (_maxAudioReverb != null)
-            {
-                var setEnabled = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb")
-                    .GetMethod("setEnabled", Java.Lang.Boolean.Type);
-                setEnabled.Invoke(_maxAudioReverb, Java.Lang.Boolean.False);
-            }
-        }
-        catch { }
-    }
-
-    #endregion
-
-    #region Event Handlers
-
-    private class MaxAudioSwitchListener : Java.Lang.Object, CompoundButton.IOnCheckedChangeListener
-    {
-        private readonly WeakReference<SoundEffectDialog> _ref;
-        public MaxAudioSwitchListener(SoundEffectDialog d) => _ref = new(d);
-        public void OnCheckedChanged(CompoundButton? b, bool enabled)
-        {
-            if (!_ref.TryGetTarget(out var d) || d._isInitializing) return;
-            if (enabled) d.ApplyMaxAudio(); else d.DisableMaxAudio();
-            d.SaveSettings();
         }
     }
 
@@ -547,14 +451,7 @@ public class SoundEffectDialog : Dialog
 
     private void SaveSettings()
     {
-        try
-        {
-            var prefs = Context.GetSharedPreferences(PrefsName, FileCreationMode.Private);
-            var editor = prefs.Edit();
-            editor.PutBoolean(KeyMaxAudioEnabled, _maxAudioSwitch?.Checked ?? false);
-            editor.Apply();
-        }
-        catch { }
+        // 音效预设通过 SoundEffectManager 持久化，此处预留
     }
 
     #endregion
@@ -563,15 +460,6 @@ public class SoundEffectDialog : Dialog
 
     public void Release()
     {
-        try
-        {
-            if (_maxAudioReverb != null)
-            {
-                var cls = Java.Lang.Class.ForName("android.media.audiofx.PresetReverb");
-                cls.GetMethod("release").Invoke(_maxAudioReverb);
-            }
-        }
-        catch { }
-        _maxAudioReverb = null;
+        _sfxManager.Release();
     }
 }

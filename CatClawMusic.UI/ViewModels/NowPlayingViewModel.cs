@@ -62,6 +62,8 @@ public partial class NowPlayingViewModel : ObservableObject
     /// 封面图片路径
     /// </summary>
     [ObservableProperty] private string _coverSource = "";
+    [ObservableProperty] private string _prevLyricLine8 = "";
+    [ObservableProperty] private string _prevLyricLine7 = "";
     [ObservableProperty] private string _prevLyricLine6 = "";
     [ObservableProperty] private string _prevLyricLine5 = "";
     [ObservableProperty] private string _prevLyricLine4 = "";
@@ -81,6 +83,8 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private string _nextLyricLine4 = "";
     [ObservableProperty] private string _nextLyricLine5 = "";
     [ObservableProperty] private string _nextLyricLine6 = "";
+    [ObservableProperty] private string _nextLyricLine7 = "";
+    [ObservableProperty] private string _nextLyricLine8 = "";
     /// <summary>
     /// 当前播放位置
     /// </summary>
@@ -607,6 +611,8 @@ public partial class NowPlayingViewModel : ObservableObject
                     _lastLyricIndex = idx;
                     if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
                     {
+                        _prevLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx - 8);
+                        _prevLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, idx - 7);
                         _prevLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx - 6);
                         _prevLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx - 5);
                     _prevLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, idx - 4);
@@ -619,12 +625,16 @@ public partial class NowPlayingViewModel : ObservableObject
                     _nextLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, idx + 4);
                     _nextLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx + 5);
                     _nextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx + 6);
+                    _nextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, idx + 7);
+                    _nextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx + 8);
                     _currentLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx);
                     CurrentLyricIndex = idx;
                     OnPropertyChanged(nameof(CurrentLyricLine));
                 }
                 else if (idx < 0)
                 {
+                    _prevLyricLine8 = "";
+                    _prevLyricLine7 = "";
                     _prevLyricLine6 = "";
                     _prevLyricLine5 = "";
                     _prevLyricLine4 = "";
@@ -638,6 +648,8 @@ public partial class NowPlayingViewModel : ObservableObject
                     _nextLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, 3);
                     _nextLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, 4);
                     _nextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, 5);
+                    _nextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, 6);
+                    _nextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, 7);
                     CurrentLyricIndex = -1;
                     OnPropertyChanged(nameof(CurrentLyricLine));
                 }
@@ -655,9 +667,9 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; CurrentLyrics = null; CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine8 = ""; PrevLyricLine7 = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; NextLyricLine7 = ""; NextLyricLine8 = ""; CurrentLyrics = null; CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; return; }
         var songId = song.Id;
-        CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = "";
+        CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine8 = ""; PrevLyricLine7 = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; NextLyricLine7 = ""; NextLyricLine8 = "";
         CurrentLyrics = null;
         CurrentLyricIndex = -1;
         _lastSpannableLineIdx = -1; _lastLyricIndex = -999;
@@ -713,6 +725,8 @@ public partial class NowPlayingViewModel : ObservableObject
             var idx = _lyricsService.GetCurrentLyricIndex(lyrics, pos);
             if (idx >= 0 && idx < lyrics.Lines.Count)
             {
+                PrevLyricLine8 = idx > 7 ? lyrics.Lines[idx - 8].Text : "";
+                PrevLyricLine7 = idx > 6 ? lyrics.Lines[idx - 7].Text : "";
                 PrevLyricLine6 = idx > 5 ? lyrics.Lines[idx - 6].Text : "";
                 PrevLyricLine5 = idx > 4 ? lyrics.Lines[idx - 5].Text : "";
                 PrevLyricLine4 = idx > 3 ? lyrics.Lines[idx - 4].Text : "";
@@ -725,10 +739,14 @@ public partial class NowPlayingViewModel : ObservableObject
                 NextLyricLine4 = idx + 4 < lyrics.Lines.Count ? lyrics.Lines[idx + 4].Text : "";
                 NextLyricLine5 = idx + 5 < lyrics.Lines.Count ? lyrics.Lines[idx + 5].Text : "";
                 NextLyricLine6 = idx + 6 < lyrics.Lines.Count ? lyrics.Lines[idx + 6].Text : "";
+                NextLyricLine7 = idx + 7 < lyrics.Lines.Count ? lyrics.Lines[idx + 7].Text : "";
+                NextLyricLine8 = idx + 8 < lyrics.Lines.Count ? lyrics.Lines[idx + 8].Text : "";
                 CurrentLyricLine = lyrics.Lines[idx].Text;
             }
             else
             {
+                PrevLyricLine8 = "";
+                PrevLyricLine7 = "";
                 PrevLyricLine6 = "";
                 PrevLyricLine5 = "";
                 PrevLyricLine4 = "";
@@ -742,6 +760,8 @@ public partial class NowPlayingViewModel : ObservableObject
                 NextLyricLine4 = lyrics.Lines.Count > 3 ? lyrics.Lines[3].Text : "";
                 NextLyricLine5 = lyrics.Lines.Count > 4 ? lyrics.Lines[4].Text : "";
                 NextLyricLine6 = lyrics.Lines.Count > 5 ? lyrics.Lines[5].Text : "";
+                NextLyricLine7 = lyrics.Lines.Count > 6 ? lyrics.Lines[6].Text : "";
+                NextLyricLine8 = lyrics.Lines.Count > 7 ? lyrics.Lines[7].Text : "";
             }
         }
     }

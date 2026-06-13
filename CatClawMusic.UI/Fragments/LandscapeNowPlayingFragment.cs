@@ -24,7 +24,7 @@ public class LandscapeNowPlayingFragment : Fragment
     private NowPlayingViewModel _viewModel = null!;
     private ImageView _albumCover = null!;
     private TextView _songTitle = null!, _songArtist = null!;
-    private StrokeTextView _lyricPrev6 = null!, _lyricPrev5 = null!, _lyricPrev4 = null!, _lyricPrev3 = null!, _lyricPrev2 = null!, _lyricPrev = null!, _lyricCurrent = null!, _lyricNext = null!, _lyricNext2 = null!, _lyricNext3 = null!, _lyricNext4 = null!, _lyricNext5 = null!, _lyricNext6 = null!;
+    private StrokeTextView _lyricPrev8 = null!, _lyricPrev7 = null!, _lyricPrev6 = null!, _lyricPrev5 = null!, _lyricPrev4 = null!, _lyricPrev3 = null!, _lyricPrev2 = null!, _lyricPrev = null!, _lyricCurrent = null!, _lyricNext = null!, _lyricNext2 = null!, _lyricNext3 = null!, _lyricNext4 = null!, _lyricNext5 = null!, _lyricNext6 = null!, _lyricNext7 = null!, _lyricNext8 = null!;
     private View _coverPanel = null!;
     private LinearLayout _lyricsArea = null!;
     private bool _isFullLyricMode;
@@ -71,6 +71,8 @@ public class LandscapeNowPlayingFragment : Fragment
     // --- 歌词自定义设置（与 FullLyricsFragment 共享） ---
     private static readonly string[] LyricActiveColorHex   = { "#FFFFFFFF", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1", "#FFFFD54F" };
     private static readonly string[] LyricInactiveColorHex = { "#CCBBBBBB", "#DDDDDDDD", "#CC90A4AE", "#CCB39DDB", "#CCBDBDBD", "#CCA8B8C8", "#CC78909C", "#CCD7CCC8" };
+    /// <summary>背景遮罩颜色预设（与 FullLyricsFragment 共享）</summary>
+    private static readonly string[] BgColorHex = { "#CCF0EBE3", "#CC0F0D16", "#00000000" };
 
     private Color _lpLyricActiveColor = Color.White;
     private Color _lpLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
@@ -78,6 +80,8 @@ public class LandscapeNowPlayingFragment : Fragment
     private bool _lpLyricBold = true;
     private int _lpLyricColorMode = 0; // 0=自适应, 1=自定义
     private float _currentBgLuminance = 0.3f;
+    private int _lyricBgColorIndex = 0;
+    private View? _bgDimOverlay;
 
     public override void OnCreate(Bundle? savedInstanceState)
     {
@@ -113,6 +117,8 @@ public class LandscapeNowPlayingFragment : Fragment
         _albumCover = view.FindViewById<ImageView>(Resource.Id.album_cover)!;
         _songTitle = view.FindViewById<TextView>(Resource.Id.song_title)!;
         _songArtist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
+        _lyricPrev8 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev8)!;
+        _lyricPrev7 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev7)!;
         _lyricPrev6 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev6)!;
         _lyricPrev5 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev5)!;
         _lyricPrev4 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev4)!;
@@ -126,6 +132,8 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricNext4 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next4)!;
         _lyricNext5 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next5)!;
         _lyricNext6 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next6)!;
+        _lyricNext7 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next7)!;
+        _lyricNext8 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next8)!;
         _coverPanel = view.FindViewById<View>(Resource.Id.cover_panel)!;
         _lyricsArea = (LinearLayout)view.FindViewById(Resource.Id.lyrics_area)!;
         _timeCurrent = view.FindViewById<TextView>(Resource.Id.time_current)!;
@@ -166,6 +174,7 @@ public class LandscapeNowPlayingFragment : Fragment
         _coverGlow = view.FindViewById<View>(Resource.Id.cover_glow)!;
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
+        _bgDimOverlay = view.FindViewById<View>(Resource.Id.bg_dim_overlay);
 
         var btnLandscape = view.FindViewById<ImageButton>(Resource.Id.btn_landscape)!;
         btnLandscape.SetImageResource(Resource.Drawable.ic_landscape);
@@ -231,7 +240,9 @@ public class LandscapeNowPlayingFragment : Fragment
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
         controller.AppearanceLightStatusBars = true;
         controller.Show(WindowInsetsCompat.Type.StatusBars());
-        WindowCompat.SetDecorFitsSystemWindows(act.Window, true);
+        // 恢复为 false，与 MainActivity 的 SetDecorFitsSystemWindows(false) 保持一致
+        // MainActivity 通过 FitSystemBars() 的 WindowInsetsListener 手动处理 padding
+        WindowCompat.SetDecorFitsSystemWindows(act.Window, false);
     }
 
     private void OnExitLandscape(object? s, EventArgs e)
@@ -255,6 +266,8 @@ public class LandscapeNowPlayingFragment : Fragment
             _lyricsArea.SetGravity(GravityFlags.CenterVertical | GravityFlags.CenterHorizontal);
             _audioVisualizer.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _audioVisualizer.Visibility = ViewStates.Gone)).Start();
             _controlsCard.Animate().Alpha(0f).TranslationY(40f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _controlsCard.Visibility = ViewStates.Gone)).Start();
+            _lyricPrev8.Visibility = ViewStates.Visible;
+            _lyricPrev7.Visibility = ViewStates.Visible;
             _lyricPrev6.Visibility = ViewStates.Visible;
             _lyricPrev5.Visibility = ViewStates.Visible;
             _lyricPrev4.Visibility = ViewStates.Visible;
@@ -263,14 +276,20 @@ public class LandscapeNowPlayingFragment : Fragment
             _lyricNext4.Visibility = ViewStates.Visible;
             _lyricNext5.Visibility = ViewStates.Visible;
             _lyricNext6.Visibility = ViewStates.Visible;
-            _lyricPrev6.Alpha = 0f; _lyricPrev6.Animate().Alpha(0.25f).SetDuration(duration).Start();
-            _lyricPrev5.Alpha = 0f; _lyricPrev5.Animate().Alpha(0.30f).SetDuration(duration).Start();
-            _lyricPrev4.Alpha = 0f; _lyricPrev4.Animate().Alpha(0.35f).SetDuration(duration).Start();
-            _lyricPrev3.Alpha = 0f; _lyricPrev3.Animate().Alpha(0.45f).SetDuration(duration).Start();
-            _lyricNext3.Alpha = 0f; _lyricNext3.Animate().Alpha(0.45f).SetDuration(duration).Start();
-            _lyricNext4.Alpha = 0f; _lyricNext4.Animate().Alpha(0.35f).SetDuration(duration).Start();
-            _lyricNext5.Alpha = 0f; _lyricNext5.Animate().Alpha(0.30f).SetDuration(duration).Start();
-            _lyricNext6.Alpha = 0f; _lyricNext6.Animate().Alpha(0.25f).SetDuration(duration).Start();
+            _lyricNext7.Visibility = ViewStates.Visible;
+            _lyricNext8.Visibility = ViewStates.Visible;
+            _lyricPrev8.Alpha = 0f; _lyricPrev8.Animate().Alpha(0.18f).SetDuration(duration).Start();
+            _lyricPrev7.Alpha = 0f; _lyricPrev7.Animate().Alpha(0.22f).SetDuration(duration).Start();
+            _lyricPrev6.Alpha = 0f; _lyricPrev6.Animate().Alpha(0.28f).SetDuration(duration).Start();
+            _lyricPrev5.Alpha = 0f; _lyricPrev5.Animate().Alpha(0.33f).SetDuration(duration).Start();
+            _lyricPrev4.Alpha = 0f; _lyricPrev4.Animate().Alpha(0.40f).SetDuration(duration).Start();
+            _lyricPrev3.Alpha = 0f; _lyricPrev3.Animate().Alpha(0.50f).SetDuration(duration).Start();
+            _lyricNext3.Alpha = 0f; _lyricNext3.Animate().Alpha(0.50f).SetDuration(duration).Start();
+            _lyricNext4.Alpha = 0f; _lyricNext4.Animate().Alpha(0.40f).SetDuration(duration).Start();
+            _lyricNext5.Alpha = 0f; _lyricNext5.Animate().Alpha(0.33f).SetDuration(duration).Start();
+            _lyricNext6.Alpha = 0f; _lyricNext6.Animate().Alpha(0.28f).SetDuration(duration).Start();
+            _lyricNext7.Alpha = 0f; _lyricNext7.Animate().Alpha(0.22f).SetDuration(duration).Start();
+            _lyricNext8.Alpha = 0f; _lyricNext8.Animate().Alpha(0.18f).SetDuration(duration).Start();
         }
         else
         {
@@ -281,6 +300,8 @@ public class LandscapeNowPlayingFragment : Fragment
             _controlsCard.Alpha = 0f; _controlsCard.TranslationY = 40f;
             _controlsCard.Visibility = ViewStates.Visible;
             _controlsCard.Animate().Alpha(1f).TranslationY(0f).SetDuration(duration).Start();
+            _lyricPrev8.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev8.Visibility = ViewStates.Gone)).Start();
+            _lyricPrev7.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev7.Visibility = ViewStates.Gone)).Start();
             _lyricPrev6.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev6.Visibility = ViewStates.Gone)).Start();
             _lyricPrev5.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev5.Visibility = ViewStates.Gone)).Start();
             _lyricPrev4.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricPrev4.Visibility = ViewStates.Gone)).Start();
@@ -289,6 +310,8 @@ public class LandscapeNowPlayingFragment : Fragment
             _lyricNext4.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext4.Visibility = ViewStates.Gone)).Start();
             _lyricNext5.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext5.Visibility = ViewStates.Gone)).Start();
             _lyricNext6.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext6.Visibility = ViewStates.Gone)).Start();
+            _lyricNext7.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext7.Visibility = ViewStates.Gone)).Start();
+            _lyricNext8.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _lyricNext8.Visibility = ViewStates.Gone)).Start();
         }
         UpdateLyrics();
     }
@@ -695,6 +718,8 @@ public class LandscapeNowPlayingFragment : Fragment
         _lpLyricFontSize = prefs.GetInt("lyric_font_size", 16);
         _lpLyricBold = prefs.GetBoolean("lyric_bold", true);
         _lpLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
+        _lyricBgColorIndex = prefs.GetInt("lyric_bg_color", 0);
+        UpdateBgOverlay();
 
         // 读取 ARGB 颜色值（向后兼容旧版索引存储）
         if (prefs.Contains("lyric_active_argb"))
@@ -724,7 +749,7 @@ public class LandscapeNowPlayingFragment : Fragment
     {
         float baseSp = _lpLyricFontSize;
         var boldStyle = _lpLyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal;
-        // 横屏 XML 默认比例: 8:9:9:10:10:12:15:12:10:10:9:9:8
+        // 横屏 XML 默认比例: 7:7:8:9:9:10:10:12:15:12:10:10:9:9:8:7:7
         _lyricCurrent.TextSize = baseSp;
         _lyricPrev.TextSize = baseSp * 0.8f;      // 12/15
         _lyricNext.TextSize = baseSp * 0.8f;
@@ -738,21 +763,31 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricNext5.TextSize = baseSp * 0.6f;
         _lyricPrev6.TextSize = baseSp * 0.533f;   // 8/15
         _lyricNext6.TextSize = baseSp * 0.533f;
+        _lyricPrev7.TextSize = baseSp * 0.467f;   // 7/15
+        _lyricNext7.TextSize = baseSp * 0.467f;
+        _lyricPrev8.TextSize = baseSp * 0.467f;   // 7/15
+        _lyricNext8.TextSize = baseSp * 0.467f;
         // 应用加粗
-        var allViews = new[] { _lyricPrev6, _lyricPrev5, _lyricPrev4, _lyricPrev3, _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2, _lyricNext3, _lyricNext4, _lyricNext5, _lyricNext6 };
+        var allViews = new[] { _lyricPrev8, _lyricPrev7, _lyricPrev6, _lyricPrev5, _lyricPrev4, _lyricPrev3, _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2, _lyricNext3, _lyricNext4, _lyricNext5, _lyricNext6, _lyricNext7, _lyricNext8 };
         foreach (var v in allViews)
             v.SetTypeface(null, boldStyle);
     }
 
     /// <summary>
     /// 仅刷新歌词颜色（不改变背景），用于从歌词页返回时同步设置
+    /// 覆盖全部13行歌词，远端按距离逐级降低透明度
     /// </summary>
     private void ApplyDefaultLyricColors()
     {
-        // 自适应模式：根据背景亮度自动设置歌词颜色
+        // 自适应模式：透明/半透明遮罩用封面亮度，不透明遮罩用遮罩自身亮度
         if (_lpLyricColorMode == 0)
         {
-            if (_currentBgLuminance >= 0.5f)
+            var overlayAlpha = 0f;
+            if (_bgDimOverlay?.Background is ColorDrawable cd)
+                overlayAlpha = cd.Color.A / 255f;
+            var luminance = overlayAlpha < 0.5f ? _currentBgLuminance : GetBgOverlayLuminance();
+
+            if (luminance >= 0.5f)
             {
                 _lpLyricActiveColor = Color.Black;
                 _lpLyricInactiveColor = Color.ParseColor("#88333333");
@@ -764,23 +799,49 @@ public class LandscapeNowPlayingFragment : Fragment
             }
         }
 
-        var farUnsungColor = Color.Argb(
-            (byte)(_lpLyricInactiveColor.A / 2),
-            _lpLyricInactiveColor.R,
-            _lpLyricInactiveColor.G,
-            _lpLyricInactiveColor.B);
+        // 当前行：活跃色
         _lyricCurrent.SetTextColor(_lpLyricActiveColor);
-        _lyricPrev.SetTextColor(_lpLyricInactiveColor);
-        _lyricNext.SetTextColor(_lpLyricInactiveColor);
-        _lyricPrev2.SetTextColor(farUnsungColor);
-        _lyricNext2.SetTextColor(farUnsungColor);
         _lyricCurrent.SungColor = _lpLyricActiveColor;
         _lyricCurrent.UnsungColor = _lpLyricInactiveColor;
         _lyricCurrent.StrokeEnabled = false;
-        _lyricPrev.StrokeEnabled = false;
-        _lyricNext.StrokeEnabled = false;
-        _lyricPrev2.StrokeEnabled = false;
-        _lyricNext2.StrokeEnabled = false;
+
+        // 远端行：按距离逐级降低透明度（offset 1~8）
+        var allFarViews = new[] {
+            (View: (StrokeTextView)_lyricPrev, Offset: 1), (View: (StrokeTextView)_lyricNext, Offset: 1),
+            (View: (StrokeTextView)_lyricPrev2, Offset: 2), (View: (StrokeTextView)_lyricNext2, Offset: 2),
+            (View: (StrokeTextView)_lyricPrev3, Offset: 3), (View: (StrokeTextView)_lyricNext3, Offset: 3),
+            (View: (StrokeTextView)_lyricPrev4, Offset: 4), (View: (StrokeTextView)_lyricNext4, Offset: 4),
+            (View: (StrokeTextView)_lyricPrev5, Offset: 5), (View: (StrokeTextView)_lyricNext5, Offset: 5),
+            (View: (StrokeTextView)_lyricPrev6, Offset: 6), (View: (StrokeTextView)_lyricNext6, Offset: 6),
+            (View: (StrokeTextView)_lyricPrev7, Offset: 7), (View: (StrokeTextView)_lyricNext7, Offset: 7),
+            (View: (StrokeTextView)_lyricPrev8, Offset: 8), (View: (StrokeTextView)_lyricNext8, Offset: 8),
+        };
+
+        foreach (var (view, offset) in allFarViews)
+        {
+            var alpha = (byte)(_lpLyricInactiveColor.A / (offset + 1));
+            var color = Color.Argb(alpha, _lpLyricInactiveColor.R, _lpLyricInactiveColor.G, _lpLyricInactiveColor.B);
+            view.SetTextColor(color);
+            view.StrokeEnabled = false;
+        }
+    }
+
+    /// <summary>更新背景遮罩颜色</summary>
+    private void UpdateBgOverlay()
+    {
+        if (_bgDimOverlay == null) return;
+        _bgDimOverlay.SetBackgroundColor(Color.ParseColor(BgColorHex[Math.Clamp(_lyricBgColorIndex, 0, BgColorHex.Length - 1)]));
+    }
+
+    /// <summary>获取背景遮罩的实际亮度</summary>
+    private float GetBgOverlayLuminance()
+    {
+        if (_bgDimOverlay?.Background is ColorDrawable cd)
+        {
+            var c = cd.Color;
+            return (0.299f * c.R + 0.587f * c.G + 0.114f * c.B) / 255f;
+        }
+        return 0.1f; // 默认深色
     }
 
     private void ApplySweepGradientBackground(List<ColorEntry> entries)
@@ -809,38 +870,7 @@ public class LandscapeNowPlayingFragment : Fragment
         var onSurfaceColor = new Color(palette.OnSurface);
         _songTitle.SetTextColor(onSurfaceColor);
         _songArtist.SetTextColor(new Color(palette.OnSurfaceVariant));
-        // 自适应模式：根据背景亮度自动设置歌词颜色
-        if (_lpLyricColorMode == 0)
-        {
-            if (_currentBgLuminance >= 0.5f)
-            {
-                _lpLyricActiveColor = Color.Black;
-                _lpLyricInactiveColor = Color.ParseColor("#88333333");
-            }
-            else
-            {
-                _lpLyricActiveColor = Color.White;
-                _lpLyricInactiveColor = Color.ParseColor("#88BBBBBB");
-            }
-        }
-        // 使用设置中的歌词颜色
-        var farUnsungColor = Color.Argb(
-            (byte)(_lpLyricInactiveColor.A / 2),
-            _lpLyricInactiveColor.R,
-            _lpLyricInactiveColor.G,
-            _lpLyricInactiveColor.B);
-        _lyricCurrent.SetTextColor(_lpLyricActiveColor);
-        _lyricPrev.SetTextColor(_lpLyricInactiveColor);
-        _lyricNext.SetTextColor(_lpLyricInactiveColor);
-        _lyricPrev2.SetTextColor(farUnsungColor);
-        _lyricNext2.SetTextColor(farUnsungColor);
-        _lyricCurrent.SungColor = _lpLyricActiveColor;
-        _lyricCurrent.UnsungColor = _lpLyricInactiveColor;
-        _lyricCurrent.StrokeEnabled = false;
-        _lyricPrev.StrokeEnabled = false;
-        _lyricNext.StrokeEnabled = false;
-        _lyricPrev2.StrokeEnabled = false;
-        _lyricNext2.StrokeEnabled = false;
+        ApplyDefaultLyricColors();
     }
 
     private void BuildAndApplySweepGradient()
@@ -987,24 +1017,7 @@ public class LandscapeNowPlayingFragment : Fragment
         _progressSlider.TrackInactiveTintList = Android.Content.Res.ColorStateList.ValueOf(new Color(Color.Argb(0x50, 0xFF, 0xFF, 0xFF)));
         _songTitle.SetTextColor(Color.ParseColor("#FFEEEEEE"));
         _songArtist.SetTextColor(Color.ParseColor("#CCFFFFFF"));
-        // 使用设置中的歌词颜色
-        var farUnsungColor = Color.Argb(
-            (byte)(_lpLyricInactiveColor.A / 2),
-            _lpLyricInactiveColor.R,
-            _lpLyricInactiveColor.G,
-            _lpLyricInactiveColor.B);
-        _lyricCurrent.SetTextColor(_lpLyricActiveColor);
-        _lyricPrev.SetTextColor(_lpLyricInactiveColor);
-        _lyricNext.SetTextColor(_lpLyricInactiveColor);
-        _lyricPrev2.SetTextColor(farUnsungColor);
-        _lyricNext2.SetTextColor(farUnsungColor);
-        _lyricCurrent.SungColor = _lpLyricActiveColor;
-        _lyricCurrent.UnsungColor = _lpLyricInactiveColor;
-        _lyricCurrent.StrokeEnabled = false;
-        _lyricPrev.StrokeEnabled = false;
-        _lyricNext.StrokeEnabled = false;
-        _lyricPrev2.StrokeEnabled = false;
-        _lyricNext2.StrokeEnabled = false;
+        ApplyDefaultLyricColors();
     }
 
     private void UpdateTimeDisplay()
@@ -1055,6 +1068,8 @@ public class LandscapeNowPlayingFragment : Fragment
 
     private void UpdateLyrics()
     {
+        var prev8 = _viewModel.PrevLyricLine8;
+        var prev7 = _viewModel.PrevLyricLine7;
         var prev6 = _viewModel.PrevLyricLine6;
         var prev5 = _viewModel.PrevLyricLine5;
         var prev4 = _viewModel.PrevLyricLine4;
@@ -1068,10 +1083,14 @@ public class LandscapeNowPlayingFragment : Fragment
         var next4 = _viewModel.NextLyricLine4;
         var next5 = _viewModel.NextLyricLine5;
         var next6 = _viewModel.NextLyricLine6;
+        var next7 = _viewModel.NextLyricLine7;
+        var next8 = _viewModel.NextLyricLine8;
         var idx = _viewModel.CurrentLyricIndex;
         var isLineChanged = idx != _lastLyricIdx && _lastLyricIdx != -1 && !string.IsNullOrEmpty(curr);
         _lastLyricIdx = idx;
 
+        _lyricPrev8.Text = prev8;
+        _lyricPrev7.Text = prev7;
         _lyricPrev6.Text = prev6;
         _lyricPrev5.Text = prev5;
         _lyricPrev4.Text = prev4;
@@ -1080,6 +1099,8 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricNext4.Text = next4;
         _lyricNext5.Text = next5;
         _lyricNext6.Text = next6;
+        _lyricNext7.Text = next7;
+        _lyricNext8.Text = next8;
 
         if (!isLineChanged)
         {

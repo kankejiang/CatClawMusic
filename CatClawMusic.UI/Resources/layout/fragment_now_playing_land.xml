@@ -7,6 +7,11 @@
     <CatClawMusic.UI.Helpers.SweepGradientView android:id="@+id/gradient_background" android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- 背景遮罩层：半透明暗色蒙版 -->
+    <View android:id="@+id/bg_dim_overlay" android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#990F0D16" />
+
     <View android:id="@+id/reflection_mask_bottom" android:layout_width="match_parent"
         android:layout_height="100dp" android:layout_gravity="bottom" />
 
@@ -66,6 +71,20 @@
                 android:orientation="vertical" android:gravity="bottom|center_horizontal"
                 android:clipChildren="false" android:paddingHorizontal="16dp"
                 android:paddingBottom="0dp">
+
+                <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev8" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_marginBottom="1dp"
+                    android:textColor="#66000000" android:textSize="7sp"
+                    android:gravity="center" android:maxLines="2" android:ellipsize="end"
+                    android:lineSpacingMultiplier="1.2"
+                    android:visibility="gone" />
+
+                <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev7" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_marginBottom="1dp"
+                    android:textColor="#7F000000" android:textSize="7sp"
+                    android:gravity="center" android:maxLines="2" android:ellipsize="end"
+                    android:lineSpacingMultiplier="1.2"
+                    android:visibility="gone" />
 
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev6" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginBottom="1dp"
@@ -151,6 +170,20 @@
                 <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next6" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="1dp"
                     android:textColor="#99000000" android:textSize="8sp"
+                    android:gravity="center" android:maxLines="2" android:ellipsize="end"
+                    android:lineSpacingMultiplier="1.2"
+                    android:visibility="gone" />
+
+                <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next7" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_marginTop="1dp"
+                    android:textColor="#7F000000" android:textSize="7sp"
+                    android:gravity="center" android:maxLines="2" android:ellipsize="end"
+                    android:lineSpacingMultiplier="1.2"
+                    android:visibility="gone" />
+
+                <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next8" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_marginTop="1dp"
+                    android:textColor="#66000000" android:textSize="7sp"
                     android:gravity="center" android:maxLines="2" android:ellipsize="end"
                     android:lineSpacingMultiplier="1.2"
                     android:visibility="gone" />
