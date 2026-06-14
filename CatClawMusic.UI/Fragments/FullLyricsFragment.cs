@@ -71,7 +71,7 @@ public class FullLyricsFragment : Fragment
     // 是否允许拖拽调整进度
     private bool _allowDragSeek;
     // 歌词字体大小
-    private int _lyricFontSize = 16;
+    private int _lyricFontSize = 20;
     // 歌词对齐方式：0=左，1=中，2=右
     private int _lyricAlignment = 1;
     // 歌词样式：0=逐行，1=逐字
@@ -812,7 +812,7 @@ public class FullLyricsFragment : Fragment
     {
         if (_prefs == null) return;
         _allowDragSeek = _prefs.GetBoolean("allow_drag_seek", true);
-        _lyricFontSize = _prefs.GetInt("lyric_font_size", 16);
+        _lyricFontSize = _prefs.GetInt("lyric_font_size", 20);
         _lyricAlignment = _prefs.GetInt("lyric_alignment", 1);
         _lyricBgColorIndex = _prefs.GetInt("lyric_bg_color", 0);
         _lyricBold = _prefs.GetBoolean("lyric_bold", true);

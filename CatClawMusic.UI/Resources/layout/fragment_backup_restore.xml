@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/catClawPageBackground">
+
+    <include layout="@layout/include_settings_toolbar" />
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+
+            <!-- 备份与恢复按钮区 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="16dp" app:cardElevation="0dp"
+                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+                app:cardBackgroundColor="?attr/catClawCardBackground">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="操作"
+                        android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                        android:layout_marginBottom="12dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical">
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_backup"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="新建备份"
+                            android:textSize="13sp"
+                            android:layout_marginEnd="8dp"
+                            app:cornerRadius="12dp" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_restore"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="从备份恢复"
+                            android:textSize="13sp"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:cornerRadius="12dp"
+                            app:strokeColor="?attr/catClawCardBorder" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 备份管理区 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                app:cardCornerRadius="16dp" app:cardElevation="0dp"
+                app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
+                app:cardBackgroundColor="?attr/catClawCardBackground">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="备份管理"
+                        android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                        android:layout_marginBottom="8dp" />
+                    <TextView android:id="@+id/tv_empty_hint"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="暂无备份文件"
+                        android:textSize="13sp" android:textColor="?attr/catClawTextHint"
+                        android:gravity="center"
+                        android:padding="24dp"
+                        android:visibility="gone" />
+                    <LinearLayout android:id="@+id/backup_list_container"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

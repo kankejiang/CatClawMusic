@@ -60,7 +60,7 @@ public class LandscapeNowPlayingFragment : Fragment
 
     private Color _lpLyricActiveColor = Color.White;
     private Color _lpLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
-    private int _lpLyricFontSize = 16;
+    private int _lpLyricFontSize = 20;
     private bool _lpLyricBold = true;
     private int _lpLyricColorMode = 0; // 0=自适应, 1=自定义
     private float _currentBgLuminance = 0.3f;
@@ -570,7 +570,7 @@ public class LandscapeNowPlayingFragment : Fragment
         var prefs = Activity?.GetSharedPreferences("lyric_settings", Android.Content.FileCreationMode.Private);
         if (prefs == null) return;
 
-        _lpLyricFontSize = prefs.GetInt("lyric_font_size", 16);
+        _lpLyricFontSize = prefs.GetInt("lyric_font_size", 20);
         _lpLyricBold = prefs.GetBoolean("lyric_bold", true);
         _lpLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
         _lyricBgColorIndex = prefs.GetInt("lyric_bg_color", 0);
@@ -783,10 +783,14 @@ public class LandscapeNowPlayingFragment : Fragment
             if (_viewModel.PlayPauseIcon == "▶")
                 _flowLight.Pause();
             UpdateFlowLightColors();
+            if (_bgDimOverlay != null)
+                _bgDimOverlay.Alpha = 0.4f;
         }
         else
         {
             _flowLight.Visibility = ViewStates.Gone;
+            if (_bgDimOverlay != null)
+                _bgDimOverlay.Alpha = 1.0f;
         }
     }
 

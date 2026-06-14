@@ -62,7 +62,7 @@ public class NowPlayingFragment : Fragment
 
     private Color _npLyricActiveColor = Color.White;
     private Color _npLyricInactiveColor = Color.ParseColor("#CCBBBBBB");
-    private int _npLyricFontSize = 16;
+    private int _npLyricFontSize = 20;
     private bool _npLyricBold = true;
     private int _npLyricColorMode = 0; // 0=自适应, 1=自定义
     private float _currentBgLuminance = 0.3f; // 当前背景亮度（用于自适应模式）
@@ -400,13 +400,18 @@ public class NowPlayingFragment : Fragment
             _flowLight.Visibility = ViewStates.Visible;
             _flowLight.SetDefaultColors();
             _flowLight.Start();
-            if (_viewModel.PlayPauseIcon != "▶")
+            if (_viewModel.PlayPauseIcon == "▶")
                 _flowLight.Pause();
             UpdateFlowLightColors();
+            // 流光开启时降低遮罩透明度，让流光效果透出来
+            if (_bgDimOverlay != null)
+                _bgDimOverlay.Alpha = 0.4f;
         }
         else
         {
             _flowLight.Visibility = ViewStates.Gone;
+            if (_bgDimOverlay != null)
+                _bgDimOverlay.Alpha = 1.0f;
         }
     }
 
@@ -464,7 +469,7 @@ public class NowPlayingFragment : Fragment
         var prefs = Activity?.GetSharedPreferences("lyric_settings", Android.Content.FileCreationMode.Private);
         if (prefs == null) return;
 
-        _npLyricFontSize = prefs.GetInt("lyric_font_size", 16);
+        _npLyricFontSize = prefs.GetInt("lyric_font_size", 20);
         _npLyricBold = prefs.GetBoolean("lyric_bold", true);
         _npLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
         _lyricBgColorIndex = prefs.GetInt("lyric_bg_color", 0);

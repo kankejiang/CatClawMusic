@@ -245,6 +245,7 @@ public class MainApplication : Application
         services.AddTransient<PlaylistFragment>();
         services.AddTransient<SearchFragment>();
         services.AddTransient<SettingsFragment>();
+        services.AddTransient<BackupRestoreFragment>();
         services.AddTransient<PlaylistDetailFragment>();
         services.AddTransient<RemoteMusicFragment>();
         services.AddTransient<WebDavSettingsFragment>();

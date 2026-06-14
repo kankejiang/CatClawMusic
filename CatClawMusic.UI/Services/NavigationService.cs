@@ -62,6 +62,7 @@ public class NavigationService : INavigationService
             "PermissionManagement" => MainApplication.Services.GetRequiredService<PermissionManagementFragment>(),
             "SplashSettings" => MainApplication.Services.GetRequiredService<SplashSettingsFragment>(),
             "AppearanceSettings" => MainApplication.Services.GetRequiredService<AppearanceSettingsFragment>(),
+            "BackupRestore" => MainApplication.Services.GetRequiredService<BackupRestoreFragment>(),
             "ArtistMatch" => MainApplication.Services.GetRequiredService<ArtistMatchFragment>(),
             "ArtistMatchDetail" => CreateArtistMatchDetail(parameters),
             "ArtistDetail" => CreateArtistDetail(parameters),

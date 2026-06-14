@@ -21,6 +21,19 @@ public class BackupData
     public string? CurrentAgentId { get; set; }
 }
 
+/// <summary>备份选项，控制包含哪些数据类别</summary>
+[Flags]
+public enum BackupItems
+{
+    None           = 0,
+    Playlists      = 1 << 0,  // 歌单 + 歌单歌曲
+    PlayHistory    = 1 << 1,  // 播放记录
+    Favorites      = 1 << 2,  // 收藏
+    Artists        = 1 << 3,  // 艺术家元数据
+    LlmConfigs     = 1 << 4,  // AI模型配置
+    All            = Playlists | PlayHistory | Favorites | Artists | LlmConfigs,
+}
+
 /// <summary>艺术家备份条目（仅保存元数据，不保存本地封面文件路径）</summary>
 public class ArtistBackupEntry
 {
@@ -51,22 +64,31 @@ public class BackupService
 
     /// <summary>执行备份，将数据写入指定目录下的 CatClawMusic 文件夹</summary>
     /// <param name="externalStoragePath">外部存储根目录（如 /storage/emulated/0）</param>
+    /// <param name="items">要备份的数据类别</param>
     /// <returns>备份文件路径</returns>
-    public async Task<string> BackupAsync(string externalStoragePath)
+    public async Task<string> BackupAsync(string externalStoragePath, BackupItems items = BackupItems.All)
     {
         await _db.EnsureInitializedAsync();
 
-        var data = new BackupData
+        var data = new BackupData();
+
+        if (items.HasFlag(BackupItems.Playlists))
         {
-            Playlists = await _db.GetAllPlaylistsAsync(),
-            PlaylistSongs = await LoadAllPlaylistSongsAsync(),
-            PlayHistory = await _db.GetRecentPlaysAsync(200),
-            Favorites = await _db.GetFavoritesAsync(),
-            Artists = await LoadArtistMetadataAsync(),
-            LlmConfigs = AgentService.LoadAllConfigs(),
-            CurrentConfigName = AgentService.GetCurrentConfigName(),
-            CurrentAgentId = AgentService.LoadCurrentAgentId(),
-        };
+            data.Playlists = await _db.GetAllPlaylistsAsync();
+            data.PlaylistSongs = await LoadAllPlaylistSongsAsync();
+        }
+        if (items.HasFlag(BackupItems.PlayHistory))
+            data.PlayHistory = await _db.GetRecentPlaysAsync(200);
+        if (items.HasFlag(BackupItems.Favorites))
+            data.Favorites = await _db.GetFavoritesAsync();
+        if (items.HasFlag(BackupItems.Artists))
+            data.Artists = await LoadArtistMetadataAsync();
+        if (items.HasFlag(BackupItems.LlmConfigs))
+        {
+            data.LlmConfigs = AgentService.LoadAllConfigs();
+            data.CurrentConfigName = AgentService.GetCurrentConfigName();
+            data.CurrentAgentId = AgentService.LoadCurrentAgentId();
+        }
 
         var dir = System.IO.Path.Combine(externalStoragePath, "CatClawMusic");
         System.IO.Directory.CreateDirectory(dir);
@@ -82,7 +104,8 @@ public class BackupService
 
     /// <summary>从备份文件恢复数据</summary>
     /// <param name="filePath">备份文件路径</param>
-    public async Task RestoreAsync(string filePath)
+    /// <param name="items">要恢复的数据类别</param>
+    public async Task RestoreAsync(string filePath, BackupItems items = BackupItems.All)
     {
         await _db.EnsureInitializedAsync();
 
@@ -90,20 +113,20 @@ public class BackupService
         var data = JsonSerializer.Deserialize<BackupData>(json, JsonOptions)
             ?? throw new InvalidOperationException("备份文件格式无效");
 
-        // 恢复歌单
-        await RestorePlaylistsAsync(data);
+        if (items.HasFlag(BackupItems.Playlists))
+            await RestorePlaylistsAsync(data);
 
-        // 恢复播放记录
-        await RestorePlayHistoryAsync(data);
+        if (items.HasFlag(BackupItems.PlayHistory))
+            await RestorePlayHistoryAsync(data);
 
-        // 恢复收藏
-        await RestoreFavoritesAsync(data);
+        if (items.HasFlag(BackupItems.Favorites))
+            await RestoreFavoritesAsync(data);
 
-        // 恢复艺术家元数据
-        await RestoreArtistMetadataAsync(data);
+        if (items.HasFlag(BackupItems.Artists))
+            await RestoreArtistMetadataAsync(data);
 
-        // 恢复 AI 配置
-        RestoreLlmConfigs(data);
+        if (items.HasFlag(BackupItems.LlmConfigs))
+            RestoreLlmConfigs(data);
     }
 
     /// <summary>获取备份目录路径</summary>
