@@ -1,3 +1,4 @@
+using Android.Content;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
@@ -73,6 +74,9 @@ public class SearchFragment : Fragment
     private List<string> _wizardModels = new();
     private bool _isInWizard;
     private bool _waitingForKeyInput;
+
+    private int _currentExploreTabIndex = 0;
+    private MaterialButton[] _pills = null!;
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? state)
         => inflater.Inflate(Resource.Layout.fragment_search, container, false)!;
@@ -231,38 +235,86 @@ public class SearchFragment : Fragment
         var pillAlbums = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_albums);
         var pillTopPlayed = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_top_played);
         var pillRecent = view.FindViewById<Google.Android.Material.Button.MaterialButton>(Resource.Id.pill_recent);
-        var pills = new[] { pillDaily, pillArtists, pillAlbums, pillTopPlayed, pillRecent };
+        _pills = new[] { pillDaily, pillArtists, pillAlbums, pillTopPlayed, pillRecent };
 
-        for (int i = 0; i < pills.Length; i++)
+        for (int i = 0; i < _pills.Length; i++)
         {
             int tabIndex = i;
-            var pill = pills[i];
+            var pill = _pills[i];
             if (pill == null) continue;
             pill.Click += (s, e) =>
             {
-                // Switch content
+                _currentExploreTabIndex = tabIndex;
                 SwitchExploreTab(tabIndex);
-                // Also sync hidden TabLayout for code that depends on it
                 if (_tabLayout.TabCount > tabIndex)
                 {
                     var tab = _tabLayout.GetTabAt(tabIndex);
                     if (tab != null) tab.Select();
                 }
-                // Update pill styles
-                foreach (var p in pills)
+                UpdatePillStyles(tabIndex);
+            };
+        }
+
+        // 触摸手势：在子tab内容区域左右滑动切换子tab
+        // 仅在每日推荐(index=0)向右滑时允许 ViewPager2 切换到歌单tab
+        var tabContent = view.FindViewById<View>(Resource.Id.tab_content);
+        if (tabContent != null)
+        {
+            float swipeStartX = 0f, swipeStartY = 0f;
+            bool isSwiping = false;
+            float swipeSlop = ViewConfiguration.Get(Context!)?.ScaledTouchSlop ?? 8f;
+
+            tabContent.Touch += (s, e) =>
+            {
+                var ev = e.Event;
+                if (ev == null) return;
+                switch (ev.ActionMasked)
                 {
-                    if (p == null) continue;
-                    if (p == pill)
-                    {
-                        var pillActiveColor = UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawPrimaryColor, Android.Graphics.Color.ParseColor("#9B7ED8"));
-                        p.SetBackgroundColor(new Android.Graphics.Color(pillActiveColor));
-                        p.SetTextColor(Android.Graphics.Color.White);
-                    }
-                    else
-                    {
-                        p.SetBackgroundColor(Android.Graphics.Color.ParseColor("#1E787880"));
-                        p.SetTextColor(Android.Graphics.Color.ParseColor("#6B5E7A"));
-                    }
+                    case MotionEventActions.Down:
+                        swipeStartX = ev.GetX();
+                        swipeStartY = ev.GetY();
+                        isSwiping = false;
+                        break;
+
+                    case MotionEventActions.Move:
+                        float dxMove = ev.GetX() - swipeStartX;
+                        float dyMove = ev.GetY() - swipeStartY;
+                        if (!isSwiping && Math.Abs(dxMove) > swipeSlop && Math.Abs(dxMove) > Math.Abs(dyMove))
+                        {
+                            isSwiping = true;
+                            // 每日推荐(index=0)向右滑(dx>0)时允许 ViewPager2 处理（切换到歌单tab）
+                            // 其他情况阻止 ViewPager2 拦截，由 SearchFragment 处理子tab切换
+                            bool allowViewPagerSwipe = _currentExploreTabIndex == 0 && dxMove > 0;
+                            if (!allowViewPagerSwipe)
+                                tabContent.Parent?.RequestDisallowInterceptTouchEvent(true);
+                        }
+                        break;
+
+                    case MotionEventActions.Up:
+                        if (isSwiping)
+                        {
+                            float dx = ev.GetX() - swipeStartX;
+                            float dy = ev.GetY() - swipeStartY;
+                            float threshold = (Resources?.DisplayMetrics?.WidthPixels ?? 1080) * 0.2f;
+                            if (Math.Abs(dx) > threshold && Math.Abs(dx) > Math.Abs(dy))
+                            {
+                                int newTab = _currentExploreTabIndex;
+                                if (dx < 0 && newTab < 4) newTab++;      // 左滑 → 下一个子tab
+                                else if (dx > 0 && newTab > 0) newTab--; // 右滑 → 上一个子tab
+                                if (newTab != _currentExploreTabIndex)
+                                {
+                                    _currentExploreTabIndex = newTab;
+                                    SwitchExploreTab(newTab);
+                                    if (_tabLayout.TabCount > newTab)
+                                    {
+                                        var tab = _tabLayout.GetTabAt(newTab);
+                                        tab?.Select();
+                                    }
+                                    UpdatePillStyles(newTab);
+                                }
+                            }
+                        }
+                        break;
                 }
             };
         }
@@ -352,6 +404,26 @@ public class SearchFragment : Fragment
                 4 => "最新音乐",
                 _ => "每日推荐"
             };
+        }
+    }
+
+    private void UpdatePillStyles(int activeIndex)
+    {
+        for (int i = 0; i < _pills.Length; i++)
+        {
+            var p = _pills[i];
+            if (p == null) continue;
+            if (i == activeIndex)
+            {
+                var pillActiveColor = UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawPrimaryColor, Android.Graphics.Color.ParseColor("#9B7ED8"));
+                p.SetBackgroundColor(new Android.Graphics.Color(pillActiveColor));
+                p.SetTextColor(Android.Graphics.Color.White);
+            }
+            else
+            {
+                p.SetBackgroundColor(Android.Graphics.Color.ParseColor("#1E787880"));
+                p.SetTextColor(Android.Graphics.Color.ParseColor("#6B5E7A"));
+            }
         }
     }
 
