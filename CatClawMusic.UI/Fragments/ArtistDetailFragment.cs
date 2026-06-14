@@ -1,6 +1,7 @@
 using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
+using System.Collections.Generic;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
@@ -22,6 +23,8 @@ public class ArtistDetailFragment : Fragment
     private TextView _artistGender = null!;
     private TextView _artistBirthday = null!;
     private TextView _artistCountry = null!;
+    private TextView _artistRealname = null!;      // 本名
+    private TextView _artistExtraInfo = null!;     // 扩展信息（民族/出生地/星座/经纪公司等）
     private TextView _artistDesc = null!;
     private TextView _songCount = null!;
     private RecyclerView _songList = null!;
@@ -73,6 +76,8 @@ public class ArtistDetailFragment : Fragment
         _artistGender = view.FindViewById<TextView>(Resource.Id.tv_artist_gender)!;
         _artistBirthday = view.FindViewById<TextView>(Resource.Id.tv_artist_birthday)!;
         _artistCountry = view.FindViewById<TextView>(Resource.Id.tv_artist_country)!;
+        _artistRealname = view.FindViewById<TextView>(Resource.Id.tv_artist_realname)!;
+        _artistExtraInfo = view.FindViewById<TextView>(Resource.Id.tv_artist_extra_info)!;
         _artistDesc = view.FindViewById<TextView>(Resource.Id.tv_artist_desc)!;
         _songCount = view.FindViewById<TextView>(Resource.Id.tv_song_count)!;
         _songList = view.FindViewById<RecyclerView>(Resource.Id.rv_songs)!;
@@ -208,8 +213,6 @@ public class ArtistDetailFragment : Fragment
         {
             try
             {
-                if (scraper is AiArtistScraper ai && !ai.IsConfigured) continue;
-
                 var results = await scraper.SearchArtistsAsync(_artistNameStr, 3);
                 var best = results.FirstOrDefault(r =>
                     r.Name.Equals(_artistNameStr, StringComparison.OrdinalIgnoreCase))
@@ -240,6 +243,50 @@ public class ArtistDetailFragment : Fragment
                     {
                         _artistDesc.Text = best.Description;
                         _artistDesc.Visibility = ViewStates.Visible;
+                    }
+
+                    // 扩展信息（本名、民族、出生地、星座、经纪公司、代表作品等）
+                    var extraParts = new List<string>();
+                    if (!string.IsNullOrEmpty(best.RealName))
+                        extraParts.Add($"本名: {best.RealName}");
+                    if (!string.IsNullOrEmpty(best.Nickname))
+                        extraParts.Add($"昵称: {best.Nickname}");
+                    if (!string.IsNullOrEmpty(best.Ethnicity))
+                        extraParts.Add($"民族: {best.Ethnicity}");
+                    if (!string.IsNullOrEmpty(best.BirthPlace))
+                        extraParts.Add($"出生地: {best.BirthPlace}");
+                    if (!string.IsNullOrEmpty(best.Education))
+                        extraParts.Add($"毕业: {best.Education}");
+                    if (!string.IsNullOrEmpty(best.Zodiac))
+                        extraParts.Add($"星座: {best.Zodiac}");
+                    if (!string.IsNullOrEmpty(best.Height))
+                        extraParts.Add($"身高: {best.Height}");
+                    if (!string.IsNullOrEmpty(best.Agency))
+                        extraParts.Add($"经纪: {best.Agency}");
+                    if (!string.IsNullOrEmpty(best.RepresentativeWorks))
+                        extraParts.Add($"代表作: {best.RepresentativeWorks}");
+                    if (!string.IsNullOrEmpty(best.Occupation))
+                        extraParts.Add($"职业: {best.Occupation}");
+
+                    // 显示本名（单独一行，更醒目）
+                    if (extraParts.Any() && _artistRealname.Visibility != ViewStates.Visible)
+                    {
+                        Activity?.RunOnUiThread(() =>
+                        {
+                            // 第一行：本名（如果有的话）
+                            if (!string.IsNullOrEmpty(best.RealName))
+                            {
+                                _artistRealname.Text = $"本名：{best.RealName}";
+                                _artistRealname.Visibility = ViewStates.Visible;
+                            }
+                            // 第二行：其余扩展信息
+                            var otherParts = extraParts.Where(p => !p.StartsWith("本名")).ToList();
+                            if (otherParts.Count > 0)
+                            {
+                                _artistExtraInfo.Text = string.Join("  ·  ", otherParts);
+                                _artistExtraInfo.Visibility = ViewStates.Visible;
+                            }
+                        });
                     }
                 });
 

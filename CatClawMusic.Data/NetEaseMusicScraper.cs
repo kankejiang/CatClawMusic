@@ -21,6 +21,8 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         public string? Alias { get; set; }
         public string? Country { get; set; }
         public string? Description { get; set; }
+        public string? Gender { get; set; }
+        public string? Birthday { get; set; }
     }
 
     /// <summary>专辑详细信息</summary>
@@ -165,16 +167,52 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
                 }
 
                 // 国家/地区
-                if (artist.TryGetProperty("country", out var country))
+                if (artist.TryGetProperty("country", out var country) && country.ValueKind == JsonValueKind.String)
                     info.Country = country.GetString();
                 if (string.IsNullOrEmpty(info.Country) && artist.TryGetProperty("area", out var area))
-                    info.Country = area.GetString();
+                {
+                    if (area.ValueKind == JsonValueKind.Number)
+                    {
+                        var areaCode = area.GetInt32();
+                        info.Country = areaCode switch
+                        {
+                            1 => "中国",
+                            2 => "日本",
+                            3 => "韩国",
+                            4 => "欧美",
+                            5 => "其他",
+                            _ => ""
+                        };
+                    }
+                    else
+                    {
+                        info.Country = area.GetString();
+                    }
+                }
 
                 // 简介
                 if (artist.TryGetProperty("briefDesc", out var briefDesc))
                     info.Description = briefDesc.GetString();
                 if (string.IsNullOrEmpty(info.Description) && artist.TryGetProperty("description", out var desc))
                     info.Description = desc.GetString();
+
+                // 性别
+                if (artist.TryGetProperty("gender", out var gender) && gender.ValueKind == JsonValueKind.Number)
+                {
+                    var g = gender.GetInt32();
+                    info.Gender = g switch { 1 => "男", 2 => "女", _ => "" };
+                }
+                else if (artist.TryGetProperty("sex", out var sex) && sex.ValueKind == JsonValueKind.Number)
+                {
+                    var s = sex.GetInt32();
+                    info.Gender = s switch { 1 => "男", 2 => "女", _ => "" };
+                }
+
+                // 生日
+                if (artist.TryGetProperty("birthday", out var birthdateVal))
+                    info.Birthday = birthdateVal.GetString();
+                if (string.IsNullOrEmpty(info.Birthday) && artist.TryGetProperty("birth", out var birthVal))
+                    info.Birthday = birthVal.GetString();
             }
 
             return info;

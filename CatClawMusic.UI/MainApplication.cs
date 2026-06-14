@@ -24,6 +24,9 @@ public class MainApplication : Application
     /// <summary>全局依赖注入服务提供器</summary>
     public static IServiceProvider Services { get; private set; } = null!;
 
+    /// <summary>元数据持久化目录（/storage/emulated/0/CatClawMusic/metadata/）</summary>
+    public static string? MetadataDir { get; private set; }
+
     public MainApplication(IntPtr handle, JniHandleOwnership transfer) : base(handle, transfer) { }
 
     /// <summary>应用启动时注册所有服务到 DI 容器，初始化数据库、播放器、歌词服务和插件管理器</summary>
@@ -162,10 +165,12 @@ public class MainApplication : Application
             "CatClawMusic");
         var artistCoversDir = Path.Combine(catClawPersistDir, "artist_covers");
         var albumCoversDir = Path.Combine(catClawPersistDir, "album_covers");
+        var metadataDir = Path.Combine(catClawPersistDir, "metadata");
         try
         {
             Directory.CreateDirectory(artistCoversDir);
             Directory.CreateDirectory(albumCoversDir);
+            Directory.CreateDirectory(metadataDir);
         }
         catch (System.Exception)
         {
@@ -175,9 +180,13 @@ public class MainApplication : Application
                 "CatClawMusic");
             artistCoversDir = Path.Combine(catClawPersistDir, "artist_covers");
             albumCoversDir = Path.Combine(catClawPersistDir, "album_covers");
+            metadataDir = Path.Combine(catClawPersistDir, "metadata");
             Directory.CreateDirectory(artistCoversDir);
             Directory.CreateDirectory(albumCoversDir);
+            Directory.CreateDirectory(metadataDir);
         }
+
+        MetadataDir = metadataDir;
 
         services.AddSingleton<ExploreDataService>(sp =>
         {
@@ -191,23 +200,28 @@ public class MainApplication : Application
             var db = sp.GetRequiredService<MusicDatabase>();
             return new NetEaseMusicScraper(db, artistCoversDir, albumCoversDir);
         });
-        services.AddSingleton<AiArtistScraper>(sp =>
-        {
-            var llmClient = sp.GetRequiredService<CatClawMusic.Core.Interfaces.ILlmClient>();
-            var agentService = sp.GetService<CatClawMusic.Core.Interfaces.IAgentService>();
-            return new AiArtistScraper(llmClient, artistCoversDir,
-                () => agentService?.IsConfigured ?? false,
-                () => sp.GetService<NetEaseMusicScraper>());
-        });
         // 多源照片刮削器（免 API Key：QQ音乐 → iTunes → Wikipedia）
         services.AddSingleton<MultiSourcePhotoScraper>(sp =>
         {
             return new MultiSourcePhotoScraper(artistCoversDir);
         });
 
-        // 注册 IArtistMetadataScraper 实现（优先级：网易云 → AI → 多源聚合）
+        // 豆瓣艺术家元数据刮削器（中文简介质量高）
+        services.AddSingleton<DoubanScraper>(sp => new DoubanScraper(artistCoversDir));
+
+        // 百度百科艺术家元数据刮削器（中文信息最全：本名/昵称/民族/出生地/经纪公司/代表作品等）
+        services.AddSingleton<BaiduBaikeScraper>(sp => new BaiduBaikeScraper(artistCoversDir));
+
+        // QQ音乐艺术家元数据刮削器（华语覆盖最好，有详情接口）
+        services.AddSingleton<MultiSourcePhotoScraper>(sp =>
+        {
+            return new MultiSourcePhotoScraper(artistCoversDir);
+        });
+
+        // 注册 IArtistMetadataScraper 实现（优先级：网易云 → 百度百科 → 豆瓣 → QQ音乐）
         services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<NetEaseMusicScraper>());
-        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<AiArtistScraper>());
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<BaiduBaikeScraper>());
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<DoubanScraper>());
         services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<MultiSourcePhotoScraper>());
 
         // Android platform services

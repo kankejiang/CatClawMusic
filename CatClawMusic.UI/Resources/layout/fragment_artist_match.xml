@@ -164,10 +164,18 @@
                 app:chipStrokeColor="?attr/catClawAccentColor"
                 app:chipStrokeWidth="1dp" />
             <com.google.android.material.chip.Chip
-                android:id="@+id/chip_ai"
+                android:id="@+id/chip_baidubaike"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="AI 搜索"
+                android:text="百科"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_douban"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="豆瓣"
                 app:chipBackgroundColor="?attr/catClawCardBackground"
                 app:chipStrokeColor="?attr/catClawAccentColor"
                 app:chipStrokeWidth="1dp" />
@@ -176,30 +184,6 @@
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="QQ音乐"
-                app:chipBackgroundColor="?attr/catClawCardBackground"
-                app:chipStrokeColor="?attr/catClawAccentColor"
-                app:chipStrokeWidth="1dp" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_itunes"
-                style="@style/Widget.MaterialComponents.Chip.Choice"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="iTunes"
-                app:chipBackgroundColor="?attr/catClawCardBackground"
-                app:chipStrokeColor="?attr/catClawAccentColor"
-                app:chipStrokeWidth="1dp" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_wikipedia"
-                style="@style/Widget.MaterialComponents.Chip.Choice"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="Wikipedia"
-                app:chipBackgroundColor="?attr/catClawCardBackground"
-                app:chipStrokeColor="?attr/catClawAccentColor"
-                app:chipStrokeWidth="1dp" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chip_multisource"
-                style="@style/Widget.MaterialComponents.Chip.Choice"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="多来源"
                 app:chipBackgroundColor="?attr/catClawCardBackground"
                 app:chipStrokeColor="?attr/catClawAccentColor"
                 app:chipStrokeWidth="1dp" />

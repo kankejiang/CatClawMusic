@@ -82,6 +82,19 @@
                             android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"
                             android:visibility="gone" />
                     </LinearLayout>
+                    <!-- 扩展信息行 -->
+                    <TextView android:id="@+id/tv_artist_realname"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+                        android:layout_marginTop="2dp"
+                        android:maxLines="1" android:ellipsize="end"
+                        android:visibility="gone" />
+                    <TextView android:id="@+id/tv_artist_extra_info"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+                        android:layout_marginTop="2dp"
+                        android:maxLines="2" android:ellipsize="end"
+                        android:visibility="gone" />
                     <TextView android:id="@+id/tv_song_count"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:textSize="13sp" android:textColor="?attr/catClawTextSecondary"

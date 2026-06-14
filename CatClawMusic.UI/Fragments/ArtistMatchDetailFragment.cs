@@ -7,6 +7,7 @@ using CatClawMusic.UI.Platforms.Android;
 using Microsoft.Extensions.DependencyInjection;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using System.Collections.Concurrent;
+using CatClawMusic.UI.Helpers;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -32,11 +33,9 @@ public class ArtistMatchDetailFragment : Fragment
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
         ["chip_netease"] = "网易云",
-        ["chip_ai"] = "AI 搜索",
-        ["chip_qqmusic"] = "QQ音乐",
-        ["chip_itunes"] = "iTunes",
-        ["chip_wikipedia"] = "Wikipedia",
-        ["chip_multisource"] = "多来源"
+        ["chip_baidubaike"] = "百科",
+        ["chip_douban"] = "豆瓣",
+        ["chip_qqmusic"] = "QQ音乐"
     };
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? savedInstanceState)
@@ -226,6 +225,26 @@ public class ArtistMatchDetailFragment : Fragment
             if (best != null)
             {
                 Activity?.RunOnUiThread(() => UpdateArtistInfo(new List<ArtistSearchResult> { best }));
+
+                // 同时保存元数据到 DB 和 JSON 文件
+                try
+                {
+                    var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+                    var artist = (await db.GetAllArtistsAsync()).FirstOrDefault(a => a.Name == _artistName);
+                    if (artist != null)
+                    {
+                        if (!string.IsNullOrEmpty(best.Gender)) artist.Gender = best.Gender;
+                        if (!string.IsNullOrEmpty(best.Birthday)) artist.Birthday = best.Birthday;
+                        if (!string.IsNullOrEmpty(best.Region)) artist.Region = CountryCodeToName(best.Region);
+                        if (!string.IsNullOrEmpty(best.Description)) artist.Description = best.Description;
+                        await db.UpdateArtistAsync(artist);
+                        await ArtistMetadataSaver.SaveAsync(artist, best);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Android.Util.Log.Warn("CatClaw", $"LoadArtistInfoAsync 保存元数据失败: {ex.Message}");
+                }
             }
         }
         catch (System.Exception ex)
@@ -258,10 +277,32 @@ public class ArtistMatchDetailFragment : Fragment
                 var resultsArray = await Task.WhenAll(searchTasks);
                 results = resultsArray.SelectMany(r => r).ToList();
 
-                // 按名称去重
+                // 按名称分组，合并各来源的字段（相互补齐）
                 results = results
                     .GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
+                    .Select(g =>
+                    {
+                        var list = g.ToList();
+                        if (list.Count == 1) return list[0];
+                        var first = list[0];
+                        foreach (var r in list.Skip(1))
+                        {
+                            if (string.IsNullOrEmpty(first.Gender) && !string.IsNullOrEmpty(r.Gender))
+                                first.Gender = r.Gender;
+                            if (string.IsNullOrEmpty(first.Region) && !string.IsNullOrEmpty(r.Region))
+                                first.Region = r.Region;
+                            if (string.IsNullOrEmpty(first.Description) && !string.IsNullOrEmpty(r.Description))
+                                first.Description = r.Description;
+                            if (string.IsNullOrEmpty(first.Birthday) && !string.IsNullOrEmpty(r.Birthday))
+                                first.Birthday = r.Birthday;
+                            if (string.IsNullOrEmpty(first.CoverUrl) && !string.IsNullOrEmpty(r.CoverUrl))
+                                first.CoverUrl = r.CoverUrl;
+                            if (string.IsNullOrEmpty(first.Alias) && !string.IsNullOrEmpty(r.Alias))
+                                first.Alias = r.Alias;
+                        }
+                        first.Source = string.Join("·", list.Select(x => x.Source.Split('·')[0].Trim()).Distinct());
+                        return first;
+                    })
                     .Take(10)
                     .ToList();
 
@@ -308,19 +349,7 @@ public class ArtistMatchDetailFragment : Fragment
                     {
                         _progress.Visibility = ViewStates.Gone;
                         _tvEmpty.Visibility = ViewStates.Visible;
-                        _tvEmpty.Text = sourceName == "AI 搜索" ? "AI 服务未配置，请先在设置中配置 AI 模型" : "刮削服务未就绪";
-                    });
-                    return;
-                }
-
-                // AI 搜索特殊检查
-                if (scraper is AiArtistScraper aiScraper && !aiScraper.IsConfigured)
-                {
-                    Activity?.RunOnUiThread(() =>
-                    {
-                        _progress.Visibility = ViewStates.Gone;
-                        _tvEmpty.Visibility = ViewStates.Visible;
-                        _tvEmpty.Text = "AI 服务未配置，请先在设置中配置 AI 模型";
+                        _tvEmpty.Text = "刮削服务未就绪";
                     });
                     return;
                 }
@@ -513,7 +542,13 @@ public class ArtistMatchDetailFragment : Fragment
                 if (artist != null)
                 {
                     artist.Cover = cachePath;
+                    // 同时保存元数据
+                    if (!string.IsNullOrEmpty(result.Gender)) artist.Gender = result.Gender;
+                    if (!string.IsNullOrEmpty(result.Birthday)) artist.Birthday = result.Birthday;
+                    if (!string.IsNullOrEmpty(result.Region)) artist.Region = CountryCodeToName(result.Region);
+                    if (!string.IsNullOrEmpty(result.Description)) artist.Description = result.Description;
                     await db.UpdateArtistAsync(artist);
+                    await ArtistMetadataSaver.SaveAsync(artist, result);
                 }
             }
 

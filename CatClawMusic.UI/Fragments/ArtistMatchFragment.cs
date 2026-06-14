@@ -7,6 +7,7 @@ using CatClawMusic.UI.Platforms.Android;
 using Microsoft.Extensions.DependencyInjection;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using System.Collections.Concurrent;
+using CatClawMusic.UI.Helpers;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -19,7 +20,7 @@ public class ArtistMatchFragment : Fragment
     private ArtistMatchAdapter? _adapter;
     private List<Artist> _allArtists = new();
     private Button? _btnAutoMatch;
-    private string _autoMatchSource = "网易云";
+    private string _autoMatchSource = "多来源";
     private bool _matchCover = true;
     private bool _matchGender = true;
     private bool _matchRegion = true;
@@ -29,11 +30,9 @@ public class ArtistMatchFragment : Fragment
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
         ["chip_netease"] = "网易云",
-        ["chip_ai"] = "AI 搜索",
-        ["chip_qqmusic"] = "QQ音乐",
-        ["chip_itunes"] = "iTunes",
-        ["chip_wikipedia"] = "Wikipedia",
-        ["chip_multisource"] = "多来源"
+        ["chip_baidubaike"] = "百科",
+        ["chip_douban"] = "豆瓣",
+        ["chip_qqmusic"] = "QQ音乐"
     };
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? savedInstanceState)
@@ -243,6 +242,7 @@ public class ArtistMatchFragment : Fragment
                 if (_matchGender && string.IsNullOrEmpty(a.Gender)) return true;
                 if (_matchRegion && string.IsNullOrEmpty(a.Region)) return true;
                 if (_matchDesc && string.IsNullOrEmpty(a.Description)) return true;
+                if (string.IsNullOrEmpty(a.Birthday)) return true;
                 return false;
             }).ToList();
         }
@@ -281,12 +281,6 @@ public class ArtistMatchFragment : Fragment
             return;
         }
 
-        if (scraper is AiArtistScraper aiScraper && !aiScraper.IsConfigured)
-        {
-            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "AI 服务未配置，请先在设置中配置 AI 模型", ToastLength.Long)?.Show());
-            return;
-        }
-
         _btnAutoMatch!.Enabled = false;
         _btnAutoMatch.Text = $"匹配中 0/{needMatchArtists.Count}";
         _progress!.Visibility = ViewStates.Visible;
@@ -301,7 +295,7 @@ public class ArtistMatchFragment : Fragment
 
                 if (_autoMatchSource == "网易云" && neteaseScraper != null)
                 {
-                    // 网易云：封面用专用方法，元数据从搜索结果获取
+                    // 网易云：封面用专用方法，元数据从搜索结果 + 详情接口获取
                     if (_matchCover)
                     {
                         var cachePath = await neteaseScraper.GetArtistCoverAsync(artist.Name);
@@ -309,13 +303,35 @@ public class ArtistMatchFragment : Fragment
                             artist.Cover = cachePath;
                     }
 
-                    // 如果还需要其他字段，也搜索一下
-                    if (_matchGender || _matchRegion || _matchDesc)
+                    // 搜索基本信息（获取 Description、CoverUrl）
+                    if (_matchCover || _matchGender || _matchRegion || _matchDesc)
                     {
                         var results = await scraper.SearchArtistsAsync(artist.Name, 3);
                         bestMatch = results.FirstOrDefault(r =>
                             r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
                             ?? results.FirstOrDefault();
+                    }
+
+                    // 额外获取详细信息（性别/地区/生日/简介）—— 无论搜索结果如何都尝试
+                    var needDetail = (_matchGender && string.IsNullOrEmpty(artist.Gender))
+                                    || (_matchRegion && string.IsNullOrEmpty(artist.Region))
+                                    || (_matchDesc && string.IsNullOrEmpty(artist.Description))
+                                    || string.IsNullOrEmpty(artist.Birthday);
+                    if (needDetail)
+                    {
+                        var artistInfo = await neteaseScraper.GetArtistInfoAsync(artist.Name);
+                        if (artistInfo != null)
+                        {
+                            if (bestMatch == null) bestMatch = new ArtistSearchResult();
+                            if (string.IsNullOrEmpty(bestMatch.Gender) && !string.IsNullOrEmpty(artistInfo.Gender))
+                                bestMatch.Gender = artistInfo.Gender;
+                            if (string.IsNullOrEmpty(bestMatch.Region) && !string.IsNullOrEmpty(artistInfo.Country))
+                                bestMatch.Region = artistInfo.Country;
+                            if (string.IsNullOrEmpty(bestMatch.Description) && !string.IsNullOrEmpty(artistInfo.Description))
+                                bestMatch.Description = artistInfo.Description;
+                            if (string.IsNullOrEmpty(bestMatch.Birthday) && !string.IsNullOrEmpty(artistInfo.Birthday))
+                                bestMatch.Birthday = artistInfo.Birthday;
+                        }
                     }
                 }
                 else
@@ -374,6 +390,8 @@ public class ArtistMatchFragment : Fragment
                 }
 
                 await db.UpdateArtistAsync(artist);
+                // 保存元数据到公开目录
+                await ArtistMetadataSaver.SaveAsync(artist, bestMatch);
                 matched++;
             }
             catch { }
@@ -422,16 +440,60 @@ public class ArtistMatchFragment : Fragment
                 var resultsArray = await Task.WhenAll(searchTasks);
                 var allResults = resultsArray.SelectMany(r => r).ToList();
 
-                // 按名称去重
-                var uniqueResults = allResults
+                // 按名称分组，合并各来源的字段（相互补齐）
+                var mergedResults = allResults
                     .GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
+                    .Select(g =>
+                    {
+                        var list = g.ToList();
+                        if (list.Count == 1) return list[0];
+                        // 以第一个结果为底，用其他来源的非空字段补齐
+                        var first = list[0];
+                        foreach (var r in list.Skip(1))
+                        {
+                            if (string.IsNullOrEmpty(first.Gender) && !string.IsNullOrEmpty(r.Gender))
+                                first.Gender = r.Gender;
+                            if (string.IsNullOrEmpty(first.Region) && !string.IsNullOrEmpty(r.Region))
+                                first.Region = r.Region;
+                            if (string.IsNullOrEmpty(first.Description) && !string.IsNullOrEmpty(r.Description))
+                                first.Description = r.Description;
+                            if (string.IsNullOrEmpty(first.Birthday) && !string.IsNullOrEmpty(r.Birthday))
+                                first.Birthday = r.Birthday;
+                            if (string.IsNullOrEmpty(first.CoverUrl) && !string.IsNullOrEmpty(r.CoverUrl))
+                                first.CoverUrl = r.CoverUrl;
+                            if (string.IsNullOrEmpty(first.Alias) && !string.IsNullOrEmpty(r.Alias))
+                                first.Alias = r.Alias;
+                        }
+                        first.Source = string.Join("·", list.Select(x => x.Source.Split('·')[0].Trim()).Distinct());
+                        return first;
+                    })
                     .ToList();
 
                 // 取最佳匹配
-                var bestMatch = uniqueResults
+                var bestMatch = mergedResults
                     .FirstOrDefault(r => r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
-                    ?? uniqueResults.FirstOrDefault();
+                    ?? mergedResults.FirstOrDefault();
+
+                // 如果最佳匹配来自网易云，额外获取详细信息补齐元数据
+                if (bestMatch != null && bestMatch.Source.Contains("网易云"))
+                {
+                    var netease = allScrapers.OfType<NetEaseMusicScraper>().FirstOrDefault();
+                    if (netease != null)
+                    {
+                        var artistInfo = await netease.GetArtistInfoAsync(artist.Name);
+                        if (artistInfo != null)
+                        {
+                            if (string.IsNullOrEmpty(bestMatch.Gender) && !string.IsNullOrEmpty(artistInfo.Gender))
+                                bestMatch.Gender = artistInfo.Gender;
+                            if (string.IsNullOrEmpty(bestMatch.Region) && !string.IsNullOrEmpty(artistInfo.Country))
+                                bestMatch.Region = artistInfo.Country;
+                            if (string.IsNullOrEmpty(bestMatch.Description) && !string.IsNullOrEmpty(artistInfo.Description))
+                                bestMatch.Description = artistInfo.Description;
+                            if (string.IsNullOrEmpty(bestMatch.Birthday) && !string.IsNullOrEmpty(artistInfo.Birthday))
+                                bestMatch.Birthday = artistInfo.Birthday;
+                        }
+                    }
+                }
 
                 if (bestMatch != null)
                 {
