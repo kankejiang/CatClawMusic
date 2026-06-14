@@ -579,7 +579,9 @@ public partial class LibraryViewModel : ObservableObject
             await scanner.FlushAsync();
 
             // 清理已删除的歌曲：对比数据库记录与本次扫描路径，移除不存在的记录
-            if (_database != null)
+            // 关键安全保护：若 scannedPaths 为空（扫描未发现任何文件），
+            // 跳过清理以避免误删全部歌曲（例如 SAF 路径格式与已存路径不一致时）
+            if (_database != null && scannedPaths.Count > 0)
             {
                 try
                 {
@@ -594,7 +596,6 @@ public partial class LibraryViewModel : ObservableObject
                             _dispatcher.Post(() =>
                             {
                                 foreach (var s in stalePaths) Songs.Remove(s);
-                                StatusText = $"🐱 共 {Songs.Count} 首歌曲（清理 {removed} 首）";
                             });
                         }
                     }
@@ -602,17 +603,53 @@ public partial class LibraryViewModel : ObservableObject
                 catch { }
             }
 
-            // 扫描完成：更新 UI 状态，保存缓存，触发事件
-            _dispatcher.Post(() =>
+            // 扫描完成：从数据库全量重新加载，确保已有歌曲也正确显示（因为 InsertSongsBatchAsync 的
+            // 回调只包含新插入的歌曲，已存在的歌曲只做 UPDATE 不会触发回调）
+            if (_database != null)
             {
-                ScanProgress = 100;
-                ScanStatus = "扫描完成";
-                IsScanning = false;
-                StatusText = $"🐱 共 {Songs.Count} 首歌曲";
-                _localSongsCache = Songs.ToList();
-                _hasLoadedLocal = true;
-                ScanCompleted?.Invoke(this, EventArgs.Empty);
-            });
+                try
+                {
+                    var allLocalSongs = await _database.GetSongsAsync();
+                    _dispatcher.Post(() =>
+                    {
+                        Songs.Clear();
+                        AddSongsBatch(allLocalSongs);
+                        ScanProgress = 100;
+                        ScanStatus = "扫描完成";
+                        IsScanning = false;
+                        StatusText = $"🐱 共 {allLocalSongs.Count} 首歌曲";
+                        _localSongsCache = Songs.ToList();
+                        _hasLoadedLocal = true;
+                        ScanCompleted?.Invoke(this, EventArgs.Empty);
+                    });
+                }
+                catch
+                {
+                    _dispatcher.Post(() =>
+                    {
+                        ScanProgress = 100;
+                        ScanStatus = "扫描完成";
+                        IsScanning = false;
+                        StatusText = $"🐱 共 {Songs.Count} 首歌曲";
+                        _localSongsCache = Songs.ToList();
+                        _hasLoadedLocal = true;
+                        ScanCompleted?.Invoke(this, EventArgs.Empty);
+                    });
+                }
+            }
+            else
+            {
+                _dispatcher.Post(() =>
+                {
+                    ScanProgress = 100;
+                    ScanStatus = "扫描完成";
+                    IsScanning = false;
+                    StatusText = $"🐱 共 {Songs.Count} 首歌曲";
+                    _localSongsCache = Songs.ToList();
+                    _hasLoadedLocal = true;
+                    ScanCompleted?.Invoke(this, EventArgs.Empty);
+                });
+            }
         }
         catch (Exception ex)
         {

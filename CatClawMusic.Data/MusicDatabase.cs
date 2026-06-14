@@ -80,6 +80,7 @@ public class MusicDatabase
             await _database.CreateTableAsync<Lyric>();
             await _database.CreateTableAsync<ConnectionProfile>();
             await _database.CreateTableAsync<CachedSong>();
+            await _database.CreateTableAsync<SongArtist>();
 
             await CreateIndexesAsync();
 
@@ -87,6 +88,12 @@ public class MusicDatabase
             await MigratePlaylistSongsTableAsync();
             await MigrateArtistsTableAsync();
             await RecoverArtistsTableAsync();
+
+            // 迁移现有单艺术家数据到多对多 SongArtists 表
+            await MigrateToMultiArtistAsync();
+
+            // 将历史合并艺术家名（如 "国风堂/哦漏"）拆分为独立艺术家
+            await SplitCombinedArtistsAsync();
 
             // 修复早期版本中 ArtistId=0 导致 AlbumId 关联错误的问题
             await RepairAlbumAssociationsAsync();
@@ -112,6 +119,8 @@ public class MusicDatabase
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_source_protocol ON Songs(Source, Protocol)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_albums_artist ON Albums(ArtistId)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_play_history_time ON PlayHistory(PlayedAt DESC)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_song_artists_song ON SongArtists(SongId)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_song_artists_artist ON SongArtists(ArtistId)"); } catch { }
     }
 
     // ═══════════ Song CRUD ═══════════
@@ -226,10 +235,16 @@ public class MusicDatabase
         var albums = await _database.Table<Album>().ToListAsync();
         var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
         var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
+
+        // 批量加载多艺术家关联
+        var songIds = songs.Select(s => s.Id).ToList();
+        var allArtistsDict = await GetAllArtistsForSongsAsync(songIds);
+
         foreach (var s in songs)
         {
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
+            s.AllArtists = allArtistsDict.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
         }
         return songs;
     }
@@ -242,38 +257,46 @@ public class MusicDatabase
     public Task<Song?> GetSongByIdAsync(int id) =>
         _database.Table<Song>().Where(s => s.Id == id).FirstOrDefaultAsync();
 
-    /// <summary>数据库层面搜索歌曲（JOIN Artist/Album 表，避免全部加载到内存）</summary>
+    /// <summary>数据库层面搜索歌曲（JOIN Artist/Album/SongArtists 表，避免全部加载到内存）</summary>
     /// <param name="keyword">搜索关键词</param>
     /// <returns>匹配的歌曲列表</returns>
     public async Task<List<Song>> SearchSongsAsync(string keyword)
     {
         await EnsureInitializedAsync();
         var kw = $"%{keyword}%";
-        // 使用 SQL JOIN 在数据库层面完成搜索 + Artist/Album 关联
+        // 使用 SQL JOIN 在数据库层面完成搜索 + Artist/Album 关联，支持多艺术家搜索
         var sql = @"
-            SELECT s.*, COALESCE(a.Name, '未知艺术家') as Artist, COALESCE(al.Title, '未知专辑') as Album
+            SELECT DISTINCT s.*, COALESCE(a.Name, '未知艺术家') as Artist, COALESCE(al.Title, '未知专辑') as Album
             FROM Songs s
             LEFT JOIN Artists a ON s.ArtistId = a.Id
             LEFT JOIN Albums al ON s.AlbumId = al.Id
-            WHERE s.Title LIKE ? OR a.Name LIKE ? OR al.Title LIKE ?
+            LEFT JOIN SongArtists sa ON s.Id = sa.SongId
+            LEFT JOIN Artists a2 ON sa.ArtistId = a2.Id
+            WHERE s.Title LIKE ? OR a.Name LIKE ? OR al.Title LIKE ? OR a2.Name LIKE ?
         ";
-        return await _database.QueryAsync<Song>(sql, kw, kw, kw);
+        var songs = await _database.QueryAsync<Song>(sql, kw, kw, kw, kw);
+        await PopulateAllArtistsAsync(songs);
+        return songs;
     }
 
-    /// <summary>按艺术家获取歌曲（数据库层面过滤）</summary>
+    /// <summary>按艺术家获取歌曲（支持多艺术家关联）</summary>
     /// <param name="artist">艺术家名称</param>
     /// <returns>歌曲列表</returns>
     public async Task<List<Song>> GetSongsByArtistAsync(string artist)
     {
         await EnsureInitializedAsync();
         var sql = @"
-            SELECT s.*, a.Name as Artist, COALESCE(al.Title, '未知专辑') as Album
+            SELECT DISTINCT s.*, COALESCE(a.Name, '未知艺术家') as Artist, COALESCE(al.Title, '未知专辑') as Album
             FROM Songs s
-            JOIN Artists a ON s.ArtistId = a.Id
+            LEFT JOIN Artists a ON s.ArtistId = a.Id
             LEFT JOIN Albums al ON s.AlbumId = al.Id
-            WHERE a.Name = ?
+            LEFT JOIN SongArtists sa ON s.Id = sa.SongId
+            LEFT JOIN Artists a2 ON sa.ArtistId = a2.Id
+            WHERE a.Name = ? OR a2.Name = ?
         ";
-        return await _database.QueryAsync<Song>(sql, artist);
+        var songs = await _database.QueryAsync<Song>(sql, artist, artist);
+        await PopulateAllArtistsAsync(songs);
+        return songs;
     }
 
     /// <summary>按专辑获取歌曲（数据库层面过滤）</summary>
@@ -289,7 +312,21 @@ public class MusicDatabase
             JOIN Albums al ON s.AlbumId = al.Id
             WHERE al.Title = ?
         ";
-        return await _database.QueryAsync<Song>(sql, album);
+        var songs = await _database.QueryAsync<Song>(sql, album);
+        await PopulateAllArtistsAsync(songs);
+        return songs;
+    }
+
+    /// <summary>批量填充歌曲的 AllArtists 字段</summary>
+    private async Task PopulateAllArtistsAsync(List<Song> songs)
+    {
+        if (songs.Count == 0) return;
+        var songIds = songs.Select(s => s.Id).ToList();
+        var allArtistsDict = await GetAllArtistsForSongsAsync(songIds);
+        foreach (var s in songs)
+        {
+            s.AllArtists = allArtistsDict.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
+        }
     }
 
     /// <summary>
@@ -325,6 +362,7 @@ public class MusicDatabase
     public async Task ClearLocalSongsAsync()
     {
         await EnsureInitializedAsync();
+        try { await _database.ExecuteAsync("DELETE FROM SongArtists"); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.Local); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM Artists"); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM Albums"); } catch { }
@@ -336,6 +374,7 @@ public class MusicDatabase
     public async Task ClearCachedNetworkSongsAsync()
     {
         await EnsureInitializedAsync();
+        try { await _database.ExecuteAsync("DELETE FROM SongArtists WHERE SongId IN (SELECT Id FROM Songs WHERE Source != ?)", (int)SongSource.Local); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source != ?", (int)SongSource.Local); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM CachedSongs"); } catch { }
         // 级联清理孤立记录
@@ -369,6 +408,7 @@ public class MusicDatabase
                 try { tran.Delete<Song>(id); } catch { }
                 try { tran.Execute("DELETE FROM PlayHistory WHERE SongId = ?", id); } catch { }
                 try { tran.Execute("DELETE FROM Favorites WHERE SongId = ?", id); } catch { }
+                try { tran.Execute("DELETE FROM SongArtists WHERE SongId = ?", id); } catch { }
             }
         });
 
@@ -382,8 +422,16 @@ public class MusicDatabase
         await EnsureInitializedAsync();
         try
         {
+            // 先清理 SongArtists 中引用已删除歌曲的孤立记录
             await _database.ExecuteAsync(
-                "DELETE FROM Artists WHERE Id NOT IN (SELECT DISTINCT ArtistId FROM Songs WHERE ArtistId != 0)");
+                "DELETE FROM SongArtists WHERE SongId NOT IN (SELECT Id FROM Songs)");
+        }
+        catch { }
+        try
+        {
+            await _database.ExecuteAsync(
+                "DELETE FROM Artists WHERE Id NOT IN (SELECT DISTINCT ArtistId FROM Songs WHERE ArtistId != 0)"
+                + " AND Id NOT IN (SELECT DISTINCT ArtistId FROM SongArtists)");
         }
         catch { }
         try
@@ -410,6 +458,12 @@ public class MusicDatabase
                 "DELETE FROM Favorites WHERE SongId NOT IN (SELECT Id FROM Songs)");
         }
         catch { }
+        try
+        {
+            await _database.ExecuteAsync(
+                "DELETE FROM SongArtists WHERE SongId NOT IN (SELECT Id FROM Songs)");
+        }
+        catch { }
     }
 
     // ═══════════ Artist / Album ═══════════
@@ -423,11 +477,28 @@ public class MusicDatabase
     {
         await EnsureInitializedAsync();
         if (string.IsNullOrEmpty(name)) return 0;
-        var a = await _database.Table<Artist>().Where(x => x.Name == name).FirstOrDefaultAsync();
-        if (a != null) return a.Id;
-        var newArtist = new Artist { Name = name };
-        await _database.InsertAsync(newArtist);
-        return newArtist.Id;
+
+        // 防御性拆分：无论调用方是否已拆分，此处统一处理
+        // 避免 "国风堂/哦漏" 被直接写入 Artists 表
+        var names = MusicUtility.SplitArtistNames(name);
+        var firstId = 0;
+
+        foreach (var n in names)
+        {
+            var a = await _database.Table<Artist>().Where(x => x.Name == n).FirstOrDefaultAsync();
+            if (a != null)
+            {
+                if (firstId == 0) firstId = a.Id;
+            }
+            else
+            {
+                var newArtist = new Artist { Name = n };
+                await _database.InsertAsync(newArtist);
+                if (firstId == 0) firstId = newArtist.Id;
+            }
+        }
+
+        return firstId > 0 ? firstId : 0;
     }
 
     public async Task<List<Artist>> GetAllArtistsAsync()
@@ -660,6 +731,12 @@ public class MusicDatabase
         }
 
         var playTimeDict = validHistory.GroupBy(h => h.SongId).ToDictionary(g => g.Key, g => g.Max(h => h.PlayedAt));
+
+        // 填充多艺术家
+        var allArtistsDict2 = await GetAllArtistsForSongsAsync(songs.Select(s => s.Id));
+        foreach (var s in songs)
+            s.AllArtists = allArtistsDict2.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
+
         return songs.OrderByDescending(s => playTimeDict.TryGetValue(s.Id, out var t) ? t : 0).ToList();
     }
 
@@ -694,6 +771,12 @@ public class MusicDatabase
         }
 
         var playCountDict = validHistory.GroupBy(h => h.SongId).ToDictionary(g => g.Key, g => g.Max(h => h.PlayCount));
+
+        // 填充多艺术家
+        var allArtistsDict3 = await GetAllArtistsForSongsAsync(songs.Select(s => s.Id));
+        foreach (var s in songs)
+            s.AllArtists = allArtistsDict3.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
+
         return songs.OrderByDescending(s => playCountDict.TryGetValue(s.Id, out var c) ? c : 0).ToList();
     }
 
@@ -763,6 +846,12 @@ public class MusicDatabase
         }
 
         var favDict = SafeToDict(favs, f => f.SongId, f => f.AddedAt);
+
+        // 填充多艺术家
+        var allArtistsDict4 = await GetAllArtistsForSongsAsync(favSongs.Select(s => s.Id));
+        foreach (var s in favSongs)
+            s.AllArtists = allArtistsDict4.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
+
         return favSongs.OrderByDescending(s => favDict.TryGetValue(s.Id, out var t) ? t : 0).ToList();
     }
 
@@ -955,12 +1044,14 @@ public class MusicDatabase
         var songMap = SafeToDict(songs, s => s.Id, s => s);
 
         var sorted = new List<Song>(entries.Count);
+        var allArtistsDict5 = await GetAllArtistsForSongsAsync(songs.Select(s => s.Id));
         foreach (var entry in entries)
         {
             if (songMap.TryGetValue(entry.SongId, out var song))
             {
                 song.Artist = artistDict.TryGetValue(song.ArtistId, out var an) ? an : "未知艺术家";
                 song.Album = albumDict.TryGetValue(song.AlbumId, out var al) ? al : "未知专辑";
+                song.AllArtists = allArtistsDict5.TryGetValue(song.Id, out var aa) ? aa : song.Artist;
                 sorted.Add(song);
             }
         }
@@ -1057,6 +1148,11 @@ public class MusicDatabase
         var album = await _database.Table<Album>().Where(a => a.Id == song.AlbumId).FirstOrDefaultAsync();
         song.Artist = artist?.Name ?? "未知艺术家";
         song.Album = album?.Title ?? "未知专辑";
+
+        // 填充多艺术家
+        var allArtistsDict = await GetAllArtistsForSongsAsync(new[] { song.Id });
+        song.AllArtists = allArtistsDict.TryGetValue(song.Id, out var aa) ? aa : song.Artist;
+
         return song;
     }
 
@@ -1180,6 +1276,27 @@ public class MusicDatabase
 
         // Phase 5: 批量插入所有歌曲
         await _database.InsertAllAsync(songs);
+
+        // Phase 6: 创建 SongArtist 多对多关联（为每首歌的主艺术家建立记录）
+        if (songs.Count > 0)
+        {
+            var songArtistEntries = songs
+                .Where(s => s.Id > 0 && s.ArtistId > 0)
+                .Select(s => new SongArtist { SongId = s.Id, ArtistId = s.ArtistId })
+                .ToList();
+            if (songArtistEntries.Count > 0)
+            {
+                try
+                {
+                    // 先删除这些歌曲的旧关联，再插入新关联
+                    var songIds = songArtistEntries.Select(e => e.SongId).Distinct().ToList();
+                    var songIdStr = string.Join(",", songIds);
+                    await _database.ExecuteAsync($"DELETE FROM SongArtists WHERE SongId IN ({songIdStr})");
+                    await _database.InsertAllAsync(songArtistEntries);
+                }
+                catch { }
+            }
+        }
     }
 
     /// <summary>获取缓存的网络歌曲</summary>
@@ -1200,6 +1317,11 @@ public class MusicDatabase
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
         }
+        // 填充多艺术家
+        var allArtistsDict6 = await GetAllArtistsForSongsAsync(songs.Select(s => s.Id));
+        foreach (var s in songs)
+            s.AllArtists = allArtistsDict6.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
+
         // 同一标题+艺术家的歌曲去重，SMB 优先于 WebDAV
         return songs
             .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
@@ -1420,6 +1542,92 @@ public class MusicDatabase
     }
 
     /// <summary>
+    /// 批量保存歌曲的多艺术家关联：先删除旧关联，再批量插入新关联。
+    /// </summary>
+    /// <param name="entries">(songId, artistIds) 列表</param>
+    public async Task SaveSongArtistsBatchAsync(List<(int SongId, List<int> ArtistIds)> entries)
+    {
+        if (entries.Count == 0) return;
+
+        await EnsureInitializedAsync();
+
+        await _database.RunInTransactionAsync(tran =>
+        {
+            foreach (var (songId, artistIds) in entries)
+            {
+                // 删除旧关联
+                try { tran.Execute("DELETE FROM SongArtists WHERE SongId = ?", songId); } catch { }
+
+                // 插入新关联（跳过 ArtistId=0 的无效记录）
+                foreach (var artistId in artistIds)
+                {
+                    if (artistId <= 0) continue;
+                    try
+                    {
+                        tran.Insert(new SongArtist { SongId = songId, ArtistId = artistId });
+                    }
+                    catch { }
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// 批量获取指定歌曲的所有艺术家名称（用于填充 Song.AllArtists 字段）。
+    /// </summary>
+    /// <param name="songIds">歌曲 ID 集合</param>
+    /// <returns>songId → "艺术家1 / 艺术家2" 的字典</returns>
+    public async Task<Dictionary<int, string>> GetAllArtistsForSongsAsync(IEnumerable<int> songIds)
+    {
+        var result = new Dictionary<int, string>();
+        var idList = songIds.ToList();
+        if (idList.Count == 0) return result;
+
+        // 使用 SQL 直接 JOIN 查询，比 ORM 逐条查高效
+        var songIdStr = string.Join(",", idList);
+        try
+        {
+            var rows = await _database.QueryAsync<SongArtistRow>(
+                $@"SELECT sa.SongId, a.Name
+                   FROM SongArtists sa
+                   JOIN Artists a ON sa.ArtistId = a.Id
+                   WHERE sa.SongId IN ({songIdStr})
+                   ORDER BY sa.Id");
+
+            // 按 SongId 分组拼接
+            var groups = rows.GroupBy(r => r.SongId);
+            foreach (var g in groups)
+            {
+                result[g.Key] = string.Join(" / ", g.Select(r => r.Name));
+            }
+        }
+        catch { }
+
+        return result;
+    }
+
+    /// <summary>SongArtist JOIN 查询的中间结果行</summary>
+    /// <summary>
+    /// 批量查询指定歌曲的 SongArtist 关联记录（用于计算艺术家歌曲计数）。
+    /// </summary>
+    /// <param name="songIds">歌曲 ID 集合</param>
+    /// <returns>SongArtist 记录列表</returns>
+    public async Task<List<SongArtist>> QuerySongArtistsBySongIdsAsync(HashSet<int> songIds)
+    {
+        if (songIds.Count == 0) return new List<SongArtist>();
+        await EnsureInitializedAsync();
+        var ids = string.Join(",", songIds);
+        return await _database.QueryAsync<SongArtist>(
+            $"SELECT * FROM SongArtists WHERE SongId IN ({ids})");
+    }
+
+    private class SongArtistRow
+    {
+        public int SongId { get; set; }
+        public string Name { get; set; } = "";
+    }
+
+    /// <summary>
     /// 迁移 Artists 表：添加 Gender/Birthday/Region/Description 列
     /// </summary>
     private async Task MigrateArtistsTableAsync()
@@ -1606,6 +1814,147 @@ public class MusicDatabase
             }
         }
         catch { }
+    }
+
+    /// <summary>
+    /// 将现有歌曲的单 ArtistId 迁移到多对多 SongArtists 表。
+    /// 对于 ArtistId > 0 且 SongArtists 中尚无记录的歌曲，创建一条 SongArtist 记录。
+    /// </summary>
+    private async Task MigrateToMultiArtistAsync()
+    {
+        try
+        {
+            // 检查是否已有 SongArtist 数据（避免重复迁移）
+            var existingCount = await _database.Table<SongArtist>().CountAsync();
+            if (existingCount > 0) return;
+
+            // 查找所有有艺术家关联的歌曲
+            var songs = await _database.Table<Song>().Where(s => s.ArtistId > 0).ToListAsync();
+            if (songs.Count == 0) return;
+
+            var entries = songs.Select(s => new SongArtist
+            {
+                SongId = s.Id,
+                ArtistId = s.ArtistId
+            }).ToList();
+
+            await _database.InsertAllAsync(entries);
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 多艺术家迁移完成，为 {entries.Count} 首歌曲创建了 SongArtist 关联");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 多艺术家迁移失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 将历史遗留的合并艺术家名（如 "国风堂/哦漏"）拆分为多个独立艺术家。
+    /// 流程：
+    /// 1. 查找名称含 " / " 的艺术家
+    /// 2. 拆分名称 → 为每个子名称查找或创建独立艺术家
+    /// 3. 更新 Song.ArtistId → 指向第一个子艺术家
+    /// 4. 更新 SongArtists → 将合并艺术家 ID 替换为各子艺术家 ID
+    /// 5. 删除旧的合并艺术家记录
+    /// </summary>
+    private async Task SplitCombinedArtistsAsync()
+    {
+        try
+        {
+            // 查找所有名称含 "/" 或 "／" 的艺术家（历史合并艺术家）
+            var allArtists = await _database.Table<Artist>().ToListAsync();
+            var combinedArtists = allArtists
+                .Where(a => a.Name.Contains(" / ") || a.Name.Contains("/") || a.Name.Contains("／"))
+                .ToList();
+
+            if (combinedArtists.Count == 0) return;
+
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 发现 {combinedArtists.Count} 个需要拆分的合并艺术家");
+
+            await _database.RunInTransactionAsync(tran =>
+            {
+                foreach (var combined in combinedArtists)
+                {
+                    try
+                    {
+                        // 规范化：将全角斜杠替换为半角，便于统一拆分
+                        var normalizedName = combined.Name.Replace('／', '/');
+                        // 拆分名称：优先用 SplitArtistNames，如果没拆开则按 '/' 强拆
+                        var names = CatClawMusic.Core.Services.MusicUtility.SplitArtistNames(normalizedName);
+                        if (names.Count <= 1 && normalizedName.Contains('/'))
+                        {
+                            names = normalizedName.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                .Where(p => !string.IsNullOrEmpty(p))
+                                .ToList();
+                        }
+                        if (names.Count <= 1) continue;
+
+                        // 为每个子名称查找或创建独立艺术家
+                        var individualIds = new List<int>();
+                        var allArtistsSnapshot = tran.Query<Artist>("SELECT * FROM Artists").ToList();
+                        foreach (var name in names)
+                        {
+                            var existing = allArtistsSnapshot.FirstOrDefault(a =>
+                                string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                                a.Id != combined.Id);
+
+                            if (existing != null)
+                            {
+                                individualIds.Add(existing.Id);
+                            }
+                            else
+                            {
+                                var newArtist = new Artist { Name = name };
+                                tran.Insert(newArtist);
+                                allArtistsSnapshot.Add(newArtist);
+                                individualIds.Add(newArtist.Id);
+                            }
+                        }
+
+                        // 更新 Song.ArtistId → 指向第一个子艺术家
+                        if (individualIds.Count > 0)
+                        {
+                            tran.Execute("UPDATE Songs SET ArtistId = ? WHERE ArtistId = ?", individualIds[0], combined.Id);
+                        }
+
+                        // 更新 SongArtists → 将合并艺术家 ID 替换为子艺术家 ID
+                        var songArtistRows = tran.Query<SongArtist>(
+                            "SELECT * FROM SongArtists WHERE ArtistId = ?", combined.Id);
+                        foreach (var sa in songArtistRows)
+                        {
+                            tran.Execute("DELETE FROM SongArtists WHERE Id = ?", sa.Id);
+                            foreach (var id in individualIds)
+                            {
+                                try
+                                {
+                                    tran.Insert(new SongArtist { SongId = sa.SongId, ArtistId = id });
+                                }
+                                catch { }
+                            }
+                        }
+
+                        // 删除旧的合并艺术家
+                        tran.Execute("DELETE FROM Artists WHERE Id = ?", combined.Id);
+
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[CatClaw] 拆分艺术家 \"{combined.Name}\" → [{string.Join(", ", names)}]");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[CatClaw] 拆分艺术家 \"{combined.Name}\" 失败: {ex.Message}");
+                    }
+                }
+            });
+
+            // 清理可能产生的孤立 SongArtists 记录
+            await CleanupOrphanedPlayHistoryAndFavoritesAsync();
+
+            System.Diagnostics.Debug.WriteLine("[CatClaw] 合并艺术家拆分迁移完成");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 合并艺术家拆分迁移失败: {ex.Message}");
+        }
     }
 
     /// <summary>用于恢复时读取艺术家行的辅助类</summary>

@@ -846,7 +846,18 @@ public partial class NowPlayingViewModel : ObservableObject
                                 if (resolved.Duration > 0)
                                     song.Duration = resolved.Duration;
                                 if (!string.IsNullOrEmpty(resolved.Artist))
-                                    song.ArtistId = await _database.EnsureArtistAsync(resolved.Artist);
+                                {
+                                    var names = MusicUtility.SplitArtistNames(resolved.Artist);
+                                    song.ArtistId = await _database.EnsureArtistAsync(names[0]);
+                                    if (names.Count > 1)
+                                    {
+                                        // 次要艺术家
+                                        var allIds = new List<int>();
+                                        foreach (var n in names)
+                                            allIds.Add(await _database.EnsureArtistAsync(n));
+                                        try { await _database.SaveSongArtistsBatchAsync(new List<(int, List<int>)> { (song.Id, allIds) }); } catch { }
+                                    }
+                                }
                                 if (!string.IsNullOrEmpty(resolved.Album))
                                     song.AlbumId = await _database.EnsureAlbumAsync(resolved.Album, song.ArtistId);
                                 await _database.SaveSongAsync(song);
@@ -875,7 +886,17 @@ public partial class NowPlayingViewModel : ObservableObject
                         if (updated != null)
                         {
                             if (!string.IsNullOrEmpty(updated.Artist))
-                                updated.ArtistId = await _database.EnsureArtistAsync(updated.Artist);
+                            {
+                                var names = MusicUtility.SplitArtistNames(updated.Artist);
+                                updated.ArtistId = await _database.EnsureArtistAsync(names[0]);
+                                if (names.Count > 1)
+                                {
+                                    var allIds = new List<int>();
+                                    foreach (var n in names)
+                                        allIds.Add(await _database.EnsureArtistAsync(n));
+                                    try { await _database.SaveSongArtistsBatchAsync(new List<(int, List<int>)> { (updated.Id, allIds) }); } catch { }
+                                }
+                            }
                             if (!string.IsNullOrEmpty(updated.Album))
                                 updated.AlbumId = await _database.EnsureAlbumAsync(updated.Album, updated.ArtistId);
                             await _database.SaveSongAsync(updated);

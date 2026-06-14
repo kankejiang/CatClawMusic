@@ -53,10 +53,14 @@ public static class AndroidMediaScanner
                 // 放宽检查：Android 10+ scoped storage 下 File.Exists 可能误判，只过滤空路径
                 if (string.IsNullOrEmpty(dataPath)) continue;
 
+                var rawArtist = cursor.GetString(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Artist)) ?? "未知艺术家";
+                var artistNames = MusicUtility.SplitArtistNames(rawArtist);
+                var normalizedArtist = artistNames.Count > 0 ? artistNames[0] : "未知艺术家";
+
                 songs.Add(new Song
                 {
                     Title = cursor.GetString(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Title)) ?? "未知标题",
-                    Artist = cursor.GetString(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Artist)) ?? "未知艺术家",
+                    Artist = normalizedArtist,
                     Album = cursor.GetString(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Album)) ?? "未知专辑",
                     AlbumId = 0,
                     Duration = (int)(cursor.GetLong(cursor.GetColumnIndexOrThrow(MediaStore.Audio.Media.InterfaceConsts.Duration)) / 1000),

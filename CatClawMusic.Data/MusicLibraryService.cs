@@ -100,11 +100,31 @@ public class MusicLibraryService : IMusicLibraryService
         {
             try
             {
-                // 填充 artist_id / album_id
-                song.ArtistId = await _db.EnsureArtistAsync(song.Artist);
+                // 拆分多艺术家（如 "国风堂/哦漏" → ["国风堂", "哦漏"]）
+                var artistNames = MusicUtility.SplitArtistNames(song.Artist);
+                var artistIds = new List<int>();
+                foreach (var name in artistNames)
+                {
+                    var id = await _db.EnsureArtistAsync(name);
+                    artistIds.Add(id);
+                }
+
+                // 主艺术家
+                song.ArtistId = artistIds.Count > 0 ? artistIds[0] : await _db.EnsureArtistAsync("未知艺术家");
                 song.AlbumId = await _db.EnsureAlbumAsync(song.Album, song.ArtistId);
                 song.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 await _db.SaveSongAsync(song);
+
+                // 多艺术家关联（跳过主艺术家，避免重复）
+                if (artistIds.Count > 1)
+                {
+                    var extraIds = artistIds.Skip(1).ToList();
+                    if (extraIds.Count > 0)
+                        await _db.SaveSongArtistsBatchAsync(new List<(int, List<int>)>
+                        {
+                            (song.Id, artistIds)
+                        });
+                }
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 保存歌曲失败: {song.FilePath}, {ex.Message}"); }
         }

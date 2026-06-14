@@ -363,6 +363,13 @@ public class NetworkMusicService : INetworkMusicService
                             song.Title = tagTitleDecoded != song.Title ? tagTitleDecoded : song.Title;
                         }
                         song.Artist = !string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家" ? tagSong.Artist : song.Artist;
+                        // 规范化艺术家名：拆分多值字符串，取第一位作为主艺术家
+                        if (!string.IsNullOrWhiteSpace(song.Artist))
+                        {
+                            var artistNames = MusicUtility.SplitArtistNames(song.Artist);
+                            if (artistNames.Count > 0)
+                                song.Artist = artistNames[0];
+                        }
                         song.Album = !string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑" ? tagSong.Album : song.Album;
                         song.Duration = tagSong.Duration > 0 ? tagSong.Duration : song.Duration;
                         song.Bitrate = tagSong.Bitrate > 0 ? tagSong.Bitrate : song.Bitrate;
@@ -401,6 +408,13 @@ public class NetworkMusicService : INetworkMusicService
                         if (!string.IsNullOrWhiteSpace(tagSong.Title) && tagSong.Title != song.Title)
                             song.Title = tagSong.Title;
                         song.Artist = !string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家" ? tagSong.Artist : song.Artist;
+                        // 规范化艺术家名：拆分多值字符串，取第一位作为主艺术家
+                        if (!string.IsNullOrWhiteSpace(song.Artist))
+                        {
+                            var artistNames = MusicUtility.SplitArtistNames(song.Artist);
+                            if (artistNames.Count > 0)
+                                song.Artist = artistNames[0];
+                        }
                         song.Album = !string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑" ? tagSong.Album : song.Album;
                         song.Duration = tagSong.Duration > 0 ? tagSong.Duration : song.Duration;
                         song.Bitrate = tagSong.Bitrate > 0 ? tagSong.Bitrate : song.Bitrate;

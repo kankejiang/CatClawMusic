@@ -155,7 +155,30 @@ public class MainApplication : Application
         services.AddSingleton<IPermissionService, PermissionService>();
         services.AddSingleton<PlayQueue>();
 
-        // Data services (with Android cache directory injection)
+        // Data services (with CatClawMusic persistent directory injection)
+        // 使用外部存储公开目录，卸载后数据仍保留
+        var catClawPersistDir = Path.Combine(
+            Android.OS.Environment.ExternalStorageDirectory!.AbsolutePath,
+            "CatClawMusic");
+        var artistCoversDir = Path.Combine(catClawPersistDir, "artist_covers");
+        var albumCoversDir = Path.Combine(catClawPersistDir, "album_covers");
+        try
+        {
+            Directory.CreateDirectory(artistCoversDir);
+            Directory.CreateDirectory(albumCoversDir);
+        }
+        catch (System.Exception)
+        {
+            // 权限不足时 fallback 到 app 专属目录
+            catClawPersistDir = Path.Combine(
+                global::Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath,
+                "CatClawMusic");
+            artistCoversDir = Path.Combine(catClawPersistDir, "artist_covers");
+            albumCoversDir = Path.Combine(catClawPersistDir, "album_covers");
+            Directory.CreateDirectory(artistCoversDir);
+            Directory.CreateDirectory(albumCoversDir);
+        }
+
         services.AddSingleton<ExploreDataService>(sp =>
         {
             var db = sp.GetRequiredService<MusicDatabase>();
@@ -166,23 +189,26 @@ public class MainApplication : Application
         services.AddSingleton<NetEaseMusicScraper>(sp =>
         {
             var db = sp.GetRequiredService<MusicDatabase>();
-            var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
-            return new NetEaseMusicScraper(db,
-                Path.Combine(cacheDir, "artist_covers"),
-                Path.Combine(cacheDir, "album_covers"));
+            return new NetEaseMusicScraper(db, artistCoversDir, albumCoversDir);
         });
         services.AddSingleton<AiArtistScraper>(sp =>
         {
-            var cacheDir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
             var llmClient = sp.GetRequiredService<CatClawMusic.Core.Interfaces.ILlmClient>();
             var agentService = sp.GetService<CatClawMusic.Core.Interfaces.IAgentService>();
-            return new AiArtistScraper(llmClient, Path.Combine(cacheDir, "artist_covers"),
+            return new AiArtistScraper(llmClient, artistCoversDir,
                 () => agentService?.IsConfigured ?? false,
                 () => sp.GetService<NetEaseMusicScraper>());
         });
-        // 注册 IArtistMetadataScraper 实现
+        // 多源照片刮削器（免 API Key：QQ音乐 → iTunes → Wikipedia）
+        services.AddSingleton<MultiSourcePhotoScraper>(sp =>
+        {
+            return new MultiSourcePhotoScraper(artistCoversDir);
+        });
+
+        // 注册 IArtistMetadataScraper 实现（优先级：网易云 → AI → 多源聚合）
         services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<NetEaseMusicScraper>());
         services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<AiArtistScraper>());
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<MultiSourcePhotoScraper>());
 
         // Android platform services
         services.AddSingleton<IDialogService, DialogService>();

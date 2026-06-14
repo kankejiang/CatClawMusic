@@ -72,9 +72,14 @@ public class Song
 
     // ── 以下为兼容查询的运行时字段，不存储 ──
 
-    /// <summary>艺术家名称（运行时赋值，不持久化）</summary>
+    /// <summary>艺术家名称（运行时赋值，不持久化）。单艺术家时等于主艺术家名，多艺术家时为第一个。</summary>
     [Ignore]
     public string Artist { get; set; } = string.Empty;
+
+    /// <summary>全部艺术家名称，用 " / " 分隔（运行时赋值，不持久化）。
+    /// 例如 "周杰伦 / 林俊杰"。单艺术家时等于 Artist。</summary>
+    [Ignore]
+    public string AllArtists { get; set; } = string.Empty;
 
     /// <summary>专辑名称（运行时赋值，不持久化）</summary>
     [Ignore]

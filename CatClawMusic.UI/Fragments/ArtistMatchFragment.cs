@@ -29,7 +29,11 @@ public class ArtistMatchFragment : Fragment
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
         ["chip_netease"] = "网易云",
-        ["chip_ai"] = "AI 搜索"
+        ["chip_ai"] = "AI 搜索",
+        ["chip_qqmusic"] = "QQ音乐",
+        ["chip_itunes"] = "iTunes",
+        ["chip_wikipedia"] = "Wikipedia",
+        ["chip_multisource"] = "多来源"
     };
 
     public override View OnCreateView(LayoutInflater inflater, ViewGroup? container, Bundle? savedInstanceState)
@@ -179,21 +183,44 @@ public class ArtistMatchFragment : Fragment
             return;
         }
 
-        var scrapers = MainApplication.Services.GetServices<IArtistMetadataScraper>();
-        var scraper = scrapers.FirstOrDefault(s => s.SourceName == _autoMatchSource);
-
-        if (scraper == null)
+        // 检查文件读写权限（刮削照片需要写入 /storage/emulated/0/CatClawMusic/）
+        var permService = MainApplication.Services.GetService<CatClawMusic.Core.Interfaces.IPermissionService>();
+        if (permService != null)
         {
-            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "刮削服务未就绪", ToastLength.Short)?.Show());
-            return;
+            // Android 11+ 需要"管理所有文件"权限；旧版本检查常规存储权限
+            bool hasPermission;
+            if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.R)
+            {
+                hasPermission = await permService.CheckManageStoragePermissionAsync();
+                if (!hasPermission)
+                {
+                    Activity?.RunOnUiThread(() =>
+                        Toast.MakeText(Context, "需要「管理所有文件」权限来保存照片到 CatClawMusic 目录", ToastLength.Long)?.Show());
+                    await permService.RequestManageStoragePermissionAsync();
+                    // 用户需在系统设置中手动授权，返回后重新检查
+                    hasPermission = await permService.CheckManageStoragePermissionAsync();
+                }
+            }
+            else
+            {
+                hasPermission = await permService.CheckStoragePermissionAsync();
+                if (!hasPermission)
+                {
+                    Activity?.RunOnUiThread(() =>
+                        Toast.MakeText(Context, "需要文件读写权限来保存艺术家照片，正在请求权限…", ToastLength.Long)?.Show());
+                    hasPermission = await permService.RequestStoragePermissionAsync();
+                }
+            }
+
+            if (!hasPermission)
+            {
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(Context, "未获得文件读写权限，照片将保存到应用专属目录", ToastLength.Long)?.Show());
+                // 不阻止匹配流程，照片会 fallback 到 app 专属目录
+            }
         }
 
-        if (scraper is AiArtistScraper aiScraper && !aiScraper.IsConfigured)
-        {
-            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "AI 服务未配置，请先在设置中配置 AI 模型", ToastLength.Long)?.Show());
-            return;
-        }
-
+        // 先获取数据库和艺术家列表（多来源分支也需要）
         var neteaseScraper = MainApplication.Services.GetService<NetEaseMusicScraper>();
         var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
         var artists = await db.GetAllArtistsAsync();
@@ -201,7 +228,6 @@ public class ArtistMatchFragment : Fragment
         List<Artist> needMatchArtists;
         if (_skipExisting)
         {
-            // 跳过已有：只匹配缺少选中字段的艺术家
             needMatchArtists = artists.Where(a =>
             {
                 if (_matchCover)
@@ -222,13 +248,42 @@ public class ArtistMatchFragment : Fragment
         }
         else
         {
-            // 重新匹配：匹配所有艺术家
             needMatchArtists = artists;
         }
 
         if (needMatchArtists.Count == 0)
         {
             Activity?.RunOnUiThread(() => Toast.MakeText(Context, "所有艺术家已无缺少的字段", ToastLength.Short)?.Show());
+            return;
+        }
+
+        // 多来源并行匹配：同时搜索所有来源，合并结果
+        if (_autoMatchSource == "多来源")
+        {
+            await AutoMatchMultiSourceAsync(needMatchArtists, db);
+            return;
+        }
+
+        // --- 以下为单来源匹配逻辑 ---
+        var scrapers = MainApplication.Services.GetServices<IArtistMetadataScraper>();
+        var scraper = scrapers.FirstOrDefault(s => s.SourceName == _autoMatchSource);
+
+        // 多源聚合来源（QQ音乐 / iTunes / Wikipedia）用 MultiSourcePhotoScraper
+        if (scraper == null && MainApplication.Services.GetService<MultiSourcePhotoScraper>() is { } ms
+            && new[] { "QQ音乐", "iTunes", "Wikipedia" }.Contains(_autoMatchSource))
+        {
+            scraper = ms;
+        }
+
+        if (scraper == null)
+        {
+            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "刮削服务未就绪", ToastLength.Short)?.Show());
+            return;
+        }
+
+        if (scraper is AiArtistScraper aiScraper && !aiScraper.IsConfigured)
+        {
+            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "AI 服务未配置，请先在设置中配置 AI 模型", ToastLength.Long)?.Show());
             return;
         }
 
@@ -266,15 +321,40 @@ public class ArtistMatchFragment : Fragment
                 else
                 {
                     // 其他来源：搜索 → 取最佳匹配
-                    var results = await scraper.SearchArtistsAsync(artist.Name, 3);
-                    bestMatch = results.FirstOrDefault(r =>
-                        r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
-                        ?? results.FirstOrDefault();
+                    List<ArtistSearchResult>? results;
+                    
+                    // 多源聚合（QQ/iTunes/Wikipedia）走 MultiSourcePhotoScraper
+                    var multiSource = MainApplication.Services.GetService<MultiSourcePhotoScraper>();
+                    var sourcePrefix = _autoMatchSource switch
+                    {
+                        "QQ音乐" => "多源聚合·QQ",
+                        "iTunes" => "多源聚合·iTunes",
+                        "Wikipedia" => "多源聚合·Wikipedia",
+                        _ => null
+                    };
+                    
+                    if (multiSource != null && sourcePrefix != null)
+                    {
+                        results = await multiSource.SearchArtistsAsync(artist.Name, 10);
+                        bestMatch = results.FirstOrDefault(r =>
+                            r.Source == sourcePrefix && r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
+                            ?? results.FirstOrDefault(r => r.Source == sourcePrefix)
+                            ?? results.FirstOrDefault(r =>
+                                r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase));
+                    }
+                    else
+                    {
+                        results = await scraper.SearchArtistsAsync(artist.Name, 3);
+                        bestMatch = results.FirstOrDefault(r =>
+                            r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
+                            ?? results.FirstOrDefault();
+                    }
 
                     // 封面
                     if (_matchCover && bestMatch?.CoverUrl != null)
                     {
-                        var cachePath = await scraper.DownloadAndCacheArtistCoverAsync(bestMatch.CoverUrl, artist.Name);
+                        var coverScraper = (multiSource != null && sourcePrefix != null) ? (IArtistMetadataScraper)multiSource : scraper;
+                        var cachePath = await coverScraper.DownloadAndCacheArtistCoverAsync(bestMatch.CoverUrl, artist.Name);
                         if (cachePath != null)
                             artist.Cover = cachePath;
                     }
@@ -313,6 +393,102 @@ public class ArtistMatchFragment : Fragment
             _btnAutoMatch.Enabled = true;
             _btnAutoMatch.Text = "一键匹配";
             Toast.MakeText(Context, $"已匹配 {matched}/{needMatchArtists.Count} 位艺术家（{_autoMatchSource}）", ToastLength.Long)?.Show();
+            _adapter?.UpdateArtists(_allArtists);
+        });
+    }
+
+    /// <summary>多来源并行一键匹配</summary>
+    private async Task AutoMatchMultiSourceAsync(List<Artist> needMatchArtists, MusicDatabase db)
+    {
+        var allScrapers = MainApplication.Services.GetServices<IArtistMetadataScraper>().ToList();
+        if (allScrapers.Count == 0)
+        {
+            Activity?.RunOnUiThread(() => Toast.MakeText(Context, "没有可用的刮削服务", ToastLength.Short)?.Show());
+            return;
+        }
+
+        _btnAutoMatch!.Enabled = false;
+        _btnAutoMatch.Text = $"匹配中 0/{needMatchArtists.Count}";
+        _progress!.Visibility = ViewStates.Visible;
+
+        var matched = 0;
+        for (var i = 0; i < needMatchArtists.Count; i++)
+        {
+            var artist = needMatchArtists[i];
+            try
+            {
+                // 并行搜索所有来源
+                var searchTasks = allScrapers.Select(s => s.SearchArtistsAsync(artist.Name, 3)).ToArray();
+                var resultsArray = await Task.WhenAll(searchTasks);
+                var allResults = resultsArray.SelectMany(r => r).ToList();
+
+                // 按名称去重
+                var uniqueResults = allResults
+                    .GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+
+                // 取最佳匹配
+                var bestMatch = uniqueResults
+                    .FirstOrDefault(r => r.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase))
+                    ?? uniqueResults.FirstOrDefault();
+
+                if (bestMatch != null)
+                {
+                    // 下载封面：根据结果来源选用正确的 Scraper
+                    if (_matchCover && !string.IsNullOrEmpty(bestMatch.CoverUrl))
+                    {
+                        IArtistMetadataScraper? coverScraper = null;
+                        var sourcePrefix = bestMatch.Source.Split('·')[0].Trim();
+                        coverScraper = allScrapers.FirstOrDefault(s => s.SourceName == sourcePrefix);
+                        if (coverScraper == null && sourcePrefix == "多源聚合")
+                            coverScraper = allScrapers.OfType<MultiSourcePhotoScraper>().FirstOrDefault();
+                        if (coverScraper == null)
+                            coverScraper = allScrapers.FirstOrDefault();
+
+                        if (coverScraper != null)
+                        {
+                            var cachePath = await coverScraper.DownloadAndCacheArtistCoverAsync(bestMatch.CoverUrl, artist.Name);
+                            if (cachePath != null)
+                                artist.Cover = cachePath;
+                        }
+                    }
+
+                    // 更新元数据字段
+                    if (_matchGender && !string.IsNullOrEmpty(bestMatch.Gender)
+                        && (_skipExisting ? string.IsNullOrEmpty(artist.Gender) : true))
+                        artist.Gender = bestMatch.Gender;
+                    if (_matchRegion && !string.IsNullOrEmpty(bestMatch.Region)
+                        && (_skipExisting ? string.IsNullOrEmpty(artist.Region) : true))
+                        artist.Region = CountryCodeToName(bestMatch.Region);
+                    if (_matchDesc && !string.IsNullOrEmpty(bestMatch.Description)
+                        && (_skipExisting ? string.IsNullOrEmpty(artist.Description) : true))
+                        artist.Description = bestMatch.Description;
+                    if (!string.IsNullOrEmpty(bestMatch.Birthday)
+                        && (_skipExisting ? string.IsNullOrEmpty(artist.Birthday) : true))
+                        artist.Birthday = bestMatch.Birthday;
+
+                    await db.UpdateArtistAsync(artist);
+                    matched++;
+                }
+            }
+            catch { }
+
+            var idx = i + 1;
+            Activity?.RunOnUiThread(() =>
+            {
+                _btnAutoMatch!.Text = $"匹配中 {idx}/{needMatchArtists.Count}";
+            });
+
+            await Task.Delay(300);
+        }
+
+        Activity?.RunOnUiThread(() =>
+        {
+            _progress!.Visibility = ViewStates.Gone;
+            _btnAutoMatch.Enabled = true;
+            _btnAutoMatch.Text = "一键匹配";
+            Toast.MakeText(Context, $"已匹配 {matched}/{needMatchArtists.Count} 位艺术家（多来源）", ToastLength.Long)?.Show();
             _adapter?.UpdateArtists(_allArtists);
         });
     }
@@ -456,7 +632,26 @@ public class ArtistMatchViewHolder : RecyclerView.ViewHolder
         var ct = _cts.Token;
         var artistName = artist.Name;
 
+        // 查询该艺术家第一首歌曲的封面路径作为 fallback
+        string? sampleCover = null;
+        try
+        {
+            if (string.IsNullOrEmpty(artist.Cover) || !System.IO.File.Exists(artist.Cover))
+            {
+                var db = MainApplication.Services.GetService<MusicDatabase>();
+                if (db != null)
+                {
+                    var songs = await db.GetSongsByArtistAsync(artistName);
+                    sampleCover = songs
+                        .FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath) && System.IO.File.Exists(s.CoverArtPath))?.CoverArtPath
+                        ?? songs.FirstOrDefault(s => !string.IsNullOrEmpty(s.FilePath) && System.IO.File.Exists(s.FilePath))?.FilePath;
+                }
+            }
+        }
+        catch { }
+
         Android.Graphics.Bitmap? bitmap = null;
+        var fallbackPath = sampleCover;
         try
         {
             bitmap = await Task.Run(() =>
@@ -472,6 +667,19 @@ public class ArtistMatchViewHolder : RecyclerView.ViewHolder
                     }
                 }
                 catch { }
+
+                ct.ThrowIfCancellationRequested();
+
+                // 使用歌曲封面作为 fallback（未匹配前）
+                if (!string.IsNullOrEmpty(fallbackPath) && System.IO.File.Exists(fallbackPath))
+                {
+                    try
+                    {
+                        var b = DecodeSampledBitmap(fallbackPath, 96, 96);
+                        if (b != null) return b;
+                    }
+                    catch { }
+                }
 
                 ct.ThrowIfCancellationRequested();
 

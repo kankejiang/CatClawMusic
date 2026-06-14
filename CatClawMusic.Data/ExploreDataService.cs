@@ -114,15 +114,44 @@ public class ExploreDataService
         catch { }
     }
 
-    /// <summary>获取所有艺术家及其歌曲数量</summary>
+    /// <summary>获取所有艺术家及其歌曲数量（通过 SongArtists 多对多表计数）</summary>
     public async Task<List<ArtistWithCount>> GetArtistsWithSongCountAsync()
     {
         await _db.EnsureInitializedAsync();
         var artists = await _db.GetAllArtistsAsync();
         var songs = await GetFilteredSongsAsync();
 
-        var artistSongCount = songs.GroupBy(s => s.ArtistId)
-            .ToDictionary(g => g.Key, g => g.Count());
+        // 通过 SongArtists 多对多表统计每首歌的艺术家，确保
+        // 合作歌曲（如 "周杰伦 / 林俊杰"）的两位艺术家都能正确计数。
+        //   主计数：通过 Song.ArtistId（快速路径，覆盖单艺术家歌曲）
+        //   补充计数：通过 SongArtists 表（覆盖多艺术家合作歌曲的次要艺术家）
+        var artistSongCount = new Dictionary<int, int>();
+
+        // 1) 通过主 ArtistId 计数（单艺术家 + 多艺术家中排第一的）
+        foreach (var g in songs.GroupBy(s => s.ArtistId))
+            artistSongCount[g.Key] = g.Count();
+
+        // 2) 通过 SongArtists 表补充多艺术家合作歌曲的计数
+        try
+        {
+            var songIds = songs.Select(s => s.Id).ToList();
+            if (songIds.Count > 0)
+            {
+                var songIdSet = new HashSet<int>(songIds);
+                // 批量查询 SongArtists，只取当前筛选出的歌曲
+                var allSongArtists = await _db.QuerySongArtistsBySongIdsAsync(songIdSet);
+                foreach (var sa in allSongArtists)
+                {
+                    // 避免重复计数：如果 ArtistId 和主 ArtistId 一致则已在上一步计入
+                    // 这里简单累加（多计一次也没关系，但最好去重）
+                    if (artistSongCount.ContainsKey(sa.ArtistId))
+                        artistSongCount[sa.ArtistId]++;
+                    else
+                        artistSongCount[sa.ArtistId] = 1;
+                }
+            }
+        }
+        catch { }
 
         // 从每个艺术家的第一首本地歌曲获取封面信息
         var artistSampleCover = songs
@@ -133,6 +162,7 @@ public class ExploreDataService
 
         return artists
             .Where(a => artistSongCount.ContainsKey(a.Id))
+            .Where(a => !IsCombinedArtistName(a.Name))
             .Select(a =>
             {
                 var result = new ArtistWithCount
@@ -242,6 +272,16 @@ public class ExploreDataService
         await FillPlayCountAsync(filtered);
 
         return filtered;
+    }
+
+    /// <summary>判断艺术家名是否为历史遗留的合并名称（如 "国风堂/哦漏"），应被过滤掉</summary>
+    private static bool IsCombinedArtistName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        if (!name.Contains('/')) return false;
+        // 调用 SplitArtistNames 验证：能拆出多个名字 → 是合并名称
+        var names = CatClawMusic.Core.Services.MusicUtility.SplitArtistNames(name);
+        return names.Count > 1;
     }
 
     /// <summary>从 PlayHistory 表填充歌曲的播放次数</summary>

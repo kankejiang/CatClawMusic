@@ -25,7 +25,7 @@ public class TagReader
                 Title = !string.IsNullOrWhiteSpace(tag.Title)
                     ? tag.Title : Path.GetFileNameWithoutExtension(displayName),
                 Artist = !string.IsNullOrWhiteSpace(tag.FirstPerformer)
-                    ? tag.FirstPerformer
+                    ? string.Join(" / ", tag.Performers)
                     : tag.FirstAlbumArtist ?? "未知艺术家",
                 Album = tag.Album ?? "未知专辑",
                 AlbumId = 0,
@@ -68,7 +68,7 @@ public class TagReader
             var fileInfo = new FileInfo(filePath);
 
             var artist = !string.IsNullOrWhiteSpace(tag.FirstPerformer)
-                ? tag.FirstPerformer
+                ? string.Join(" / ", tag.Performers)
                 : tag.FirstAlbumArtist ?? "未知艺术家";
 
             var song = new Song

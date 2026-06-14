@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
 
 namespace CatClawMusic.Data;
 
@@ -228,14 +229,33 @@ public class MusicScanner
         }
 
         // 预处理：批量确保所有艺术家和专辑存在，减少逐条数据库查询
-        // 第一步：确保艺术家存在
-        var artistNames = toInsert
-            .Where(s => !string.IsNullOrEmpty(s.Artist) && !_artistCache.ContainsKey(s.Artist))
-            .Select(s => s.Artist!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        //
+        // 第一步：对每首歌的 Artist 字段进行拆分（处理 "周杰伦/林俊杰" 等多值情况），
+        // 取第一个艺术家名作为该 Song 的主要艺术家，同时收集所有拆分出的名字以确保入库。
+        var allArtistNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var songAllArtistNames = new Dictionary<Song, List<string>>(); // 保留每首歌的完整艺术家列表
+        foreach (var s in toInsert)
+        {
+            if (string.IsNullOrEmpty(s.Artist))
+                continue;
 
-        foreach (var name in artistNames)
+            var names = MusicUtility.SplitArtistNames(s.Artist);
+            if (names.Count == 0)
+                continue;
+
+            // 保存完整艺术家列表，稍后用于创建 SongArtist 多对多关联
+            songAllArtistNames[s] = names;
+
+            // 第一个艺术家名作为该 Song 的主要艺术家
+            s.Artist = names[0];
+
+            // 收集所有拆分出的艺术家名用于后续确保入库
+            foreach (var name in names)
+                allArtistNames.Add(name);
+        }
+
+        // 第二步：批量确保所有艺术家存在（包含主艺术家和通过拆分得到的次要艺术家）
+        foreach (var name in allArtistNames)
         {
             if (!_artistCache.ContainsKey(name))
             {
@@ -244,7 +264,7 @@ public class MusicScanner
             }
         }
 
-        // 第二步：先设置 ArtistId，再计算 albumKeys（否则 ArtistId=0 会导致专辑关联错误）
+        // 第三步：先设置 ArtistId，再计算 albumKeys（否则 ArtistId=0 会导致专辑关联错误）
         foreach (var s in toInsert)
         {
             if (!string.IsNullOrEmpty(s.Artist) && _artistCache.TryGetValue(s.Artist, out var aid))
@@ -253,7 +273,7 @@ public class MusicScanner
                 s.ArtistId = defaultArtistId;
         }
 
-        // 第三步：确保专辑存在（此时 ArtistId 已正确设置）
+        // 第四步：确保专辑存在（此时 ArtistId 已正确设置）
         var albumKeys = toInsert
             .Where(s => !string.IsNullOrEmpty(s.Album))
             .Select(s => (s.Album!, s.ArtistId))
@@ -270,7 +290,7 @@ public class MusicScanner
             }
         }
 
-        // 第四步：设置 AlbumId 和 DateAdded
+        // 第五步：设置 AlbumId 和 DateAdded
         foreach (var s in toInsert)
         {
             if (!string.IsNullOrEmpty(s.Album) && _albumCache.TryGetValue((s.Album, s.ArtistId), out var albId))
@@ -282,6 +302,31 @@ public class MusicScanner
 
         // 批量插入：使用事务 + 内存去重，比逐条 InsertSongAsync 快 10 倍以上
         var inserted = await _db.InsertSongsBatchAsync(toInsert.ToList());
+
+        // 第六步：为多艺术家歌曲创建 SongArtist 多对多关联
+        if (songAllArtistNames.Count > 0)
+        {
+            var songArtistEntries = new List<(int SongId, List<int> ArtistIds)>();
+            foreach (var kvp in songAllArtistNames)
+            {
+                var song = kvp.Key;
+                var names = kvp.Value;
+
+                if (song.Id <= 0) continue;
+
+                var artistIds = names
+                    .Select(name => _artistCache.TryGetValue(name, out var id) ? id : -1)
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToList();
+
+                if (artistIds.Count > 0)
+                    songArtistEntries.Add((song.Id, artistIds));
+            }
+
+            if (songArtistEntries.Count > 0)
+                await _db.SaveSongArtistsBatchAsync(songArtistEntries);
+        }
 
         _totalInserted += inserted.Count;
         _batchCallback?.Invoke(inserted);
