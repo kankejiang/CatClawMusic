@@ -11,11 +11,13 @@ using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using CatClawMusic.UI.Platforms.Android;
+using Google.Android.Material.BottomSheet;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidX.Activity.Result;
 using AndroidX.Activity.Result.Contract;
 using AndroidX.Core.View;
 using GoogleSlider = Google.Android.Material.Slider.Slider;
+using System.Collections.Generic;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -53,6 +55,11 @@ public class NowPlayingFragment : Fragment
     private int _sleepRemainingSeconds;
     private bool _sleepFinishSong;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
+
+    // --- BottomSheet：歌曲详情面板 ---
+    private FrameLayout? _songDetailSheetContainer;
+    private BottomSheetBehavior? _songDetailSheetBehavior;
+    private SongDetailBottomSheet? _currentDetailFragment;
 
     // --- 歌词自定义设置（与 FullLyricsFragment 共享） ---
     private static readonly string[] LyricActiveColorHex   = { "#FFFFFFFF", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1", "#FFFFD54F" };
@@ -110,6 +117,19 @@ public class NowPlayingFragment : Fragment
         var coverContainer = (ViewGroup?)_albumCover.Parent?.Parent?.Parent;
         if (coverContainer?.LayoutParameters is LinearLayout.LayoutParams clp)
             _coverLayoutParams = clp;
+
+        // 封面点击/上滑 → 歌曲详情底部面板
+        _albumCover.SetOnTouchListener(new CoverTapAndSwipeUpListener(() =>
+        {
+            ShowSongDetailSheet();
+        }));
+
+        // 初始化 BottomSheet 容器
+        _songDetailSheetContainer = view.FindViewById<FrameLayout>(Resource.Id.song_detail_sheet_container)!;
+        _songDetailSheetBehavior = BottomSheetBehavior.From(_songDetailSheetContainer);
+        _songDetailSheetBehavior.State = BottomSheetBehavior.StateHidden;
+        _songDetailSheetBehavior.AddBottomSheetCallback(new DetailSheetCallback(this));
+
         _songTitle = view.FindViewById<TextView>(Resource.Id.song_title)!;
         _songArtist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
         _lyricPrev2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev2)!;
@@ -1723,6 +1743,119 @@ public class NowPlayingFragment : Fragment
                     break;
             }
             return false;
+        }
+    }
+
+    // --- BottomSheet 管理 ---
+
+    /// <summary>展开歌曲详情 BottomSheet（公开方法，供外部调用）</summary>
+    public void ShowSongDetailSheet(int songId)
+    {
+        if (_songDetailSheetBehavior == null || _songDetailSheetContainer == null)
+            return;
+
+        // 移除旧的 fragment
+        if (_currentDetailFragment != null)
+        {
+            var ft = ChildFragmentManager.BeginTransaction();
+            ft.Remove(_currentDetailFragment);
+            ft.Commit();
+            _currentDetailFragment = null;
+        }
+
+        // 创建新的详情 fragment
+        _currentDetailFragment = SongDetailBottomSheet.NewInstance(songId);
+        _currentDetailFragment.OnNavigateAway = () =>
+        {
+            HideSongDetailSheet();
+        };
+
+        var ft2 = ChildFragmentManager.BeginTransaction();
+        ft2.Replace(Resource.Id.song_detail_sheet_container, _currentDetailFragment);
+        ft2.CommitAllowingStateLoss();
+
+        _songDetailSheetBehavior.State = BottomSheetBehavior.StateExpanded;
+    }
+
+    /// <summary>展开歌曲详情 BottomSheet（当前播放歌曲）</summary>
+    private void ShowSongDetailSheet()
+    {
+        var song = _viewModel.CurrentSong;
+        if (song == null) return;
+        ShowSongDetailSheet(song.Id);
+    }
+
+    /// <summary>收起歌曲详情 BottomSheet</summary>
+    public void HideSongDetailSheet()
+    {
+        if (_songDetailSheetBehavior != null)
+            _songDetailSheetBehavior.State = BottomSheetBehavior.StateHidden;
+    }
+
+    /// <summary>BottomSheet 状态回调</summary>
+    private class DetailSheetCallback : BottomSheetBehavior.BottomSheetCallback
+    {
+        private readonly NowPlayingFragment _parent;
+
+        public DetailSheetCallback(NowPlayingFragment parent) => _parent = parent;
+
+        public override void OnStateChanged(View bottomSheet, int newState)
+        {
+            if (newState == BottomSheetBehavior.StateHidden && _parent._currentDetailFragment != null)
+            {
+                var ft = _parent.ChildFragmentManager.BeginTransaction();
+                ft.Remove(_parent._currentDetailFragment);
+                ft.CommitAllowingStateLoss();
+                _parent._currentDetailFragment = null;
+            }
+        }
+
+        public override void OnSlide(View bottomSheet, float slideOffset) { }
+    }
+
+    /// <summary>封面触摸监听：点击或上滑均弹出歌曲详情底部面板</summary>
+    internal class CoverTapAndSwipeUpListener : Java.Lang.Object, View.IOnTouchListener
+    {
+        private readonly Action _onTrigger;
+        private float _downX, _downY;
+        private long _downTime;
+        private bool _isSwiping;
+
+        public CoverTapAndSwipeUpListener(Action onTrigger) => _onTrigger = onTrigger;
+
+        public bool OnTouch(View? v, MotionEvent? e)
+        {
+            if (e == null || v == null) return true;
+            switch (e.Action)
+            {
+                case MotionEventActions.Down:
+                    _downX = e.GetX();
+                    _downY = e.GetY();
+                    _downTime = Java.Lang.JavaSystem.CurrentTimeMillis();
+                    _isSwiping = false;
+                    break;
+                case MotionEventActions.Move:
+                    float dy = _downY - e.GetY(); // 正值=向上滑
+                    if (dy > 60 && !_isSwiping)
+                    {
+                        _isSwiping = true;
+                        _onTrigger();
+                    }
+                    break;
+                case MotionEventActions.Up:
+                case MotionEventActions.Cancel:
+                    if (!_isSwiping)
+                    {
+                        float dx = Math.Abs(e.GetX() - _downX);
+                        float upDy = Math.Abs(e.GetY() - _downY);
+                        long dt = Java.Lang.JavaSystem.CurrentTimeMillis() - _downTime;
+                        if (dx < 30 && upDy < 30 && dt < 400)
+                            _onTrigger();
+                    }
+                    _isSwiping = false;
+                    break;
+            }
+            return true;
         }
     }
 }

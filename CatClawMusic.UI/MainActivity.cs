@@ -354,16 +354,7 @@ public class MainActivity : AppCompatActivity
                 SetOverlayOpen(false);
                 var overlay = FindViewById<View>(Resource.Id.overlay_container);
                 if (overlay != null) overlay.Visibility = ViewStates.Gone;
-                if (isLandscape)
-                {
-                    UpdateTabUI(_currentTab);
-                }
-                else
-                {
-                    SetToolbarVisible(true);
-                    SetBottomNavVisible(true);
-                    SetMiniPlayerVisible(true);
-                }
+                ForceRefreshTabUI();
             }
         }
         else
@@ -428,6 +419,20 @@ public class MainActivity : AppCompatActivity
 
     public void UpdateTabUIForCurrentTab() => UpdateTabUI(_currentTab);
 
+    /// <summary>强制刷新 Tab UI 状态（供 NavigationService GoBack 后还原沉浸式状态）</summary>
+    public void ForceRefreshTabUI()
+    {
+        _lastImmersiveState = !_lastImmersiveState;
+        UpdateTabUI(_currentTab);
+    }
+
+    /// <summary>切换到播放页并展示歌曲详情 BottomSheet</summary>
+    public void ShowSongDetailSheet(int songId)
+    {
+        SwitchTab(1); // 切到播放页
+        _tabAdapter.NowPlayingFragment?.ShowSongDetailSheet(songId);
+    }
+
     /// <summary>同步底部导航栏选中项到当前 Tab（供 NavigationService 调用）</summary>
     public void UpdateNavSelectionForCurrentTab() => UpdateNavSelection(_currentTab);
 
@@ -474,16 +479,7 @@ public class MainActivity : AppCompatActivity
                     activity.SetOverlayOpen(false);
                     var overlay = activity.FindViewById<View>(Resource.Id.overlay_container);
                     if (overlay != null) overlay.Visibility = ViewStates.Gone;
-                    if (isLandscape)
-                    {
-                        activity.UpdateTabUI(activity._currentTab);
-                    }
-                    else
-                    {
-                        activity.SetToolbarVisible(true);
-                        activity.SetBottomNavVisible(true);
-                        activity.SetMiniPlayerVisible(true);
-                    }
+                    activity.ForceRefreshTabUI();
                 }
             }
             else

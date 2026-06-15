@@ -5,6 +5,7 @@ using Android.Views;
 using Android.Views.InputMethods;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using CatClawMusic.Core.Interfaces;
@@ -15,7 +16,6 @@ using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
-using CatClawMusic.UI.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using CoreModels = CatClawMusic.Core.Models;
 
@@ -376,7 +376,10 @@ public class LibraryFragment : Fragment
             Activity?.RunOnUiThread(() =>
                 Toast.MakeText(ctx, isFav ? "已取消收藏" : "已收藏", ToastLength.Short)?.Show());
         });
-        dialog.AddItem("ℹ  歌曲详情", () => ShowSongInfoDialog(song));
+        dialog.AddItem("ℹ  歌曲详情", () =>
+        {
+            MainActivity.Instance.ShowSongDetailSheet(song.Id);
+        });
 
         // 本地音乐显示上传选项，网络音乐显示下载选项
         if (song.Source == CoreModels.SongSource.Local)
