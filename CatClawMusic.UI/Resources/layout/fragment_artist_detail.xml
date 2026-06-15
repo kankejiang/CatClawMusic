@@ -26,6 +26,14 @@
             android:textColor="?attr/catClawTextPrimary"
             android:fontFamily="@font/happy_zcool_2016"
             android:layout_marginStart="8dp" />
+        <ImageButton android:id="@+id/btn_edit"
+            android:layout_width="36dp" android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_edit"
+            android:tint="?attr/catClawTextPrimary"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:contentDescription="编辑" />
     </LinearLayout>
 
     <View android:layout_width="match_parent" android:layout_height="1dp"

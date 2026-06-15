@@ -33,8 +33,7 @@ public class ArtistMatchDetailFragment : Fragment
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
         ["chip_netease"] = "网易云",
-        ["chip_baidubaike"] = "百科",
-        ["chip_douban"] = "豆瓣",
+        ["chip_ai"] = "AI搜索",
         ["chip_qqmusic"] = "QQ音乐"
     };
 

@@ -42,7 +42,14 @@ public class ModelManagerFragment : Fragment
         _adapter.OnEdit += (s, model) => nav.PushFragment("ModelEdit", new Dictionary<string, object> { { "model", model } });
         _adapter.OnDelete += async (s, model) => await DeleteModelAsync(model);
         _adapter.OnToggleEnabled += (s, model) => ToggleModelEnabled(model);
+        _adapter.OnToggleFallback += (s, model) => ToggleModelFallback(model);
+        _adapter.OnOrderChanged += (s, e) => SaveModelOrder();
         _rvModels.SetAdapter(_adapter);
+
+        // 长按拖拽排序
+        var callback = new ModelAdapter.DragCallback(_adapter);
+        var touchHelper = new ItemTouchHelper(callback);
+        touchHelper.AttachToRecyclerView(_rvModels);
 
         RefreshModels();
     }
@@ -83,8 +90,21 @@ public class ModelManagerFragment : Fragment
 
     private void ToggleModelEnabled(LlmConfig model)
     {
-        // 保存修改
         AgentService.SaveConfig(model);
+    }
+
+    private void ToggleModelFallback(LlmConfig model)
+    {
+        AgentService.SaveConfig(model);
+    }
+
+    private void SaveModelOrder()
+    {
+        var orderedModels = _adapter?.GetModels();
+        if (orderedModels != null)
+        {
+            AgentService.SaveAllConfigs(orderedModels);
+        }
     }
 
     private async System.Threading.Tasks.Task DeleteModelAsync(LlmConfig model)

@@ -60,6 +60,8 @@ public class LlmConfig
     public double Temperature { get; set; } = 0.7;
     public int MaxTokens { get; set; } = 2048;
     public bool Enabled { get; set; }
+    /// <summary>是否作为退回模型（当前模型失败时按顺序尝试下一个启用了退回的模型）</summary>
+    public bool FallbackEnabled { get; set; }
 }
 
 public class LlmConfigEntry : LlmConfig

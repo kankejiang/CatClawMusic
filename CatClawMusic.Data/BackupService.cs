@@ -12,9 +12,9 @@ public class BackupData
     public string Version { get; set; } = "1.0";
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public List<Playlist> Playlists { get; set; } = new();
-    public List<PlaylistSong> PlaylistSongs { get; set; } = new();
-    public List<PlayHistory> PlayHistory { get; set; } = new();
-    public List<Favorite> Favorites { get; set; } = new();
+    public List<PlaylistSongBackupEntry> PlaylistSongs { get; set; } = new();
+    public List<PlayHistoryBackupEntry> PlayHistory { get; set; } = new();
+    public List<FavoriteBackupEntry> Favorites { get; set; } = new();
     public List<ArtistBackupEntry> Artists { get; set; } = new();
     public List<LlmConfig> LlmConfigs { get; set; } = new();
     public string? CurrentConfigName { get; set; }
@@ -42,6 +42,35 @@ public class ArtistBackupEntry
     public string? Birthday { get; set; }
     public string? Region { get; set; }
     public string? Description { get; set; }
+}
+
+/// <summary>歌单歌曲备份条目（包含歌曲标题和艺术家，用于跨设备恢复）</summary>
+public class PlaylistSongBackupEntry
+{
+    public int PlaylistId { get; set; }
+    public int SongId { get; set; }
+    public string? SongTitle { get; set; }
+    public string? SongArtist { get; set; }
+    public int Position { get; set; }
+}
+
+/// <summary>播放记录备份条目（包含歌曲标题和艺术家，用于跨设备恢复）</summary>
+public class PlayHistoryBackupEntry
+{
+    public int SongId { get; set; }
+    public string? SongTitle { get; set; }
+    public string? SongArtist { get; set; }
+    public int PlayCount { get; set; }
+    public long PlayedAt { get; set; }
+}
+
+/// <summary>收藏备份条目（包含歌曲标题和艺术家，用于跨设备恢复）</summary>
+public class FavoriteBackupEntry
+{
+    public int SongId { get; set; }
+    public string? SongTitle { get; set; }
+    public string? SongArtist { get; set; }
+    public long AddedAt { get; set; }
 }
 
 /// <summary>备份与恢复服务</summary>
@@ -75,12 +104,12 @@ public class BackupService
         if (items.HasFlag(BackupItems.Playlists))
         {
             data.Playlists = await _db.GetAllPlaylistsAsync();
-            data.PlaylistSongs = await LoadAllPlaylistSongsAsync();
+            data.PlaylistSongs = await LoadAllPlaylistSongsWithInfoAsync();
         }
         if (items.HasFlag(BackupItems.PlayHistory))
-            data.PlayHistory = await _db.GetRecentPlaysAsync(200);
+            data.PlayHistory = await LoadPlayHistoryWithInfoAsync();
         if (items.HasFlag(BackupItems.Favorites))
-            data.Favorites = await _db.GetFavoritesAsync();
+            data.Favorites = await LoadFavoritesWithInfoAsync();
         if (items.HasFlag(BackupItems.Artists))
             data.Artists = await LoadArtistMetadataAsync();
         if (items.HasFlag(BackupItems.LlmConfigs))
@@ -154,14 +183,15 @@ public class BackupService
         catch { return null; }
     }
 
-    private async Task<List<PlaylistSong>> LoadAllPlaylistSongsAsync()
+    private async Task<List<PlaylistSongBackupEntry>> LoadAllPlaylistSongsWithInfoAsync()
     {
         var playlists = await _db.GetAllPlaylistsAsync();
-        var allSongs = new List<PlaylistSong>();
+        var allSongs = await _db.GetSongsAsync();
+        var songMap = allSongs.ToDictionary(s => s.Id, s => s);
+        var allEntries = new List<PlaylistSongBackupEntry>();
+
         foreach (var pl in playlists)
         {
-            var entries = await _db.GetPlaylistSongsAsync(pl.Id);
-            // 需要从数据库直接读取 PlaylistSong 记录
             try
             {
                 var dbConn = GetDatabaseConnection();
@@ -169,11 +199,62 @@ public class BackupService
                     .Where(ps => ps.PlaylistId == pl.Id)
                     .OrderBy(ps => ps.Position)
                     .ToListAsync();
-                allSongs.AddRange(songs);
+
+                foreach (var ps in songs)
+                {
+                    songMap.TryGetValue(ps.SongId, out var song);
+                    allEntries.Add(new PlaylistSongBackupEntry
+                    {
+                        PlaylistId = ps.PlaylistId,
+                        SongId = ps.SongId,
+                        SongTitle = song?.Title,
+                        SongArtist = song?.Artist,
+                        Position = ps.Position,
+                    });
+                }
             }
             catch { }
         }
-        return allSongs;
+        return allEntries;
+    }
+
+    private async Task<List<PlayHistoryBackupEntry>> LoadPlayHistoryWithInfoAsync()
+    {
+        var history = await _db.GetRecentPlaysAsync(200);
+        var allSongs = await _db.GetSongsAsync();
+        var songMap = allSongs.ToDictionary(s => s.Id, s => s);
+
+        return history.Select(h =>
+        {
+            songMap.TryGetValue(h.SongId, out var song);
+            return new PlayHistoryBackupEntry
+            {
+                SongId = h.SongId,
+                SongTitle = song?.Title,
+                SongArtist = song?.Artist,
+                PlayCount = h.PlayCount,
+                PlayedAt = h.PlayedAt,
+            };
+        }).ToList();
+    }
+
+    private async Task<List<FavoriteBackupEntry>> LoadFavoritesWithInfoAsync()
+    {
+        var favs = await _db.GetFavoritesAsync();
+        var allSongs = await _db.GetSongsAsync();
+        var songMap = allSongs.ToDictionary(s => s.Id, s => s);
+
+        return favs.Select(f =>
+        {
+            songMap.TryGetValue(f.SongId, out var song);
+            return new FavoriteBackupEntry
+            {
+                SongId = f.SongId,
+                SongTitle = song?.Title,
+                SongArtist = song?.Artist,
+                AddedAt = f.AddedAt,
+            };
+        }).ToList();
     }
 
     private async Task<List<ArtistBackupEntry>> LoadArtistMetadataAsync()
@@ -211,18 +292,31 @@ public class BackupService
             oldIdToNewId[pl.Id] = newId;
         }
 
-        // 恢复歌单中的歌曲关联
+        // 构建本地歌曲 Title+Artist → SongId 映射
         var allSongs = await _db.GetSongsAsync();
-        var songIdByTitleArtist = allSongs.ToDictionary(
-            s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant(),
-            s => s.Id);
+        var songKeyMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in allSongs)
+        {
+            var key = $"{(s.Title?.Trim() ?? "")}|{(s.Artist?.Trim() ?? "")}";
+            if (!songKeyMap.ContainsKey(key))
+                songKeyMap[key] = s.Id;
+        }
 
+        // 恢复歌单中的歌曲关联
         foreach (var ps in data.PlaylistSongs)
         {
             if (!oldIdToNewId.TryGetValue(ps.PlaylistId, out var newPlaylistId)) continue;
 
-            // 通过歌曲标题+艺术家匹配本地歌曲
+            // 优先通过 SongId 匹配，其次通过 Title+Artist 匹配
             var song = allSongs.FirstOrDefault(s => s.Id == ps.SongId);
+            if (song == null && !string.IsNullOrEmpty(ps.SongTitle))
+            {
+                var key = $"{(ps.SongTitle?.Trim() ?? "")}|{(ps.SongArtist?.Trim() ?? "")}";
+                songKeyMap.TryGetValue(key, out var matchedId);
+                if (matchedId > 0)
+                    song = allSongs.FirstOrDefault(s => s.Id == matchedId);
+            }
+
             if (song != null)
             {
                 await _db.AddSongToPlaylistAsync(newPlaylistId, song.Id);
@@ -232,17 +326,36 @@ public class BackupService
 
     private async Task RestorePlayHistoryAsync(BackupData data)
     {
-        // 播放记录基于现有歌曲恢复
         var allSongs = await _db.GetSongsAsync();
-        var songIds = allSongs.Select(s => s.Id).ToHashSet();
+        var songIdSet = allSongs.Select(s => s.Id).ToHashSet();
+
+        // 构建 Title+Artist → SongId 映射
+        var songKeyMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in allSongs)
+        {
+            var key = $"{(s.Title?.Trim() ?? "")}|{(s.Artist?.Trim() ?? "")}";
+            if (!songKeyMap.ContainsKey(key))
+                songKeyMap[key] = s.Id;
+        }
 
         foreach (var ph in data.PlayHistory)
         {
-            if (songIds.Contains(ph.SongId))
+            // 优先 SongId，其次 Title+Artist
+            int songId = 0;
+            if (songIdSet.Contains(ph.SongId))
             {
-                // 重新记录播放（会自动合并或创建）
+                songId = ph.SongId;
+            }
+            else if (!string.IsNullOrEmpty(ph.SongTitle))
+            {
+                var key = $"{(ph.SongTitle?.Trim() ?? "")}|{(ph.SongArtist?.Trim() ?? "")}";
+                songKeyMap.TryGetValue(key, out songId);
+            }
+
+            if (songId > 0)
+            {
                 for (int i = 0; i < ph.PlayCount; i++)
-                    await _db.RecordPlayAsync(ph.SongId);
+                    await _db.RecordPlayAsync(songId);
             }
         }
     }
@@ -250,15 +363,36 @@ public class BackupService
     private async Task RestoreFavoritesAsync(BackupData data)
     {
         var allSongs = await _db.GetSongsAsync();
-        var songIds = allSongs.Select(s => s.Id).ToHashSet();
+        var songIdSet = allSongs.Select(s => s.Id).ToHashSet();
+
+        // 构建 Title+Artist → SongId 映射
+        var songKeyMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in allSongs)
+        {
+            var key = $"{(s.Title?.Trim() ?? "")}|{(s.Artist?.Trim() ?? "")}";
+            if (!songKeyMap.ContainsKey(key))
+                songKeyMap[key] = s.Id;
+        }
 
         foreach (var fav in data.Favorites)
         {
-            if (songIds.Contains(fav.SongId))
+            // 优先 SongId，其次 Title+Artist
+            int songId = 0;
+            if (songIdSet.Contains(fav.SongId))
             {
-                var isFav = await _db.IsFavoriteAsync(fav.SongId);
+                songId = fav.SongId;
+            }
+            else if (!string.IsNullOrEmpty(fav.SongTitle))
+            {
+                var key = $"{(fav.SongTitle?.Trim() ?? "")}|{(fav.SongArtist?.Trim() ?? "")}";
+                songKeyMap.TryGetValue(key, out songId);
+            }
+
+            if (songId > 0)
+            {
+                var isFav = await _db.IsFavoriteAsync(songId);
                 if (!isFav)
-                    await _db.SetFavoriteAsync(fav.SongId, true);
+                    await _db.SetFavoriteAsync(songId, true);
             }
         }
     }

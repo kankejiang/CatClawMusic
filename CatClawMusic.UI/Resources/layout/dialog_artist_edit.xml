@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="20dp">
+
+        <!-- Title -->
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="编辑艺术家信息"
+            android:textSize="18sp"
+            android:textColor="?attr/catClawTextPrimary"
+            android:fontFamily="@font/happy_zcool_2016"
+            android:gravity="center" />
+
+        <!-- 元数据匹配区域 -->
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="元数据匹配"
+            android:textSize="14sp"
+            android:textColor="?attr/catClawTextSecondary"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chip_source_group"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            app:singleSelection="true"
+            app:selectionRequired="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_ai"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="AI搜索" android:checked="true"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_netease"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="网易云"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_qqmusic"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="QQ音乐"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_search_metadata"
+            android:layout_width="match_parent" android:layout_height="40dp"
+            android:layout_marginTop="8dp"
+            android:text="搜索元数据"
+            android:textSize="13sp"
+            app:cornerRadius="8dp"
+            app:backgroundTint="?attr/catClawAccentColor"
+            android:textColor="?attr/catClawTextOnPrimary" />
+
+        <LinearLayout android:id="@+id/layout_searching"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center" android:visibility="gone">
+            <ProgressBar android:layout_width="24dp" android:layout_height="24dp"
+                android:indeterminate="true"
+                android:indeterminateTint="?attr/catClawAccentColor" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="正在搜索..."
+                android:textSize="12sp"
+                android:textColor="?attr/catClawTextHint"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/tv_match_result"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textSize="12sp"
+            android:textColor="?attr/catClawAccentColor"
+            android:visibility="gone" />
+
+        <!-- 分割线 -->
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:layout_marginVertical="14dp"
+            android:background="?attr/catClawCardBorder" />
+
+        <!-- 手动编辑区域 -->
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="手动编辑"
+            android:textSize="14sp"
+            android:textColor="?attr/catClawTextSecondary"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_gender"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:hint="性别"
+            app:boxStrokeColor="?attr/catClawAccentColor"
+            app:hintTextColor="?attr/catClawAccentColor"
+            app:boxStrokeWidth="1dp"
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxCornerRadiusBottomStart="8dp"
+            app:boxCornerRadiusTopEnd="8dp"
+            app:boxCornerRadiusTopStart="8dp"
+            app:boxBackgroundColor="?attr/catClawCardBackground">
+            <com.google.android.material.textfield.TextInputEditText
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:singleLine="true"
+                android:inputType="text"
+                android:textColor="?attr/catClawTextPrimary"
+                android:textColorHint="?attr/catClawTextHint" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_region"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:hint="国籍"
+            app:boxStrokeColor="?attr/catClawAccentColor"
+            app:hintTextColor="?attr/catClawAccentColor"
+            app:boxStrokeWidth="1dp"
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxCornerRadiusBottomStart="8dp"
+            app:boxCornerRadiusTopEnd="8dp"
+            app:boxCornerRadiusTopStart="8dp"
+            app:boxBackgroundColor="?attr/catClawCardBackground">
+            <com.google.android.material.textfield.TextInputEditText
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:singleLine="true"
+                android:inputType="text"
+                android:textColor="?attr/catClawTextPrimary"
+                android:textColorHint="?attr/catClawTextHint" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_birthday"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:hint="生日"
+            app:boxStrokeColor="?attr/catClawAccentColor"
+            app:hintTextColor="?attr/catClawAccentColor"
+            app:boxStrokeWidth="1dp"
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxCornerRadiusBottomStart="8dp"
+            app:boxCornerRadiusTopEnd="8dp"
+            app:boxCornerRadiusTopStart="8dp"
+            app:boxBackgroundColor="?attr/catClawCardBackground">
+            <com.google.android.material.textfield.TextInputEditText
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:singleLine="true"
+                android:inputType="text"
+                android:textColor="?attr/catClawTextPrimary"
+                android:textColorHint="?attr/catClawTextHint" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/til_description"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="简介"
+            app:boxStrokeColor="?attr/catClawAccentColor"
+            app:hintTextColor="?attr/catClawAccentColor"
+            app:boxStrokeWidth="1dp"
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxCornerRadiusBottomStart="8dp"
+            app:boxCornerRadiusTopEnd="8dp"
+            app:boxCornerRadiusTopStart="8dp"
+            app:boxBackgroundColor="?attr/catClawCardBackground">
+            <com.google.android.material.textfield.TextInputEditText
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:minLines="3" android:maxLines="5"
+                android:gravity="top"
+                android:inputType="textMultiLine"
+                android:textColor="?attr/catClawTextPrimary"
+                android:textColorHint="?attr/catClawTextHint" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- 底部按钮 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_cancel"
+                android:layout_width="0dp" android:layout_height="40dp"
+                android:layout_weight="1"
+                android:text="取消"
+                android:textSize="13sp"
+                app:cornerRadius="8dp"
+                android:layout_marginEnd="8dp"
+                app:backgroundTint="?attr/catClawCardBackground"
+                android:textColor="?attr/catClawTextPrimary"
+                app:strokeColor="?attr/catClawCardBorder"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_save"
+                android:layout_width="0dp" android:layout_height="40dp"
+                android:layout_weight="1"
+                android:text="保存"
+                android:textSize="13sp"
+                app:cornerRadius="8dp"
+                app:backgroundTint="?attr/catClawAccentColor"
+                android:textColor="?attr/catClawTextOnPrimary" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

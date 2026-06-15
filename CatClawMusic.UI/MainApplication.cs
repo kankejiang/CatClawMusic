@@ -206,22 +206,16 @@ public class MainApplication : Application
             return new MultiSourcePhotoScraper(artistCoversDir);
         });
 
-        // 豆瓣艺术家元数据刮削器（中文简介质量高）
-        services.AddSingleton<DoubanScraper>(sp => new DoubanScraper(artistCoversDir));
-
-        // 百度百科艺术家元数据刮削器（中文信息最全：本名/昵称/民族/出生地/经纪公司/代表作品等）
-        services.AddSingleton<BaiduBaikeScraper>(sp => new BaiduBaikeScraper(artistCoversDir));
-
-        // QQ音乐艺术家元数据刮削器（华语覆盖最好，有详情接口）
-        services.AddSingleton<MultiSourcePhotoScraper>(sp =>
+        // AI 艺术家元数据刮削器（使用 LLM 获取性别、国籍、简介等）
+        services.AddSingleton<AiArtistScraper>(sp =>
         {
-            return new MultiSourcePhotoScraper(artistCoversDir);
+            return new AiArtistScraper(artistCoversDir,
+                () => CatClawMusic.Core.Services.AI.AgentService.LoadConfig());
         });
 
-        // 注册 IArtistMetadataScraper 实现（优先级：网易云 → 百度百科 → 豆瓣 → QQ音乐）
+        // 注册 IArtistMetadataScraper 实现（优先级：网易云 → AI搜索 → QQ音乐）
         services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<NetEaseMusicScraper>());
-        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<BaiduBaikeScraper>());
-        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<DoubanScraper>());
+        services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<AiArtistScraper>());
         services.AddSingleton<IArtistMetadataScraper>(sp => sp.GetRequiredService<MultiSourcePhotoScraper>());
 
         // Android platform services
@@ -238,7 +232,8 @@ public class MainApplication : Application
         services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentConfigStorage>(agentConfigStorage);
         services.AddSingleton<CatClawMusic.Core.Interfaces.ILlmClient>(sp =>
             new CatClawMusic.Core.Services.AI.OpenAiCompatibleLlmClient(
-                () => CatClawMusic.Core.Services.AI.AgentService.LoadConfig()));
+                () => CatClawMusic.Core.Services.AI.AgentService.LoadConfig(),
+                () => CatClawMusic.Core.Services.AI.AgentService.LoadAllConfigs()));
         services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.SearchMusicTool>();
         services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.CreatePlaylistTool>();
         services.AddSingleton<CatClawMusic.Core.Interfaces.IAgentTool, CatClawMusic.Core.Services.AI.AddSongToPlaylistTool>();

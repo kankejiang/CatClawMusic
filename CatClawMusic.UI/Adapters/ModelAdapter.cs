@@ -11,12 +11,26 @@ public class ModelAdapter : RecyclerView.Adapter
     public event EventHandler<LlmConfig>? OnEdit;
     public event EventHandler<LlmConfig>? OnDelete;
     public event EventHandler<LlmConfig>? OnToggleEnabled;
+    public event EventHandler<LlmConfig>? OnToggleFallback;
+    public event EventHandler? OnOrderChanged;
 
     public void SetModels(List<LlmConfig> models)
     {
         _models.Clear();
         _models.AddRange(models);
         NotifyDataSetChanged();
+    }
+
+    public List<LlmConfig> GetModels() => _models.ToList();
+
+    public void MoveItem(int fromPosition, int toPosition)
+    {
+        if (fromPosition < 0 || fromPosition >= _models.Count || toPosition < 0 || toPosition >= _models.Count)
+            return;
+        var item = _models[fromPosition];
+        _models.RemoveAt(fromPosition);
+        _models.Insert(toPosition, item);
+        NotifyItemMoved(fromPosition, toPosition);
     }
 
     public override int ItemCount => _models.Count;
@@ -35,7 +49,40 @@ public class ModelAdapter : RecyclerView.Adapter
             .Inflate(Resource.Layout.item_model, parent, false)!;
         return new ModelViewHolder(view, model => OnEdit?.Invoke(this, model),
             model => OnDelete?.Invoke(this, model),
-            model => OnToggleEnabled?.Invoke(this, model));
+            model => OnToggleEnabled?.Invoke(this, model),
+            model => OnToggleFallback?.Invoke(this, model));
+    }
+
+    /// <summary>拖拽排序回调</summary>
+    public class DragCallback : ItemTouchHelper.SimpleCallback
+    {
+        private readonly ModelAdapter _adapter;
+
+        public DragCallback(ModelAdapter adapter) : base(ItemTouchHelper.Up | ItemTouchHelper.Down, 0)
+        {
+            _adapter = adapter;
+        }
+
+        public override bool OnMove(RecyclerView? recyclerView, RecyclerView.ViewHolder? viewHolder, RecyclerView.ViewHolder? target)
+        {
+            if (viewHolder == null || target == null) return false;
+            var from = viewHolder.AdapterPosition;
+            var to = target.AdapterPosition;
+            if (from == -1 || to == -1) return false;
+
+            _adapter.MoveItem(from, to);
+            return true;
+        }
+
+        public override void OnSwiped(RecyclerView.ViewHolder? viewHolder, int direction) { }
+
+        public override bool IsLongPressDragEnabled => true;
+
+        public override void ClearView(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder)
+        {
+            base.ClearView(recyclerView, viewHolder);
+            _adapter.OnOrderChanged?.Invoke(_adapter, EventArgs.Empty);
+        }
     }
 
     private class ModelViewHolder : RecyclerView.ViewHolder
@@ -44,16 +91,18 @@ public class ModelAdapter : RecyclerView.Adapter
         private readonly TextView _tvProviderModel;
         private readonly TextView _tvApiUrl;
         private readonly Switch _switchEnabled;
+        private readonly CheckBox _cbFallback;
         private readonly ImageButton _btnMenu;
         private LlmConfig? _currentModel;
 
         public ModelViewHolder(View itemView, Action<LlmConfig> onEdit, Action<LlmConfig> onDelete,
-            Action<LlmConfig> onToggleEnabled) : base(itemView)
+            Action<LlmConfig> onToggleEnabled, Action<LlmConfig> onToggleFallback) : base(itemView)
         {
             _tvName = itemView.FindViewById<TextView>(Resource.Id.tv_name)!;
             _tvProviderModel = itemView.FindViewById<TextView>(Resource.Id.tv_provider_model)!;
             _tvApiUrl = itemView.FindViewById<TextView>(Resource.Id.tv_api_url)!;
             _switchEnabled = itemView.FindViewById<Switch>(Resource.Id.switch_enabled)!;
+            _cbFallback = itemView.FindViewById<CheckBox>(Resource.Id.cb_fallback)!;
             _btnMenu = itemView.FindViewById<ImageButton>(Resource.Id.btn_menu)!;
 
             _switchEnabled.CheckedChange += (s, e) =>
@@ -62,6 +111,15 @@ public class ModelAdapter : RecyclerView.Adapter
                 {
                     _currentModel.Enabled = e.IsChecked;
                     onToggleEnabled(_currentModel);
+                }
+            };
+
+            _cbFallback.CheckedChange += (s, e) =>
+            {
+                if (_currentModel != null)
+                {
+                    _currentModel.FallbackEnabled = e.IsChecked;
+                    onToggleFallback(_currentModel);
                 }
             };
 
@@ -81,6 +139,7 @@ public class ModelAdapter : RecyclerView.Adapter
             _tvProviderModel.Text = $"{providerName} · {model.Model}";
             _tvApiUrl.Text = model.ApiUrl;
             _switchEnabled.Checked = model.Enabled;
+            _cbFallback.Checked = model.FallbackEnabled;
         }
 
         private string GetProviderName(string providerId)

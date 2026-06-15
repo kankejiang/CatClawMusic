@@ -9,6 +9,9 @@ using CatClawMusic.Data;
 using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.ViewModels;
 using Google.Android.Material.Button;
+using Google.Android.Material.Chip;
+using Google.Android.Material.Dialog;
+using Google.Android.Material.TextField;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -36,6 +39,7 @@ public class ArtistDetailFragment : Fragment
     private NetEaseMusicScraper? _scraper;
     private List<Song> _songs = new();
     private string _artistNameStr = "";
+    private volatile bool _autoMatchCancelled; // 编辑弹窗保存后取消自动匹配
 
     public override void OnCreate(Bundle? savedInstanceState)
     {
@@ -83,6 +87,7 @@ public class ArtistDetailFragment : Fragment
         _songList = view.FindViewById<RecyclerView>(Resource.Id.rv_songs)!;
 
         var btnBack = view.FindViewById<ImageButton>(Resource.Id.btn_back)!;
+        var btnEdit = view.FindViewById<ImageButton>(Resource.Id.btn_edit)!;
         var btnPlayAll = view.FindViewById<MaterialButton>(Resource.Id.btn_play_all)!;
         var tvTitle = view.FindViewById<TextView>(Resource.Id.tv_title)!;
 
@@ -90,6 +95,7 @@ public class ArtistDetailFragment : Fragment
         _artistName.Text = _artistNameStr;
 
         btnBack.Click += (s, e) => _navigationService.GoBack();
+        btnEdit.Click += (s, e) => ShowEditDialog();
 
         _songAdapter = new ExploreSongAdapter();
         _songList.SetLayoutManager(new LinearLayoutManager(Context));
@@ -203,6 +209,207 @@ public class ArtistDetailFragment : Fragment
         }
     }
 
+    private static readonly Dictionary<string, string> SourceChipToScraperName = new()
+    {
+        ["chip_ai"] = "AI搜索",
+        ["chip_netease"] = "网易云",
+        ["chip_qqmusic"] = "QQ音乐"
+    };
+
+    private async void ShowEditDialog()
+    {
+        if (Context == null) return;
+
+        var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+        var scrapers = MainApplication.Services.GetServices<IArtistMetadataScraper>().ToList();
+
+        var view = LayoutInflater.From(Context)!.Inflate(Resource.Layout.dialog_artist_edit, null)!;
+        var chipGroup = view.FindViewById<ChipGroup>(Resource.Id.chip_source_group)!;
+        var btnSearch = view.FindViewById<MaterialButton>(Resource.Id.btn_search_metadata)!;
+        var layoutSearching = view.FindViewById<LinearLayout>(Resource.Id.layout_searching)!;
+        var tvResult = view.FindViewById<TextView>(Resource.Id.tv_match_result)!;
+        var tilGender = view.FindViewById<TextInputLayout>(Resource.Id.til_gender)!;
+        var tilRegion = view.FindViewById<TextInputLayout>(Resource.Id.til_region)!;
+        var tilBirthday = view.FindViewById<TextInputLayout>(Resource.Id.til_birthday)!;
+        var tilDesc = view.FindViewById<TextInputLayout>(Resource.Id.til_description)!;
+        var btnCancel = view.FindViewById<MaterialButton>(Resource.Id.btn_cancel)!;
+        var btnSave = view.FindViewById<MaterialButton>(Resource.Id.btn_save)!;
+
+        // 加载当前艺术家数据
+        Artist? artistRecord = null;
+        try
+        {
+            var allArtists = await db.GetAllArtistsAsync();
+            artistRecord = allArtists.FirstOrDefault(a => a.Name == _artistNameStr);
+        }
+        catch { }
+
+        // 预填现有数据
+        if (artistRecord != null)
+        {
+            if (tilGender.EditText != null) tilGender.EditText.Text = artistRecord.Gender ?? "";
+            if (tilRegion.EditText != null) tilRegion.EditText.Text = artistRecord.Region ?? "";
+            if (tilBirthday.EditText != null) tilBirthday.EditText.Text = artistRecord.Birthday ?? "";
+            if (tilDesc.EditText != null) tilDesc.EditText.Text = artistRecord.Description ?? "";
+        }
+
+        var dialog = new MaterialAlertDialogBuilder(Context)
+            .SetView(view)
+            .SetCancelable(true)
+            .Create()!;
+
+        // 搜索元数据
+        btnSearch.Click += async (s, e) =>
+        {
+            var selectedChipId = chipGroup.CheckedChipId;
+            if (selectedChipId == View.NoId) return;
+
+            btnSearch.Enabled = false;
+            tvResult.Visibility = ViewStates.Gone;
+            layoutSearching.Visibility = ViewStates.Visible;
+
+            try
+            {
+                IArtistMetadataScraper? selectedScraper = null;
+                foreach (var scraper in scrapers)
+                {
+                    if (scraper.SourceName == "AI搜索" && selectedChipId == Resource.Id.chip_ai)
+                        selectedScraper = scraper;
+                    else if (scraper.SourceName == "网易云" && selectedChipId == Resource.Id.chip_netease)
+                        selectedScraper = scraper;
+                    else if (scraper.SourceName == "QQ音乐" && selectedChipId == Resource.Id.chip_qqmusic)
+                        selectedScraper = scraper;
+                }
+
+                if (selectedScraper != null)
+                {
+                    var results = await selectedScraper.SearchArtistsAsync(_artistNameStr, 3);
+                    var best = results.FirstOrDefault(r =>
+                        r.Name.Equals(_artistNameStr, StringComparison.OrdinalIgnoreCase))
+                        ?? results.FirstOrDefault();
+
+                    if (best != null)
+                    {
+                        // 自动填充到编辑框
+                        System.Diagnostics.Debug.WriteLine($"[ArtistEdit] AI结果: Gender={best.Gender}, Region={best.Region}, Birthday={best.Birthday}, Desc={best.Description}");
+
+                        if (tilGender.EditText != null && !string.IsNullOrWhiteSpace(best.Gender))
+                            tilGender.EditText.Text = best.Gender;
+                        if (tilRegion.EditText != null && !string.IsNullOrWhiteSpace(best.Region))
+                            tilRegion.EditText.Text = CountryCodeToName(best.Region);
+                        if (tilBirthday.EditText != null && !string.IsNullOrWhiteSpace(best.Birthday))
+                            tilBirthday.EditText.Text = best.Birthday;
+                        if (tilDesc.EditText != null && !string.IsNullOrWhiteSpace(best.Description))
+                            tilDesc.EditText.Text = best.Description;
+
+                        var sourceName = SourceChipToScraperName.Values.FirstOrDefault() ?? "AI搜索";
+                        tvResult.Text = $"已从{sourceName}获取到信息，已自动填写";
+                        tvResult.Visibility = ViewStates.Visible;
+                    }
+                    else
+                    {
+                        tvResult.Text = "未找到匹配结果";
+                        tvResult.Visibility = ViewStates.Visible;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                tvResult.Text = $"搜索失败: {ex.Message}";
+                tvResult.Visibility = ViewStates.Visible;
+            }
+            finally
+            {
+                layoutSearching.Visibility = ViewStates.Gone;
+                btnSearch.Enabled = true;
+            }
+        };
+
+        // 保存
+        btnSave.Click += async (s, e) =>
+        {
+            var gender = tilGender.EditText?.Text?.Trim() ?? "";
+            var region = tilRegion.EditText?.Text?.Trim() ?? "";
+            var birthday = tilBirthday.EditText?.Text?.Trim() ?? "";
+            var desc = tilDesc.EditText?.Text?.Trim() ?? "";
+
+            try
+            {
+                await db.EnsureInitializedAsync();
+
+                // 确保艺术家存在
+                var artistId = await db.EnsureArtistAsync(_artistNameStr);
+                var allArtists = await db.GetAllArtistsAsync();
+                artistRecord = allArtists.FirstOrDefault(a => a.Id == artistId);
+
+                if (artistRecord != null)
+                {
+                    artistRecord.Gender = string.IsNullOrEmpty(gender) ? null : gender;
+                    artistRecord.Region = string.IsNullOrEmpty(region) ? null : region;
+                    artistRecord.Birthday = string.IsNullOrEmpty(birthday) ? null : birthday;
+                    artistRecord.Description = string.IsNullOrEmpty(desc) ? null : desc;
+                    await db.UpdateArtistAsync(artistRecord);
+                }
+
+                dialog.Dismiss();
+
+                // 停止后台自动匹配
+                _autoMatchCancelled = true;
+
+                // 刷新显示
+                if (artistRecord != null)
+                    RefreshArtistDisplay(artistRecord);
+
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(Context, "保存成功", ToastLength.Short)?.Show());
+            }
+            catch (Exception ex)
+            {
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(Context, $"保存失败: {ex.Message}", ToastLength.Short)?.Show());
+            }
+        };
+
+        // 取消
+        btnCancel.Click += (s, e) => dialog.Dismiss();
+
+        dialog.Show();
+
+        // 设置 dialog 固定宽度
+        dialog.Window?.SetLayout(
+            (int)(Context.Resources!.DisplayMetrics!.WidthPixels * 0.92),
+            ViewGroup.LayoutParams.WrapContent);
+    }
+
+    private void RefreshArtistDisplay(Artist artist)
+    {
+        _artistGender.Visibility = ViewStates.Gone;
+        _artistBirthday.Visibility = ViewStates.Gone;
+        _artistCountry.Visibility = ViewStates.Gone;
+        _artistDesc.Visibility = ViewStates.Gone;
+
+        if (!string.IsNullOrEmpty(artist.Gender))
+        {
+            _artistGender.Text = artist.Gender + "  ·  ";
+            _artistGender.Visibility = ViewStates.Visible;
+        }
+        if (!string.IsNullOrEmpty(artist.Birthday))
+        {
+            _artistBirthday.Text = artist.Birthday + "  ·  ";
+            _artistBirthday.Visibility = ViewStates.Visible;
+        }
+        if (!string.IsNullOrEmpty(artist.Region))
+        {
+            _artistCountry.Text = artist.Region;
+            _artistCountry.Visibility = ViewStates.Visible;
+        }
+        if (!string.IsNullOrEmpty(artist.Description))
+        {
+            _artistDesc.Text = artist.Description;
+            _artistDesc.Visibility = ViewStates.Visible;
+        }
+    }
+
     /// <summary>从网络来源补充缺失的艺术家信息</summary>
     private async Task LoadOnlineInfoAsync(bool needCover, bool needGender, bool needBirthday, bool needRegion, bool needDesc, Artist? artistRecord, MusicDatabase db)
     {
@@ -211,6 +418,8 @@ public class ArtistDetailFragment : Fragment
         // 尝试所有来源
         foreach (var scraper in scrapers)
         {
+            if (_autoMatchCancelled) break;
+
             try
             {
                 var results = await scraper.SearchArtistsAsync(_artistNameStr, 3);

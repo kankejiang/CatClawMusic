@@ -10,6 +10,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
 {
     private readonly HttpClient _httpClient;
     private readonly Func<LlmConfig> _configProvider;
+    private readonly Func<List<LlmConfig>>? _fallbackConfigsProvider;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -18,14 +19,28 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
-    public OpenAiCompatibleLlmClient(Func<LlmConfig> configProvider)
+    public OpenAiCompatibleLlmClient(Func<LlmConfig> configProvider, Func<List<LlmConfig>>? fallbackConfigsProvider = null)
     {
         _configProvider = configProvider;
+        _fallbackConfigsProvider = fallbackConfigsProvider;
         _httpClient = new HttpClient(new HttpClientHandler
         {
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
         });
         _httpClient.Timeout = TimeSpan.FromSeconds(120);
+    }
+
+    /// <summary>获取所有可用的退回配置（启用了 FallbackEnabled 且 Enabled 的配置，按列表顺序）</summary>
+    private List<LlmConfig> GetFallbackConfigs()
+    {
+        if (_fallbackConfigsProvider == null) return new();
+        var currentConfig = _configProvider();
+        return _fallbackConfigsProvider()
+            .Where(c => c.FallbackEnabled && c.Enabled
+                && !string.IsNullOrWhiteSpace(c.ApiUrl)
+                && !string.IsNullOrWhiteSpace(c.ApiKey)
+                && c.Name != currentConfig.Name)
+            .ToList();
     }
 
     public async Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default)
@@ -34,6 +49,42 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         if (string.IsNullOrWhiteSpace(config.ApiUrl) || string.IsNullOrWhiteSpace(config.ApiKey))
             throw new InvalidOperationException("AI 服务未配置，请先在设置中配置 API 信息");
 
+        // 尝试当前配置
+        try
+        {
+            return await ChatWithConfigAsync(config, messages, tools, ct);
+        }
+        catch (Exception primaryEx)
+        {
+            // 尝试退回配置
+            var fallbacks = GetFallbackConfigs();
+            if (fallbacks.Count == 0)
+                throw;
+
+            System.Diagnostics.Debug.WriteLine($"[LlmClient] 主模型 {config.Name} 调用失败: {primaryEx.Message}，尝试退回模型...");
+
+            foreach (var fallback in fallbacks)
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LlmClient] 尝试退回模型: {fallback.Name} ({fallback.Model})");
+                    var result = await ChatWithConfigAsync(fallback, messages, tools, ct);
+                    System.Diagnostics.Debug.WriteLine($"[LlmClient] 退回模型 {fallback.Name} 调用成功");
+                    return result;
+                }
+                catch (Exception fbEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LlmClient] 退回模型 {fallback.Name} 也失败: {fbEx.Message}");
+                }
+            }
+
+            // 所有退回都失败，抛出原始异常
+            throw;
+        }
+    }
+
+    private async Task<LlmResponse> ChatWithConfigAsync(LlmConfig config, List<ChatMessage> messages, List<ToolDefinition>? tools, CancellationToken ct)
+    {
         var url = BuildChatUrl(config.ApiUrl);
         var body = BuildRequestBody(messages, tools, config);
 

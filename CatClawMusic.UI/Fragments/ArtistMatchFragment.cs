@@ -22,16 +22,13 @@ public class ArtistMatchFragment : Fragment
     private Button? _btnAutoMatch;
     private string _autoMatchSource = "多来源";
     private bool _matchCover = true;
-    private bool _matchGender = true;
-    private bool _matchRegion = true;
-    private bool _matchDesc = true;
+    private bool _matchInfo = true;
     private bool _skipExisting = true; // true=跳过已有, false=重新匹配
 
     private static readonly Dictionary<string, string> SourceChipToName = new()
     {
         ["chip_netease"] = "网易云",
-        ["chip_baidubaike"] = "百科",
-        ["chip_douban"] = "豆瓣",
+        ["chip_ai"] = "AI搜索",
         ["chip_qqmusic"] = "QQ音乐"
     };
 
@@ -89,14 +86,10 @@ public class ArtistMatchFragment : Fragment
 
         // 匹配字段多选框
         var chipFieldCover = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_cover);
-        var chipFieldGender = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_gender);
-        var chipFieldRegion = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_region);
-        var chipFieldDesc = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_desc);
+        var chipFieldInfo = view.FindViewById<Google.Android.Material.Chip.Chip>(Resource.Id.chip_field_info);
 
         if (chipFieldCover != null) chipFieldCover.CheckedChange += (s, e) => _matchCover = e.IsChecked;
-        if (chipFieldGender != null) chipFieldGender.CheckedChange += (s, e) => _matchGender = e.IsChecked;
-        if (chipFieldRegion != null) chipFieldRegion.CheckedChange += (s, e) => _matchRegion = e.IsChecked;
-        if (chipFieldDesc != null) chipFieldDesc.CheckedChange += (s, e) => _matchDesc = e.IsChecked;
+        if (chipFieldInfo != null) chipFieldInfo.CheckedChange += (s, e) => _matchInfo = e.IsChecked;
 
         // 跳过已有 / 重新匹配 切换
         var chipModeGroup = view.FindViewById<Google.Android.Material.Chip.ChipGroup>(Resource.Id.chip_group_mode);
@@ -164,11 +157,7 @@ public class ArtistMatchFragment : Fragment
     {
         if (_matchCover && (string.IsNullOrEmpty(artist.Cover) || !System.IO.File.Exists(artist.Cover)))
             return true;
-        if (_matchGender && string.IsNullOrEmpty(artist.Gender))
-            return true;
-        if (_matchRegion && string.IsNullOrEmpty(artist.Region))
-            return true;
-        if (_matchDesc && string.IsNullOrEmpty(artist.Description))
+        if (_matchInfo && (string.IsNullOrEmpty(artist.Gender) || string.IsNullOrEmpty(artist.Region) || string.IsNullOrEmpty(artist.Description)))
             return true;
         return false;
     }
@@ -176,7 +165,7 @@ public class ArtistMatchFragment : Fragment
     /// <summary>一键自动匹配 - 根据选中的字段和来源</summary>
     private async Task AutoMatchAsync()
     {
-        if (!_matchCover && !_matchGender && !_matchRegion && !_matchDesc)
+        if (!_matchCover && !_matchInfo)
         {
             Activity?.RunOnUiThread(() => Toast.MakeText(Context, "请至少选择一个匹配字段", ToastLength.Short)?.Show());
             return;
@@ -239,9 +228,7 @@ public class ArtistMatchFragment : Fragment
                     }
                     if (!hasCover) return true;
                 }
-                if (_matchGender && string.IsNullOrEmpty(a.Gender)) return true;
-                if (_matchRegion && string.IsNullOrEmpty(a.Region)) return true;
-                if (_matchDesc && string.IsNullOrEmpty(a.Description)) return true;
+                if (_matchInfo && (string.IsNullOrEmpty(a.Gender) || string.IsNullOrEmpty(a.Region) || string.IsNullOrEmpty(a.Description))) return true;
                 if (string.IsNullOrEmpty(a.Birthday)) return true;
                 return false;
             }).ToList();
@@ -304,7 +291,7 @@ public class ArtistMatchFragment : Fragment
                     }
 
                     // 搜索基本信息（获取 Description、CoverUrl）
-                    if (_matchCover || _matchGender || _matchRegion || _matchDesc)
+                    if (_matchCover || _matchInfo)
                     {
                         var results = await scraper.SearchArtistsAsync(artist.Name, 3);
                         bestMatch = results.FirstOrDefault(r =>
@@ -313,9 +300,7 @@ public class ArtistMatchFragment : Fragment
                     }
 
                     // 额外获取详细信息（性别/地区/生日/简介）—— 无论搜索结果如何都尝试
-                    var needDetail = (_matchGender && string.IsNullOrEmpty(artist.Gender))
-                                    || (_matchRegion && string.IsNullOrEmpty(artist.Region))
-                                    || (_matchDesc && string.IsNullOrEmpty(artist.Description))
+                    var needDetail = _matchInfo
                                     || string.IsNullOrEmpty(artist.Birthday);
                     if (needDetail)
                     {
@@ -379,12 +364,15 @@ public class ArtistMatchFragment : Fragment
                 // 更新元数据字段
                 if (bestMatch != null)
                 {
-                    if (_matchGender && !string.IsNullOrEmpty(bestMatch.Gender) && (_skipExisting ? string.IsNullOrEmpty(artist.Gender) : true))
-                        artist.Gender = bestMatch.Gender;
-                    if (_matchRegion && !string.IsNullOrEmpty(bestMatch.Region) && (_skipExisting ? string.IsNullOrEmpty(artist.Region) : true))
-                        artist.Region = CountryCodeToName(bestMatch.Region);
-                    if (_matchDesc && !string.IsNullOrEmpty(bestMatch.Description) && (_skipExisting ? string.IsNullOrEmpty(artist.Description) : true))
-                        artist.Description = bestMatch.Description;
+                    if (_matchInfo)
+                    {
+                        if (!string.IsNullOrEmpty(bestMatch.Gender) && (_skipExisting ? string.IsNullOrEmpty(artist.Gender) : true))
+                            artist.Gender = bestMatch.Gender;
+                        if (!string.IsNullOrEmpty(bestMatch.Region) && (_skipExisting ? string.IsNullOrEmpty(artist.Region) : true))
+                            artist.Region = CountryCodeToName(bestMatch.Region);
+                        if (!string.IsNullOrEmpty(bestMatch.Description) && (_skipExisting ? string.IsNullOrEmpty(artist.Description) : true))
+                            artist.Description = bestMatch.Description;
+                    }
                     if (!string.IsNullOrEmpty(bestMatch.Birthday) && (_skipExisting ? string.IsNullOrEmpty(artist.Birthday) : true))
                         artist.Birthday = bestMatch.Birthday;
                 }
@@ -517,15 +505,18 @@ public class ArtistMatchFragment : Fragment
                     }
 
                     // 更新元数据字段
-                    if (_matchGender && !string.IsNullOrEmpty(bestMatch.Gender)
-                        && (_skipExisting ? string.IsNullOrEmpty(artist.Gender) : true))
-                        artist.Gender = bestMatch.Gender;
-                    if (_matchRegion && !string.IsNullOrEmpty(bestMatch.Region)
-                        && (_skipExisting ? string.IsNullOrEmpty(artist.Region) : true))
-                        artist.Region = CountryCodeToName(bestMatch.Region);
-                    if (_matchDesc && !string.IsNullOrEmpty(bestMatch.Description)
-                        && (_skipExisting ? string.IsNullOrEmpty(artist.Description) : true))
-                        artist.Description = bestMatch.Description;
+                    if (_matchInfo)
+                    {
+                        if (!string.IsNullOrEmpty(bestMatch.Gender)
+                            && (_skipExisting ? string.IsNullOrEmpty(artist.Gender) : true))
+                            artist.Gender = bestMatch.Gender;
+                        if (!string.IsNullOrEmpty(bestMatch.Region)
+                            && (_skipExisting ? string.IsNullOrEmpty(artist.Region) : true))
+                            artist.Region = CountryCodeToName(bestMatch.Region);
+                        if (!string.IsNullOrEmpty(bestMatch.Description)
+                            && (_skipExisting ? string.IsNullOrEmpty(artist.Description) : true))
+                            artist.Description = bestMatch.Description;
+                    }
                     if (!string.IsNullOrEmpty(bestMatch.Birthday)
                         && (_skipExisting ? string.IsNullOrEmpty(artist.Birthday) : true))
                         artist.Birthday = bestMatch.Birthday;

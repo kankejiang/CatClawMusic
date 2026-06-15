@@ -130,29 +130,21 @@
             app:chipStrokeColor="?attr/catClawAccentColor"
             app:chipStrokeWidth="1dp" />
         <com.google.android.material.chip.Chip
-            android:id="@+id/chip_baidubaike"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="百科"
-            app:chipBackgroundColor="?attr/catClawCardBackground"
-            app:chipStrokeColor="?attr/catClawAccentColor"
-            app:chipStrokeWidth="1dp" />
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chip_douban"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="豆瓣"
-            app:chipBackgroundColor="?attr/catClawCardBackground"
-            app:chipStrokeColor="?attr/catClawAccentColor"
-            app:chipStrokeWidth="1dp" />
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chip_qqmusic"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="QQ音乐"
-            app:chipBackgroundColor="?attr/catClawCardBackground"
-            app:chipStrokeColor="?attr/catClawAccentColor"
-            app:chipStrokeWidth="1dp" />
+                android:id="@+id/chip_ai"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="AI搜索"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_qqmusic"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="QQ音乐"
+                app:chipBackgroundColor="?attr/catClawCardBackground"
+                app:chipStrokeColor="?attr/catClawAccentColor"
+                app:chipStrokeWidth="1dp" />
     </com.google.android.material.chip.ChipGroup>
 
     <!-- 搜索结果列表 -->
