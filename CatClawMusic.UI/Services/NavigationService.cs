@@ -88,9 +88,14 @@ public class NavigationService : INavigationService
             });
         }
 
+        // 所有页面使用水平滑动动画
+        int enterAnim = Resource.Animation.slide_in_right;
+        int exitAnim = Resource.Animation.slide_out_left;
+        int popEnterAnim = Resource.Animation.slide_in_left;
+        int popExitAnim = Resource.Animation.slide_out_right;
+
         _fm.BeginTransaction()
-            .SetCustomAnimations(Resource.Animation.slide_in_right, Resource.Animation.slide_out_left,
-                                  Resource.Animation.slide_in_left, Resource.Animation.slide_out_right)
+            .SetCustomAnimations(enterAnim, exitAnim, popEnterAnim, popExitAnim)
             .Replace(containerId, fragment, route)
             .AddToBackStack(route)
             .Commit();
@@ -200,7 +205,6 @@ public class NavigationService : INavigationService
         {
             ALog.Debug("CatClaw.Nav", "GoBack: restoring bottom nav + toolbar + mini player");
 
-            // 立即隐藏 overlay 容器
             var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
             if (overlay != null) overlay.Visibility = ViewStates.Gone;
 
@@ -208,13 +212,11 @@ public class NavigationService : INavigationService
 
             if (isLandscape)
             {
-                MainActivity.Instance?.UpdateTabUIForCurrentTab();
+                MainActivity.Instance?.ForceRefreshTabUI();
             }
             else
             {
-                MainActivity.Instance?.SetToolbarVisible(true);
-                MainActivity.Instance?.SetBottomNavVisible(true);
-                MainActivity.Instance?.SetMiniPlayerVisible(true);
+                MainActivity.Instance?.ForceRefreshTabUI();
             }
         }
         else

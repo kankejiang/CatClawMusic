@@ -300,6 +300,7 @@ public class MainApplication : Application
         services.AddTransient<AppearanceSettingsFragment>();
         services.AddTransient<ArtistMatchFragment>();
         services.AddTransient<ArtistMatchDetailFragment>();
+        services.AddTransient<SongDetailBottomSheet>();
         services.AddTransient<ModelAdapter>();
 
         // Adapters

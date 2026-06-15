@@ -9,6 +9,7 @@ using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace CatClawMusic.UI.Fragments;
@@ -163,7 +164,10 @@ public class PlaylistDetailFragment : Fragment
             Activity?.RunOnUiThread(() =>
                 Toast.MakeText(ctx, isFav ? "已取消收藏" : "已收藏", ToastLength.Short)?.Show());
         });
-        dialog.AddItem("ℹ  歌曲详情", () => ShowSongInfoDialog(song));
+        dialog.AddItem("ℹ  歌曲详情", () =>
+        {
+            MainActivity.Instance.ShowSongDetailSheet(song.Id);
+        });
 
         dialog.Show();
     }

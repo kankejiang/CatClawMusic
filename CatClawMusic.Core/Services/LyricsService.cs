@@ -173,7 +173,7 @@ public class LyricsService : ILyricsService
     /// </summary>
     /// <param name="path">歌词文件路径</param>
     /// <returns>解码后的歌词文本</returns>
-    private static async Task<string> ReadLyricsFileWithEncodingDetection(string path)
+    public static async Task<string> ReadLyricsFileWithEncodingDetection(string path)
     {
         var rawBytes = await File.ReadAllBytesAsync(path);
 

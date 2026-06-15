@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/catClawPageBackground"
+    android:fitsSystemWindows="true">
+
+    <!-- Drag handle -->
+    <View android:layout_width="40dp" android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="4dp"
+        android:background="@drawable/bg_drag_handle" />
+
+    <!-- Header with title and edit -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingHorizontal="16dp" android:paddingVertical="4dp">
+        <TextView android:id="@+id/tv_title"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="歌曲详情"
+            android:textSize="18sp"
+            android:textColor="?attr/catClawTextPrimary"
+            android:fontFamily="@font/happy_zcool_2016" />
+        <ImageButton android:id="@+id/btn_edit"
+            android:layout_width="36dp" android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_edit"
+            android:tint="?attr/catClawTextPrimary"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:contentDescription="编辑" />
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="?attr/catClawCardBorder" />
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:fillViewport="true"
+        android:overScrollMode="never">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Album cover -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="200dp" android:layout_height="200dp"
+                android:layout_gravity="center_horizontal"
+                app:cardCornerRadius="16dp" app:cardElevation="4dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="?attr/catClawCardBackgroundSolid">
+                <ImageView android:id="@+id/iv_album_cover"
+                    android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/cover_default" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Song title -->
+            <TextView android:id="@+id/tv_song_title"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:textSize="20sp" android:textColor="?attr/catClawTextPrimary"
+                android:fontFamily="@font/happy_zcool_2016"
+                android:gravity="center"
+                android:maxLines="2" android:ellipsize="end" />
+
+            <!-- Song detail info -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardCornerRadius="12dp" app:cardElevation="2dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="?attr/catClawCardBackground">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Artist -->
+                    <LinearLayout android:id="@+id/row_artist"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true">
+                        <ImageView android:id="@+id/iv_artist_thumb"
+                            android:layout_width="36dp" android:layout_height="36dp"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_person"
+                            android:tint="?attr/catClawTextHint"
+                            android:layout_marginEnd="10dp" />
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="艺术家"
+                                android:textSize="11sp" android:textColor="?attr/catClawTextHint" />
+                            <TextView android:id="@+id/tv_artist"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:textSize="14sp" android:textColor="?attr/catClawTextPrimary"
+                                android:maxLines="1" android:ellipsize="end" />
+                        </LinearLayout>
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp"
+                            android:src="@drawable/ic_arrow_forward"
+                            android:tint="?attr/catClawTextHint"
+                            android:scaleType="centerInside" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Album -->
+                    <LinearLayout android:id="@+id/row_album"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true">
+                        <ImageView android:id="@+id/iv_album_thumb"
+                            android:layout_width="36dp" android:layout_height="36dp"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/cover_default"
+                            android:layout_marginEnd="10dp" />
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="专辑"
+                                android:textSize="11sp" android:textColor="?attr/catClawTextHint" />
+                            <TextView android:id="@+id/tv_album"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:textSize="14sp" android:textColor="?attr/catClawTextPrimary"
+                                android:maxLines="1" android:ellipsize="end" />
+                        </LinearLayout>
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp"
+                            android:src="@drawable/ic_arrow_forward"
+                            android:tint="?attr/catClawTextHint"
+                            android:scaleType="centerInside" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Duration -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="时长"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_duration"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Year -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="发行年份"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_year"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Bitrate -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="比特率"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_bitrate"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- File size -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="文件大小"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_file_size"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- File path -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="文件位置"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_file_path"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="12sp" android:textColor="?attr/catClawTextPrimary"
+                            android:maxLines="3" android:ellipsize="end" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Lyrics section -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                app:cardCornerRadius="12dp" app:cardElevation="2dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="?attr/catClawCardBackground">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="歌词"
+                        android:textSize="16sp" android:textColor="?attr/catClawTextPrimary"
+                        android:fontFamily="@font/happy_zcool_2016"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- Lyrics source radio group -->
+                    <RadioGroup android:id="@+id/rg_lyric_source"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+                        <RadioButton android:id="@+id/rb_embedded"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="内置歌词"
+                            android:textSize="13sp"
+                            android:enabled="true"
+                            android:textColor="?attr/catClawTextPrimary" />
+                        <RadioButton android:id="@+id/rb_external"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:layout_marginStart="24dp"
+                            android:text="外嵌歌词"
+                            android:textSize="13sp"
+                            android:enabled="true"
+                            android:textColor="?attr/catClawTextPrimary" />
+                    </RadioGroup>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Lyrics content -->
+                    <ScrollView android:layout_width="match_parent" android:layout_height="240dp"
+                        android:layout_marginTop="8dp"
+                        android:overScrollMode="never">
+                        <TextView android:id="@+id/tv_lyrics"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary"
+                            android:lineSpacingExtra="4dp"
+                            android:padding="4dp"
+                            android:text="加载中..." />
+                    </ScrollView>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Bottom spacer -->
+            <View android:layout_width="match_parent" android:layout_height="24dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>
