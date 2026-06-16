@@ -350,6 +350,17 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
                 {
                     _externalLyrics = await Task.Run(() => IOFile.ReadAllText(_song.LyricsPath));
                 }
+                else if (LyricsService.FileBytesReaderAsync != null)
+                {
+                    // Android scoped storage 回退：通过 ContentResolver 读取
+                    try
+                    {
+                        var bytes = await LyricsService.FileBytesReaderAsync(_song.LyricsPath);
+                        if (bytes != null && bytes.Length > 0)
+                            _externalLyrics = LyricsService.EncodingDetectAndDecode(bytes);
+                    }
+                    catch { }
+                }
             }
 
             if (string.IsNullOrWhiteSpace(_externalLyrics))

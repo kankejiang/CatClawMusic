@@ -1,8 +1,10 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using System.Text.Json;
 
 namespace CatClawMusic.Core.Services;
 
@@ -62,20 +64,45 @@ public class LyricsService : ILyricsService
 
         bool isContentUri = !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
 
-        // 优先使用已知的 LyricsPath（SAF 扫描时已匹配的 .lrc content:// URI）
+        // 优先使用已知的 LyricsPath（SAF 扫描时已匹配的歌词 content:// URI 或文件路径）
         if (!string.IsNullOrEmpty(song.LyricsPath))
         {
+            // 异步按 LRC → TTML → AMLL → 纯文本 顺序解析 LyricsPath 指向的内容
+            async Task<LrcLyrics?> TryParseContentAsync(string? content)
+            {
+                if (string.IsNullOrEmpty(content)) return null;
+                var result = ParseLrc(content);
+                if (result != null) return result;
+                // TTML/AMLL 解析可能较慢，用 Task.Run 避免阻塞 UI 线程
+                result = await Task.Run(() => ParseTtml(content));
+                if (result != null) return result;
+                result = ParseAmll(content);
+                if (result != null) return result;
+                return ParsePlainTextLyrics(content);
+            }
+
             if (song.LyricsPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
+                // content:// URI：先读 LyricsPath 本身
                 var content = await ReadContentUriLyricsAsync(song.LyricsPath);
-                if (content != null)
+                var parsed = await TryParseContentAsync(content);
+                if (parsed != null) return parsed;
+
+                // 再尝试同名词曲的 .ttml / .xml URI
+                foreach (var ext in new[] { ".ttml", ".xml" })
                 {
-                    var parsed = ParseLrc(content);
-                    if (parsed != null) return parsed;
+                    var altUri = ConstructLyricsUri(song.LyricsPath, ext);
+                    if (altUri != null)
+                    {
+                        content = await ReadContentUriAsync(altUri);
+                        parsed = await TryParseContentAsync(content);
+                        if (parsed != null) return parsed;
+                    }
                 }
             }
             else
             {
+                // 普通文件路径：TryReadLrcFileAsync 已支持 .lrc/.ttml/.xml
                 var lrcLyrics = await TryReadLrcFileAsync(song.LyricsPath);
                 if (lrcLyrics != null) return lrcLyrics;
             }
@@ -86,8 +113,19 @@ public class LyricsService : ILyricsService
             var embeddedLyrics = ReadEmbeddedLyrics(songPath, isContentUri);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
-                var parsed = ParseLrc(embeddedLyrics) ?? ParsePlainTextLyrics(embeddedLyrics);
+                // 异步解析 TTML（避免大文件阻塞 UI 线程）
+                var parsed = ParseLrc(embeddedLyrics)
+                    ?? await Task.Run(() => ParseTtml(embeddedLyrics))
+                    ?? ParseAmll(embeddedLyrics)
+                    ?? ParsePlainTextLyrics(embeddedLyrics);
                 if (parsed != null) return parsed;
+            }
+
+            // 兜底：二进制扫描 M4A 自定义 atom 等 TagLibSharp 读不到的场景
+            if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+            {
+                var scanned = TryScanFileForTtmlOrAmll(songPath);
+                if (scanned != null) return scanned;
             }
 
             if (isContentUri)
@@ -97,6 +135,30 @@ public class LyricsService : ILyricsService
                 {
                     var content = await ReadContentUriAsync(lrcUri);
                     if (content != null) return ParseLrc(content);
+                }
+
+                // 尝试 .ttml content:// URI
+                var ttmlUri = ConstructLyricsUri(songPath, ".ttml");
+                if (ttmlUri != null)
+                {
+                    var content = await ReadContentUriAsync(ttmlUri);
+                    if (content != null)
+                    {
+                        var parsed = await ParseTtmlAsync(content);
+                        if (parsed != null) return parsed;
+                    }
+                }
+
+                // 尝试 .xml content:// URI
+                var xmlUri = ConstructLyricsUri(songPath, ".xml");
+                if (xmlUri != null)
+                {
+                    var content = await ReadContentUriAsync(xmlUri);
+                    if (content != null && (content.Contains("<tt") || content.Contains("xmlns=\"http://www.w3.org/ns/ttml")))
+                    {
+                        var parsed = await ParseTtmlAsync(content);
+                        if (parsed != null) return parsed;
+                    }
                 }
             }
             else if (!string.IsNullOrEmpty(songPath))
@@ -130,7 +192,7 @@ public class LyricsService : ILyricsService
                 var content = await ReadContentUriAsync(ttmlUri);
                 if (content != null)
                 {
-                    var parsed = ParseTtml(content);
+                    var parsed = await Task.Run(() => ParseTtml(content));
                     if (parsed != null) return parsed;
                 }
             }
@@ -142,7 +204,7 @@ public class LyricsService : ILyricsService
                 var content = await ReadContentUriAsync(xmlUri);
                 if (content != null && (content.Contains("<tt") || content.Contains("xmlns=\"http://www.w3.org/ns/ttml")))
                 {
-                    var parsed = ParseTtml(content);
+                    var parsed = await Task.Run(() => ParseTtml(content));
                     if (parsed != null) return parsed;
                 }
             }
@@ -159,6 +221,13 @@ public class LyricsService : ILyricsService
         {
             var lrcLyrics = await TryReadLrcFileAsync(songPath);
             if (lrcLyrics != null) return lrcLyrics;
+
+            // 兜底：二进制扫描内嵌 TTML/AMLL
+            if (File.Exists(songPath))
+            {
+                var scanned = TryScanFileForTtmlOrAmll(songPath);
+                if (scanned != null) return scanned;
+            }
         }
 
         if (!skipEmbedded)
@@ -166,8 +235,18 @@ public class LyricsService : ILyricsService
             var embeddedLyrics = ReadEmbeddedLyrics(songPath, isContentUri);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
-                var parsed = ParseLrc(embeddedLyrics) ?? ParsePlainTextLyrics(embeddedLyrics);
+                var parsed = ParseLrc(embeddedLyrics)
+                    ?? await Task.Run(() => ParseTtml(embeddedLyrics))
+                    ?? ParseAmll(embeddedLyrics)
+                    ?? ParsePlainTextLyrics(embeddedLyrics);
                 if (parsed != null) return parsed;
+            }
+
+            // 兜底：二进制扫描 M4A 自定义 atom 等
+            if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+            {
+                var scanned = TryScanFileForTtmlOrAmll(songPath);
+                if (scanned != null) return scanned;
             }
         }
 
@@ -272,56 +351,57 @@ public class LyricsService : ILyricsService
     {
         var dir = Path.GetDirectoryName(songPath) ?? "";
         var nameNoExt = Path.GetFileNameWithoutExtension(songPath);
-        
-        // 尝试 .lrc 文件
-        var lrcPath = Path.Combine(dir, nameNoExt + ".lrc");
-        try
-        {
-            if (File.Exists(lrcPath))
-                return ParseLrc(await ReadLyricsFileWithEncodingDetection(lrcPath));
-        }
-        catch { }
 
-        // 尝试 .ttml 文件
-        var ttmlPath = Path.Combine(dir, nameNoExt + ".ttml");
-        try
+        // 尝试读取歌词文件：.lrc → .ttml → .xml
+        // 每种扩展名先尝试 File.Exists + ReadAllBytes，失败则用 FileBytesReaderAsync 回退
+        var extensions = new[] { ".lrc", ".ttml", ".xml" };
+        foreach (var ext in extensions)
         {
-            if (File.Exists(ttmlPath))
-                return ParseTtml(await ReadLyricsFileWithEncodingDetection(ttmlPath));
-        }
-        catch { }
+            var filePath = Path.Combine(dir, nameNoExt + ext);
+            string? content = null;
 
-        // 尝试 .xml 文件（某些 TTML 文件使用 .xml 扩展名）
-        var xmlPath = Path.Combine(dir, nameNoExt + ".xml");
-        try
-        {
-            if (File.Exists(xmlPath))
+            // 方式1：直接文件读取
+            try
             {
-                var content = await ReadLyricsFileWithEncodingDetection(xmlPath);
+                if (File.Exists(filePath))
+                    content = await ReadLyricsFileWithEncodingDetection(filePath);
+            }
+            catch { }
+
+            // 方式2：FileBytesReaderAsync 回退（Android scoped storage）
+            if (string.IsNullOrEmpty(content) && FileBytesReaderAsync != null)
+            {
+                try
+                {
+                    var bytes = await FileBytesReaderAsync(filePath);
+                    if (bytes != null && bytes.Length > 0)
+                        content = EncodingDetectAndDecode(bytes);
+                }
+                catch { }
+            }
+
+            if (string.IsNullOrEmpty(content)) continue;
+
+            // 按扩展名和内容解析
+            if (ext == ".lrc")
+            {
+                var parsed = ParseLrc(content);
+                if (parsed != null) return parsed;
+            }
+            else if (ext == ".ttml")
+            {
+                var parsed = ParseTtml(content);
+                if (parsed != null) return parsed;
+            }
+            else if (ext == ".xml")
+            {
+                // .xml 可能是 TTML
                 if (content.Contains("<tt") || content.Contains("xmlns=\"http://www.w3.org/ns/ttml"))
-                    return ParseTtml(content);
+                {
+                    var parsed = ParseTtml(content);
+                    if (parsed != null) return parsed;
+                }
             }
-        }
-        catch { }
-        
-        // Android 11+ scoped storage 回退：通过 ContentResolver 读取
-        if (FileBytesReaderAsync != null)
-        {
-            try
-            {
-                var lrcBytes = await FileBytesReaderAsync(lrcPath);
-                if (lrcBytes != null && lrcBytes.Length > 0)
-                    return ParseLrc(EncodingDetectAndDecode(lrcBytes));
-            }
-            catch { }
-            
-            try
-            {
-                var ttmlBytes = await FileBytesReaderAsync(ttmlPath);
-                if (ttmlBytes != null && ttmlBytes.Length > 0)
-                    return ParseTtml(EncodingDetectAndDecode(ttmlBytes));
-            }
-            catch { }
         }
 
         return null;
@@ -752,67 +832,116 @@ public class LyricsService : ILyricsService
     /// 解析 TTML (Timed Text Markup Language) 格式歌词
     /// 支持 W3C TTML 标准，常用于 Apple Music、Netflix 等平台
     /// </summary>
+    /// <summary>
+    /// 异步解析 TTML 格式（包装在 Task.Run 中避免阻塞 UI 线程）
+    /// </summary>
+    public async Task<LrcLyrics?> ParseTtmlAsync(string ttmlContent)
+    {
+        return await Task.Run(() => ParseTtml(ttmlContent));
+    }
+
+    /// <summary>
+    /// 解析 TTML 格式（文件扩展名 .ttml 或 .xml）
+    /// </summary>
     public LrcLyrics? ParseTtml(string ttmlContent)
     {
         try
         {
+            // 文件过大时（> 5MB）给出警告但不阻塞
+            if (ttmlContent.Length > 5 * 1024 * 1024)
+                System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML 文件过大：{ttmlContent.Length / 1024}KB，解析可能较慢");
+
             var xml = XElement.Parse(ttmlContent);
-            
+
             // TTML 命名空间
             XNamespace ttml = "http://www.w3.org/ns/ttml";
-            XNamespace ttml2 = "http://www.w3.org/ns/ttml#styling";
-            
+            XNamespace ttm = "http://www.w3.org/ns/ttml#metadata";
+            XNamespace tts = "http://www.w3.org/ns/ttml#styling";
+            // Apple Music TTML 可能使用两种 itunes 命名空间
+            XNamespace itunes1 = "http://apple.com/itunes/lyrics";
+            XNamespace itunes2 = "http://music.apple.com/lyric-ttml-internal";
+
             // 如果没有找到标准命名空间，尝试无命名空间
             var body = xml.Descendants(ttml + "body").FirstOrDefault()
                      ?? xml.Descendants("body").FirstOrDefault();
-            
+
             if (body == null) return null;
-            
+
+            // 解析 <metadata> 中的 <ttm:agent> 元素，构建 agent ID → 对齐方式映射
+            // 第一个 agent → 左(0)，第二个 agent → 右(2)，更多 → 居中(1)
+            var agentAlignment = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var agents = xml.Descendants(ttm + "agent")
+                        .Concat(xml.Descendants("{http://www.w3.org/ns/ttml#metadata}agent"))
+                        .Concat(xml.Descendants("agent"))
+                        .Distinct();
+            int agentIdx = 0;
+            foreach (var agent in agents)
+            {
+                var agentId = agent.Attribute("xml:id")?.Value
+                           ?? agent.Attribute("{http://www.w3.org/XML/1998/namespace}id")?.Value
+                           ?? agent.Attribute("id")?.Value;
+                if (!string.IsNullOrEmpty(agentId))
+                {
+                    agentAlignment[agentId] = agentIdx == 0 ? 0 : (agentIdx == 1 ? 2 : 1);
+                    agentIdx++;
+                }
+            }
+
             var lyrics = new LrcLyrics();
             var lines = new List<LrcLyricLine>();
-            
-            // 遍历所有 <p> 元素（歌词行）
+
+            // 收集所有 <p> 元素（包括带命名空间和不带命名空间的）
             var paragraphs = body.Descendants(ttml + "p")
                              .Concat(body.Descendants("p"))
                              .Distinct();
-            
+
             foreach (var p in paragraphs)
             {
-                var beginAttr = p.Attribute("begin")?.Value 
-                             ?? p.Attribute(ttml + "begin")?.Value;
-                var endAttr = p.Attribute("end")?.Value 
-                           ?? p.Attribute(ttml + "end")?.Value;
-                
+                var beginAttr = p.Attribute("begin")?.Value
+                                 ?? p.Attribute(ttml + "begin")?.Value;
+                var endAttr = p.Attribute("end")?.Value
+                               ?? p.Attribute(ttml + "end")?.Value;
+
                 if (string.IsNullOrEmpty(beginAttr)) continue;
-                
+
                 var timestamp = ParseTtmlTimestamp(beginAttr);
                 if (timestamp == null) continue;
-                
+
+                // 注意：不累加父级 <div> 的 begin 偏移
+                // AMLL/Apple Music TTML 的 <p> 时间戳是绝对时间，<div> 的 begin 仅作容器标记
+
                 // 提取歌词文本（可能包含 <span> 元素）
                 var (text, wordTimestamps) = ParseTtmlParagraph(p, ttml, timestamp.Value);
-                
+
                 if (string.IsNullOrWhiteSpace(text)) continue;
-                
+
                 // 检查是否是翻译行（通过检查是否包含多种文字）
                 var (orig, trans) = SplitBilingual(text);
-                
+
+                // 解析对齐方式：ttm:agent > itunes:role > role > tts:textAlign
+                var alignment = ParseTtmlAlignment(p, ttml, itunes1, itunes2, agentAlignment);
+
                 lines.Add(new LrcLyricLine
                 {
                     Timestamp = timestamp.Value,
                     Text = orig,
                     Translation = trans,
-                    WordTimestamps = wordTimestamps
+                    WordTimestamps = wordTimestamps,
+                    Alignment = alignment
                 });
             }
-            
+
             if (lines.Count == 0) return null;
-            
+
             // 按时间戳排序
             lyrics.Lines = lines.OrderBy(l => l.Timestamp).ToList();
-            
+
+            // 如果任何一行有非默认对齐方式，标记为逐行对齐
+            lyrics.HasPerLineAlignment = lines.Any(l => l.Alignment != 1);
+
             // 合并翻译行
             MergeTranslationLines(lyrics);
-            
+
             return lyrics.Lines.Count > 0 ? lyrics : null;
         }
         catch
@@ -823,99 +952,241 @@ public class LyricsService : ILyricsService
     
     /// <summary>
     /// 解析 TTML 时间戳字符串为 TimeSpan
-    /// 支持格式：00:07.24, 00:00:07.24, 7.24s, PT7.24S
+    /// 支持格式：00:07.24, 00:00:07.24, 7.24s, PT7.24S, PT1H30M7.24S, 00:00:01:25（帧率）
     /// </summary>
     private static TimeSpan? ParseTtmlTimestamp(string? timestamp)
     {
         if (string.IsNullOrEmpty(timestamp)) return null;
-        
+
         // 格式1：HH:MM:SS.mmm 或 MM:SS.mmm
         var match = System.Text.RegularExpressions.Regex.Match(
-            timestamp, 
+            timestamp,
             @"^(?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?$");
         if (match.Success)
         {
             var hours = match.Groups[1].Success ? int.Parse(match.Groups[1].Value) : 0;
             var minutes = int.Parse(match.Groups[2].Value);
             var seconds = int.Parse(match.Groups[3].Value);
-            var millis = match.Groups[4].Success 
-                ? int.Parse(match.Groups[4].Value.PadRight(3, '0').Substring(0, 3)) 
+            var millis = match.Groups[4].Success
+                ? int.Parse(match.Groups[4].Value.PadRight(3, '0').Substring(0, 3))
                 : 0;
-            
+
             return new TimeSpan(hours, minutes, seconds, millis / 1000, millis % 1000);
         }
-        
+
+        // 格式1b：HH:MM:SS:FF（帧率格式，如 00:00:01:25，默认 30fps）
+        var frameMatch = System.Text.RegularExpressions.Regex.Match(
+            timestamp,
+            @"^(?:(\d+):)?(\d+):(\d+):(\d+)$");
+        if (frameMatch.Success)
+        {
+            var hours = frameMatch.Groups[1].Success ? int.Parse(frameMatch.Groups[1].Value) : 0;
+            var minutes = int.Parse(frameMatch.Groups[2].Value);
+            var seconds = int.Parse(frameMatch.Groups[3].Value);
+            var frames = int.Parse(frameMatch.Groups[4].Value);
+            // 默认 30fps，帧转毫秒
+            var millis = frames * 1000 / 30;
+            return new TimeSpan(hours, minutes, seconds, millis / 1000, millis % 1000);
+        }
+
         // 格式2：秒数（如 7.24 或 7.24s）
-        if (double.TryParse(timestamp.Replace("s", ""), out var secondsFloat))
+        var secondsStr = timestamp.TrimEnd('s', 'S');
+        if (double.TryParse(secondsStr, out var secondsFloat))
         {
             var totalSeconds = (int)secondsFloat;
             var millis = (int)((secondsFloat - totalSeconds) * 1000);
             return new TimeSpan(0, 0, 0, totalSeconds, millis);
         }
-        
-        // 格式3：ISO 8601 持续时间（如 PT7.24S）
+
+        // 格式3：ISO 8601 持续时间（如 PT7.24S, PT1H30M7.24S, PT1M5S）
         if (timestamp.StartsWith("PT") || timestamp.StartsWith("pt"))
         {
-            var timeStr = timestamp.Substring(2).Replace("S", "").Replace("s", "");
-            if (double.TryParse(timeStr, out var isoSeconds))
+            var isoMatch = System.Text.RegularExpressions.Regex.Match(
+                timestamp,
+                @"^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (isoMatch.Success)
             {
-                var totalSeconds = (int)isoSeconds;
-                var millis = (int)((isoSeconds - totalSeconds) * 1000);
-                return new TimeSpan(0, 0, 0, totalSeconds, millis);
+                double hours = 0, minutes = 0, secs = 0;
+                if (isoMatch.Groups[1].Success) hours = double.Parse(isoMatch.Groups[1].Value);
+                if (isoMatch.Groups[2].Success) minutes = double.Parse(isoMatch.Groups[2].Value);
+                if (isoMatch.Groups[3].Success) secs = double.Parse(isoMatch.Groups[3].Value);
+                var totalSecs = hours * 3600 + minutes * 60 + secs;
+                var totalInt = (int)totalSecs;
+                var millis = (int)((totalSecs - totalInt) * 1000);
+                return new TimeSpan(0, 0, 0, totalInt, millis);
             }
         }
-        
+
         return null;
     }
     
     /// <summary>
     /// 解析 TTML 段落元素，提取文本和逐字时间戳
+    /// <para>使用直接子节点遍历（而非 Descendants），避免嵌套 span 重复提取</para>
+    /// <para>支持 &lt;br&gt; 换行、非 span 文本节点、嵌套 span 的内层文本</para>
     /// </summary>
     private static (string text, List<WordTimestamp>? wordTimestamps) ParseTtmlParagraph(
         XElement paragraph, XNamespace ttml, TimeSpan lineStart)
     {
         var wordTimestamps = new List<WordTimestamp>();
         var textBuilder = new StringBuilder();
-        
-        // 检查是否有 <span> 子元素（逐字时间戳）
-        var spans = paragraph.Descendants(ttml + "span")
-                        .Concat(paragraph.Descendants("span"))
-                        .Distinct()
-                        .ToList();
-        
-        if (spans.Count > 0)
+
+        var lineEnd = ParseTtmlTimestamp(paragraph.Attribute("end")?.Value
+            ?? paragraph.Attribute(ttml + "end")?.Value) ?? lineStart.Add(TimeSpan.FromSeconds(5));
+
+        // 遍历直接子节点（包括文本节点和元素节点），保持原始顺序
+        bool hasSpan = false;
+        foreach (var node in paragraph.Nodes())
         {
-            // 有 <span> 元素，提取逐字时间戳
-            var lineEnd = ParseTtmlTimestamp(paragraph.Attribute("end")?.Value 
-                ?? paragraph.Attribute(ttml + "end")?.Value) ?? lineStart.Add(TimeSpan.FromSeconds(5));
-            
-            foreach (var span in spans)
+            if (node is XText textNode)
             {
-                var spanBegin = ParseTtmlTimestamp(span.Attribute("begin")?.Value 
-                    ?? span.Attribute(ttml + "begin")?.Value) ?? lineStart;
-                var spanEnd = ParseTtmlTimestamp(span.Attribute("end")?.Value 
-                    ?? span.Attribute(ttml + "end")?.Value) ?? lineEnd;
-                
-                var wordText = span.Value.Trim();
-                if (string.IsNullOrEmpty(wordText)) continue;
-                
-                textBuilder.Append(wordText);
-                wordTimestamps.Add(new WordTimestamp
+                // 纯文本节点：直接追加
+                textBuilder.Append(textNode.Value);
+            }
+            else if (node is XElement el)
+            {
+                if (el.Name == ttml + "br" || el.Name.LocalName == "br")
                 {
-                    Word = wordText,
-                    Start = spanBegin,
-                    Duration = spanEnd - spanBegin
-                });
+                    // <br> 换行
+                    textBuilder.Append('\n');
+                }
+                else if (el.Name == ttml + "span" || el.Name.LocalName == "span")
+                {
+                    // <span> 元素：提取逐字时间戳
+                    hasSpan = true;
+                    var spanBegin = ParseTtmlTimestamp(el.Attribute("begin")?.Value
+                        ?? el.Attribute(ttml + "begin")?.Value) ?? lineStart;
+                    var spanEnd = ParseTtmlTimestamp(el.Attribute("end")?.Value
+                        ?? el.Attribute(ttml + "end")?.Value) ?? lineEnd;
+
+                    // 递归提取 span 内的所有文本（处理嵌套 span）
+                    var spanText = ExtractElementText(el, ttml);
+                    if (!string.IsNullOrEmpty(spanText))
+                    {
+                        textBuilder.Append(spanText);
+                        wordTimestamps.Add(new WordTimestamp
+                        {
+                            Word = spanText,
+                            Start = spanBegin,
+                            Duration = spanEnd - spanBegin
+                        });
+                    }
+                }
+                else
+                {
+                    // 其他元素：提取文本
+                    textBuilder.Append(el.Value);
+                }
             }
         }
-        else
+
+        var result = textBuilder.ToString().Trim();
+        return (result, hasSpan && wordTimestamps.Count > 0 ? wordTimestamps : null);
+    }
+
+    /// <summary>递归提取元素内所有文本（处理嵌套 span 和 br）</summary>
+    private static string ExtractElementText(XElement el, XNamespace ttml)
+    {
+        var sb = new StringBuilder();
+        foreach (var node in el.Nodes())
         {
-            // 没有 <span>，直接提取文本
-            textBuilder.Append(paragraph.Value.Trim());
+            if (node is XText textNode)
+                sb.Append(textNode.Value);
+            else if (node is XElement child)
+            {
+                if (child.Name == ttml + "br" || child.Name.LocalName == "br")
+                    sb.Append('\n');
+                else
+                    sb.Append(ExtractElementText(child, ttml));
+            }
         }
-        
-        return (textBuilder.ToString().Trim(), 
-                wordTimestamps.Count > 0 ? wordTimestamps : null);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// 解析 TTML <p> 元素的对齐方式
+    /// 0=左对齐，1=居中，2=右对齐
+    /// 支持优先级：ttm:agent > itunes:role > role > tts:textAlign > 父级 div 的 agent/role/textAlign
+    /// </summary>
+    private static int ParseTtmlAlignment(XElement paragraph, XNamespace ttml,
+        XNamespace itunes1, XNamespace itunes2, Dictionary<string, int> agentAlignment)
+    {
+        try
+        {
+            XNamespace ttm = "http://www.w3.org/ns/ttml#metadata";
+            XNamespace tts = "http://www.w3.org/ns/ttml#styling";
+
+            // 1. 检查 ttm:agent（AMLL/Apple Music TTML 的多角色标识）
+            var agentAttr = paragraph.Attribute(ttm + "agent")?.Value
+                         ?? paragraph.Attribute("{http://www.w3.org/ns/ttml#metadata}agent")?.Value
+                         ?? paragraph.Attribute("agent")?.Value;
+            if (!string.IsNullOrEmpty(agentAttr) && agentAlignment.TryGetValue(agentAttr, out var agentAlign))
+                return agentAlign;
+
+            // 2. 检查 itunes:role（两种命名空间都检查）
+            var roleAttr = paragraph.Attribute(itunes1 + "role")?.Value
+                        ?? paragraph.Attribute(itunes2 + "role")?.Value
+                        ?? paragraph.Attribute("role")?.Value
+                        ?? paragraph.Attribute(ttml + "role")?.Value;
+
+            if (!string.IsNullOrEmpty(roleAttr))
+            {
+                var role = roleAttr.ToLowerInvariant();
+                if (role.Contains("1") || role.Contains("left") || role.Contains("partner_1") || role.Contains("duet_1"))
+                    return 0;
+                if (role.Contains("2") || role.Contains("right") || role.Contains("partner_2") || role.Contains("duet_2"))
+                    return 2;
+                if (role.Contains("narrator") || role.Contains("announcer"))
+                    return 1;
+            }
+
+            // 3. 检查 tts:textAlign（W3C 标准对齐属性）
+            var textAlignAttr = paragraph.Attribute(tts + "textAlign")?.Value
+                             ?? paragraph.Attribute("textAlign")?.Value;
+            if (!string.IsNullOrEmpty(textAlignAttr))
+            {
+                var ta = textAlignAttr.ToLowerInvariant();
+                if (ta == "left" || ta == "start") return 0;
+                if (ta == "right" || ta == "end") return 2;
+                if (ta == "center" || ta == "middle") return 1;
+            }
+
+            // 4. 检查父级 <div> 的 agent/role/textAlign
+            var parent = paragraph.Parent;
+            if (parent != null && parent.Name.LocalName == "div")
+            {
+                var parentAgent = parent.Attribute(ttm + "agent")?.Value
+                               ?? parent.Attribute("{http://www.w3.org/ns/ttml#metadata}agent")?.Value
+                               ?? parent.Attribute("agent")?.Value;
+                if (!string.IsNullOrEmpty(parentAgent) && agentAlignment.TryGetValue(parentAgent, out var pa))
+                    return pa;
+
+                var parentRole = parent.Attribute(itunes1 + "role")?.Value
+                              ?? parent.Attribute(itunes2 + "role")?.Value
+                              ?? parent.Attribute("role")?.Value;
+                if (!string.IsNullOrEmpty(parentRole))
+                {
+                    var role = parentRole.ToLowerInvariant();
+                    if (role.Contains("1") || role.Contains("left") || role.Contains("partner_1"))
+                        return 0;
+                    if (role.Contains("2") || role.Contains("right") || role.Contains("partner_2"))
+                        return 2;
+                }
+
+                var parentAlign = parent.Attribute(tts + "textAlign")?.Value
+                               ?? parent.Attribute("textAlign")?.Value;
+                if (!string.IsNullOrEmpty(parentAlign))
+                {
+                    var ta = parentAlign.ToLowerInvariant();
+                    if (ta == "left" || ta == "start") return 0;
+                    if (ta == "right" || ta == "end") return 2;
+                    if (ta == "center" || ta == "middle") return 1;
+                }
+            }
+        }
+        catch { }
+        return 1; // 默认居中
     }
     
     /// <summary>
@@ -965,6 +1236,42 @@ public class LyricsService : ILyricsService
                 hi = mid - 1;
         }
         return hi;
+    }
+
+    /// <summary>
+    /// 获取当前播放位置下所有"活跃"的歌词行索引（用于合唱/对唱同时着色）。
+    /// 一行歌词的活跃区间为 [Timestamp, 下一行Timestamp)；若两行时间区间有重叠（合唱），
+    /// 则同一时刻可能返回多个索引。非合唱时仅返回一个索引（与 GetCurrentLyricIndex 一致）。
+    /// </summary>
+    /// <param name="lyrics">歌词对象</param>
+    /// <param name="position">当前播放位置</param>
+    /// <returns>活跃行索引列表（按时间排序），空列表表示无匹配</returns>
+    public List<int> GetActiveLyricIndices(LrcLyrics? lyrics, TimeSpan position)
+    {
+        var result = new List<int>();
+        if (lyrics?.Lines == null || lyrics.Lines.Count == 0) return result;
+
+        var lines = lyrics.Lines;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var start = lines[i].Timestamp;
+            // 行结束时间 = 下一行的开始时间；最后一行默认活跃 5 秒
+            var end = i + 1 < lines.Count
+                ? lines[i + 1].Timestamp
+                : start + TimeSpan.FromSeconds(5);
+
+            if (position >= start && position < end)
+                result.Add(i);
+        }
+
+        // 若没有精确匹配（位置在第一行之前），回退到 GetCurrentLyricIndex
+        if (result.Count == 0)
+        {
+            var idx = GetCurrentLyricIndex(lyrics, position);
+            if (idx >= 0) result.Add(idx);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -1207,4 +1514,165 @@ public class LyricsService : ILyricsService
 
         return result.Count > 0 ? result : null;
     }
+
+    /// <summary>
+    /// 解析 AMLL (Anni Music Lyrics Library) JSON 格式
+    /// AMLL 是 JSON 格式的逐字歌词，常见于网易云/QQ音乐下载的歌词文件
+    /// </summary>
+    private static LrcLyrics? ParseAmll(string amllContent)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(amllContent);
+            var root = doc.RootElement;
+
+            // AMLL 常见结构：{ "lyrics": [...], "version": "..." }
+            if (!root.TryGetProperty("lyrics", out var lyricsArray) && 
+                !root.TryGetProperty("data", out lyricsArray))
+                return null;
+
+            var result = new LrcLyrics();
+            var lines = new List<LrcLyricLine>();
+
+            foreach (var item in lyricsArray.EnumerateArray())
+            {
+                // 每行结构：{ "startTime": 7224, "endTime": 10500, "content": "...", "words": [...] }
+                if (!item.TryGetProperty("startTime", out var startProp)) continue;
+                var startMs = startProp.GetInt64();
+                var start = TimeSpan.FromMilliseconds(startMs);
+
+                var text = "";
+                if (item.TryGetProperty("content", out var contentProp))
+                    text = contentProp.GetString() ?? "";
+                else if (item.TryGetProperty("lyric", out var lyricProp))
+                    text = lyricProp.GetString() ?? "";
+
+                var line = new LrcLyricLine
+                {
+                    Timestamp = start,
+                    Text = text,
+                    // 解析 AMLL 的 role 字段（用于对唱布局）
+                    Alignment = ParseAmllRole(item),
+                };
+
+                // 解析逐字时间戳（AMLL 特有的 words 数组）
+                if (item.TryGetProperty("words", out var wordsArray))
+                {
+                    var wordTimestamps = new List<WordTimestamp>();
+                    foreach (var word in wordsArray.EnumerateArray())
+                    {
+                        if (!word.TryGetProperty("word", out var wordProp)) continue;
+                        var wordText = wordProp.GetString() ?? "";
+                        
+                        if (!word.TryGetProperty("startTime", out var wsProp)) continue;
+                        var ws = TimeSpan.FromMilliseconds(wsProp.GetInt64());
+
+                        TimeSpan dur;
+                        if (word.TryGetProperty("endTime", out var weProp))
+                            dur = TimeSpan.FromMilliseconds(weProp.GetInt64()) - ws;
+                        else if (word.TryGetProperty("duration", out var wdProp))
+                            dur = TimeSpan.FromMilliseconds(wdProp.GetInt64());
+                        else
+                            dur = TimeSpan.FromMilliseconds(200);
+
+                        if (dur <= TimeSpan.Zero) dur = TimeSpan.FromMilliseconds(200);
+
+                        wordTimestamps.Add(new WordTimestamp
+                        {
+                            Word = wordText,
+                            Start = ws,
+                            Duration = dur
+                        });
+                    }
+                    line.WordTimestamps = wordTimestamps.Count > 0 ? wordTimestamps : null;
+                }
+
+                lines.Add(line);
+            }
+
+            if (lines.Count == 0) return null;
+            // 按时间戳排序（与 TTML/LRC 保持一致）
+            result.Lines = lines.OrderBy(l => l.Timestamp).ToList();
+            // 如果任何一行有非默认对齐方式，标记为逐行对齐
+            result.HasPerLineAlignment = lines.Any(l => l.Alignment != 1);
+            // 合并翻译行（同时间戳的原文+翻译行合并）
+            MergeTranslationLines(result);
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 解析 AMLL 每行的 role 字段，返回对齐方式
+    /// role 常见值：male / female / duet / chorus 等
+    /// </summary>
+    private static int ParseAmllRole(JsonElement item)
+    {
+        if (!item.TryGetProperty("role", out var roleProp))
+            return 1; // 默认居中
+
+        var role = roleProp.GetString()?.ToLowerInvariant() ?? "";
+        return role switch
+        {
+            "male" or "男" or "m" => 0,           // 左对齐
+            "female" or "女" or "f" => 2,         // 右对齐
+            "duet" or "chorus" or "choir" => 1,  // 居中
+            _ => 1,
+        };
+    }
+
+    /// <summary>
+    /// 兜底：对音频文件做二进制扫描，搜索内嵌的 TTML/AMLL 歌词标记
+    /// 适用于 M4A 自定义 atom 等 TagLibSharp 读不到的场景
+    /// </summary>
+    private LrcLyrics? TryScanFileForTtmlOrAmll(string filePath)
+    {
+        try
+        {
+            var fi = new FileInfo(filePath);
+            if (!fi.Exists || fi.Length > 200 * 1024 * 1024) return null; // 跳过 >200MB 的文件
+
+            using var fs = File.OpenRead(filePath);
+            var len = (int)Math.Min(fs.Length, 10 * 1024 * 1024); // 最多扫描前 10MB
+            var buf = new byte[len];
+            var read = fs.Read(buf, 0, len);
+            var text = Encoding.UTF8.GetString(buf, 0, read);
+
+            // 尝试 AMLL JSON
+            var amllIdx = text.IndexOf("\"lyrics\"", StringComparison.Ordinal);
+            if (amllIdx < 0) amllIdx = text.IndexOf("\"data\"", StringComparison.Ordinal);
+            if (amllIdx > 0)
+            {
+                // 尝试提取 JSON 片段并解析
+                var sub = text.Substring(amllIdx - 1);
+                try
+                {
+                    var result = ParseAmll(sub);
+                    if (result != null) return result;
+                }
+                catch { }
+            }
+
+            // 尝试 TTML XML
+            var ttmlIdx = text.IndexOf("<tt", StringComparison.OrdinalIgnoreCase);
+            if (ttmlIdx < 0) ttmlIdx = text.IndexOf("<?xml", StringComparison.OrdinalIgnoreCase);
+            if (ttmlIdx > 0)
+            {
+                var sub = text.Substring(ttmlIdx);
+                try
+                {
+                    var result = ParseTtml(sub);
+                    if (result != null) return result;
+                }
+                catch { }
+            }
+
+            return null;
+        }
+        catch { return null; }
+    }
 }
+

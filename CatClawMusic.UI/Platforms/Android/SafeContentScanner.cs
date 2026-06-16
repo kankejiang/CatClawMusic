@@ -167,9 +167,11 @@ public static class SafeContentScanner
                         results.Add((docUri, displayName, size, lastModified));
                     }
                     else if (lrcMap != null && !string.IsNullOrEmpty(displayName)
-                        && displayName.EndsWith(".lrc", StringComparison.OrdinalIgnoreCase))
+                        && (displayName.EndsWith(".lrc", StringComparison.OrdinalIgnoreCase)
+                            || displayName.EndsWith(".ttml", StringComparison.OrdinalIgnoreCase)
+                            || displayName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
                     {
-                        // 收集 .lrc 文件，以文件名（不含扩展名）为 key
+                        // 收集歌词文件（.lrc/.ttml/.xml），以文件名（不含扩展名）为 key
                         var lrcNameNoExt = Path.GetFileNameWithoutExtension(displayName);
                         var docUri = DocumentsContract.BuildDocumentUriUsingTree(treeUri, childId);
                         lrcNameNoExt = lrcNameNoExt.ToLowerInvariant();

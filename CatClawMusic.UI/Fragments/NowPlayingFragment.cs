@@ -768,9 +768,43 @@ public class NowPlayingFragment : Fragment
                 case nameof(_viewModel.CurrentLyricProgress):
                     if (_lyricCurrent != null && _viewModel.LyricStyle == 1)
                         _lyricCurrent.LyricProgress = _viewModel.CurrentLyricProgress;
+                    UpdateDuetPartnerPreview();
+                    break;
+                case nameof(_viewModel.DuetPartnerIndex):
+                case nameof(_viewModel.DuetPartnerProgress):
+                    UpdateDuetPartnerPreview();
                     break;
             }
         });
+    }
+
+    /// <summary>
+    /// 更新 5 行预览中合唱伙伴行的着色（同时着色两个歌手的歌词）。
+    /// 当合唱伙伴是 prev/next 行时，为其应用渐变进度；否则清除伙伴高亮。
+    /// </summary>
+    private void UpdateDuetPartnerPreview()
+    {
+        if (_viewModel == null) return;
+        var partnerIdx = _viewModel.DuetPartnerIndex;
+        var currIdx = _viewModel.CurrentLyricIndex;
+        var progress = _viewModel.DuetPartnerProgress;
+
+        StrokeTextView? partnerView = null;
+        if (partnerIdx == currIdx - 1) partnerView = _lyricPrev;
+        else if (partnerIdx == currIdx + 1) partnerView = _lyricNext;
+
+        // 先清除非当前、非伙伴行的着色（恢复为默认未唱色）
+        if (_lyricPrev != null && partnerIdx != currIdx - 1)
+            _lyricPrev.ResetLyricProgress();
+        if (_lyricNext != null && partnerIdx != currIdx + 1)
+            _lyricNext.ResetLyricProgress();
+
+        if (partnerView != null && _viewModel.LyricStyle == 1)
+        {
+            partnerView.SungColor = _lyricCurrent?.SungColor ?? Android.Graphics.Color.White;
+            partnerView.UnsungColor = _lyricCurrent?.UnsungColor ?? Android.Graphics.Color.Gray;
+            partnerView.LyricProgress = progress;
+        }
     }
 
     private int _lastLyricIdx = -1;
@@ -787,6 +821,9 @@ public class NowPlayingFragment : Fragment
         var isLineChanged = idx != _lastLyricIdx && _lastLyricIdx != -1 && !string.IsNullOrEmpty(curr);
         _lastLyricIdx = idx;
 
+        // 应用逐行对齐（TTML/AMLL 对唱歌词）
+        ApplyLyricAlignment();
+
         if (!isLineChanged)
         {
             _lyricPrev2.Text = prev2;  _lyricPrev2.TranslationY = 0f;
@@ -794,6 +831,7 @@ public class NowPlayingFragment : Fragment
             _lyricNext.Text = next;    _lyricNext.TranslationY = 0f;
             _lyricNext2.Text = next2;  _lyricNext2.TranslationY = 0f;
             ApplyCurrentLineWithSpannable(curr);
+            UpdateDuetPartnerPreview();
             return;
         }
 
@@ -817,7 +855,66 @@ public class NowPlayingFragment : Fragment
                 .SetInterpolator(_lyricInterpolator)
                 .Start();
         }
+
+        // 行切换后重新应用合唱伙伴着色（文本已更新，需重新设置渐变）
+        UpdateDuetPartnerPreview();
     }
+
+    /// <summary>根据 ViewModel 的逐行对齐属性设置 5 行预览的 gravity 和 padding</summary>
+    private void ApplyLyricAlignment()
+    {
+        if (_viewModel == null) return;
+        var density = Context?.Resources?.DisplayMetrics?.Density ?? 1f;
+        int edgePadding = (int)(28 * density);
+        int innerPadding = (int)(6 * density);
+
+        void ApplyViewPadding(StrokeTextView v, int alignment)
+        {
+            if (alignment == 0)
+                v.SetPadding(edgePadding, 0, innerPadding, 0);
+            else if (alignment == 2)
+                v.SetPadding(innerPadding, 0, edgePadding, 0);
+            else
+                v.SetPadding(edgePadding, 0, edgePadding, 0);
+        }
+
+        if (_viewModel.HasPerLineAlignment)
+        {
+            _lyricPrev2.Gravity = AlignmentToGravity(_viewModel.PrevLyricAlignment2);
+            _lyricPrev.Gravity = AlignmentToGravity(_viewModel.PrevLyricAlignment);
+            _lyricCurrent.Gravity = AlignmentToGravity(_viewModel.CurrentLyricAlignment);
+            _lyricNext.Gravity = AlignmentToGravity(_viewModel.NextLyricAlignment);
+            _lyricNext2.Gravity = AlignmentToGravity(_viewModel.NextLyricAlignment2);
+
+            ApplyViewPadding(_lyricPrev2, _viewModel.PrevLyricAlignment2);
+            ApplyViewPadding(_lyricPrev, _viewModel.PrevLyricAlignment);
+            ApplyViewPadding(_lyricCurrent, _viewModel.CurrentLyricAlignment);
+            ApplyViewPadding(_lyricNext, _viewModel.NextLyricAlignment);
+            ApplyViewPadding(_lyricNext2, _viewModel.NextLyricAlignment2);
+        }
+        else
+        {
+            // 非逐行对齐模式：全部居中，清除 padding
+            var center = GravityFlags.Center;
+            _lyricPrev2.Gravity = center;
+            _lyricPrev.Gravity = center;
+            _lyricCurrent.Gravity = center;
+            _lyricNext.Gravity = center;
+            _lyricNext2.Gravity = center;
+
+            int clearPad = (int)(16 * density);
+            foreach (var v in new[] { _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2 })
+                v.SetPadding(clearPad, 0, clearPad, 0);
+        }
+    }
+
+    /// <summary>对齐值转 GravityFlags（0=左,1=中,2=右）</summary>
+    private static GravityFlags AlignmentToGravity(int alignment) => alignment switch
+    {
+        0 => GravityFlags.Start | GravityFlags.CenterVertical,
+        2 => GravityFlags.End | GravityFlags.CenterVertical,
+        _ => GravityFlags.Center,
+    };
 
     private void ApplyCurrentLineWithSpannable(string? plainText)
     {
