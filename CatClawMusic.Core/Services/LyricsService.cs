@@ -3,6 +3,7 @@ using CatClawMusic.Core.Models;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using System.Text.Json;
 
 namespace CatClawMusic.Core.Services;
 
@@ -86,8 +87,18 @@ public class LyricsService : ILyricsService
             var embeddedLyrics = ReadEmbeddedLyrics(songPath, isContentUri);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
-                var parsed = ParseLrc(embeddedLyrics) ?? ParsePlainTextLyrics(embeddedLyrics);
+                var parsed = ParseLrc(embeddedLyrics)
+                    ?? ParseTtml(embeddedLyrics)
+                    ?? ParseAmll(embeddedLyrics)
+                    ?? ParsePlainTextLyrics(embeddedLyrics);
                 if (parsed != null) return parsed;
+            }
+
+            // 兜底：二进制扫描 M4A 自定义 atom 等 TagLibSharp 读不到的场景
+            if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+            {
+                var scanned = TryScanFileForTtmlOrAmll(songPath);
+                if (scanned != null) return scanned;
             }
 
             if (isContentUri)
@@ -159,6 +170,13 @@ public class LyricsService : ILyricsService
         {
             var lrcLyrics = await TryReadLrcFileAsync(songPath);
             if (lrcLyrics != null) return lrcLyrics;
+
+            // 兜底：二进制扫描内嵌 TTML/AMLL
+            if (File.Exists(songPath))
+            {
+                var scanned = TryScanFileForTtmlOrAmll(songPath);
+                if (scanned != null) return scanned;
+            }
         }
 
         if (!skipEmbedded)
@@ -166,8 +184,18 @@ public class LyricsService : ILyricsService
             var embeddedLyrics = ReadEmbeddedLyrics(songPath, isContentUri);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
-                var parsed = ParseLrc(embeddedLyrics) ?? ParsePlainTextLyrics(embeddedLyrics);
+                var parsed = ParseLrc(embeddedLyrics)
+                    ?? ParseTtml(embeddedLyrics)
+                    ?? ParseAmll(embeddedLyrics)
+                    ?? ParsePlainTextLyrics(embeddedLyrics);
                 if (parsed != null) return parsed;
+            }
+
+            // 兜底：二进制扫描 M4A 自定义 atom 等
+            if (!isContentUri && !string.IsNullOrEmpty(songPath) && File.Exists(songPath))
+            {
+                var scanned = TryScanFileForTtmlOrAmll(songPath);
+                if (scanned != null) return scanned;
             }
         }
 
@@ -1207,4 +1235,139 @@ public class LyricsService : ILyricsService
 
         return result.Count > 0 ? result : null;
     }
+
+    /// <summary>
+    /// 解析 AMLL (Anni Music Lyrics Library) JSON 格式
+    /// AMLL 是 JSON 格式的逐字歌词，常见于网易云/QQ音乐下载的歌词文件
+    /// </summary>
+    private static LrcLyrics? ParseAmll(string amllContent)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(amllContent);
+            var root = doc.RootElement;
+
+            // AMLL 常见结构：{ "lyrics": [...], "version": "..." }
+            if (!root.TryGetProperty("lyrics", out var lyricsArray) && 
+                !root.TryGetProperty("data", out lyricsArray))
+                return null;
+
+            var result = new LrcLyrics();
+            var lines = new List<LrcLyricLine>();
+
+            foreach (var item in lyricsArray.EnumerateArray())
+            {
+                // 每行结构：{ "startTime": 7224, "endTime": 10500, "content": "...", "words": [...] }
+                if (!item.TryGetProperty("startTime", out var startProp)) continue;
+                var startMs = startProp.GetInt64();
+                var start = TimeSpan.FromMilliseconds(startMs);
+
+                var text = "";
+                if (item.TryGetProperty("content", out var contentProp))
+                    text = contentProp.GetString() ?? "";
+                else if (item.TryGetProperty("lyric", out var lyricProp))
+                    text = lyricProp.GetString() ?? "";
+
+                var line = new LrcLyricLine
+                {
+                    Timestamp = start,
+                    Text = text
+                };
+
+                // 解析逐字时间戳（AMLL 特有的 words 数组）
+                if (item.TryGetProperty("words", out var wordsArray))
+                {
+                    var wordTimestamps = new List<WordTimestamp>();
+                    foreach (var word in wordsArray.EnumerateArray())
+                    {
+                        if (!word.TryGetProperty("word", out var wordProp)) continue;
+                        var wordText = wordProp.GetString() ?? "";
+                        
+                        if (!word.TryGetProperty("startTime", out var wsProp)) continue;
+                        var ws = TimeSpan.FromMilliseconds(wsProp.GetInt64());
+
+                        TimeSpan dur;
+                        if (word.TryGetProperty("endTime", out var weProp))
+                            dur = TimeSpan.FromMilliseconds(weProp.GetInt64()) - ws;
+                        else if (word.TryGetProperty("duration", out var wdProp))
+                            dur = TimeSpan.FromMilliseconds(wdProp.GetInt64());
+                        else
+                            dur = TimeSpan.FromMilliseconds(200);
+
+                        if (dur <= TimeSpan.Zero) dur = TimeSpan.FromMilliseconds(200);
+
+                        wordTimestamps.Add(new WordTimestamp
+                        {
+                            Word = wordText,
+                            Start = ws,
+                            Duration = dur
+                        });
+                    }
+                    line.WordTimestamps = wordTimestamps.Count > 0 ? wordTimestamps : null;
+                }
+
+                lines.Add(line);
+            }
+
+            if (lines.Count == 0) return null;
+            result.Lines = lines;
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 兜底：对音频文件做二进制扫描，搜索内嵌的 TTML/AMLL 歌词标记
+    /// 适用于 M4A 自定义 atom 等 TagLibSharp 读不到的场景
+    /// </summary>
+    private LrcLyrics? TryScanFileForTtmlOrAmll(string filePath)
+    {
+        try
+        {
+            var fi = new FileInfo(filePath);
+            if (!fi.Exists || fi.Length > 200 * 1024 * 1024) return null; // 跳过 >200MB 的文件
+
+            using var fs = File.OpenRead(filePath);
+            var len = (int)Math.Min(fs.Length, 10 * 1024 * 1024); // 最多扫描前 10MB
+            var buf = new byte[len];
+            var read = fs.Read(buf, 0, len);
+            var text = Encoding.UTF8.GetString(buf, 0, read);
+
+            // 尝试 AMLL JSON
+            var amllIdx = text.IndexOf("\"lyrics\"", StringComparison.Ordinal);
+            if (amllIdx < 0) amllIdx = text.IndexOf("\"data\"", StringComparison.Ordinal);
+            if (amllIdx > 0)
+            {
+                // 尝试提取 JSON 片段并解析
+                var sub = text.Substring(amllIdx - 1);
+                try
+                {
+                    var result = ParseAmll(sub);
+                    if (result != null) return result;
+                }
+                catch { }
+            }
+
+            // 尝试 TTML XML
+            var ttmlIdx = text.IndexOf("<tt", StringComparison.OrdinalIgnoreCase);
+            if (ttmlIdx < 0) ttmlIdx = text.IndexOf("<?xml", StringComparison.OrdinalIgnoreCase);
+            if (ttmlIdx > 0)
+            {
+                var sub = text.Substring(ttmlIdx);
+                try
+                {
+                    var result = ParseTtml(sub);
+                    if (result != null) return result;
+                }
+                catch { }
+            }
+
+            return null;
+        }
+        catch { return null; }
+    }
 }
+
