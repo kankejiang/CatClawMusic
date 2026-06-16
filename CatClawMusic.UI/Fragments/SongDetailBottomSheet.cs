@@ -6,14 +6,15 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using Google.Android.Material.BottomSheet;
 using IOFile = System.IO.File;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
-/// <summary>歌曲详情面板（嵌入 BottomSheet 使用）</summary>
-public class SongDetailBottomSheet : Fragment
+/// <summary>歌曲详情底部弹窗（从任意页面底部弹出，下滑/返回关闭）</summary>
+public class SongDetailBottomSheet : BottomSheetDialogFragment
 {
     private ImageView _albumCover = null!;
     private ImageView _artistThumb = null!;
@@ -38,9 +39,6 @@ public class SongDetailBottomSheet : Fragment
     private int _songId;
     private string _embeddedLyrics = "";
     private string _externalLyrics = "";
-
-    /// <summary>请求关闭 BottomSheet 并导航到其他页面</summary>
-    public Action? OnNavigateAway { get; set; }
 
     public static SongDetailBottomSheet NewInstance(int songId)
     {
@@ -91,7 +89,7 @@ public class SongDetailBottomSheet : Fragment
         {
             if (_song != null && !string.IsNullOrEmpty(_song.Artist))
             {
-                OnNavigateAway?.Invoke();
+                Dismiss();
                 _navigationService.PushFragment("ArtistDetail",
                     new Dictionary<string, object> { ["artistName"] = _song.Artist });
             }
@@ -101,7 +99,7 @@ public class SongDetailBottomSheet : Fragment
         {
             if (_song != null && !string.IsNullOrEmpty(_song.Album))
             {
-                OnNavigateAway?.Invoke();
+                Dismiss();
                 _navigationService.PushFragment("AlbumDetail",
                     new Dictionary<string, object>
                     {
@@ -319,27 +317,13 @@ public class SongDetailBottomSheet : Fragment
     {
         if (_song == null) return;
 
+        var lyricsService = MainApplication.Services.GetRequiredService<LyricsService>();
+
         try
         {
-            if (!string.IsNullOrEmpty(_song.FilePath)
-                && !_song.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                && !_song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
-            {
-                _embeddedLyrics = await Task.Run(() => TagReader.ReadEmbeddedLyrics(_song.FilePath)) ?? "";
-            }
-            else if (!string.IsNullOrEmpty(_song.FilePath)
-                && _song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
-            {
-                var ctx = global::Android.App.Application.Context;
-                var uri = Android.Net.Uri.Parse(_song.FilePath);
-                if (uri != null)
-                {
-                    using var stream = ctx.ContentResolver!.OpenInputStream(uri);
-                    if (stream != null)
-                        _embeddedLyrics = await Task.Run(() =>
-                            TagReader.ReadEmbeddedLyricsFromStream(stream, _song.FilePath)) ?? "";
-                }
-            }
+            // 内嵌歌词：使用 LyricsService 回退链（含 AndroidFileStreamOpener / ContentUriLyricsReader）
+            var embeddedRaw = await Task.Run(() => LyricsService.ReadEmbeddedLyricsStatic(_song.FilePath));
+            _embeddedLyrics = embeddedRaw ?? "";
         }
         catch (Exception ex)
         {
@@ -348,23 +332,32 @@ public class SongDetailBottomSheet : Fragment
 
         try
         {
+            // 外嵌歌词：优先数据库 → LyricsPath（含 content:// URI）→ LyricsService 查找 .lrc
             var lyric = await db.GetLyricAsync(_song.Id);
             if (lyric != null && !string.IsNullOrEmpty(lyric.Content))
             {
                 _externalLyrics = lyric.Content;
             }
-            else if (!string.IsNullOrEmpty(_song.LyricsPath) && IOFile.Exists(_song.LyricsPath))
+            else if (!string.IsNullOrEmpty(_song.LyricsPath))
             {
-                _externalLyrics = await Task.Run(() => IOFile.ReadAllText(_song.LyricsPath));
+                if (_song.LyricsPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                {
+                    // SAF content:// URI：通过 ContentResolver 读取
+                    var raw = await LyricsService.ReadContentUriLyricsAsync(_song.LyricsPath);
+                    if (!string.IsNullOrEmpty(raw)) _externalLyrics = raw;
+                }
+                else if (IOFile.Exists(_song.LyricsPath))
+                {
+                    _externalLyrics = await Task.Run(() => IOFile.ReadAllText(_song.LyricsPath));
+                }
             }
-            else if (!string.IsNullOrEmpty(_song.FilePath)
-                && !_song.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                && !_song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+
+            if (string.IsNullOrWhiteSpace(_externalLyrics))
             {
-                // 自动查找同名 .lrc 文件
-                var lrcPath = await Task.Run(() => MusicUtility.FindLyricsFile(_song.FilePath));
-                if (!string.IsNullOrEmpty(lrcPath))
-                    _externalLyrics = await LyricsService.ReadLyricsFileWithEncodingDetection(lrcPath);
+                // LyricsService.GetLocalLyricsAsync 内部 TryReadLrcFileAsync 已有 ContentResolver 回退
+                var lrcLyrics = await lyricsService.GetLocalLyricsAsync(_song, skipEmbedded: true);
+                if (lrcLyrics != null)
+                    _externalLyrics = FormatLrcLyrics(lrcLyrics);
             }
         }
         catch (Exception ex)
@@ -401,6 +394,13 @@ public class SongDetailBottomSheet : Fragment
                 _tvLyrics.Text = "暂无歌词";
             }
         });
+    }
+
+    /// <summary>将 LrcLyrics 格式化为可读文本</summary>
+    private static string FormatLrcLyrics(LrcLyrics lyrics)
+    {
+        if (lyrics.Lines == null || lyrics.Lines.Count == 0) return "";
+        return string.Join("\n", lyrics.Lines.Select(l => l.Text));
     }
 
     private void ShowEditDialog()

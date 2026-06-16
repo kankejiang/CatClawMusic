@@ -359,7 +359,8 @@ public class MainActivity : AppCompatActivity
         }
         else
         {
-            base.OnBackPressed();
+            // 音乐播放器：返回键最小化到后台，不销毁 Activity
+            MoveTaskToBack(true);
         }
     }
 
@@ -426,14 +427,6 @@ public class MainActivity : AppCompatActivity
         UpdateTabUI(_currentTab);
     }
 
-    /// <summary>切换到播放页并展示歌曲详情（垂直翻页）</summary>
-    public void ShowSongDetailSheet(int songId)
-    {
-        SwitchTab(1); // 切到播放页
-        // 延迟到布局完成后再翻到详情页，避免 SwitchTab 动画未完成时垂直 ViewPager2 尚未就绪
-        _viewPager?.Post(() => _tabAdapter.NowPlayingFragment?.ShowSongDetailPage(songId));
-    }
-
     /// <summary>同步底部导航栏选中项到当前 Tab（供 NavigationService 调用）</summary>
     public void UpdateNavSelectionForCurrentTab() => UpdateNavSelection(_currentTab);
 
@@ -485,9 +478,8 @@ public class MainActivity : AppCompatActivity
             }
             else
             {
-                // 默认返回行为（退出 Activity）
-                Enabled = false;
-                activity.OnBackPressedDispatcher.OnBackPressed();
+                // 音乐播放器：返回键最小化到后台，不销毁 Activity
+                activity.MoveTaskToBack(true);
             }
         }
     }

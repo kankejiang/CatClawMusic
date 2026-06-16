@@ -23,6 +23,22 @@ public interface ILyricsService
     LrcLyrics? ParseLrc(string lrcContent);
     
     /// <summary>
+    /// 解析 TTML (Timed Text Markup Language) 格式歌词
+    /// 支持 W3C TTML 标准，常用于 Apple Music、Netflix 等平台
+    /// </summary>
+    LrcLyrics? ParseTtml(string ttmlContent);
+    
+    /// <summary>
+    /// 从文件解析 TTML 格式
+    /// </summary>
+    LrcLyrics? ParseTtmlFromFile(string filePath);
+    
+    /// <summary>
+    /// 异步从文件解析 TTML 格式
+    /// </summary>
+    Task<LrcLyrics?> ParseTtmlFromFileAsync(string filePath);
+    
+    /// <summary>
     /// 根据播放位置获取当前歌词行索引
     /// </summary>
     int GetCurrentLyricIndex(LrcLyrics? lyrics, TimeSpan position);

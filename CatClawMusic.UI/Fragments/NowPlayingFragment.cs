@@ -1861,8 +1861,7 @@ public class NowPlayingFragment : Fragment
             };
         }
 
-        // 首次加载详情数据
-        LoadDetailDataAsync();
+        // 歌词数据在 OnPageSelected(1) 时加载，避免重复调用导致竞态
     }
 
     /// <summary>加载歌曲详情数据（从 SongDetailBottomSheet 迁移）</summary>
@@ -2027,8 +2026,10 @@ public class NowPlayingFragment : Fragment
     private async Task LoadDetailLyricsAsync(MusicDatabase db)
     {
         if (_detailSong == null) return;
-        _detailEmbeddedLyrics = "";
-        _detailExternalLyrics = "";
+
+        // 使用局部变量加载，避免并发调用互相覆盖
+        var embedded = "";
+        var external = "";
 
         try
         {
@@ -2036,7 +2037,20 @@ public class NowPlayingFragment : Fragment
                 && !_detailSong.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                 && !_detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
-                _detailEmbeddedLyrics = await Task.Run(() => TagReader.ReadEmbeddedLyrics(_detailSong.FilePath)) ?? "";
+                embedded = await Task.Run(() => TagReader.ReadEmbeddedLyrics(_detailSong.FilePath)) ?? "";
+            }
+            else if (!string.IsNullOrEmpty(_detailSong.FilePath)
+                && _detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                var ctx = global::Android.App.Application.Context;
+                var uri = Android.Net.Uri.Parse(_detailSong.FilePath);
+                if (uri != null)
+                {
+                    using var stream = ctx.ContentResolver!.OpenInputStream(uri);
+                    if (stream != null)
+                        embedded = await Task.Run(() =>
+                            TagReader.ReadEmbeddedLyricsFromStream(stream, _detailSong.FilePath)) ?? "";
+                }
             }
         }
         catch { }
@@ -2046,11 +2060,11 @@ public class NowPlayingFragment : Fragment
             var lyric = await db.GetLyricAsync(_detailSong.Id);
             if (lyric != null && !string.IsNullOrEmpty(lyric.Content))
             {
-                _detailExternalLyrics = lyric.Content;
+                external = lyric.Content;
             }
             else if (!string.IsNullOrEmpty(_detailSong.LyricsPath) && System.IO.File.Exists(_detailSong.LyricsPath))
             {
-                _detailExternalLyrics = await Task.Run(() => System.IO.File.ReadAllText(_detailSong.LyricsPath));
+                external = await Task.Run(() => System.IO.File.ReadAllText(_detailSong.LyricsPath));
             }
             else if (!string.IsNullOrEmpty(_detailSong.FilePath)
                 && !_detailSong.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
@@ -2058,16 +2072,50 @@ public class NowPlayingFragment : Fragment
             {
                 var lrcPath = await Task.Run(() => MusicUtility.FindLyricsFile(_detailSong.FilePath));
                 if (!string.IsNullOrEmpty(lrcPath))
-                    _detailExternalLyrics = await LyricsService.ReadLyricsFileWithEncodingDetection(lrcPath);
+                    external = await LyricsService.ReadLyricsFileWithEncodingDetection(lrcPath);
+            }
+            else if (!string.IsNullOrEmpty(_detailSong.FilePath)
+                && _detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                // content:// URI → 通过 MediaStore 解析出真实文件路径，再查找 .lrc
+                var realPath = await Task.Run(() =>
+                {
+                    try
+                    {
+                        var ctx = global::Android.App.Application.Context;
+                        var uri = Android.Net.Uri.Parse(_detailSong.FilePath);
+                        if (uri == null) return (string?)null;
+                        using var cursor = ctx.ContentResolver!.Query(uri,
+                            new[] { Android.Provider.MediaStore.Audio.Media.InterfaceConsts.Data },
+                            null, null, null);
+                        if (cursor != null && cursor.MoveToFirst())
+                        {
+                            var idx = cursor.GetColumnIndex(Android.Provider.MediaStore.Audio.Media.InterfaceConsts.Data);
+                            if (idx >= 0) return cursor.GetString(idx);
+                        }
+                    }
+                    catch { }
+                    return (string?)null;
+                });
+                if (!string.IsNullOrEmpty(realPath))
+                {
+                    var lrcPath = await Task.Run(() => MusicUtility.FindLyricsFile(realPath));
+                    if (!string.IsNullOrEmpty(lrcPath))
+                        external = await LyricsService.ReadLyricsFileWithEncodingDetection(lrcPath);
+                }
             }
         }
         catch { }
 
-        bool hasEmbedded = !string.IsNullOrWhiteSpace(_detailEmbeddedLyrics);
-        bool hasExternal = !string.IsNullOrWhiteSpace(_detailExternalLyrics);
+        bool hasEmbedded = !string.IsNullOrWhiteSpace(embedded);
+        bool hasExternal = !string.IsNullOrWhiteSpace(external);
 
         Activity?.RunOnUiThread(() =>
         {
+            // 原子更新共享字段
+            _detailEmbeddedLyrics = embedded;
+            _detailExternalLyrics = external;
+
             if (_detailRbEmbedded != null) _detailRbEmbedded.Enabled = true;
             if (_detailRbExternal != null) _detailRbExternal.Enabled = true;
 
@@ -2075,17 +2123,17 @@ public class NowPlayingFragment : Fragment
             if (hasEmbedded && hasExternal)
             {
                 if (_detailRbExternal != null) _detailRbExternal.Checked = true;
-                _detailLyrics.Text = _detailExternalLyrics;
+                _detailLyrics.Text = external;
             }
             else if (hasEmbedded)
             {
                 if (_detailRbEmbedded != null) _detailRbEmbedded.Checked = true;
-                _detailLyrics.Text = _detailEmbeddedLyrics;
+                _detailLyrics.Text = embedded;
             }
             else if (hasExternal)
             {
                 if (_detailRbExternal != null) _detailRbExternal.Checked = true;
-                _detailLyrics.Text = _detailExternalLyrics;
+                _detailLyrics.Text = external;
             }
             else
             {

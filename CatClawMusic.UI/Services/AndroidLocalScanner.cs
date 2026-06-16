@@ -12,24 +12,24 @@ namespace CatClawMusic.UI.Services;
 /// 扫描策略按优先级依次为：</para>
 /// <list type="number">
 ///   <item>SAF（Storage Access Framework）— 用户通过系统文件选择器授权的文件夹</item>
-///   <item>MediaStore — 读取 Android 系统媒体库</item>
-///   <item>ManageStorage + TagLib — 拥有"所有文件访问"权限时，先查 MediaStore，再递归扫描本地目录并用 TagLib 读取标签</item>
+///   <item>MediaStore — 读取 Android 系统媒体库（仅当启用时）</item>
+///   <item>TagLib — 使用 TagReader 直接读取本地文件标签（无论是否启用 MediaStore）</item>
 /// </list>
-/// <para>如果以上条件均不满足，则回退到仅 MediaStore 扫描。</para>
+/// <para>如果以上条件均不满足，则提示用户在设置中添加文件夹。</para>
 /// </summary>
 public class AndroidLocalScanner
 {
     /// <summary>
     /// 异步扫描 Android 设备上的本地音乐文件。
     /// <para>
-    /// 该方法会根据设备权限状态和传入参数，自动选择合适的扫描策略（SAF / MediaStore / ManageStorage+TagLib），
+    /// 该方法会根据设备权限状态和传入参数，自动选择合适的扫描策略（SAF / MediaStore / TagLib），
     /// 并在扫描过程中通过 <paramref name="progress"/> 报告进度，通过 <paramref name="songCallback"/> 实时回调已发现的歌曲。</para>
     /// </summary>
     /// <param name="customFolders">
     /// 用户自定义的扫描路径列表。可包含：
     /// <list type="bullet">
     ///   <item>SAF 内容 URI（以 "content://" 开头）— 触发 SAF 扫描策略</item>
-    ///   <item>本地文件系统路径 — 在 ManageStorage 策略下追加到默认扫描目录</item>
+    ///   <item>本地文件系统路径 — 使用 TagLib 扫描这些目录</item>
     /// </list>
     /// 若为 null 或空列表，则仅使用默认扫描目录。
     /// </param>
@@ -52,12 +52,18 @@ public class AndroidLocalScanner
         var locker = new object();
 
         // ── 读取扫描配置（ScanSettings） ──────────────────────────────
-        // UseMediaStore：是否优先使用 MediaStore 扫描（而非 SAF）
-        // FilterShortAudio：是否过滤掉时长过短的音频文件
-        // MinDurationSec：短音频的最小时长阈值（秒），低于此值的音频将被过滤
         bool useMediaStore = ScanSettings.UseMediaStore;
         bool filterShort = ScanSettings.FilterShortAudio;
         int minDuration = ScanSettings.MinDurationSec;
+
+        // ── 合并自定义文件夹：参数传入 + ScanSettings 本地文件夹路径 ──
+        var localFolderPaths = ScanSettings.GetLocalFolderPaths();
+        if (localFolderPaths.Count > 0)
+        {
+            customFolders = customFolders != null
+                ? customFolders.Concat(localFolderPaths).ToList()
+                : localFolderPaths;
+        }
 
         // ── 检测设备权限状态 ──────────────────────────────────────────
         // hasManageStorage：Android 11+ 是否拥有"所有文件访问"权限（MANAGE_EXTERNAL_STORAGE）
@@ -70,9 +76,9 @@ public class AndroidLocalScanner
         bool hasSafFolders = customFolders != null && customFolders.Count > 0
             && customFolders.Any(f => f.StartsWith("content://", StringComparison.OrdinalIgnoreCase));
 
-        // ══════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════
         // 策略一：SAF（Storage Access Framework）扫描
-        // ══════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════
         // 当用户通过系统文件选择器授权了 SAF 文件夹（content:// URI）时，
         // 使用 SafeContentScanner 读取已持久化的 SAF 目录内容。
         // 此策略不需要"所有文件访问"权限，兼容性最好。
@@ -96,30 +102,22 @@ public class AndroidLocalScanner
                 System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF scan error: {ex.Message}");
             }
         }
-        // ══════════════════════════════════════════════════════════════
-        // 策略二：MediaStore 扫描（用户配置优先）
-        // ══════════════════════════════════════════════════════════════
+
+        // ════════════════════════════════════════════════════════════
+        // 策略二：MediaStore 扫描（仅当启用时）
+        // ════════════════════════════════════════════════════════════
         // 当 ScanSettings.UseMediaStore 为 true 且没有 SAF 文件夹时，
-        // 仅通过 Android 系统 MediaStore 数据库查询音乐信息。
-        // 速度最快，但只能获取系统已索引的文件。
-        else if (useMediaStore)
+        // 通过 Android 系统 MediaStore 数据库查询音乐信息。
+        // 若同时有本地自定义文件夹路径，还会用 TagLib 补充扫描这些目录。
+        if (useMediaStore && !hasSafFolders)
         {
-            var hasLocalCustomFolders = customFolders != null && customFolders.Any(f =>
-                !string.IsNullOrWhiteSpace(f) && !f.StartsWith("content://"));
-
-            progress?.Report((0, 1, "扫描 Android 媒体库..."));
+            progress?.Report((0, 2, "扫描 Android 媒体库..."));
             try
             {
-                var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
+                var mediaSongs = await Task.Run(() => AndroidMediaScanner.ScanFromMediaStore()).ConfigureAwait(false);
                 foreach (var s in mediaSongs)
                 {
                     if (filterShort && s.Duration < minDuration) continue;
-                    if (hasLocalCustomFolders)
-                    {
-                        var fp = s.FilePath ?? "";
-                        if (!customFolders!.Any(f => fp.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
-                            continue;
-                    }
                     if (existingPaths.Add(s.FilePath))
                         allSongs.Add(s);
                 }
@@ -129,70 +127,51 @@ public class AndroidLocalScanner
             if (allSongs.Count > 0 && songCallback != null)
                 await songCallback(allSongs.ToList());
 
-            progress?.Report((1, 1, $"扫描完成，共 {allSongs.Count} 首"));
+            progress?.Report((2, 2, $"扫描完成，共 {allSongs.Count} 首"));
         }
-        // ══════════════════════════════════════════════════════════════
-        // 策略三：ManageStorage + TagLib 双重扫描
-        // ══════════════════════════════════════════════════════════════
-        // 当拥有"所有文件访问"权限（Android 11+ MANAGE_EXTERNAL_STORAGE）时，
-        // 采用两阶段扫描：
-        //   阶段1：先通过 MediaStore 快速获取系统已索引的歌曲
-        //   阶段2：再递归扫描本地目录（Music、Download 及自定义路径），
-        //          使用 TagLib（TagReader）读取文件标签，补充 MediaStore 未收录的文件
-        // 此策略覆盖面最广，但耗时较长。
-        else if (hasManageStorage)
+
+        // ════════════════════════════════════════════════════════════
+        // 策略三：TagLib 扫描本地文件夹
+        // ════════════════════════════════════════════════════════════
+        // 无论是否启用 MediaStore，都扫描用户添加的本地文件夹。
+        // 当拥有"所有文件访问"权限时，还会扫描默认的 /Music 和 /Download 目录。
+        var customLocalFolders = customFolders?.Where(f =>
+            !string.IsNullOrWhiteSpace(f) &&
+            !f.StartsWith("content://") &&
+            Directory.Exists(f)).ToList();
+
+        if (customLocalFolders?.Count > 0 || (hasManageStorage && useMediaStore))
         {
-            var hasLocalCustomFolders = customFolders != null && customFolders.Any(f =>
-                !string.IsNullOrWhiteSpace(f) && !f.StartsWith("content://"));
+            progress?.Report((0, 1, "扫描本地文件夹..."));
 
-            progress?.Report((0, 2, "扫描系统媒体库..."));
-            try
+            var scanDirs = new List<string>();
+            
+            // 添加用户自定义的本地文件夹
+            if (customLocalFolders?.Count > 0)
             {
-                var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
-                foreach (var s in mediaSongs)
-                {
-                    if (filterShort && s.Duration < minDuration) continue;
-                    if (hasLocalCustomFolders)
-                    {
-                        var fp = s.FilePath ?? "";
-                        if (!customFolders!.Any(f => fp.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
-                            continue;
-                    }
-                    if (existingPaths.Add(s.FilePath))
-                        allSongs.Add(s);
-                }
+                scanDirs.AddRange(customLocalFolders);
             }
-            catch { }
 
-            if (allSongs.Count > 0 && songCallback != null)
-                await songCallback(allSongs.ToList());
-
-            // ── 阶段2：本地文件递归扫描 + TagLib 标签读取 ──────────────
-            // 默认扫描 /Music 和 /Download 目录，并追加用户自定义的本地路径
-            progress?.Report((1, 2, "扫描本地文件..."));
-            var scanDirs = new List<string> { "/storage/emulated/0/Music", "/storage/emulated/0/Download" };
-            if (customFolders != null)
+            // 当拥有"所有文件访问"权限且启用了 MediaStore 时，还扫描默认目录
+            if (hasManageStorage && useMediaStore)
             {
-                foreach (var f in customFolders)
-                    if (!string.IsNullOrWhiteSpace(f) && !f.StartsWith("content://") && Directory.Exists(f) && !scanDirs.Contains(f))
-                        scanDirs.Add(f);
+                if (Directory.Exists("/storage/emulated/0/Music"))
+                    scanDirs.Add("/storage/emulated/0/Music");
+                if (Directory.Exists("/storage/emulated/0/Download"))
+                    scanDirs.Add("/storage/emulated/0/Download");
             }
 
             var allScanPaths = new List<string>();
             foreach (var dir in scanDirs)
             {
-                if (Directory.Exists(dir))
-                {
-                    try { allScanPaths.AddRange(MusicUtility.ScanFolderRecursive(dir)); }
-                    catch { }
-                }
+                try { allScanPaths.AddRange(MusicUtility.ScanFolderRecursive(dir)); }
+                catch { }
             }
 
-            // 过滤掉 MediaStore 阶段已收录的路径，只处理新增文件
+            // 过滤掉已收录的路径，只处理新增文件
             var newPaths = allScanPaths.Where(p => !existingPaths.Contains(p)).ToList();
 
             // 使用并行处理 + TagLib 读取新增文件的标签信息
-            // 限制最大并行度为 CPU 核心数与 4 中的较小值，避免 I/O 争抢
             if (newPaths.Count > 0)
             {
                 var songBag = new ConcurrentBag<Song>();
@@ -201,7 +180,7 @@ public class AndroidLocalScanner
 
                 Parallel.ForEach(newPaths, new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 8)
+                    MaxDegreeOfParallelism = hasManageStorage ? Math.Min(Environment.ProcessorCount, 8) : 1
                 }, path =>
                 {
                     try
@@ -239,39 +218,10 @@ public class AndroidLocalScanner
 
             progress?.Report((1, 1, $"扫描完成，共 {allSongs.Count} 首"));
         }
-        // ══════════════════════════════════════════════════════════════
-        // 兜底策略：仅 MediaStore 扫描
-        // ══════════════════════════════════════════════════════════════
-        // 既没有 SAF 文件夹，也没有开启 UseMediaStore，也没有"所有文件访问"权限，
-        // 只能回退到 MediaStore 扫描作为兜底方案。
-        else
+        else if (!useMediaStore)
         {
-            var hasLocalCustomFolders = customFolders != null && customFolders.Any(f =>
-                !string.IsNullOrWhiteSpace(f) && !f.StartsWith("content://"));
-
-            progress?.Report((0, 1, "扫描系统媒体库..."));
-            try
-            {
-                var mediaSongs = AndroidMediaScanner.ScanFromMediaStore();
-                foreach (var s in mediaSongs)
-                {
-                    if (filterShort && s.Duration < minDuration) continue;
-                    if (hasLocalCustomFolders)
-                    {
-                        var fp = s.FilePath ?? "";
-                        if (!customFolders!.Any(f => fp.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
-                            continue;
-                    }
-                    if (existingPaths.Add(s.FilePath))
-                        allSongs.Add(s);
-                }
-            }
-            catch { }
-
-            if (allSongs.Count > 0 && songCallback != null)
-                await songCallback(allSongs.ToList());
-
-            progress?.Report((1, 1, $"扫描完成，共 {allSongs.Count} 首"));
+            // 如果禁用 MediaStore 且没有添加本地文件夹，提示用户
+            progress?.Report((0, 1, "请先在设置中添加音乐文件夹"));
         }
 
         return allSongs;

@@ -108,10 +108,18 @@ public class MainApplication : Application
             {
                 using var stream = global::Android.App.Application.Context.ContentResolver!.OpenInputStream(global::Android.Net.Uri.Parse(uri)!);
                 if (stream == null) return null;
-                using var reader = new System.IO.StreamReader(stream);
-                return await reader.ReadToEndAsync();
+                // 读取原始字节，使用 LyricsService 的编码检测
+                using var ms = new System.IO.MemoryStream();
+                await stream.CopyToAsync(ms);
+                var bytes = ms.ToArray();
+                if (bytes.Length == 0) return null;
+                return LyricsService.EncodingDetectAndDecode(bytes);
             }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] ContentUriReader 读取失败: {uri}, {ex.Message}");
+                return null;
+            }
         };
         LyricsService.ContentUriLyricsReader = uri =>
         {
@@ -152,6 +160,39 @@ public class MainApplication : Application
                 catch { }
             }
             return null;
+        };
+        /* Android 11+ scoped storage 回退：通过 ContentResolver 读取任意文件字节 */
+        LyricsService.FileBytesReaderAsync = async filePath =>
+        {
+            try
+            {
+                return await System.IO.File.ReadAllBytesAsync(filePath);
+            }
+            catch
+            {
+                try
+                {
+                    var ctx = global::Android.App.Application.Context;
+                    var filesUri = Android.Provider.MediaStore.Files.GetContentUri("external");
+                    var projection = new[] { Android.Provider.MediaStore.Files.FileColumns.Id };
+                    var selection = $"{Android.Provider.MediaStore.Files.FileColumns.Data} = ?";
+                    using var cursor = ctx.ContentResolver!.Query(filesUri, projection, selection, new[] { filePath }, null);
+                    if (cursor != null && cursor.MoveToFirst())
+                    {
+                        var id = cursor.GetLong(0);
+                        var contentUri = Android.Content.ContentUris.WithAppendedId(filesUri, id);
+                        using var stream = ctx.ContentResolver.OpenInputStream(contentUri);
+                        if (stream != null)
+                        {
+                            using var ms = new System.IO.MemoryStream();
+                            await stream.CopyToAsync(ms);
+                            return ms.ToArray();
+                        }
+                    }
+                }
+                catch { }
+                return null;
+            }
         };
         /* 编码检测由 LyricsService 内置 C# 实现处理 */
         services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
@@ -288,6 +329,7 @@ public class MainApplication : Application
         services.AddTransient<SmbSettingsFragment>();
         services.AddTransient<MusicFolderSettingsFragment>();
         services.AddTransient<LocalMusicSettingsFragment>();
+        services.AddTransient<FolderBrowserFragment>();
         services.AddTransient<GeneralSettingsFragment>();
         services.AddTransient<DesktopLyricFragment>();
         services.AddTransient<PluginManagementFragment>();

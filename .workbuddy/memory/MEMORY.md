@@ -4,7 +4,7 @@
 - **构建命令**: `dotnet publish CatClawMusic.UI.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8"`
 - **产出路径**: `publish-apk/CatClawMusic.UI-Signed.apk`
 - **规则**: 每次有较大代码改动后，自动构建 APK
-- **版本**: v1.4.9
+- **版本**: v1.5.1
 
 ## 艺术家元数据
 - **模型**: `ArtistSearchResult` 类（在 `IArtistMetadataScraper.cs` 中）包含以下字段：
@@ -25,3 +25,14 @@
 - C# 映射在 `ArtistMatchFragment.SourceChipToName` 和 `ArtistMatchDetailFragment.SourceChipToName`
 - 当前来源选项：网易云 / 百科 / 豆瓣 / QQ音乐
 - 多源来源的搜索/下载通过 `MultiSourcePhotoScraper` 按 Source 前缀过滤
+
+## 歌词支持
+- **LRC 格式**：标准歌词格式（原有支持）
+- **TTML 格式**：v1.5.1 新增，W3C 标准（常用于 Apple Music）
+  - 支持文件扩展名：`.lrc`、`.ttml`、`.xml`（自动检测是否为 TTML）
+  - 支持逐字时间戳（`<span begin="..." end="...">`）
+  - 支持时间戳格式：`HH:MM:SS.mmm`、`MM:SS.mmm`、秒数、`PT...S`
+- **文件匹配规则**（精确 → 模糊）：
+  1. `歌曲名.lrc` / `歌曲名.ttml` / `歌曲名.xml`
+  2. `歌曲名*.lrc` / `歌曲名*.ttml` / `歌曲名*.xml`
+- **相关文件**：`LyricsService.cs`（解析器）、`MusicUtility.cs`（文件查找）、`ILyricsService.cs`（接口）
