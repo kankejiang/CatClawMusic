@@ -25,6 +25,10 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private long _cachedPositionMs;
     private string? _currentAuthHeader;
     private readonly AndroidHandler _mainHandler = new(Looper.MainLooper!);
+    /// <summary>最近一次 Seek 的时间戳（UTC ticks），用于在 seek 后短暂抑制 STATE_ENDED 误判</summary>
+    private long _lastSeekUtcTicks;
+    /// <summary>Seek 抑制窗口（毫秒），在此期间忽略 ExoPlayer 的 STATE_ENDED 以避免拖动进度条误切歌</summary>
+    private const int SeekGuardMs = 800;
 
     private Am? _audioManager;
     private bool _pausedByFocusLoss;
@@ -389,7 +393,14 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     public Task SeekAsync(TimeSpan position)
     {
         if (_player != null)
-            _mainHandler.Post(() => _player.SeekTo((long)position.TotalMilliseconds));
+        {
+            _lastSeekUtcTicks = DateTime.UtcNow.Ticks;
+            _mainHandler.Post(() =>
+            {
+                try { _player.SeekTo((long)position.TotalMilliseconds); }
+                catch (Exception ex) { ALog.Warn("CatClaw", $"[CatClaw] Seek 失败: {ex.Message}"); }
+            });
+        }
         return Task.CompletedTask;
     }
 
@@ -631,14 +642,25 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                 PositionChanged?.Invoke(this, TimeSpan.FromMilliseconds(currentPosMs));
 
                 var state = _player.PlaybackState;
-                if (state == 4 && _lastPlaybackState != 4)
+                // Seek 抑制窗口：拖动进度条后 ExoPlayer 可能短暂处于 STATE_ENDED，
+                // 此时不应触发自动切歌。只有当位置接近末尾且不在 seek 窗口内才视为真正播放结束。
+                var sinceSeekMs = _lastSeekUtcTicks == 0
+                    ? long.MaxValue
+                    : (long)(DateTime.UtcNow - new DateTime(_lastSeekUtcTicks, DateTimeKind.Utc)).TotalMilliseconds;
+                var durationMs = _player.Duration > 0 ? _player.Duration : 0;
+                var nearEnd = durationMs > 0 && currentPosMs >= durationMs - 200;
+                if (state == 4 && _lastPlaybackState != 4 && sinceSeekMs > SeekGuardMs && nearEnd)
                 {
                     _lastPlaybackState = 4;
+                    _lastSeekUtcTicks = 0;
                     StopPositionTimer();
                     ReleaseWakeLock();
                     StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Stopped });
                     return;
                 }
+                // seek 后如果状态已恢复（非 ENDED），清除 seek 标记
+                if (state != 4 && sinceSeekMs > SeekGuardMs)
+                    _lastSeekUtcTicks = 0;
 
                 var error = _player.PlayerError;
                 if (error != null && _lastPlaybackState != 1)

@@ -378,7 +378,8 @@ public class LibraryFragment : Fragment
         });
         dialog.AddItem("ℹ  歌曲详情", () =>
         {
-            MainActivity.Instance.ShowSongDetailSheet(song.Id);
+            var sheet = SongDetailBottomSheet.NewInstance(song.Id);
+            sheet.Show(ParentFragmentManager, "song_detail");
         });
 
         // 本地音乐显示上传选项，网络音乐显示下载选项

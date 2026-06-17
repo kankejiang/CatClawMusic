@@ -418,7 +418,7 @@ public partial class LibraryViewModel : ObservableObject
     public async Task LoadLocalAsync(bool forceReload = false)
     {
         // 第一步：验证已保存的文件夹 URI 是否仍然有效（权限是否过期）
-        var validFolders = FolderPicker.ValidateSavedFolders();
+        var validFolders = await Task.Run(() => FolderPicker.ValidateSavedFolders());
         if (validFolders == 0 && FolderPicker.GetSavedFolderUris().Count > 0)
         {
             // 权限已过期，尝试从数据库缓存加载
@@ -534,7 +534,7 @@ public partial class LibraryViewModel : ObservableObject
 
             if (_database != null)
             {
-                try { await _database.EnsureInitializedAsync(); } catch { }
+                try { await _database.EnsureInitializedAsync().ConfigureAwait(false); } catch { }
             }
 
             // 去重集合：scannedPaths 用于数据库去重，displayedPaths 用于 UI 去重
@@ -565,18 +565,22 @@ public partial class LibraryViewModel : ObservableObject
                 ReportProgress(pct, p.status);
             });
 
-            // 执行文件系统扫描，逐批发现歌曲并增量入库
-            await CatClawMusic.UI.Services.AndroidLocalScanner.ScanAsync(
-                GetCustomFolders(), progress, async (batch) =>
-                {
-                    var newSongs = batch.Where(s => scannedPaths.Add(s.FilePath)).ToList();
-                    if (newSongs.Count == 0) return;
+            // 在后台线程执行文件系统扫描，避免同步 I/O 阻塞 UI
+            var customFolders = GetCustomFolders();
+            await Task.Run(async () =>
+            {
+                await CatClawMusic.UI.Services.AndroidLocalScanner.ScanAsync(
+                    customFolders, progress, async (batch) =>
+                    {
+                        var newSongs = batch.Where(s => scannedPaths.Add(s.FilePath)).ToList();
+                        if (newSongs.Count == 0) return;
 
-                    await scanner.AddSongsBatchAsync(newSongs);
-                });
+                        await scanner.AddSongsBatchAsync(newSongs);
+                    });
+            });
 
             // 刷新扫描器缓冲区，确保所有歌曲已写入数据库
-            await scanner.FlushAsync();
+            await scanner.FlushAsync().ConfigureAwait(false);
 
             // 清理已删除的歌曲：对比数据库记录与本次扫描路径，移除不存在的记录
             // 关键安全保护：若 scannedPaths 为空（扫描未发现任何文件），
@@ -586,7 +590,7 @@ public partial class LibraryViewModel : ObservableObject
                 try
                 {
                     _dispatcher.Post(() => { ScanStatus = "清理已删除歌曲..."; ScanProgress = 90; });
-                    var removed = await _database.RemoveStaleSongsAsync(CoreModels.SongSource.Local, scannedPaths);
+                    var removed = await _database.RemoveStaleSongsAsync(CoreModels.SongSource.Local, scannedPaths).ConfigureAwait(false);
                     if (removed > 0)
                     {
                         // 同步移除 UI 中对应的过期歌曲
@@ -609,7 +613,7 @@ public partial class LibraryViewModel : ObservableObject
             {
                 try
                 {
-                    var allLocalSongs = await _database.GetSongsAsync();
+                    var allLocalSongs = await _database.GetSongsAsync().ConfigureAwait(false);
                     _dispatcher.Post(() =>
                     {
                         Songs.Clear();
@@ -867,11 +871,20 @@ public partial class LibraryViewModel : ObservableObject
 
     /// <summary>
     /// 获取用户自定义的音乐文件夹列表
+    /// <para>合并 SAF URI 和本地文件路径</para>
     /// </summary>
-    /// <returns>文件夹 URI 列表，或 null</returns>
+    /// <returns>文件夹 URI/路径列表，或 null</returns>
     private List<string>? GetCustomFolders()
     {
-        return CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUris();
+        var safUris = CatClawMusic.UI.Platforms.Android.FolderPicker.GetSavedFolderUris();
+        var localPaths = CatClawMusic.UI.Services.ScanSettings.GetLocalFolderPaths();
+
+        if (safUris.Count == 0 && localPaths.Count == 0)
+            return null;
+
+        var result = new List<string>(safUris);
+        result.AddRange(localPaths);
+        return result;
     }
 
     /// <summary>

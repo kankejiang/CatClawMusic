@@ -3,6 +3,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
 using CatClawMusic.Core.Models;
 using CatClawMusic.UI.Platforms.Android;
+using CatClawMusic.UI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CoreConnectionProfile = CatClawMusic.Core.Models.ConnectionProfile;
@@ -172,10 +173,18 @@ public partial class SettingsViewModel : ObservableObject
         {
             if (_database == null) return;
             await _database.EnsureInitializedAsync();
-            var remainingUris = FolderPicker.GetSavedFolderUris();
-            var retainPaths = new HashSet<string>();
-            foreach (var u in remainingUris)
+
+            // 收集所有需要保留的路径（SAF URI + 真实文件夹路径）
+            var retainPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // SAF 文件夹 URI
+            foreach (var u in FolderPicker.GetSavedFolderUris())
                 retainPaths.Add(u);
+
+            // 自建文件管理器添加的文件夹（真实路径）
+            foreach (var f in ScanSettings.GetLocalFolderPaths())
+                retainPaths.Add(f);
+
             await _database.RemoveStaleSongsAsync(SongSource.Local, retainPaths);
         }
         catch (Exception ex)

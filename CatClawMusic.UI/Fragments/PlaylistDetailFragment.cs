@@ -166,7 +166,8 @@ public class PlaylistDetailFragment : Fragment
         });
         dialog.AddItem("ℹ  歌曲详情", () =>
         {
-            MainActivity.Instance.ShowSongDetailSheet(song.Id);
+            var sheet = SongDetailBottomSheet.NewInstance(song.Id);
+            sheet.Show(ParentFragmentManager, "song_detail");
         });
 
         dialog.Show();

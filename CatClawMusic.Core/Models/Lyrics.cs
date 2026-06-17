@@ -14,6 +14,13 @@ public class LrcLyrics
     /// 歌词行列表
     /// </summary>
     public List<LrcLyricLine> Lines { get; set; } = new();
+
+    /// <summary>
+    /// 是否有按行对齐方式（TTML/AMLL 的 role 属性决定）
+    /// 如果为 true，UI 层应使用每行的 Alignment 字段；
+    /// 如果为 false，UI 层应使用全局 _lyricAlignment 设置。
+    /// </summary>
+    public bool HasPerLineAlignment { get; set; }
 }
 
 /// <summary>
@@ -61,6 +68,13 @@ public class LrcLyricLine
     public string Text { get; set; } = string.Empty;
     public string? Translation { get; set; }
     public List<WordTimestamp>? WordTimestamps { get; set; }
+    
+    /// <summary>
+    /// 歌词行对齐方式（用于合唱/对唱布局）
+    /// 0 = 左对齐，1 = 居中，2 = 右对齐
+    /// 由 TTML 的 role 属性或 AMLL 的 role 字段决定
+    /// </summary>
+    public int Alignment { get; set; } = 1; // 默认居中
 }
 
 /// <summary>

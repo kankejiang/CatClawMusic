@@ -7,11 +7,13 @@ using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
 using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using CatClawMusic.UI.Platforms.Android;
-using Google.Android.Material.BottomSheet;
+using AndroidX.RecyclerView.Widget;
+using AndroidX.ViewPager2.Widget;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidX.Activity.Result;
 using AndroidX.Activity.Result.Contract;
@@ -56,10 +58,30 @@ public class NowPlayingFragment : Fragment
     private bool _sleepFinishSong;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
 
-    // --- BottomSheet：歌曲详情面板 ---
-    private FrameLayout? _songDetailSheetContainer;
-    private BottomSheetBehavior? _songDetailSheetBehavior;
-    private SongDetailBottomSheet? _currentDetailFragment;
+    // --- 垂直 ViewPager2：播放页 ↔ 歌曲详情 ---
+    private ViewPager2? _verticalPager;
+
+    // --- 歌曲详情页面（Page 1）视图引用 ---
+    private View? _songDetailView;
+    private ImageView? _detailAlbumCover;
+    private ImageView? _detailArtistThumb;
+    private ImageView? _detailAlbumThumb;
+    private TextView? _detailTitle;
+    private TextView? _detailArtist;
+    private TextView? _detailAlbum;
+    private TextView? _detailDuration;
+    private TextView? _detailYear;
+    private TextView? _detailBitrate;
+    private TextView? _detailFileSize;
+    private TextView? _detailFilePath;
+    private TextView? _detailLyrics;
+    private RadioGroup? _detailLyricSource;
+    private RadioButton? _detailRbEmbedded;
+    private RadioButton? _detailRbExternal;
+    private Song? _detailSong;
+    private string _detailEmbeddedLyrics = "";
+    private string _detailExternalLyrics = "";
+    private int _detailSongId;
 
     // --- 歌词自定义设置（与 FullLyricsFragment 共享） ---
     private static readonly string[] LyricActiveColorHex   = { "#FFFFFFFF", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1", "#FFFFD54F" };
@@ -113,30 +135,35 @@ public class NowPlayingFragment : Fragment
         _viewModel = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
         var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
 
-        _albumCover = view.FindViewById<ImageView>(Resource.Id.album_cover)!;
+        // 先初始化垂直 ViewPager2（page 0 = 正在播放, page 1 = 歌曲详情）
+        // album_cover 等视图在 page 0 中，必须先设置 adapter 才能通过 FindViewById 找到
+        _verticalPager = view.FindViewById<ViewPager2>(Resource.Id.vertical_pager)!;
+        var inflater = LayoutInflater.From(Context!)!;
+        var nowPlayingPage = inflater.Inflate(Resource.Layout.page_now_playing_content, _verticalPager, false)!;
+        var songDetailPage = inflater.Inflate(Resource.Layout.fragment_song_detail, _verticalPager, false)!;
+        _verticalPager.Adapter = new VerticalPagerAdapter(nowPlayingPage, songDetailPage);
+        _verticalPager.OffscreenPageLimit = 1; // 保持两个页面都存活
+        _songDetailView = songDetailPage;
+
+        // 延迟绑定详情页面视图（等待 ViewPager2 完成布局）
+        _verticalPager.Post(() => InitDetailPage());
+
+        // 滑到详情页面时自动刷新数据
+        _verticalPager.RegisterOnPageChangeCallback(new VerticalPagerPageCallback(this));
+
+        // album_cover 在 ViewPager2 page 0 中，通过 nowPlayingPage 直接查找（ViewPager2 异步创建页面，不能用 view.FindViewById）
+        _albumCover = nowPlayingPage.FindViewById<ImageView>(Resource.Id.album_cover)!;
         var coverContainer = (ViewGroup?)_albumCover.Parent?.Parent?.Parent;
         if (coverContainer?.LayoutParameters is LinearLayout.LayoutParams clp)
             _coverLayoutParams = clp;
 
-        // 封面点击/上滑 → 歌曲详情底部面板
-        _albumCover.SetOnTouchListener(new CoverTapAndSwipeUpListener(() =>
-        {
-            ShowSongDetailSheet();
-        }));
-
-        // 初始化 BottomSheet 容器
-        _songDetailSheetContainer = view.FindViewById<FrameLayout>(Resource.Id.song_detail_sheet_container)!;
-        _songDetailSheetBehavior = BottomSheetBehavior.From(_songDetailSheetContainer);
-        _songDetailSheetBehavior.State = BottomSheetBehavior.StateHidden;
-        _songDetailSheetBehavior.AddBottomSheetCallback(new DetailSheetCallback(this));
-
-        _songTitle = view.FindViewById<TextView>(Resource.Id.song_title)!;
-        _songArtist = view.FindViewById<TextView>(Resource.Id.song_artist)!;
-        _lyricPrev2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev2)!;
-        _lyricPrev = (StrokeTextView)view.FindViewById(Resource.Id.lyric_prev)!;
-        _lyricCurrent = (StrokeTextView)view.FindViewById(Resource.Id.lyric_current)!;
-        _lyricNext = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next)!;
-        _lyricNext2 = (StrokeTextView)view.FindViewById(Resource.Id.lyric_next2)!;
+        _songTitle = nowPlayingPage.FindViewById<TextView>(Resource.Id.song_title)!;
+        _songArtist = nowPlayingPage.FindViewById<TextView>(Resource.Id.song_artist)!;
+        _lyricPrev2 = (StrokeTextView)nowPlayingPage.FindViewById(Resource.Id.lyric_prev2)!;
+        _lyricPrev = (StrokeTextView)nowPlayingPage.FindViewById(Resource.Id.lyric_prev)!;
+        _lyricCurrent = (StrokeTextView)nowPlayingPage.FindViewById(Resource.Id.lyric_current)!;
+        _lyricNext = (StrokeTextView)nowPlayingPage.FindViewById(Resource.Id.lyric_next)!;
+        _lyricNext2 = (StrokeTextView)nowPlayingPage.FindViewById(Resource.Id.lyric_next2)!;
         _lyricPrev2.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _lyricPrev.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _lyricCurrent.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
@@ -144,23 +171,23 @@ public class NowPlayingFragment : Fragment
         _lyricNext2.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _songTitle.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _songArtist.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
-        _timeCurrent = view.FindViewById<TextView>(Resource.Id.time_current)!;
-        _timeTotal = view.FindViewById<TextView>(Resource.Id.time_total)!;
+        _timeCurrent = nowPlayingPage.FindViewById<TextView>(Resource.Id.time_current)!;
+        _timeTotal = nowPlayingPage.FindViewById<TextView>(Resource.Id.time_total)!;
         _timeCurrent.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _timeTotal.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
-        _btnPlayPause = view.FindViewById<ImageButton>(Resource.Id.btn_play_pause)!;
-        _btnNext = view.FindViewById<ImageButton>(Resource.Id.btn_next)!;
-        _btnPrev = view.FindViewById<ImageButton>(Resource.Id.btn_prev)!;
-        _btnLike = view.FindViewById<ImageButton>(Resource.Id.btn_like)!;
-        _btnModeCycle = view.FindViewById<ImageButton>(Resource.Id.btn_mode_cycle)!;
-        _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
-        _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
-        _btnEq = view.FindViewById<ImageButton>(Resource.Id.btn_eq)!;
-        _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
-        _btnLandscape = view.FindViewById<ImageButton>(Resource.Id.btn_landscape)!;
-        _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
-        _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
-        _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
+        _btnPlayPause = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_play_pause)!;
+        _btnNext = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_next)!;
+        _btnPrev = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_prev)!;
+        _btnLike = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_like)!;
+        _btnModeCycle = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_mode_cycle)!;
+        _btnPlaylist = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
+        _btnVisualizerToggle = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
+        _btnEq = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_eq)!;
+        _btnSleepTimer = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
+        _btnLandscape = nowPlayingPage.FindViewById<ImageButton>(Resource.Id.btn_landscape)!;
+        _progressSlider = nowPlayingPage.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
+        _controlsCard = nowPlayingPage.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
+        _audioVisualizer = nowPlayingPage.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
         _bgDimOverlay = view.FindViewById<View>(Resource.Id.bg_dim_overlay);
         _bgCover = view.FindViewById<ImageView>(Resource.Id.bg_cover)!;
         ApplyBlur();
@@ -213,7 +240,7 @@ public class NowPlayingFragment : Fragment
 
         // 歌词区点击 → 跳转全屏歌词页 (Tab 0)
         // 用自定义触摸监听：短按跳转，水平滑动交给 ViewPager2
-        var lyricsArea = view.FindViewById<View>(Resource.Id.lyrics_area);
+        var lyricsArea = nowPlayingPage.FindViewById<View>(Resource.Id.lyrics_area);
         if (lyricsArea != null)
         {
             // 设置父控件可点击和可聚焦
@@ -237,7 +264,7 @@ public class NowPlayingFragment : Fragment
         }
 
         // 控制区域拦截 ViewPager2 的横向滑动
-        var controlsArea = view.FindViewById<View>(Resource.Id.controls_area)!;
+        var controlsArea = nowPlayingPage.FindViewById<View>(Resource.Id.controls_area)!;
         controlsArea.SetOnTouchListener(new ControlsTouchListener());
 
         // 播放控制（Click -=/+= 防止 ViewPager 重建时重复绑定）
@@ -724,6 +751,8 @@ public class NowPlayingFragment : Fragment
                         _songArtist.Text = "正在加载...";
                     else
                         _songArtist.Text = string.IsNullOrEmpty(_viewModel.CurrentSong?.Artist) ? "未知艺术家" : _viewModel.CurrentSong!.Artist;
+                    // 切歌时刷新详情页面数据
+                    LoadDetailDataAsync();
                     // 切歌时无需重启 Visualizer：ExoPlayer 复用同一 SessionId，
                     // 已绑定的 Visualizer 会自动接收新轨道的 FFT 数据
                     break;
@@ -739,9 +768,43 @@ public class NowPlayingFragment : Fragment
                 case nameof(_viewModel.CurrentLyricProgress):
                     if (_lyricCurrent != null && _viewModel.LyricStyle == 1)
                         _lyricCurrent.LyricProgress = _viewModel.CurrentLyricProgress;
+                    UpdateDuetPartnerPreview();
+                    break;
+                case nameof(_viewModel.DuetPartnerIndex):
+                case nameof(_viewModel.DuetPartnerProgress):
+                    UpdateDuetPartnerPreview();
                     break;
             }
         });
+    }
+
+    /// <summary>
+    /// 更新 5 行预览中合唱伙伴行的着色（同时着色两个歌手的歌词）。
+    /// 当合唱伙伴是 prev/next 行时，为其应用渐变进度；否则清除伙伴高亮。
+    /// </summary>
+    private void UpdateDuetPartnerPreview()
+    {
+        if (_viewModel == null) return;
+        var partnerIdx = _viewModel.DuetPartnerIndex;
+        var currIdx = _viewModel.CurrentLyricIndex;
+        var progress = _viewModel.DuetPartnerProgress;
+
+        StrokeTextView? partnerView = null;
+        if (partnerIdx == currIdx - 1) partnerView = _lyricPrev;
+        else if (partnerIdx == currIdx + 1) partnerView = _lyricNext;
+
+        // 先清除非当前、非伙伴行的着色（恢复为默认未唱色）
+        if (_lyricPrev != null && partnerIdx != currIdx - 1)
+            _lyricPrev.ResetLyricProgress();
+        if (_lyricNext != null && partnerIdx != currIdx + 1)
+            _lyricNext.ResetLyricProgress();
+
+        if (partnerView != null && _viewModel.LyricStyle == 1)
+        {
+            partnerView.SungColor = _lyricCurrent?.SungColor ?? Android.Graphics.Color.White;
+            partnerView.UnsungColor = _lyricCurrent?.UnsungColor ?? Android.Graphics.Color.Gray;
+            partnerView.LyricProgress = progress;
+        }
     }
 
     private int _lastLyricIdx = -1;
@@ -758,6 +821,9 @@ public class NowPlayingFragment : Fragment
         var isLineChanged = idx != _lastLyricIdx && _lastLyricIdx != -1 && !string.IsNullOrEmpty(curr);
         _lastLyricIdx = idx;
 
+        // 应用逐行对齐（TTML/AMLL 对唱歌词）
+        ApplyLyricAlignment();
+
         if (!isLineChanged)
         {
             _lyricPrev2.Text = prev2;  _lyricPrev2.TranslationY = 0f;
@@ -765,6 +831,7 @@ public class NowPlayingFragment : Fragment
             _lyricNext.Text = next;    _lyricNext.TranslationY = 0f;
             _lyricNext2.Text = next2;  _lyricNext2.TranslationY = 0f;
             ApplyCurrentLineWithSpannable(curr);
+            UpdateDuetPartnerPreview();
             return;
         }
 
@@ -788,7 +855,66 @@ public class NowPlayingFragment : Fragment
                 .SetInterpolator(_lyricInterpolator)
                 .Start();
         }
+
+        // 行切换后重新应用合唱伙伴着色（文本已更新，需重新设置渐变）
+        UpdateDuetPartnerPreview();
     }
+
+    /// <summary>根据 ViewModel 的逐行对齐属性设置 5 行预览的 gravity 和 padding</summary>
+    private void ApplyLyricAlignment()
+    {
+        if (_viewModel == null) return;
+        var density = Context?.Resources?.DisplayMetrics?.Density ?? 1f;
+        int edgePadding = (int)(28 * density);
+        int innerPadding = (int)(6 * density);
+
+        void ApplyViewPadding(StrokeTextView v, int alignment)
+        {
+            if (alignment == 0)
+                v.SetPadding(edgePadding, 0, innerPadding, 0);
+            else if (alignment == 2)
+                v.SetPadding(innerPadding, 0, edgePadding, 0);
+            else
+                v.SetPadding(edgePadding, 0, edgePadding, 0);
+        }
+
+        if (_viewModel.HasPerLineAlignment)
+        {
+            _lyricPrev2.Gravity = AlignmentToGravity(_viewModel.PrevLyricAlignment2);
+            _lyricPrev.Gravity = AlignmentToGravity(_viewModel.PrevLyricAlignment);
+            _lyricCurrent.Gravity = AlignmentToGravity(_viewModel.CurrentLyricAlignment);
+            _lyricNext.Gravity = AlignmentToGravity(_viewModel.NextLyricAlignment);
+            _lyricNext2.Gravity = AlignmentToGravity(_viewModel.NextLyricAlignment2);
+
+            ApplyViewPadding(_lyricPrev2, _viewModel.PrevLyricAlignment2);
+            ApplyViewPadding(_lyricPrev, _viewModel.PrevLyricAlignment);
+            ApplyViewPadding(_lyricCurrent, _viewModel.CurrentLyricAlignment);
+            ApplyViewPadding(_lyricNext, _viewModel.NextLyricAlignment);
+            ApplyViewPadding(_lyricNext2, _viewModel.NextLyricAlignment2);
+        }
+        else
+        {
+            // 非逐行对齐模式：全部居中，清除 padding
+            var center = GravityFlags.Center;
+            _lyricPrev2.Gravity = center;
+            _lyricPrev.Gravity = center;
+            _lyricCurrent.Gravity = center;
+            _lyricNext.Gravity = center;
+            _lyricNext2.Gravity = center;
+
+            int clearPad = (int)(16 * density);
+            foreach (var v in new[] { _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2 })
+                v.SetPadding(clearPad, 0, clearPad, 0);
+        }
+    }
+
+    /// <summary>对齐值转 GravityFlags（0=左,1=中,2=右）</summary>
+    private static GravityFlags AlignmentToGravity(int alignment) => alignment switch
+    {
+        0 => GravityFlags.Start | GravityFlags.CenterVertical,
+        2 => GravityFlags.End | GravityFlags.CenterVertical,
+        _ => GravityFlags.Center,
+    };
 
     private void ApplyCurrentLineWithSpannable(string? plainText)
     {
@@ -1746,116 +1872,511 @@ public class NowPlayingFragment : Fragment
         }
     }
 
-    // --- BottomSheet 管理 ---
+    // --- 垂直 ViewPager2 管理 ---
 
-    /// <summary>展开歌曲详情 BottomSheet（公开方法，供外部调用）</summary>
-    public void ShowSongDetailSheet(int songId)
+    /// <summary>滑到歌曲详情页面（page 1）</summary>
+    public void ShowSongDetailPage(int songId = 0)
     {
-        if (_songDetailSheetBehavior == null || _songDetailSheetContainer == null)
-            return;
+        if (songId > 0) _detailSongId = songId;
+        _verticalPager?.SetCurrentItem(1, true);
+    }
 
-        // 移除旧的 fragment
-        if (_currentDetailFragment != null)
+    /// <summary>滑回正在播放页面（page 0）</summary>
+    public void NavigateToPlayingPage()
+    {
+        _verticalPager?.SetCurrentItem(0, false);
+    }
+
+    /// <summary>绑定歌曲详情页面视图并设置交互</summary>
+    private void InitDetailPage()
+    {
+        if (_songDetailView == null) return;
+        var v = _songDetailView;
+
+        _detailAlbumCover = v.FindViewById<ImageView>(Resource.Id.iv_album_cover);
+        _detailArtistThumb = v.FindViewById<ImageView>(Resource.Id.iv_artist_thumb);
+        _detailAlbumThumb = v.FindViewById<ImageView>(Resource.Id.iv_album_thumb);
+        _detailTitle = v.FindViewById<TextView>(Resource.Id.tv_song_title);
+        _detailArtist = v.FindViewById<TextView>(Resource.Id.tv_artist);
+        _detailAlbum = v.FindViewById<TextView>(Resource.Id.tv_album);
+        _detailDuration = v.FindViewById<TextView>(Resource.Id.tv_duration);
+        _detailYear = v.FindViewById<TextView>(Resource.Id.tv_year);
+        _detailBitrate = v.FindViewById<TextView>(Resource.Id.tv_bitrate);
+        _detailFileSize = v.FindViewById<TextView>(Resource.Id.tv_file_size);
+        _detailFilePath = v.FindViewById<TextView>(Resource.Id.tv_file_path);
+        _detailLyrics = v.FindViewById<TextView>(Resource.Id.tv_lyrics);
+        _detailLyricSource = v.FindViewById<RadioGroup>(Resource.Id.rg_lyric_source);
+        _detailRbEmbedded = v.FindViewById<RadioButton>(Resource.Id.rb_embedded);
+        _detailRbExternal = v.FindViewById<RadioButton>(Resource.Id.rb_external);
+
+        var btnEdit = v.FindViewById<ImageButton>(Resource.Id.btn_edit);
+        if (btnEdit != null)
+            btnEdit.Click += (s, e) => ShowDetailEditDialog();
+
+        var navService = MainApplication.Services.GetRequiredService<INavigationService>();
+        var rowArtist = v.FindViewById<LinearLayout>(Resource.Id.row_artist);
+        if (rowArtist != null)
         {
-            var ft = ChildFragmentManager.BeginTransaction();
-            ft.Remove(_currentDetailFragment);
-            ft.Commit();
-            _currentDetailFragment = null;
+            rowArtist.Click += (s, e) =>
+            {
+                if (_detailSong != null && !string.IsNullOrEmpty(_detailSong.Artist))
+                {
+                    NavigateToPlayingPage();
+                    navService.PushFragment("ArtistDetail",
+                        new Dictionary<string, object> { ["artistName"] = _detailSong.Artist });
+                }
+            };
         }
 
-        // 创建新的详情 fragment
-        _currentDetailFragment = SongDetailBottomSheet.NewInstance(songId);
-        _currentDetailFragment.OnNavigateAway = () =>
+        var rowAlbum = v.FindViewById<LinearLayout>(Resource.Id.row_album);
+        if (rowAlbum != null)
         {
-            HideSongDetailSheet();
+            rowAlbum.Click += (s, e) =>
+            {
+                if (_detailSong != null && !string.IsNullOrEmpty(_detailSong.Album))
+                {
+                    NavigateToPlayingPage();
+                    navService.PushFragment("AlbumDetail",
+                        new Dictionary<string, object>
+                        {
+                            ["albumTitle"] = _detailSong.Album,
+                            ["albumArtist"] = _detailSong.Artist
+                        });
+                }
+            };
+        }
+
+        if (_detailLyricSource != null)
+        {
+            _detailLyricSource.CheckedChange += (s, e) =>
+            {
+                if (_detailLyrics == null) return;
+                if (e.CheckedId == Resource.Id.rb_embedded)
+                    _detailLyrics.Text = string.IsNullOrEmpty(_detailEmbeddedLyrics) ? "无内置歌词" : _detailEmbeddedLyrics;
+                else if (e.CheckedId == Resource.Id.rb_external)
+                    _detailLyrics.Text = string.IsNullOrEmpty(_detailExternalLyrics) ? "无外嵌歌词" : _detailExternalLyrics;
+            };
+        }
+
+        // 歌词数据在 OnPageSelected(1) 时加载，避免重复调用导致竞态
+    }
+
+    /// <summary>加载歌曲详情数据（从 SongDetailBottomSheet 迁移）</summary>
+    private async void LoadDetailDataAsync()
+    {
+        if (_detailTitle == null) return;
+
+        // 优先使用指定的 songId，否则使用当前播放歌曲
+        var songId = _detailSongId > 0 ? _detailSongId : (_viewModel.CurrentSong?.Id ?? 0);
+        if (songId <= 0) return;
+
+        var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+        await db.EnsureInitializedAsync();
+
+        try
+        {
+            var songs = await db.GetSongsWithDetailsAsync();
+            _detailSong = songs.FirstOrDefault(s => s.Id == songId);
+
+            if (_detailSong == null)
+            {
+                Activity?.RunOnUiThread(() =>
+                {
+                    if (_detailTitle != null) _detailTitle.Text = "歌曲不存在";
+                    if (_detailLyrics != null) _detailLyrics.Text = "未找到歌曲信息";
+                });
+                return;
+            }
+
+            Activity?.RunOnUiThread(() =>
+            {
+                if (_detailTitle != null) _detailTitle.Text = _detailSong.Title;
+                if (_detailArtist != null) _detailArtist.Text = _detailSong.Artist;
+                if (_detailAlbum != null) _detailAlbum.Text = _detailSong.Album;
+                if (_detailDuration != null)
+                {
+                    var dur = _detailSong.Duration;
+                    _detailDuration.Text = dur > 0
+                        ? TimeSpan.FromSeconds(dur).ToString(dur >= 3600 ? @"h\:mm\:ss" : @"mm\:ss")
+                        : "未知";
+                }
+                if (_detailYear != null) _detailYear.Text = _detailSong.Year > 0 ? _detailSong.Year.ToString() : "未知";
+                if (_detailBitrate != null) _detailBitrate.Text = _detailSong.Bitrate > 0 ? $"{_detailSong.Bitrate} kbps" : "未知";
+                if (_detailFileSize != null) _detailFileSize.Text = FormatDetailFileSize(_detailSong.FileSize);
+                if (_detailFilePath != null) _detailFilePath.Text = _detailSong.FilePath ?? "未知";
+            });
+
+            await Task.WhenAll(
+                LoadDetailCoverAsync(),
+                LoadDetailThumbnailsAsync(db),
+                LoadDetailLyricsAsync(db));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SongDetail] 加载失败: {ex}");
+            Activity?.RunOnUiThread(() =>
+            {
+                if (_detailLyrics != null) _detailLyrics.Text = "加载失败";
+            });
+        }
+    }
+
+    private async Task LoadDetailCoverAsync()
+    {
+        if (_detailSong == null) return;
+        try
+        {
+            if (_detailSong.Source == SongSource.Local && _detailSong.MediaStoreId > 0)
+            {
+                var bitmap = await Task.Run(() =>
+                    Platforms.Android.MediaStoreCoverHelper.LoadCoverFromMediaStore(_detailSong.MediaStoreId, 480));
+                if (bitmap != null)
+                {
+                    Activity?.RunOnUiThread(() =>
+                    {
+                        _detailAlbumCover?.SetImageBitmap(bitmap);
+                        _detailAlbumThumb?.SetImageBitmap(bitmap);
+                    });
+                    return;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(_detailSong.CoverArtPath) && System.IO.File.Exists(_detailSong.CoverArtPath))
+            {
+                var bitmap = await Task.Run(() => BitmapFactory.DecodeFile(_detailSong.CoverArtPath));
+                if (bitmap != null)
+                {
+                    Activity?.RunOnUiThread(() =>
+                    {
+                        _detailAlbumCover?.SetImageBitmap(bitmap);
+                        _detailAlbumThumb?.SetImageBitmap(bitmap);
+                    });
+                    return;
+                }
+            }
+
+            var cachePath = System.IO.Path.Combine(
+                global::Android.App.Application.Context.CacheDir!.AbsolutePath,
+                "covers", $"cover_{_detailSong.Id}.jpg");
+            if (System.IO.File.Exists(cachePath))
+            {
+                var bitmap = await Task.Run(() => BitmapFactory.DecodeFile(cachePath));
+                if (bitmap != null)
+                {
+                    Activity?.RunOnUiThread(() =>
+                    {
+                        _detailAlbumCover?.SetImageBitmap(bitmap);
+                        _detailAlbumThumb?.SetImageBitmap(bitmap);
+                    });
+                    return;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(_detailSong.FilePath)
+                && !_detailSong.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                && !_detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                var coverBytes = await Task.Run(() => TagReader.ExtractCoverArt(_detailSong.FilePath));
+                if (coverBytes is { Length: > 0 })
+                {
+                    var bitmap = await Task.Run(() => BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length));
+                    if (bitmap != null)
+                    {
+                        Activity?.RunOnUiThread(() =>
+                        {
+                            _detailAlbumCover?.SetImageBitmap(bitmap);
+                            _detailAlbumThumb?.SetImageBitmap(bitmap);
+                        });
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async Task LoadDetailThumbnailsAsync(MusicDatabase db)
+    {
+        if (_detailSong == null) return;
+        try
+        {
+            var artists = await db.GetAllArtistsAsync();
+            var artist = artists.FirstOrDefault(a => a.Name == _detailSong.Artist);
+            if (artist != null && !string.IsNullOrEmpty(artist.Cover) && System.IO.File.Exists(artist.Cover))
+            {
+                var bitmap = await Task.Run(() => BitmapFactory.DecodeFile(artist.Cover));
+                if (bitmap != null)
+                {
+                    Activity?.RunOnUiThread(() =>
+                    {
+                        if (_detailArtistThumb != null)
+                        {
+                            _detailArtistThumb.SetImageBitmap(bitmap);
+                            _detailArtistThumb.ImageTintList = null;
+                        }
+                    });
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async Task LoadDetailLyricsAsync(MusicDatabase db)
+    {
+        if (_detailSong == null) return;
+
+        // 使用局部变量加载，避免并发调用互相覆盖
+        var embedded = "";
+        var external = "";
+
+        try
+        {
+            if (!string.IsNullOrEmpty(_detailSong.FilePath)
+                && !_detailSong.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                && !_detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                embedded = await Task.Run(() => TagReader.ReadEmbeddedLyrics(_detailSong.FilePath)) ?? "";
+            }
+            else if (!string.IsNullOrEmpty(_detailSong.FilePath)
+                && _detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                var ctx = global::Android.App.Application.Context;
+                var uri = Android.Net.Uri.Parse(_detailSong.FilePath);
+                if (uri != null)
+                {
+                    using var stream = ctx.ContentResolver!.OpenInputStream(uri);
+                    if (stream != null)
+                        embedded = await Task.Run(() =>
+                            TagReader.ReadEmbeddedLyricsFromStream(stream, _detailSong.FilePath)) ?? "";
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var lyric = await db.GetLyricAsync(_detailSong.Id);
+            if (lyric != null && !string.IsNullOrEmpty(lyric.Content))
+            {
+                external = lyric.Content;
+            }
+            else if (!string.IsNullOrEmpty(_detailSong.LyricsPath) && System.IO.File.Exists(_detailSong.LyricsPath))
+            {
+                external = await Task.Run(() => System.IO.File.ReadAllText(_detailSong.LyricsPath));
+            }
+            else if (!string.IsNullOrEmpty(_detailSong.FilePath)
+                && !_detailSong.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                && !_detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                var lrcPath = await Task.Run(() => MusicUtility.FindLyricsFile(_detailSong.FilePath));
+                if (!string.IsNullOrEmpty(lrcPath))
+                    external = await LyricsService.ReadLyricsFileWithEncodingDetection(lrcPath);
+            }
+            else if (!string.IsNullOrEmpty(_detailSong.FilePath)
+                && _detailSong.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                // content:// URI → 通过 MediaStore 解析出真实文件路径，再查找 .lrc
+                var realPath = await Task.Run(() =>
+                {
+                    try
+                    {
+                        var ctx = global::Android.App.Application.Context;
+                        var uri = Android.Net.Uri.Parse(_detailSong.FilePath);
+                        if (uri == null) return (string?)null;
+                        using var cursor = ctx.ContentResolver!.Query(uri,
+                            new[] { Android.Provider.MediaStore.Audio.Media.InterfaceConsts.Data },
+                            null, null, null);
+                        if (cursor != null && cursor.MoveToFirst())
+                        {
+                            var idx = cursor.GetColumnIndex(Android.Provider.MediaStore.Audio.Media.InterfaceConsts.Data);
+                            if (idx >= 0) return cursor.GetString(idx);
+                        }
+                    }
+                    catch { }
+                    return (string?)null;
+                });
+                if (!string.IsNullOrEmpty(realPath))
+                {
+                    var lrcPath = await Task.Run(() => MusicUtility.FindLyricsFile(realPath));
+                    if (!string.IsNullOrEmpty(lrcPath))
+                        external = await LyricsService.ReadLyricsFileWithEncodingDetection(lrcPath);
+                }
+            }
+        }
+        catch { }
+
+        bool hasEmbedded = !string.IsNullOrWhiteSpace(embedded);
+        bool hasExternal = !string.IsNullOrWhiteSpace(external);
+
+        Activity?.RunOnUiThread(() =>
+        {
+            // 原子更新共享字段
+            _detailEmbeddedLyrics = embedded;
+            _detailExternalLyrics = external;
+
+            if (_detailRbEmbedded != null) _detailRbEmbedded.Enabled = true;
+            if (_detailRbExternal != null) _detailRbExternal.Enabled = true;
+
+            if (_detailLyrics == null) return;
+            if (hasEmbedded && hasExternal)
+            {
+                if (_detailRbExternal != null) _detailRbExternal.Checked = true;
+                _detailLyrics.Text = external;
+            }
+            else if (hasEmbedded)
+            {
+                if (_detailRbEmbedded != null) _detailRbEmbedded.Checked = true;
+                _detailLyrics.Text = embedded;
+            }
+            else if (hasExternal)
+            {
+                if (_detailRbExternal != null) _detailRbExternal.Checked = true;
+                _detailLyrics.Text = external;
+            }
+            else
+            {
+                if (_detailRbEmbedded != null) _detailRbEmbedded.Checked = true;
+                _detailLyrics.Text = "暂无歌词";
+            }
+        });
+    }
+
+    private void ShowDetailEditDialog()
+    {
+        var ctx = Context;
+        if (ctx == null || _detailSong == null) return;
+
+        var ll = new LinearLayout(ctx)
+        {
+            Orientation = Orientation.Vertical,
+            LayoutParameters = new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
         };
+        ll.SetPadding(48, 24, 48, 16);
 
-        var ft2 = ChildFragmentManager.BeginTransaction();
-        ft2.Replace(Resource.Id.song_detail_sheet_container, _currentDetailFragment);
-        ft2.CommitAllowingStateLoss();
+        var etTitle = CreateDetailEditField(ctx, "歌曲标题", _detailSong.Title);
+        var etArtist = CreateDetailEditField(ctx, "艺术家", _detailSong.Artist);
+        var etAlbum = CreateDetailEditField(ctx, "专辑", _detailSong.Album);
+        ll.AddView(etTitle);
+        ll.AddView(etArtist);
+        ll.AddView(etAlbum);
 
-        _songDetailSheetBehavior.State = BottomSheetBehavior.StateExpanded;
+        var dialog = new Google.Android.Material.Dialog.MaterialAlertDialogBuilder(ctx)
+            .SetTitle("编辑歌曲信息")
+            .SetView(ll)
+            .SetPositiveButton("保存", async (s, e) =>
+            {
+                var newTitle = etTitle.Text?.Trim();
+                var newArtist = etArtist.Text?.Trim();
+                var newAlbum = etAlbum.Text?.Trim();
+
+                if (string.IsNullOrEmpty(newTitle))
+                {
+                    Toast.MakeText(ctx, "标题不能为空", ToastLength.Short)?.Show();
+                    return;
+                }
+
+                try
+                {
+                    var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+                    await db.EnsureInitializedAsync();
+                    _detailSong!.Title = newTitle;
+                    _detailSong.Artist = newArtist ?? "";
+                    _detailSong.Album = newAlbum ?? "";
+                    await db.SaveSongAsync(_detailSong);
+                    Activity?.RunOnUiThread(() =>
+                    {
+                        if (_detailTitle != null) _detailTitle.Text = _detailSong.Title;
+                        if (_detailArtist != null) _detailArtist.Text = _detailSong.Artist;
+                        if (_detailAlbum != null) _detailAlbum.Text = _detailSong.Album;
+                        Toast.MakeText(ctx, "已保存", ToastLength.Short)?.Show();
+                    });
+                }
+                catch
+                {
+                    Activity?.RunOnUiThread(() =>
+                        Toast.MakeText(ctx, "保存失败", ToastLength.Short)?.Show());
+                }
+            })
+            .SetNegativeButton("取消", (s, e) => { })
+            .Create();
+
+        dialog?.Show();
     }
 
-    /// <summary>展开歌曲详情 BottomSheet（当前播放歌曲）</summary>
-    private void ShowSongDetailSheet()
+    private static EditText CreateDetailEditField(Android.Content.Context ctx, string hint, string text)
     {
-        var song = _viewModel.CurrentSong;
-        if (song == null) return;
-        ShowSongDetailSheet(song.Id);
+        var et = new EditText(ctx)
+        {
+            Hint = hint,
+            Text = text,
+            InputType = Android.Text.InputTypes.TextFlagCapSentences
+        };
+        et.SetTextSize(Android.Util.ComplexUnitType.Sp, 14f);
+        var lp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
+        lp.BottomMargin = 16;
+        et.LayoutParameters = lp;
+        return et;
     }
 
-    /// <summary>收起歌曲详情 BottomSheet</summary>
-    public void HideSongDetailSheet()
+    private static string FormatDetailFileSize(long bytes)
     {
-        if (_songDetailSheetBehavior != null)
-            _songDetailSheetBehavior.State = BottomSheetBehavior.StateHidden;
+        if (bytes <= 0) return "未知";
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
     }
 
-    /// <summary>BottomSheet 状态回调</summary>
-    private class DetailSheetCallback : BottomSheetBehavior.BottomSheetCallback
+    /// <summary>垂直 ViewPager2 适配器：Page 0 = 正在播放, Page 1 = 歌曲详情</summary>
+    private class VerticalPagerAdapter : RecyclerView.Adapter
+    {
+        private readonly View _page0;
+        private readonly View _page1;
+
+        public VerticalPagerAdapter(View page0, View page1)
+        {
+            _page0 = page0;
+            _page1 = page1;
+        }
+
+        public override int ItemCount => 2;
+
+        public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
+        {
+            var view = viewType == 0 ? _page0 : _page1;
+            if (view.Parent is ViewGroup p) p.RemoveView(view);
+            return new PageViewHolder(view);
+        }
+
+        public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position) { }
+
+        public override int GetItemViewType(int position) => position;
+    }
+
+    private class PageViewHolder : RecyclerView.ViewHolder
+    {
+        public PageViewHolder(View view) : base(view) { }
+    }
+
+    /// <summary>垂直 ViewPager2 页面切换回调</summary>
+    private class VerticalPagerPageCallback : ViewPager2.OnPageChangeCallback
     {
         private readonly NowPlayingFragment _parent;
+        public VerticalPagerPageCallback(NowPlayingFragment parent) => _parent = parent;
 
-        public DetailSheetCallback(NowPlayingFragment parent) => _parent = parent;
-
-        public override void OnStateChanged(View bottomSheet, int newState)
+        public override void OnPageSelected(int position)
         {
-            if (newState == BottomSheetBehavior.StateHidden && _parent._currentDetailFragment != null)
+            if (position == 1)
             {
-                var ft = _parent.ChildFragmentManager.BeginTransaction();
-                ft.Remove(_parent._currentDetailFragment);
-                ft.CommitAllowingStateLoss();
-                _parent._currentDetailFragment = null;
+                _parent.LoadDetailDataAsync();
+                // 歌曲详情页面禁用主 ViewPager2 左右滑动
+                MainActivity.Instance?.SetViewPagerSwipeEnabled(false);
             }
-        }
-
-        public override void OnSlide(View bottomSheet, float slideOffset) { }
-    }
-
-    /// <summary>封面触摸监听：点击或上滑均弹出歌曲详情底部面板</summary>
-    internal class CoverTapAndSwipeUpListener : Java.Lang.Object, View.IOnTouchListener
-    {
-        private readonly Action _onTrigger;
-        private float _downX, _downY;
-        private long _downTime;
-        private bool _isSwiping;
-
-        public CoverTapAndSwipeUpListener(Action onTrigger) => _onTrigger = onTrigger;
-
-        public bool OnTouch(View? v, MotionEvent? e)
-        {
-            if (e == null || v == null) return true;
-            switch (e.Action)
+            else
             {
-                case MotionEventActions.Down:
-                    _downX = e.GetX();
-                    _downY = e.GetY();
-                    _downTime = Java.Lang.JavaSystem.CurrentTimeMillis();
-                    _isSwiping = false;
-                    break;
-                case MotionEventActions.Move:
-                    float dy = _downY - e.GetY(); // 正值=向上滑
-                    if (dy > 60 && !_isSwiping)
-                    {
-                        _isSwiping = true;
-                        _onTrigger();
-                    }
-                    break;
-                case MotionEventActions.Up:
-                case MotionEventActions.Cancel:
-                    if (!_isSwiping)
-                    {
-                        float dx = Math.Abs(e.GetX() - _downX);
-                        float upDy = Math.Abs(e.GetY() - _downY);
-                        long dt = Java.Lang.JavaSystem.CurrentTimeMillis() - _downTime;
-                        if (dx < 30 && upDy < 30 && dt < 400)
-                            _onTrigger();
-                    }
-                    _isSwiping = false;
-                    break;
+                // 回到播放页面恢复主 ViewPager2 滑动
+                MainActivity.Instance?.SetViewPagerSwipeEnabled(true);
             }
-            return true;
         }
     }
 }

@@ -25,6 +25,11 @@ public static class ScanSettings
     private const string KeyFilterShortAudio = "filter_short_audio";
 
     /// <summary>
+    /// 配置键：是否使用 SAF（Storage Access Framework）扫描文件夹。
+    /// </summary>
+    private const string KeyUseSafScanner = "use_saf_scanner";
+
+    /// <summary>
     /// 配置键：短音频过滤的最小时长阈值，单位为秒。
     /// </summary>
     private const string KeyMinDurationSec = "min_duration_sec";
@@ -49,6 +54,20 @@ public static class ScanSettings
     {
         get => GetPrefs().GetBoolean(KeyUseMediaStore, true);
         set => GetPrefs().Edit().PutBoolean(KeyUseMediaStore, value).Apply();
+    }
+
+    /// <summary>
+    /// 获取或设置是否使用 SAF（Storage Access Framework）扫描文件夹。
+    /// <list type="bullet">
+    ///   <item><c>true</c>：通过 SAF 选择文件夹，返回 content:// URI，无需额外权限。</item>
+    ///   <item><c>false</c>：通过自建文件浏览器选择文件夹，返回真实文件路径，需要"所有文件访问"权限。</item>
+    /// </list>
+    /// 默认值为 <c>false</c>。
+    /// </summary>
+    public static bool UseSafScanner
+    {
+        get => GetPrefs().GetBoolean(KeyUseSafScanner, false);
+        set => GetPrefs().Edit().PutBoolean(KeyUseSafScanner, value).Apply();
     }
 
     /// <summary>
@@ -82,12 +101,57 @@ public static class ScanSettings
     /// 否则仅保留时长大于等于 <see cref="MinDurationSec"/> 的歌曲。
     /// </summary>
     /// <param name="song">待判断的歌曲对象</param>
-    /// <returns><c>true</c> 表示应包含该歌曲；<c>false</c> 表示应过滤掉该歌曲</returns>
+    /// <returns><c>true</c> 表示应包含该歌曲；<c>false</c> 表示应过滤掉</returns>
     public static bool ShouldIncludeSong(Song song)
     {
         // 如果未启用短音频过滤，则所有歌曲均包含
         if (!FilterShortAudio) return true;
         // 启用过滤时，仅保留时长达到阈值的歌曲
         return song.Duration >= MinDurationSec;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  本地文件夹路径管理（非 SAF，真实文件路径）
+    // ═══════════════════════════════════════════════════════════
+
+    private const string KeyLocalFolderPaths = "local_folder_paths";
+
+    /// <summary>获取通过自建文件浏览器添加的本地文件夹路径列表</summary>
+    public static List<string> GetLocalFolderPaths()
+    {
+        var list = GetPrefs().GetString(KeyLocalFolderPaths, null);
+        if (string.IsNullOrEmpty(list)) return new List<string>();
+        return list.Split('|', StringSplitOptions.RemoveEmptyEntries).ToList();
+    }
+
+    /// <summary>添加一个本地文件夹路径</summary>
+    public static void AddLocalFolderPath(string path)
+    {
+        var paths = GetLocalFolderPaths();
+        if (!paths.Any(p => p.Equals(path, StringComparison.OrdinalIgnoreCase)))
+        {
+            paths.Add(path);
+            SaveLocalFolderPaths(paths);
+        }
+    }
+
+    /// <summary>移除一个本地文件夹路径</summary>
+    public static void RemoveLocalFolderPath(string path)
+    {
+        var paths = GetLocalFolderPaths()
+            .Where(p => !p.Equals(path, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        SaveLocalFolderPaths(paths);
+    }
+
+    /// <summary>清空所有本地文件夹路径</summary>
+    public static void ClearLocalFolderPaths()
+    {
+        GetPrefs().Edit().Remove(KeyLocalFolderPaths).Apply();
+    }
+
+    private static void SaveLocalFolderPaths(List<string> paths)
+    {
+        GetPrefs().Edit().PutString(KeyLocalFolderPaths, string.Join("|", paths)).Apply();
     }
 }

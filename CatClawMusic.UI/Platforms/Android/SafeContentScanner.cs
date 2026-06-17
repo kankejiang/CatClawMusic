@@ -58,7 +58,8 @@ public static class SafeContentScanner
         var docId = DocumentsContract.GetTreeDocumentId(treeUri);
 
         var audioFiles = new List<(AUri uri, string name, long size, long lastModified)>();
-        await Task.Run(() => CollectAudioFiles(ctx, treeUri, docId, audioFiles));
+        var lrcMap = new Dictionary<string, AUri>(StringComparer.OrdinalIgnoreCase);
+        await Task.Run(() => CollectAudioFiles(ctx, treeUri, docId, audioFiles, lrcMap));
 
         if (audioFiles.Count == 0) return;
 
@@ -79,7 +80,13 @@ public static class SafeContentScanner
                 {
                     var song = ReadSongWithMetadataRetriever(file.uri, file.name, file.size, file.lastModified);
                     if (song != null)
+                    {
+                        // 匹配同目录 .lrc 文件
+                        var audioNameNoExt = Path.GetFileNameWithoutExtension(file.name).ToLowerInvariant();
+                        if (lrcMap.TryGetValue(audioNameNoExt, out var lrcUri))
+                            song.LyricsPath = lrcUri.ToString();
                         songQueue.Add(song);
+                    }
                 });
             }
             finally
@@ -114,7 +121,8 @@ public static class SafeContentScanner
     }
 
     private static void CollectAudioFiles(Context ctx, AUri treeUri, string rootDocId,
-        List<(AUri uri, string name, long size, long lastModified)> results)
+        List<(AUri uri, string name, long size, long lastModified)> results,
+        Dictionary<string, AUri>? lrcMap = null)
     {
         var stack = new Stack<string>();
         stack.Push(rootDocId);
@@ -157,6 +165,18 @@ public static class SafeContentScanner
                     {
                         var docUri = DocumentsContract.BuildDocumentUriUsingTree(treeUri, childId);
                         results.Add((docUri, displayName, size, lastModified));
+                    }
+                    else if (lrcMap != null && !string.IsNullOrEmpty(displayName)
+                        && (displayName.EndsWith(".lrc", StringComparison.OrdinalIgnoreCase)
+                            || displayName.EndsWith(".ttml", StringComparison.OrdinalIgnoreCase)
+                            || displayName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        // 收集歌词文件（.lrc/.ttml/.xml），以文件名（不含扩展名）为 key
+                        var lrcNameNoExt = Path.GetFileNameWithoutExtension(displayName);
+                        var docUri = DocumentsContract.BuildDocumentUriUsingTree(treeUri, childId);
+                        lrcNameNoExt = lrcNameNoExt.ToLowerInvariant();
+                        if (!lrcMap.ContainsKey(lrcNameNoExt))
+                            lrcMap[lrcNameNoExt] = docUri;
                     }
                 }
             }
