@@ -77,6 +77,27 @@
                             android:checked="true" />
                     </LinearLayout>
 
+                    <View android:layout_width="match_parent" android:layout_height="1dp"
+                        android:background="?attr/catClawCardBorder" android:layout_marginVertical="12dp" />
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical">
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="使用 SAF 文件夹选择器"
+                                android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
+                                android:fontFamily="sans-serif-medium" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="通过系统文件选择器授权文件夹，无需额外权限"
+                                android:textSize="12sp" android:textColor="?attr/catClawTextHint"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+                        <android.widget.Switch android:id="@+id/switch_use_saf"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:checked="false" />
+                    </LinearLayout>
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -108,7 +129,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="开启「使用 Android 媒体库」可极速扫描系统已索引的音乐文件。若需扫描系统未索引的文件夹，请添加自定义文件夹并关闭此选项。"
+                android:text="开启「使用 Android 媒体库」可极速扫描系统已索引的音乐文件。若需扫描系统未索引的文件夹，请添加自定义文件夹并关闭此选项。关闭 SAF 文件夹选择器时，将使用内置文件浏览器选择文件夹，需要授予「所有文件访问」权限。"
                 android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                 android:layout_marginTop="8dp" android:lineSpacingExtra="2dp" />
 

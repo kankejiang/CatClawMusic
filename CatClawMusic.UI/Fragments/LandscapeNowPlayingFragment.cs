@@ -1066,10 +1066,14 @@ public class LandscapeNowPlayingFragment : Fragment
         var totalHeight = Math.Min(allSongs.Count * itemHeight, maxH);
         recyclerView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, totalHeight);
         recyclerView.OverScrollMode = OverScrollMode.Never;
-        var adapter = new PlaylistAdapter(allSongs, currentSong, dp, song =>
+        PlaylistAdapter? adapter = null;
+        adapter = new PlaylistAdapter(allSongs, currentSong, dp, song =>
         {
             PlaySong(song);
-            _playlistDialog?.Dismiss();
+            adapter?.SetCurrentSong(song);
+            var newIdx = allSongs.FindIndex(s => s.Id == song.Id);
+            if (newIdx >= 0)
+                recyclerView.SmoothScrollToPosition(newIdx);
         });
         recyclerView.SetAdapter(adapter);
         recyclerView.Post(() =>
@@ -1361,11 +1365,20 @@ public class LandscapeNowPlayingFragment : Fragment
     internal class PlaylistAdapter : AndroidX.RecyclerView.Widget.RecyclerView.Adapter
     {
         private readonly List<Song> _songs;
-        private readonly Song? _currentSong;
+        private Song? _currentSong;
         private readonly int _dp;
         private readonly Action<Song> _onSongClick;
         public PlaylistAdapter(List<Song> songs, Song? currentSong, int dp, Action<Song> onSongClick) { _songs = songs; _currentSong = currentSong; _dp = dp; _onSongClick = onSongClick; }
         public override int ItemCount => _songs.Count;
+
+        /// <summary>更新当前播放歌曲并刷新列表</summary>
+        public void SetCurrentSong(Song? song)
+        {
+            if (_currentSong != null && song != null && _currentSong.Id == song.Id) return;
+            _currentSong = song;
+            NotifyDataSetChanged();
+        }
+
         public override void OnBindViewHolder(AndroidX.RecyclerView.Widget.RecyclerView.ViewHolder holder, int position)
         {
             if (holder is not PlaylistViewHolder vh) return;

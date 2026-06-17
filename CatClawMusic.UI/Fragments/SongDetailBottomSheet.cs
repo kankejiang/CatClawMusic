@@ -6,14 +6,16 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.UI.Helpers;
+using Google.Android.Material.BottomSheet;
 using IOFile = System.IO.File;
 using INavigationService = CatClawMusic.Core.Interfaces.INavigationService;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
 
-/// <summary>歌曲详情面板（嵌入 BottomSheet 使用）</summary>
-public class SongDetailBottomSheet : Fragment
+/// <summary>歌曲详情底部弹窗（从任意页面底部弹出，下滑/返回关闭）</summary>
+public class SongDetailBottomSheet : BottomSheetDialogFragment
 {
     private ImageView _albumCover = null!;
     private ImageView _artistThumb = null!;
@@ -24,6 +26,11 @@ public class SongDetailBottomSheet : Fragment
     private TextView _tvDuration = null!;
     private TextView _tvYear = null!;
     private TextView _tvBitrate = null!;
+    private TextView _tvSampleRate = null!;
+    private TextView _tvChannels = null!;
+    private TextView _tvBitDepth = null!;
+    private TextView _tvCodec = null!;
+    private TextView _tvFormat = null!;
     private TextView _tvFileSize = null!;
     private TextView _tvFilePath = null!;
     private TextView _tvLyrics = null!;
@@ -38,9 +45,6 @@ public class SongDetailBottomSheet : Fragment
     private int _songId;
     private string _embeddedLyrics = "";
     private string _externalLyrics = "";
-
-    /// <summary>请求关闭 BottomSheet 并导航到其他页面</summary>
-    public Action? OnNavigateAway { get; set; }
 
     public static SongDetailBottomSheet NewInstance(int songId)
     {
@@ -75,6 +79,11 @@ public class SongDetailBottomSheet : Fragment
         _tvDuration = view.FindViewById<TextView>(Resource.Id.tv_duration)!;
         _tvYear = view.FindViewById<TextView>(Resource.Id.tv_year)!;
         _tvBitrate = view.FindViewById<TextView>(Resource.Id.tv_bitrate)!;
+        _tvSampleRate = view.FindViewById<TextView>(Resource.Id.tv_sample_rate)!;
+        _tvChannels = view.FindViewById<TextView>(Resource.Id.tv_channels)!;
+        _tvBitDepth = view.FindViewById<TextView>(Resource.Id.tv_bit_depth)!;
+        _tvCodec = view.FindViewById<TextView>(Resource.Id.tv_codec)!;
+        _tvFormat = view.FindViewById<TextView>(Resource.Id.tv_format)!;
         _tvFileSize = view.FindViewById<TextView>(Resource.Id.tv_file_size)!;
         _tvFilePath = view.FindViewById<TextView>(Resource.Id.tv_file_path)!;
         _tvLyrics = view.FindViewById<TextView>(Resource.Id.tv_lyrics)!;
@@ -91,7 +100,7 @@ public class SongDetailBottomSheet : Fragment
         {
             if (_song != null && !string.IsNullOrEmpty(_song.Artist))
             {
-                OnNavigateAway?.Invoke();
+                Dismiss();
                 _navigationService.PushFragment("ArtistDetail",
                     new Dictionary<string, object> { ["artistName"] = _song.Artist });
             }
@@ -101,7 +110,7 @@ public class SongDetailBottomSheet : Fragment
         {
             if (_song != null && !string.IsNullOrEmpty(_song.Album))
             {
-                OnNavigateAway?.Invoke();
+                Dismiss();
                 _navigationService.PushFragment("AlbumDetail",
                     new Dictionary<string, object>
                     {
@@ -163,8 +172,9 @@ public class SongDetailBottomSheet : Fragment
             var coverTask = LoadCoverAsync();
             var thumbTask = LoadThumbnailsAsync(db);
             var lyricsTask = LoadLyricsAsync(db);
+            var audioPropsTask = LoadAudioPropertiesAsync();
 
-            await Task.WhenAll(coverTask, thumbTask, lyricsTask);
+            await Task.WhenAll(coverTask, thumbTask, lyricsTask, audioPropsTask);
         }
         catch (Exception ex)
         {
@@ -315,20 +325,23 @@ public class SongDetailBottomSheet : Fragment
         catch { }
     }
 
-    private async Task LoadLyricsAsync(MusicDatabase db)
+    private async Task LoadAudioPropertiesAsync()
     {
         if (_song == null) return;
 
         try
         {
-            if (!string.IsNullOrEmpty(_song.FilePath)
-                && !_song.FilePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                && !_song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            TagLib.Properties? props = null;
+            string? fileExtension = null;
+
+            if (!string.IsNullOrEmpty(_song.FilePath))
             {
-                _embeddedLyrics = await Task.Run(() => TagReader.ReadEmbeddedLyrics(_song.FilePath)) ?? "";
+                fileExtension = System.IO.Path.GetExtension(_song.FilePath).TrimStart('.').ToUpperInvariant();
+                if (fileExtension == "")
+                    fileExtension = null;
             }
-            else if (!string.IsNullOrEmpty(_song.FilePath)
-                && _song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+
+            if (!string.IsNullOrEmpty(_song.FilePath) && _song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
                 var ctx = global::Android.App.Application.Context;
                 var uri = Android.Net.Uri.Parse(_song.FilePath);
@@ -336,31 +349,189 @@ public class SongDetailBottomSheet : Fragment
                 {
                     using var stream = ctx.ContentResolver!.OpenInputStream(uri);
                     if (stream != null)
-                        _embeddedLyrics = await Task.Run(() =>
-                            TagReader.ReadEmbeddedLyricsFromStream(stream, _song.FilePath)) ?? "";
+                    {
+                        var abstraction = new ReadOnlyFileAbstraction(System.IO.Path.GetFileName(_song.FilePath) ?? "audio", stream);
+                        using var file = TagLib.File.Create(abstraction);
+                        props = file.Properties;
+                        fileExtension ??= GetExtensionFromMimeType(ctx.ContentResolver!.GetType(uri));
+                    }
                 }
+            }
+            else if (!string.IsNullOrEmpty(_song.FilePath) && IOFile.Exists(_song.FilePath))
+            {
+                using var file = TagLib.File.Create(_song.FilePath);
+                props = file.Properties;
+            }
+
+            if (props == null) return;
+
+            var sampleRate = props.AudioSampleRate;
+            var channels = props.AudioChannels;
+            var bitDepth = props.BitsPerSample;
+            var codec = props.Codecs.FirstOrDefault();
+
+            Activity?.RunOnUiThread(() =>
+            {
+                _tvSampleRate.Text = sampleRate > 0 ? FormatSampleRate(sampleRate) : "未知";
+                _tvChannels.Text = channels > 0 ? FormatChannels(channels) : "未知";
+                _tvBitDepth.Text = bitDepth > 0 ? $"{bitDepth} bit" : "未知";
+                _tvCodec.Text = !string.IsNullOrWhiteSpace(GetCodecDescription(codec, fileExtension))
+                    ? GetCodecDescription(codec, fileExtension)
+                    : (fileExtension ?? "未知");
+                _tvFormat.Text = !string.IsNullOrWhiteSpace(fileExtension) ? fileExtension : "未知";
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SongDetail] 读取音频属性失败: {ex.Message}");
+        }
+    }
+
+    private static string FormatSampleRate(int sampleRate)
+    {
+        if (sampleRate >= 1000)
+            return $"{sampleRate / 1000.0:F1} kHz";
+        return $"{sampleRate} Hz";
+    }
+
+    private static string FormatChannels(int channels)
+    {
+        return channels switch
+        {
+            1 => "单声道 (Mono)",
+            2 => "立体声 (Stereo)",
+            6 => "5.1 声道",
+            8 => "7.1 声道",
+            _ => $"{channels} 声道"
+        };
+    }
+
+    private static string? GetExtensionFromMimeType(string? mimeType)
+    {
+        if (string.IsNullOrWhiteSpace(mimeType)) return null;
+        var lowered = mimeType.ToLowerInvariant();
+        return lowered switch
+        {
+            "audio/mpeg" => "MP3",
+            "audio/flac" => "FLAC",
+            "audio/wav" => "WAV",
+            "audio/x-wav" => "WAV",
+            "audio/aac" => "AAC",
+            "audio/mp4" => "M4A",
+            "audio/x-m4a" => "M4A",
+            "audio/ogg" => "OGG",
+            "audio/opus" => "OPUS",
+            "audio/x-ms-wma" => "WMA",
+            _ => null
+        };
+    }
+
+    private static string? GetCodecDescription(TagLib.ICodec? codec, string? fileExtension)
+    {
+        if (codec != null && !string.IsNullOrWhiteSpace(codec.Description))
+        {
+            var desc = codec.Description;
+            // 简化常见编码描述
+            if (desc.Contains("FLAC", StringComparison.OrdinalIgnoreCase)) return "FLAC";
+            if (desc.Contains("MPEG", StringComparison.OrdinalIgnoreCase)) return "MP3";
+            if (desc.Contains("AAC", StringComparison.OrdinalIgnoreCase)) return "AAC";
+            if (desc.Contains("ALAC", StringComparison.OrdinalIgnoreCase)) return "ALAC";
+            if (desc.Contains("Vorbis", StringComparison.OrdinalIgnoreCase)) return "Vorbis";
+            if (desc.Contains("Opus", StringComparison.OrdinalIgnoreCase)) return "Opus";
+            return desc;
+        }
+        return fileExtension;
+    }
+
+    private async Task LoadLyricsAsync(MusicDatabase db)
+    {
+        if (_song == null) return;
+
+        var lyricsService = MainApplication.Services.GetRequiredService<LyricsService>();
+
+        // ── 内嵌歌词 ──
+        try
+        {
+            var embeddedRaw = await Task.Run(() => LyricsService.ReadEmbeddedLyricsStatic(_song.FilePath));
+            if (!string.IsNullOrWhiteSpace(embeddedRaw))
+            {
+                var parsed = await Task.Run(() => lyricsService.TryParseLyrics(embeddedRaw));
+                _embeddedLyrics = parsed != null ? LyricsFormatter.FormatLrcLyrics(parsed) : "";
+            }
+            else
+            {
+                _embeddedLyrics = "";
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SongDetail] 读取内置歌词失败: {ex.Message}");
+            _embeddedLyrics = "";
         }
 
+        // ── 外嵌歌词 ──
         try
         {
+            LrcLyrics? parsedExternal = null;
+
+            // 路径1：数据库获取
             var lyric = await db.GetLyricAsync(_song.Id);
             if (lyric != null && !string.IsNullOrEmpty(lyric.Content))
             {
-                _externalLyrics = lyric.Content;
+                parsedExternal = await Task.Run(() => lyricsService.TryParseLyrics(lyric.Content));
             }
-            else if (!string.IsNullOrEmpty(_song.LyricsPath) && IOFile.Exists(_song.LyricsPath))
+
+            // 路径2：LyricsPath 文件
+            if (parsedExternal == null && !string.IsNullOrEmpty(_song.LyricsPath))
             {
-                _externalLyrics = await Task.Run(() => IOFile.ReadAllText(_song.LyricsPath));
+                string? raw = null;
+                if (_song.LyricsPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                {
+                    raw = await LyricsService.ReadContentUriLyricsAsync(_song.LyricsPath);
+                }
+                else if (IOFile.Exists(_song.LyricsPath))
+                {
+                    raw = await Task.Run(() => IOFile.ReadAllText(_song.LyricsPath));
+                }
+                else if (LyricsService.FileBytesReaderAsync != null)
+                {
+                    try
+                    {
+                        var bytes = await LyricsService.FileBytesReaderAsync(_song.LyricsPath);
+                        if (bytes != null && bytes.Length > 0)
+                            raw = LyricsService.EncodingDetectAndDecode(bytes);
+                    }
+                    catch { }
+                }
+
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    parsedExternal = await Task.Run(() => lyricsService.TryParseLyrics(raw));
+                }
             }
+
+            // 路径3：LyricsService 自动查找外部歌词文件
+            if (parsedExternal == null)
+            {
+                parsedExternal = await lyricsService.GetLocalLyricsAsync(_song, skipEmbedded: true);
+            }
+
+            // 路径4：FindExternalLyricsTextAsync（content:// URI 专项回退）
+            if (parsedExternal == null)
+            {
+                var raw = await lyricsService.FindExternalLyricsTextAsync(_song);
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    parsedExternal = await Task.Run(() => lyricsService.TryParseLyrics(raw));
+                }
+            }
+
+            _externalLyrics = parsedExternal != null ? LyricsFormatter.FormatLrcLyrics(parsedExternal) : "";
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SongDetail] 读取外嵌歌词失败: {ex.Message}");
+            _externalLyrics = "";
         }
 
         bool hasEmbedded = !string.IsNullOrWhiteSpace(_embeddedLyrics);

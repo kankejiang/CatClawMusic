@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="?attr/catClawPageBackground">
+    android:background="?attr/catClawPageBackground"
+    android:fitsSystemWindows="true">
 
     <!-- Drag handle -->
     <View android:layout_width="40dp" android:layout_height="4dp"
@@ -183,6 +184,86 @@
                             android:text="比特率"
                             android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
                         <TextView android:id="@+id/tv_bitrate"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Sample rate -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="采样率"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_sample_rate"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Channels -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="声道数"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_channels"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Bit depth -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="位深度"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_bit_depth"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Codec -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="编码格式"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_codec"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />
+                    </LinearLayout>
+
+                    <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                        android:background="?attr/catClawCardBorder" />
+
+                    <!-- Format -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:paddingVertical="10dp">
+                        <TextView android:layout_width="80dp" android:layout_height="wrap_content"
+                            android:text="文件格式"
+                            android:textSize="14sp" android:textColor="?attr/catClawTextSecondary" />
+                        <TextView android:id="@+id/tv_format"
                             android:layout_width="0dp" android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:textSize="14sp" android:textColor="?attr/catClawTextPrimary" />

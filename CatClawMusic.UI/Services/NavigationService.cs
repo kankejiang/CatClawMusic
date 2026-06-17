@@ -23,6 +23,25 @@ public class NavigationService : INavigationService
         _fm = fm;
         _overlayContainerId = overlayContainerId;
         _bottomNav = bottomNav;
+        _fm.BackStackChanged += OnBackStackChanged;
+    }
+
+    private void OnBackStackChanged(object? sender, EventArgs e)
+    {
+        if (_fm == null || _sidePanelContainerId != null) return;
+
+        if (_fm.BackStackEntryCount == 0)
+        {
+            ALog.Debug("CatClaw.Nav", "OnBackStackChanged: backStack empty, restoring bottom nav + toolbar + mini player");
+
+            var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
+            if (overlay != null) overlay.Visibility = ViewStates.Gone;
+
+            MainActivity.Instance?.SetOverlayOpen(false);
+            MainActivity.Instance?.SetToolbarVisible(true);
+            MainActivity.Instance?.SetMiniPlayerVisible(true);
+            _bottomNav?.Visibility = ViewStates.Visible;
+        }
     }
 
     /// <summary>启用侧面板导航（推入的 Fragment 放进面板）</summary>
@@ -51,6 +70,7 @@ public class NavigationService : INavigationService
             "SmbSettings" => MainApplication.Services.GetRequiredService<SmbSettingsFragment>(),
             "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),
             "LocalMusicSettings" => MainApplication.Services.GetRequiredService<LocalMusicSettingsFragment>(),
+            "FolderBrowser" => MainApplication.Services.GetRequiredService<FolderBrowserFragment>(),
             "Settings" => MainApplication.Services.GetRequiredService<SettingsFragment>(),
             "GeneralSettings" => MainApplication.Services.GetRequiredService<GeneralSettingsFragment>(),
             "DesktopLyric" => MainApplication.Services.GetRequiredService<DesktopLyricFragment>(),
@@ -184,45 +204,19 @@ public class NavigationService : INavigationService
         return fragment;
     }
 
-    /// <summary>弹出当前页面，返回上一级。当返回栈清空时恢复底部导航栏和工具栏</summary>
+    /// <summary>弹出当前页面，返回上一级。返回栈清空时由 BackStackChanged 恢复底部导航栏和工具栏</summary>
     public void GoBack()
     {
         if (_fm == null) return;
 
-        var isLandscape = false;
         if (_fm.BackStackEntryCount > 0)
         {
             var topEntry = _fm.GetBackStackEntryAt(_fm.BackStackEntryCount - 1);
-            isLandscape = topEntry.Name == "LandscapeNowPlaying";
             ALog.Debug("CatClaw.Nav", $"GoBack: top={topEntry.Name}, backStackCount={_fm.BackStackEntryCount}, sidePanel={_sidePanelContainerId}");
         }
 
-        _fm.PopBackStackImmediate();
-
-        ALog.Debug("CatClaw.Nav", $"GoBack after pop: backStackCount={_fm.BackStackEntryCount}, sidePanel={_sidePanelContainerId}, isLandscape={isLandscape}");
-
-        if (_fm.BackStackEntryCount == 0 && _sidePanelContainerId == null)
-        {
-            ALog.Debug("CatClaw.Nav", "GoBack: restoring bottom nav + toolbar + mini player");
-
-            var overlay = MainActivity.Instance?.FindViewById<View>(_overlayContainerId);
-            if (overlay != null) overlay.Visibility = ViewStates.Gone;
-
-            MainActivity.Instance?.SetOverlayOpen(false);
-
-            if (isLandscape)
-            {
-                MainActivity.Instance?.ForceRefreshTabUI();
-            }
-            else
-            {
-                MainActivity.Instance?.ForceRefreshTabUI();
-            }
-        }
-        else
-        {
-            ALog.Warn("CatClaw.Nav", $"GoBack: NOT restoring UI. backStack={_fm.BackStackEntryCount}, sidePanel={_sidePanelContainerId}");
-        }
+        // 使用 PopBackStack（非 Immediate）让退出动画正常播放
+        _fm.PopBackStack();
     }
 
     /// <summary>切换到指定 Tab 页</summary>

@@ -6,6 +6,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Platforms.Android;
+using CatClawMusic.UI.Services;
 using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -241,9 +242,11 @@ public class SettingsFragment : Fragment
 
         // 本地音乐状态
         var folderUris = FolderPicker.GetSavedFolderUris();
+        var localFolderPaths = ScanSettings.GetLocalFolderPaths();
+        var totalFolders = folderUris.Count + localFolderPaths.Count;
         var localSongCount = await db.GetLocalSongCountAsync();
-        var folderText = folderUris.Count > 0
-            ? $"已添加{folderUris.Count}个文件夹 | 共{localSongCount}首歌曲"
+        var folderText = totalFolders > 0
+            ? $"已添加{totalFolders}个文件夹 | 共{localSongCount}首歌曲"
             : "尚未添加文件夹";
         _tvLocalStatus?.Post(() => _tvLocalStatus.Text = folderText);
 

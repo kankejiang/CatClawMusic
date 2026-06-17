@@ -49,10 +49,12 @@ public class FullLyricsFragment : Fragment
     private RelativeLayout _dragIndicator = null!;
     // 跳转按钮
     private Button _btnJump = null!;
-    // 所有歌词TextView列表
-    private readonly List<StrokeTextView> _lyricViews = new();
+    // 所有歌词行视图列表
+    private readonly List<LyricViewItem> _lyricViews = new();
     // 上一次高亮的歌词索引
     private int _lastLyricIndex = -1;
+    // 上一次高亮的合唱伙伴索引（用于同时着色）
+    private int _lastDuetPartnerIndex = -1;
     private bool _userScrolling;
     // 用户是否正在手动滚动
     // 是否正在拖拽模式
@@ -76,6 +78,10 @@ public class FullLyricsFragment : Fragment
     private int _lyricAlignment = 1;
     // 歌词样式：0=逐行，1=逐字
     private int _lyricStyle = 0;
+    // 对唱显示模式：0=标准，1=聚焦当前歌手，2=按角色分栏
+    private int _duetMode = 0;
+    // 分栏模式下角色→侧边映射：0=左，1=中，2=右
+    private Dictionary<string, int> _roleSideMap = new(StringComparer.OrdinalIgnoreCase);
     // 歌词颜色设置（直接存 ARGB 值）
     private Color _lyricActiveColor = Color.White;
     private Color _lyricInactiveColor = Color.ParseColor("#CCBBBBBB");
@@ -88,6 +94,9 @@ public class FullLyricsFragment : Fragment
     private bool _lyricBold = true;
     // 背景遮罩View
     private View? _bgDimOverlay;
+    // 顶部/底部歌词淡出遮罩
+    private View? _fadeTop;
+    private View? _fadeBottom;
     // 译文TextView列表，用于自适应颜色更新
     private readonly List<WeakReference<TextView>> _translationViews = new();
 
@@ -121,8 +130,12 @@ public class FullLyricsFragment : Fragment
         _dragIndicator = view.FindViewById<RelativeLayout>(Resource.Id.drag_indicator)!;
         _btnJump = view.FindViewById<Button>(Resource.Id.btn_jump)!;
         _bgDimOverlay = view.FindViewById(Resource.Id.lyric_bg_dim);
+        _fadeTop = view.FindViewById<View>(Resource.Id.lyric_fade_top);
+        _fadeBottom = view.FindViewById<View>(Resource.Id.lyric_fade_bottom);
+        _fadeTop!.Visibility = ViewStates.Gone;
+        _fadeBottom!.Visibility = ViewStates.Gone;
 
-        // 应用毛玻璃模糊效果
+        // 应用毛玻璃模糊效果（仅背景封面）
         ApplyBlur();
         // 设置滚动监听器
         SetupScrollListener();
@@ -196,11 +209,10 @@ public class FullLyricsFragment : Fragment
             // 遍历所有歌词，找到离中心点最近的那个
             for (int i = 0; i < _lyricViews.Count; i++)
             {
-                var lyricView = _lyricViews[i];
-                if (lyricView == null) continue;
-                
-                var wrapper = lyricView.Parent as View;
-                if (wrapper == null) continue;
+                var lyricItem = _lyricViews[i];
+                if (lyricItem?.Container == null) continue;
+
+                var wrapper = lyricItem.Container;
 
                 var lyricCenterY = wrapper.Top + wrapper.Height / 2;
                 // 计算歌词中心到ScrollView中心的距离
@@ -434,6 +446,13 @@ public class FullLyricsFragment : Fragment
                     if (_lyricStyle == 1)
                         UpdateCurrentLineGradient();
                     break;
+                case nameof(_viewModel.DuetPartnerIndex):
+                    HighlightCurrentLine();
+                    break;
+                case nameof(_viewModel.DuetPartnerProgress):
+                    if (_lyricStyle == 1)
+                        UpdateCurrentLineGradient();
+                    break;
                 case nameof(_viewModel.TotalDuration): 
                     UpdateProgress();
                     break;
@@ -529,6 +548,7 @@ public class FullLyricsFragment : Fragment
         _lyricsContainer.RemoveAllViews(); 
         _lyricViews.Clear(); 
         _lastLyricIndex = -1;
+        _lastDuetPartnerIndex = -1;
 
         // 自适应模式：根据背景自动设置歌词颜色
         if (_lyricColorMode == 0)
@@ -549,56 +569,153 @@ public class FullLyricsFragment : Fragment
             return;
         }
 
-        // 为每一行歌词创建StrokeTextView
+        // 分栏模式：构建角色→侧边映射
+        _roleSideMap = BuildRoleSideMap(lyrics.Lines);
+
+        // 为每一行歌词创建视图
         for (int i = 0; i < lyrics.Lines.Count; i++)
         {
             var line = lyrics.Lines[i];
-
-            var lineLayout = new LinearLayout(Context) { Orientation = Orientation.Vertical };
-            lineLayout.SetGravity(GetLyricGravity());
-            lineLayout.Tag = i;
-
-            var tv = new StrokeTextView(Context) { Text = line.Text };
-            tv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
-            tv.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
-            tv.Gravity = GetLyricGravity();
-            tv.SetLineSpacing(0, 1.4f);
-            tv.StrokeEnabled = false; // 不再使用描边
-            tv.UnsungColor = _lyricInactiveColor;
-            tv.SungColor = _lyricActiveColor;
-            tv.SetTextColor(_lyricInactiveColor);
-            lineLayout.AddView(tv);
-
-            if (!string.IsNullOrEmpty(line.Translation))
-            {
-                var transColor = new Color(
-                    (byte)(_lyricInactiveColor.A * 3 / 4),
-                    _lyricInactiveColor.R,
-                    _lyricInactiveColor.G,
-                    _lyricInactiveColor.B);
-                var transTv = new TextView(Context) { Text = line.Translation };
-                transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
-                transTv.SetTextColor(transColor);
-                transTv.SetTypeface(null, TypefaceStyle.Normal);
-                transTv.Gravity = GetLyricGravity();
-                transTv.SetLineSpacing(0, 1.3f);
-                var transLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
-                transLp.TopMargin = 4;
-                transTv.LayoutParameters = transLp;
-                lineLayout.AddView(transTv);
-                _translationViews.Add(new WeakReference<TextView>(transTv));
-            }
-
-            var lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
-            lp.TopMargin = i > 0 ? 16 : 0;
-            lineLayout.LayoutParameters = lp;
-
-            _lyricsContainer.AddView(lineLayout);
-            _lyricViews.Add(tv);
+            var item = CreateLyricViewItem(line, lyrics.HasPerLineAlignment, i);
+            _lyricsContainer.AddView(item.Container);
+            _lyricViews.Add(item);
         }
 
         HighlightCurrentLine();
         UpdateBgOverlay();
+    }
+
+    /// <summary>
+    /// 分栏模式下按角色出现频率分配侧边：最多的角色居左，第二多的居右，其余居中
+    /// </summary>
+    private Dictionary<string, int> BuildRoleSideMap(List<LrcLyricLine> lines)
+    {
+        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (_duetMode != 2) return map;
+
+        var roles = lines
+            .Where(l => !string.IsNullOrEmpty(l.Role))
+            .GroupBy(l => l.Role!)
+            .Select(g => new { Role = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        if (roles.Count >= 1) map[roles[0].Role] = 0; // 左
+        if (roles.Count >= 2) map[roles[1].Role] = 2; // 右
+        // 其余角色默认居中（1）
+        return map;
+    }
+
+    /// <summary>
+    /// 创建一行歌词的视图项。对唱行会生成左右双文本布局，普通行保持单行。
+    /// </summary>
+    private LyricViewItem CreateLyricViewItem(LrcLyricLine line, bool hasPerLineAlignment, int index)
+    {
+        int effectiveAlignment;
+        if (_duetMode == 2 && !string.IsNullOrEmpty(line.Role) && _roleSideMap.TryGetValue(line.Role, out var side))
+            effectiveAlignment = side;
+        else if (hasPerLineAlignment)
+            effectiveAlignment = line.Alignment;
+        else
+            effectiveAlignment = _lyricAlignment;
+
+        var lineGravity = GetGravityFromAlignment(effectiveAlignment);
+
+        var lineLayout = new LinearLayout(Context) { Orientation = Orientation.Vertical };
+        lineLayout.SetGravity(lineGravity);
+        lineLayout.Tag = index;
+
+        // 对唱歌词左/右对齐时添加不对称 padding，使演唱1靠左、演唱2靠右
+        if (_duetMode == 2 || hasPerLineAlignment)
+        {
+            int edgePadding = (int)(12 * Context!.Resources!.DisplayMetrics!.Density);
+            int centerPadding = (int)(16 * Context.Resources.DisplayMetrics.Density);
+            int innerPadding = (int)(8 * Context.Resources.DisplayMetrics.Density);
+            if (effectiveAlignment == 0)
+                lineLayout.SetPadding(edgePadding, 0, innerPadding, 0);
+            else if (effectiveAlignment == 2)
+                lineLayout.SetPadding(innerPadding, 0, edgePadding, 0);
+            else
+                lineLayout.SetPadding(centerPadding, 0, centerPadding, 0);
+        }
+
+        StrokeTextView primaryTv;
+        StrokeTextView? secondaryTv = null;
+
+        if (string.IsNullOrEmpty(line.SecondaryText))
+        {
+            primaryTv = CreateLyricTextView(line.Text, lineGravity, line.IsBackingVocal);
+            lineLayout.AddView(primaryTv);
+        }
+        else
+        {
+            // 对唱行：左右分栏
+            var duetRow = new LinearLayout(Context) { Orientation = Orientation.Horizontal };
+            duetRow.SetGravity(GravityFlags.CenterVertical);
+            duetRow.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
+
+            primaryTv = CreateLyricTextView(line.Text, GravityFlags.Start | GravityFlags.CenterVertical, line.IsBackingVocal);
+            secondaryTv = CreateLyricTextView(line.SecondaryText, GravityFlags.End | GravityFlags.CenterVertical, false);
+
+            var leftLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
+            var rightLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
+            primaryTv.LayoutParameters = leftLp;
+            secondaryTv.LayoutParameters = rightLp;
+
+            duetRow.AddView(primaryTv);
+            duetRow.AddView(secondaryTv);
+            lineLayout.AddView(duetRow);
+        }
+
+        TextView? transTv = null;
+        if (!string.IsNullOrEmpty(line.Translation))
+        {
+            var transColor = new Color(
+                (byte)(_lyricInactiveColor.A * 3 / 4),
+                _lyricInactiveColor.R,
+                _lyricInactiveColor.G,
+                _lyricInactiveColor.B);
+            transTv = new TextView(Context) { Text = line.Translation };
+            transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
+            transTv.SetTextColor(transColor);
+            transTv.SetTypeface(null, TypefaceStyle.Normal);
+            transTv.Gravity = lineGravity;
+            transTv.SetLineSpacing(0, 1.3f);
+            var transLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
+            transLp.TopMargin = 4;
+            transTv.LayoutParameters = transLp;
+            lineLayout.AddView(transTv);
+            _translationViews.Add(new WeakReference<TextView>(transTv));
+        }
+
+        var lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
+        // 增大歌词行间距：首行无额外间距，后续行按字体大小留出呼吸感
+        lp.TopMargin = index > 0 ? (int)(Context!.Resources!.DisplayMetrics!.Density * (_lyricFontSize >= 24 ? 32 : 24)) : 0;
+        lp.BottomMargin = 0;
+        lineLayout.LayoutParameters = lp;
+
+        return new LyricViewItem
+        {
+            Container = lineLayout,
+            Primary = primaryTv,
+            Secondary = secondaryTv,
+            Translation = transTv
+        };
+    }
+
+    /// <summary>创建一行歌词的主/次文本 StrokeTextView</summary>
+    private StrokeTextView CreateLyricTextView(string text, GravityFlags gravity, bool isBackingVocal)
+    {
+        var tv = new StrokeTextView(Context) { Text = text };
+        tv.SetTextSize(Android.Util.ComplexUnitType.Sp, isBackingVocal ? _lyricFontSize - 3 : _lyricFontSize);
+        tv.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
+        tv.Gravity = gravity;
+        tv.SetLineSpacing(0, 1.4f);
+        tv.StrokeEnabled = false;
+        tv.UnsungColor = _lyricInactiveColor;
+        tv.SungColor = _lyricActiveColor;
+        tv.SetTextColor(_lyricInactiveColor);
+        return tv;
     }
 
     /// <summary>
@@ -608,12 +725,24 @@ public class FullLyricsFragment : Fragment
     {
         if (_bgDimOverlay == null) return;
         var hex = BgColorHex[Math.Clamp(_lyricBgColorIndex, 0, BgColorHex.Length - 1)];
-        _bgDimOverlay.SetBackgroundColor(Color.ParseColor(hex));
+        var color = Color.ParseColor(hex);
+        _bgDimOverlay.SetBackgroundColor(color);
+        // 同步更新上下歌词淡出遮罩，使其与背景遮罩颜色一致
+        UpdateFadeMasks(color);
         // 遮罩变化后重新计算自适应歌词颜色
         if (_lyricColorMode == 0)
             ApplyAdaptiveColors();
         // 刷新所有歌词视图的颜色
         RefreshLyricColors();
+    }
+
+    /// <summary>根据当前背景遮罩颜色更新歌词上下边缘淡出遮罩</summary>
+    private void UpdateFadeMasks(Color baseColor)
+    {
+        // 已禁用上下边缘模糊淡出效果
+        if (_fadeTop == null || _fadeBottom == null) return;
+        _fadeTop.Visibility = ViewStates.Gone;
+        _fadeBottom.Visibility = ViewStates.Gone;
     }
 
     /// <summary>
@@ -622,53 +751,136 @@ public class FullLyricsFragment : Fragment
     private void RefreshLyricColors()
     {
         var idx = _lastLyricIndex;
-        foreach (var v in _lyricViews)
+        foreach (var item in _lyricViews)
         {
-            v.SetTextColor(_lyricInactiveColor);
-            v.UnsungColor = _lyricInactiveColor;
-            v.SungColor = _lyricActiveColor;
-
-            var parent = v.Parent as LinearLayout;
-            if (parent != null && parent.ChildCount > 1)
-            {
-                var transTv = parent.GetChildAt(1) as TextView;
-                if (transTv != null)
-                {
-                    var transNormalColor = new Color(
-                        (byte)(_lyricInactiveColor.A * 3 / 4),
-                        _lyricInactiveColor.R,
-                        _lyricInactiveColor.G,
-                        _lyricInactiveColor.B);
-                    transTv.SetTextColor(transNormalColor);
-                }
-            }
+            ResetLyricItemColors(item);
         }
 
         // 当前行使用活跃色
         if (idx >= 0 && idx < _lyricViews.Count)
         {
-            _lyricViews[idx].SetTextColor(_lyricActiveColor);
-            _lyricViews[idx].UnsungColor = _lyricInactiveColor;
-            _lyricViews[idx].SungColor = _lyricActiveColor;
-
-            var parent2 = _lyricViews[idx].Parent as LinearLayout;
-            if (parent2 != null && parent2.ChildCount > 1)
-            {
-                var transTv = parent2.GetChildAt(1) as TextView;
-                if (transTv != null)
-                {
-                    var transActiveColor = new Color(
-                        (byte)(_lyricActiveColor.A * 3 / 4),
-                        _lyricActiveColor.R,
-                        _lyricActiveColor.G,
-                        _lyricActiveColor.B);
-                    transTv.SetTextColor(transActiveColor);
-                }
-            }
+            HighlightLyricItem(_lyricViews[idx], _lyricActiveColor, true);
         }
 
         // 更新译文颜色
         UpdateTranslationColors();
+    }
+
+    /// <summary>重置单个歌词项为非高亮颜色</summary>
+    private void ResetLyricItemColors(LyricViewItem item)
+    {
+        item.Primary.SetTextColor(_lyricInactiveColor);
+        item.Primary.UnsungColor = _lyricInactiveColor;
+        item.Primary.SungColor = _lyricActiveColor;
+        item.Secondary?.SetTextColor(_lyricInactiveColor);
+        item.Secondary?.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
+
+        if (item.Translation != null)
+        {
+            var transNormalColor = new Color(
+                (byte)(_lyricInactiveColor.A * 3 / 4),
+                _lyricInactiveColor.R,
+                _lyricInactiveColor.G,
+                _lyricInactiveColor.B);
+            item.Translation.SetTextColor(transNormalColor);
+        }
+    }
+
+    /// <summary>高亮单个歌词项</summary>
+    private void HighlightLyricItem(LyricViewItem item, Color activeColor, bool includeTranslation)
+    {
+        item.Primary.SetTextColor(activeColor);
+        item.Primary.UnsungColor = _lyricInactiveColor;
+        item.Primary.SungColor = activeColor;
+        item.Secondary?.SetTextColor(activeColor);
+
+        if (includeTranslation && item.Translation != null)
+        {
+            var transHighlightColor = new Color(
+                (byte)Math.Min(activeColor.A + 40, 255),
+                activeColor.R,
+                activeColor.G,
+                activeColor.B);
+            item.Translation.SetTextColor(transHighlightColor);
+        }
+    }
+
+    /// <summary>获取空歌词提示视图（暂无歌词）</summary>
+    private TextView? GetEmptyLyricView()
+        => _lyricViews.Count == 0 && _lyricsContainer.ChildCount > 0
+            ? _lyricsContainer.GetChildAt(0) as TextView
+            : null;
+
+    /// <summary>更新已有歌词视图的对齐方式（不重建）</summary>
+    private void RefreshLyricAlignment()
+    {
+        var gravity = GetLyricGravity();
+        var lyrics = _viewModel.CurrentLyrics;
+        var hasPerLine = lyrics?.HasPerLineAlignment == true;
+        var density = Context?.Resources?.DisplayMetrics?.Density ?? 1f;
+        var edgePadding = (int)(12 * density);
+        var centerPadding = (int)(16 * density);
+        var innerPadding = (int)(8 * density);
+
+        for (int i = 0; i < _lyricViews.Count; i++)
+        {
+            var item = _lyricViews[i];
+            var lineLayout = item.Container as LinearLayout;
+            if (lineLayout == null) continue;
+
+            var line = lyrics!.Lines[i];
+            var lineGravity = hasPerLine ? GetGravityFromAlignment(line.Alignment) : gravity;
+            lineLayout.SetGravity(lineGravity);
+            item.Primary.Gravity = item.Secondary == null ? lineGravity : GravityFlags.Start | GravityFlags.CenterVertical;
+            if (item.Secondary != null)
+                item.Secondary.Gravity = GravityFlags.End | GravityFlags.CenterVertical;
+
+            if (hasPerLine)
+            {
+                if (line.Alignment == 0)
+                    lineLayout.SetPadding(edgePadding, 0, innerPadding, 0);
+                else if (line.Alignment == 2)
+                    lineLayout.SetPadding(innerPadding, 0, edgePadding, 0);
+                else
+                    lineLayout.SetPadding(centerPadding, 0, centerPadding, 0);
+            }
+            else
+            {
+                lineLayout.SetPadding(0, 0, 0, 0);
+            }
+        }
+
+        if (GetEmptyLyricView() is { } emptyView)
+            emptyView.Gravity = gravity;
+    }
+
+    /// <summary>更新已有歌词视图的字体大小（不重建）</summary>
+    private void RefreshLyricFontSize()
+    {
+        foreach (var item in _lyricViews)
+        {
+            var isBacking = _viewModel.CurrentLyrics?.Lines[_lyricViews.IndexOf(item)].IsBackingVocal == true;
+            item.Primary.SetTextSize(Android.Util.ComplexUnitType.Sp, isBacking ? _lyricFontSize - 3 : _lyricFontSize);
+            item.Secondary?.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
+            item.Translation?.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
+        }
+
+        GetEmptyLyricView()?.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
+
+        _lastLyricIndex = -999;
+        _lastDuetPartnerIndex = -999;
+        HighlightCurrentLine();
+    }
+
+    /// <summary>更新已有歌词视图的加粗样式（不重建）</summary>
+    private void RefreshLyricTypeface()
+    {
+        var style = _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal;
+        foreach (var item in _lyricViews)
+        {
+            item.Primary.SetTypeface(null, style);
+            item.Secondary?.SetTypeface(null, style);
+        }
     }
 
     /// <summary>
@@ -685,89 +897,242 @@ public class FullLyricsFragment : Fragment
     }
 
     /// <summary>
-    /// 高亮当前播放的歌词行
+    /// 根据指定对齐值获取 GravityFlags（用于逐行对齐）
+    /// </summary>
+    private static GravityFlags GetGravityFromAlignment(int alignment)
+    {
+        return alignment switch
+        {
+            0 => GravityFlags.Start | GravityFlags.CenterVertical,    // 左对齐
+            2 => GravityFlags.End | GravityFlags.CenterVertical,      // 右对齐
+            _ => GravityFlags.Center                                  // 居中（默认）
+        };
+    }
+
+    /// <summary>
+    /// 获取当前时间点上正在演唱的角色集合（包括当前行和与之时间重叠的其他角色）
+    /// </summary>
+    private HashSet<string?> GetCurrentActiveRoles(int currentIdx)
+    {
+        var activeRoles = new HashSet<string?>();
+        var lines = _viewModel.CurrentLyrics?.Lines;
+        if (lines == null || currentIdx < 0 || currentIdx >= lines.Count) return activeRoles;
+
+        var currentLine = lines[currentIdx];
+        var currentStart = currentLine.Timestamp;
+        var currentEnd = currentIdx + 1 < lines.Count
+            ? lines[currentIdx + 1].Timestamp
+            : currentStart + TimeSpan.FromSeconds(5);
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var start = line.Timestamp;
+            var end = i + 1 < lines.Count ? lines[i + 1].Timestamp : start + TimeSpan.FromSeconds(5);
+            if (start < currentEnd && currentStart < end)
+                activeRoles.Add(line.Role);
+        }
+        return activeRoles;
+    }
+
+    /// <summary>
+    /// 聚焦当前歌手模式：当前角色正常高亮，其他角色变淡/缩小
+    /// </summary>
+    private void ApplyFocusModeHighlight(int currentIdx)
+    {
+        var activeRoles = GetCurrentActiveRoles(currentIdx);
+        var dimColor = new Color(
+            (byte)(_lyricInactiveColor.A / 2),
+            _lyricInactiveColor.R,
+            _lyricInactiveColor.G,
+            _lyricInactiveColor.B);
+
+        for (int i = 0; i < _lyricViews.Count; i++)
+        {
+            var item = _lyricViews[i];
+            var line = _viewModel.CurrentLyrics!.Lines[i];
+            var isActive = activeRoles.Contains(line.Role);
+
+            if (i == currentIdx)
+            {
+                HighlightLine(i, _lyricFontSize + 4, _lyricActiveColor, _viewModel.CurrentLyricProgress);
+            }
+            else if (isActive)
+            {
+                ResetLineHighlight(i);
+                item.Primary.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
+            }
+            else
+            {
+                ResetLineHighlight(i);
+                item.Primary.SetTextColor(dimColor);
+                item.Primary.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 3);
+                item.Secondary?.SetTextColor(dimColor);
+                item.Secondary?.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 3);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 高亮当前播放的歌词行（含合唱伙伴行同时着色）
     /// </summary>
     private void HighlightCurrentLine()
     {
         var idx = _viewModel.CurrentLyricIndex;
-        if (idx == _lastLyricIndex) return;
+        var partnerIdx = _viewModel.DuetPartnerIndex;
 
         // 自适应模式：根据背景自动设置歌词颜色
         if (_lyricColorMode == 0)
             ApplyAdaptiveColors();
 
-        foreach (var v in _lyricViews)
+        // 聚焦当前歌手模式走独立分支
+        if (_duetMode == 1)
         {
-            var plain = v.Text;
-            if (!string.IsNullOrEmpty(plain))
-                v.SetText(plain, TextView.BufferType.Normal);
-            v.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
-            v.SetTextColor(_lyricInactiveColor);
-            v.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
-            v.Background = null;
-            v.ResetLyricProgress();
-            v.StrokeEnabled = false; // 不再使用描边
-            v.UnsungColor = _lyricInactiveColor;
-            v.SungColor = _lyricActiveColor;
-
-            var parent = v.Parent as LinearLayout;
-            if (parent != null && parent.ChildCount > 1)
-            {
-                var transTv = parent.GetChildAt(1) as TextView;
-                if (transTv != null)
-                {
-                    transTv.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
-                    var transNormalColor = new Color(
-                        (byte)(_lyricInactiveColor.A * 3 / 4),
-                        _lyricInactiveColor.R,
-                        _lyricInactiveColor.G,
-                        _lyricInactiveColor.B);
-                    transTv.SetTextColor(transNormalColor);
-                }
-            }
+            ApplyFocusModeHighlight(idx);
+            _lastLyricIndex = idx;
+            _lastDuetPartnerIndex = partnerIdx;
+            if (!_userScrolling && !_isDragging)
+                ScrollToCurrentLyric();
+            return;
         }
 
+        // 只在当前行和合唱伙伴都未变化时跳过
+        if (idx == _lastLyricIndex && partnerIdx == _lastDuetPartnerIndex) return;
+
+        // 重置上一行（当前行）
+        if (_lastLyricIndex >= 0 && _lastLyricIndex < _lyricViews.Count)
+        {
+            ResetLineHighlight(_lastLyricIndex);
+        }
+
+        // 重置上一轮的合唱伙伴行
+        if (_lastDuetPartnerIndex >= 0 && _lastDuetPartnerIndex < _lyricViews.Count
+            && _lastDuetPartnerIndex != idx && _lastDuetPartnerIndex != _lastLyricIndex)
+        {
+            ResetLineHighlight(_lastDuetPartnerIndex);
+        }
+
+        // 设置当前行高亮
         if (idx >= 0 && idx < _lyricViews.Count)
         {
-            _lyricViews[idx].SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize + 4);
-            _lyricViews[idx].SetTextColor(_lyricActiveColor);
-            _lyricViews[idx].UnsungColor = _lyricInactiveColor;
-            _lyricViews[idx].SungColor = _lyricActiveColor;
-            if (_lyricStyle == 1)
-            {
-                _lyricViews[idx].StrokeEnabled = false; // 不再使用描边
-                _lyricViews[idx].LyricProgress = _viewModel.CurrentLyricProgress;
-            }
+            HighlightLine(idx, _lyricFontSize + 4, _lyricActiveColor, _viewModel.CurrentLyricProgress);
+        }
 
-            var parent2 = _lyricViews[idx].Parent as LinearLayout;
-            if (parent2 != null && parent2.ChildCount > 1)
-            {
-                var transTv2 = parent2.GetChildAt(1) as TextView;
-                if (transTv2 != null)
-                {
-                    transTv2.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
-                    var transHighlightColor = new Color(
-                        (byte)Math.Min(_lyricActiveColor.A + 40, 255),
-                        _lyricActiveColor.R,
-                        _lyricActiveColor.G,
-                        _lyricActiveColor.B);
-                    transTv2.SetTextColor(transHighlightColor);
-                }
-            }
+        // 设置合唱伙伴行高亮（同时着色，使用稍小字号区分）
+        if (partnerIdx >= 0 && partnerIdx < _lyricViews.Count && partnerIdx != idx)
+        {
+            HighlightLine(partnerIdx, _lyricFontSize + 2, _lyricActiveColor, _viewModel.DuetPartnerProgress);
         }
 
         _lastLyricIndex = idx;
+        _lastDuetPartnerIndex = partnerIdx;
 
         if (!_userScrolling && !_isDragging)
             ScrollToCurrentLyric();
     }
 
+    /// <summary>将指定行重置为非高亮状态</summary>
+    private void ResetLineHighlight(int lineIdx)
+    {
+        if (lineIdx < 0 || lineIdx >= _lyricViews.Count) return;
+        var item = _lyricViews[lineIdx];
+        var isBacking = _viewModel.CurrentLyrics?.Lines[lineIdx].IsBackingVocal == true;
+
+        item.Primary.SetTextSize(Android.Util.ComplexUnitType.Sp, isBacking ? _lyricFontSize - 3 : _lyricFontSize);
+        item.Primary.SetTextColor(_lyricInactiveColor);
+        item.Primary.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
+        item.Primary.ResetLyricProgress();
+        item.Primary.UnsungColor = _lyricInactiveColor;
+        item.Primary.SungColor = _lyricActiveColor;
+        item.Primary.StrokeEnabled = false;
+
+        if (item.Secondary != null)
+        {
+            item.Secondary.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize);
+            item.Secondary.SetTextColor(_lyricInactiveColor);
+            item.Secondary.SetTypeface(null, _lyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
+            item.Secondary.ResetLyricProgress();
+            item.Secondary.UnsungColor = _lyricInactiveColor;
+            item.Secondary.SungColor = _lyricActiveColor;
+            item.Secondary.StrokeEnabled = false;
+        }
+
+        // 重置译文颜色
+        if (item.Translation != null)
+        {
+            item.Translation.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
+            var transNormalColor = new Color(
+                (byte)(_lyricInactiveColor.A * 3 / 4),
+                _lyricInactiveColor.R,
+                _lyricInactiveColor.G,
+                _lyricInactiveColor.B);
+            item.Translation.SetTextColor(transNormalColor);
+        }
+    }
+
+    /// <summary>将指定行设置高亮状态（含渐变进度）</summary>
+    private void HighlightLine(int lineIdx, float fontSize, Color activeColor, float progress)
+    {
+        if (lineIdx < 0 || lineIdx >= _lyricViews.Count) return;
+        var item = _lyricViews[lineIdx];
+
+        item.Primary.SetTextSize(Android.Util.ComplexUnitType.Sp, fontSize);
+        item.Primary.SetTextColor(activeColor);
+        item.Primary.UnsungColor = _lyricInactiveColor;
+        item.Primary.SungColor = activeColor;
+        if (_lyricStyle == 1)
+        {
+            item.Primary.StrokeEnabled = false;
+            item.Primary.LyricProgress = progress;
+        }
+
+        if (item.Secondary != null)
+        {
+            // 对唱行的对方文本使用稍小字号区分
+            item.Secondary.SetTextSize(Android.Util.ComplexUnitType.Sp, fontSize - 2);
+            item.Secondary.SetTextColor(activeColor);
+            item.Secondary.UnsungColor = _lyricInactiveColor;
+            item.Secondary.SungColor = activeColor;
+            if (_lyricStyle == 1)
+            {
+                item.Secondary.StrokeEnabled = false;
+                item.Secondary.LyricProgress = progress;
+            }
+        }
+
+        // 高亮译文
+        if (item.Translation != null)
+        {
+            item.Translation.SetTextSize(Android.Util.ComplexUnitType.Sp, _lyricFontSize - 2);
+            var transHighlightColor = new Color(
+                (byte)Math.Min(activeColor.A + 40, 255),
+                activeColor.R,
+                activeColor.G,
+                activeColor.B);
+            item.Translation.SetTextColor(transHighlightColor);
+        }
+    }
+
     private void UpdateCurrentLineGradient()
     {
         var idx = _viewModel.CurrentLyricIndex;
-        if (idx < 0 || idx >= _lyricViews.Count) return;
+        if (idx >= 0 && idx < _lyricViews.Count)
+        {
+            var item = _lyricViews[idx];
+            item.Primary.LyricProgress = _viewModel.CurrentLyricProgress;
+            if (item.Secondary != null)
+                item.Secondary.LyricProgress = _viewModel.CurrentLyricProgress;
+        }
 
-        _lyricViews[idx].LyricProgress = _viewModel.CurrentLyricProgress;
+        // 同时更新合唱伙伴行的渐变进度
+        var partnerIdx = _viewModel.DuetPartnerIndex;
+        if (partnerIdx >= 0 && partnerIdx < _lyricViews.Count && partnerIdx != idx)
+        {
+            var partnerItem = _lyricViews[partnerIdx];
+            partnerItem.Primary.LyricProgress = _viewModel.DuetPartnerProgress;
+            if (partnerItem.Secondary != null)
+                partnerItem.Secondary.LyricProgress = _viewModel.DuetPartnerProgress;
+        }
     }
 
     /// <summary>
@@ -777,14 +1142,13 @@ public class FullLyricsFragment : Fragment
     private void ScrollToCurrentLyric()
     {
         if (_scrollView == null || _viewModel == null) return;
-        
+
         var idx = _viewModel.CurrentLyricIndex;
         if (idx < 0 || idx >= _lyricViews.Count) return;
 
-        var t = _lyricViews[idx];
-        if (t == null) return;
-        var wrapper = t.Parent as View;
-        if (wrapper == null) return;
+        var item = _lyricViews[idx];
+        if (item?.Container == null) return;
+        var wrapper = item.Container;
         
         Activity?.RunOnUiThread(() =>
         {
@@ -843,6 +1207,7 @@ public class FullLyricsFragment : Fragment
         _lyricActiveColor = new Color(_lyricActiveArgb);
         _lyricInactiveColor = new Color(_lyricInactiveArgb);
         _lyricColorMode = _prefs.GetInt("lyric_color_mode", 0);
+        _duetMode = _prefs.GetInt("duet_mode", 0);
 
         var catclawPrefs = Activity?.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private);
         _lyricStyle = catclawPrefs?.GetInt("lyric_style", 0) ?? 0;
@@ -863,6 +1228,7 @@ public class FullLyricsFragment : Fragment
         e.PutInt("lyric_bg_color", _lyricBgColorIndex);
         e.PutInt("lyric_color_mode", _lyricColorMode);
         e.PutBoolean("lyric_bold", _lyricBold);
+        e.PutInt("duet_mode", _duetMode);
         e.Apply();
     }
 
@@ -957,6 +1323,28 @@ public class FullLyricsFragment : Fragment
         cbBold.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
         cbBold.SetPadding(0, dp * 6, 0, 0);
         content.AddView(cbBold);
+
+        var duetLabel = new TextView(Context) { Text = "对唱显示模式" };
+        duetLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
+        duetLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+        duetLabel.SetPadding(0, dp * 12, 0, dp * 4);
+        content.AddView(duetLabel);
+
+        var rgDuetMode = new RadioGroup(Context) { Orientation = Orientation.Vertical };
+        var rbDuetStandard = new RadioButton(Context) { Text = "标准" };
+        var rbDuetFocus = new RadioButton(Context) { Text = "聚焦当前歌手" };
+        var rbDuetSplit = new RadioButton(Context) { Text = "按角色分栏" };
+        rbDuetStandard.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbDuetFocus.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbDuetSplit.SetTextColor(Color.ParseColor("#DDFFFFFF"));
+        rbDuetStandard.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rbDuetFocus.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rbDuetSplit.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
+        rgDuetMode.AddView(rbDuetStandard);
+        rgDuetMode.AddView(rbDuetFocus);
+        rgDuetMode.AddView(rbDuetSplit);
+        rgDuetMode.Check(_duetMode switch { 1 => rbDuetFocus.Id, 2 => rbDuetSplit.Id, _ => rbDuetStandard.Id });
+        content.AddView(rgDuetMode);
 
         var alignLabel = new TextView(Context) { Text = "对齐方式" };
         alignLabel.SetTextColor(Color.ParseColor("#B0FFFFFF"));
@@ -1096,7 +1484,7 @@ public class FullLyricsFragment : Fragment
         if (initBgRb != null) rgBgColor.Check(initBgRb.Id);
         content.AddView(rgBgColor);
 
-        cbDragSeek.CheckedChange += (s, e) => { _allowDragSeek = e.IsChecked; SaveSettings(); RebuildLyrics(); };
+        cbDragSeek.CheckedChange += (s, e) => { _allowDragSeek = e.IsChecked; SaveSettings(); };
         rgColorMode.CheckedChange += (s, e) =>
         {
             var newMode = e.CheckedId == rbAdaptive.Id ? 0 : 1;
@@ -1104,8 +1492,12 @@ public class FullLyricsFragment : Fragment
             _lyricColorMode = newMode;
             customColorContainer.Visibility = _lyricColorMode == 0 ? ViewStates.Gone : ViewStates.Visible;
             SaveSettings();
+            if (_lyricColorMode == 0)
+                ApplyAdaptiveColors();
             _lastLyricIndex = -999;
-            RebuildLyrics();
+            _lastDuetPartnerIndex = -999;
+            RefreshLyricColors();
+            HighlightCurrentLine();
         };
         rgLyricStyle.CheckedChange += (s, e) =>
         {
@@ -1118,6 +1510,7 @@ public class FullLyricsFragment : Fragment
             viewModel.LyricStyle = newStyle;
             viewModel.UpdateLyricSpannable();
             _lastLyricIndex = -999;
+            _lastDuetPartnerIndex = -999;
             HighlightCurrentLine();
         };
         rgLyricsMode.CheckedChange += (s, e) =>
@@ -1136,14 +1529,32 @@ public class FullLyricsFragment : Fragment
             _ = viewModel.LoadLyricsAsync(viewModel.CurrentSong);
         };
         sbFontSize.ProgressChanged += (s, e) => { _lyricFontSize = e.Progress; tvFontSizeValue.Text = $"{_lyricFontSize}sp"; };
-        sbFontSize.StopTrackingTouch += (s, e) => { SaveSettings(); RebuildLyrics(); };
-        cbBold.CheckedChange += (s, e) => { _lyricBold = e.IsChecked; SaveSettings(); _lastLyricIndex = -999; HighlightCurrentLine(); };
+        sbFontSize.StopTrackingTouch += (s, e) => { SaveSettings(); RefreshLyricFontSize(); };
+        cbBold.CheckedChange += (s, e) => { _lyricBold = e.IsChecked; SaveSettings(); RefreshLyricTypeface(); _lastLyricIndex = -999; _lastDuetPartnerIndex = -999; HighlightCurrentLine(); };
+        rgDuetMode.CheckedChange += (s, e) =>
+        {
+            int newMode = -1;
+            if (e.CheckedId == rbDuetStandard.Id) newMode = 0;
+            else if (e.CheckedId == rbDuetFocus.Id) newMode = 1;
+            else if (e.CheckedId == rbDuetSplit.Id) newMode = 2;
+            if (newMode < 0 || newMode == _duetMode) return;
+            _duetMode = newMode;
+            SaveSettings();
+            RebuildLyrics();
+            _lastLyricIndex = -999;
+            _lastDuetPartnerIndex = -999;
+            HighlightCurrentLine();
+        };
         rgAlignment.CheckedChange += (s, e) =>
         {
             var newAlign = e.CheckedId == rbLeft.Id ? 0 : e.CheckedId == rbRight.Id ? 2 : 1;
             if (newAlign == _lyricAlignment) return;
             _lyricAlignment = newAlign;
-            SaveSettings(); RebuildLyrics();
+            SaveSettings();
+            RefreshLyricAlignment();
+            _lastLyricIndex = -999;
+            _lastDuetPartnerIndex = -999;
+            HighlightCurrentLine();
         };
 
         // 取色盘事件（仅自定义模式下生效）
@@ -1154,6 +1565,8 @@ public class FullLyricsFragment : Fragment
             _lyricActiveArgb = c.ToArgb();
             SaveSettings();
             _lastLyricIndex = -999;
+            _lastDuetPartnerIndex = -999;
+            RefreshLyricColors();
             HighlightCurrentLine();
         };
         inactivePicker.ColorChanged += (c) =>
@@ -1161,7 +1574,11 @@ public class FullLyricsFragment : Fragment
             if (_lyricColorMode != 1) return;
             _lyricInactiveColor = c;
             _lyricInactiveArgb = c.ToArgb();
-            SaveSettings(); RebuildLyrics();
+            SaveSettings();
+            _lastLyricIndex = -999;
+            _lastDuetPartnerIndex = -999;
+            RefreshLyricColors();
+            HighlightCurrentLine();
         };
         rgBgColor.CheckedChange += (s, e) =>
         {
@@ -1231,6 +1648,7 @@ public class FullLyricsFragment : Fragment
 
         // 强制 HighlightCurrentLine 执行完整逻辑（否则 idx == _lastLyricIndex 时会跳过滚动）
         _lastLyricIndex = -1;
+        _lastDuetPartnerIndex = -1;
 
         // 延迟执行：ViewPager2 切换页面时视图可能尚未完成布局，
         // ScrollView.Height 可能为 0 或 SmoothScrollTo 被后续布局覆盖。
@@ -1240,6 +1658,7 @@ public class FullLyricsFragment : Fragment
             // 再次确保状态正确（延迟期间可能有其他事件修改了状态）
             _userScrolling = false;
             _lastLyricIndex = -1;
+            _lastDuetPartnerIndex = -1;
             HighlightCurrentLine();
             // 兜底：直接调用 ScrollToCurrentLyric，确保滚动一定执行
             ScrollToCurrentLyric();
@@ -1298,6 +1717,17 @@ public class FullLyricsFragment : Fragment
                 // 捕获异常，避免崩溃
             }
         }
+    }
+
+    /// <summary>
+    /// 歌词行视图项：包含主文本、对唱对方文本、译文及容器，便于统一高亮处理。
+    /// </summary>
+    private class LyricViewItem
+    {
+        public View Container { get; set; } = null!;
+        public StrokeTextView Primary { get; set; } = null!;
+        public StrokeTextView? Secondary { get; set; }
+        public TextView? Translation { get; set; }
     }
 
     /// <summary>

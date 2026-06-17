@@ -102,11 +102,20 @@ public class PlaylistDetailFragment : Fragment
                 _btnFilter.Visibility = ViewStates.Visible;
             }
             
-            _ = _viewModel.LoadAsync(_playlistId, name).ContinueWith(_ =>
+            // 延迟加载数据，避免与入场滑动动画竞争主线程
+            _songList.PostDelayed(async () =>
             {
-                ApplySavedSort();
-                ApplySavedSourceFilter();
-            });
+                try
+                {
+                    await _viewModel.LoadAsync(_playlistId, name);
+                    ApplySavedSort();
+                    ApplySavedSourceFilter();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PlaylistDetail] delayed load failed: {ex.Message}");
+                }
+            }, 180);
         }
 
         _collectionChangedHandler = (s, e) =>
@@ -166,7 +175,8 @@ public class PlaylistDetailFragment : Fragment
         });
         dialog.AddItem("ℹ  歌曲详情", () =>
         {
-            MainActivity.Instance.ShowSongDetailSheet(song.Id);
+            var sheet = SongDetailBottomSheet.NewInstance(song.Id);
+            sheet.Show(ParentFragmentManager, "song_detail");
         });
 
         dialog.Show();

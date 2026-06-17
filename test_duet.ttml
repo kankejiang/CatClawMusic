@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml" 
+    xmlns:ttm="http://www.w3.org/ns/ttml#metadata" 
+    xmlns:tts="http://www.w3.org/ns/ttml#styling"
+    xmlns:amll="http://www.bilibili.com/2018/AMLLExt">
+  <head>
+    <metadata>
+      <ttm:agents>
+        <ttm:agent xml:id="v1" tts:textAlign="left"/>
+        <ttm:agent xml:id="v2" tts:textAlign="right"/>
+      </ttm:agents>
+    </metadata>
+  </head>
+  <body>
+    <div>
+      <p begin="0:0:1.0" ttm:agent="v1">
+        <span begin="0:0:1.0">第一次说爱你</span>
+      </p>
+      <p begin="0:0:1.0" ttm:agent="v2">
+        <span begin="0:0:1.0">第一次说爱你</span>
+      </p>
+      <p begin="0:0:5.0" ttm:agent="v1">
+        <span begin="0:0:5.0">我不敢相信</span>
+      </p>
+      <p begin="0:0:5.0" ttm:agent="v2">
+        <span begin="0:0:5.0">我也爱你</span>
+      </p>
+    </div>
+  </body>
+</tt>

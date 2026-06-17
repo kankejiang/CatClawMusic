@@ -20,6 +20,12 @@ public class StrokeTextView : TextView
     private Color _unsungColor = Color.Argb(0xCC, 0xBB, 0xBB, 0xBB);
     private bool _suppressInvalidate;
 
+    // 缓存逐字歌词的行信息，避免 OnDraw 每帧重复计算 Layout 数据
+    private string? _cachedText;
+    private int _cachedMainLineCount;
+    private int[]? _cachedLineCharCounts;
+    private int _cachedTotalChars;
+
     public StrokeTextView(Context context) : base(context) { }
     public StrokeTextView(Context context, IAttributeSet? attrs) : base(context, attrs) { }
     public StrokeTextView(Context context, IAttributeSet? attrs, int defStyleAttr) : base(context, attrs, defStyleAttr) { }
@@ -52,7 +58,8 @@ public class StrokeTextView : TextView
         get => _lyricProgress;
         set
         {
-            if (Math.Abs(_lyricProgress - value) < 0.001f) return;
+            // 提高阈值，减少过于频繁的重绘（肉眼 1% 以内变化不易察觉）
+            if (Math.Abs(_lyricProgress - value) < 0.008f) return;
             _lyricProgress = value;
             Invalidate();
         }
@@ -126,6 +133,20 @@ public class StrokeTextView : TextView
         base.Invalidate(l, t, r, b);
     }
 
+    protected override void OnTextChanged(Java.Lang.ICharSequence? text, int start, int lengthBefore, int lengthAfter)
+    {
+        base.OnTextChanged(text, start, lengthBefore, lengthAfter);
+        InvalidateLyricLineCache();
+    }
+
+    private void InvalidateLyricLineCache()
+    {
+        _cachedText = null;
+        _cachedLineCharCounts = null;
+        _cachedMainLineCount = 0;
+        _cachedTotalChars = 0;
+    }
+
     /// <summary>
     /// 自定义绘制逻辑：先绘制描边层，再绘制填充层，最后通过裁剪区域叠加已唱颜色
     /// </summary>
@@ -169,52 +190,51 @@ public class StrokeTextView : TextView
             base.OnDraw(canvas);
 
             // 第三层：已唱颜色覆盖，逐行裁剪实现逐行着色（第一行唱完再着色第二行）
-            // 有译文时，仅对原文行着色，译文行保持底色不被渐变染色
+            // 有译文时，仅对原文行着色，译文行不参与渐变着色
             if (needsGradient && _lyricProgress > 0f)
             {
-                // 计算每行宽度和总宽度（逐行累加），进度按总宽度比例分配
-                int lineCount = Layout.LineCount;
-                // 查找原文行数量（换行符之前），译文行不参与渐变着色
-                int mainLineCount = lineCount;
-                int nlIndex = Text?.IndexOf('\n') ?? -1;
-                if (nlIndex >= 0)
-                    mainLineCount = Layout.GetLineForOffset(nlIndex) + 1;
+                EnsureLyricLineCache();
 
-                var lineWidths = new float[lineCount];
-                float totalWidth = 0f;
-                for (int i = 0; i < lineCount; i++)
-                {
-                    lineWidths[i] = Layout.GetLineWidth(i);
-                    if (i < mainLineCount)
-                        totalWidth += lineWidths[i];
-                }
+                int mainLineCount = _cachedMainLineCount;
+                int totalChars = _cachedTotalChars;
+                var lineCharCounts = _cachedLineCharCounts;
+                if (lineCharCounts == null || totalChars <= 0) return;
 
-                // 将进度映射到逐行累计宽度上的位置（仅基于原文行宽度）
-                float progressWidth = totalWidth * Math.Clamp(_lyricProgress, 0f, 1f);
+                int progressChars = (int)(totalChars * Math.Clamp(_lyricProgress, 0f, 1f));
+                int accumulatedChars = 0;
 
-                float accumulated = 0f;
+                SetTextColor(_sungColor);
+
+                // 把所有已唱区域合并到一个 Path 中，只调用一次 base.OnDraw，减少重绘开销
+                var clipPath = new Android.Graphics.Path();
+
                 for (int i = 0; i < mainLineCount; i++)
                 {
-                    if (accumulated >= progressWidth) break;
+                    if (accumulatedChars >= progressChars) break;
+
+                    int remainingChars = progressChars - accumulatedChars;
+                    int lineChars = lineCharCounts[i];
+                    if (lineChars <= 0) continue;
+
+                    float ratio = Math.Min((float)remainingChars / lineChars, 1f);
 
                     float lineLeft = Layout.GetLineLeft(i);
                     float lineTop = Layout.GetLineTop(i);
                     float lineBottom = Layout.GetLineBottom(i);
-                    float remainingProgress = progressWidth - accumulated;
+                    float lineWidth = Layout.GetLineWidth(i);
 
-                    // 本行着色右边界：整行已唱则到行尾，否则按剩余进度截断
-                    float lineClipRight = remainingProgress >= lineWidths[i]
-                        ? lineLeft + lineWidths[i]
-                        : lineLeft + remainingProgress;
+                    // 本行着色右边界：按本行应唱字符数占本行总字符数的比例
+                    float lineClipRight = lineLeft + lineWidth * ratio;
 
-                    var saved = canvas.Save();
-                    canvas.ClipRect(lineLeft, lineTop, lineClipRight, lineBottom);
-                    SetTextColor(_sungColor);
-                    base.OnDraw(canvas);
-                    canvas.RestoreToCount(saved);
+                    clipPath.AddRect(lineLeft, lineTop, lineClipRight, lineBottom, Android.Graphics.Path.Direction.Cw);
 
-                    accumulated += lineWidths[i];
+                    accumulatedChars += lineChars;
                 }
+
+                var saved = canvas.Save();
+                canvas.ClipPath(clipPath);
+                base.OnDraw(canvas);
+                canvas.RestoreToCount(saved);
             }
         }
         finally
@@ -224,5 +244,35 @@ public class StrokeTextView : TextView
             Paint.StrokeWidth = 0;
             _suppressInvalidate = false;
         }
+    }
+
+    /// <summary>计算并缓存逐字歌词所需的行信息，仅在文本或 Layout 变化时重新计算</summary>
+    private void EnsureLyricLineCache()
+    {
+        var text = Text;
+        if (Layout == null) return;
+        if (_cachedText == text && _cachedLineCharCounts != null) return;
+
+        int lineCount = Layout.LineCount;
+        int mainLineCount = lineCount;
+        int nlIndex = text?.IndexOf('\n') ?? -1;
+        if (nlIndex >= 0)
+            mainLineCount = Layout.GetLineForOffset(nlIndex) + 1;
+
+        var counts = new int[mainLineCount];
+        int total = 0;
+        for (int i = 0; i < mainLineCount; i++)
+        {
+            int lineStart = Layout.GetLineStart(i);
+            int lineEnd = Layout.GetLineEnd(i);
+            int count = Math.Max(0, lineEnd - lineStart);
+            counts[i] = count;
+            total += count;
+        }
+
+        _cachedText = text;
+        _cachedMainLineCount = mainLineCount;
+        _cachedLineCharCounts = counts;
+        _cachedTotalChars = total;
     }
 }

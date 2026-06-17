@@ -21,6 +21,32 @@ public interface ILyricsService
     /// 解析 LRC 格式字符串
     /// </summary>
     LrcLyrics? ParseLrc(string lrcContent);
+
+    /// <summary>
+    /// 智能解析歌词内容：先检测格式（XML/JSON/LRC），再调用对应解析器
+    /// </summary>
+    LrcLyrics? TryParseLyrics(string content);
+
+    /// <summary>
+    /// 查找外部歌词文件并返回文本内容（含 SAF content:// 回退）
+    /// </summary>
+    Task<string?> FindExternalLyricsTextAsync(Song song);
+
+    /// <summary>
+    /// 解析 TTML (Timed Text Markup Language) 格式歌词
+    /// 支持 W3C TTML 标准，常用于 Apple Music、Netflix 等平台
+    /// </summary>
+    LrcLyrics? ParseTtml(string ttmlContent);
+    
+    /// <summary>
+    /// 从文件解析 TTML 格式
+    /// </summary>
+    LrcLyrics? ParseTtmlFromFile(string filePath);
+    
+    /// <summary>
+    /// 异步从文件解析 TTML 格式
+    /// </summary>
+    Task<LrcLyrics?> ParseTtmlFromFileAsync(string filePath);
     
     /// <summary>
     /// 根据播放位置获取当前歌词行索引

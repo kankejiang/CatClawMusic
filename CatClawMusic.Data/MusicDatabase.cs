@@ -394,7 +394,7 @@ public class MusicDatabase
         foreach (var s in all)
         {
             bool keep = source == SongSource.Local
-                ? retainPaths.Contains(s.FilePath)
+                ? retainPaths.Any(p => s.FilePath.StartsWith(p, StringComparison.OrdinalIgnoreCase))
                 : (retainRemoteIds != null && !string.IsNullOrEmpty(s.RemoteId) && retainRemoteIds.Contains(s.RemoteId));
             if (!keep) toDeleteIds.Add(s.Id);
         }

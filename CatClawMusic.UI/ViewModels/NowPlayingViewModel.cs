@@ -85,6 +85,24 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private string _nextLyricLine6 = "";
     [ObservableProperty] private string _nextLyricLine7 = "";
     [ObservableProperty] private string _nextLyricLine8 = "";
+
+    // ── 逐行对齐属性（TTML/AMLL 对唱歌词支持）──
+    // 0=左对齐, 1=居中, 2=右对齐
+    [ObservableProperty] private int _prevLyricAlignment2 = 1;
+    [ObservableProperty] private int _prevLyricAlignment = 1;
+    [ObservableProperty] private int _currentLyricAlignment = 1;
+    [ObservableProperty] private int _nextLyricAlignment = 1;
+    [ObservableProperty] private int _nextLyricAlignment2 = 1;
+    /// <summary>当前歌词是否支持逐行对齐</summary>
+    [ObservableProperty] private bool _hasPerLineAlignment;
+
+    // ── 合唱/对唱同时着色支持 ──
+    /// <summary>当前合唱伙伴行索引（与当前行时间重叠的另一歌手行），-1 表示无伙伴</summary>
+    [ObservableProperty] private int _duetPartnerIndex = -1;
+    /// <summary>合唱伙伴行的演唱进度（0~1）</summary>
+    [ObservableProperty] private float _duetPartnerProgress;
+    /// <summary>是否处于合唱状态（当前行有合唱伙伴）</summary>
+    public bool HasDuetPartner => DuetPartnerIndex >= 0;
     /// <summary>
     /// 当前播放位置
     /// </summary>
@@ -127,6 +145,7 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <para>根据当前播放位置计算当前行的演唱进度（0~1），并构建包含翻译的 SpannableString</para>
     /// <para>翻译文本以灰色+缩小字号显示在原文下方</para>
     /// <para>同一行内只更新进度值，不重复创建 SpannableString</para>
+    /// <para>当有逐字时间戳时，使用逐字进度替代行级线性插值</para>
     /// </summary>
     public void UpdateLyricSpannable()
     {
@@ -138,11 +157,19 @@ public partial class NowPlayingViewModel : ObservableObject
         var text = line.Text;
         if (string.IsNullOrEmpty(text)) { ClearSpannable(); _lastSpannableLineIdx = -1; return; }
 
-        var lineDuration = GetLineDuration(lines, idx);
-        if (lineDuration.TotalMilliseconds > 0)
-            CurrentLyricProgress = (float)Math.Clamp((CurrentPosition - line.Timestamp).TotalMilliseconds / lineDuration.TotalMilliseconds, 0.0, 1.0);
+        // 计算进度：优先使用逐字时间戳，回退到行级线性插值
+        if (line.WordTimestamps != null && line.WordTimestamps.Count > 0)
+        {
+            CurrentLyricProgress = (float)CalculateWordProgress(line.WordTimestamps, CurrentPosition);
+        }
         else
-            CurrentLyricProgress = 1f;
+        {
+            var lineDuration = GetLineDuration(lines, idx);
+            if (lineDuration.TotalMilliseconds > 0)
+                CurrentLyricProgress = (float)Math.Clamp((CurrentPosition - line.Timestamp).TotalMilliseconds / lineDuration.TotalMilliseconds, 0.0, 1.0);
+            else
+                CurrentLyricProgress = 1f;
+        }
 
         if (idx == _lastSpannableLineIdx)
             return;
@@ -165,6 +192,46 @@ public partial class NowPlayingViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentLyricSpannable));
     }
 
+    /// <summary>
+    /// 基于逐字时间戳计算当前行的演唱进度（0~1）
+    /// <para>根据已唱完的字宽度和当前字的进度，精确计算整体进度</para>
+    /// </summary>
+    private static double CalculateWordProgress(List<WordTimestamp> words, TimeSpan position)
+    {
+        if (words.Count == 0) return 0;
+
+        // 计算每个字的字符宽度占比（近似：按字符数分配）
+        var totalChars = words.Sum(w => w.Word.Length);
+        if (totalChars == 0) return 0;
+
+        double sungChars = 0;
+        for (int i = 0; i < words.Count; i++)
+        {
+            var word = words[i];
+            var wordEnd = word.Start + word.Duration;
+
+            if (position >= wordEnd)
+            {
+                // 这个字已唱完
+                sungChars += word.Word.Length;
+            }
+            else if (position > word.Start)
+            {
+                // 这个字正在唱
+                var wordProgress = (position - word.Start).TotalMilliseconds / word.Duration.TotalMilliseconds;
+                sungChars += word.Word.Length * Math.Clamp(wordProgress, 0, 1);
+                break;
+            }
+            else
+            {
+                // 还没唱到
+                break;
+            }
+        }
+
+        return Math.Clamp(sungChars / totalChars, 0, 1);
+    }
+
     private void ClearSpannable()
     {
         if (CurrentLyricSpannable != null)
@@ -182,6 +249,13 @@ public partial class NowPlayingViewModel : ObservableObject
         return line.Text + "\n" + line.Translation;
     }
 
+    /// <summary>获取指定行的对齐方式（0=左,1=中,2=右），越界返回默认居中</summary>
+    private static int GetLineAlignment(List<LrcLyricLine> lines, int idx)
+    {
+        if (idx < 0 || idx >= lines.Count) return 1;
+        return lines[idx].Alignment;
+    }
+
     /// <summary>
     /// 获取当前歌词行的持续时间（下一行时间 - 本行时间，最后一行默认 5 秒）
     /// </summary>
@@ -194,6 +268,83 @@ public partial class NowPlayingViewModel : ObservableObject
                 return gap;
         }
         return TimeSpan.FromSeconds(5);
+    }
+
+    /// <summary>
+    /// 计算指定行的演唱进度（0~1），用于合唱时同时着色伙伴行。
+    /// 优先使用逐字时间戳，回退到行级线性插值。
+    /// </summary>
+    private static float CalculateLineProgress(List<LrcLyricLine> lines, int idx, TimeSpan position)
+    {
+        if (idx < 0 || idx >= lines.Count) return 0f;
+        var line = lines[idx];
+        if (line.WordTimestamps != null && line.WordTimestamps.Count > 0)
+            return (float)CalculateWordProgress(line.WordTimestamps, position);
+        var lineDuration = GetLineDuration(lines, idx);
+        if (lineDuration.TotalMilliseconds > 0)
+            return (float)Math.Clamp((position - line.Timestamp).TotalMilliseconds / lineDuration.TotalMilliseconds, 0.0, 1.0);
+        return 1f;
+    }
+
+    /// <summary>
+    /// 查找当前行的合唱伙伴行索引。
+    /// 合唱伙伴 = 与当前行时间区间重叠且对齐方式不同的另一行（不同歌手）。
+    /// 若无真正重叠，则查找相邻的不同歌手行（对唱模式）。
+    /// </summary>
+    private static int FindDuetPartner(List<LrcLyricLine> lines, int currentIdx, TimeSpan position)
+    {
+        if (currentIdx < 0 || currentIdx >= lines.Count) return -1;
+        var currentAlignment = lines[currentIdx].Alignment;
+        if (currentAlignment == 1) return -1; // 居中行不参与对唱
+
+        var currentStart = lines[currentIdx].Timestamp;
+        var currentEnd = currentIdx + 1 < lines.Count
+            ? lines[currentIdx + 1].Timestamp
+            : currentStart + TimeSpan.FromSeconds(5);
+
+        // 1. 查找时间区间真正重叠的不同歌手行（合唱）
+        for (int i = 0; i < lines.Count; i++)
+        {
+            if (i == currentIdx) continue;
+            if (lines[i].Alignment == currentAlignment) continue; // 同一歌手
+            if (lines[i].Alignment == 1) continue; // 居中行不参与
+
+            var otherStart = lines[i].Timestamp;
+            var otherEnd = i + 1 < lines.Count
+                ? lines[i + 1].Timestamp
+                : otherStart + TimeSpan.FromSeconds(5);
+
+            // 时间区间重叠 && 当前位置在两行的活跃区间内
+            if (otherStart < currentEnd && currentStart < otherEnd
+                && position >= otherStart && position < otherEnd)
+                return i;
+        }
+
+        // 2. 对唱模式：查找相邻的不同歌手行（前一行或后一行），且时间接近
+        // 前一行
+        if (currentIdx > 0)
+        {
+            var prev = lines[currentIdx - 1];
+            if (prev.Alignment != currentAlignment && prev.Alignment != 1)
+            {
+                var gap = currentStart - prev.Timestamp;
+                if (gap.TotalSeconds >= 0 && gap.TotalSeconds < 3)
+                    return currentIdx - 1;
+            }
+        }
+        // 后一行
+        if (currentIdx + 1 < lines.Count)
+        {
+            var next = lines[currentIdx + 1];
+            if (next.Alignment != currentAlignment && next.Alignment != 1)
+            {
+                var gap = next.Timestamp - currentStart;
+                if (gap.TotalSeconds >= 0 && gap.TotalSeconds < 3)
+                    return currentIdx + 1;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -494,6 +645,14 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             if (e.State == PlaybackState.Stopped)
             {
+                // 防御性检查：如果当前位置离歌曲末尾还很远，说明这是 seek 或缓冲导致的误判，不应切歌
+                var duration = _audioPlayer.Duration;
+                var pos = _audioPlayer.CurrentPosition;
+                if (duration > TimeSpan.Zero && pos < duration - TimeSpan.FromMilliseconds(500))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 忽略误触发的 Stopped（pos={pos}, dur={duration}）");
+                    return;
+                }
                 if (StopAfterCurrentSong)
                 {
                     StopAfterCurrentSong = false;
@@ -609,6 +768,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 if (idx != _lastLyricIndex)
                 {
                     _lastLyricIndex = idx;
+                    HasPerLineAlignment = CurrentLyrics.HasPerLineAlignment;
                     if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
                     {
                         _prevLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx - 8);
@@ -628,8 +788,24 @@ public partial class NowPlayingViewModel : ObservableObject
                     _nextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, idx + 7);
                     _nextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx + 8);
                     _currentLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx);
+
+                    // 设置逐行对齐
+                    _prevLyricAlignment2 = GetLineAlignment(CurrentLyrics.Lines, idx - 2);
+                    _prevLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx - 1);
+                    _currentLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx);
+                    _nextLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx + 1);
+                    _nextLyricAlignment2 = GetLineAlignment(CurrentLyrics.Lines, idx + 2);
+
                     CurrentLyricIndex = idx;
                     OnPropertyChanged(nameof(CurrentLyricLine));
+
+                    // 计算合唱伙伴行（用于同时着色）
+                    var partner = FindDuetPartner(CurrentLyrics.Lines, idx, pos);
+                    if (partner != DuetPartnerIndex)
+                    {
+                        DuetPartnerIndex = partner;
+                        OnPropertyChanged(nameof(HasDuetPartner));
+                    }
                 }
                 else if (idx < 0)
                 {
@@ -651,10 +827,19 @@ public partial class NowPlayingViewModel : ObservableObject
                     _nextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, 6);
                     _nextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, 7);
                     CurrentLyricIndex = -1;
+                    if (DuetPartnerIndex != -1)
+                    {
+                        DuetPartnerIndex = -1;
+                        OnPropertyChanged(nameof(HasDuetPartner));
+                    }
                     OnPropertyChanged(nameof(CurrentLyricLine));
                 }
                 }
                 if (LyricStyle == 1) UpdateLyricSpannable();
+
+                // 更新合唱伙伴行的进度（每次位置更新都计算）
+                if (DuetPartnerIndex >= 0 && DuetPartnerIndex < CurrentLyrics.Lines.Count)
+                    DuetPartnerProgress = CalculateLineProgress(CurrentLyrics.Lines, DuetPartnerIndex, pos);
             }
             _isPositionUpdating = false;
             if (++_saveCounter % 25 == 0)
@@ -667,12 +852,13 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
-        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine8 = ""; PrevLyricLine7 = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; NextLyricLine7 = ""; NextLyricLine8 = ""; CurrentLyrics = null; CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; return; }
+        if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine8 = ""; PrevLyricLine7 = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; NextLyricLine7 = ""; NextLyricLine8 = ""; CurrentLyrics = null; CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; DuetPartnerIndex = -1; return; }
         var songId = song.Id;
         CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine8 = ""; PrevLyricLine7 = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; NextLyricLine7 = ""; NextLyricLine8 = "";
         CurrentLyrics = null;
         CurrentLyricIndex = -1;
         _lastSpannableLineIdx = -1; _lastLyricIndex = -999;
+        DuetPartnerIndex = -1;
         try
         {
             if (LyricsMode == 2)
@@ -688,11 +874,46 @@ public partial class NowPlayingViewModel : ObservableObject
                 var skipEmbedded = song.Source == SongSource.WebDAV || song.Source == SongSource.SMB;
                 CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, skipEmbedded);
             }
+            System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] mode={LyricsMode}, local={CurrentLyrics?.Lines?.Count}, path={song.FilePath}, lyricsPath={song.LyricsPath}");
         }
         catch (OperationCanceledException) { return; }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] GetLocalLyricsAsync 异常: {ex.Message}"); }
         if (ct.IsCancellationRequested) return;
         if (CurrentSong?.Id != songId) return;
+
+        // 兜底：与歌曲详情页保持一致，使用 FindExternalLyricsTextAsync（含模糊匹配）和数据库
+        if (CurrentLyrics == null && LyricsMode != 2)
+        {
+            try
+            {
+                var raw = await _lyricsService.FindExternalLyricsTextAsync(song);
+                System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] FindExternalLyricsTextAsync 原始长度: {raw?.Length ?? 0}, 含空字符: {raw?.Contains('\0') ?? false}");
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    CurrentLyrics = await Task.Run(() => _lyricsService.TryParseLyrics(raw));
+                    System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] FindExternalLyricsTextAsync 解析结果: {CurrentLyrics?.Lines?.Count} 行");
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] FindExternalLyricsTextAsync 异常: {ex.Message}"); }
+            if (ct.IsCancellationRequested) return;
+            if (CurrentSong?.Id != songId) return;
+        }
+
+        if (CurrentLyrics == null && LyricsMode != 2 && _database != null)
+        {
+            try
+            {
+                var dbLyric = await _database.GetLyricAsync(song.Id);
+                if (dbLyric != null && !string.IsNullOrEmpty(dbLyric.Content))
+                {
+                    CurrentLyrics = await Task.Run(() => _lyricsService.TryParseLyrics(dbLyric.Content));
+                    System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] 数据库歌词解析结果: {CurrentLyrics?.Lines?.Count} 行");
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] 数据库歌词异常: {ex.Message}"); }
+            if (ct.IsCancellationRequested) return;
+            if (CurrentSong?.Id != songId) return;
+        }
 
         if (CurrentLyrics == null && (song.Source == SongSource.WebDAV || song.Source == SongSource.SMB))
         {

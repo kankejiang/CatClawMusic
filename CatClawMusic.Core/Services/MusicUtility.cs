@@ -128,8 +128,16 @@ public static class MusicUtility
         if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name)) return null;
 
         // 精确匹配 song.lrc
-        var exact = Path.Combine(dir, name + ".lrc");
-        if (File.Exists(exact)) return exact;
+        var exactLrc = Path.Combine(dir, name + ".lrc");
+        if (File.Exists(exactLrc)) return exactLrc;
+
+        // 精确匹配 song.ttml
+        var exactTtml = Path.Combine(dir, name + ".ttml");
+        if (File.Exists(exactTtml)) return exactTtml;
+
+        // 精确匹配 song.xml（可能是 TTML）
+        var exactXml = Path.Combine(dir, name + ".xml");
+        if (File.Exists(exactXml)) return exactXml;
 
         // 模糊匹配 song*.lrc
         try
@@ -142,6 +150,31 @@ public static class MusicUtility
             }
         }
         catch { }
+
+        // 模糊匹配 song*.ttml
+        try
+        {
+            foreach (var f in Directory.GetFiles(dir, "*.ttml"))
+            {
+                var ttmlName = Path.GetFileNameWithoutExtension(f);
+                if (ttmlName.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+                    return f;
+            }
+        }
+        catch { }
+
+        // 模糊匹配 song*.xml（可能是 TTML）
+        try
+        {
+            foreach (var f in Directory.GetFiles(dir, "*.xml"))
+            {
+                var xmlName = Path.GetFileNameWithoutExtension(f);
+                if (xmlName.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+                    return f;
+            }
+        }
+        catch { }
+
         return null;
     }
 
