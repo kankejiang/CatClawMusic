@@ -25,6 +25,8 @@ public class StrokeTextView : TextView
     private int _cachedMainLineCount;
     private int[]? _cachedLineCharCounts;
     private int _cachedTotalChars;
+    // 复用 Path 对象，避免每帧创建新实例导致 GC 压力
+    private readonly Android.Graphics.Path _clipPath = new();
 
     public StrokeTextView(Context context) : base(context) { }
     public StrokeTextView(Context context, IAttributeSet? attrs) : base(context, attrs) { }
@@ -58,8 +60,8 @@ public class StrokeTextView : TextView
         get => _lyricProgress;
         set
         {
-            // 提高阈值，减少过于频繁的重绘（肉眼 1% 以内变化不易察觉）
-            if (Math.Abs(_lyricProgress - value) < 0.008f) return;
+            // 低阈值配合 33ms 定时器，保证 30fps 平滑着色
+            if (Math.Abs(_lyricProgress - value) < 0.003f) return;
             _lyricProgress = value;
             Invalidate();
         }
@@ -182,59 +184,81 @@ public class StrokeTextView : TextView
                 base.OnDraw(canvas);
             }
 
-            // 第二层：填充底色（未唱颜色或原始文字色）
-            var fillColor = needsGradient ? _unsungColor : originalTextColor;
-            SetTextColor(fillColor);
-            Paint.SetStyle(Android.Graphics.Paint.Style.Fill);
-            Paint.StrokeWidth = 0;
-            base.OnDraw(canvas);
+            // 归一化进度，边界值直接用单色绘制，跳过裁剪层
+            float clampedProgress = needsGradient ? Math.Clamp(_lyricProgress, 0f, 1f) : 0f;
 
-            // 第三层：已唱颜色覆盖，逐行裁剪实现逐行着色（第一行唱完再着色第二行）
-            // 有译文时，仅对原文行着色，译文行不参与渐变着色
-            if (needsGradient && _lyricProgress > 0f)
+            if (needsGradient && clampedProgress >= 1f)
             {
-                EnsureLyricLineCache();
-
-                int mainLineCount = _cachedMainLineCount;
-                int totalChars = _cachedTotalChars;
-                var lineCharCounts = _cachedLineCharCounts;
-                if (lineCharCounts == null || totalChars <= 0) return;
-
-                int progressChars = (int)(totalChars * Math.Clamp(_lyricProgress, 0f, 1f));
-                int accumulatedChars = 0;
-
+                // 全部已唱：直接用 sungColor 绘制，跳过裁剪
                 SetTextColor(_sungColor);
-
-                // 把所有已唱区域合并到一个 Path 中，只调用一次 base.OnDraw，减少重绘开销
-                var clipPath = new Android.Graphics.Path();
-
-                for (int i = 0; i < mainLineCount; i++)
-                {
-                    if (accumulatedChars >= progressChars) break;
-
-                    int remainingChars = progressChars - accumulatedChars;
-                    int lineChars = lineCharCounts[i];
-                    if (lineChars <= 0) continue;
-
-                    float ratio = Math.Min((float)remainingChars / lineChars, 1f);
-
-                    float lineLeft = Layout.GetLineLeft(i);
-                    float lineTop = Layout.GetLineTop(i);
-                    float lineBottom = Layout.GetLineBottom(i);
-                    float lineWidth = Layout.GetLineWidth(i);
-
-                    // 本行着色右边界：按本行应唱字符数占本行总字符数的比例
-                    float lineClipRight = lineLeft + lineWidth * ratio;
-
-                    clipPath.AddRect(lineLeft, lineTop, lineClipRight, lineBottom, Android.Graphics.Path.Direction.Cw);
-
-                    accumulatedChars += lineChars;
-                }
-
-                var saved = canvas.Save();
-                canvas.ClipPath(clipPath);
+                Paint.SetStyle(Android.Graphics.Paint.Style.Fill);
+                Paint.StrokeWidth = 0;
                 base.OnDraw(canvas);
-                canvas.RestoreToCount(saved);
+            }
+            else if (needsGradient && clampedProgress <= 0f)
+            {
+                // 全部未唱：直接用 unsungColor 绘制，跳过裁剪
+                SetTextColor(_unsungColor);
+                Paint.SetStyle(Android.Graphics.Paint.Style.Fill);
+                Paint.StrokeWidth = 0;
+                base.OnDraw(canvas);
+            }
+            else
+            {
+                // 第二层：填充底色（未唱颜色）
+                SetTextColor(_unsungColor);
+                Paint.SetStyle(Android.Graphics.Paint.Style.Fill);
+                Paint.StrokeWidth = 0;
+                base.OnDraw(canvas);
+
+                // 第三层：已唱颜色覆盖，逐行裁剪实现逐行着色（第一行唱完再着色第二行）
+                // 有译文时，仅对原文行着色，译文行不参与渐变着色
+                if (needsGradient && clampedProgress > 0f)
+                {
+                    EnsureLyricLineCache();
+
+                    int mainLineCount = _cachedMainLineCount;
+                    int totalChars = _cachedTotalChars;
+                    var lineCharCounts = _cachedLineCharCounts;
+                    if (lineCharCounts == null || totalChars <= 0) return;
+
+                    // 使用浮点累积，避免整数量化导致着色位置在字符边界跳跃
+                    float progressCharsF = totalChars * clampedProgress;
+                    float accumulatedCharsF = 0f;
+
+                    SetTextColor(_sungColor);
+
+                    // 复用 Path 对象，避免每帧创建新实例
+                    _clipPath.Reset();
+
+                    for (int i = 0; i < mainLineCount; i++)
+                    {
+                        if (accumulatedCharsF >= progressCharsF) break;
+
+                        float remainingCharsF = progressCharsF - accumulatedCharsF;
+                        int lineChars = lineCharCounts[i];
+                        if (lineChars <= 0) continue;
+
+                        float ratio = Math.Min(remainingCharsF / lineChars, 1f);
+
+                        float lineLeft = Layout.GetLineLeft(i);
+                        float lineTop = Layout.GetLineTop(i);
+                        float lineBottom = Layout.GetLineBottom(i);
+                        float lineWidth = Layout.GetLineWidth(i);
+
+                        // 本行着色右边界：按本行应唱字符数占本行总字符数的比例
+                        float lineClipRight = lineLeft + lineWidth * ratio;
+
+                        _clipPath.AddRect(lineLeft, lineTop, lineClipRight, lineBottom, Android.Graphics.Path.Direction.Cw);
+
+                        accumulatedCharsF += lineChars;
+                    }
+
+                    var saved = canvas.Save();
+                    canvas.ClipPath(_clipPath);
+                    base.OnDraw(canvas);
+                    canvas.RestoreToCount(saved);
+                }
             }
         }
         finally

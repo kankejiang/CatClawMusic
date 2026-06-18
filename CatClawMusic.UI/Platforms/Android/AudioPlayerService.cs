@@ -608,11 +608,11 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
     }
 
-    /// <summary>启动播放位置定时器（200ms 间隔）</summary>
+    /// <summary>启动播放位置定时器（约 30fps，用于逐字歌词平滑着色）</summary>
     private void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Timers.Timer(100);
+        _positionTimer = new System.Timers.Timer(33);
         _positionTimer.Elapsed += OnPositionTimerElapsed;
         _positionTimer.AutoReset = true;
         _positionTimer.Start();

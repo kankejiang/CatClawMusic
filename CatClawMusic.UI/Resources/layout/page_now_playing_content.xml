@@ -58,37 +58,10 @@
         android:clipChildren="false" android:paddingHorizontal="24dp"
         android:paddingBottom="4dp">
 
-        <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev2" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginBottom="4dp"
-            android:textColor="#99000000" android:textSize="11sp"
-            android:gravity="center" android:maxLines="2" android:ellipsize="end"
-            android:lineSpacingMultiplier="1.2" />
-
-        <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_prev" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginBottom="5dp"
-            android:textColor="#CC000000" android:textSize="13sp"
-            android:gravity="center" android:maxLines="3" android:ellipsize="end"
-            android:lineSpacingMultiplier="1.2" />
-
-        <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_current" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginVertical="5dp"
-            android:textColor="#FFFFFFFF" android:textSize="16sp"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="center" android:maxLines="4" android:ellipsize="end"
-            android:lineSpacingMultiplier="1.2"
-            android:text=" 猫爪音乐" />
-
-        <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="5dp"
-            android:textColor="#CC000000" android:textSize="13sp"
-            android:gravity="center" android:maxLines="3" android:ellipsize="end"
-            android:lineSpacingMultiplier="1.2" />
-
-        <CatClawMusic.UI.Helpers.StrokeTextView android:id="@+id/lyric_next2" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="4dp"
-            android:textColor="#99000000" android:textSize="11sp"
-            android:gravity="center" android:maxLines="2" android:ellipsize="end"
-            android:lineSpacingMultiplier="1.2" />
+        <CatClawMusic.UI.Helpers.LyricRendererView
+            android:id="@+id/lyric_renderer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
     </LinearLayout>
 
     <CatClawMusic.UI.Helpers.AudioVisualizerView android:id="@+id/audio_visualizer"

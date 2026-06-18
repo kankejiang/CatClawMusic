@@ -920,5 +920,17 @@ public class MainActivity : AppCompatActivity
             RefreshThemeViews();
             _skipNextRecreate = false;
         }
+
+        // 横屏切回竖屏后，系统栏（状态栏/导航栏）的可见性可能被系统重置，
+        // 强制重新应用当前 Tab 的沉浸式状态，避免系统栏异常弹出
+        if (newConfig.Orientation == Android.Content.Res.Orientation.Portrait)
+        {
+            RunOnUiThread(() =>
+            {
+                // 重置 _lastImmersiveState 以强制 UpdateTabUI 重新应用
+                _lastImmersiveState = !_lastImmersiveState;
+                UpdateTabUI(_currentTab);
+            });
+        }
     }
 }

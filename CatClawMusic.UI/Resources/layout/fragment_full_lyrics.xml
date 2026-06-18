@@ -50,16 +50,11 @@
         <!-- 歌词滚动区 -->
         <FrameLayout android:layout_width="match_parent"
             android:layout_height="0dp" android:layout_weight="1">
-            <ScrollView android:id="@+id/lyrics_scroll" android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scrollbars="none" android:overScrollMode="never"
-                android:paddingHorizontal="32dp"
-                android:clipChildren="false"
-                android:clipToPadding="false">
-                <LinearLayout android:id="@+id/lyrics_container"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:gravity="center_horizontal" />
-            </ScrollView>
+            <!-- 歌词渲染视图（封装 ScrollView + LinearLayout + 高亮/滚动/拖拽逻辑） -->
+            <CatClawMusic.UI.Helpers.LyricRendererView
+                android:id="@+id/lyric_renderer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
 
             <!-- 顶部渐变遮罩：歌词向上滚动时顶部淡出 -->
             <View android:id="@+id/lyric_fade_top"

@@ -225,7 +225,8 @@ public class LandscapeNowPlayingFragment : Fragment
         if (act == null || act.Window == null) return;
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
         controller.AppearanceLightStatusBars = true;
-        controller.Show(WindowInsetsCompat.Type.StatusBars());
+        // 同时显示状态栏和导航栏，避免横屏切回竖屏后导航栏处于 transient 状态弹出
+        controller.Show(WindowInsetsCompat.Type.StatusBars() | WindowInsetsCompat.Type.NavigationBars());
         // 恢复为 false，与 MainActivity 的 SetDecorFitsSystemWindows(false) 保持一致
         // MainActivity 通过 FitSystemBars() 的 WindowInsetsListener 手动处理 padding
         WindowCompat.SetDecorFitsSystemWindows(act.Window, false);
