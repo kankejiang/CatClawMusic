@@ -96,6 +96,8 @@ public interface IMusicLibraryService
     Task AddSongToPlaylistAsync(int playlistId, int songId);
     /// <summary>从播放列表移除歌曲</summary>
     Task RemoveSongFromPlaylistAsync(int playlistId, int songId);
+    /// <summary>从播放列表批量移除歌曲</summary>
+    Task RemoveSongsFromPlaylistAsync(int playlistId, IEnumerable<int> songIds);
     /// <summary>获取播放列表中的歌曲</summary>
     Task<List<Song>> GetPlaylistSongsAsync(int playlistId);
     /// <summary>更新歌曲在播放列表中的位置</summary>

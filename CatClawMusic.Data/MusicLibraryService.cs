@@ -420,6 +420,13 @@ public class MusicLibraryService : IMusicLibraryService
     public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId) => await _db.RemoveSongFromPlaylistAsync(playlistId, songId);
 
     /// <summary>
+    /// 委托：从播放列表批量移除歌曲
+    /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <param name="songIds">歌曲 ID 集合</param>
+    public async Task RemoveSongsFromPlaylistAsync(int playlistId, IEnumerable<int> songIds) => await _db.RemoveSongsFromPlaylistAsync(playlistId, songIds);
+
+    /// <summary>
     /// 委托：获取播放列表中的所有歌曲
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>

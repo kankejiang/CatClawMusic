@@ -80,6 +80,16 @@ public class SongAdapter : RecyclerView.Adapter
     private volatile bool _isScrolling;
 
     /// <summary>
+    /// 在批量更新（DiffUtil dispatch）即将开始时触发，供外部临时禁用 RecyclerView 动画以提升性能。
+    /// </summary>
+    public event EventHandler? BulkUpdateStarting;
+
+    /// <summary>
+    /// 在批量更新（DiffUtil dispatch）结束后触发，供外部恢复 RecyclerView 动画。
+    /// </summary>
+    public event EventHandler? BulkUpdateEnded;
+
+    /// <summary>
     /// 正在加载中的封面任务字典（静态共享）。
     /// Key 为 "song_{songId}"，Value 为对应的加载 Task。
     /// 用于防止同一首歌曲的封面被重复加载。
@@ -214,6 +224,7 @@ public class SongAdapter : RecyclerView.Adapter
     public SongAdapter(INetworkMusicService? networkMusic = null)
     {
         _networkMusic = networkMusic;
+        HasStableIds = true;
     }
 
     /// <summary>
@@ -264,24 +275,47 @@ public class SongAdapter : RecyclerView.Adapter
             newList = list;
         else
             newList = songs.ToList();
-        _songs = newList;
-        _songIdToIndex.Clear();
-        for (int i = 0; i < newList.Count; i++)
-            _songIdToIndex[newList[i].Id] = i;
 
-        // 当旧列表为空时，直接 NotifyDataSetChanged 避免后台 DiffUtil 延迟
-        if (oldList.Count == 0)
+        // 当旧列表为空，或数据变化较大时，直接全量刷新。
+        // 大量 item 级更新通知会让 RecyclerView 分多帧处理，看起来“一首一首减少”，
+        // 直接 NotifyDataSetChanged 可一次性完成布局，避免卡顿。
+        if (oldList.Count == 0 || Math.Abs(oldList.Count - newList.Count) > 20)
         {
+            _songs = newList;
+            RebuildSongIdToIndex(newList);
             NotifyDataSetChanged();
             return;
         }
 
-        // 将 DiffUtil 计算移到后台线程，避免主线程卡顿
+        // 将 DiffUtil 计算移到后台线程，避免主线程卡顿；
+        // 数据替换和 dispatch 必须在主线程同步完成，防止 RecyclerView 在旧数据与新数据之间看到不一致状态
         _ = Task.Run(() =>
         {
             var diffResult = DiffUtil.CalculateDiff(new SongDiffCallback(oldList, newList));
-            diffResult.DispatchUpdatesTo(this);
+            _mainHandler.Post(() =>
+            {
+                // 如果已经有更新的列表覆盖了本次结果，跳过陈旧更新
+                if (_songs != oldList) return;
+                try
+                {
+                    BulkUpdateStarting?.Invoke(this, EventArgs.Empty);
+                    _songs = newList;
+                    RebuildSongIdToIndex(newList);
+                    diffResult.DispatchUpdatesTo(this);
+                }
+                finally
+                {
+                    BulkUpdateEnded?.Invoke(this, EventArgs.Empty);
+                }
+            });
         });
+    }
+
+    private void RebuildSongIdToIndex(List<Song> list)
+    {
+        _songIdToIndex.Clear();
+        for (int i = 0; i < list.Count; i++)
+            _songIdToIndex[list[i].Id] = i;
     }
 
     /// <summary>
@@ -322,6 +356,7 @@ public class SongAdapter : RecyclerView.Adapter
     /// <returns>歌曲的唯一 ID</returns>
     public override long GetItemId(int position)
     {
+        if (position < 0 || position >= _songs.Count) return RecyclerView.NoId;
         return _songs[position].Id;
     }
 
@@ -349,6 +384,7 @@ public class SongAdapter : RecyclerView.Adapter
     /// <param name="position">列表位置</param>
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
+        if (position < 0 || position >= _songs.Count) return;
         ((SongViewHolder)holder).Bind(_songs[position], this);
     }
 

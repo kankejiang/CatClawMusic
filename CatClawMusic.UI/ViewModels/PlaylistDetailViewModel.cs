@@ -186,6 +186,27 @@ public partial class PlaylistDetailViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 从当前歌单中批量移除歌曲，并同步更新内存中的 Songs 列表
+    /// </summary>
+    /// <param name="songIds">要移除的歌曲 ID 集合</param>
+    /// <returns>实际移除的歌曲数量</returns>
+    public async Task<int> RemoveSongsFromPlaylistAsync(IEnumerable<int> songIds)
+    {
+        if (_playlistId <= 0) return 0;
+
+        var ids = songIds.ToHashSet();
+        if (ids.Count == 0) return 0;
+
+        await _musicLibrary.RemoveSongsFromPlaylistAsync(_playlistId, ids);
+
+        // 从内存列表中直接移除，避免重新加载整个歌单
+        Songs.RemoveAll(s => ids.Contains(s.Id));
+        _allSongsRaw = Songs.ToList();
+        StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
+        return ids.Count;
+    }
+
+    /// <summary>
     /// 保存歌单中歌曲的自定义排序位置
     /// </summary>
     public async Task SavePlaylistOrderAsync()

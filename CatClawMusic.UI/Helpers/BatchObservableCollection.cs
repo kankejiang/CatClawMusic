@@ -59,6 +59,45 @@ public class BatchObservableCollection<T> : ObservableCollection<T>
     }
 
     /// <summary>
+    /// 批量移除与指定谓词匹配的元素。
+    /// <para>
+    /// 执行流程：
+    /// <list type="number">
+    ///   <item>设置通知抑制标志，阻止逐个移除时触发多次 CollectionChanged 事件。</item>
+    ///   <item>逐个移除内部 Items 列表中满足条件的元素。</item>
+    ///   <item>在 finally 块中取消抑制标志，并触发一次 Reset 通知和 Count 属性变更通知。</item>
+    /// </list>
+    /// </para>
+    /// </summary>
+    /// <param name="predicate">用于判断元素是否应被移除的谓词。</param>
+    /// <returns>被移除的元素数量。</returns>
+    public int RemoveAll(Func<T, bool> predicate)
+    {
+        if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+
+        _suppressNotification = true;
+        int removed = 0;
+        try
+        {
+            for (int i = Items.Count - 1; i >= 0; i--)
+            {
+                if (predicate(Items[i]))
+                {
+                    Items.RemoveAt(i);
+                    removed++;
+                }
+            }
+        }
+        finally
+        {
+            _suppressNotification = false;
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+            OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(Count)));
+        }
+        return removed;
+    }
+
+    /// <summary>
     /// 用指定元素集合替换集合中的所有元素。
     /// <para>
     /// 执行流程：

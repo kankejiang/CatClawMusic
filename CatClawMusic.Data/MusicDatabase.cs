@@ -1021,6 +1021,44 @@ public class MusicDatabase
     }
 
     /// <summary>
+    /// 从播放列表中批量移除歌曲并重新调整位置
+    /// </summary>
+    /// <param name="playlistId">播放列表 ID</param>
+    /// <param name="songIds">要移除的歌曲 ID 集合</param>
+    public async Task RemoveSongsFromPlaylistAsync(int playlistId, IEnumerable<int> songIds)
+    {
+        await EnsureInitializedAsync();
+        var ids = songIds.ToHashSet();
+        if (ids.Count == 0) return;
+
+        // 一次性删除目标记录
+        await _database.ExecuteAsync(
+            "DELETE FROM PlaylistSongs WHERE PlaylistId = ? AND SongId IN (" + string.Join(",", ids) + ")",
+            playlistId);
+
+        // 重新整理剩余歌曲的位置
+        var remaining = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .OrderBy(ps => ps.Position)
+            .ToListAsync();
+        for (int i = 0; i < remaining.Count; i++)
+        {
+            if (remaining[i].Position != i)
+            {
+                remaining[i].Position = i;
+                await _database.UpdateAsync(remaining[i]);
+            }
+        }
+
+        var playlist = await GetPlaylistByIdAsync(playlistId);
+        if (playlist != null)
+        {
+            playlist.SongCount = remaining.Count;
+            await UpdatePlaylistAsync(playlist);
+        }
+    }
+
+    /// <summary>
     /// 获取播放列表中的所有歌曲（按位置排序，含艺术家和专辑信息）
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>

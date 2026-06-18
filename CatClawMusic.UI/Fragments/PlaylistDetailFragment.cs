@@ -81,6 +81,8 @@ public class PlaylistDetailFragment : Fragment
         _songLongClickedHandler = (s, song) => ShowSongContextMenu(song);
         _adapter.SongClicked += _songClickedHandler;
         _adapter.SongLongClicked += _songLongClickedHandler;
+        _adapter.BulkUpdateStarting += (s, e) => _songList.SetItemAnimator(null);
+        _adapter.BulkUpdateEnded += (s, e) => _songList.SetItemAnimator(_songList.GetItemAnimator() ?? new DefaultItemAnimator());
         _songList.SetAdapter(_adapter);
         _songList.AddOnScrollListener(new SongAdapter.ScrollListener(_adapter));
 
@@ -154,14 +156,10 @@ public class PlaylistDetailFragment : Fragment
         {
             dialog.AddItem("🗑  从歌单移除", async () =>
             {
-                await _viewModel.RemoveSongFromPlaylistAsync(song.Id);
+                await _viewModel.RemoveSongsFromPlaylistAsync(new[] { song.Id });
                 Activity?.RunOnUiThread(() =>
                 {
                     Toast.MakeText(ctx, "已从歌单移除", ToastLength.Short)?.Show();
-                    _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>
-                    {
-                        ApplySavedSort();
-                    });
                 });
             });
         }
@@ -468,14 +466,13 @@ public class PlaylistDetailFragment : Fragment
     {
         var adapterSelected = _adapter.GetSelectedSongIds();
         if (adapterSelected.Count == 0) return;
-        foreach (var id in adapterSelected.ToList())
-            await _viewModel.RemoveSongFromPlaylistAsync(id);
+
+        var ids = adapterSelected.ToList();
         _selectedSongIds.Clear();
         ExitMultiSelectMode();
-        _ = _viewModel.LoadAsync(_playlistId, _viewModel.PlaylistName).ContinueWith(_ =>
-        {
-            ApplySavedSort();
-        });
+
+        // 批量移除数据库记录并同步更新内存列表，避免逐首删除 + 全量重载
+        await _viewModel.RemoveSongsFromPlaylistAsync(ids);
     }
 
     private void AddSelectedToPlaylist()

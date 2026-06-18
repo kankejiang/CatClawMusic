@@ -63,6 +63,7 @@ public class LandscapeNowPlayingFragment : Fragment
     private int _lpLyricFontSize = 20;
     private bool _lpLyricBold = true;
     private int _lpLyricColorMode = 0; // 0=自适应, 1=自定义
+    private int _duetMode = 0; // 0=标准, 1=聚焦当前歌手, 2=按角色分栏
     private float _currentBgLuminance = 0.3f;
     private int _lyricBgColorIndex = 0;
     private View? _bgDimOverlay;
@@ -225,7 +226,8 @@ public class LandscapeNowPlayingFragment : Fragment
         if (act == null || act.Window == null) return;
         var controller = WindowCompat.GetInsetsController(act.Window, act.Window.DecorView);
         controller.AppearanceLightStatusBars = true;
-        controller.Show(WindowInsetsCompat.Type.StatusBars());
+        // 同时显示状态栏和导航栏，避免横屏切回竖屏后导航栏处于 transient 状态弹出
+        controller.Show(WindowInsetsCompat.Type.StatusBars() | WindowInsetsCompat.Type.NavigationBars());
         // 恢复为 false，与 MainActivity 的 SetDecorFitsSystemWindows(false) 保持一致
         // MainActivity 通过 FitSystemBars() 的 WindowInsetsListener 手动处理 padding
         WindowCompat.SetDecorFitsSystemWindows(act.Window, false);
@@ -573,6 +575,7 @@ public class LandscapeNowPlayingFragment : Fragment
         _lpLyricFontSize = prefs.GetInt("lyric_font_size", 20);
         _lpLyricBold = prefs.GetBoolean("lyric_bold", true);
         _lpLyricColorMode = prefs.GetInt("lyric_color_mode", 0);
+        _duetMode = prefs.GetInt("duet_mode", 0);
         _lyricBgColorIndex = prefs.GetInt("lyric_bg_color", 0);
         UpdateBgOverlay();
 
@@ -886,63 +889,111 @@ public class LandscapeNowPlayingFragment : Fragment
     private int _lastLyricIdx = -1;
     private float _lyricLineHeightPx = -1f;
 
+    /// <summary>
+    /// 获取当前时间点上正在演唱的角色集合（包括当前行和与之时间重叠的其他角色）
+    /// </summary>
+    private HashSet<string?> GetCurrentActiveRoles(int currentIdx)
+    {
+        var activeRoles = new HashSet<string?>();
+        var lines = _viewModel.CurrentLyrics?.Lines;
+        if (lines == null || currentIdx < 0 || currentIdx >= lines.Count) return activeRoles;
+
+        var currentLine = lines[currentIdx];
+        var currentStart = currentLine.Timestamp;
+        var currentEnd = currentIdx + 1 < lines.Count
+            ? lines[currentIdx + 1].Timestamp
+            : currentStart + TimeSpan.FromSeconds(5);
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var start = line.Timestamp;
+            var end = i + 1 < lines.Count ? lines[i + 1].Timestamp : start + TimeSpan.FromSeconds(5);
+            if (start < currentEnd && currentStart < end)
+                activeRoles.Add(line.Role);
+        }
+        return activeRoles;
+    }
+
     private void UpdateLyrics()
     {
-        var prev8 = _viewModel.PrevLyricLine8;
-        var prev7 = _viewModel.PrevLyricLine7;
-        var prev6 = _viewModel.PrevLyricLine6;
-        var prev5 = _viewModel.PrevLyricLine5;
-        var prev4 = _viewModel.PrevLyricLine4;
-        var prev3 = _viewModel.PrevLyricLine3;
-        var prev2 = _viewModel.PrevLyricLine2;
-        var prev = _viewModel.PrevLyricLine;
-        var curr = _viewModel.CurrentLyricLine;
-        var next = _viewModel.NextLyricLine;
-        var next2 = _viewModel.NextLyricLine2;
-        var next3 = _viewModel.NextLyricLine3;
-        var next4 = _viewModel.NextLyricLine4;
-        var next5 = _viewModel.NextLyricLine5;
-        var next6 = _viewModel.NextLyricLine6;
-        var next7 = _viewModel.NextLyricLine7;
-        var next8 = _viewModel.NextLyricLine8;
+        var lyrics = _viewModel.CurrentLyrics?.Lines;
         var idx = _viewModel.CurrentLyricIndex;
-        var isLineChanged = idx != _lastLyricIdx && _lastLyricIdx != -1 && !string.IsNullOrEmpty(curr);
+        var isLineChanged = idx != _lastLyricIdx && _lastLyricIdx != -1 && idx >= 0;
         _lastLyricIdx = idx;
 
-        _lyricPrev8.Text = prev8;
-        _lyricPrev7.Text = prev7;
-        _lyricPrev6.Text = prev6;
-        _lyricPrev5.Text = prev5;
-        _lyricPrev4.Text = prev4;
-        _lyricPrev3.Text = prev3;
-        _lyricNext3.Text = next3;
-        _lyricNext4.Text = next4;
-        _lyricNext5.Text = next5;
-        _lyricNext6.Text = next6;
-        _lyricNext7.Text = next7;
-        _lyricNext8.Text = next8;
+        var views = new[] { _lyricPrev8, _lyricPrev7, _lyricPrev6, _lyricPrev5, _lyricPrev4, _lyricPrev3, _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2, _lyricNext3, _lyricNext4, _lyricNext5, _lyricNext6, _lyricNext7, _lyricNext8 };
+        var offsets = new[] { -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 
-        if (!isLineChanged)
+        var activeRoles = _duetMode == 1 ? GetCurrentActiveRoles(idx) : null;
+
+        for (int i = 0; i < views.Length; i++)
         {
-            _lyricPrev2.Text = prev2; _lyricPrev2.TranslationY = 0f;
-            _lyricPrev.Text = prev; _lyricPrev.TranslationY = 0f;
-            _lyricNext.Text = next; _lyricNext.TranslationY = 0f;
-            _lyricNext2.Text = next2; _lyricNext2.TranslationY = 0f;
-            ApplyCurrentLineWithSpannable(curr);
-            return;
+            var view = views[i];
+            var offset = offsets[i];
+            var lineIdx = idx + offset;
+            LrcLyricLine? line = null;
+            string text = "";
+            if (lyrics != null && lineIdx >= 0 && lineIdx < lyrics.Count)
+            {
+                line = lyrics[lineIdx];
+                text = line.Text;
+            }
+            view.Text = text;
+
+            // 聚焦当前歌手模式：当前角色正常，其他角色变淡
+            if (_duetMode == 1 && line != null)
+            {
+                var isActive = activeRoles?.Contains(line.Role) == true;
+                if (offset == 0)
+                {
+                    view.SetTextColor(_lpLyricActiveColor);
+                    view.Alpha = 1f;
+                }
+                else if (isActive)
+                {
+                    view.SetTextColor(_lpLyricInactiveColor);
+                    view.Alpha = 1f;
+                }
+                else
+                {
+                    var dimColor = new Color(
+                        (byte)(_lpLyricInactiveColor.A / 2),
+                        _lpLyricInactiveColor.R,
+                        _lpLyricInactiveColor.G,
+                        _lpLyricInactiveColor.B);
+                    view.SetTextColor(dimColor);
+                    view.Alpha = 0.5f;
+                }
+            }
+
+            // 按角色分栏模式：根据歌词自带对齐或角色调整 gravity
+            if (_duetMode == 2 && line != null)
+            {
+                var gravity = line.Alignment switch
+                {
+                    0 => GravityFlags.Start | GravityFlags.CenterVertical,
+                    2 => GravityFlags.End | GravityFlags.CenterVertical,
+                    _ => GravityFlags.Center
+                };
+                view.Gravity = gravity;
+            }
+            else
+            {
+                view.Gravity = GravityFlags.Center;
+            }
         }
+
+        var curr = idx >= 0 && lyrics != null ? lyrics[idx].Text : "";
+        ApplyCurrentLineWithSpannable(curr);
+
+        if (!isLineChanged) return;
 
         if (_lyricLineHeightPx < 0f)
         {
             var density = _lyricCurrent.Context?.Resources?.DisplayMetrics?.Density ?? 1f;
             _lyricLineHeightPx = 40f * density;
         }
-
-        _lyricPrev2.Text = prev2;
-        _lyricPrev.Text = prev;
-        _lyricNext.Text = next;
-        _lyricNext2.Text = next2;
-        ApplyCurrentLineWithSpannable(curr);
 
         var allViews = new List<StrokeTextView> { _lyricPrev6, _lyricPrev5, _lyricPrev4, _lyricPrev3, _lyricPrev2, _lyricPrev, _lyricCurrent, _lyricNext, _lyricNext2, _lyricNext3, _lyricNext4, _lyricNext5, _lyricNext6 };
 

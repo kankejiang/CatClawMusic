@@ -32,8 +32,20 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>
     /// 当前歌词行的演唱进度（0~1），用于 StrokeTextView 的渐变裁剪
     /// <para>值由 UpdateLyricSpannable 根据播放位置和行持续时间计算</para>
+    /// <para>设置时带阈值过滤，避免 100ms 定时器产生过于频繁的 PropertyChanged 通知</para>
     /// </summary>
-    [ObservableProperty] private float _currentLyricProgress;
+    private float _currentLyricProgress;
+    public float CurrentLyricProgress
+    {
+        get => _currentLyricProgress;
+        set
+        {
+            // 低阈值配合 33ms 定时器，保证 30fps 平滑着色
+            if (Math.Abs(_currentLyricProgress - value) < 0.002f) return;
+            _currentLyricProgress = value;
+            OnPropertyChanged(nameof(CurrentLyricProgress));
+        }
+    }
     private bool _isPositionUpdating;
     private int _saveCounter;
     private ConnectionProfile? _cachedNavidromeProfile;
@@ -99,8 +111,22 @@ public partial class NowPlayingViewModel : ObservableObject
     // ── 合唱/对唱同时着色支持 ──
     /// <summary>当前合唱伙伴行索引（与当前行时间重叠的另一歌手行），-1 表示无伙伴</summary>
     [ObservableProperty] private int _duetPartnerIndex = -1;
-    /// <summary>合唱伙伴行的演唱进度（0~1）</summary>
-    [ObservableProperty] private float _duetPartnerProgress;
+    /// <summary>
+    /// 合唱伙伴行的演唱进度（0~1）
+    /// <para>设置时带阈值过滤，避免 100ms 定时器产生过于频繁的 PropertyChanged 通知</para>
+    /// </summary>
+    private float _duetPartnerProgress;
+    public float DuetPartnerProgress
+    {
+        get => _duetPartnerProgress;
+        set
+        {
+            // 低阈值配合 33ms 定时器，保证 30fps 平滑着色
+            if (Math.Abs(_duetPartnerProgress - value) < 0.002f) return;
+            _duetPartnerProgress = value;
+            OnPropertyChanged(nameof(DuetPartnerProgress));
+        }
+    }
     /// <summary>是否处于合唱状态（当前行有合唱伙伴）</summary>
     public bool HasDuetPartner => DuetPartnerIndex >= 0;
     /// <summary>
@@ -215,10 +241,12 @@ public partial class NowPlayingViewModel : ObservableObject
                 // 这个字已唱完
                 sungChars += word.Word.Length;
             }
-            else if (position > word.Start)
+            else if (position >= word.Start)
             {
-                // 这个字正在唱
-                var wordProgress = (position - word.Start).TotalMilliseconds / word.Duration.TotalMilliseconds;
+                // 这个字正在唱（position == word.Start 时即开始着色，避免慢半拍）
+                var wordProgress = word.Duration.TotalMilliseconds > 0
+                    ? (position - word.Start).TotalMilliseconds / word.Duration.TotalMilliseconds
+                    : 1.0;
                 sungChars += word.Word.Length * Math.Clamp(wordProgress, 0, 1);
                 break;
             }
@@ -765,6 +793,25 @@ public partial class NowPlayingViewModel : ObservableObject
             if (CurrentLyrics?.Lines is { Count: > 0 })
             {
                 var idx = _lyricsService.GetCurrentLyricIndex(CurrentLyrics, pos);
+                // 逐字歌词行切换保护：若当前行最后一个字尚未唱完，不切换到下一行。
+                // TTML/AMLL 歌词中，最后一字的结束时间可能晚于下一行的开始时间
+                // （行间和声重叠、句尾拖音等），此时应等当前行唱完再切。
+                // 额外缓冲 50ms（约 3 帧），确保 progress=1.0 有足够时间渲染到屏幕，
+                // 避免行切换时同一 UI tick 中 progress=1.0 和新行文本互相覆盖导致最后一字未着色
+                if (idx != _lastLyricIndex && _lastLyricIndex >= 0 && _lastLyricIndex < CurrentLyrics.Lines.Count)
+                {
+                    var prevLine = CurrentLyrics.Lines[_lastLyricIndex];
+                    if (prevLine.WordTimestamps != null && prevLine.WordTimestamps.Count > 0)
+                    {
+                        var lastWord = prevLine.WordTimestamps[^1];
+                        var lastWordEnd = lastWord.Start + lastWord.Duration;
+                        if (pos < lastWordEnd + TimeSpan.FromMilliseconds(50))
+                        {
+                            // 当前行最后一个字还没唱完（或刚唱完但需缓冲一帧），保持当前行
+                            idx = _lastLyricIndex;
+                        }
+                    }
+                }
                 if (idx != _lastLyricIndex)
                 {
                     _lastLyricIndex = idx;
@@ -842,7 +889,8 @@ public partial class NowPlayingViewModel : ObservableObject
                     DuetPartnerProgress = CalculateLineProgress(CurrentLyrics.Lines, DuetPartnerIndex, pos);
             }
             _isPositionUpdating = false;
-            if (++_saveCounter % 25 == 0)
+            // 33ms 定时器下，75 次 ≈ 2.5 秒保存一次播放状态
+            if (++_saveCounter % 75 == 0)
                 CatClawMusic.UI.Services.PlaybackStateManager.Save(_audioPlayer, CurrentSong, _playQueue);
         });
     }

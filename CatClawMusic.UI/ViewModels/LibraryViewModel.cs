@@ -593,15 +593,8 @@ public partial class LibraryViewModel : ObservableObject
                     var removed = await _database.RemoveStaleSongsAsync(CoreModels.SongSource.Local, scannedPaths).ConfigureAwait(false);
                     if (removed > 0)
                     {
-                        // 同步移除 UI 中对应的过期歌曲
-                        var stalePaths = Songs.Where(s => !scannedPaths.Contains(s.FilePath)).ToList();
-                        if (stalePaths.Count > 0)
-                        {
-                            _dispatcher.Post(() =>
-                            {
-                                foreach (var s in stalePaths) Songs.Remove(s);
-                            });
-                        }
+                        // 同步移除 UI 中对应的过期歌曲，使用批量移除减少 CollectionChanged 通知
+                        _dispatcher.Post(() => Songs.RemoveAll(s => !scannedPaths.Contains(s.FilePath)));
                     }
                 }
                 catch { }
