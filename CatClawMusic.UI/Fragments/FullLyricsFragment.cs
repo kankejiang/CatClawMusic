@@ -30,7 +30,9 @@ public class FullLyricsFragment : Fragment
     private NowPlayingViewModel _viewModel = null!;
     // 背景封面ImageView
     private ImageView _bgCover = null!;
-    // 歌词渲染视图（封装 ScrollView + LinearLayout + 高亮/滚动/拖拽）
+    // 顶部封面缩略图ImageView
+    private ImageView _coverThumbnail = null!;
+    // 歌词渲染视图（封装 ScrollView + LinearLayout + 高亮/滚动/拖拽逻辑）
     private LyricRendererView? _lyricRenderer;
     // 歌曲标题TextView
     private TextView _songTitle = null!;
@@ -56,6 +58,8 @@ public class FullLyricsFragment : Fragment
     // 顶部/底部歌词淡出遮罩
     private View? _fadeTop;
     private View? _fadeBottom;
+    // 拖拽跳转确认超时 Handler
+    private readonly Handler _dragSeekTimeoutHandler = new(Looper.MainLooper!);
 
     /// <summary>
     /// 创建Fragment视图
@@ -76,6 +80,7 @@ public class FullLyricsFragment : Fragment
 
         // 初始化控件引用
         _bgCover = view.FindViewById<ImageView>(Resource.Id.lyric_bg_cover)!;
+        _coverThumbnail = view.FindViewById<ImageView>(Resource.Id.lyric_cover_thumbnail)!;
         _lyricRenderer = view.FindViewById<LyricRendererView>(Resource.Id.lyric_renderer)!;
         _songTitle = view.FindViewById<TextView>(Resource.Id.lyric_song_title)!;
         _songArtist = view.FindViewById<TextView>(Resource.Id.lyric_song_artist)!;
@@ -92,20 +97,34 @@ public class FullLyricsFragment : Fragment
         // 初始化歌词渲染视图
         _lyricRenderer.Init(_viewModel, _prefs);
         _lyricRenderer.LoadSettings();
+        _lyricRenderer.EnableRaindropWordBounce = false;
         _lyricRenderer.BgDimOverlay = _bgDimOverlay;
+
         _lyricRenderer.OnDragSeek = pos =>
         {
             _viewModel.CurrentPositionSeconds = pos.TotalSeconds;
-            // 拖拽跳转后短暂显示指示器作为视觉反馈
-            if (_dragIndicator != null)
+            // 确认跳转后隐藏指示器
+            HideDragIndicator();
+        };
+        _lyricRenderer.OnDragSeekRequested = pos =>
+        {
+            // 拖拽结束立即显示跳转按钮，等待惯性滚动停止后再开始确认超时
+            ShowDragIndicator();
+        };
+        _lyricRenderer.OnScrollStopped = () =>
+        {
+            // 滚动停止后，若仍有待确认的跳转，3 秒内点击按钮才执行
+            if (_lyricRenderer?.PendingDragSeekTime == null) return;
+            _dragSeekTimeoutHandler.RemoveCallbacksAndMessages(null);
+            _dragSeekTimeoutHandler.PostDelayed(() =>
             {
-                _dragIndicator.Visibility = ViewStates.Visible;
-                _dragIndicator.PostDelayed(() =>
-                {
-                    if (_dragIndicator != null)
-                        _dragIndicator.Visibility = ViewStates.Gone;
-                }, 3000);
-            }
+                _lyricRenderer?.CancelDragSeek();
+                HideDragIndicator();
+            }, 3000);
+        };
+        _lyricRenderer.OnDragSeekCancelled = () =>
+        {
+            HideDragIndicator();
         };
 
         // 加载 Fragment 侧设置（_allowDragSeek 等）
@@ -115,11 +134,11 @@ public class FullLyricsFragment : Fragment
         ApplyBlur();
         // 设置按钮点击事件
         _btnSettings.Click += (s, e) => ShowSettingsDialog();
-        // 跳转按钮点击事件：隐藏指示器（跳转已由 OnDragSeek 完成）
+        // 跳转按钮点击事件：2 秒内点击才执行跳转
         _btnJump.Click += (s, e) =>
         {
-            if (_dragIndicator != null)
-                _dragIndicator.Visibility = ViewStates.Gone;
+            _dragSeekTimeoutHandler.RemoveCallbacksAndMessages(null);
+            _lyricRenderer?.PerformDragSeek();
         };
 
         var topBar = view.FindViewById<RelativeLayout>(Resource.Id.lyric_top_bar);
@@ -146,7 +165,7 @@ public class FullLyricsFragment : Fragment
     }
 
     /// <summary>
-    /// 更新背景封面
+    /// 更新背景封面与顶部缩略图
     /// </summary>
     private void UpdateBackground()
     {
@@ -166,6 +185,7 @@ public class FullLyricsFragment : Fragment
                 if (drawable != null)
                 {
                     _bgCover.SetImageDrawable(drawable);
+                    _coverThumbnail.SetImageDrawable(drawable);
                     // 从封面提取亮度，用于透明遮罩下的自适应歌词颜色
                     ComputeCoverLuminance(drawable);
                     return;
@@ -175,6 +195,7 @@ public class FullLyricsFragment : Fragment
         catch { }
 
         _bgCover.SetImageResource(Resource.Drawable.cover_default);
+        _coverThumbnail.SetImageResource(Resource.Drawable.cover_default);
         _lyricRenderer?.SetBgLuminance(0.3f);
     }
 
@@ -229,6 +250,7 @@ public class FullLyricsFragment : Fragment
                     break;
                 case nameof(_viewModel.CurrentLyricIndex):
                     _lyricRenderer?.HighlightCurrentLine();
+                    UpdateCurrentSinger();
                     break;
                 case nameof(_viewModel.CurrentPosition):
                     UpdateProgress();
@@ -239,6 +261,7 @@ public class FullLyricsFragment : Fragment
                     break;
                 case nameof(_viewModel.DuetPartnerIndex):
                     _lyricRenderer?.HighlightCurrentLine();
+                    UpdateCurrentSinger();
                     break;
                 case nameof(_viewModel.DuetPartnerProgress):
                     if (_lyricRenderer?.LyricStyle == 1)
@@ -249,7 +272,7 @@ public class FullLyricsFragment : Fragment
                     break;
                 case nameof(_viewModel.CurrentSong):
                     _songTitle.Text = _viewModel.CurrentSong?.Title ?? "";
-                    _songArtist.Text = _viewModel.CurrentSong?.Artist ?? "";
+                    UpdateCurrentSinger();
                     break;
                 case nameof(_viewModel.CoverSource):
                     UpdateBackground();
@@ -264,7 +287,7 @@ public class FullLyricsFragment : Fragment
     private void SyncUI()
     {
         _songTitle.Text = _viewModel.CurrentSong?.Title ?? "";
-        _songArtist.Text = _viewModel.CurrentSong?.Artist ?? "";
+        UpdateCurrentSinger();
         UpdateBackground();
         _lyricRenderer?.RebuildLyrics();
         UpdateProgress();
@@ -276,7 +299,7 @@ public class FullLyricsFragment : Fragment
     private void LoadSettings()
     {
         if (_prefs == null) return;
-        _allowDragSeek = _prefs.GetBoolean("allow_drag_seek", true);
+        _allowDragSeek = _prefs.GetBoolean("allow_drag_seek", false);
         _lyricRenderer?.LoadSettings();
         if (_lyricRenderer != null)
             _lyricRenderer.EnableDragSeek = _allowDragSeek;
@@ -352,7 +375,7 @@ public class FullLyricsFragment : Fragment
         content.AddView(cbDragSeek);
 
         var catclawPrefs = Activity.GetSharedPreferences("catclaw_prefs", FileCreationMode.Private);
-        var currentLyricsMode = catclawPrefs?.GetInt("lyrics_mode", 0) ?? 0;
+        var currentLyricsMode = catclawPrefs?.GetInt("lyrics_mode", 3) ?? 3; // 默认自动选择
         var currentLyricStyle = catclawPrefs?.GetInt("lyric_style", 0) ?? 0;
 
         var styleLabel = new TextView(Context) { Text = "歌词样式" };
@@ -380,7 +403,8 @@ public class FullLyricsFragment : Fragment
         content.AddView(modeLabel);
 
         var rgLyricsMode = new RadioGroup(Context) { Orientation = Orientation.Vertical };
-        var modeOptions = new[] { "外挂歌词（.lrc 文件优先）", "内嵌歌词（音频标签优先）", "关闭歌词" };
+        // UI 顺序：自动选择放最上；存储值保持 0=外挂,1=内嵌,2=关闭,3=自动
+        var modeOptions = new[] { "自动选择", "外挂歌词（.lrc 文件优先）", "内嵌歌词（音频标签优先）", "关闭歌词" };
         for (int i = 0; i < modeOptions.Length; i++)
         {
             var rb = new RadioButton(Context) { Text = modeOptions[i] };
@@ -390,7 +414,8 @@ public class FullLyricsFragment : Fragment
             rb.SetPadding(0, dp * 4, 0, dp * 4);
             rgLyricsMode.AddView(rb);
         }
-        var initialModeRb = rgLyricsMode.GetChildAt(currentLyricsMode) as RadioButton;
+        var initialModeUiIndex = currentLyricsMode switch { 0 => 1, 1 => 2, 2 => 3, _ => 0 };
+        var initialModeRb = rgLyricsMode.GetChildAt(initialModeUiIndex) as RadioButton;
         if (initialModeRb != null)
             rgLyricsMode.Check(initialModeRb.Id);
         content.AddView(rgLyricsMode);
@@ -614,17 +639,21 @@ public class FullLyricsFragment : Fragment
         };
         rgLyricsMode.CheckedChange += (s, e) =>
         {
-            int newMode = -1;
+            int uiIndex = -1;
             for (int i = 0; i < rgLyricsMode.ChildCount; i++)
             {
                 if (rgLyricsMode.GetChildAt(i).Id == e.CheckedId)
-                { newMode = i; break; }
+                { uiIndex = i; break; }
             }
-            if (newMode < 0 || newMode == currentLyricsMode) return;
+            if (uiIndex < 0) return;
+            var newMode = uiIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => 3 };
+            if (newMode == currentLyricsMode) return;
             currentLyricsMode = newMode;
             catclawPrefs?.Edit().PutInt("lyrics_mode", newMode).Apply();
             var viewModel = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
             viewModel.LyricsMode = newMode;
+            // 切换歌词来源时保持对唱模式设置不被重置
+            _lyricRenderer.DuetMode = _prefs?.GetInt("duet_mode", _lyricRenderer.DuetMode) ?? _lyricRenderer.DuetMode;
             _ = viewModel.LoadLyricsAsync(viewModel.CurrentSong);
         };
         sbFontSize.ProgressChanged += (s, e) =>
@@ -707,6 +736,22 @@ public class FullLyricsFragment : Fragment
     }
 
     /// <summary>
+    /// 更新顶部歌手显示为当前正在演唱的歌手
+    /// </summary>
+    private void UpdateCurrentSinger()
+    {
+        var idx = _viewModel.CurrentLyricIndex;
+        string? currentSinger = null;
+        if (_viewModel.CurrentLyrics?.Lines != null && idx >= 0 && idx < _viewModel.CurrentLyrics.Lines.Count)
+        {
+            currentSinger = _viewModel.CurrentLyrics.Lines[idx].SingerName;
+        }
+        _songArtist.Text = !string.IsNullOrEmpty(currentSinger)
+            ? $"🎤{currentSinger}"
+            : _viewModel.CurrentSong?.Artist ?? "";
+    }
+
+    /// <summary>
     /// Fragment恢复可见时调用
     /// </summary>
     public override void OnResume()
@@ -715,7 +760,7 @@ public class FullLyricsFragment : Fragment
         _lyricRenderer?.UpdateLyricsContainerPadding();
         UpdateProgress();
         _songTitle.Text = _viewModel.CurrentSong?.Title ?? "";
-        _songArtist.Text = _viewModel.CurrentSong?.Artist ?? "";
+        UpdateCurrentSinger();
         _lyricRenderer?.RebuildLyrics();
         View?.Post(() => UpdateBackground());
     }
@@ -742,11 +787,27 @@ public class FullLyricsFragment : Fragment
         }, 300);
     }
 
+    /// <summary>显示拖拽跳转指示器</summary>
+    private void ShowDragIndicator()
+    {
+        if (_dragIndicator != null)
+            _dragIndicator.Visibility = ViewStates.Visible;
+    }
+
+    /// <summary>隐藏拖拽跳转指示器并清除超时</summary>
+    private void HideDragIndicator()
+    {
+        _dragSeekTimeoutHandler.RemoveCallbacksAndMessages(null);
+        if (_dragIndicator != null)
+            _dragIndicator.Visibility = ViewStates.Gone;
+    }
+
     /// <summary>
     /// Fragment销毁时清理资源
     /// </summary>
     public override void OnDestroyView()
     {
+        _dragSeekTimeoutHandler.RemoveCallbacksAndMessages(null);
         UnbindViewModel();
         base.OnDestroyView();
     }

@@ -211,8 +211,8 @@ public class LyricsService : ILyricsService
             var lrcLyrics = await TryReadLrcFileAsync(songPath);
             if (lrcLyrics != null) return lrcLyrics;
 
-            // 兜底：二进制扫描内嵌 TTML/AMLL
-            if (File.Exists(songPath))
+            // 兜底：二进制扫描内嵌 TTML/AMLL（仅未跳过内嵌歌词时，避免自动选择模式重复读取音频文件）
+            if (!skipEmbedded && File.Exists(songPath))
             {
                 var scanned = await Task.Run(() => TryScanFileForTtmlOrAmll(songPath));
                 if (scanned != null) return scanned;
@@ -1113,12 +1113,13 @@ public class LyricsService : ILyricsService
                 agentAlignment[agentId] = agentAlign;
                 agentIsBackingVocal[agentId] = isBacking;
 
-                // 提取 ttm:name 作为歌手/角色名（多个 name 用 "/" 连接）
+                // 提取 ttm:name 作为歌手/角色名（多个 name 用 "/" 连接，去重）
                 var names = agent.Elements(ttm + "name")
                                  .Concat(agent.Elements("{http://www.w3.org/ns/ttml#metadata}name"))
                                  .Concat(agent.Elements("name"))
                                  .Select(n => n.Value?.Trim())
-                                 .Where(v => !string.IsNullOrWhiteSpace(v));
+                                 .Where(v => !string.IsNullOrWhiteSpace(v))
+                                 .Distinct(StringComparer.OrdinalIgnoreCase);
                 var joinedName = string.Join(" / ", names);
                 if (!string.IsNullOrWhiteSpace(joinedName))
                     agentSingerName[agentId] = joinedName;

@@ -26,7 +26,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IMainThreadDispatcher _dispatcher;
     [ObservableProperty] private LrcLyrics? _currentLyrics;
     [ObservableProperty] private int _currentLyricIndex = -1;
-    public int LyricsMode { get; set; } = 0;
+    public int LyricsMode { get; set; } = 3;
     public int LyricStyle { get; set; } = 0;
     public ISpannable? CurrentLyricSpannable { get; private set; }
     /// <summary>
@@ -315,6 +315,34 @@ public partial class NowPlayingViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 比较两版歌词质量，返回更优的一版。
+    /// 评分维度：行数、是否含逐字时间戳、是否含对唱/逐行对齐信息。
+    /// </summary>
+    private static LrcLyrics? PickBetterLyrics(LrcLyrics? a, LrcLyrics? b)
+    {
+        if (a?.Lines is not { Count: > 0 }) return b;
+        if (b?.Lines is not { Count: > 0 }) return a;
+        return ScoreLyrics(a) >= ScoreLyrics(b) ? a : b;
+    }
+
+    private static int ScoreLyrics(LrcLyrics lyrics)
+    {
+        if (lyrics.Lines.Count == 0) return 0;
+        var lines = lyrics.Lines;
+        // 只统计有实际文本的行，避免空行/垃圾行滥竽充数
+        int score = lines.Count(l => !string.IsNullOrWhiteSpace(l.Text));
+        if (score == 0) return 0;
+        if (lyrics.HasPerLineAlignment) score += 50;
+        foreach (var line in lines)
+        {
+            if (line.WordTimestamps != null && line.WordTimestamps.Count > 0) score += 10;
+            if (!string.IsNullOrEmpty(line.SecondaryText)) score += 5;
+            if (!string.IsNullOrEmpty(line.Role)) score += 2;
+        }
+        return score;
+    }
+
+    /// <summary>
     /// 查找当前行的合唱伙伴行索引。
     /// 合唱伙伴 = 与当前行时间区间重叠且对齐方式不同的另一行（不同歌手）。
     /// 若无真正重叠，则查找相邻的不同歌手行（对唱模式）。
@@ -331,20 +359,36 @@ public partial class NowPlayingViewModel : ObservableObject
             : currentStart + TimeSpan.FromSeconds(5);
 
         // 1. 查找时间区间真正重叠的不同歌手行（合唱）
-        for (int i = 0; i < lines.Count; i++)
+        // 歌词按时间排序，只需扫描可能与当前行重叠的邻近行
+        // 向后扫描：找结束时间大于 currentStart 的行
+        for (int i = currentIdx - 1; i >= 0; i--)
         {
-            if (i == currentIdx) continue;
+            var otherEnd = lines[i + 1].Timestamp;
+            if (otherEnd <= currentStart) break; // 更早行均在当前行开始前结束
+
             if (lines[i].Alignment == currentAlignment) continue; // 同一歌手
             if (lines[i].Alignment == 1) continue; // 居中行不参与
 
             var otherStart = lines[i].Timestamp;
+            // 时间区间重叠 && 当前位置在对方活跃区间内
+            if (otherStart < currentEnd && position >= otherStart && position < otherEnd)
+                return i;
+        }
+
+        // 向前扫描：找开始时间小于 currentEnd 的行
+        for (int i = currentIdx + 1; i < lines.Count; i++)
+        {
+            var otherStart = lines[i].Timestamp;
+            if (otherStart >= currentEnd) break; // 更晚行均在当前行结束后开始
+
+            if (lines[i].Alignment == currentAlignment) continue; // 同一歌手
+            if (lines[i].Alignment == 1) continue; // 居中行不参与
+
             var otherEnd = i + 1 < lines.Count
                 ? lines[i + 1].Timestamp
                 : otherStart + TimeSpan.FromSeconds(5);
 
-            // 时间区间重叠 && 当前位置在两行的活跃区间内
-            if (otherStart < currentEnd && currentStart < otherEnd
-                && position >= otherStart && position < otherEnd)
+            if (position >= otherStart && position < otherEnd)
                 return i;
         }
 
@@ -917,20 +961,74 @@ public partial class NowPlayingViewModel : ObservableObject
             {
                 CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, false, true);
             }
+            else if (LyricsMode == 3)
+            {
+                // 自动选择：并发加载外挂和内嵌歌词，按质量评分择优
+                var isNetwork = song.Source == SongSource.WebDAV || song.Source == SongSource.SMB;
+                var externalTask = _lyricsService.GetLocalLyricsAsync(song, true);
+                var embeddedTask = isNetwork ? Task.FromResult<LrcLyrics?>(null) : _lyricsService.GetLocalLyricsAsync(song, false, true);
+
+                // 先等任一任务完成
+                var firstCompleted = await Task.WhenAny(externalTask, embeddedTask);
+                var firstResult = firstCompleted == externalTask ? await externalTask : await embeddedTask;
+                var firstValidLines = firstResult?.Lines?.Count(l => !string.IsNullOrWhiteSpace(l.Text)) ?? 0;
+                System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] auto-select first={(firstCompleted == externalTask ? "external" : "embedded")}, lines={firstResult?.Lines?.Count}, valid={firstValidLines}");
+
+                if (firstValidLines > 0)
+                {
+                    CurrentLyrics = firstResult;
+
+                    var remaining = firstCompleted == externalTask ? embeddedTask : externalTask;
+                    var timeout = Task.Delay(500, ct);
+                    var finished = await Task.WhenAny(remaining, timeout);
+                    if (finished == remaining)
+                    {
+                        var remainingResult = await remaining;
+                        var remainingValidLines = remainingResult?.Lines?.Count(l => !string.IsNullOrWhiteSpace(l.Text)) ?? 0;
+                        System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] auto-select remaining ready, lines={remainingResult?.Lines?.Count}, valid={remainingValidLines}");
+                        var better = PickBetterLyrics(CurrentLyrics, remainingResult);
+                        if (better != CurrentLyrics)
+                            CurrentLyrics = better;
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("[LoadLyricsAsync] auto-select remaining timeout");
+                    }
+                }
+                else
+                {
+                    // 首个任务无效（null、0 行或全空行），继续等另一个完成，不提前置空
+                    var remaining = firstCompleted == externalTask ? embeddedTask : externalTask;
+                    CurrentLyrics = await remaining;
+                    System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] auto-select fallback to remaining, lines={CurrentLyrics?.Lines?.Count}, valid={CurrentLyrics?.Lines?.Count(l => !string.IsNullOrWhiteSpace(l.Text)) ?? 0}");
+                }
+
+                // 兜底：如果并发结果没有有效歌词，回退到单源完整搜索（与 mode=0 保持一致）
+                var autoValid = CurrentLyrics?.Lines?.Count(l => !string.IsNullOrWhiteSpace(l.Text)) ?? 0;
+                if (autoValid == 0)
+                {
+                    System.Diagnostics.Debug.WriteLine("[LoadLyricsAsync] auto-select fallback to single-source search");
+                    CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, isNetwork);
+                }
+            }
             else
             {
                 var skipEmbedded = song.Source == SongSource.WebDAV || song.Source == SongSource.SMB;
                 CurrentLyrics = await _lyricsService.GetLocalLyricsAsync(song, skipEmbedded);
             }
-            System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] mode={LyricsMode}, local={CurrentLyrics?.Lines?.Count}, path={song.FilePath}, lyricsPath={song.LyricsPath}");
+
+            var validLineCount = CurrentLyrics?.Lines?.Count(l => !string.IsNullOrWhiteSpace(l.Text)) ?? 0;
+            System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] mode={LyricsMode}, lines={CurrentLyrics?.Lines?.Count}, valid={validLineCount}, path={song.FilePath}, lyricsPath={song.LyricsPath}");
         }
         catch (OperationCanceledException) { return; }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[LoadLyricsAsync] GetLocalLyricsAsync 异常: {ex.Message}"); }
         if (ct.IsCancellationRequested) return;
         if (CurrentSong?.Id != songId) return;
 
+        var finalValidLineCount = CurrentLyrics?.Lines?.Count(l => !string.IsNullOrWhiteSpace(l.Text)) ?? 0;
+
         // 兜底：与歌曲详情页保持一致，使用 FindExternalLyricsTextAsync（含模糊匹配）和数据库
-        if (CurrentLyrics == null && LyricsMode != 2)
+        if (finalValidLineCount == 0 && LyricsMode != 2)
         {
             try
             {
@@ -947,7 +1045,8 @@ public partial class NowPlayingViewModel : ObservableObject
             if (CurrentSong?.Id != songId) return;
         }
 
-        if (CurrentLyrics == null && LyricsMode != 2 && _database != null)
+        var dbFallbackValidLineCount = CurrentLyrics?.Lines?.Count(l => !string.IsNullOrWhiteSpace(l.Text)) ?? 0;
+        if (dbFallbackValidLineCount == 0 && LyricsMode != 2 && _database != null)
         {
             try
             {
@@ -1011,6 +1110,9 @@ public partial class NowPlayingViewModel : ObservableObject
                 NextLyricLine7 = idx + 7 < lyrics.Lines.Count ? lyrics.Lines[idx + 7].Text : "";
                 NextLyricLine8 = idx + 8 < lyrics.Lines.Count ? lyrics.Lines[idx + 8].Text : "";
                 CurrentLyricLine = lyrics.Lines[idx].Text;
+                CurrentLyricIndex = idx;
+                HasPerLineAlignment = lyrics.HasPerLineAlignment;
+                DuetPartnerIndex = FindDuetPartner(lyrics.Lines, idx, pos);
             }
             else
             {
@@ -1031,6 +1133,9 @@ public partial class NowPlayingViewModel : ObservableObject
                 NextLyricLine6 = lyrics.Lines.Count > 5 ? lyrics.Lines[5].Text : "";
                 NextLyricLine7 = lyrics.Lines.Count > 6 ? lyrics.Lines[6].Text : "";
                 NextLyricLine8 = lyrics.Lines.Count > 7 ? lyrics.Lines[7].Text : "";
+                CurrentLyricIndex = -1;
+                HasPerLineAlignment = lyrics.HasPerLineAlignment;
+                if (DuetPartnerIndex != -1) DuetPartnerIndex = -1;
             }
         }
     }

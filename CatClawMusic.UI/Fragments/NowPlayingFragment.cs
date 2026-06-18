@@ -185,6 +185,7 @@ public class NowPlayingFragment : Fragment
         _progressSlider.ImportantForAutofill = Android.Views.ImportantForAutofill.No;
         _progressSlider.TickVisible = false;
         _progressSlider.ThumbRadius = 8;
+        _progressSlider.SetLabelFormatter(new SliderLabelFormatter());
         // 隐藏 Material Slider 右端黑色 stop indicator（改为白色透明不可见）
         try
         {
@@ -549,7 +550,7 @@ public class NowPlayingFragment : Fragment
             if (visualizerEnabled != _visualizerEnabled)
                 ApplyVisualizerState(visualizerEnabled);
             _viewModel.LyricStyle = prefs?.GetInt("lyric_style", 0) ?? 0;
-            _viewModel.LyricsMode = prefs?.GetInt("lyrics_mode", 0) ?? 0;
+            _viewModel.LyricsMode = prefs?.GetInt("lyrics_mode", 3) ?? 3;
             UpdateTimeDisplay();
             UpdateSlider();
             UpdatePlayPauseIcon();

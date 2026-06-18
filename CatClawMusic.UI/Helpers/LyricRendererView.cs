@@ -1,3 +1,4 @@
+using Android.Animation;
 using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
@@ -38,6 +39,7 @@ public class LyricRendererView : FrameLayout
     private int _draggedLyricIndex = -1;
     private readonly Handler _scrollResumeHandler = new(Looper.MainLooper!);
     private readonly Handler _dragResumeHandler = new(Looper.MainLooper!);
+    private readonly Handler _scrollStopHandler = new(Looper.MainLooper!);
 
     // 内部配置（从 prefs 读取，与公开属性配合）
     private int _lyricBgColorIndex = 0;
@@ -49,14 +51,53 @@ public class LyricRendererView : FrameLayout
     private View? _fadeTop;
     private View? _fadeBottom;
 
+    // 滚动特效配置
+    private const float SCROLL_MIN_ALPHA = 0.40f;
+    private const float SCROLL_MAX_OFFSET_DP = 8f;
+    private const float SCROLL_HIGHLIGHTED_EFFECT_REDUCTION = 0.35f;
+    private readonly float _density;
+
+    // 楼梯弹跳特效配置
+    private const float STAIR_HORIZONTAL_STEP_DP = 48f;
+    private const float STAIR_VERTICAL_STEP_DP = 24f;
+    private const long STAIR_ANIMATION_DURATION = 320L;
+    private readonly List<Animator> _stairAnimators = new();
+
+    // 雨滴弹跳动画状态
+    private FrameLayout? _activeRaindropFrame;
+    private StrokeTextView? _activeRaindropTarget;
+
     // ── 构造函数 ──
 
     public LyricRendererView(Context context) : base(context)
     {
+        _density = context.Resources?.DisplayMetrics?.Density ?? 1f;
         _scrollView = new ScrollView(context) { FillViewport = true };
+        _scrollView.VerticalScrollBarEnabled = false;
         _lyricsContainer = new LinearLayout(context) { Orientation = Orientation.Vertical };
         _scrollView.AddView(_lyricsContainer);
         AddView(_scrollView, new LayoutParams(LayoutParams.MatchParent, LayoutParams.MatchParent));
+
+
+
+        // 监听 ScrollView 滚动停止：滚动变化后 150ms 无新变化即认为停止
+        _scrollView.SetOnScrollChangeListener(new ScrollStopListener(this));
+    }
+
+    /// <summary>滚动停止监听器</summary>
+    private class ScrollStopListener : Java.Lang.Object, View.IOnScrollChangeListener
+    {
+        private readonly LyricRendererView _owner;
+        public ScrollStopListener(LyricRendererView owner) => _owner = owner;
+        public void OnScrollChange(View? v, int scrollX, int scrollY, int oldScrollX, int oldScrollY)
+        {
+            _owner._scrollStopHandler.RemoveCallbacksAndMessages(null);
+            _owner._scrollStopHandler.PostDelayed(() =>
+            {
+                _owner.OnScrollStopped?.Invoke();
+                _owner.ResetScrollTransformations();
+            }, 150);
+        }
     }
 
     public LyricRendererView(Context context, IAttributeSet? attrs) : this(context) { }
@@ -103,6 +144,12 @@ public class LyricRendererView : FrameLayout
     /// <summary>是否启用自动滚动（播放页设 false）</summary>
     public bool EnableScroll { get; set; } = true;
 
+    /// <summary>是否启用楼梯弹跳自动滚动特效</summary>
+    public bool EnableBouncingStaircase { get; set; }
+
+    /// <summary>是否启用当前行逐字雨滴弹跳入场动画</summary>
+    public bool EnableRaindropWordBounce { get; set; }
+
     private bool _enableDragSeek = true;
     /// <summary>是否启用拖拽跳转（播放页设 false）</summary>
     public bool EnableDragSeek
@@ -143,6 +190,18 @@ public class LyricRendererView : FrameLayout
     /// <summary>拖拽跳转回调，参数为目标时间戳</summary>
     public Action<TimeSpan>? OnDragSeek { get; set; }
 
+    /// <summary>拖拽结束并请求跳转时回调，参数为目标时间戳。需外部在确认后调用 PerformDragSeek。</summary>
+    public Action<TimeSpan>? OnDragSeekRequested { get; set; }
+
+    /// <summary>ScrollView 惯性滚动停止后回调。外部可据此开始跳转确认超时。</summary>
+    public Action? OnScrollStopped { get; set; }
+
+    /// <summary>待确认的拖拽跳转目标时间</summary>
+    public TimeSpan? PendingDragSeekTime { get; private set; }
+
+    /// <summary>待确认的拖拽跳转被取消时回调</summary>
+    public Action? OnDragSeekCancelled { get; set; }
+
     // ── 数据属性 ──
 
     /// <summary>绑定的播放 ViewModel</summary>
@@ -167,7 +226,7 @@ public class LyricRendererView : FrameLayout
     public void LoadSettings()
     {
         if (Prefs == null) return;
-        EnableDragSeek = Prefs.GetBoolean("allow_drag_seek", true);
+        EnableDragSeek = Prefs.GetBoolean("allow_drag_seek", false);
         LyricFontSize = Prefs.GetInt("lyric_font_size", 20);
         LyricAlignment = Prefs.GetInt("lyric_alignment", 1);
         _lyricBgColorIndex = Prefs.GetInt("lyric_bg_color", 0);
@@ -244,6 +303,7 @@ public class LyricRendererView : FrameLayout
 
         HighlightCurrentLine();
         UpdateBgOverlay();
+        ApplyStaircaseTranslations(ViewModel?.CurrentLyricIndex ?? -1);
     }
 
     /// <summary>高亮当前播放的歌词行（含合唱伙伴行同时着色）</summary>
@@ -251,6 +311,7 @@ public class LyricRendererView : FrameLayout
     {
         var idx = ViewModel?.CurrentLyricIndex ?? -1;
         var partnerIdx = ViewModel?.DuetPartnerIndex ?? -1;
+        var previousIdx = _lastLyricIndex;
 
         // 自适应模式：根据背景自动设置歌词颜色
         if (LyricColorMode == 0)
@@ -262,6 +323,10 @@ public class LyricRendererView : FrameLayout
             ApplyFocusModeHighlight(idx);
             _lastLyricIndex = idx;
             _lastDuetPartnerIndex = partnerIdx;
+            if (EnableBouncingStaircase && previousIdx != -1 && idx != previousIdx)
+                AnimateStaircaseTranslations(idx);
+            if (EnableRaindropWordBounce && previousIdx != -1 && idx != previousIdx)
+                AnimateRaindropWordBounce(idx);
             if (!_userScrolling && !_isDragging)
                 ScrollToCurrentLyric();
             return;
@@ -286,17 +351,23 @@ public class LyricRendererView : FrameLayout
         // 设置当前行高亮
         if (idx >= 0 && idx < _lyricViews.Count)
         {
-            HighlightLine(idx, LyricFontSize + 4, LyricActiveColor, ViewModel?.CurrentLyricProgress ?? 0f);
+            HighlightLine(idx, LyricFontSize, LyricActiveColor, ViewModel?.CurrentLyricProgress ?? 0f);
         }
 
-        // 设置合唱伙伴行高亮（同时着色，使用稍小字号区分）
+        // 设置合唱伙伴行高亮
         if (partnerIdx >= 0 && partnerIdx < _lyricViews.Count && partnerIdx != idx)
         {
-            HighlightLine(partnerIdx, LyricFontSize + 2, LyricActiveColor, ViewModel?.DuetPartnerProgress ?? 0f);
+            HighlightLine(partnerIdx, LyricFontSize, LyricActiveColor, ViewModel?.DuetPartnerProgress ?? 0f);
         }
 
         _lastLyricIndex = idx;
         _lastDuetPartnerIndex = partnerIdx;
+
+        if (EnableBouncingStaircase && previousIdx != -1 && idx != previousIdx)
+            AnimateStaircaseTranslations(idx);
+
+        if (EnableRaindropWordBounce && previousIdx != -1 && idx != previousIdx)
+            AnimateRaindropWordBounce(idx);
 
         if (!_userScrolling && !_isDragging)
             ScrollToCurrentLyric();
@@ -496,12 +567,8 @@ public class LyricRendererView : FrameLayout
     /// <summary>根据当前活跃/非活跃颜色更新所有译文的字体颜色</summary>
     private void UpdateTranslationColors()
     {
-        // 译文色 = 非活跃色的更低透明度版本
-        var transColor = new Color(
-            (byte)(LyricInactiveColor.A * 3 / 4),
-            LyricInactiveColor.R,
-            LyricInactiveColor.G,
-            LyricInactiveColor.B);
+        // 译文与原文使用同一套非活跃色
+        var transColor = LyricInactiveColor;
 
         for (int i = _translationViews.Count - 1; i >= 0; i--)
         {
@@ -597,17 +664,13 @@ public class LyricRendererView : FrameLayout
         TextView? transTv = null;
         if (!string.IsNullOrEmpty(line.Translation))
         {
-            var transColor = new Color(
-                (byte)(LyricInactiveColor.A * 3 / 4),
-                LyricInactiveColor.R,
-                LyricInactiveColor.G,
-                LyricInactiveColor.B);
+            var transColor = LyricInactiveColor;
             transTv = new TextView(Context) { Text = line.Translation };
             transTv.SetTextSize(ComplexUnitType.Sp, LyricFontSize - 2);
             transTv.SetTextColor(transColor);
             transTv.SetTypeface(null, TypefaceStyle.Normal);
             transTv.Gravity = lineGravity;
-            transTv.SetLineSpacing(0, 1.3f);
+            transTv.SetLineSpacing(0, 1.56f);
             var transLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
             transLp.TopMargin = 4;
             transTv.LayoutParameters = transLp;
@@ -616,8 +679,8 @@ public class LyricRendererView : FrameLayout
         }
 
         var lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
-        // 增大歌词行间距：首行无额外间距，后续行按字体大小留出呼吸感
-        lp.TopMargin = index > 0 ? (int)(Context!.Resources!.DisplayMetrics!.Density * (LyricFontSize >= 24 ? 32 : 24)) : 0;
+        // 歌词行间距：首行无额外间距，后续行按字体大小留出呼吸感
+        lp.TopMargin = index > 0 ? (int)(Context!.Resources!.DisplayMetrics!.Density * (LyricFontSize >= 24 ? 38 : 29)) : 0;
         lp.BottomMargin = 0;
         lineLayout.LayoutParameters = lp;
 
@@ -634,10 +697,10 @@ public class LyricRendererView : FrameLayout
     private StrokeTextView CreateLyricTextView(string text, GravityFlags gravity, bool isBackingVocal)
     {
         var tv = new StrokeTextView(Context) { Text = text };
-        tv.SetTextSize(ComplexUnitType.Sp, isBackingVocal ? LyricFontSize - 3 : LyricFontSize);
+        tv.SetTextSize(ComplexUnitType.Sp, LyricFontSize);
         tv.SetTypeface(null, LyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
         tv.Gravity = gravity;
-        tv.SetLineSpacing(0, 1.4f);
+        tv.SetLineSpacing(0, 1.68f);
         tv.StrokeEnabled = false;
         tv.UnsungColor = LyricInactiveColor;
         tv.SungColor = LyricActiveColor;
@@ -670,6 +733,96 @@ public class LyricRendererView : FrameLayout
         _fadeBottom.Visibility = ViewStates.Gone;
     }
 
+    /// <summary>根据每行歌词与视图中心线的距离应用缩放、透明度、垂直偏移</summary>
+    private void ApplyScrollTransformations()
+    {
+        // 已禁用所有滚动视觉特效，保持自然滚动
+    }
+
+    /// <summary>滚动停止后恢复所有歌词项为标准状态</summary>
+    private void ResetScrollTransformations()
+    {
+        if (_scrollView == null) return;
+
+        if (EnableBouncingStaircase)
+        {
+            ApplyStaircaseTranslations(_lastLyricIndex);
+            return;
+        }
+
+        for (int i = 0; i < _lyricViews.Count; i++)
+        {
+            var container = _lyricViews[i].Container;
+            if (container == null) continue;
+
+            container.Alpha = 1f;
+            container.TranslationY = 0f;
+        }
+    }
+
+    /// <summary>
+    /// 根据当前高亮索引应用楼梯弹跳布局：
+    /// 当前行居中，已唱行向右上方堆叠，未唱行向左下方排列。
+    /// </summary>
+    private void ApplyStaircaseTranslations(int currentIndex)
+    {
+        if (!EnableBouncingStaircase || _lyricViews.Count == 0) return;
+
+        var horizontalStepPx = STAIR_HORIZONTAL_STEP_DP * _density;
+        var verticalStepPx = STAIR_VERTICAL_STEP_DP * _density;
+
+        for (int i = 0; i < _lyricViews.Count; i++)
+        {
+            var container = _lyricViews[i].Container;
+            if (container == null) continue;
+
+            var delta = i - currentIndex;
+            // 未唱行（下方）向左下方偏移，已唱行（上方）向右上方偏移
+            container.TranslationX = -delta * horizontalStepPx;
+            container.TranslationY = delta * verticalStepPx;
+        }
+    }
+
+    /// <summary>
+    /// 动画切换到新的楼梯布局，使用弹跳插值器营造蹦跶感。
+    /// </summary>
+    private void AnimateStaircaseTranslations(int currentIndex)
+    {
+        if (!EnableBouncingStaircase || _lyricViews.Count == 0) return;
+
+        // 取消进行中的动画
+        foreach (var animator in _stairAnimators)
+        {
+            try { animator?.Cancel(); } catch { }
+        }
+        _stairAnimators.Clear();
+
+        var horizontalStepPx = STAIR_HORIZONTAL_STEP_DP * _density;
+        var verticalStepPx = STAIR_VERTICAL_STEP_DP * _density;
+
+        for (int i = 0; i < _lyricViews.Count; i++)
+        {
+            var container = _lyricViews[i].Container;
+            if (container == null) continue;
+
+            var delta = i - currentIndex;
+            var targetX = -delta * horizontalStepPx;
+            var targetY = delta * verticalStepPx;
+
+            var animatorX = ObjectAnimator.OfFloat(container, "translationX", container.TranslationX, targetX);
+            var animatorY = ObjectAnimator.OfFloat(container, "translationY", container.TranslationY, targetY);
+            animatorX.SetDuration(STAIR_ANIMATION_DURATION);
+            animatorY.SetDuration(STAIR_ANIMATION_DURATION);
+            animatorX.SetInterpolator(new Android.Views.Animations.BounceInterpolator());
+            animatorY.SetInterpolator(new Android.Views.Animations.BounceInterpolator());
+
+            _stairAnimators.Add(animatorX);
+            _stairAnimators.Add(animatorY);
+            animatorX.Start();
+            animatorY.Start();
+        }
+    }
+
     /// <summary>重置单个歌词项为非高亮颜色</summary>
     private void ResetLyricItemColors(LyricViewItem item)
     {
@@ -681,12 +834,7 @@ public class LyricRendererView : FrameLayout
 
         if (item.Translation != null)
         {
-            var transNormalColor = new Color(
-                (byte)(LyricInactiveColor.A * 3 / 4),
-                LyricInactiveColor.R,
-                LyricInactiveColor.G,
-                LyricInactiveColor.B);
-            item.Translation.SetTextColor(transNormalColor);
+            item.Translation.SetTextColor(LyricInactiveColor);
         }
     }
 
@@ -700,12 +848,7 @@ public class LyricRendererView : FrameLayout
 
         if (includeTranslation && item.Translation != null)
         {
-            var transHighlightColor = new Color(
-                (byte)Math.Min(activeColor.A + 40, 255),
-                activeColor.R,
-                activeColor.G,
-                activeColor.B);
-            item.Translation.SetTextColor(transHighlightColor);
+            item.Translation.SetTextColor(activeColor);
         }
     }
 
@@ -752,14 +895,31 @@ public class LyricRendererView : FrameLayout
             ? lines[currentIdx + 1].Timestamp
             : currentStart + TimeSpan.FromSeconds(5);
 
-        for (int i = 0; i < lines.Count; i++)
+        activeRoles.Add(currentLine.Role);
+
+        // 歌词按时间排序，只需扫描可能与当前行重叠的邻近行
+        // 向后扫描：结束时间大于 currentStart 的行才可能重叠
+        for (int i = currentIdx - 1; i >= 0; i--)
         {
-            var line = lines[i];
-            var start = line.Timestamp;
-            var end = i + 1 < lines.Count ? lines[i + 1].Timestamp : start + TimeSpan.FromSeconds(5);
-            if (start < currentEnd && currentStart < end)
-                activeRoles.Add(line.Role);
+            var end = lines[i + 1].Timestamp;
+            if (end <= currentStart) break;
+
+            var start = lines[i].Timestamp;
+            if (start < currentEnd)
+                activeRoles.Add(lines[i].Role);
         }
+
+        // 向前扫描：开始时间小于 currentEnd 的行才可能重叠
+        for (int i = currentIdx + 1; i < lines.Count; i++)
+        {
+            var start = lines[i].Timestamp;
+            if (start >= currentEnd) break;
+
+            var end = i + 1 < lines.Count ? lines[i + 1].Timestamp : start + TimeSpan.FromSeconds(5);
+            if (currentStart < end)
+                activeRoles.Add(lines[i].Role);
+        }
+
         return activeRoles;
     }
 
@@ -781,7 +941,7 @@ public class LyricRendererView : FrameLayout
 
             if (i == currentIdx)
             {
-                HighlightLine(i, LyricFontSize + 4, LyricActiveColor, ViewModel.CurrentLyricProgress);
+                HighlightLine(i, LyricFontSize, LyricActiveColor, ViewModel.CurrentLyricProgress);
             }
             else if (isActive)
             {
@@ -792,9 +952,9 @@ public class LyricRendererView : FrameLayout
             {
                 ResetLineHighlight(i);
                 item.Primary.SetTextColor(dimColor);
-                item.Primary.SetTextSize(ComplexUnitType.Sp, LyricFontSize - 3);
+                item.Primary.SetTextSize(ComplexUnitType.Sp, LyricFontSize);
                 item.Secondary?.SetTextColor(dimColor);
-                item.Secondary?.SetTextSize(ComplexUnitType.Sp, LyricFontSize - 3);
+                item.Secondary?.SetTextSize(ComplexUnitType.Sp, LyricFontSize);
             }
         }
     }
@@ -806,7 +966,7 @@ public class LyricRendererView : FrameLayout
         var item = _lyricViews[lineIdx];
         var isBacking = ViewModel?.CurrentLyrics?.Lines[lineIdx].IsBackingVocal == true;
 
-        item.Primary.SetTextSize(ComplexUnitType.Sp, isBacking ? LyricFontSize - 3 : LyricFontSize);
+        item.Primary.SetTextSize(ComplexUnitType.Sp, LyricFontSize);
         item.Primary.SetTextColor(LyricInactiveColor);
         item.Primary.SetTypeface(null, LyricBold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
         item.Primary.ResetLyricProgress();
@@ -829,12 +989,7 @@ public class LyricRendererView : FrameLayout
         if (item.Translation != null)
         {
             item.Translation.SetTextSize(ComplexUnitType.Sp, LyricFontSize - 2);
-            var transNormalColor = new Color(
-                (byte)(LyricInactiveColor.A * 3 / 4),
-                LyricInactiveColor.R,
-                LyricInactiveColor.G,
-                LyricInactiveColor.B);
-            item.Translation.SetTextColor(transNormalColor);
+            item.Translation.SetTextColor(LyricInactiveColor);
         }
     }
 
@@ -856,8 +1011,7 @@ public class LyricRendererView : FrameLayout
 
         if (item.Secondary != null)
         {
-            // 对唱行的对方文本使用稍小字号区分
-            item.Secondary.SetTextSize(ComplexUnitType.Sp, fontSize - 2);
+            item.Secondary.SetTextSize(ComplexUnitType.Sp, fontSize);
             item.Secondary.SetTextColor(activeColor);
             item.Secondary.UnsungColor = LyricInactiveColor;
             item.Secondary.SungColor = activeColor;
@@ -868,17 +1022,187 @@ public class LyricRendererView : FrameLayout
             }
         }
 
-        // 高亮译文
+        // 高亮译文与原文同色
         if (item.Translation != null)
         {
             item.Translation.SetTextSize(ComplexUnitType.Sp, LyricFontSize - 2);
-            var transHighlightColor = new Color(
-                (byte)Math.Min(activeColor.A + 40, 255),
-                activeColor.R,
-                activeColor.G,
-                activeColor.B);
-            item.Translation.SetTextColor(transHighlightColor);
+            item.Translation.SetTextColor(activeColor);
         }
+    }
+
+    /// <summary>
+    /// 清理正在进行的雨滴弹跳动画临时视图，恢复原始歌词行可见性。
+    /// </summary>
+    private void CleanupRaindropAnimation()
+    {
+        var frame = _activeRaindropFrame;
+        var target = _activeRaindropTarget;
+        _activeRaindropFrame = null;
+        _activeRaindropTarget = null;
+
+        if (frame == null && target == null) return;
+
+        try
+        {
+            if (target?.Parent is ViewGroup parent && frame?.Parent == parent)
+            {
+                parent.RemoveView(frame);
+            }
+            if (target != null)
+            {
+                target.Visibility = ViewStates.Visible;
+            }
+        }
+        catch (System.Exception)
+        {
+            // 避免清理时崩溃
+        }
+    }
+
+    /// <summary>
+    /// 对当前活跃行的主文本做逐字/逐词雨滴弹跳入场动画：
+    /// 将文本拆成单位，每个单位从下方弹跳着升回原位，800ms 内完成。
+    /// </summary>
+    private void AnimateRaindropWordBounce(int lineIdx)
+    {
+        if (!EnableRaindropWordBounce) return;
+        if (lineIdx < 0 || lineIdx >= _lyricViews.Count) return;
+
+        // 清理上一次的雨滴动画
+        CleanupRaindropAnimation();
+
+        var item = _lyricViews[lineIdx];
+        var targetView = item.Primary;
+        if (targetView == null) return;
+
+        var parent = targetView.Parent as ViewGroup;
+        if (parent == null) return;
+
+        var text = targetView.Text;
+        if (string.IsNullOrEmpty(text)) return;
+
+        var words = SplitLyricTextIntoWords(text);
+        if (words.Count == 0) return;
+
+        // 暂存原始视图并隐藏，动画结束后再恢复
+        targetView.Visibility = ViewStates.Invisible;
+        var originalIndex = parent.IndexOfChild(targetView);
+        _activeRaindropTarget = targetView;
+
+        var density = _density;
+        var frame = new FrameLayout(Context) { LayoutParameters = targetView.LayoutParameters };
+        var wordRow = new LinearLayout(Context)
+        {
+            Orientation = Orientation.Horizontal,
+            LayoutParameters = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent)
+            {
+                Gravity = targetView.Gravity & GravityFlags.HorizontalGravityMask
+            }
+        };
+        frame.AddView(wordRow);
+        parent.AddView(frame, originalIndex);
+        _activeRaindropFrame = frame;
+
+        // 统一从屏幕底部之外开始飞入，避免相邻行看起来像原地蹦跶
+        float travelY = 120f * density;
+        if (_scrollView != null && _scrollView.Height > 0)
+        {
+            travelY = _scrollView.Height;
+        }
+
+        frame.TranslationY = travelY;
+
+        var textSizePx = targetView.TextSize;
+        var startOffsetY = 40f * density;
+        var staggerMs = 45L;
+        var durationMs = 500L;
+        var animators = new List<Animator>();
+
+        // 整行从下方未唱行加速飞起到当前行位置（像水滴倒放）
+        var frameAnimator = ObjectAnimator.OfFloat(frame, "translationY", travelY, 0f);
+        frameAnimator.SetDuration(700L);
+        frameAnimator.SetInterpolator(new Android.Views.Animations.AccelerateInterpolator(1.2f));
+        animators.Add(frameAnimator);
+        frameAnimator.Start();
+
+        for (int i = 0; i < words.Count; i++)
+        {
+            var wordTv = new TextView(Context)
+            {
+                Text = words[i],
+                Gravity = GravityFlags.Center
+            };
+            wordTv.SetTextSize(ComplexUnitType.Px, textSizePx);
+            wordTv.SetTypeface(targetView.Typeface, TypefaceStyle.Bold);
+            wordTv.SetTextColor(new Color(targetView.CurrentTextColor));
+            wordTv.SetLineSpacing(0, 1.68f);
+            wordTv.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent);
+
+            wordRow.AddView(wordTv);
+
+            var animator = ObjectAnimator.OfFloat(wordTv, "translationY", startOffsetY, 0f);
+            animator.StartDelay = i * staggerMs;
+            animator.SetDuration(durationMs);
+            animator.SetInterpolator(new Android.Views.Animations.AccelerateInterpolator(1.5f));
+            animators.Add(animator);
+            animator.Start();
+        }
+
+        var totalDuration = Math.Max(700L, (words.Count - 1) * staggerMs + durationMs) + 100L;
+        _scrollResumeHandler.PostDelayed(() =>
+        {
+            try
+            {
+                foreach (var animator in animators)
+                {
+                    try { animator?.Cancel(); } catch { }
+                }
+                animators.Clear();
+
+                parent.RemoveView(frame);
+                targetView.Visibility = ViewStates.Visible;
+                _activeRaindropFrame = null;
+                _activeRaindropTarget = null;
+            }
+            catch (System.Exception)
+            {
+                // 避免动画清理时崩溃
+            }
+        }, totalDuration);
+    }
+
+    /// <summary>
+    /// 将歌词文本拆分为逐字/逐词单位。
+    /// 中文按单个字符拆分，其他语言按空格分词并保留空格作为独立单位。
+    /// </summary>
+    private List<string> SplitLyricTextIntoWords(string text)
+    {
+        var words = new List<string>();
+        if (string.IsNullOrEmpty(text)) return words;
+
+        // 判断是否主要为中日韩字符
+        bool IsCjk(char c) => (c >= '\u4E00' && c <= '\u9FFF')
+            || (c >= '\u3040' && c <= '\u309F')
+            || (c >= '\u30A0' && c <= '\u30FF')
+            || (c >= '\uAC00' && c <= '\uD7AF');
+
+        var isCjk = text.Any(IsCjk);
+        if (isCjk)
+        {
+            foreach (var ch in text)
+                words.Add(ch.ToString());
+            return words;
+        }
+
+        var parts = text.Split(' ');
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(parts[i]))
+                words.Add(parts[i]);
+            if (i < parts.Length - 1)
+                words.Add(" ");
+        }
+        return words;
     }
 
     // ── 滚动/拖拽监听与手势处理 ──
@@ -889,6 +1213,9 @@ public class LyricRendererView : FrameLayout
         // 监听 ScrollView 滚动变化
         _scrollView.ViewTreeObserver.ScrollChanged += (s, e) =>
         {
+            // 实时应用滚动视觉反馈（自动/手动/惯性滚动均生效）
+            ApplyScrollTransformations();
+
             if (!_isDragging && !_userScrolling) return;
 
             if (_isDragging)
@@ -962,6 +1289,20 @@ public class LyricRendererView : FrameLayout
         _userScrolling = true;
         _scrollResumeHandler.RemoveCallbacksAndMessages(null);
         _dragResumeHandler.RemoveCallbacksAndMessages(null);
+
+        // 取消楼梯弹跳动画，避免手动滚动时冲突
+        foreach (var animator in _stairAnimators)
+        {
+            try { animator?.Cancel(); } catch { }
+        }
+        _stairAnimators.Clear();
+
+        // 如果存在待确认的拖拽跳转，新触摸将其取消
+        if (PendingDragSeekTime.HasValue)
+        {
+            CancelDragSeek();
+            OnDragSeekCancelled?.Invoke();
+        }
     }
 
     /// <summary>拖拽中回调</summary>
@@ -985,24 +1326,21 @@ public class LyricRendererView : FrameLayout
     {
         if (_isDragging)
         {
-            // 拖拽结束：触发跳转回调
+            // 拖拽结束：记录目标时间并通知外部确认，不立即跳转
             var draggedIdx = _draggedLyricIndex;
             _isDragging = false;
             _draggedLyricIndex = -1;
             _dragResumeHandler.RemoveCallbacksAndMessages(null);
 
-            if (OnDragSeek != null && draggedIdx >= 0)
+            if (draggedIdx >= 0)
             {
                 var lyrics = ViewModel?.CurrentLyrics;
                 if (lyrics?.Lines != null && draggedIdx < lyrics.Lines.Count)
-                    OnDragSeek.Invoke(lyrics.Lines[draggedIdx].Timestamp);
+                {
+                    PendingDragSeekTime = lyrics.Lines[draggedIdx].Timestamp;
+                    OnDragSeekRequested?.Invoke(PendingDragSeekTime.Value);
+                }
             }
-            // 拖拽结束后停留当前位置2秒，无其他操作再滚动回当前播放行
-            _dragResumeHandler.PostDelayed(() =>
-            {
-                _userScrolling = false;
-                ScrollToCurrentLyric();
-            }, 2000);
         }
         else
         {
@@ -1014,6 +1352,29 @@ public class LyricRendererView : FrameLayout
                 ScrollToCurrentLyric();
             }, 3000);
         }
+    }
+
+    /// <summary>执行待确认的拖拽跳转</summary>
+    public void PerformDragSeek()
+    {
+        if (!PendingDragSeekTime.HasValue) return;
+        var target = PendingDragSeekTime.Value;
+        PendingDragSeekTime = null;
+        _dragResumeHandler.RemoveCallbacksAndMessages(null);
+        _userScrolling = false;
+        OnDragSeek?.Invoke(target);
+    }
+
+    /// <summary>取消待确认的拖拽跳转并恢复自动滚动</summary>
+    public void CancelDragSeek()
+    {
+        PendingDragSeekTime = null;
+        _isDragging = false;
+        _draggedLyricIndex = -1;
+        _dragResumeHandler.RemoveCallbacksAndMessages(null);
+        _scrollResumeHandler.RemoveCallbacksAndMessages(null);
+        _userScrolling = false;
+        ScrollToCurrentLyric();
     }
 
     /// <summary>ScrollView 点击处理</summary>
