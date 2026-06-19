@@ -46,6 +46,21 @@ public class MusicDatabase
     private readonly SemaphoreSlim _initSemaphore = new(1, 1);
 
     /// <summary>
+    /// 后台维护任务信号量，确保维护任务与依赖维护完成的查询串行
+    /// </summary>
+    private readonly SemaphoreSlim _maintenanceSemaphore = new(1, 1);
+
+    /// <summary>
+    /// 后台维护任务（拆分合并艺术家、修复专辑关联），在基础初始化完成后启动
+    /// </summary>
+    private Task? _maintenanceTask;
+
+    /// <summary>
+    /// 后台维护是否已完成
+    /// </summary>
+    private bool _maintenanceCompleted;
+
+    /// <summary>
     /// 使用指定的数据库路径创建 MusicDatabase 实例
     /// </summary>
     public MusicDatabase(string dbPath)
@@ -54,7 +69,8 @@ public class MusicDatabase
     }
 
     /// <summary>
-    /// 确保数据库表已创建并完成迁移，多次调用安全
+    /// 确保数据库表已创建并完成必要迁移，多次调用安全。
+    /// 合并艺术家拆分、专辑关联修复等耗时维护任务在后台执行，不阻塞启动。
     /// </summary>
     public async Task EnsureInitializedAsync()
     {
@@ -92,17 +108,49 @@ public class MusicDatabase
             // 迁移现有单艺术家数据到多对多 SongArtists 表
             await MigrateToMultiArtistAsync();
 
+            _isInitialized = true;
+
+            // 耗时维护任务放到后台，避免阻塞启动页跳转
+            _maintenanceTask = Task.Run(RunMaintenanceAsync);
+        }
+        finally
+        {
+            _initSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// 等待后台维护任务完成。读取/写入歌曲、艺术家、专辑相关数据前调用，确保数据修复已完成。
+    /// </summary>
+    public async Task EnsureMaintenanceCompletedAsync()
+    {
+        await EnsureInitializedAsync();
+        var task = _maintenanceTask;
+        if (task != null)
+            await task;
+    }
+
+    /// <summary>
+    /// 后台维护：执行耗时的历史数据修复任务
+    /// </summary>
+    private async Task RunMaintenanceAsync()
+    {
+        await _maintenanceSemaphore.WaitAsync();
+        try
+        {
+            if (_maintenanceCompleted) return;
+
             // 将历史合并艺术家名（如 "国风堂/哦漏"）拆分为独立艺术家
             await SplitCombinedArtistsAsync();
 
             // 修复早期版本中 ArtistId=0 导致 AlbumId 关联错误的问题
             await RepairAlbumAssociationsAsync();
 
-            _isInitialized = true;
+            _maintenanceCompleted = true;
         }
         finally
         {
-            _initSemaphore.Release();
+            _maintenanceSemaphore.Release();
         }
     }
 
@@ -130,7 +178,7 @@ public class MusicDatabase
     /// </summary>
     public async Task<HashSet<ProtocolType>> GetEnabledProtocolsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var profiles = await _database.Table<ConnectionProfile>().ToListAsync();
         var enabled = new HashSet<ProtocolType>();
         foreach (var p in profiles)
@@ -162,13 +210,13 @@ public class MusicDatabase
 
     public async Task<int> GetLocalSongCountAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
     }
 
     public async Task<int> GetNetworkSongCountAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Song>()
             .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
             .CountAsync();
@@ -176,7 +224,7 @@ public class MusicDatabase
 
     public async Task<int> GetMergedDedupedCountAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         // 只统计本地歌曲数量，与本地音乐标签页一致
         return await _database.Table<Song>()
             .Where(s => s.Source == SongSource.Local)
@@ -185,13 +233,13 @@ public class MusicDatabase
 
     public async Task<int> GetFavoriteCountAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Favorite>().CountAsync();
     }
 
     public async Task<int> GetRecentPlayCountAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(200).ToListAsync();
         if (history.Count == 0) return 0;
         var songIds = history.Select(h => h.SongId).ToHashSet();
@@ -202,7 +250,7 @@ public class MusicDatabase
 
     public async Task<int> GetFirstSongIdForAllAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var song = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).FirstOrDefaultAsync();
         if (song != null) return song.Id;
         song = await _database.Table<Song>().FirstOrDefaultAsync();
@@ -211,14 +259,14 @@ public class MusicDatabase
 
     public async Task<int> GetFirstFavoriteSongIdAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var fav = await _database.Table<Favorite>().OrderByDescending(f => f.AddedAt).FirstOrDefaultAsync();
         return fav?.SongId ?? 0;
     }
 
     public async Task<int> GetFirstRecentSongIdAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).FirstOrDefaultAsync();
         return history?.SongId ?? 0;
     }
@@ -250,6 +298,24 @@ public class MusicDatabase
     }
 
     /// <summary>
+    /// 获取所有本地歌曲的文件路径与最后修改时间映射，用于增量扫描时跳过未变更文件
+    /// </summary>
+    public async Task<Dictionary<string, long>> GetLocalSongPathModTimesAsync()
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var songs = await _database.Table<Song>()
+            .Where(s => s.Source == SongSource.Local)
+            .ToListAsync();
+        var dict = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in songs)
+        {
+            if (!string.IsNullOrEmpty(s.FilePath))
+                dict[s.FilePath] = s.DateModified;
+        }
+        return dict;
+    }
+
+    /// <summary>
     /// 根据 ID 获取单首歌曲
     /// </summary>
     /// <param name="id">歌曲 ID</param>
@@ -262,7 +328,7 @@ public class MusicDatabase
     /// <returns>匹配的歌曲列表</returns>
     public async Task<List<Song>> SearchSongsAsync(string keyword)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var kw = $"%{keyword}%";
         // 使用 SQL JOIN 在数据库层面完成搜索 + Artist/Album 关联，支持多艺术家搜索
         var sql = @"
@@ -284,7 +350,7 @@ public class MusicDatabase
     /// <returns>歌曲列表</returns>
     public async Task<List<Song>> GetSongsByArtistAsync(string artist)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var sql = @"
             SELECT DISTINCT s.*, COALESCE(a.Name, '未知艺术家') as Artist, COALESCE(al.Title, '未知专辑') as Album
             FROM Songs s
@@ -304,7 +370,7 @@ public class MusicDatabase
     /// <returns>歌曲列表</returns>
     public async Task<List<Song>> GetSongsByAlbumAsync(string album)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var sql = @"
             SELECT s.*, COALESCE(a.Name, '未知艺术家') as Artist, al.Title as Album
             FROM Songs s
@@ -336,7 +402,7 @@ public class MusicDatabase
     /// <returns>受影响的行数</returns>
     public async Task<int> SaveSongAsync(Song song)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         if (song.Id != 0) return await _database.UpdateAsync(song);
 
         var existing = await _database.Table<Song>()
@@ -356,12 +422,12 @@ public class MusicDatabase
     /// <param name="song">要删除的歌曲对象</param>
     /// <returns>受影响的行数</returns>
     public Task<int> DeleteSongAsync(Song song)
-        => EnsureInitializedAsync().ContinueWith(_ => _database.DeleteAsync(song)).Unwrap();
+        => EnsureMaintenanceCompletedAsync().ContinueWith(_ => _database.DeleteAsync(song)).Unwrap();
 
     /// <summary>清空所有本地歌曲（SAF 权限失效时清理旧缓存）</summary>
     public async Task ClearLocalSongsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         try { await _database.ExecuteAsync("DELETE FROM SongArtists"); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.Local); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM Artists"); } catch { }
@@ -373,7 +439,7 @@ public class MusicDatabase
     /// <summary>清空所有缓存的网络歌曲</summary>
     public async Task ClearCachedNetworkSongsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         try { await _database.ExecuteAsync("DELETE FROM SongArtists WHERE SongId IN (SELECT Id FROM Songs WHERE Source != ?)", (int)SongSource.Local); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source != ?", (int)SongSource.Local); } catch { }
         try { await _database.ExecuteAsync("DELETE FROM CachedSongs"); } catch { }
@@ -388,7 +454,7 @@ public class MusicDatabase
     /// <returns>删除的歌曲数量</returns>
     public async Task<int> RemoveStaleSongsAsync(SongSource source, HashSet<string> retainPaths, HashSet<string>? retainRemoteIds = null)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var all = await _database.Table<Song>().Where(s => s.Source == source).ToListAsync();
         var toDeleteIds = new List<int>();
         foreach (var s in all)
@@ -419,7 +485,7 @@ public class MusicDatabase
     /// <summary>清理没有关联歌曲的孤立艺术家和专辑</summary>
     public async Task CleanupOrphanedArtistsAndAlbumsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         try
         {
             // 先清理 SongArtists 中引用已删除歌曲的孤立记录
@@ -475,7 +541,7 @@ public class MusicDatabase
     /// <returns>艺术家 ID，名称为空时返回 0</returns>
     public async Task<int> EnsureArtistAsync(string name)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         if (string.IsNullOrEmpty(name)) return 0;
 
         // 防御性拆分：无论调用方是否已拆分，此处统一处理
@@ -503,19 +569,19 @@ public class MusicDatabase
 
     public async Task<List<Artist>> GetAllArtistsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Artist>().ToListAsync();
     }
 
     public async Task UpdateArtistAsync(Artist artist)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         await _database.UpdateAsync(artist);
     }
 
     public async Task<List<Album>> GetAllAlbumsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Album>().ToListAsync();
     }
 
@@ -626,6 +692,115 @@ public class MusicDatabase
     }
 
     /// <summary>
+    /// 批量确保艺术家存在，返回艺术家名到 ID 的映射。一次性查询 + 批量插入，避免逐条数据库往返。
+    /// </summary>
+    public async Task<Dictionary<string, int>> EnsureArtistsBatchAsync(List<string> names)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (names.Count == 0) return result;
+
+        // 统一拆分 "A/B" 等多艺术家名字
+        var allNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in names)
+        {
+            if (string.IsNullOrEmpty(name)) continue;
+            foreach (var n in MusicUtility.SplitArtistNames(name))
+                allNames.Add(n);
+        }
+
+        if (allNames.Count == 0) return result;
+
+        // 批量查询已存在的艺术家（分批避免 IN 子句过长）
+        var nameList = allNames.ToList();
+        const int chunkSize = 500;
+        for (int i = 0; i < nameList.Count; i += chunkSize)
+        {
+            var chunk = nameList.Skip(i).Take(chunkSize).ToList();
+            var existing = await _database.Table<Artist>()
+                .Where(a => chunk.Contains(a.Name))
+                .ToListAsync();
+            foreach (var a in existing)
+                result[a.Name] = a.Id;
+        }
+
+        // 批量插入缺失的艺术家
+        var missing = allNames.Where(n => !result.ContainsKey(n)).ToList();
+        if (missing.Count > 0)
+        {
+            await _database.RunInTransactionAsync(tran =>
+            {
+                foreach (var n in missing)
+                {
+                    var artist = new Artist { Name = n };
+                    tran.Insert(artist);
+                    result[n] = artist.Id;
+                }
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 批量确保专辑存在，返回 (专辑名, 艺术家ID) 到 ID 的映射。一次性查询 + 批量插入。
+    /// </summary>
+    public async Task<Dictionary<(string title, int artistId), int>> EnsureAlbumsBatchAsync(List<(string title, int artistId)> albums)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var result = new Dictionary<(string title, int artistId), int>();
+        if (albums.Count == 0) return result;
+
+        var uniqueAlbums = albums
+            .Where(a => !string.IsNullOrEmpty(a.title))
+            .Distinct()
+            .ToList();
+
+        if (uniqueAlbums.Count == 0) return result;
+
+        // 按艺术家 ID 分批查询已存在的专辑
+        var artistIds = uniqueAlbums.Select(a => a.artistId).Distinct().ToList();
+        const int idChunkSize = 300;
+        var existingDict = new Dictionary<(string title, int artistId), Album>();
+        for (int i = 0; i < artistIds.Count; i += idChunkSize)
+        {
+            var chunk = artistIds.Skip(i).Take(idChunkSize).ToList();
+            var existing = await _database.Table<Album>()
+                .Where(al => chunk.Contains(al.ArtistId))
+                .ToListAsync();
+            foreach (var al in existing)
+            {
+                var key = (al.Title, al.ArtistId);
+                if (!existingDict.ContainsKey(key))
+                    existingDict[key] = al;
+            }
+        }
+
+        foreach (var key in uniqueAlbums)
+        {
+            if (existingDict.TryGetValue(key, out var al))
+                result[key] = al.Id;
+        }
+
+        // 批量插入缺失的专辑
+        var missing = uniqueAlbums.Where(k => !result.ContainsKey(k)).ToList();
+        if (missing.Count > 0)
+        {
+            await _database.RunInTransactionAsync(tran =>
+            {
+                foreach (var k in missing)
+                {
+                    var album = new Album { Title = k.title, ArtistId = k.artistId };
+                    tran.Insert(album);
+                    result[k] = album.Id;
+                }
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// 根据标题和艺术家 ID 查找或创建专辑，返回专辑 ID
     /// </summary>
     /// <param name="title">专辑标题</param>
@@ -633,7 +808,7 @@ public class MusicDatabase
     /// <returns>专辑 ID，标题为空时返回 0</returns>
     public async Task<int> EnsureAlbumAsync(string title, int artistId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         if (string.IsNullOrEmpty(title)) return 0;
         var a = await _database.Table<Album>().Where(x => x.Title == title && x.ArtistId == artistId).FirstOrDefaultAsync();
         if (a != null) return a.Id;
@@ -653,7 +828,7 @@ public class MusicDatabase
     {
         try
         {
-            await EnsureInitializedAsync();
+            await EnsureMaintenanceCompletedAsync();
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var existing = await _database.Table<PlayHistory>()
                 .Where(h => h.SongId == songId)
@@ -705,7 +880,7 @@ public class MusicDatabase
     /// <returns>按播放时间降序排列的歌曲列表</returns>
     public async Task<List<Song>> GetRecentSongsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(200).ToListAsync();
         if (history.Count == 0) return new List<Song>();
 
@@ -745,7 +920,7 @@ public class MusicDatabase
     /// <returns>按播放次数降序排列的歌曲列表</returns>
     public async Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayCount).Take(limit).ToListAsync();
         if (history.Count == 0) return new List<Song>();
 
@@ -789,7 +964,7 @@ public class MusicDatabase
     /// <param name="isFav">是否收藏</param>
     public async Task SetFavoriteAsync(int songId, bool isFav)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var fav = await _database.Table<Favorite>().Where(f => f.SongId == songId).FirstOrDefaultAsync();
         if (isFav && fav == null)
             await _database.InsertAsync(new Favorite { SongId = songId, AddedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds() });
@@ -804,7 +979,7 @@ public class MusicDatabase
     /// <returns>是否已收藏</returns>
     public async Task<bool> IsFavoriteAsync(int songId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Favorite>().Where(f => f.SongId == songId).CountAsync() > 0;
     }
 
@@ -819,7 +994,7 @@ public class MusicDatabase
     /// <returns>按收藏时间降序排列的歌曲列表</returns>
     public async Task<List<Song>> GetFavoriteSongsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var favs = await _database.Table<Favorite>().ToListAsync();
         if (favs.Count == 0) return new List<Song>();
 
@@ -865,7 +1040,7 @@ public class MusicDatabase
     /// <param name="content">歌词内容</param>
     public async Task SaveLyricAsync(int songId, string? lrcPath, string? content)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var l = await _database.Table<Lyric>().Where(x => x.SongId == songId).FirstOrDefaultAsync();
         if (l != null) { l.LrcPath = lrcPath; l.Content = content; await _database.UpdateAsync(l); }
         else await _database.InsertAsync(new Lyric { SongId = songId, LrcPath = lrcPath, Content = content });
@@ -888,7 +1063,7 @@ public class MusicDatabase
     /// <returns>受影响的行数</returns>
     public async Task<int> SaveConnectionProfileAsync(ConnectionProfile profile)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         if (profile.Id != 0) return await _database.UpdateAsync(profile);
         return await _database.InsertAsync(profile);
     }
@@ -928,7 +1103,7 @@ public class MusicDatabase
     /// <returns>新播放列表的 ID</returns>
     public async Task<int> CreatePlaylistAsync(string name)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var playlist = new Playlist { Name = name, CreatedAt = now, UpdatedAt = now };
         return await _database.InsertAsync(playlist);
@@ -940,7 +1115,7 @@ public class MusicDatabase
     /// <param name="playlist">播放列表对象</param>
     public async Task UpdatePlaylistAsync(Playlist playlist)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         playlist.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await _database.UpdateAsync(playlist);
     }
@@ -951,7 +1126,7 @@ public class MusicDatabase
     /// <param name="playlistId">播放列表 ID</param>
     public async Task DeletePlaylistAsync(int playlistId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         await _database.ExecuteAsync("DELETE FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
         await _database.DeleteAsync<Playlist>(playlistId);
     }
@@ -963,7 +1138,7 @@ public class MusicDatabase
     /// <param name="songId">歌曲 ID</param>
     public async Task AddSongToPlaylistAsync(int playlistId, int songId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var existing = await _database.Table<PlaylistSong>()
             .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId)
             .FirstOrDefaultAsync();
@@ -994,7 +1169,7 @@ public class MusicDatabase
     /// <param name="songId">歌曲 ID</param>
     public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var entry = await _database.Table<PlaylistSong>()
             .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId)
             .FirstOrDefaultAsync();
@@ -1027,7 +1202,7 @@ public class MusicDatabase
     /// <param name="songIds">要移除的歌曲 ID 集合</param>
     public async Task RemoveSongsFromPlaylistAsync(int playlistId, IEnumerable<int> songIds)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var ids = songIds.ToHashSet();
         if (ids.Count == 0) return;
 
@@ -1065,7 +1240,7 @@ public class MusicDatabase
     /// <returns>歌曲列表</returns>
     public async Task<List<Song>> GetPlaylistSongsAsync(int playlistId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var entries = await _database.Table<PlaylistSong>()
             .Where(ps => ps.PlaylistId == playlistId)
             .OrderBy(ps => ps.Position)
@@ -1104,7 +1279,7 @@ public class MusicDatabase
     /// <param name="newPosition">新位置索引</param>
     public async Task UpdateSongPositionAsync(int playlistId, int songId, int newPosition)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var entry = await _database.Table<PlaylistSong>()
             .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId)
             .FirstOrDefaultAsync();
@@ -1121,7 +1296,7 @@ public class MusicDatabase
     /// <param name="orderedSongIds">排序后的歌曲 ID 列表</param>
     public async Task UpdatePlaylistOrderAsync(int playlistId, List<int> orderedSongIds)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
 
         var allEntries = await _database.Table<PlaylistSong>()
             .Where(ps => ps.PlaylistId == playlistId)
@@ -1172,7 +1347,7 @@ public class MusicDatabase
     /// <returns>歌曲对象，播放列表为空时返回 null</returns>
     public async Task<Song?> GetFirstSongInPlaylistAsync(int playlistId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var entry = await _database.Table<PlaylistSong>()
             .Where(ps => ps.PlaylistId == playlistId)
             .OrderBy(ps => ps.Position)
@@ -1202,7 +1377,7 @@ public class MusicDatabase
     /// <param name="cachedSong">缓存歌曲对象</param>
     public async Task SaveCachedSongAsync(CachedSong cachedSong)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         if (cachedSong.Id != 0)
             await _database.UpdateAsync(cachedSong);
         else
@@ -1234,7 +1409,7 @@ public class MusicDatabase
     /// <param name="songId">歌曲 ID</param>
     public async Task DeleteCachedSongAsync(int songId)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var cached = await _database.Table<CachedSong>().Where(c => c.SongId == songId).FirstOrDefaultAsync();
         if (cached != null)
             await _database.DeleteAsync(cached);
@@ -1246,7 +1421,7 @@ public class MusicDatabase
     /// <param name="songs">新歌曲列表</param>
     public async Task ReplaceNetworkSongsAsync(List<Song> songs)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.WebDAV); }
         catch { }
 
@@ -1341,7 +1516,7 @@ public class MusicDatabase
     /// <returns>去重后的网络歌曲列表（SMB 优先于 WebDAV）</returns>
     public async Task<List<Song>> GetCachedNetworkSongsAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var songs = await _database.Table<Song>()
             .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
             .ToListAsync();
@@ -1374,7 +1549,7 @@ public class MusicDatabase
 
     public async Task ReplaceNetworkSongsBeginAsync()
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         try { await SaveNetworkFavoriteRefsAsync(); }
         catch { }
         try { await _database.ExecuteAsync("DELETE FROM Songs WHERE Source = ?", (int)SongSource.WebDAV); }
@@ -1414,7 +1589,7 @@ public class MusicDatabase
     public async Task RestoreNetworkFavoritesAsync()
     {
         if (_pendingNetworkFavs.Count == 0) return;
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
 
         var newNetworkSongs = await _database.Table<Song>()
             .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
@@ -1443,20 +1618,51 @@ public class MusicDatabase
     /// <returns>成功插入（非更新）的歌曲列表</returns>
     public async Task<List<Song>> InsertSongsBatchAsync(List<Song> songs)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         if (songs.Count == 0) return songs;
 
-        // 1. 预加载所有已有 FilePath 和 RemoteId 到内存，避免逐条查询
+        // 1. 按本批次 FilePath / RemoteId 批量查询已有记录，避免每次加载全表 Songs
         var existingByPath = new Dictionary<string, Song>(StringComparer.OrdinalIgnoreCase);
         var existingByRemoteId = new Dictionary<string, Song>(StringComparer.OrdinalIgnoreCase);
 
-        var allExisting = await _database.Table<Song>().ToListAsync();
-        foreach (var s in allExisting)
+        var filePaths = songs
+            .Where(s => !string.IsNullOrEmpty(s.FilePath))
+            .Select(s => s.FilePath!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var remoteIds = songs
+            .Where(s => !string.IsNullOrEmpty(s.RemoteId)
+                && (s.Source == SongSource.WebDAV || s.Source == SongSource.SMB))
+            .Select(s => s.RemoteId!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        const int chunkSize = 500;
+        for (int i = 0; i < filePaths.Count; i += chunkSize)
         {
-            if (!string.IsNullOrEmpty(s.FilePath))
-                existingByPath[s.FilePath] = s;
-            if (!string.IsNullOrEmpty(s.RemoteId))
-                existingByRemoteId[s.RemoteId] = s;
+            var chunk = filePaths.Skip(i).Take(chunkSize).ToList();
+            var existing = await _database.Table<Song>()
+                .Where(s => chunk.Contains(s.FilePath))
+                .ToListAsync();
+            foreach (var s in existing)
+            {
+                if (!string.IsNullOrEmpty(s.FilePath))
+                    existingByPath[s.FilePath] = s;
+            }
+        }
+
+        for (int i = 0; i < remoteIds.Count; i += chunkSize)
+        {
+            var chunk = remoteIds.Skip(i).Take(chunkSize).ToList();
+            var existing = await _database.Table<Song>()
+                .Where(s => chunk.Contains(s.RemoteId))
+                .ToListAsync();
+            foreach (var s in existing)
+            {
+                if (!string.IsNullOrEmpty(s.RemoteId))
+                    existingByRemoteId[s.RemoteId] = s;
+            }
         }
 
         var inserted = new List<Song>();
@@ -1527,7 +1733,7 @@ public class MusicDatabase
     /// <param name="song">歌曲对象</param>
     public async Task InsertSongAsync(Song song)
     {
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         try
         {
             // 网络歌曲基于 RemoteId 去重，本地歌曲基于 FilePath 去重
@@ -1587,7 +1793,7 @@ public class MusicDatabase
     {
         if (entries.Count == 0) return;
 
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
 
         await _database.RunInTransactionAsync(tran =>
         {
@@ -1653,7 +1859,7 @@ public class MusicDatabase
     public async Task<List<SongArtist>> QuerySongArtistsBySongIdsAsync(HashSet<int> songIds)
     {
         if (songIds.Count == 0) return new List<SongArtist>();
-        await EnsureInitializedAsync();
+        await EnsureMaintenanceCompletedAsync();
         var ids = string.Join(",", songIds);
         return await _database.QueryAsync<SongArtist>(
             $"SELECT * FROM SongArtists WHERE SongId IN ({ids})");

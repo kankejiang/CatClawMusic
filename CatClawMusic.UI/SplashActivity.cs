@@ -130,8 +130,11 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
                 {
                     RunOnUiThread(() =>
                     {
-                        _imageView.SetImageBitmap(bitmap);
-                        _imageView.Visibility = ViewStates.Visible;
+                        if (_imageView != null)
+                        {
+                            _imageView.SetImageBitmap(bitmap);
+                            _imageView.Visibility = ViewStates.Visible;
+                        }
                     });
                     _imageLoaded = true;
                     UpdateSubtitle("喵~ 正在加载...");
@@ -163,8 +166,11 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
                 {
                     RunOnUiThread(() =>
                     {
-                        _imageView.SetImageBitmap(cachedBitmap);
-                        _imageView.Visibility = ViewStates.Visible;
+                        if (_imageView != null)
+                        {
+                            _imageView.SetImageBitmap(cachedBitmap);
+                            _imageView.Visibility = ViewStates.Visible;
+                        }
                     });
                     _imageLoaded = true;
                     UpdateSubtitle("喵~ 正在加载...");
@@ -189,8 +195,11 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
                 {
                     RunOnUiThread(() =>
                     {
-                        _imageView.SetImageBitmap(bitmap);
-                        _imageView.Visibility = ViewStates.Visible;
+                        if (_imageView != null)
+                        {
+                            _imageView.SetImageBitmap(bitmap);
+                            _imageView.Visibility = ViewStates.Visible;
+                        }
                     });
                     _imageLoaded = true;
                     UpdateSubtitle("喵~ 正在加载...");
@@ -218,9 +227,10 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
         RunOnUiThread(() =>
         {
             // 网络图片加载失败时回退到默认猫图
-            if (_imageView.Visibility != ViewStates.Visible)
+            if (_imageView != null && _imageView.Visibility != ViewStates.Visible)
                 ShowDefaultCatImage();
-            _progressBar.Visibility = ViewStates.Gone;
+            if (_progressBar != null)
+                _progressBar.Visibility = ViewStates.Gone;
             UpdateSubtitle("喵~ 正在加载...");
         });
         TryTransition();
@@ -279,6 +289,7 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
     /// <summary>根据当前深浅模式显示默认猫图：浅色=白猫，深色=黑猫</summary>
     private void ShowDefaultCatImage()
     {
+        if (_imageView == null) return;
         bool isDark = IsDarkMode();
         int resId = isDark
             ? Resource.Drawable.splash_cat_dark
@@ -312,13 +323,13 @@ public class SplashActivity : global::AndroidX.AppCompat.App.AppCompatActivity
 
     private void UpdateSubtitle(string text)
     {
-        RunOnUiThread(() => { _subtitleText.Text = text; });
+        RunOnUiThread(() => { if (_subtitleText != null) _subtitleText.Text = text; });
     }
 
     /// <summary>更新左下角初始化状态文字（白色30%透明）</summary>
     private void UpdateInitStatus(string text)
     {
-        RunOnUiThread(() => { _initStatusText.Text = text; });
+        RunOnUiThread(() => { if (_initStatusText != null) _initStatusText.Text = text; });
     }
 
     /// <summary>所有条件满足后跳转到主界面并关闭启动页</summary>

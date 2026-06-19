@@ -24,32 +24,28 @@ public class LandscapeNowPlayingFragment : Fragment
     private NowPlayingViewModel _viewModel = null!;
     private ImageView _albumCover = null!;
     private TextView _songTitle = null!, _songArtist = null!;
+    private TextView _timeCurrent = null!, _timeTotal = null!;
     private LyricRendererView? _lyricRenderer;
     private View _coverPanel = null!;
     private bool _isFullLyricMode;
-    private TextView _timeCurrent = null!, _timeTotal = null!;
     private ImageButton _btnPlayPause = null!, _btnNext = null!, _btnPrev = null!;
-    private ImageButton _btnLike = null!, _btnModeCycle = null!, _btnPlaylist = null!;
-    private ImageButton _btnVisualizerToggle = null!;
-    private ImageButton _btnEq = null!;
-    private ImageButton _btnSleepTimer = null!;
-    private ImageButton _btnBack = null!;
+    private ImageButton _btnLike = null!, _btnModeCycle = null!;
     private GoogleSlider _progressSlider = null!;
     private Google.Android.Material.Card.MaterialCardView _controlsCard = null!;
     private AudioVisualizerView _audioVisualizer = null!;
     private VisualizerHelper? _visualizerHelper;
     private Android.OS.Handler? _mainHandler;
+    private Android.OS.Handler? _autoHideHandler;
+    private Android.OS.Handler? _watchdogHandler;
+    private bool _isControlsAutoHidden;
+    private long _lastSpectrumTicks;
     private int _spectrumUpdateQueued;
     private float[] _latestSpectrum = Array.Empty<float>();
     private ActivityResultLauncher? _recordAudioLauncher;
     private bool _visualizerEnabled = false;
     private bool _recordAudioDenied;
     private string? _lastCoverSource;
-    private CancellationTokenSource? _sleepCts;
-    private int _sleepRemainingSeconds;
-    private bool _sleepFinishSong;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
-    private Android.App.Dialog? _playlistDialog;
 
     /// <summary>背景遮罩颜色预设（与 FullLyricsFragment 共享）</summary>
     private static readonly string[] BgColorHex = { "#CCF0EBE3", "#CC0F0D16", "#00000000" };
@@ -89,7 +85,6 @@ public class LandscapeNowPlayingFragment : Fragment
     {
         base.OnViewCreated(view, state);
         _viewModel = MainApplication.Services.GetRequiredService<NowPlayingViewModel>();
-        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
 
         _albumCover = view.FindViewById<ImageView>(Resource.Id.album_cover)!;
         _songTitle = view.FindViewById<TextView>(Resource.Id.song_title)!;
@@ -103,19 +98,11 @@ public class LandscapeNowPlayingFragment : Fragment
         _btnPrev = view.FindViewById<ImageButton>(Resource.Id.btn_prev)!;
         _btnLike = view.FindViewById<ImageButton>(Resource.Id.btn_like)!;
         _btnModeCycle = view.FindViewById<ImageButton>(Resource.Id.btn_mode_cycle)!;
-        _btnPlaylist = view.FindViewById<ImageButton>(Resource.Id.btn_playlist)!;
-        _btnVisualizerToggle = view.FindViewById<ImageButton>(Resource.Id.btn_visualizer_toggle)!;
-        _btnEq = view.FindViewById<ImageButton>(Resource.Id.btn_eq)!;
-        _btnSleepTimer = view.FindViewById<ImageButton>(Resource.Id.btn_sleep_timer)!;
         _progressSlider = view.FindViewById<GoogleSlider>(Resource.Id.progress_slider)!;
         _progressSlider.TickVisible = false;
         _progressSlider.ThumbRadius = 8;
         _progressSlider.SetLabelFormatter(new SliderLabelFormatter());
-        // 隐藏 Material Slider 右端黑色 stop indicator
-        try
-        {
-            _progressSlider.ThumbTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White);
-        }
+        try { _progressSlider.ThumbTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.White); }
         catch { }
         try
         {
@@ -128,6 +115,7 @@ public class LandscapeNowPlayingFragment : Fragment
             }
         }
         catch { }
+        _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
 
         _controlsCard = view.FindViewById<Google.Android.Material.Card.MaterialCardView>(Resource.Id.controls_card)!;
         _audioVisualizer = view.FindViewById<AudioVisualizerView>(Resource.Id.audio_visualizer)!;
@@ -143,20 +131,11 @@ public class LandscapeNowPlayingFragment : Fragment
         btnLandscape.ImageTintList = white;
         btnLandscape.Click += OnExitLandscape;
 
-        var controlsArea = view.FindViewById<View>(Resource.Id.controls_area)!;
-        controlsArea.SetOnTouchListener(new ControlsTouchListener());
-
         _btnPlayPause.Click += OnPlayPause;
         _btnNext.Click += OnNext;
         _btnPrev.Click += OnPrev;
         _btnLike.Click += OnLikeClick;
         _btnModeCycle.Click += OnModeClick;
-        _btnPlaylist.Click += OnPlaylistClick;
-        _btnVisualizerToggle.Click += OnVisualizerToggleClick;
-        _btnEq.Click += OnEqClick;
-        _btnSleepTimer.Click += OnSleepTimerClick;
-
-        _progressSlider.SetOnTouchListener(new SliderTouchListener(v => _viewModel.CurrentPositionSeconds = v));
 
         _audioVisualizer.Visibility = ViewStates.Gone;
         var visPrefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
@@ -172,7 +151,15 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricRenderer.EnableDragSeek = false;
         _lyricRenderer.EnableRaindropWordBounce = false;
         _lyricRenderer.BgDimOverlay = _bgDimOverlay;
-        _lyricRenderer.OnClickCallback = () => OnLyricsAreaClick(null, EventArgs.Empty);
+        // 点击歌词：控件隐藏时弹出控件；控件可见时进入全屏歌词；全屏时退出全屏
+        _lyricRenderer.OnClickCallback = OnLyricsTapped;
+
+        // 封面区域点击：控件隐藏时弹出控件；全屏时退出全屏
+        _coverPanel.Clickable = true;
+        _coverPanel.Click += (s, e) => OnScreenTouched();
+
+        // 根视图触摸监听：作为兜底，子视图未消费事件时弹出控件
+        view.SetOnTouchListener(new RootTouchListener(this));
 
         // 加载横屏页背景遮罩颜色
         LoadLyricSettings();
@@ -184,9 +171,6 @@ public class LandscapeNowPlayingFragment : Fragment
             _lyricRenderer.HighlightCurrentLine();
         }
 
-        if (_audioPlayer != null)
-            _audioPlayer.StateChanged += OnAudioPlayerStateChanged;
-
         SyncUIFromViewModel();
         BindViewModel();
 
@@ -194,8 +178,6 @@ public class LandscapeNowPlayingFragment : Fragment
         if (playerSvc != null)
             playerSvc.AudioSessionIdChanged += OnAudioSessionIdChanged;
     }
-
-    private IAudioPlayerService? _audioPlayer;
 
     private void HideStatusBar()
     {
@@ -227,10 +209,91 @@ public class LandscapeNowPlayingFragment : Fragment
         nav.GoBack();
     }
 
-    private void OnLyricsAreaClick(object? s, EventArgs e)
+    /// <summary>
+    /// 歌词区域点击回调：根据当前状态切换全屏歌词模式或弹出控件。
+    /// - 全屏歌词模式：退出全屏，恢复控件
+    /// - 控件隐藏：弹出控件
+    /// - 控件可见：进入全屏歌词模式
+    /// </summary>
+    private void OnLyricsTapped()
     {
-        _isFullLyricMode = !_isFullLyricMode;
-        ApplyFullLyricMode();
+        if (_isFullLyricMode)
+        {
+            _isFullLyricMode = false;
+            ApplyFullLyricMode();
+            StartAutoHideTimer();
+        }
+        else if (_isControlsAutoHidden || _controlsCard.Visibility != ViewStates.Visible)
+        {
+            // 控件隐藏时，点击歌词先弹出控件
+            ShowControls();
+        }
+        else
+        {
+            // 控件可见时，点击歌词进入全屏歌词模式
+            _isFullLyricMode = true;
+            ApplyFullLyricMode();
+            StopAutoHideTimer();
+        }
+    }
+
+    /// <summary>
+    /// 屏幕任意位置触摸回调：仅用于控件隐藏后弹出控件。
+    /// </summary>
+    internal void OnScreenTouched()
+    {
+        if (_isFullLyricMode)
+        {
+            _isFullLyricMode = false;
+            ApplyFullLyricMode();
+            StartAutoHideTimer();
+        }
+        else if (_isControlsAutoHidden || _controlsCard.Visibility != ViewStates.Visible)
+        {
+            ShowControls();
+        }
+    }
+
+    /// <summary>显示播放控件并启动5秒自动隐藏倒计时</summary>
+    private void ShowControls()
+    {
+        if (_controlsCard == null) return;
+        if (_controlsCard.Visibility != ViewStates.Visible)
+        {
+            _controlsCard.Visibility = ViewStates.Visible;
+            _controlsCard.Alpha = 0f;
+            _controlsCard.TranslationY = 40f;
+            _controlsCard.Animate().Alpha(1f).TranslationY(0f).SetDuration(300).Start();
+        }
+        _isControlsAutoHidden = false;
+        StartAutoHideTimer();
+    }
+
+    /// <summary>隐藏播放控件（仅控件卡片，进度条和横竖屏按钮保持可见）</summary>
+    private void HideControls()
+    {
+        if (_controlsCard == null) return;
+        _controlsCard.Animate().Alpha(0f).TranslationY(40f).SetDuration(300)
+            .WithEndAction(new Java.Lang.Runnable(() => _controlsCard.Visibility = ViewStates.Gone)).Start();
+        _isControlsAutoHidden = true;
+    }
+
+    /// <summary>启动5秒后自动收起控件的定时器</summary>
+    private void StartAutoHideTimer()
+    {
+        StopAutoHideTimer();
+        _autoHideHandler ??= new Android.OS.Handler(Android.OS.Looper.MainLooper!);
+        _autoHideHandler.PostDelayed(() =>
+        {
+            if (!_isFullLyricMode && _controlsCard != null && _controlsCard.Visibility == ViewStates.Visible)
+                HideControls();
+        }, 5000);
+    }
+
+    /// <summary>停止自动隐藏定时器</summary>
+    private void StopAutoHideTimer()
+    {
+        _autoHideHandler?.RemoveCallbacksAndMessages(null);
     }
 
     private void ApplyFullLyricMode()
@@ -239,14 +302,16 @@ public class LandscapeNowPlayingFragment : Fragment
         var duration = 300L;
         if (_isFullLyricMode)
         {
-            // 全屏歌词模式：隐藏封面、可视化效果和控制区，歌词扩展至全屏
+            // 全屏歌词模式：隐藏封面、可视化效果、进度条、控件卡片和横竖屏按钮，歌词扩展至全屏
+            StopAutoHideTimer();
+            _isControlsAutoHidden = false;
             _coverPanel.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _coverPanel.Visibility = ViewStates.Gone)).Start();
             _audioVisualizer.Animate().Alpha(0f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _audioVisualizer.Visibility = ViewStates.Gone)).Start();
             _controlsCard.Animate().Alpha(0f).TranslationY(40f).SetDuration(duration).WithEndAction(new Java.Lang.Runnable(() => _controlsCard.Visibility = ViewStates.Gone)).Start();
         }
         else
         {
-            // 退出全屏：恢复封面、可视化效果和控制区
+            // 退出全屏：恢复封面、可视化效果、进度条、控件卡片和横竖屏按钮
             _coverPanel.Alpha = 0f;
             _coverPanel.Visibility = ViewStates.Visible;
             _coverPanel.Animate().Alpha(1f).SetDuration(duration).Start();
@@ -301,11 +366,16 @@ public class LandscapeNowPlayingFragment : Fragment
 
         if (Activity is MainActivity ma)
             ma.SetViewPagerSwipeEnabled(false);
+
+        // 进入横屏5秒后自动收起播放控件
+        StartAutoHideTimer();
     }
 
     public override void OnPause()
     {
         base.OnPause();
+        StopAutoHideTimer();
+        StopWatchdog();
         _visualizerHelper?.Stop();
         _visualizerHelper = null;
         _lastVisualizerSessionId = 0;
@@ -325,18 +395,16 @@ public class LandscapeNowPlayingFragment : Fragment
 
     public override void OnDestroyView()
     {
+        StopAutoHideTimer();
+        StopWatchdog();
         StopFlowLight();
         _isFullLyricMode = false;
         var playerSvc = MainApplication.Services.GetService<IAudioPlayerService>() as AudioPlayerService;
         if (playerSvc != null)
             playerSvc.AudioSessionIdChanged -= OnAudioSessionIdChanged;
-        if (_audioPlayer != null)
-            _audioPlayer.StateChanged -= OnAudioPlayerStateChanged;
         _visualizerHelper?.Stop();
         _visualizerHelper = null;
         UnbindViewModel();
-        _playlistDialog?.Dismiss();
-        _playlistDialog = null;
         base.OnDestroyView();
     }
 
@@ -740,42 +808,10 @@ public class LandscapeNowPlayingFragment : Fragment
     private void OnPrev(object? s, EventArgs e) => _viewModel.PreviousCommand.Execute(null);
     private void OnLikeClick(object? s, EventArgs e) => _viewModel.ToggleLikeCommand.Execute(null);
     private void OnModeClick(object? s, EventArgs e) => _viewModel.CyclePlayModeCommand.Execute(null);
-    private void OnPlaylistClick(object? s, EventArgs e) => ShowPlaylistDialog();
-
-    private void OnVisualizerToggleClick(object? s, EventArgs e)
-    {
-        var prefs = Activity?.GetSharedPreferences("catclaw_prefs", Android.Content.FileCreationMode.Private);
-        var enabled = !(prefs?.GetBoolean("visualizer_enabled", false) ?? false);
-        prefs?.Edit().PutBoolean("visualizer_enabled", enabled).Apply();
-        ApplyVisualizerState(enabled);
-    }
-
-    private void OnEqClick(object? s, EventArgs e)
-    {
-        try
-        {
-            var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-            var dialog = new Services.SoundEffectDialog(Activity!, player);
-            dialog.Show();
-        }
-        catch (Exception ex)
-        {
-            Android.Util.Log.Warn("CatClaw", $"打开音效失败: {ex.Message}");
-        }
-    }
-
-    private void OnSleepTimerClick(object? s, EventArgs e)
-    {
-        if (_sleepCts != null) { StopSleepTimer(); return; }
-        ShowSleepTimerDialog();
-    }
 
     private void ApplyVisualizerState(bool enabled)
     {
         _visualizerEnabled = enabled;
-        var white = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#FFFFFF"));
-        var gray = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#88FFFFFF"));
-        _btnVisualizerToggle.ImageTintList = enabled ? white : gray;
         if (enabled)
         {
             _audioVisualizer.Visibility = ViewStates.Visible;
@@ -790,178 +826,11 @@ public class LandscapeNowPlayingFragment : Fragment
         }
     }
 
-    private void OnAudioPlayerStateChanged(object? sender, PlaybackStateChangedEventArgs e)
-    {
-        Activity?.RunOnUiThread(UpdatePlayState);
-    }
-
-    private void UpdatePlayState()
-    {
-        var currentSong = MainApplication.Services.GetService<PlayQueue>()?.CurrentSong;
-        int currentSongId = currentSong?.Id ?? -1;
-        bool isPlaying = MainApplication.Services.GetService<IAudioPlayerService>()?.IsPlaying ?? false;
-    }
-
-    private void ShowPlaylistDialog()
-    {
-        var act = Activity;
-        if (act == null) return;
-        var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
-        var allSongs = queue.GetSongs().ToList();
-        if (allSongs.Count == 0) return;
-        var currentSong = queue.CurrentSong;
-        var dp = (int)act.Resources!.DisplayMetrics!.Density;
-        var maxH = (int)(act.Resources!.DisplayMetrics!.HeightPixels * 0.5);
-        var recyclerView = new AndroidX.RecyclerView.Widget.RecyclerView(act);
-        recyclerView.SetLayoutManager(new AndroidX.RecyclerView.Widget.LinearLayoutManager(act));
-        var itemHeight = (int)(72 * dp);
-        var totalHeight = Math.Min(allSongs.Count * itemHeight, maxH);
-        recyclerView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, totalHeight);
-        recyclerView.OverScrollMode = OverScrollMode.Never;
-        PlaylistAdapter? adapter = null;
-        adapter = new PlaylistAdapter(allSongs, currentSong, dp, song =>
-        {
-            PlaySong(song);
-            adapter?.SetCurrentSong(song);
-            var newIdx = allSongs.FindIndex(s => s.Id == song.Id);
-            if (newIdx >= 0)
-                recyclerView.SmoothScrollToPosition(newIdx);
-        });
-        recyclerView.SetAdapter(adapter);
-        recyclerView.Post(() =>
-        {
-            if (recyclerView.Height > maxH)
-                recyclerView.LayoutParameters = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, maxH);
-            if (currentSong != null)
-            {
-                var idx = allSongs.FindIndex(s => s.Id == currentSong.Id);
-                if (idx >= 0) recyclerView.ScrollToPosition(idx);
-            }
-        });
-        var dialog = new GlassDialog(act).SetTitle("播放列表", $"{allSongs.Count} 首歌曲").AddCustomView(recyclerView).AddNegativeButton("关闭");
-        dialog.Show();
-        _playlistDialog = null;
-    }
-
-    private void PlaySong(Song song)
-    {
-        var queue = MainApplication.Services.GetRequiredService<PlayQueue>();
-        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-        queue.SelectSong(song.Id);
-        _viewModel.CurrentSong = song;
-        _ = player.PlayAsync(song.FilePath);
-        Task.Delay(500).ContinueWith(_ => Activity?.RunOnUiThread(SyncUIFromViewModel));
-    }
-
-    private void ShowSleepTimerDialog()
-    {
-        var act = Activity;
-        if (act == null) return;
-        var dp = (int)act.Resources!.DisplayMetrics!.Density;
-        var tv = new Android.Util.TypedValue();
-        var themeColor = act.Theme?.ResolveAttribute(global::Android.Resource.Attribute.ColorPrimary, tv, true) == true
-            ? new Color(tv.Data) : Color.ParseColor("#9B7ED8");
-        int selectedMinutes = 0;
-        bool finishSong = false;
-        var content = new LinearLayout(act) { Orientation = Orientation.Vertical };
-        var timerToggleRow = new LinearLayout(act) { Orientation = Orientation.Horizontal };
-        timerToggleRow.SetGravity(GravityFlags.CenterVertical);
-        timerToggleRow.SetPadding(dp * 14, dp * 4, dp * 14, dp * 8);
-        var timerLabel = new TextView(act) { Text = "定时关闭" };
-        timerLabel.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
-        timerLabel.SetTextColor(Color.ParseColor("#DDFFFFFF"));
-        timerLabel.LayoutParameters = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent) { Weight = 1 };
-        var timerToggle = new Android.Widget.Switch(act) { Checked = true };
-        timerToggle.TrackTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
-        timerToggle.ThumbTintList = Android.Content.Res.ColorStateList.ValueOf(Color.White);
-        timerToggleRow.AddView(timerLabel);
-        timerToggleRow.AddView(timerToggle);
-        content.AddView(timerToggleRow);
-        var timeGrid = new GridLayout(act);
-        timeGrid.ColumnCount = 3;
-        timeGrid.RowCount = 2;
-        timeGrid.SetPadding(dp * 8, dp * 4, dp * 8, dp * 4);
-        var timeButtons = new List<TextView>();
-        foreach (var mins in new[] { 10, 20, 30, 45, 60, 90 })
-        {
-            var btn = new TextView(act) { Text = $"{mins}" };
-            btn.SetTextSize(Android.Util.ComplexUnitType.Sp, 14f);
-            btn.Gravity = GravityFlags.Center;
-            btn.SetPadding(dp * 4, dp * 10, dp * 4, dp * 10);
-            var btnSize = (int)(52 * dp);
-            btn.LayoutParameters = new GridLayout.LayoutParams() { Width = btnSize, Height = btnSize, MarginStart = dp * 6, MarginEnd = dp * 6, TopMargin = dp * 4, BottomMargin = dp * 4 };
-            var btnBg = new GradientDrawable(); btnBg.SetShape(ShapeType.Rectangle); btnBg.SetCornerRadius(btnSize / 2f); btnBg.SetColor(Color.ParseColor("#1AFFFFFF")); btnBg.SetStroke(1, Color.ParseColor("#30FFFFFF"));
-            btn.Background = btnBg; btn.SetTextColor(Color.ParseColor("#DDFFFFFF")); btn.Clickable = true; btn.Focusable = true;
-            var capturedMins = mins;
-            btn.Click += (s, e) =>
-            {
-                selectedMinutes = capturedMins;
-                foreach (var b in timeButtons) { b.SetTextColor(Color.ParseColor("#DDFFFFFF")); var bg = new GradientDrawable(); bg.SetShape(ShapeType.Rectangle); bg.SetCornerRadius(btnSize / 2f); bg.SetColor(Color.ParseColor("#1AFFFFFF")); bg.SetStroke(1, Color.ParseColor("#30FFFFFF")); b.Background = bg; }
-                var selBg = new GradientDrawable(); selBg.SetShape(ShapeType.Rectangle); selBg.SetCornerRadius(btnSize / 2f); selBg.SetColor(themeColor); selBg.SetStroke(0, Color.Transparent); btn.Background = selBg; btn.SetTextColor(Color.White);
-            };
-            timeButtons.Add(btn);
-            timeGrid.AddView(btn);
-        }
-        content.AddView(timeGrid);
-        var finishRow = new LinearLayout(act) { Orientation = Orientation.Horizontal };
-        finishRow.SetGravity(GravityFlags.CenterVertical);
-        finishRow.SetPadding(dp * 14, dp * 8, dp * 14, dp * 8);
-        var finishCheck = new CheckBox(act) { Text = "播完整首歌再停止播放", Checked = false };
-        finishCheck.SetTextColor(Color.ParseColor("#DDFFFFFF"));
-        finishCheck.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
-        finishCheck.ButtonTintList = Android.Content.Res.ColorStateList.ValueOf(themeColor);
-        finishCheck.CheckedChange += (s, e) => finishSong = e.IsChecked;
-        finishRow.AddView(finishCheck);
-        content.AddView(finishRow);
-        new GlassDialog(act).SetTitle("定时关闭").AddCustomView(content).AddPositiveButton("开始", (input) =>
-        {
-            if (!timerToggle.Checked) return;
-            if (selectedMinutes > 0) StartSleepTimer(selectedMinutes * 60, finishSong);
-        }).AddNegativeButton("取消").Show();
-    }
-
-    private void StartSleepTimer(int totalSeconds, bool finishSong)
-    {
-        StopSleepTimer();
-        _sleepCts = new CancellationTokenSource();
-        _sleepRemainingSeconds = totalSeconds;
-        _sleepFinishSong = finishSong;
-        var token = _sleepCts.Token;
-        Task.Run(async () =>
-        {
-            try
-            {
-                while (_sleepRemainingSeconds > 0 && !token.IsCancellationRequested)
-                {
-                    await Task.Delay(1000, token);
-                    _sleepRemainingSeconds--;
-                }
-                if (!token.IsCancellationRequested) Activity?.RunOnUiThread(ExecuteSleepStop);
-            }
-            catch (TaskCanceledException) { }
-        }, token);
-    }
-
-    private void ExecuteSleepStop()
-    {
-        var player = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
-        if (_sleepFinishSong) { _viewModel.StopAfterCurrentSong = true; StopSleepTimer(); }
-        else { _ = player.PauseAsync(); StopSleepTimer(); }
-    }
-
-    private void StopSleepTimer()
-    {
-        _sleepCts?.Cancel(); _sleepCts?.Dispose(); _sleepCts = null;
-        _sleepRemainingSeconds = 0; _sleepFinishSong = false;
-        var gray = Android.Content.Res.ColorStateList.ValueOf(Color.ParseColor("#88FFFFFF"));
-        _btnSleepTimer.ImageTintList = gray;
-    }
-
     private int _lastVisualizerSessionId;
 
     /// <summary>
-    /// 音频会话 ID 变化回调。与 NowPlayingFragment 逻辑一致。
-    /// 同一 SessionId 时无需重建，Visualizer 会自动接收新轨道 FFT 数据。
+    /// 音频会话 ID 变化回调。使用 IsAlive 检查原生 Visualizer 真实状态，
+    /// 避免 IsEnabled 僵尸标志导致无法重启。
     /// </summary>
     private void OnAudioSessionIdChanged(int newSessionId)
     {
@@ -971,7 +840,8 @@ public class LandscapeNowPlayingFragment : Fragment
             if (!_visualizerEnabled) return;
             if (newSessionId == 0) return;
 
-            if (_visualizerHelper != null && _visualizerHelper.IsEnabled && newSessionId == _lastVisualizerSessionId)
+            // 使用 IsAlive 检查真实状态，而非 IsEnabled
+            if (_visualizerHelper != null && _visualizerHelper.IsAlive(newSessionId))
                 return;
 
             _visualizerHelper?.Stop();
@@ -998,7 +868,7 @@ public class LandscapeNowPlayingFragment : Fragment
             if (!_visualizerEnabled) return;
             var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
             var sessionId = playerService.AudioSessionId;
-            if (sessionId > 0 && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+            if (sessionId > 0 && (_visualizerHelper == null || !_visualizerHelper.IsAlive(sessionId)))
                 StartVisualizerWithSession(sessionId);
         }, 800);
     }
@@ -1008,11 +878,11 @@ public class LandscapeNowPlayingFragment : Fragment
         if (!_visualizerEnabled || attempt > 8) return;
         var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         var sessionId = playerService.AudioSessionId;
-        if (sessionId > 0 && (_visualizerHelper == null || !_visualizerHelper.IsEnabled))
+        if (sessionId > 0 && (_visualizerHelper == null || !_visualizerHelper.IsAlive(sessionId)))
         {
             StartVisualizerWithSession(sessionId);
         }
-        else if (_visualizerHelper == null || !_visualizerHelper.IsEnabled)
+        else if (_visualizerHelper == null || !_visualizerHelper.IsAlive(sessionId))
         {
             View?.PostDelayed(() => TryStartVisualizerWithRetry(attempt + 1), 400);
         }
@@ -1023,7 +893,7 @@ public class LandscapeNowPlayingFragment : Fragment
         var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
         var sessionId = playerService.AudioSessionId;
         if (sessionId == 0) return;
-        if (_visualizerHelper != null && _visualizerHelper.IsEnabled && sessionId == _lastVisualizerSessionId) return;
+        if (_visualizerHelper != null && _visualizerHelper.IsAlive(sessionId)) return;
         if (Activity?.CheckSelfPermission(Android.Manifest.Permission.RecordAudio) != Android.Content.PM.Permission.Granted)
         {
             if (!_recordAudioDenied)
@@ -1039,13 +909,14 @@ public class LandscapeNowPlayingFragment : Fragment
         _visualizerHelper?.Stop();
         _visualizerHelper = new VisualizerHelper();
         _mainHandler ??= new Handler(Looper.MainLooper!);
-        var spectrumCounter = 0;
+        _lastSpectrumTicks = System.Environment.TickCount64;
         var lastUpdateTicks = 0L;
         _visualizerHelper.SpectrumUpdated += spectrum =>
         {
             var src = spectrum;
             if (_latestSpectrum.Length < src.Length) _latestSpectrum = new float[src.Length];
             Array.Copy(src, _latestSpectrum, src.Length);
+            _lastSpectrumTicks = System.Environment.TickCount64;
             if (Interlocked.Exchange(ref _spectrumUpdateQueued, 1) == 1) return;
 
             var now = System.Environment.TickCount64;
@@ -1063,6 +934,37 @@ public class LandscapeNowPlayingFragment : Fragment
             });
         };
         _visualizerHelper.Start(sessionId);
+        StartWatchdog();
+    }
+
+    /// <summary>启动频谱看门狗：每 3 秒检查一次 Visualizer 是否存活，死亡则重启</summary>
+    private void StartWatchdog()
+    {
+        StopWatchdog();
+        _watchdogHandler ??= new Android.OS.Handler(Android.OS.Looper.MainLooper!);
+        _watchdogHandler.PostDelayed(new Java.Lang.Runnable(() =>
+        {
+            if (!_visualizerEnabled || _visualizerHelper == null) return;
+            var playerService = MainApplication.Services.GetRequiredService<IAudioPlayerService>();
+            var sessionId = playerService.AudioSessionId;
+            if (sessionId == 0) { StartWatchdog(); return; }
+            if (!_visualizerHelper.IsAlive(sessionId))
+            {
+                Android.Util.Log.Warn("CatClaw", "[CatClaw] Watchdog: Visualizer dead, restarting");
+                _visualizerHelper?.Stop();
+                _visualizerHelper = null;
+                _lastVisualizerSessionId = 0;
+                StartVisualizerWithSession(sessionId);
+                return; // StartVisualizerWithSession 内部会重新启动看门狗
+            }
+            StartWatchdog();
+        }), 3000);
+    }
+
+    /// <summary>停止频谱看门狗</summary>
+    private void StopWatchdog()
+    {
+        _watchdogHandler?.RemoveCallbacksAndMessages(null);
     }
 
     internal class RecordAudioCallback : Java.Lang.Object, AndroidX.Activity.Result.IActivityResultCallback
@@ -1083,78 +985,58 @@ public class LandscapeNowPlayingFragment : Fragment
         }
     }
 
-    internal class ControlsTouchListener : Java.Lang.Object, View.IOnTouchListener
+    /// <summary>
+    /// 根视图触摸监听器：当播放控件隐藏后，触摸屏幕任意位置（ACTION_UP）弹出控件。
+    /// 返回 false 不消费事件，保证子视图正常响应点击/滚动。
+    /// </summary>
+    internal class RootTouchListener : Java.Lang.Object, View.IOnTouchListener
     {
-        private float _downX, _downY;
+        private readonly LandscapeNowPlayingFragment _fragment;
+        private float _startX, _startY;
+        private bool _isClick;
+
+        public RootTouchListener(LandscapeNowPlayingFragment fragment) => _fragment = fragment;
+
         public bool OnTouch(View? v, MotionEvent? e)
         {
             if (e == null || v == null) return false;
+            var density = v.Resources?.DisplayMetrics?.Density ?? 1f;
+            var slop = 16 * density;
+
             switch (e.Action)
             {
-                case MotionEventActions.Down: _downX = e.GetX(); _downY = e.GetY(); break;
+                case MotionEventActions.Down:
+                    _startX = e.GetX();
+                    _startY = e.GetY();
+                    _isClick = true;
+                    break;
+
                 case MotionEventActions.Move:
+                    if (_isClick)
                     {
-                        float dx = Math.Abs(e.GetX() - _downX); float dy = Math.Abs(e.GetY() - _downY);
-                        if (dx > 20 && dx > dy * 1.5f)
-                        {
-                            var parent = v.Parent; while (parent != null) { parent.RequestDisallowInterceptTouchEvent(false); parent = parent.Parent; }
-                            return false;
-                        }
-                        var p = v.Parent; while (p != null) { p.RequestDisallowInterceptTouchEvent(true); p = p.Parent; }
+                        var dx = Math.Abs(e.GetX() - _startX);
+                        var dy = Math.Abs(e.GetY() - _startY);
+                        if (dx > slop || dy > slop)
+                            _isClick = false;
                     }
                     break;
+
                 case MotionEventActions.Up:
-                case MotionEventActions.Cancel:
+                    if (_isClick)
                     {
-                        var parent = v.Parent; while (parent != null) { parent.RequestDisallowInterceptTouchEvent(false); parent = parent.Parent; }
+                        var dx = Math.Abs(e.GetX() - _startX);
+                        var dy = Math.Abs(e.GetY() - _startY);
+                        if (dx <= slop && dy <= slop)
+                            _fragment.OnScreenTouched();
                     }
+                    _isClick = false;
+                    break;
+
+                case MotionEventActions.Cancel:
+                    _isClick = false;
                     break;
             }
             return false;
         }
-    }
-
-    internal class PlaylistAdapter : AndroidX.RecyclerView.Widget.RecyclerView.Adapter
-    {
-        private readonly List<Song> _songs;
-        private Song? _currentSong;
-        private readonly int _dp;
-        private readonly Action<Song> _onSongClick;
-        public PlaylistAdapter(List<Song> songs, Song? currentSong, int dp, Action<Song> onSongClick) { _songs = songs; _currentSong = currentSong; _dp = dp; _onSongClick = onSongClick; }
-        public override int ItemCount => _songs.Count;
-
-        /// <summary>更新当前播放歌曲并刷新列表</summary>
-        public void SetCurrentSong(Song? song)
-        {
-            if (_currentSong != null && song != null && _currentSong.Id == song.Id) return;
-            _currentSong = song;
-            NotifyDataSetChanged();
-        }
-
-        public override void OnBindViewHolder(AndroidX.RecyclerView.Widget.RecyclerView.ViewHolder holder, int position)
-        {
-            if (holder is not PlaylistViewHolder vh) return;
-            var song = _songs[position];
-            var isCurrent = _currentSong != null && song.Id == _currentSong.Id;
-            vh.TextView.Text = $"{(isCurrent ? "▶  " : "    ")}{song.Title ?? "未知歌曲"} - {song.Artist ?? "未知艺术家"}";
-            vh.TextView.SetTextColor(isCurrent ? Color.White : Color.ParseColor("#CCFFFFFF"));
-            vh.TextView.SetPadding(_dp * 14, _dp * 8, _dp * 14, _dp * 8);
-            vh.TextView.Click -= vh.Handler;
-            vh.Handler = (s, e) => _onSongClick(song);
-            vh.TextView.Click += vh.Handler;
-        }
-        public override AndroidX.RecyclerView.Widget.RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
-        {
-            var tv = new TextView(parent.Context!) { TextSize = 13f };
-            tv.SetSingleLine(true); tv.Ellipsize = Android.Text.TextUtils.TruncateAt.End; tv.Clickable = true; tv.Focusable = true;
-            return new PlaylistViewHolder(tv);
-        }
-    }
-
-    internal class PlaylistViewHolder : AndroidX.RecyclerView.Widget.RecyclerView.ViewHolder
-    {
-        public TextView TextView { get; }
-        public EventHandler? Handler;
-        public PlaylistViewHolder(TextView tv) : base(tv) => TextView = tv;
     }
 }

@@ -24,10 +24,23 @@ public class MainApplication : Application
     /// <summary>全局依赖注入服务提供器</summary>
     public static IServiceProvider Services { get; private set; } = null!;
 
-    /// <summary>元数据持久化目录（/storage/emulated/0/CatClawMusic/metadata/）</summary>
+    /// <summary>元数据持久化目录（应用私有外部目录 /Android/data/.../files/CatClawMusic/metadata/）</summary>
     public static string? MetadataDir { get; private set; }
 
     public MainApplication(IntPtr handle, JniHandleOwnership transfer) : base(handle, transfer) { }
+
+    /// <summary>在指定目录创建 .nomedia 文件，阻止系统相册/媒体库扫描该目录下的图片。</summary>
+    private static void CreateNoMediaFile(string directory)
+    {
+        try
+        {
+            if (!Directory.Exists(directory)) return;
+            var noMediaPath = Path.Combine(directory, ".nomedia");
+            if (!File.Exists(noMediaPath))
+                File.Create(noMediaPath).Dispose();
+        }
+        catch { /* 忽略权限或 IO 错误 */ }
+    }
 
     /// <summary>应用启动时注册所有服务到 DI 容器，初始化数据库、播放器、歌词服务和插件管理器</summary>
     public override void OnCreate()
@@ -201,31 +214,31 @@ public class MainApplication : Application
         services.AddSingleton<PlayQueue>();
 
         // Data services (with CatClawMusic persistent directory injection)
-        // 使用外部存储公开目录，卸载后数据仍保留
+        // 封面/元数据缓存改为应用私有外部目录，避免被系统相册索引，仅本 App 可读取。
+        // 卸载应用时这些缓存会被清除（歌曲库数据仍保留在数据库中，封面可重新下载）。
         var catClawPersistDir = Path.Combine(
-            Android.OS.Environment.ExternalStorageDirectory!.AbsolutePath,
+            global::Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath,
             "CatClawMusic");
         var artistCoversDir = Path.Combine(catClawPersistDir, "artist_covers");
         var albumCoversDir = Path.Combine(catClawPersistDir, "album_covers");
         var metadataDir = Path.Combine(catClawPersistDir, "metadata");
-        try
+        Directory.CreateDirectory(artistCoversDir);
+        Directory.CreateDirectory(albumCoversDir);
+        Directory.CreateDirectory(metadataDir);
+
+        // 防御性添加 .nomedia，阻止 MediaStore 扫描该目录
+        CreateNoMediaFile(catClawPersistDir);
+
+        // 兼容旧版本：如果之前把封面存在外部公开目录，给旧目录也加上 .nomedia，
+        // 让已经缓存的艺术家/专辑照片立即从系统相册中消失。
+        var legacyPublicDir = Path.Combine(
+            Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath ?? string.Empty,
+            "CatClawMusic");
+        if (!string.IsNullOrEmpty(legacyPublicDir) && Directory.Exists(legacyPublicDir))
         {
-            Directory.CreateDirectory(artistCoversDir);
-            Directory.CreateDirectory(albumCoversDir);
-            Directory.CreateDirectory(metadataDir);
-        }
-        catch (System.Exception)
-        {
-            // 权限不足时 fallback 到 app 专属目录
-            catClawPersistDir = Path.Combine(
-                global::Android.App.Application.Context.GetExternalFilesDir(null)!.AbsolutePath,
-                "CatClawMusic");
-            artistCoversDir = Path.Combine(catClawPersistDir, "artist_covers");
-            albumCoversDir = Path.Combine(catClawPersistDir, "album_covers");
-            metadataDir = Path.Combine(catClawPersistDir, "metadata");
-            Directory.CreateDirectory(artistCoversDir);
-            Directory.CreateDirectory(albumCoversDir);
-            Directory.CreateDirectory(metadataDir);
+            CreateNoMediaFile(legacyPublicDir);
+            CreateNoMediaFile(Path.Combine(legacyPublicDir, "artist_covers"));
+            CreateNoMediaFile(Path.Combine(legacyPublicDir, "album_covers"));
         }
 
         MetadataDir = metadataDir;
@@ -301,7 +314,8 @@ public class MainApplication : Application
         // Backup service
         services.AddSingleton<BackupService>(sp =>
             new BackupService(sp.GetRequiredService<MusicDatabase>(),
-                sp.GetRequiredService<CatClawMusic.Core.Interfaces.IAgentConfigStorage>()));
+                sp.GetRequiredService<CatClawMusic.Core.Interfaces.IAgentConfigStorage>(),
+                artistCoversDir));
 
         // ViewModels
         services.AddSingleton<LibraryViewModel>();       // 单例——Fragment 重建时不丢缓存

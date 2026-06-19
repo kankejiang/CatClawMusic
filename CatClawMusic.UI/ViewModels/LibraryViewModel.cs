@@ -528,6 +528,7 @@ public partial class LibraryViewModel : ObservableObject
     private async Task BackgroundScanAsync(bool forceReload)
     {
         ScanDialogRequested?.Invoke(this, "🐱 正在扫描本地音乐");
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             _dispatcher.Post(() => { StatusText = "正在准备扫描..."; IsScanning = true; ScanProgress = 0; ScanStatus = "遍历文件夹..."; });
@@ -537,8 +538,26 @@ public partial class LibraryViewModel : ObservableObject
                 try { await _database.EnsureInitializedAsync().ConfigureAwait(false); } catch { }
             }
 
-            // 去重集合：scannedPaths 用于数据库去重，displayedPaths 用于 UI 去重
-            var scannedPaths = new HashSet<string>();
+            // 预加载数据库中已有本地歌曲的路径与修改时间，用于增量扫描跳过未变更文件
+            Dictionary<string, long> existingPathModTimes = new(StringComparer.OrdinalIgnoreCase);
+            if (_database != null)
+            {
+                try
+                {
+                    var modSw = System.Diagnostics.Stopwatch.StartNew();
+                    existingPathModTimes = await _database.GetLocalSongPathModTimesAsync().ConfigureAwait(false);
+                    modSw.Stop();
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 加载已有歌曲修改时间：{existingPathModTimes.Count} 条，耗时 {modSw.ElapsedMilliseconds}ms");
+                }
+                catch { }
+            }
+
+            // 去重集合：
+            // - scannedPaths：已发送给 MusicScanner 入库的路径，用于跨扫描策略去重
+            // - allDiscoveredPaths：本次扫描发现的所有路径（含未变更），用于清理已删除歌曲
+            // - displayedPaths：已添加到 UI 列表的路径
+            var scannedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allDiscoveredPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var displayedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // 创建扫描器，每批新歌曲实时添加到 UI
@@ -576,83 +595,100 @@ public partial class LibraryViewModel : ObservableObject
                         if (newSongs.Count == 0) return;
 
                         await scanner.AddSongsBatchAsync(newSongs);
+                    }, existingPathModTimes, path =>
+                    {
+                        lock (allDiscoveredPaths) { allDiscoveredPaths.Add(path); }
                     });
             });
 
             // 刷新扫描器缓冲区，确保所有歌曲已写入数据库
+            var flushSw = System.Diagnostics.Stopwatch.StartNew();
             await scanner.FlushAsync().ConfigureAwait(false);
+            flushSw.Stop();
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 扫描器缓冲区刷新耗时：{flushSw.ElapsedMilliseconds}ms，累计入库 {scanner.TotalInserted}");
 
             // 清理已删除的歌曲：对比数据库记录与本次扫描路径，移除不存在的记录
-            // 关键安全保护：若 scannedPaths 为空（扫描未发现任何文件），
+            // 关键安全保护：若 allDiscoveredPaths 为空（扫描未发现任何文件），
             // 跳过清理以避免误删全部歌曲（例如 SAF 路径格式与已存路径不一致时）
-            if (_database != null && scannedPaths.Count > 0)
+            if (_database != null && allDiscoveredPaths.Count > 0)
             {
                 try
                 {
                     _dispatcher.Post(() => { ScanStatus = "清理已删除歌曲..."; ScanProgress = 90; });
-                    var removed = await _database.RemoveStaleSongsAsync(CoreModels.SongSource.Local, scannedPaths).ConfigureAwait(false);
+                    var staleSw = System.Diagnostics.Stopwatch.StartNew();
+                    var removed = await _database.RemoveStaleSongsAsync(CoreModels.SongSource.Local, allDiscoveredPaths).ConfigureAwait(false);
+                    staleSw.Stop();
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理已删除歌曲：{removed} 首，耗时 {staleSw.ElapsedMilliseconds}ms");
                     if (removed > 0)
                     {
                         // 同步移除 UI 中对应的过期歌曲，使用批量移除减少 CollectionChanged 通知
-                        _dispatcher.Post(() => Songs.RemoveAll(s => !scannedPaths.Contains(s.FilePath)));
+                        _dispatcher.Post(() => Songs.RemoveAll(s => !allDiscoveredPaths.Contains(s.FilePath)));
                     }
                 }
                 catch { }
             }
 
-            // 扫描完成：从数据库全量重新加载，确保已有歌曲也正确显示（因为 InsertSongsBatchAsync 的
-            // 回调只包含新插入的歌曲，已存在的歌曲只做 UPDATE 不会触发回调）
-            if (_database != null)
+            // 扫描完成：如果 UI 中已有歌曲（正常增量扫描流程），直接复用现有列表，
+            // 避免全量重新加载数据库造成的大内存查询和 UI 刷新卡顿。
+            // 仅在强制刷新导致 Songs 为空时，才从数据库重新加载。
+            if (_database != null && Songs.Count == 0)
             {
                 try
                 {
+                    var reloadSw = System.Diagnostics.Stopwatch.StartNew();
                     var allLocalSongs = await _database.GetSongsAsync().ConfigureAwait(false);
+                    reloadSw.Stop();
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 全量重新加载歌曲：{allLocalSongs.Count} 首，耗时 {reloadSw.ElapsedMilliseconds}ms");
                     _dispatcher.Post(() =>
                     {
-                        Songs.Clear();
                         AddSongsBatch(allLocalSongs);
-                        ScanProgress = 100;
-                        ScanStatus = "扫描完成";
-                        IsScanning = false;
-                        StatusText = $"🐱 共 {allLocalSongs.Count} 首歌曲";
-                        _localSongsCache = Songs.ToList();
-                        _hasLoadedLocal = true;
-                        ScanCompleted?.Invoke(this, EventArgs.Empty);
+                        FinishScan();
                     });
                 }
                 catch
                 {
-                    _dispatcher.Post(() =>
-                    {
-                        ScanProgress = 100;
-                        ScanStatus = "扫描完成";
-                        IsScanning = false;
-                        StatusText = $"🐱 共 {Songs.Count} 首歌曲";
-                        _localSongsCache = Songs.ToList();
-                        _hasLoadedLocal = true;
-                        ScanCompleted?.Invoke(this, EventArgs.Empty);
-                    });
+                    _dispatcher.Post(FinishScan);
                 }
             }
             else
             {
-                _dispatcher.Post(() =>
-                {
-                    ScanProgress = 100;
-                    ScanStatus = "扫描完成";
-                    IsScanning = false;
-                    StatusText = $"🐱 共 {Songs.Count} 首歌曲";
-                    _localSongsCache = Songs.ToList();
-                    _hasLoadedLocal = true;
-                    ScanCompleted?.Invoke(this, EventArgs.Empty);
-                });
+                _dispatcher.Post(FinishScan);
             }
         }
         catch (Exception ex)
         {
             _dispatcher.Post(() => { IsScanning = false; StatusText = $"扫描出错: {ex.Message}"; });
+            InvalidateExploreCache();
             ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
+        finally
+        {
+            totalSw.Stop();
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] BackgroundScanAsync 总耗时：{totalSw.ElapsedMilliseconds}ms");
+        }
+
+        void FinishScan()
+        {
+            ScanProgress = 100;
+            ScanStatus = "扫描完成";
+            IsScanning = false;
+            StatusText = $"🐱 共 {Songs.Count} 首歌曲";
+            _localSongsCache = Songs.ToList();
+            _hasLoadedLocal = true;
+            InvalidateExploreCache();
+            ScanCompleted?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>使探索页缓存（每日推荐等）失效，确保歌曲库变化后探索页能刷新</summary>
+    private void InvalidateExploreCache()
+    {
+        try
+        {
+            var explore = MainApplication.Services?.GetService(typeof(ExploreDataService)) as ExploreDataService;
+            explore?.InvalidateDailyRecommendCache();
+        }
+        catch { }
     }
 
     /// <summary>

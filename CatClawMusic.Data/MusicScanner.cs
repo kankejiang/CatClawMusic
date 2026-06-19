@@ -100,18 +100,18 @@ public class MusicScanner
     /// <para>
     /// 策略说明：
     /// <list type="bullet">
-    ///   <item>已插入 &lt; 10：批次大小为 1，逐条提交，便于初期快速反馈和调试。</item>
-    ///   <item>已插入 &lt; 100：批次大小为 20，逐步提升吞吐量。</item>
-    ///   <item>已插入 ≥ 100：批次大小为 100，最大化批量入库效率。</item>
+    ///   <item>已插入 &lt; 100：批次大小为 200，平衡内存与吞吐。</item>
+    ///   <item>已插入 &lt; 500：批次大小为 500，提升批量入库效率。</item>
+    ///   <item>已插入 ≥ 500：批次大小为 1000，最大化批量入库效率。</item>
     /// </list>
     /// </para>
     /// </summary>
     /// <returns>当前应使用的批次大小。</returns>
     private int GetBatchSize()
     {
-        if (_totalInserted < 10) return 10;
-        if (_totalInserted < 100) return 50;
-        return 200;
+        if (_totalInserted < 100) return 200;
+        if (_totalInserted < 500) return 500;
+        return 1000;
     }
 
     /// <summary>
@@ -211,10 +211,15 @@ public class MusicScanner
     {
         if (toInsert.Length == 0) return;
 
+        var flushSw = System.Diagnostics.Stopwatch.StartNew();
+
         if (!_cacheLoaded)
         {
+            var cacheSw = System.Diagnostics.Stopwatch.StartNew();
             await LoadCachesAsync();
             _cacheLoaded = true;
+            cacheSw.Stop();
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] 加载艺术家/专辑缓存：耗时 {cacheSw.ElapsedMilliseconds}ms");
         }
 
         if (!_artistCache.TryGetValue(DefaultArtist, out var defaultArtistId))
@@ -255,13 +260,11 @@ public class MusicScanner
         }
 
         // 第二步：批量确保所有艺术家存在（包含主艺术家和通过拆分得到的次要艺术家）
-        foreach (var name in allArtistNames)
+        var artistMap = await _db.EnsureArtistsBatchAsync(allArtistNames.ToList());
+        foreach (var kvp in artistMap)
         {
-            if (!_artistCache.ContainsKey(name))
-            {
-                var id = await _db.EnsureArtistAsync(name);
-                _artistCache[name] = id;
-            }
+            if (!_artistCache.ContainsKey(kvp.Key))
+                _artistCache[kvp.Key] = kvp.Value;
         }
 
         // 第三步：先设置 ArtistId，再计算 albumKeys（否则 ArtistId=0 会导致专辑关联错误）
@@ -273,21 +276,18 @@ public class MusicScanner
                 s.ArtistId = defaultArtistId;
         }
 
-        // 第四步：确保专辑存在（此时 ArtistId 已正确设置）
+        // 第四步：批量确保专辑存在（此时 ArtistId 已正确设置）
         var albumKeys = toInsert
             .Where(s => !string.IsNullOrEmpty(s.Album))
             .Select(s => (s.Album!, s.ArtistId))
             .Distinct()
-            .Where(k => !_albumCache.ContainsKey(k))
             .ToList();
 
-        foreach (var key in albumKeys)
+        var albumMap = await _db.EnsureAlbumsBatchAsync(albumKeys);
+        foreach (var kvp in albumMap)
         {
-            if (!_albumCache.ContainsKey(key))
-            {
-                var id = await _db.EnsureAlbumAsync(key.Item1, key.Item2);
-                _albumCache[key] = id;
-            }
+            if (!_albumCache.ContainsKey(kvp.Key))
+                _albumCache[kvp.Key] = kvp.Value;
         }
 
         // 第五步：设置 AlbumId 和 DateAdded
@@ -330,6 +330,9 @@ public class MusicScanner
 
         _totalInserted += inserted.Count;
         _batchCallback?.Invoke(inserted);
+
+        flushSw.Stop();
+        System.Diagnostics.Debug.WriteLine($"[CatClaw] 批次刷写：{toInsert.Length} 首，插入 {inserted.Count}，累计 {_totalInserted}，耗时 {flushSw.ElapsedMilliseconds}ms");
     }
 
     /// <summary>

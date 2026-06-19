@@ -180,10 +180,16 @@ public class LyricRendererView : FrameLayout
             if (_scrollView == null) return;
             if (value != null && !_clickWired)
             {
-                _scrollView.Click += OnScrollViewClick;
+                _scrollView.SetOnTouchListener(new ClickTouchListener(this));
+                _scrollView.Clickable = true;
                 _clickWired = true;
             }
-            _scrollView.Clickable = value != null;
+            else if (value == null)
+            {
+                if (!_enableDragSeek)
+                    _scrollView.SetOnTouchListener(null);
+                _scrollView.Clickable = false;
+            }
         }
     }
 
@@ -1416,6 +1422,62 @@ public class LyricRendererView : FrameLayout
             {
                 // 捕获异常，避免崩溃
             }
+        }
+    }
+
+    /// <summary>
+    /// 点击触摸监听器：在 ScrollView 上识别单次轻触（未触发滚动），触发全屏歌词切换。
+    /// 返回 false 不消费事件，保证 ScrollView 拖拽滚动不受影响。
+    /// </summary>
+    private class ClickTouchListener : Java.Lang.Object, View.IOnTouchListener
+    {
+        private readonly LyricRendererView _owner;
+        private float _startX, _startY;
+        private bool _isClick;
+        private static readonly int ClickSlopDp = 12;
+
+        public ClickTouchListener(LyricRendererView owner) => _owner = owner;
+
+        public bool OnTouch(View? v, MotionEvent? e)
+        {
+            if (e == null || v == null) return false;
+            var density = v.Resources?.DisplayMetrics?.Density ?? 1f;
+            var slop = ClickSlopDp * density;
+
+            switch (e.Action)
+            {
+                case MotionEventActions.Down:
+                    _startX = e.GetX();
+                    _startY = e.GetY();
+                    _isClick = true;
+                    break;
+
+                case MotionEventActions.Move:
+                    if (_isClick)
+                    {
+                        var dx = Math.Abs(e.GetX() - _startX);
+                        var dy = Math.Abs(e.GetY() - _startY);
+                        if (dx > slop || dy > slop)
+                            _isClick = false;
+                    }
+                    break;
+
+                case MotionEventActions.Up:
+                    if (_isClick)
+                    {
+                        var dx = Math.Abs(e.GetX() - _startX);
+                        var dy = Math.Abs(e.GetY() - _startY);
+                        if (dx <= slop && dy <= slop)
+                            _owner._onClickCallback?.Invoke();
+                    }
+                    _isClick = false;
+                    break;
+
+                case MotionEventActions.Cancel:
+                    _isClick = false;
+                    break;
+            }
+            return false;
         }
     }
 

@@ -68,116 +68,88 @@
 
         <LinearLayout android:layout_width="0dp" android:layout_height="match_parent"
             android:layout_weight="1"
-            android:orientation="vertical" android:clipChildren="false">
+            android:orientation="vertical">
 
             <CatClawMusic.UI.Helpers.LyricRendererView android:id="@+id/lyric_renderer"
                 android:layout_width="match_parent"
-                android:layout_height="0dp" android:layout_weight="1"
-                android:layout_marginBottom="160dp"
-                android:clipChildren="false" />
+                android:layout_height="0dp" android:layout_weight="1" />
 
             <CatClawMusic.UI.Helpers.AudioVisualizerView android:id="@+id/audio_visualizer"
                 android:layout_width="match_parent" android:layout_height="48dp"
                 android:layout_marginHorizontal="16dp" />
 
+            <!-- 进度条行：不参与自动隐藏 -->
+            <LinearLayout android:id="@+id/progress_row"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingHorizontal="18dp" android:paddingTop="4dp">
+                <TextView android:id="@+id/time_current" android:layout_width="36dp"
+                    android:layout_height="wrap_content" android:text="0:00"
+                    android:textColor="#DDFFFFFF" android:textSize="11sp"
+                    android:gravity="center" />
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/progress_slider"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:layout_marginHorizontal="8dp"
+                    android:valueFrom="0" android:valueTo="100" android:value="0"
+                    app:thumbRadius="8dp"
+                    app:thumbColor="#FFFFFF"
+                    app:haloColor="@android:color/transparent"
+                    app:trackColorActive="#FFFFFF"
+                    app:trackColorInactive="#50FFFFFF"
+                    app:trackHeight="2dp" />
+                <TextView android:id="@+id/time_total" android:layout_width="36dp"
+                    android:layout_height="wrap_content" android:text="0:00"
+                    android:textColor="#DDFFFFFF" android:textSize="11sp"
+                    android:gravity="center" />
+            </LinearLayout>
+
+            <!-- 播放控件卡片：参与自动隐藏 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/controls_card"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginHorizontal="0dp" android:layout_marginTop="0dp" android:layout_marginBottom="0dp"
+                android:layout_marginBottom="8dp"
                 app:cardCornerRadius="24dp" app:cardElevation="0dp"
                 app:strokeColor="#15CCCCCC" app:strokeWidth="1dp"
                 app:cardBackgroundColor="#26000000">
 
                 <LinearLayout android:id="@+id/controls_area"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="vertical" android:paddingHorizontal="18dp"
-                    android:paddingTop="10dp" android:paddingBottom="10dp">
+                    android:orientation="horizontal" android:gravity="center"
+                    android:paddingHorizontal="18dp"
+                    android:paddingTop="8dp" android:paddingBottom="8dp">
 
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:orientation="horizontal" android:gravity="center_vertical">
-                        <TextView android:id="@+id/time_current" android:layout_width="36dp"
-                            android:layout_height="wrap_content" android:text="0:00"
-                            android:textColor="#DDFFFFFF" android:textSize="11sp"
-                            android:gravity="center" />
-                        <com.google.android.material.slider.Slider
-                            android:id="@+id/progress_slider"
-                            android:layout_width="0dp" android:layout_height="wrap_content"
-                            android:layout_weight="1" android:layout_marginHorizontal="8dp"
-                            android:valueFrom="0" android:valueTo="100" android:value="0"
-                            app:thumbRadius="8dp"
-                            app:thumbColor="#FFFFFF"
-                            app:haloColor="@android:color/transparent"
-                            app:trackColorActive="#FFFFFF"
-                            app:trackColorInactive="#50FFFFFF"
-                            app:trackHeight="2dp" />
-                        <TextView android:id="@+id/time_total" android:layout_width="36dp"
-                            android:layout_height="wrap_content" android:text="0:00"
-                            android:textColor="#DDFFFFFF" android:textSize="11sp"
-                            android:gravity="center" />
-                    </LinearLayout>
+                    <ImageButton android:id="@+id/btn_landscape" android:layout_width="36dp"
+                        android:layout_height="36dp" android:src="@drawable/ic_landscape"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="2dp" android:tint="#FFFFFF"
+                        android:layout_marginEnd="8dp" />
 
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:orientation="horizontal" android:gravity="center_vertical"
-                        android:layout_marginTop="2dp">
-                        <ImageButton android:id="@+id/btn_landscape" android:layout_width="28dp"
-                            android:layout_height="28dp" android:src="@drawable/ic_landscape"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="2dp" />
-                        <ImageButton android:id="@+id/btn_visualizer_toggle" android:layout_width="28dp"
-                            android:layout_height="28dp" android:src="@drawable/ic_equalizer"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="2dp" android:layout_marginStart="4dp" />
-                        <ImageButton android:id="@+id/btn_eq" android:layout_width="28dp"
-                            android:layout_height="28dp" android:src="@drawable/ic_eq"
-                            android:contentDescription="音效"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="2dp" android:layout_marginStart="4dp" />
-                        <ImageButton android:id="@+id/btn_sleep_timer" android:layout_width="28dp"
-                            android:layout_height="28dp" android:src="@drawable/ic_sleep"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="2dp" android:layout_marginStart="4dp" />
-                        <TextView android:id="@+id/sleep_timer_text" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:textColor="#DDFFFFFF"
-                            android:textSize="10sp" android:visibility="gone"
-                            android:layout_marginStart="2dp" />
-                        <View android:layout_width="0dp" android:layout_height="0dp"
-                            android:layout_weight="1" />
-                        <ImageButton android:id="@+id/btn_playlist" android:layout_width="28dp"
-                            android:layout_height="28dp" android:src="@drawable/ic_playlist"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:tint="#DDFFFFFF" android:padding="2dp" />
-                    </LinearLayout>
+                    <ImageButton android:id="@+id/btn_like" android:layout_width="40dp"
+                        android:layout_height="40dp" android:src="@drawable/ic_favorite_border"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:layout_marginEnd="8dp" android:tint="#FFFFFF" />
 
-                    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:orientation="horizontal" android:gravity="center"
-                        android:layout_gravity="center_horizontal" android:layout_marginTop="6dp">
+                    <ImageButton android:id="@+id/btn_prev" android:layout_width="44dp"
+                        android:layout_height="44dp" android:src="@drawable/ic_skip_previous"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:layout_marginEnd="4dp" android:tint="#FFFFFF" />
 
-                        <ImageButton android:id="@+id/btn_like" android:layout_width="40dp"
-                            android:layout_height="40dp" android:src="@drawable/ic_favorite_border"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:layout_marginEnd="4dp" android:tint="#FFFFFF" />
+                    <ImageButton android:id="@+id/btn_play_pause"
+                        android:layout_width="56dp" android:layout_height="56dp"
+                        android:src="@drawable/ic_play"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:layout_marginHorizontal="4dp" android:tint="#FFFFFF" />
 
-                        <ImageButton android:id="@+id/btn_prev" android:layout_width="44dp"
-                            android:layout_height="44dp" android:src="@drawable/ic_skip_previous"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:layout_marginEnd="4dp" android:tint="#FFFFFF" />
+                    <ImageButton android:id="@+id/btn_next" android:layout_width="44dp"
+                        android:layout_height="44dp" android:src="@drawable/ic_skip_next"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:layout_marginStart="4dp" android:tint="#FFFFFF" />
 
-                        <ImageButton android:id="@+id/btn_play_pause"
-                            android:layout_width="56dp" android:layout_height="56dp"
-                            android:src="@drawable/ic_play"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:layout_marginHorizontal="10dp" android:tint="#FFFFFF" />
-
-                        <ImageButton android:id="@+id/btn_next" android:layout_width="44dp"
-                            android:layout_height="44dp" android:src="@drawable/ic_skip_next"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:layout_marginEnd="4dp" android:tint="#FFFFFF" />
-
-                        <ImageButton android:id="@+id/btn_mode_cycle" android:layout_width="40dp"
-                            android:layout_height="40dp" android:src="@drawable/ic_repeat"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:layout_marginStart="4dp" android:tint="#FFFFFF" />
-                    </LinearLayout>
+                    <ImageButton android:id="@+id/btn_mode_cycle" android:layout_width="40dp"
+                        android:layout_height="40dp" android:src="@drawable/ic_repeat"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:layout_marginStart="8dp" android:tint="#FFFFFF" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

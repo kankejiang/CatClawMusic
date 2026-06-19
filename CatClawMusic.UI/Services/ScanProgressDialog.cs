@@ -63,11 +63,23 @@ public class ScanProgressDialog : Dialog
         _tvCount.Text = $"已发现 {count} 首歌曲";
     }
 
-    public void SetCompleted(string message)
+    public void SetCountText(string? text)
+    {
+        if (_tvCount == null) return;
+        if (string.IsNullOrEmpty(text))
+            _tvCount.Visibility = ViewStates.Gone;
+        else
+        {
+            _tvCount.Visibility = ViewStates.Visible;
+            _tvCount.Text = text;
+        }
+    }
+
+    public void SetCompleted(string title, string message)
     {
         if (_tvStatus == null) return;
         _isCompleted = true;
-        _tvTitle.Text = "扫描完成";
+        _tvTitle.Text = title;
         _tvStatus.Text = message;
         _progressBar.Progress = 100;
         _tvDetail.Text = "100%";
@@ -77,17 +89,23 @@ public class ScanProgressDialog : Dialog
         SetCanceledOnTouchOutside(true);
     }
 
-    public void SetError(string message)
+    public void SetCompleted(string message)
+        => SetCompleted("扫描完成", message);
+
+    public void SetError(string title, string message)
     {
         if (_tvStatus == null) return;
         _isCompleted = true;
-        _tvTitle.Text = "扫描失败";
+        _tvTitle.Text = title;
         _tvStatus.Text = message;
         _btnClose.Enabled = true;
         _btnClose.Alpha = 1.0f;
         SetCancelable(true);
         SetCanceledOnTouchOutside(true);
     }
+
+    public void SetError(string message)
+        => SetError("扫描失败", message);
 
     public override void OnBackPressed()
     {

@@ -110,7 +110,7 @@ public static class MusicUtility
     /// </summary>
     public static List<string> ScanFolderRecursive(string rootPath)
     {
-        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var results = new System.Collections.Concurrent.ConcurrentBag<string>();
         if (!Directory.Exists(rootPath)) return new List<string>();
 
         ScanDirectoryRecursive(new DirectoryInfo(rootPath), results);
@@ -295,9 +295,9 @@ public static class MusicUtility
     }
 
     /// <summary>
-    /// 递归扫描目录和子目录下的音频文件
+    /// 递归扫描目录和子目录下的音频文件，子目录并行遍历以加速深层目录树扫描
     /// </summary>
-    private static void ScanDirectoryRecursive(DirectoryInfo dir, HashSet<string> results)
+    private static void ScanDirectoryRecursive(DirectoryInfo dir, System.Collections.Concurrent.ConcurrentBag<string> results)
     {
         if (!dir.Exists) return;
 
@@ -309,9 +309,13 @@ public static class MusicUtility
                     results.Add(file.FullName);
             }
 
-            foreach (var subDir in dir.EnumerateDirectories())
+            var subDirs = dir.EnumerateDirectories().ToList();
+            if (subDirs.Count > 0)
             {
-                ScanDirectoryRecursive(subDir, results);
+                Parallel.ForEach(subDirs, new ParallelOptions { MaxDegreeOfParallelism = 4 }, subDir =>
+                {
+                    ScanDirectoryRecursive(subDir, results);
+                });
             }
         }
         catch

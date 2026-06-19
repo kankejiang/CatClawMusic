@@ -123,8 +123,8 @@
         <item name="catClawGradientEnd">#3F1A2D</item>
     </style>
 
-    <!-- 启动画面 -->
-    <style name="CatClaw.Splash" parent="Theme.Material3.Light.NoActionBar">
+    <!-- 启动画面（继承 CatClawTheme 以获得自定义属性） -->
+    <style name="CatClaw.Splash" parent="CatClawTheme">
         <item name="android:windowBackground">@drawable/splash_screen</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>

@@ -129,9 +129,11 @@ public class BackupRestoreFragment : SettingsSubPageFragment
         var cbPlayHistory = new CheckBox(Context!) { Text = "播放记录", Checked = true };
         var cbFavorites = new CheckBox(Context!) { Text = "收藏", Checked = true };
         var cbArtists = new CheckBox(Context!) { Text = "艺术家元数据", Checked = true };
+        var cbArtistCovers = new CheckBox(Context!) { Text = "艺术家照片", Checked = true };
         var cbLlm = new CheckBox(Context!) { Text = "AI模型配置", Checked = true };
 
-        var checkBoxes = new[] { cbPlaylists, cbPlayHistory, cbFavorites, cbArtists, cbLlm };
+        var checkBoxes = new[] { cbPlaylists, cbPlayHistory, cbFavorites, cbArtists, cbArtistCovers, cbLlm };
+
         foreach (var cb in checkBoxes)
         {
             cb.SetTextSize(Android.Util.ComplexUnitType.Sp, sp14);
@@ -154,6 +156,7 @@ public class BackupRestoreFragment : SettingsSubPageFragment
                 if (cbPlayHistory.Checked) items |= BackupItems.PlayHistory;
                 if (cbFavorites.Checked) items |= BackupItems.Favorites;
                 if (cbArtists.Checked) items |= BackupItems.Artists;
+                if (cbArtistCovers.Checked) items |= BackupItems.ArtistCovers;
                 if (cbLlm.Checked) items |= BackupItems.LlmConfigs;
 
                 if (items == BackupItems.None)
@@ -171,10 +174,17 @@ public class BackupRestoreFragment : SettingsSubPageFragment
     {
         try
         {
+            var progress = new Progress<BackupProgress>(p =>
+                Activity?.RunOnUiThread(() => UpdateBottomProgress(p.Percent, p.Message)));
+
+            Activity?.RunOnUiThread(() => ShowBottomProgress(true, 0, "正在备份..."));
+
             var backupService = MainApplication.Services.GetRequiredService<BackupService>();
-            var path = await backupService.BackupAsync(GetExternalStoragePath(), items);
+            var path = await backupService.BackupAsync(GetExternalStoragePath(), items, progress);
+
             Activity?.RunOnUiThread(() =>
             {
+                ShowBottomProgress(false, 100, "");
                 Toast.MakeText(Context, $"备份成功\n已保存到 {path}", ToastLength.Long)?.Show();
                 RefreshBackupList();
             });
@@ -183,8 +193,60 @@ public class BackupRestoreFragment : SettingsSubPageFragment
         {
             System.Diagnostics.Debug.WriteLine($"[Backup] 备份失败: {ex.Message}");
             Activity?.RunOnUiThread(() =>
-                Toast.MakeText(Context, $"备份失败: {ex.Message}", ToastLength.Long)?.Show());
+            {
+                ShowBottomProgress(false, 0, "");
+                Toast.MakeText(Context, $"备份失败: {ex.Message}", ToastLength.Long)?.Show();
+            });
         }
+    }
+
+    private async Task DoRestoreAsync(string backupPath, BackupItems items)
+    {
+        try
+        {
+            var progress = new Progress<BackupProgress>(p =>
+                Activity?.RunOnUiThread(() => UpdateBottomProgress(p.Percent, p.Message)));
+
+            Activity?.RunOnUiThread(() => ShowBottomProgress(true, 0, "正在恢复..."));
+
+            var backupService = MainApplication.Services.GetRequiredService<BackupService>();
+            await backupService.RestoreAsync(backupPath, items, progress);
+
+            Activity?.RunOnUiThread(() =>
+            {
+                ShowBottomProgress(false, 100, "");
+                Toast.MakeText(Context, "恢复成功", ToastLength.Short)?.Show();
+            });
+        }
+        catch (System.Exception ex)
+        {
+            Activity?.RunOnUiThread(() =>
+            {
+                ShowBottomProgress(false, 0, "");
+                Toast.MakeText(Context, $"恢复失败: {ex.Message}", ToastLength.Long)?.Show();
+            });
+        }
+    }
+
+    /// <summary>显示/隐藏底部扫描进度条</summary>
+    private void ShowBottomProgress(bool visible, int progress, string status)
+    {
+        var bar = Activity?.FindViewById<View>(Resource.Id.scan_progress_bar);
+        var pgr = Activity?.FindViewById<ProgressBar>(Resource.Id.scan_progress);
+        var txt = Activity?.FindViewById<TextView>(Resource.Id.scan_status_text);
+        if (bar == null) return;
+        bar.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
+        if (pgr != null) pgr.Progress = progress;
+        if (txt != null) txt.Text = status;
+    }
+
+    /// <summary>更新底部扫描进度条</summary>
+    private void UpdateBottomProgress(int progress, string status)
+    {
+        var pgr = Activity?.FindViewById<ProgressBar>(Resource.Id.scan_progress);
+        var txt = Activity?.FindViewById<TextView>(Resource.Id.scan_status_text);
+        if (pgr != null) pgr.Progress = progress;
+        if (txt != null) txt.Text = status;
     }
 
     // ═══════════ 恢复 ═══════════
@@ -216,7 +278,7 @@ public class BackupRestoreFragment : SettingsSubPageFragment
                 if (info != null)
                 {
                     var date = info.CreatedAt.ToString("yyyy-MM-dd HH:mm");
-                    label = $"{date}  |  {info.Playlists.Count}个歌单  {info.PlayHistory.Count}条记录  {info.Artists.Count}位歌手  {info.LlmConfigs.Count}个AI配置";
+                    label = $"{date}  |  {info.Playlists.Count}个歌单  {info.PlayHistory.Count}条记录  {info.Artists.Count}位歌手  {info.ArtistCovers.Count}张照片  {info.LlmConfigs.Count}个AI配置";
                 }
                 else { label = fileName; }
 
@@ -249,6 +311,8 @@ public class BackupRestoreFragment : SettingsSubPageFragment
                 checkBoxes.Add((new CheckBox(Context!) { Text = $"收藏 ({info.Favorites.Count}首)", Checked = true }, BackupItems.Favorites));
             if (info.Artists.Count > 0)
                 checkBoxes.Add((new CheckBox(Context!) { Text = $"艺术家元数据 ({info.Artists.Count}位)", Checked = true }, BackupItems.Artists));
+            if (info.ArtistCovers.Count > 0)
+                checkBoxes.Add((new CheckBox(Context!) { Text = $"艺术家照片 ({info.ArtistCovers.Count}张)", Checked = true }, BackupItems.ArtistCovers));
             if (info.LlmConfigs.Count > 0)
                 checkBoxes.Add((new CheckBox(Context!) { Text = $"AI模型配置 ({info.LlmConfigs.Count}个)", Checked = true }, BackupItems.LlmConfigs));
         }
@@ -286,18 +350,7 @@ public class BackupRestoreFragment : SettingsSubPageFragment
                     return;
                 }
 
-                try
-                {
-                    var backupService = MainApplication.Services.GetRequiredService<BackupService>();
-                    await backupService.RestoreAsync(backupPath, items);
-                    Activity?.RunOnUiThread(() =>
-                        Toast.MakeText(Context, "恢复成功", ToastLength.Short)?.Show());
-                }
-                catch (System.Exception ex)
-                {
-                    Activity?.RunOnUiThread(() =>
-                        Toast.MakeText(Context, $"恢复失败: {ex.Message}", ToastLength.Long)?.Show());
-                }
+                await DoRestoreAsync(backupPath, items);
             })
             .AddNegativeButton("取消")
             .Show();
@@ -331,7 +384,7 @@ public class BackupRestoreFragment : SettingsSubPageFragment
         var fileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
         // 解析文件名中的日期 backup_20250115_143022
         string dateStr = fileName;
-        if (fileName.StartsWith("backup_") && fileName.Length > 22)
+        if (fileName.StartsWith("backup_") && fileName.Length >= 22)
         {
             var datePart = fileName.Substring(7); // 20250115_143022
             if (datePart.Length >= 15)
