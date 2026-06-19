@@ -99,8 +99,6 @@ CatClawMusic/
 │   ├── NetEaseMusicScraper.cs  # 网易云音乐元数据爬虫（主爬虫）
 │   ├── AiArtistScraper.cs      # AI/LLM 艺术家信息爬虫
 │   ├── MultiSourcePhotoScraper.cs # QQ音乐等多源图片爬虫
-│   ├── BaiduBaikeScraper.cs    # 百度百科爬虫
-│   ├── DoubanScraper.cs        # 豆瓣爬虫
 │   └── IArtistMetadataScraper.cs # 爬虫接口 + ArtistSearchResult
 │
 └── CatClawMusic.UI/            # UI 层（Android 原生界面）
@@ -287,8 +285,6 @@ CatClawMusic/
 | 网易云音乐 | 主爬虫：艺术家简介、性别、地区、头像 |
 | AI/LLM | 通过 AI 模型补充艺术家信息 |
 | QQ 音乐 | 多源图片爬虫，搜索高分辨率艺术家照片 |
-| 百度百科 | 补充中文百科信息 |
-| 豆瓣 | 补充电影/音乐数据库信息 |
 | 爬虫链 | 优先级链式调用：网易云 → AI → QQ 音乐 |
 
 ### 📊 每日推荐
