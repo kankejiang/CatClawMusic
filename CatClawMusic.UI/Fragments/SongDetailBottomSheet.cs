@@ -570,6 +570,7 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
         var ctx = Context;
         if (ctx == null || _song == null) return;
 
+        var scrollView = new ScrollView(ctx);
         var ll = new LinearLayout(ctx)
         {
             Orientation = Orientation.Vertical,
@@ -578,6 +579,18 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
         };
         ll.SetPadding(48, 24, 48, 16);
 
+        // ── 元数据编辑 ──
+        var tvSection1 = new TextView(ctx)
+        {
+            Text = "📝 元数据",
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+        };
+        tvSection1.SetTextSize(Android.Util.ComplexUnitType.Sp, 16f);
+        tvSection1.SetTextColor(Android.Graphics.Color.ParseColor("#FF8C00"));
+        tvSection1.SetPadding(0, 0, 0, 12);
+        ll.AddView(tvSection1);
+
         var etTitle = CreateEditField(ctx, "歌曲标题", _song.Title);
         var etArtist = CreateEditField(ctx, "艺术家", _song.Artist);
         var etAlbum = CreateEditField(ctx, "专辑", _song.Album);
@@ -585,9 +598,84 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
         ll.AddView(etArtist);
         ll.AddView(etAlbum);
 
+        // ── 分隔线 ──
+        ll.AddView(CreateSectionDivider(ctx));
+
+        // ── 歌词搜索 ──
+        var tvSection2 = new TextView(ctx)
+        {
+            Text = "🎵 在线歌词搜索",
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+        };
+        tvSection2.SetTextSize(Android.Util.ComplexUnitType.Sp, 16f);
+        tvSection2.SetTextColor(Android.Graphics.Color.ParseColor("#4CAF50"));
+        tvSection2.SetPadding(0, 16, 0, 8);
+        ll.AddView(tvSection2);
+
+        var tvLyricHint = new TextView(ctx)
+        {
+            Text = $"搜索\"{_song.Artist} - {_song.Title}\"的在线歌词",
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+        };
+        tvLyricHint.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+        tvLyricHint.SetTextColor(Android.Graphics.Color.Gray);
+        tvLyricHint.SetPadding(0, 0, 0, 8);
+        ll.AddView(tvLyricHint);
+
+        var resultsListLyric = new LinearLayout(ctx)
+        {
+            Orientation = Orientation.Vertical,
+            Visibility = ViewStates.Gone
+        };
+        ll.AddView(resultsListLyric);
+
+        var btnSearchLyric = new Android.Widget.Button(ctx)
+        {
+            Text = "🔍 搜索歌词 (网易云/QQ/酷狗/汽水/Apple)",
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+        };
+        btnSearchLyric.SetAllCaps(false);
+        ll.AddView(btnSearchLyric);
+
+        // ── 分隔线 ──
+        ll.AddView(CreateSectionDivider(ctx));
+
+        // ── 封面搜索 ──
+        var tvSection3 = new TextView(ctx)
+        {
+            Text = "🖼️ 在线封面搜索",
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+        };
+        tvSection3.SetTextSize(Android.Util.ComplexUnitType.Sp, 16f);
+        tvSection3.SetTextColor(Android.Graphics.Color.ParseColor("#E91E63"));
+        tvSection3.SetPadding(0, 16, 0, 8);
+        ll.AddView(tvSection3);
+
+        var resultsListCover = new LinearLayout(ctx)
+        {
+            Orientation = Orientation.Vertical,
+            Visibility = ViewStates.Gone
+        };
+        ll.AddView(resultsListCover);
+
+        var btnSearchCover = new Android.Widget.Button(ctx)
+        {
+            Text = "🔍 搜索封面",
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+        };
+        btnSearchCover.SetAllCaps(false);
+        ll.AddView(btnSearchCover);
+
+        scrollView.AddView(ll);
+
         var dialog = new Google.Android.Material.Dialog.MaterialAlertDialogBuilder(ctx)
             .SetTitle("编辑歌曲信息")
-            .SetView(ll)
+            .SetView(scrollView)
             .SetPositiveButton("保存", async (s, e) =>
             {
                 var newTitle = etTitle.Text?.Trim();
@@ -628,7 +716,285 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
             .SetNegativeButton("取消", (s, e) => { })
             .Create();
 
+        // Wire up search buttons
+        btnSearchLyric.Click += async (s, e) =>
+        {
+            btnSearchLyric.Enabled = false;
+            btnSearchLyric.Text = "搜索中...";
+            await SearchLyricsInDialogAsync(ctx, resultsListLyric, resultsListCover);
+            btnSearchLyric.Text = "🔍 重新搜索歌词";
+            btnSearchLyric.Enabled = true;
+        };
+
+        btnSearchCover.Click += async (s, e) =>
+        {
+            btnSearchCover.Enabled = false;
+            btnSearchCover.Text = "搜索中...";
+            await SearchCoversInDialogAsync(ctx, resultsListCover, resultsListLyric);
+            btnSearchCover.Text = "🔍 重新搜索封面";
+            btnSearchCover.Enabled = true;
+        };
+
         dialog?.Show();
+    }
+
+    private static View CreateSectionDivider(Android.Content.Context ctx)
+    {
+        var divider = new View(ctx)
+        {
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent, 1)
+        };
+        divider.SetBackgroundColor(Android.Graphics.Color.ParseColor("#33FFFFFF"));
+        return divider;
+    }
+
+    private async Task SearchLyricsInDialogAsync(Android.Content.Context ctx,
+        LinearLayout resultsList, LinearLayout otherResultsList)
+    {
+        if (_song == null) return;
+        resultsList.RemoveAllViews();
+        otherResultsList.RemoveAllViews();
+        resultsList.Visibility = ViewStates.Gone;
+
+        var keyword = $"{_song.Artist} {_song.Title}".Trim();
+        if (string.IsNullOrWhiteSpace(keyword)) return;
+
+        var searchService = new MultiSourceSearchService();
+        var results = await Task.Run(() => searchService.SearchAllAsync(keyword));
+
+        if (results.Count == 0)
+        {
+            var tv = new TextView(ctx)
+            {
+                Text = "未找到在线歌词",
+                LayoutParameters = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+            };
+            tv.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+            tv.SetTextColor(Android.Graphics.Color.Gray);
+            tv.SetPadding(0, 8, 0, 8);
+            resultsList.AddView(tv);
+            resultsList.Visibility = ViewStates.Visible;
+            return;
+        }
+
+        var sourceLabels = new Dictionary<string, string> {
+            ["netease"] = "网易云", ["qq"] = "QQ音乐", ["kugou"] = "酷狗",
+            ["soda"] = "汽水", ["apple"] = "Apple"
+        };
+
+        foreach (var r in results.Take(12))
+        {
+            var sourceTag = sourceLabels.GetValueOrDefault(r.Source, r.Source);
+            var itemText = $"[{sourceTag}] {r.Title}  —  {r.Artist}";
+            var btn = new Android.Widget.Button(ctx)
+            {
+                Text = itemText,
+                LayoutParameters = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+                { TopMargin = 4 }
+            };
+            btn.SetAllCaps(false);
+            btn.Gravity = Android.Views.GravityFlags.Start;
+            btn.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+            btn.SetPadding(12, 8, 12, 8);
+
+            var captured = r;
+            btn.Click += async (s2, e2) =>
+            {
+                btn.Enabled = false;
+                btn.Text = "获取中...";
+                await FetchAndSaveLyricFromDialogAsync(ctx, captured, searchService);
+                btn.Text = "✓ 已保存";
+            };
+
+            resultsList.AddView(btn);
+        }
+        resultsList.Visibility = ViewStates.Visible;
+    }
+
+    private async Task FetchAndSaveLyricFromDialogAsync(Android.Content.Context ctx,
+        SearchResultItem item, MultiSourceSearchService searchService)
+    {
+        if (_song == null) return;
+        try
+        {
+            var result = await Task.Run(() => searchService.FetchLyricAsync(item));
+            if (result == null || string.IsNullOrWhiteSpace(result.LrcContent))
+            {
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(ctx, "该源歌词不可用", ToastLength.Short)?.Show());
+                return;
+            }
+
+            var rawLrc = result.LrcContent;
+            if (!string.IsNullOrWhiteSpace(result.TlyricContent))
+                rawLrc = MergeLrcWithTranslation(rawLrc, result.TlyricContent);
+
+            var lyricsService = MainApplication.Services.GetRequiredService<LyricsService>();
+            var parsed = await Task.Run(() => lyricsService.TryParseLyrics(rawLrc));
+            if (parsed == null)
+            {
+                Activity?.RunOnUiThread(() =>
+                    Toast.MakeText(ctx, "歌词解析失败", ToastLength.Short)?.Show());
+                return;
+            }
+
+            var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+            await db.EnsureInitializedAsync();
+            await db.SaveLyricAsync(_song.Id, null, rawLrc);
+
+            var formatted = LyricsFormatter.FormatLrcLyrics(parsed);
+            _externalLyrics = formatted;
+
+            Activity?.RunOnUiThread(() =>
+            {
+                _rbExternal.Enabled = true;
+                _rbExternal.Checked = true;
+                _tvLyrics.Text = formatted;
+                var sourceLabel = new Dictionary<string, string> {
+                    ["netease"]="网易云",["qq"]="QQ音乐",["kugou"]="酷狗",["soda"]="汽水",["apple"]="Apple"
+                }.GetValueOrDefault(item.Source, item.Source);
+                Toast.MakeText(ctx, $"已保存 {sourceLabel} 歌词", ToastLength.Short)?.Show();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SongDetail] FetchLyric: {ex}");
+            Activity?.RunOnUiThread(() =>
+                Toast.MakeText(ctx, "获取失败", ToastLength.Short)?.Show());
+        }
+    }
+
+    private async Task SearchCoversInDialogAsync(Android.Content.Context ctx,
+        LinearLayout resultsList, LinearLayout otherResultsList)
+    {
+        if (_song == null) return;
+        resultsList.RemoveAllViews();
+        otherResultsList.RemoveAllViews();
+        resultsList.Visibility = ViewStates.Gone;
+
+        var keyword = $"{_song.Artist} {_song.Title}".Trim();
+        if (string.IsNullOrWhiteSpace(keyword)) return;
+
+        var searchService = new MultiSourceSearchService();
+        var results = await Task.Run(() => searchService.SearchAllAsync(keyword));
+
+        // Filter those with cover URLs
+        var withCovers = results.Where(r => !string.IsNullOrWhiteSpace(r.CoverUrl)).Take(8).ToList();
+        if (withCovers.Count == 0)
+        {
+            var tv = new TextView(ctx)
+            {
+                Text = "未找到封面图片",
+                LayoutParameters = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+            };
+            tv.SetTextSize(Android.Util.ComplexUnitType.Sp, 13f);
+            tv.SetTextColor(Android.Graphics.Color.Gray);
+            tv.SetPadding(0, 8, 0, 8);
+            resultsList.AddView(tv);
+            resultsList.Visibility = ViewStates.Visible;
+            return;
+        }
+
+        var sourceLabels = new Dictionary<string, string> {
+            ["netease"] = "网易云", ["qq"] = "QQ音乐", ["kugou"] = "酷狗",
+            ["soda"] = "汽水", ["apple"] = "Apple"
+        };
+
+        foreach (var r in withCovers)
+        {
+            var sourceTag = sourceLabels.GetValueOrDefault(r.Source, r.Source);
+            var itemText = $"[{sourceTag}]{(!string.IsNullOrWhiteSpace(r.Album) ? " " + r.Album : "")}";
+            var btn = new Android.Widget.Button(ctx)
+            {
+                Text = itemText,
+                LayoutParameters = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent)
+                { TopMargin = 4 }
+            };
+            btn.SetAllCaps(false);
+            btn.Gravity = Android.Views.GravityFlags.Start;
+            btn.SetTextSize(Android.Util.ComplexUnitType.Sp, 12f);
+            btn.SetPadding(12, 8, 12, 8);
+
+            var captured = r;
+            btn.Click += async (s2, e2) =>
+            {
+                btn.Enabled = false;
+                btn.Text = "下载中...";
+                await DownloadAndSaveCoverAsync(ctx, captured);
+                btn.Text = "✓ 已设置";
+            };
+
+            resultsList.AddView(btn);
+        }
+        resultsList.Visibility = ViewStates.Visible;
+    }
+
+    private async Task DownloadAndSaveCoverAsync(Android.Content.Context ctx, SearchResultItem item)
+    {
+        if (_song == null || string.IsNullOrWhiteSpace(item.CoverUrl)) return;
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            var bytes = await http.GetByteArrayAsync(item.CoverUrl);
+            if (bytes == null || bytes.Length < 1024) return;
+
+            // Save to cover directory
+            var coverDir = System.IO.Path.Combine(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal),
+                "covers");
+            System.IO.Directory.CreateDirectory(coverDir);
+            var coverPath = System.IO.Path.Combine(coverDir, $"cover_{_song.Id}.jpg");
+            await System.IO.File.WriteAllBytesAsync(coverPath, bytes);
+
+            // Update song
+            _song.CoverArtPath = coverPath;
+            var db = MainApplication.Services.GetRequiredService<MusicDatabase>();
+            await db.EnsureInitializedAsync();
+            await db.SaveSongAsync(_song);
+
+            Activity?.RunOnUiThread(() =>
+            {
+                Toast.MakeText(ctx, "封面已更新", ToastLength.Short)?.Show();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SongDetail] DownloadCover: {ex}");
+            Activity?.RunOnUiThread(() =>
+                Toast.MakeText(ctx, "封面下载失败", ToastLength.Short)?.Show());
+        }
+    }
+
+    /// <summary>将 LRC 原文与翻译合并</summary>
+    private static string MergeLrcWithTranslation(string lrc, string tlyric)
+    {
+        if (string.IsNullOrWhiteSpace(tlyric)) return lrc;
+        var lrcLines = lrc.Split('\n');
+        var tlyricLines = tlyric.Split('\n');
+        var tlyricDict = new Dictionary<string, string>();
+        foreach (var line in tlyricLines)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(line.Trim(),
+                @"^\[(\d+:\d{2}\.\d+)\](.+)$");
+            if (match.Success)
+                tlyricDict[match.Groups[1].Value] = match.Groups[2].Value.Trim();
+        }
+        var merged = new System.Text.StringBuilder();
+        foreach (var line in lrcLines)
+        {
+            var trimmed = line.Trim();
+            merged.AppendLine(trimmed);
+            var match = System.Text.RegularExpressions.Regex.Match(trimmed,
+                @"^\[(\d+:\d{2}\.\d+)\](.+)$");
+            if (match.Success && tlyricDict.TryGetValue(match.Groups[1].Value, out var trans))
+                merged.AppendLine(trans);
+        }
+        return merged.ToString();
     }
 
     private static EditText CreateEditField(Android.Content.Context ctx, string hint, string text)

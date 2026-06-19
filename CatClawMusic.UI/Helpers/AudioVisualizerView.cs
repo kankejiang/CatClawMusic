@@ -125,7 +125,9 @@ public class AudioVisualizerView : View
             if (_view.TryGetTarget(out var view) && view._isAttached)
             {
                 view._isFrameCallbackPosted = false;
-                if (++_frameCount % 2 == 0)
+                // 空闲时每 4 帧绘制一次，有信号时每 2 帧绘制一次，降低 CPU 占用
+                var skipFrames = view._isIdle ? 4 : 2;
+                if (++_frameCount % skipFrames == 0)
                     view.Invalidate();
                 view.PostFrameCallback();
             }

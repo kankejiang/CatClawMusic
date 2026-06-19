@@ -139,8 +139,9 @@ public class MainActivity : AppCompatActivity
         _miniProgressTimer.Start();
         var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
         var subsonic = MainApplication.Services.GetService<ISubsonicService>();
-        /* 后台恢复播放状态，不阻塞 UI 线程；异常已内部处理不会导致闪退 */
-        var restoreTask = Task.Run(() => PlaybackStateManager.RestoreAsync(player, db, queue, npVm, networkMusic, subsonic));
+        /* 恢复播放状态（不阻塞 UI）；必须直接调用而非 Task.Run，
+           因为 ExoPlayer 要求 Player 操作始终在创建它的线程（主线程）上执行 */
+        _ = PlaybackStateManager.RestoreAsync(player, db, queue, npVm, networkMusic, subsonic);
 
         _toolbar = FindViewById<View>(Resource.Id.toolbar)!;
         _btnMenu = FindViewById<ImageButton>(Resource.Id.btn_menu)!;

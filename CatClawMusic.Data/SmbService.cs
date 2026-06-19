@@ -336,7 +336,7 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
-    public Task<List<RemoteFile>> ListAllFilesAsync(string path)
+    public Task<List<RemoteFile>> ListAllFilesAsync(string path, WebDavServerType serverType = WebDavServerType.Standard)
         => Task.FromResult(new List<RemoteFile>());
 
     /// <summary>

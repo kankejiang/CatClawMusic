@@ -25,7 +25,13 @@ public class NetworkMusicService : INetworkMusicService
     private readonly INetworkFileService _webDav;
     private readonly INetworkFileService _smb;
 
-    private static readonly SemaphoreSlim ScanSemaphore = new(2, 2);
+    private static readonly SemaphoreSlim ScanSemaphore = new(8, 8);
+    /// <summary>控制递归目录扫描的并发数（OpenList 等不支持深度 PROPFIND 的服务器）</summary>
+    private static readonly SemaphoreSlim DirScanSemaphore = new(4, 4);
+
+    /// <summary>OpenList stream URL 缓存：filePath → (url, expiry)，避免每次播放重复 API 调用</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string url, DateTime expiry)> _streamUrlCache = new();
+    private static readonly TimeSpan StreamUrlCacheTtl = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// 创建网络音乐服务实例
@@ -194,6 +200,64 @@ public class NetworkMusicService : INetworkMusicService
         if (profile.Protocol == ProtocolType.WebDAV)
         {
             _webDav.Configure(profile);
+
+            // OpenList: 使用 raw_url (CDN 直链) 下载文件头，WebDAV 端点 302 到 CDN 会拒绝 Basic Auth
+            var isOpenList = (WebDavServerType)profile.ServerType == WebDavServerType.OpenList;
+            if (!isOpenList && _webDav is WebDavService wdsCheck && wdsCheck.CurrentServerType == WebDavServerType.OpenList)
+                isOpenList = true;
+
+            if (isOpenList && _webDav is WebDavService openListService)
+            {
+                try
+                {
+                    // 优先复用播放用的 /d/ URL（已缓存，无需额外 API 调用）
+                    string? downloadUrl = null;
+                    if (_streamUrlCache.TryGetValue(songId, out var cached) && cached.expiry > DateTime.UtcNow)
+                    {
+                        downloadUrl = cached.url;
+                        System.Diagnostics.Debug.WriteLine("[CatClaw] Cover: 复用播放缓存 URL");
+                    }
+
+                    // 缓存不可用：获取 CDN raw_url
+                    if (string.IsNullOrEmpty(downloadUrl))
+                        downloadUrl = await openListService.GetOpenListDownloadUrlAsync(songId);
+
+                    if (!string.IsNullOrEmpty(downloadUrl))
+                    {
+                        using var httpClient = new HttpClient(new SocketsHttpHandler
+                        {
+                            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+                            {
+                                RemoteCertificateValidationCallback = (_, _, _, _) => true
+                            },
+                            ConnectTimeout = TimeSpan.FromSeconds(10),
+                            AllowAutoRedirect = true
+                        })
+                        { Timeout = TimeSpan.FromSeconds(15) };
+
+                        var rangeReq = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+                        rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, TagHeadSize - 1);
+                        var rangeResp = await httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead);
+                        if (rangeResp.IsSuccessStatusCode)
+                        {
+                            var ms = new MemoryStream();
+                            await rangeResp.Content.CopyToAsync(ms);
+                            ms.Position = 0;
+                            try
+                            {
+                                var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
+                                if (coverBytes != null)
+                                    return new MemoryStream(coverBytes);
+                            }
+                            finally { ms.Dispose(); }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] OpenList 封面提取失败: {ex.Message}");
+                }
+            }
 
             try
             {
@@ -440,15 +504,53 @@ public class NetworkMusicService : INetworkMusicService
     /// <param name="song">歌曲对象</param>
     /// <param name="profile">连接配置</param>
     /// <returns>流播放 URL</returns>
-    public Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile)
+    public async Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile)
     {
         if (profile.Protocol == ProtocolType.Navidrome)
-            return Task.FromResult(_subsonic.GetStreamUrl(song.RemoteId ?? song.FilePath, profile));
+            return _subsonic.GetStreamUrl(song.RemoteId ?? song.FilePath, profile);
+
         if (profile.Protocol == ProtocolType.WebDAV)
-            return Task.FromResult(BuildWebDavStreamUrl(song.RemoteId ?? song.FilePath, profile));
+        {
+            var filePath = song.RemoteId ?? song.FilePath;
+
+            // OpenList: 使用 /d/ 端点 + token，绕过 302+Auth→400 问题
+            var isOpenList = (WebDavServerType)profile.ServerType == WebDavServerType.OpenList;
+            if (!isOpenList)
+            {
+                _webDav.Configure(profile);
+                if (_webDav is WebDavService wds && wds.CurrentServerType == WebDavServerType.OpenList)
+                    isOpenList = true;
+            }
+            if (isOpenList)
+            {
+                _webDav.Configure(profile);
+                if (_webDav is WebDavService webDavService)
+                {
+                    // 检查缓存，避免短时间内重复请求 /api/fs/get
+                    var cacheKey = filePath;
+                    if (_streamUrlCache.TryGetValue(cacheKey, out var cached)
+                        && cached.expiry > DateTime.UtcNow)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl cache hit: {cacheKey[..Math.Min(60, cacheKey.Length)]}");
+                        return cached.url;
+                    }
+
+                    var openListUrl = await webDavService.GetOpenListStreamUrlAsync(filePath);
+                    if (!string.IsNullOrEmpty(openListUrl))
+                    {
+                        _streamUrlCache[cacheKey] = (openListUrl, DateTime.UtcNow + StreamUrlCacheTtl);
+                        return openListUrl;
+                    }
+                }
+            }
+
+            return BuildWebDavStreamUrl(filePath, profile);
+        }
+
         if (profile.Protocol == ProtocolType.SMB)
-            return Task.FromResult(BuildSmbStreamUrl(song.RemoteId ?? song.FilePath, profile));
-        return Task.FromResult(song.FilePath);
+            return BuildSmbStreamUrl(song.RemoteId ?? song.FilePath, profile);
+
+        return song.FilePath;
     }
 
     private static string BuildSmbStreamUrl(string filePath, ConnectionProfile profile)
@@ -520,21 +622,43 @@ public class NetworkMusicService : INetworkMusicService
         catch { }
 
         var scanner = new MusicScanner(_db, songBatchCallback);
+        var serverType = (WebDavServerType)profile.ServerType;
 
-        var allFiles = await _webDav.ListAllFilesAsync(basePath);
+        // OpenList/Alist：先快速扫描入库（不下载元数据），再后台补齐元数据
+        var quickScan = serverType == WebDavServerType.OpenList;
+
+        var allFiles = await _webDav.ListAllFilesAsync(basePath, serverType);
+
+        // 自动检测：如果 ListAllFiles 内部切换了 ServerType，同步到 profile 并保存
+        if (_webDav is WebDavService wds && wds.CurrentServerType == WebDavServerType.OpenList
+            && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList)
+        {
+            System.Diagnostics.Debug.WriteLine("[WebDAV Scan] 自动检测到 OpenList，更新 profile.ServerType");
+            profile.ServerType = (int)WebDavServerType.OpenList;
+            try { await _db.SaveConnectionProfileAsync(profile); } catch { }
+            serverType = WebDavServerType.OpenList;
+        }
+
         if (allFiles.Count > 0)
         {
             System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 成功，找到 {allFiles.Count} 个文件，并发处理中...");
-            await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner);
+            await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner, quickScan);
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine("[WebDAV Scan] 深度 PROPFIND 不支持，回退到递归扫描");
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 不支持，回退到递归扫描 (quickScan={quickScan})");
             var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs);
+            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan);
         }
 
         await scanner.FlushAsync();
+
+        // 快速扫描模式：后台异步补齐元数据（不阻塞扫描完成）
+        if (quickScan && songs.Count > 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 快速扫描完成，{songs.Count} 首歌曲已入库，后台补齐元数据...");
+            _ = Task.Run(async () => await FetchMetadataInBackgroundAsync(songs, profile));
+        }
 
         return (songs, foundIds);
     }
@@ -561,7 +685,7 @@ public class NetworkMusicService : INetworkMusicService
     /// 并发处理深度 PROPFIND 返回的扁平文件列表
     /// </summary>
     private async Task ProcessFileListAsync(List<RemoteFile> allFiles, ConnectionProfile profile,
-        List<Song> songs, HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner)
+        List<Song> songs, HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, bool quickScan = false)
     {
         var audioFiles = allFiles
             .Where(f =>
@@ -604,16 +728,24 @@ public class NetworkMusicService : INetworkMusicService
                     CoverArtPath = file.Path
                 };
 
-                try
+                if (!quickScan)
                 {
-                    var tagged = await FetchWebDavMetadataAsync(song, profile);
-                    if (tagged == null)
+                    try
+                    {
+                        var tagged = await FetchWebDavMetadataAsync(song, profile);
+                        if (tagged == null)
+                        {
+                            song.Artist = "未知艺术家";
+                            song.Album = "未知专辑";
+                        }
+                    }
+                    catch
                     {
                         song.Artist = "未知艺术家";
                         song.Album = "未知专辑";
                     }
                 }
-                catch
+                else
                 {
                     song.Artist = "未知艺术家";
                     song.Album = "未知专辑";
@@ -636,7 +768,7 @@ public class NetworkMusicService : INetworkMusicService
     /// 递归扫描 WebDAV 目录（回退方案，当深度 PROPFIND 不支持时使用）
     /// </summary>
     private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
-        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
+        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, bool quickScan = false, int depth = 0)
     {
         if (depth > MaxScanDepth)
             return;
@@ -679,8 +811,20 @@ public class NetworkMusicService : INetworkMusicService
             }
         }
 
-        foreach (var subDir in subDirs)
-            await ScanWebDavDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
+        // 并行扫描子目录（限制并发数避免服务器过载）
+        var subDirTasks = subDirs.Select(subDir => Task.Run(async () =>
+        {
+            await DirScanSemaphore.WaitAsync();
+            try
+            {
+                await ScanWebDavDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, depth + 1);
+            }
+            finally
+            {
+                DirScanSemaphore.Release();
+            }
+        }));
+        await Task.WhenAll(subDirTasks);
 
         if (audioFiles.Count == 0) return;
 
@@ -713,16 +857,24 @@ public class NetworkMusicService : INetworkMusicService
                     CoverArtPath = file.Path
                 };
 
-                try
+                if (!quickScan)
                 {
-                    var tagged = await FetchWebDavMetadataAsync(song, profile);
-                    if (tagged == null)
+                    try
+                    {
+                        var tagged = await FetchWebDavMetadataAsync(song, profile);
+                        if (tagged == null)
+                        {
+                            song.Artist = "未知艺术家";
+                            song.Album = "未知专辑";
+                        }
+                    }
+                    catch
                     {
                         song.Artist = "未知艺术家";
                         song.Album = "未知专辑";
                     }
                 }
-                catch
+                else
                 {
                     song.Artist = "未知艺术家";
                     song.Album = "未知专辑";
@@ -739,6 +891,35 @@ public class NetworkMusicService : INetworkMusicService
         }));
 
         await Task.WhenAll(metadataTasks);
+    }
+
+    /// <summary>
+    /// 后台异步补齐歌曲元数据（OpenList 快速扫描模式使用）
+    /// 延迟启动，逐首串行下载，避免与播放抢带宽
+    /// </summary>
+    private async Task FetchMetadataInBackgroundAsync(List<Song> songs, ConnectionProfile profile)
+    {
+        // 延迟 10 秒启动，优先让播放流建立稳定连接
+        await Task.Delay(10_000);
+
+        _webDav.Configure(profile);
+        var updated = 0;
+        foreach (var song in songs)
+        {
+            try
+            {
+                var tagged = await FetchWebDavMetadataAsync(song, profile);
+                if (tagged != null)
+                {
+                    await _db.SaveSongAsync(song);
+                    updated++;
+                }
+            }
+            catch { }
+            // 每首之间等待 200ms，避免突发并发请求占满带宽
+            await Task.Delay(200);
+        }
+        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 后台元数据补齐完成: {updated}/{songs.Count} 首已更新");
     }
 
     private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanSmbAsync(

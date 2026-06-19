@@ -1,5 +1,6 @@
 using Android.OS;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Models;
 using CatClawMusic.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Timers;
@@ -29,6 +30,8 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     private long _lastSeekUtcTicks;
     /// <summary>Seek 抑制窗口（毫秒），在此期间忽略 ExoPlayer 的 STATE_ENDED 以避免拖动进度条误切歌</summary>
     private const int SeekGuardMs = 800;
+    /// <summary>播放后延迟缓存清理的取消令牌</summary>
+    private CancellationTokenSource? _cacheEvictCts;
 
     private Am? _audioManager;
     private bool _pausedByFocusLoss;
@@ -217,9 +220,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
     private async Task PrepareCoreAsync(string filePathOrUrl, bool autoPlay)
     {
-        // 立即让出主线程，确保点击处理函数能快速返回，避免 ANR
-        await Task.Yield();
-
+        // 先同步完成 PlayLater 检查和状态重置（调用方可能在主线程，直接执行避免委派延迟）
         _isPrepared = false;
         _lastPlaybackState = 1;
         _cachedPositionMs = 0;
@@ -228,6 +229,43 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         {
             var playUrl = filePathOrUrl;
             string? authHeader = null;
+
+            // WebDAV/OpenList: 尝试通过 GetStreamUrlAsync 获取正确的播放 URL
+            // OpenList 的 /dav/ 端点 302 到 CDN，CDN 拒绝 Basic Auth → 需要 /d/ 端点
+            // 此处理对正常播放（非 Restore）也必须执行
+            // 使用 Task.Run 将网络调用移到后台线程，避免 continuation 阻塞主线程
+            if ((filePathOrUrl.StartsWith("http://") || filePathOrUrl.StartsWith("https://"))
+                && filePathOrUrl.Contains("@"))
+            {
+                try
+                {
+                    var freshUrl = await Task.Run(async () =>
+                    {
+                        var networkMusic = MainApplication.Services.GetService<INetworkMusicService>();
+                        if (networkMusic == null) return null;
+
+                        var profiles = await networkMusic.GetProfilesAsync();
+                        var webdavProfile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.WebDAV && p.IsEnabled);
+                        if (webdavProfile == null) return null;
+
+                        var tempSong = new Song { FilePath = filePathOrUrl, RemoteId = filePathOrUrl };
+                        return await networkMusic.GetStreamUrlAsync(tempSong, webdavProfile);
+                    });
+
+                    if (!string.IsNullOrEmpty(freshUrl) && !freshUrl.Contains("@"))
+                    {
+                        // 获取到了不含 Auth 的 URL（OpenList /d/ 端点），直接使用
+                        playUrl = freshUrl;
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] OpenList 播放 URL 已解析: {freshUrl[..Math.Min(80, freshUrl.Length)]}");
+                        // 跳过后续的 Basic Auth 提取，直接到 ExoPlayer 创建
+                        goto BuildMediaItem;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] OpenList URL 解析失败（回退 WebDAV）: {ex.Message}");
+                }
+            }
 
             if (filePathOrUrl.StartsWith("http://") || filePathOrUrl.StartsWith("https://"))
             {
@@ -263,7 +301,11 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                     throw new Exception("SMB 文件缓存失败");
             }
 
-            await RunOnMainThreadAsync(() => EnsurePlayer(authHeader));
+            // OpenList /d/ URL 已解析完成，跳过 Basic Auth 提取
+            BuildMediaItem:
+
+            // 直接创建/复用 ExoPlayer（Xamarin Java interop 可从任意线程调用）
+            EnsurePlayer(authHeader);
 
             if (!playUrl.Contains("://") && !playUrl.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
                 playUrl = "file://" + playUrl;
@@ -281,23 +323,20 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
             _readyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             prevTcs?.TrySetCanceled();
 
-            await RunOnMainThreadAsync(() =>
-            {
-                _player!.Stop();
-                _player.ClearMediaItems();
-                _player.SetMediaItem(mediaItem);
-                _player.Prepare();
-            });
+            _player!.Stop();
+            _player.ClearMediaItems();
+            _player.SetMediaItem(mediaItem);
+            _player.Prepare();
 
             for (int i = 0; i < 100; i++)
             {
                 await Task.Delay(100);
                 if (_readyTcs.Task.IsCompleted) break;
-                var state = await RunOnMainThreadAsync(() => _player!.PlaybackState);
+                var state = _player!.PlaybackState;
                 if (state == 3) { _readyTcs.TrySetResult(true); break; }
                 if (state == 1 && i > 5)
                 {
-                    var ex = await RunOnMainThreadAsync(() => _player!.PlayerError);
+                    var ex = _player!.PlayerError;
                     if (ex != null)
                     {
                         _readyTcs.TrySetException(new Exception($"播放准备失败: {ex.ErrorCodeName}"));
@@ -320,16 +359,17 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
 
             if (autoPlay)
             {
-                await RunOnMainThreadAsync(() => _player!.PlayWhenReady = true);
+                _player!.PlayWhenReady = true;
                 RequestAudioFocus();
                 AcquireWakeLock();
                 StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
                 StartPositionTimer();
                 ForegroundPlayerService.Start(global::Android.App.Application.Context);
+                ScheduleCacheEviction();
             }
             else
             {
-                await RunOnMainThreadAsync(() => _player!.PlayWhenReady = false);
+                _player!.PlayWhenReady = false;
                 StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
             }
         }
@@ -494,7 +534,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         }
 
         var mediaSourceFactory = new AndroidX.Media3.ExoPlayer.Source.DefaultMediaSourceFactory(ctx)
-            .SetDataSourceFactory(new CatClawDataSourceFactory(httpFactory, ctx));
+            .SetDataSourceFactory(new CatClawDataSourceFactory(httpFactory, ctx, authHeader));
 
         var builder = new AndroidX.Media3.ExoPlayer.SimpleExoPlayer.Builder(ctx)
             .SetMediaSourceFactory(mediaSourceFactory);
@@ -679,10 +719,44 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
         });
     }
 
+    /// <summary>
+    /// 播放开始后 1 分钟延迟执行缓存清理。如果歌曲时长不足 60 秒则跳过。
+    /// 每次播放新歌时会取消上一次的定时器。
+    /// </summary>
+    private void ScheduleCacheEviction()
+    {
+        _cacheEvictCts?.Cancel();
+        _cacheEvictCts?.Dispose();
+
+        var durationMs = _player?.Duration ?? 0;
+        if (durationMs > 0 && durationMs < 60_000) return; // 歌曲太短，跳过
+
+        var cts = new CancellationTokenSource();
+        _cacheEvictCts = cts;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), cts.Token);
+                var prefs = global::Android.App.Application.Context.GetSharedPreferences(
+                    Fragments.GeneralSettingsFragment.PrefsName,
+                    global::Android.Content.FileCreationMode.Private);
+                int maxGb = prefs!.GetInt(Fragments.GeneralSettingsFragment.KeyCacheSizeGB, 1);
+                await Fragments.GeneralSettingsFragment.EvictCacheAsync(maxGb);
+            }
+            catch (System.OperationCanceledException) { }
+            catch (Exception ex) { ALog.Warn("CatClaw", $"[CatClaw] 缓存清理失败: {ex.Message}"); }
+        });
+    }
+
     /// <summary>释放播放器资源</summary>
     public void Dispose()
     {
         StopPositionTimer();
+        _cacheEvictCts?.Cancel();
+        _cacheEvictCts?.Dispose();
+        _cacheEvictCts = null;
         ReleaseWakeLock();
         AbandonAudioFocus();
         if (_player != null)
@@ -698,26 +772,31 @@ internal class CatClawDataSourceFactory : Java.Lang.Object, AndroidX.Media3.Data
 {
     private readonly AndroidX.Media3.DataSource.IDataSourceFactory _httpFactory;
     private readonly global::Android.Content.Context _ctx;
+    private readonly string? _authHeader;
 
     public CatClawDataSourceFactory(
         AndroidX.Media3.DataSource.IDataSourceFactory httpFactory,
-        global::Android.Content.Context ctx)
+        global::Android.Content.Context ctx,
+        string? authHeader = null)
     {
         _httpFactory = httpFactory;
         _ctx = ctx;
+        _authHeader = authHeader;
     }
 
     public AndroidX.Media3.DataSource.IDataSource CreateDataSource()
     {
-        return new CatClawDataSource(_httpFactory, _ctx);
+        return new CatClawDataSource(_httpFactory, _ctx, _authHeader);
     }
 }
 
-/// <summary>自定义数据源，根据 URI scheme 动态选择 HTTP 或 content 数据源</summary>
+/// <summary>自定义数据源，根据 URI scheme 动态选择 HTTP 或 content 数据源。
+/// 对于带 Auth 的 HTTP 请求，手动处理 302 重定向（重定向后去掉 Auth 头，CDN 拒带 Auth）。</summary>
 internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.IDataSource
 {
     private readonly AndroidX.Media3.DataSource.IDataSourceFactory _httpFactory;
     private readonly global::Android.Content.Context _ctx;
+    private readonly string? _authHeader;
     private AndroidX.Media3.DataSource.IDataSource? _current;
     private global::Android.Net.Uri? _contentUri;
     private System.IO.Stream? _contentStream;
@@ -726,12 +805,18 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
     private static readonly IDictionary<string, IList<string>> _contentResponseHeaders =
         new Dictionary<string, IList<string>>();
 
+    // HTTP 直连模式字段
+    private System.Net.Http.HttpResponseMessage? _httpResponse;
+    private bool _isHttpDirectMode;
+
     public CatClawDataSource(
         AndroidX.Media3.DataSource.IDataSourceFactory httpFactory,
-        global::Android.Content.Context ctx)
+        global::Android.Content.Context ctx,
+        string? authHeader = null)
     {
         _httpFactory = httpFactory;
         _ctx = ctx;
+        _authHeader = authHeader;
     }
 
     public long Open(AndroidX.Media3.DataSource.DataSpec? dataSpec)
@@ -818,6 +903,13 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         }
         else
         {
+            // HTTP/HTTPS：如果有 Auth 头，用 .NET HttpClient 手动处理重定向
+            // （DefaultHttpDataSource 302 后仍带 Auth 头，OpenList CDN 返回 400）
+            // 注意：此方法运行在 ExoPlayer 的加载线程（后台线程），不会有 NetworkOnMainThreadException
+            if (!string.IsNullOrEmpty(_authHeader))
+            {
+                return OpenHttpWithManualRedirect(dataSpec!);
+            }
             _current = _httpFactory.CreateDataSource();
         }
         try
@@ -879,13 +971,143 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         return streamTask.Result;
     }
 
+    /// <summary>
+    /// 用 .NET HttpClient 手动处理 HTTP 请求和 302 重定向。
+    /// 首次请求带 Basic Auth，重定向后不带 Auth（CDN 拒带 Auth 头）。
+    /// 支持 Range 请求用于 seek。
+    /// 此方法运行在 ExoPlayer 加载线程（后台线程）。
+    /// </summary>
+    private long OpenHttpWithManualRedirect(AndroidX.Media3.DataSource.DataSpec dataSpec)
+    {
+        try
+        {
+            var url = dataSpec.Uri?.ToString() ?? "";
+            _contentUri = dataSpec.Uri;
+
+            ALog.Debug("CatClaw", $"[CatClawDataSource] HTTP 直连模式: {url[..Math.Min(80, url.Length)]}, position={dataSpec.Position}");
+
+            var currentUrl = url;
+            for (int i = 0; i < 5; i++)
+            {
+                HttpResponseMessage response;
+
+                if (i == 0)
+                {
+                    // 首次请求：带 Basic Auth
+                    var handler = new HttpClientHandler
+                    {
+                        AllowAutoRedirect = false,
+                        ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+                    };
+                    var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+                    client.DefaultRequestHeaders.Add("Authorization", _authHeader!);
+
+                    var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
+                    if (dataSpec.Position > 0)
+                        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue((long)dataSpec.Position, null);
+
+                    // 注意：Android 上 HttpClient.Send() 同步方法不被支持，必须用 SendAsync
+                    response = client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    // 重定向后：不带 Auth 的 SocketsHttpHandler（纯 .NET 实现，避免 Java HttpURLConnection 重定向循环问题）
+                    var noAuthHandler = new System.Net.Http.SocketsHttpHandler
+                    {
+                        AllowAutoRedirect = false,
+                        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+                        {
+                            RemoteCertificateValidationCallback = (_, _, _, _) => true
+                        },
+                        ConnectTimeout = TimeSpan.FromSeconds(15)
+                    };
+                    var noAuthClient = new HttpClient(noAuthHandler) { Timeout = TimeSpan.FromSeconds(60) };
+
+                    var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
+                    // 仅首次重定向保留 Range 头
+                    if (i == 1 && dataSpec.Position > 0)
+                        request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue((long)dataSpec.Position, null);
+
+                    response = noAuthClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
+                }
+
+                var statusCode = (int)response.StatusCode;
+
+                if (statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308)
+                {
+                    var location = response.Headers.Location;
+                    response.Dispose();
+                    if (location == null)
+                        throw new Java.IO.IOException($"HTTP {statusCode} 重定向但缺少 Location 头");
+
+                    var nextUrl = location.IsAbsoluteUri
+                        ? location.ToString()
+                        : new Uri(new Uri(currentUrl), location).ToString();
+
+                    // 检测重定向循环（CDN 返回 302 指向自身）—— 比较更新前的 URL
+                    if (nextUrl == currentUrl)
+                    {
+                        ALog.Warn("CatClaw", $"[CatClawDataSource] 检测到重定向循环，URL: {currentUrl[..Math.Min(80, currentUrl.Length)]}");
+                        throw new Java.IO.IOException($"CDN 重定向循环: {statusCode}");
+                    }
+
+                    var previousUrl = currentUrl;
+                    currentUrl = nextUrl;
+                    ALog.Debug("CatClaw", $"[CatClawDataSource] 重定向: {statusCode} -> {currentUrl[..Math.Min(80, currentUrl.Length)]}...");
+
+                    // 额外检测：如果两次重定向到同一个 CDN URL（不同签名的循环）
+                    if (i >= 2 && nextUrl.Contains("cmecloud.cn") && previousUrl.Contains("cmecloud.cn"))
+                    {
+                        ALog.Warn("CatClaw", $"[CatClawDataSource] 检测到 CDN 多次重定向，可能循环");
+                    }
+                    continue;
+                }
+
+                response.EnsureSuccessStatusCode();
+
+                // 成功获取响应流（保持 response 存活，读取流时需要它）
+                _contentStream = response.Content.ReadAsStream();
+                _httpResponse = response;
+                _isHttpDirectMode = true;
+                _contentPosition = dataSpec.Position;
+
+                // 获取内容长度
+                var contentLength = response.Content.Headers.ContentLength;
+                if (contentLength.HasValue && contentLength.Value >= 0)
+                    _contentLength = contentLength.Value;
+                else if (response.Content.Headers.ContentRange?.Length != null)
+                    _contentLength = response.Content.Headers.ContentRange.Length.Value;
+                else
+                    _contentLength = -1;
+
+                ALog.Debug("CatClaw", $"[CatClawDataSource] HTTP 流打开成功, length={_contentLength}, range={dataSpec.Position}");
+                return _contentLength >= 0 ? _contentLength : -1;
+            }
+
+            throw new Java.IO.IOException("HTTP 重定向次数过多");
+        }
+        catch (Java.IO.IOException) { throw; }
+        catch (Exception ex)
+        {
+            ALog.Warn("CatClaw", $"[CatClawDataSource] HTTP 直连失败: {ex.Message}");
+            // 回退到不带 Auth 的 DefaultHttpDataSource（适用于无需认证的直接 URL）
+            _isHttpDirectMode = false;
+            var noAuthFactory = new AndroidX.Media3.DataSource.DefaultHttpDataSource.Factory()
+                .SetAllowCrossProtocolRedirects(true)
+                .SetConnectTimeoutMs(30_000)
+                .SetReadTimeoutMs(60_000);
+            _current = noAuthFactory.CreateDataSource();
+            return _current.Open(dataSpec);
+        }
+    }
+
     public int Read(byte[]? buffer, int offset, int length)
     {
-        if (_contentStream != null)
+        if (_contentStream != null || _isHttpDirectMode)
         {
             try
             {
-                int read = _contentStream.Read(buffer!, offset, length);
+                int read = _contentStream!.Read(buffer!, offset, length);
                 if (read <= 0) return -1;
                 _contentPosition += read;
                 return read;
@@ -918,6 +1140,9 @@ internal class CatClawDataSource : Java.Lang.Object, AndroidX.Media3.DataSource.
         _contentUri = null;
         _contentLength = -1;
         _contentPosition = 0;
+        _isHttpDirectMode = false;
+        try { _httpResponse?.Dispose(); } catch { }
+        _httpResponse = null;
         _current?.Close();
     }
 

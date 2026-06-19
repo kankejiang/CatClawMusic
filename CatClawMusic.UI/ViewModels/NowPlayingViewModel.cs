@@ -606,6 +606,9 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         CoverSource = "";
         if (song == null) return;
+        // 将封面加载移到后台线程，避免网络/文件 I/O continuation 阻塞主线程
+        await Task.Run(async () =>
+        {
         try
         {
             if (song.Source == SongSource.Local && song.MediaStoreId > 0)
@@ -636,11 +639,13 @@ public partial class NowPlayingViewModel : ObservableObject
                 ? new MemoryStream(coverBytes)
                 : await _musicLibrary.GetAlbumCoverAsync(song);
             ct.ThrowIfCancellationRequested();
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadCover: GetAlbumCover={stream != null}, source={song.Source}, coverArtPath={song.CoverArtPath?[..Math.Min(60, song.CoverArtPath?.Length ?? 0)]}, remoteId={song.RemoteId?[..Math.Min(60, song.RemoteId?.Length ?? 0)]}");
 
             if (stream == null && (song.Source == SongSource.WebDAV || song.Source == SongSource.SMB))
             {
                 stream = await GetNetworkCoverAsync(song);
                 ct.ThrowIfCancellationRequested();
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadCover: GetNetworkCover={stream != null}");
             }
 
             if (stream != null)
@@ -672,7 +677,11 @@ public partial class NowPlayingViewModel : ObservableObject
                 _dispatcher.Post(() => { if (CurrentSong?.Id == songId) CoverSource = coverPath; });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] LoadCover 异常: {ex.GetType().Name}: {ex.Message}");
+        }
+        });
     }
 
     /// <summary>
@@ -944,6 +953,10 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     public async Task LoadLyricsAsync(Song? song, CancellationToken ct = default)
     {
+        // 将所有网络/文件 I/O 移到后台线程，避免 continuation 阻塞主线程
+        // MAUI BindableObject 属性赋值是线程安全的，会从后台线程自动 marshal 到 UI
+        await Task.Run(async () =>
+        {
         if (song == null) { CurrentLyricLine = "🐾 猫爪音乐"; NextLyricLine = "选择一首歌曲开始播放吧~"; PrevLyricLine8 = ""; PrevLyricLine7 = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; NextLyricLine7 = ""; NextLyricLine8 = ""; CurrentLyrics = null; CurrentLyricIndex = -1; _lastSpannableLineIdx = -1; _lastLyricIndex = -999; DuetPartnerIndex = -1; return; }
         var songId = song.Id;
         CurrentLyricLine = ""; NextLyricLine = ""; PrevLyricLine8 = ""; PrevLyricLine7 = ""; PrevLyricLine6 = ""; PrevLyricLine5 = ""; PrevLyricLine4 = ""; PrevLyricLine3 = ""; PrevLyricLine2 = ""; PrevLyricLine = ""; NextLyricLine2 = ""; NextLyricLine3 = ""; NextLyricLine4 = ""; NextLyricLine5 = ""; NextLyricLine6 = ""; NextLyricLine7 = ""; NextLyricLine8 = "";
@@ -1138,6 +1151,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 if (DuetPartnerIndex != -1) DuetPartnerIndex = -1;
             }
         }
+        });
     }
 
     private async Task RecordPlayAsync()
@@ -1337,15 +1351,20 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private async Task<Stream?> GetNetworkCoverAsync(Song song)
     {
-        if (_networkMusic == null) return null;
+        if (_networkMusic == null) { System.Diagnostics.Debug.WriteLine("[CatClaw] Cover: _networkMusic is null"); return null; }
         var coverId = song.CoverArtPath ?? song.RemoteId;
-        if (string.IsNullOrEmpty(coverId)) return null;
+        if (string.IsNullOrEmpty(coverId)) { System.Diagnostics.Debug.WriteLine($"[CatClaw] Cover: no coverId (CoverArtPath={song.CoverArtPath}, RemoteId={song.RemoteId?[..Math.Min(60, song.RemoteId?.Length ?? 0)]})"); return null; }
         var protocol = IsNavidromeSong(song) ? ProtocolType.Navidrome
             : song.Source == SongSource.SMB ? ProtocolType.SMB : ProtocolType.WebDAV;
         var profile = await GetNetworkProfileAsync(protocol);
-        if (profile == null) return null;
-        try { return await _networkMusic.GetCoverAsync(coverId, profile); }
-        catch { return null; }
+        if (profile == null) { System.Diagnostics.Debug.WriteLine($"[CatClaw] Cover: no profile for {protocol}"); return null; }
+        try
+        {
+            var result = await _networkMusic.GetCoverAsync(coverId, profile);
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] Cover: GetCoverAsync={result != null}, coverId={coverId[..Math.Min(60, coverId.Length)]}");
+            return result;
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] Cover: GetCoverAsync exception: {ex.Message}"); return null; }
     }
 
     private static string GetLyricsCachePath(int songId)

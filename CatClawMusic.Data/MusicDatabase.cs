@@ -4,6 +4,14 @@ using SQLite;
 
 namespace CatClawMusic.Data;
 
+/// <summary>持久化迁移标记，记录已完成的一次性维护任务，避免每次启动重复执行</summary>
+[Table("MigrationFlag")]
+internal class MigrationFlag
+{
+    [PrimaryKey] public string Name { get; set; } = "";
+    public string Value { get; set; } = "";
+}
+
 /// <summary>
 /// SQLite 数据库操作层，管理歌曲、艺术家、专辑、播放列表、收藏等数据的持久化
 /// </summary>
@@ -97,6 +105,7 @@ public class MusicDatabase
             await _database.CreateTableAsync<ConnectionProfile>();
             await _database.CreateTableAsync<CachedSong>();
             await _database.CreateTableAsync<SongArtist>();
+            await _database.CreateTableAsync<MigrationFlag>();
 
             await CreateIndexesAsync();
 
@@ -131,7 +140,7 @@ public class MusicDatabase
     }
 
     /// <summary>
-    /// 后台维护：执行耗时的历史数据修复任务
+    /// 后台维护：执行耗时的历史数据修复任务（已完成的任务通过持久化标记跳过）
     /// </summary>
     private async Task RunMaintenanceAsync()
     {
@@ -141,10 +150,18 @@ public class MusicDatabase
             if (_maintenanceCompleted) return;
 
             // 将历史合并艺术家名（如 "国风堂/哦漏"）拆分为独立艺术家
-            await SplitCombinedArtistsAsync();
+            if (!await IsMigrationDoneAsync("split_combined_artists"))
+            {
+                await SplitCombinedArtistsAsync();
+                await MarkMigrationDoneAsync("split_combined_artists");
+            }
 
             // 修复早期版本中 ArtistId=0 导致 AlbumId 关联错误的问题
-            await RepairAlbumAssociationsAsync();
+            if (!await IsMigrationDoneAsync("repair_album_associations"))
+            {
+                await RepairAlbumAssociationsAsync();
+                await MarkMigrationDoneAsync("repair_album_associations");
+            }
 
             _maintenanceCompleted = true;
         }
@@ -152,6 +169,28 @@ public class MusicDatabase
         {
             _maintenanceSemaphore.Release();
         }
+    }
+
+    /// <summary>检查指定迁移是否已完成（持久化标记）</summary>
+    private async Task<bool> IsMigrationDoneAsync(string name)
+    {
+        try
+        {
+            var flag = await _database.Table<MigrationFlag>()
+                .Where(f => f.Name == name).FirstOrDefaultAsync();
+            return flag != null && flag.Value == "done";
+        }
+        catch { return false; }
+    }
+
+    /// <summary>标记指定迁移为已完成</summary>
+    private async Task MarkMigrationDoneAsync(string name)
+    {
+        try
+        {
+            await _database.InsertOrReplaceAsync(new MigrationFlag { Name = name, Value = "done" });
+        }
+        catch { /* 标记写入失败不影响功能，下次启动会重试 */ }
     }
 
     /// <summary>

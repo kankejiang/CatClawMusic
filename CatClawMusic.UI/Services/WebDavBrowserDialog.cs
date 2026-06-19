@@ -87,7 +87,53 @@ public class WebDavBrowserDialog : Dialog
             _isInitialized = true;
             var startPath = _profile.BasePath?.Trim() ?? "/";
             if (string.IsNullOrEmpty(startPath)) startPath = "/";
-            await LoadDirectoryAsync(startPath);
+
+            // 尝试加载目录；如果失败且路径为 /，尝试常见 WebDAV 路径（OpenList/Alist 的 /dav/）
+            var files = await Task.Run(() => _webDav.ListFilesAsync(startPath));
+            if (files.Count == 0 && (startPath == "/" || startPath == ""))
+            {
+                // OpenList/Alist 的 WebDAV 端点通常在 /dav/ 下，根路径返回 405
+                foreach (var tryPath in new[] { "/dav", "/webdav" })
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebDAV Browser] 尝试备选路径: {tryPath}");
+                    var tryFiles = await Task.Run(() => _webDav.ListFilesAsync(tryPath));
+                    if (tryFiles.Count > 0)
+                    {
+                        startPath = tryPath;
+                        files = tryFiles;
+                        break;
+                    }
+                }
+            }
+
+            // 如果已经有文件结果，直接显示
+            if (files.Count > 0)
+            {
+                _currentPath = startPath;
+                var dirs = files.Where(f => f.IsDirectory).OrderBy(f => f.Name).ToList();
+                _items.Clear();
+                _items.AddRange(dirs);
+                _adapter.NotifyDataSetChanged();
+
+                if (dirs.Count == 0)
+                {
+                    _tvEmpty.Visibility = ViewStates.Visible;
+                    _recyclerView.Visibility = ViewStates.Gone;
+                }
+                else
+                {
+                    _recyclerView.Visibility = ViewStates.Visible;
+                    _tvEmpty.Visibility = ViewStates.Gone;
+                }
+                _tvCurrentPath.Text = $"📁 {startPath}";
+                _progressBar.Visibility = ViewStates.Gone;
+                _isLoading = false;
+            }
+            else
+            {
+                // 所有路径都没有结果，使用常规加载
+                await LoadDirectoryAsync(startPath);
+            }
         }
         catch (Exception ex)
         {

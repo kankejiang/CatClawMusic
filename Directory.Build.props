@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <AndroidSdkDirectory>C:\Users\lvjin\AppData\Local\Android\Sdk</AndroidSdkDirectory>
+    <Aapt2SkipVersionCheck>true</Aapt2SkipVersionCheck>
+  </PropertyGroup>
+</Project>

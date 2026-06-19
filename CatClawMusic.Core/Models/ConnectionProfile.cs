@@ -9,10 +9,16 @@ public enum ProtocolType
 {
     WebDAV = 0,
     Navidrome = 1,
-    SMB = 2,
-    DLNA = 3,
-    FTP = 4,
-    NFS = 5
+    SMB = 2
+}
+
+/// <summary>
+/// WebDAV 服务器类型（影响 PROPFIND 深度、重定向策略等）
+/// </summary>
+public enum WebDavServerType
+{
+    Standard = 0,   // 标准 WebDAV（NAS、Apache、IIS 等）
+    OpenList = 1    // OpenList / Alist
 }
 
 /// <summary>
@@ -43,7 +49,7 @@ public class ConnectionProfile
     /// <summary>密码 / Token</summary>
     public string Password { get; set; } = string.Empty;
 
-    /// <summary>基础路径（WebDAV / FTP）</summary>
+    /// <summary>基础路径</summary>
     public string BasePath { get; set; } = "/";
 
     /// <summary>是否启用</summary>
@@ -67,6 +73,11 @@ public class ConnectionProfile
 
     /// <summary>SMB 共享名</summary>
     public string ShareName { get; set; } = "";
+
+    // — WebDAV 专用字段 —
+
+    /// <summary>WebDAV 服务器类型（0=标准, 1=OpenList/Alist）</summary>
+    public int ServerType { get; set; } = 0;
 
     // — 便捷方法 —
 

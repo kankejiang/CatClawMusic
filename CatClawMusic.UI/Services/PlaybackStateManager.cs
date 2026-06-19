@@ -208,15 +208,16 @@ public static class PlaybackStateManager
             {
                 try
                 {
-                    var profiles = await networkMusic.GetProfilesAsync();
-                    var profile = profiles.FirstOrDefault(p => p.Protocol == savedProtocol && p.IsEnabled);
-                    if (profile != null)
+                    var freshUrl = await Task.Run(async () =>
                     {
-                        var freshUrl = await networkMusic.GetStreamUrlAsync(song, profile);
-                        if (!string.IsNullOrEmpty(freshUrl))
-                        {
-                            playUrl = freshUrl;
-                        }
+                        var profiles = await networkMusic.GetProfilesAsync();
+                        var profile = profiles.FirstOrDefault(p => p.Protocol == savedProtocol && p.IsEnabled);
+                        if (profile == null) return null;
+                        return await networkMusic.GetStreamUrlAsync(song, profile);
+                    });
+                    if (!string.IsNullOrEmpty(freshUrl))
+                    {
+                        playUrl = freshUrl;
                     }
                 }
                 catch (Exception ex)

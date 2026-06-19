@@ -4,7 +4,7 @@
 - **构建命令**: `dotnet publish CatClawMusic.UI.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8"`
 - **产出路径**: `publish-apk/CatClawMusic.UI-Signed.apk`
 - **规则**: 每次有较大代码改动后，自动构建 APK
-- **版本**: v1.5.2
+- **版本**: v1.5.3
 
 ## 艺术家元数据
 - **模型**: `ArtistSearchResult` 类（在 `IArtistMetadataScraper.cs` 中）包含以下字段：

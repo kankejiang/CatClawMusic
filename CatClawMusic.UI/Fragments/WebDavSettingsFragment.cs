@@ -1,5 +1,7 @@
 using Android.Views;
+using Android.Widget;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Data;
 using CatClawMusic.UI.Services;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;

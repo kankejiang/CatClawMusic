@@ -133,6 +133,7 @@ public partial class WebDavSettingsViewModel : ObservableObject
     {
         Name = Name, Protocol = ProtocolType.WebDAV, Host = Host.Trim(),
         Port = int.TryParse(Port, out var p) ? p : 5005,
-        UserName = UserName, Password = Password, BasePath = BasePath, UseHttps = UseHttps, IsEnabled = true
+        UserName = UserName, Password = Password, BasePath = BasePath, UseHttps = UseHttps,
+        IsEnabled = true
     };
 }

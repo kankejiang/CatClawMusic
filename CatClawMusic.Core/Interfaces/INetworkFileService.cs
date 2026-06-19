@@ -14,7 +14,7 @@ public interface INetworkFileService
     /// 递归列出所有文件（深度PROPFIND，一次性获取整个目录树）
     /// 如果服务器不支持则返回空列表，调用方应回退到 ListFilesAsync 递归扫描
     /// </summary>
-    Task<List<RemoteFile>> ListAllFilesAsync(string path);
+    Task<List<RemoteFile>> ListAllFilesAsync(string path, Models.WebDavServerType serverType = Models.WebDavServerType.Standard);
     
     /// <summary>
     /// 打开文件流（用于读取）
