@@ -9,10 +9,7 @@ public enum ProtocolType
 {
     WebDAV = 0,
     Navidrome = 1,
-    SMB = 2,
-    DLNA = 3,
-    FTP = 4,
-    NFS = 5
+    SMB = 2
 }
 
 /// <summary>
@@ -43,7 +40,7 @@ public class ConnectionProfile
     /// <summary>密码 / Token</summary>
     public string Password { get; set; } = string.Empty;
 
-    /// <summary>基础路径（WebDAV / FTP）</summary>
+    /// <summary>基础路径</summary>
     public string BasePath { get; set; } = "/";
 
     /// <summary>是否启用</summary>

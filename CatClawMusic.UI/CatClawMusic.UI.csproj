@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
     <ApplicationVersion>34</ApplicationVersion>
-    <ApplicationDisplayVersion>1.4.7</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>1.4.8</ApplicationDisplayVersion>
     <LangVersion>preview</LangVersion>
     <NoWarn>NU1605;NU1608</NoWarn>
     <AndroidUseFastDeployment>True</AndroidUseFastDeployment>

@@ -284,7 +284,7 @@ CatClawMusic.UI/
 **关键属性**:
 - `Id` (int): 主键，自增
 - `Name` (string): 显示名称
-- `Protocol` (ProtocolType): 协议类型（WebDAV/Navidrome/SMB/DLNA/FTP/NFS）
+- `Protocol` (ProtocolType): 协议类型（WebDAV/Navidrome/SMB）
 - `Host` (string): 主机地址
 - `Port` (int): 端口
 - `UserName` (string): 用户名
@@ -2411,9 +2411,6 @@ CREATE TABLE ConnectionProfile (
 - WebDAV
 - SMB/CIFS (SMB2)
 - Navidrome/Subsonic
-- DLNA（计划中）
-- FTP（计划中）
-- NFS（计划中）
 
 ### E. 项目统计
 
@@ -2433,5 +2430,5 @@ CREATE TABLE ConnectionProfile (
 ---
 
 **文档生成时间**: 2026-06-17  
-**项目版本**: 1.4.7  
+**项目版本**: 1.4.8  
 **最后更新**: 2026-06-17
