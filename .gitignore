@@ -375,3 +375,5 @@ FodyWeavers.xsd
 /publish-apk
 /.trae/specs/enhance-lyric-scroll-effects
 /.workbuddy/memory
+/temp_download
+/build_output3.txt

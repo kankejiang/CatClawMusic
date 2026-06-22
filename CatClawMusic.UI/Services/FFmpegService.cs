@@ -77,6 +77,16 @@ public class FFmpegService
         return false;
     }
 
+    /// <summary>获取一个应用可写的安全工作目录，避免默认 '/' 导致 Permission denied</summary>
+    private static string GetSafeWorkingDirectory()
+    {
+        var ctx = global::Android.App.Application.Context;
+        var dir = ctx.FilesDir?.AbsolutePath
+            ?? System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal);
+        System.IO.Directory.CreateDirectory(dir);
+        return dir;
+    }
+
     /// <summary>从 APK Assets 提取与当前 CPU ABI 匹配的内置 FFmpeg 二进制</summary>
     private static async Task<bool> ExtractBundledBinaryAsync(string destPath)
     {
@@ -110,6 +120,7 @@ public class FFmpegService
             {
                 FileName = destPath,
                 Arguments = "-version",
+                WorkingDirectory = GetSafeWorkingDirectory(),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -456,14 +467,30 @@ public class FFmpegService
     {
         try
         {
-            using var chmod = Process.Start(new ProcessStartInfo
-            {
-                FileName = "chmod", Arguments = $"755 \"{path}\"",
-                CreateNoWindow = true, UseShellExecute = false
-            });
-            if (chmod != null) await chmod.WaitForExitAsync();
+            // .NET 7+ 在 Unix 平台可直接设置可执行权限
+            System.IO.File.SetUnixFileMode(path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
         }
-        catch { }
+        catch (Exception ex1)
+        {
+            System.Diagnostics.Debug.WriteLine($"[FFmpeg] SetUnixFileMode 失败: {ex1.Message}，回退 chmod");
+            try
+            {
+                using var chmod = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "chmod", Arguments = $"755 \"{path}\"",
+                    WorkingDirectory = GetSafeWorkingDirectory(),
+                    CreateNoWindow = true, UseShellExecute = false
+                });
+                if (chmod != null) await chmod.WaitForExitAsync();
+            }
+            catch (Exception ex2)
+            {
+                System.Diagnostics.Debug.WriteLine($"[FFmpeg] chmod 失败: {ex2.Message}");
+            }
+        }
     }
 
     private async Task<bool> RunFFmpegAsync(string args, CancellationToken ct)
@@ -475,6 +502,7 @@ public class FFmpegService
             var psi = new ProcessStartInfo
             {
                 FileName = _ffmpegPath, Arguments = args,
+                WorkingDirectory = GetSafeWorkingDirectory(),
                 UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true
