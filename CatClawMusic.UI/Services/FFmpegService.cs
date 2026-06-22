@@ -32,23 +32,34 @@ public class FFmpegService
     public event Action<int>? DownloadProgressChanged;
     public event Action<bool>? DownloadCompleted;
 
+    private static string GetFFmpegDestPath()
+    {
+        // 使用 Android 私有文件目录，避免 SpecialFolder.Personal 在某些 ROM 上映射到不存在路径
+        var filesDir = global::Android.App.Application.Context.FilesDir?.AbsolutePath
+            ?? System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal);
+        var destDir = System.IO.Path.Combine(filesDir, "ffmpeg_bin");
+        System.IO.Directory.CreateDirectory(destDir);
+        return System.IO.Path.Combine(destDir, "ffmpeg");
+    }
+
     public async Task<bool> InitializeAsync()
     {
         if (_initAttempted) return _ffmpegPath != null;
         _initAttempted = true;
 
-        var destPath = System.IO.Path.Combine(
-            System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal), "ffmpeg");
+        var destPath = GetFFmpegDestPath();
 
         // 优先使用已解压的内置二进制
         if (System.IO.File.Exists(destPath))
         {
             await EnsureExecutableAsync(destPath);
             _ffmpegPath = destPath;
+            System.Diagnostics.Debug.WriteLine($"[FFmpeg] 使用已存在的内置二进制: {destPath}");
             return true;
         }
 
         // 首次启动：从 APK Assets 提取对应 ABI 的 FFmpeg 二进制
+        System.Diagnostics.Debug.WriteLine("[FFmpeg] 开始从 APK Assets 提取内置二进制");
         var bundled = await ExtractBundledBinaryAsync(destPath);
         if (bundled)
         {
@@ -161,8 +172,7 @@ public class FFmpegService
     {
         if (IsDownloading) return false;
 
-        var destPath = System.IO.Path.Combine(
-            System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal), "ffmpeg");
+        var destPath = GetFFmpegDestPath();
 
         IsDownloading = true;
         DownloadProgress = 0;
@@ -241,24 +251,35 @@ public class FFmpegService
         return !string.IsNullOrEmpty(ext) && TranscodeExtensions.Contains(ext);
     }
 
-    /// <summary>转码为 WAV</summary>
+    /// <summary>转码为 WAV（ALAC 等格式软解为 ExoPlayer 可播放的 PCM/WAV）</summary>
     public async Task<string?> TranscodeToWavAsync(string inputPath, CancellationToken ct = default)
     {
         // Try MediaCodec first
+        System.Diagnostics.Debug.WriteLine($"[FFmpeg] 开始转码: {inputPath}");
         var wavPath = await MediaCodecToWavAsync(inputPath, ct);
-        if (wavPath != null) return wavPath;
+        if (wavPath != null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[FFmpeg] MediaCodec 转码成功: {wavPath}");
+            return wavPath;
+        }
 
         // Try FFmpeg
         if (_ffmpegPath == null && !await InitializeAsync())
         {
+            System.Diagnostics.Debug.WriteLine("[FFmpeg] 内置二进制不可用，尝试网络下载");
             // Auto-download FFmpeg on first failure
             if (await DownloadAsync())
                 await InitializeAsync();
         }
 
-        if (_ffmpegPath == null) return null;
+        if (_ffmpegPath == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[FFmpeg] 没有可用的 FFmpeg 二进制");
+            return null;
+        }
         if (!System.IO.File.Exists(inputPath)) return null;
 
+        System.Diagnostics.Debug.WriteLine($"[FFmpeg] 使用 FFmpeg 软解: {_ffmpegPath}");
         var outputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
             $"cc_ff_{System.IO.Path.GetFileNameWithoutExtension(inputPath)}_{Guid.NewGuid():N}.wav");
 
@@ -267,10 +288,12 @@ public class FFmpegService
 
         if (!result || !System.IO.File.Exists(outputPath) || new System.IO.FileInfo(outputPath).Length < 1024)
         {
+            System.Diagnostics.Debug.WriteLine("[FFmpeg] FFmpeg 软解失败或输出文件为空");
             SafeDelete(outputPath);
             return null;
         }
 
+        System.Diagnostics.Debug.WriteLine($"[FFmpeg] FFmpeg 软解成功: {outputPath}");
         return outputPath;
     }
 
@@ -453,7 +476,8 @@ public class FFmpegService
             {
                 FileName = _ffmpegPath, Arguments = args,
                 UseShellExecute = false, CreateNoWindow = true,
-                RedirectStandardError = true
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
             };
             using var p = new Process { StartInfo = psi };
             p.Start();
@@ -461,9 +485,23 @@ public class FFmpegService
             cts.CancelAfter(TimeSpan.FromMinutes(2));
             try { await p.WaitForExitAsync(cts.Token); }
             catch (OperationCanceledException) { try { p.Kill(true); } catch { } return false; }
+
+            var stderrTask = p.StandardError.ReadToEndAsync();
+            var stdoutTask = p.StandardOutput.ReadToEndAsync();
+            var stderr = await stderrTask;
+            var stdout = await stdoutTask;
+            if (p.ExitCode != 0)
+            {
+                var combined = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+                System.Diagnostics.Debug.WriteLine($"[FFmpeg] 退出码 {p.ExitCode}, 输出: {combined}");
+            }
             return p.ExitCode == 0;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[FFmpeg] 运行异常: {ex.Message}");
+            return false;
+        }
         finally { _transcodeLock.Release(); }
     }
 
