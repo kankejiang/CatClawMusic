@@ -200,6 +200,7 @@ public class NetworkMusicService : INetworkMusicService
         if (profile.Protocol == ProtocolType.WebDAV)
         {
             _webDav.Configure(profile);
+            if (_webDav is WebDavService wdsEnsure) await wdsEnsure.EnsureDetectedAsync();
 
             // OpenList: 使用 raw_url (CDN 直链) 下载文件头，WebDAV 端点 302 到 CDN 会拒绝 Basic Auth
             var isOpenList = (WebDavServerType)profile.ServerType == WebDavServerType.OpenList;
@@ -313,6 +314,7 @@ public class NetworkMusicService : INetworkMusicService
         if (profile.Protocol == ProtocolType.WebDAV)
         {
             _webDav.Configure(profile);
+            if (_webDav is WebDavService wdsLyrics) await wdsLyrics.EnsureDetectedAsync();
 
             var lastDot = remotePath.LastIndexOf('.');
             if (lastDot > 0)
@@ -410,6 +412,7 @@ public class NetworkMusicService : INetworkMusicService
         if (string.IsNullOrEmpty(remotePath)) return null;
 
         _webDav.Configure(profile);
+        if (_webDav is WebDavService wdsMeta) await wdsMeta.EnsureDetectedAsync();
         try
         {
             var ms = await DownloadHeadAsync(remotePath);
@@ -518,6 +521,7 @@ public class NetworkMusicService : INetworkMusicService
             if (!isOpenList)
             {
                 _webDav.Configure(profile);
+                if (_webDav is WebDavService wdsStream) await wdsStream.EnsureDetectedAsync();
                 if (_webDav is WebDavService wds && wds.CurrentServerType == WebDavServerType.OpenList)
                     isOpenList = true;
             }
@@ -608,6 +612,7 @@ public class NetworkMusicService : INetworkMusicService
         }
 
         _webDav.Configure(profile);
+        if (_webDav is WebDavService wdsScan) await wdsScan.EnsureDetectedAsync();
 
         var foundIds = new HashSet<string>();
         var existingIds = new HashSet<string>();
@@ -623,6 +628,15 @@ public class NetworkMusicService : INetworkMusicService
 
         var scanner = new MusicScanner(_db, songBatchCallback);
         var serverType = (WebDavServerType)profile.ServerType;
+
+        // 如果自动检测发现是 OpenList，同步到 serverType
+        if (serverType != WebDavServerType.OpenList && _webDav is WebDavService wdsScanType
+            && wdsScanType.CurrentServerType == WebDavServerType.OpenList)
+        {
+            serverType = WebDavServerType.OpenList;
+            profile.ServerType = (int)WebDavServerType.OpenList;
+            try { await _db.SaveConnectionProfileAsync(profile); } catch { }
+        }
 
         // OpenList/Alist：先快速扫描入库（不下载元数据），再后台补齐元数据
         var quickScan = serverType == WebDavServerType.OpenList;
@@ -903,6 +917,7 @@ public class NetworkMusicService : INetworkMusicService
         await Task.Delay(10_000);
 
         _webDav.Configure(profile);
+        if (_webDav is WebDavService wdsBg) await wdsBg.EnsureDetectedAsync();
         var updated = 0;
         foreach (var song in songs)
         {

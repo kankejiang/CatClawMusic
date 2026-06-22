@@ -1,6 +1,7 @@
 using Android.OS;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
 using CatClawMusic.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Timers;
@@ -304,73 +305,222 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
             // OpenList /d/ URL 已解析完成，跳过 Basic Auth 提取
             BuildMediaItem:
 
-            // 直接创建/复用 ExoPlayer（Xamarin Java interop 可从任意线程调用）
-            EnsurePlayer(authHeader);
-
-            if (!playUrl.Contains("://") && !playUrl.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
-                playUrl = "file://" + playUrl;
-
-            var uri = global::Android.Net.Uri.Parse(playUrl);
-            if (uri == null)
+            // FFmpeg 通用转码回退：ExoPlayer 不支持的格式转 WAV 播放
+            // 先尝试原生播放，失败后再转码，避免 AAC 等已兼容格式被无谓转码
+            string? TryGetLocalPath(string url)
             {
-                StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Error, ErrorMessage = "URI 解析失败" });
-                return;
+                if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                    return url.Substring(7);
+                if (!url.Contains("://"))
+                    return url;
+                return null;
             }
 
-            var mediaItem = AndroidX.Media3.Common.MediaItem.FromUri(uri);
-
-            var prevTcs = _readyTcs;
-            _readyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            prevTcs?.TrySetCanceled();
-
-            _player!.Stop();
-            _player.ClearMediaItems();
-            _player.SetMediaItem(mediaItem);
-            _player.Prepare();
-
-            for (int i = 0; i < 100; i++)
+            bool ShouldTryFFmpeg(string? localPath)
             {
-                await Task.Delay(100);
-                if (_readyTcs.Task.IsCompleted) break;
-                var state = _player!.PlaybackState;
-                if (state == 3) { _readyTcs.TrySetResult(true); break; }
-                if (state == 1 && i > 5)
+                if (localPath == null) return false;
+                var ext = Path.GetExtension(localPath)?.ToLowerInvariant();
+                return (ext == ".m4a" || ext == ".m4b" || ext == ".mp4" || ext == ".mov" ||
+                        ext == ".wma" || ext == ".ogg" || ext == ".opus" || ext == ".ape" ||
+                        ext == ".wv" || ext == ".aiff" || ext == ".aif" || ext == ".alac") &&
+                       System.IO.File.Exists(localPath);
+            }
+
+            bool IsAlacM4a(string localPath)
+            {
+                try
                 {
-                    var ex = _player!.PlayerError;
-                    if (ex != null)
+                    if (!System.IO.File.Exists(localPath)) return false;
+
+                    // 方法 1：扫描 moov/stsd 中的 alac 标记（最稳健）
+                    if (M4aMetadataReader.IsAlac(localPath))
                     {
-                        _readyTcs.TrySetException(new Exception($"播放准备失败: {ex.ErrorCodeName}"));
-                        break;
+                        System.Diagnostics.Debug.WriteLine("[CatClaw] IsAlacM4a=true (atom scan)");
+                        return true;
                     }
+
+                    // 方法 2：传统音频属性解析
+                    using var fs = System.IO.File.OpenRead(localPath);
+                    var meta = M4aMetadataReader.ReadAudioProperties(fs);
+                    if (meta?.Codec?.Equals("ALAC", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        System.Diagnostics.Debug.WriteLine("[CatClaw] IsAlacM4a=true (properties)");
+                        return true;
+                    }
+
+                    // 方法 3：Android MediaExtractor MIME 探测
+                    try
+                    {
+                        using var extractor = new global::Android.Media.MediaExtractor();
+                        extractor.SetDataSource(localPath);
+                        for (int i = 0; i < extractor.TrackCount; i++)
+                        {
+                            var format = extractor.GetTrackFormat(i);
+                            var mime = format.GetString(global::Android.Media.MediaFormat.KeyMime);
+                            if (mime?.Contains("alac", StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[CatClaw] IsAlacM4a=true (MediaExtractor mime={mime})");
+                                return true;
+                            }
+                        }
+                    }
+                    catch (Exception probeEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[CatClaw] MediaExtractor ALAC 探测失败: {probeEx.Message}");
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] IsAlacM4a=false (codec={meta?.Codec})");
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] IsAlacM4a 异常: {ex.Message}");
+                    return false;
                 }
             }
 
-            await _readyTcs.Task;
-
-            _isPrepared = true;
-            _currentPath = filePathOrUrl;
-
-            var newSessionId = AudioSessionId;
-            if (newSessionId > 0)
+            bool IsM4aContainer(string? localPath)
             {
-                _lastNotifiedSessionId = newSessionId;
-                _mainHandler.Post(() => AudioSessionIdChanged?.Invoke(newSessionId));
+                if (localPath == null) return false;
+                var ext = System.IO.Path.GetExtension(localPath).ToLowerInvariant();
+                return ext == ".m4a" || ext == ".m4b" || ext == ".mp4";
             }
 
-            if (autoPlay)
+            async Task<string?> TryTranscodeAsync(string localPath)
             {
-                _player!.PlayWhenReady = true;
-                RequestAudioFocus();
-                AcquireWakeLock();
-                StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
-                StartPositionTimer();
-                ForegroundPlayerService.Start(global::Android.App.Application.Context);
-                ScheduleCacheEviction();
+                try
+                {
+                    var ffmpeg = MainApplication.Services.GetService<FFmpegService>();
+                    if (ffmpeg == null) return null;
+                    var path = await ffmpeg.TranscodeToWavAsync(localPath);
+                    if (path != null)
+                    {
+                        ALog.Debug("CatClaw", $"[CatClaw] FFmpeg 转码成功: {Path.GetFileName(path)}");
+                        return path;
+                    }
+                    ALog.Debug("CatClaw", "[CatClaw] FFmpeg 转码失败/未就绪");
+                }
+                catch (Exception ex)
+                {
+                    ALog.Debug("CatClaw", $"[CatClaw] FFmpeg 转码异常: {ex.Message}");
+                }
+                return null;
             }
-            else
+
+            async Task<bool> TryPrepareAsync(string url)
             {
-                _player!.PlayWhenReady = false;
-                StateChanged?.Invoke(this, new CatClawMusic.Core.Interfaces.PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
+                // 直接创建/复用 ExoPlayer（Xamarin Java interop 可从任意线程调用）
+                EnsurePlayer(authHeader);
+
+                if (!url.Contains("://") && !url.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                    url = "file://" + url;
+
+                var uri = global::Android.Net.Uri.Parse(url);
+                if (uri == null) return false;
+
+                var mediaItem = AndroidX.Media3.Common.MediaItem.FromUri(uri);
+
+                var prevTcs = _readyTcs;
+                _readyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                prevTcs?.TrySetCanceled();
+
+                _player!.Stop();
+                _player.ClearMediaItems();
+                _player.SetMediaItem(mediaItem);
+                _player.Prepare();
+
+                for (int i = 0; i < 100; i++)
+                {
+                    await Task.Delay(100);
+                    if (_readyTcs.Task.IsCompleted) break;
+                    var state = _player!.PlaybackState;
+                    if (state == 3) { _readyTcs.TrySetResult(true); break; }
+                    if (state == 1 && i > 5)
+                    {
+                        var ex = _player!.PlayerError;
+                        if (ex != null)
+                        {
+                            _readyTcs.TrySetException(new Exception($"播放准备失败: {ex.ErrorCodeName}"));
+                            break;
+                        }
+                    }
+                }
+
+                await _readyTcs.Task;
+
+                _isPrepared = true;
+                _currentPath = filePathOrUrl;
+
+                var newSessionId = AudioSessionId;
+                if (newSessionId > 0)
+                {
+                    _lastNotifiedSessionId = newSessionId;
+                    _mainHandler.Post(() => AudioSessionIdChanged?.Invoke(newSessionId));
+                }
+
+                if (autoPlay)
+                {
+                    _player!.PlayWhenReady = true;
+                    RequestAudioFocus();
+                    AcquireWakeLock();
+                    StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Playing });
+                    StartPositionTimer();
+                    ForegroundPlayerService.Start(global::Android.App.Application.Context);
+                    ScheduleCacheEviction();
+                }
+                else
+                {
+                    _player!.PlayWhenReady = false;
+                    StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs { State = PlaybackState.Paused });
+                }
+                return true;
+            }
+
+            var localPath = TryGetLocalPath(playUrl);
+            var actualPlayUrl = playUrl;
+            var isAlac = localPath != null && IsAlacM4a(localPath);
+
+            // ALAC 编码的 m4a 会被 ExoPlayer 静默当作无音频输出，提前用 FFmpeg 转 WAV
+            if (isAlac)
+            {
+                ALog.Warn("CatClaw", "[CatClaw] 检测到 ALAC 编码，强制 FFmpeg 转码");
+                System.Diagnostics.Debug.WriteLine("[CatClaw] 检测到 ALAC 编码，强制 FFmpeg 转码");
+                var alacTranscoded = await TryTranscodeAsync(localPath!);
+                if (alacTranscoded != null)
+                {
+                    actualPlayUrl = alacTranscoded;
+                }
+                else
+                {
+                    throw new Exception("ALAC 文件转码失败，无法播放");
+                }
+            }
+
+            var prepared = false;
+            try
+            {
+                prepared = await TryPrepareAsync(actualPlayUrl);
+            }
+            catch (System.OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                ALog.Debug("CatClaw", $"[CatClaw] 原生播放失败，尝试 FFmpeg: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 原生播放失败，尝试 FFmpeg: {ex.Message}");
+            }
+
+            // 兜底：未检测到 ALAC 但原生仍失败，或该格式在兼容列表中，则尝试 FFmpeg 转码
+            if (!prepared && ShouldTryFFmpeg(localPath))
+            {
+                var transcoded = await TryTranscodeAsync(localPath!);
+                if (transcoded != null)
+                {
+                    prepared = await TryPrepareAsync(transcoded);
+                }
+            }
+
+            if (!prepared)
+            {
+                throw new Exception("播放准备失败");
             }
         }
         catch (System.OperationCanceledException) { ALog.Warn("CatClaw", "[CatClaw] PlayAsync 被取消"); }

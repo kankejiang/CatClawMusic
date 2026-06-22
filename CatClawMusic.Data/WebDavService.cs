@@ -28,6 +28,21 @@ public class WebDavService : INetworkFileService, IDisposable
     private HttpClient? _openListApiClient;
     // ── 检测缓存：同一 host 只检测一次 ──
     private string? _lastDetectedHost;
+    private Task<WebDavServerType>? _detectionTask;
+
+    /// <summary>
+    /// 等待首次服务器类型检测完成（如有正在进行的检测）。
+    /// 确保 CurrentServerType 已更新为真实值。
+    /// </summary>
+    public async Task EnsureDetectedAsync()
+    {
+        if (_detectionTask != null && !_detectionTask.IsCompleted)
+        {
+            try { CurrentServerType = await _detectionTask; }
+            catch { }
+            _detectionTask = null;
+        }
+    }
 
     /// <summary>
     /// 检测 WebDAV 服务器类型（标准 vs OpenList/Alist）
@@ -581,7 +596,8 @@ public class WebDavService : INetworkFileService, IDisposable
         _openListToken = null;
         CurrentServerType = WebDavServerType.Standard;
         _lastDetectedHost = hostKey;
-        _ = DetectServerTypeAsync(profile).ContinueWith(t =>
+        _detectionTask = DetectServerTypeAsync(profile);
+        _ = _detectionTask.ContinueWith(t =>
         {
             if (t.IsCompletedSuccessfully)
                 CurrentServerType = t.Result;

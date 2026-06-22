@@ -1818,6 +1818,7 @@ public class NowPlayingFragment : Fragment
         {
             TagLib.Properties? props = null;
             string? fileExtension = null;
+            M4aMetadata? m4aMeta = null;
 
             if (!string.IsNullOrEmpty(_detailSong.FilePath))
             {
@@ -1835,25 +1836,63 @@ public class NowPlayingFragment : Fragment
                     using var stream = ctx.ContentResolver!.OpenInputStream(uri);
                     if (stream != null)
                     {
-                        var abstraction = new ReadOnlyFileAbstraction(System.IO.Path.GetFileName(_detailSong.FilePath) ?? "audio", stream);
-                        using var file = TagLib.File.Create(abstraction);
-                        props = file.Properties;
+                        try
+                        {
+                            var abstraction = new ReadOnlyFileAbstraction(System.IO.Path.GetFileName(_detailSong.FilePath) ?? "audio", stream);
+                            using var file = TagLib.File.Create(abstraction);
+                            props = file.Properties;
+                        }
+                        catch
+                        {
+                            // m4a/mp4 回退：TagLibSharp 无法解析时手动读取 atom 树
+                            var ext = System.IO.Path.GetExtension(_detailSong.FilePath);
+                            if (ext.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
+                                ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                                ext.Equals(".m4b", StringComparison.OrdinalIgnoreCase))
+                            {
+                                try
+                                {
+                                    if (stream.CanSeek) stream.Position = 0;
+                                    m4aMeta = M4aMetadataReader.ReadAudioProperties(stream);
+                                }
+                                catch { }
+                            }
+                        }
                         fileExtension ??= GetExtensionFromMimeType(ctx.ContentResolver!.GetType(uri));
                     }
                 }
             }
             else if (!string.IsNullOrEmpty(_detailSong.FilePath) && System.IO.File.Exists(_detailSong.FilePath))
             {
-                using var file = TagLib.File.Create(_detailSong.FilePath);
-                props = file.Properties;
+                try
+                {
+                    using var file = TagLib.File.Create(_detailSong.FilePath);
+                    props = file.Properties;
+                }
+                catch
+                {
+                    // m4a/mp4 回退
+                    var ext = System.IO.Path.GetExtension(_detailSong.FilePath);
+                    if (ext.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
+                        ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                        ext.Equals(".m4b", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            using var fs = System.IO.File.OpenRead(_detailSong.FilePath);
+                            m4aMeta = M4aMetadataReader.ReadAudioProperties(fs);
+                        }
+                        catch { }
+                    }
+                }
             }
 
-            if (props == null) return;
+            if (props == null && m4aMeta == null) return;
 
-            var sampleRate = props.AudioSampleRate;
-            var channels = props.AudioChannels;
-            var bitDepth = props.BitsPerSample;
-            var codec = props.Codecs.FirstOrDefault();
+            var sampleRate = props?.AudioSampleRate ?? m4aMeta?.SampleRate ?? 0;
+            var channels = props?.AudioChannels ?? m4aMeta?.Channels ?? 0;
+            var bitDepth = props?.BitsPerSample ?? m4aMeta?.BitDepth ?? 0;
+            var tagCodec = props?.Codecs.FirstOrDefault();
 
             Activity?.RunOnUiThread(() =>
             {
@@ -1861,9 +1900,12 @@ public class NowPlayingFragment : Fragment
                 if (_detailChannels != null) _detailChannels.Text = channels > 0 ? FormatDetailChannels(channels) : "未知";
                 if (_detailBitDepth != null) _detailBitDepth.Text = bitDepth > 0 ? $"{bitDepth} bit" : "未知";
                 if (_detailCodec != null)
-                    _detailCodec.Text = !string.IsNullOrWhiteSpace(GetDetailCodecDescription(codec, fileExtension))
-                        ? GetDetailCodecDescription(codec, fileExtension)
-                        : (fileExtension ?? "未知");
+                {
+                    var codecDesc = GetDetailCodecDescription(tagCodec, fileExtension);
+                    if (string.IsNullOrWhiteSpace(codecDesc) && m4aMeta?.Codec != null)
+                        codecDesc = m4aMeta.Codec;
+                    _detailCodec.Text = !string.IsNullOrWhiteSpace(codecDesc) ? codecDesc : (fileExtension ?? "未知");
+                }
                 if (_detailFormat != null) _detailFormat.Text = !string.IsNullOrWhiteSpace(fileExtension) ? fileExtension : "未知";
             });
         }

@@ -11,24 +11,31 @@ namespace CatClawMusic.UI.Helpers;
 /// <summary>音频波形动画视图，显示三根跳动的竖条表示播放状态</summary>
 public class WaveformView : LinearLayout
 {
-    private readonly View[] _bars = new View[3];
-    private ObjectAnimator[] _animators = Array.Empty<ObjectAnimator>();
+    private View[]? _bars;
+    private ObjectAnimator[]? _animators;
     private bool _isPlaying;
-    private bool _initialized;
 
-    public WaveformView(Context context) : base(context) { Init(context); }
-    public WaveformView(Context context, IAttributeSet attrs) : base(context, attrs) { Init(context); }
-    public WaveformView(Context context, IAttributeSet attrs, int defStyleAttr) : base(context, attrs, defStyleAttr) { Init(context); }
+    public WaveformView(Context context) : base(context) { Init(); }
+    public WaveformView(Context context, IAttributeSet attrs) : base(context, attrs) { Init(); }
+    public WaveformView(Context context, IAttributeSet attrs, int defStyleAttr) : base(context, attrs, defStyleAttr) { Init(); }
 
-    /// <summary>初始化波形视图，创建三根彩色竖条</summary>
-    private void Init(Context context)
+    /// <summary>初始化波形视图，仅设置基本布局属性，不创建子视图</summary>
+    private void Init()
     {
         Orientation = Android.Widget.Orientation.Horizontal;
         SetGravity(GravityFlags.Center);
+    }
 
+    /// <summary>延迟创建三根彩色竖条，仅在需要显示时才构建</summary>
+    private void EnsureBarsCreated()
+    {
+        if (_bars != null) return;
+
+        var context = Context!;
         var colors = new[] { "#D87E9B", "#EDB8C9", "#D87E9B" };
         var dp = Resources.DisplayMetrics.Density;
 
+        _bars = new View[3];
         for (int i = 0; i < 3; i++)
         {
             var bar = new View(context);
@@ -42,12 +49,11 @@ public class WaveformView : LinearLayout
         }
     }
 
-    /// <summary>尺寸确定后创建属性动画，设置交替弹跳效果</summary>
-    protected override void OnSizeChanged(int w, int h, int oldw, int oldh)
+    /// <summary>延迟创建属性动画，仅在实际播放时才构建</summary>
+    private void EnsureAnimatorsCreated()
     {
-        base.OnSizeChanged(w, h, oldw, oldh);
-        if (_initialized) return;
-        _initialized = true;
+        if (_animators != null) return;
+        if (_bars == null) return;
 
         var dp = Resources.DisplayMetrics.Density;
         var delays = new[] { 0L, 120L, 240L };
@@ -65,8 +71,6 @@ public class WaveformView : LinearLayout
             anim.RepeatMode = ValueAnimatorRepeatMode.Restart;
             _animators[i] = anim;
         }
-
-        if (_isPlaying) StartAnimations();
     }
 
     /// <summary>设置播放状态，控制动画启停和视图可见性</summary>
@@ -77,8 +81,10 @@ public class WaveformView : LinearLayout
 
         if (isPlaying)
         {
+            EnsureBarsCreated();
             Visibility = ViewStates.Visible;
-            if (_initialized) StartAnimations();
+            EnsureAnimatorsCreated();
+            StartAnimations();
         }
         else
         {
@@ -90,19 +96,20 @@ public class WaveformView : LinearLayout
     /// <summary>启动所有竖条的弹跳动画</summary>
     private void StartAnimations()
     {
+        if (_animators == null) return;
         foreach (var a in _animators) a.Start();
     }
 
     /// <summary>停止所有动画并重置竖条比例</summary>
     private void StopAnimations()
     {
-        foreach (var a in _animators)
+        if (_animators != null)
         {
-            a.Cancel();
+            foreach (var a in _animators) a.Cancel();
         }
-        foreach (var bar in _bars)
+        if (_bars != null)
         {
-            bar.ScaleY = 0.3f;
+            foreach (var bar in _bars) bar.ScaleY = 0.3f;
         }
     }
 
@@ -110,11 +117,14 @@ public class WaveformView : LinearLayout
     protected override void OnDetachedFromWindow()
     {
         base.OnDetachedFromWindow();
-        foreach (var a in _animators)
+        if (_animators != null)
         {
-            a.Cancel();
-            a.Dispose();
+            foreach (var a in _animators)
+            {
+                a.Cancel();
+                a.Dispose();
+            }
+            _animators = null;
         }
-        _animators = Array.Empty<ObjectAnimator>();
     }
 }

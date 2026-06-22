@@ -57,6 +57,12 @@
     <ProjectReference Include="..\CatClawMusic.Data\CatClawMusic.Data.csproj" />
   </ItemGroup>
 
+  <!-- 内置 FFmpeg 二进制：覆盖主流 ARM 设备，运行时按 ABI 提取 -->
+  <ItemGroup>
+    <AndroidAsset Include="Assets\ffmpeg\arm64-v8a\ffmpeg" />
+    <AndroidAsset Include="Assets\ffmpeg\armeabi-v7a\ffmpeg" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0.10" />
     <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.10.1" />

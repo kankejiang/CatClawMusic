@@ -98,6 +98,7 @@ public class MainApplication : Application
         });
         // 音效管理器（预设音效方案，管理EQ+混响+环绕+低音）
         services.AddSingleton<SoundEffectManager>();
+        services.AddSingleton<FFmpegService>();
         services.AddSingleton<IAudioPlayerService, AudioPlayerService>();
         services.AddSingleton<ILyricsService, LyricsService>();
         services.AddSingleton<LyricsService>(sp => (LyricsService)sp.GetRequiredService<ILyricsService>());
