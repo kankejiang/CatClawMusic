@@ -45,6 +45,7 @@ public static class M4aMetadataReader
     public static M4aMetadata? ReadAllFromStream(Stream stream)
     {
         using var br = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+        System.Diagnostics.Debug.WriteLine("[M4aMeta] ReadAllFromStream: wantTags=true, wantLyrics=true");
         var result = WalkTopLevel(br, stream.Length, wantCover: false, wantLyrics: true, wantProperties: true, wantTags: true);
         return new M4aMetadata
         {
@@ -898,6 +899,7 @@ public static class M4aMetadataReader
     private static (byte[]? cover, string? lyrics, string? title, string? artist, string? album)
         WalkIlst(BinaryReader br, long start, long length, bool wantCover, bool wantLyrics, bool wantTags)
     {
+        System.Diagnostics.Debug.WriteLineIf(wantTags, $"[M4aMeta] WalkIlst: wantTags=true, start={start}, len={length}");
         byte[]? cover = null;
         string? lyrics = null;
         string? title = null, artist = null, album = null;
@@ -909,6 +911,8 @@ public static class M4aMetadataReader
             br.BaseStream.Position = pos;
             var itemSize = ReadUInt32BE(br);
             var itemType = ReadFourCC(br);
+            if (wantTags && (itemType[0] == '\u00a9' || itemType == "covr"))
+                System.Diagnostics.Debug.WriteLine($"[M4aMeta] ilst: {itemType} pos={pos} size={itemSize}");
             long itemDataLen = itemSize - 8;
             if (pos + itemSize > end || itemSize < 8) break;
             if (itemDataLen <= 0) { pos += itemSize; continue; }
@@ -945,12 +949,15 @@ public static class M4aMetadataReader
                                 break;
                             case "\u00a9nam" when wantTags:
                                 title = System.Text.Encoding.UTF8.GetString(data).TrimEnd('\0');
+                                System.Diagnostics.Debug.WriteLine($"[M4aMeta] Found title: {title}");
                                 break;
                             case "\u00a9ART" when wantTags:
                                 artist = System.Text.Encoding.UTF8.GetString(data).TrimEnd('\0');
+                                System.Diagnostics.Debug.WriteLine($"[M4aMeta] Found artist: {artist}");
                                 break;
                             case "\u00a9alb" when wantTags:
                                 album = System.Text.Encoding.UTF8.GetString(data).TrimEnd('\0');
+                                System.Diagnostics.Debug.WriteLine($"[M4aMeta] Found album: {album}");
                                 break;
                         }
                     }

@@ -1681,6 +1681,34 @@ public class NowPlayingFragment : Fragment
                 return;
             }
 
+            // 自动修复旧扫描遗留的"未知"元数据
+            await Task.Run(() =>
+            {
+                if ((string.IsNullOrWhiteSpace(_detailSong.Artist) || _detailSong.Artist == "未知艺术家"
+                     || string.IsNullOrWhiteSpace(_detailSong.Album) || _detailSong.Album == "未知专辑")
+                    && !string.IsNullOrWhiteSpace(_detailSong.FilePath)
+                    && System.IO.File.Exists(_detailSong.FilePath))
+                {
+                    var ext = System.IO.Path.GetExtension(_detailSong.FilePath).TrimStart('.').ToUpperInvariant();
+                    if (ext == "M4A" || ext == "MP4")
+                    {
+                        try
+                        {
+                            var fresh = TagReader.ReadSongInfo(_detailSong.FilePath);
+                            if (!string.IsNullOrWhiteSpace(fresh.Artist) && fresh.Artist != "未知艺术家")
+                                _detailSong.Artist = fresh.Artist;
+                            if (!string.IsNullOrWhiteSpace(fresh.Album) && fresh.Album != "未知专辑")
+                                _detailSong.Album = fresh.Album;
+                            if (!string.IsNullOrWhiteSpace(fresh.Title) && fresh.Title != "未知标题")
+                                _detailSong.Title = fresh.Title;
+                            _ = db.SaveSongAsync(_detailSong);
+                            System.Diagnostics.Debug.WriteLine($"[DetailAutoFix] 已从文件刷新元数据: {_detailSong.Artist} - {_detailSong.Album}");
+                        }
+                        catch { }
+                    }
+                }
+            });
+
             Activity?.RunOnUiThread(() =>
             {
                 if (_detailTitle != null) _detailTitle.Text = _detailSong.Title;

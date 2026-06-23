@@ -129,6 +129,7 @@ public class TagReader
                 try
                 {
                     var meta = M4aMetadataReader.ReadAll(filePath);
+                    System.Diagnostics.Debug.WriteLine($"[M4aMeta] ReadAll returned: title={meta?.Title ?? "null"}, artist={meta?.Artist ?? "null"}");
                     if (meta != null)
                     {
                         return new Song
@@ -147,7 +148,10 @@ public class TagReader
                         };
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[M4aMeta] ReadAll exception: {ex.Message}");
+                }
             }
             return new Song
             {

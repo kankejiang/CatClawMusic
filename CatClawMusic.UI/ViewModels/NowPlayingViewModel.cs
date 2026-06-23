@@ -1303,6 +1303,36 @@ public partial class NowPlayingViewModel : ObservableObject
             }
         }
 
+        // 本地文件的自动元数据修复（针对旧扫描遗留的"未知"数据）
+        if (song.Source == SongSource.Local
+            && (song.Artist == "未知艺术家" || song.Album == "未知专辑" || song.Title == "未知标题")
+            && !string.IsNullOrWhiteSpace(song.FilePath)
+            && System.IO.File.Exists(song.FilePath))
+        {
+            var ext = System.IO.Path.GetExtension(song.FilePath).TrimStart('.').ToUpperInvariant();
+            if (ext == "M4A" || ext == "MP4" || ext == "MP3" || ext == "FLAC" || ext == "WAV" || ext == "AAC" || ext == "OGG")
+            {
+                try
+                {
+                    var fresh = TagReader.ReadSongInfo(song.FilePath);
+                    if (!string.IsNullOrWhiteSpace(fresh.Artist) && fresh.Artist != "未知艺术家")
+                        song.Artist = fresh.Artist;
+                    if (!string.IsNullOrWhiteSpace(fresh.Album) && fresh.Album != "未知专辑")
+                        song.Album = fresh.Album;
+                    if (!string.IsNullOrWhiteSpace(fresh.Title) && fresh.Title != "未知标题")
+                        song.Title = fresh.Title;
+                    await _database.SaveSongAsync(song);
+                    _dispatcher.Post(() =>
+                    {
+                        if (CurrentSong?.Id == song.Id)
+                            OnPropertyChanged(nameof(CurrentSong));
+                    });
+                    System.Diagnostics.Debug.WriteLine($"[VM.AutoFix] 已从文件刷新元数据: {song.Artist} - {song.Album}");
+                }
+                catch { }
+            }
+        }
+
         if (!string.IsNullOrEmpty(song.Artist) && !string.IsNullOrEmpty(song.Album)) return;
 
         try
