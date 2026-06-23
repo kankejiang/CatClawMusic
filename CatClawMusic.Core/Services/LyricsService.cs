@@ -1023,9 +1023,11 @@ public class LyricsService : ILyricsService
 
         // 检测内容类型
         bool isXml = content.Contains("<tt") || content.Contains("<?xml")
-            || content.Contains("xmlns=\"http://www.w3.org/ns/ttml");
+            || content.Contains("xmlns=\"http://www.w3.org/ns/ttml")
+            || (content.TrimStart().StartsWith("<") && content.Contains(">") && !content.TrimStart().StartsWith("["));
         bool isJson = content.TrimStart().StartsWith("{")
-            && (content.Contains("\"lyrics\"") || content.Contains("\"lines\"") || content.Contains("\"role\""));
+            && (content.Contains("\"lyrics\"") || content.Contains("\"lines\"") || content.Contains("\"role\"")
+                || content.Contains("\"code\"") || content.Contains("\"message\"") || content.Contains("\"data\""));
 
         if (isXml)
         {
@@ -1040,8 +1042,22 @@ public class LyricsService : ILyricsService
         }
 
         // LRC 或纯文本：先试 LRC，再试纯文本
-        return ParseLrc(content)
-            ?? ParsePlainTextLyrics(content);
+        var lrc = ParseLrc(content);
+        if (lrc != null) return lrc;
+
+        // 防御：非歌词内容（JSON/XML/HTML/错误响应）不应作为纯文本歌词显示
+        var trimmed = content.Trim();
+        if ((trimmed.StartsWith("<") && trimmed.Contains(">"))
+            || (trimmed.StartsWith("{") && trimmed.EndsWith("}"))
+            || trimmed.StartsWith("<!DOCTYPE", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("<html", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("<body", StringComparison.OrdinalIgnoreCase))
+        {
+            System.Diagnostics.Debug.WriteLine("[LyricsService] 检测到非歌词内容，已过滤");
+            return null;
+        }
+
+        return ParsePlainTextLyrics(content);
     }
 
     /// <summary>

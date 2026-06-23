@@ -333,6 +333,23 @@ public class NetworkMusicService : INetworkMusicService
             _webDav.Configure(profile);
             if (_webDav is WebDavService wdsLyrics) await wdsLyrics.EnsureDetectedAsync();
 
+            // OpenList 自动检测回退：确保 CurrentServerType 已正确识别
+            if (_webDav is WebDavService wdsCheck
+                && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList
+                && wdsCheck.CurrentServerType != WebDavServerType.OpenList)
+            {
+                try
+                {
+                    var detected = await wdsCheck.DetectServerTypeAsync(profile);
+                    if (detected == WebDavServerType.OpenList)
+                    {
+                        profile.ServerType = (int)WebDavServerType.OpenList;
+                        try { await _db.SaveConnectionProfileAsync(profile); } catch { }
+                    }
+                }
+                catch { }
+            }
+
             var lastDot = remotePath.LastIndexOf('.');
             if (lastDot > 0)
             {
@@ -342,6 +359,7 @@ public class NetworkMusicService : INetworkMusicService
                     using var lrcStream = await _webDav.OpenReadAsync(lrcPath);
                     using var reader = new StreamReader(lrcStream);
                     var lrcText = await reader.ReadToEndAsync();
+                    System.Diagnostics.Debug.WriteLine($"[WebDAV] 读取歌词文件 {lrcPath}，长度={lrcText?.Length ?? 0}，前200字符={lrcText?[..Math.Min(200, lrcText?.Length ?? 0)]?.Replace('\n', ' ')}");
                     if (!string.IsNullOrWhiteSpace(lrcText))
                         return lrcText;
                 }
