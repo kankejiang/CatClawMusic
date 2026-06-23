@@ -54,10 +54,9 @@ public class PlayQueue
         get
         {
             if (_currentIndex < 0) return null;
-            
-            return PlayMode == PlayMode.Shuffle
-                ? _shuffledList.ElementAtOrDefault(_currentIndex)
-                : _originalList.ElementAtOrDefault(_currentIndex);
+
+            var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
+            return _currentIndex < list.Count ? list[_currentIndex] : null;
         }
     }
     
@@ -119,20 +118,26 @@ public class PlayQueue
     public Song? Next()
     {
         if (_originalList.Count == 0) return null;
-        
+
         // 记录当前位置到历史
         if (_currentIndex >= 0)
         {
             _history.Push(_currentIndex);
         }
-        
+
         // 计算下一首索引
         _currentIndex = GetNextIndex();
-        
+
         // 如果遍历完，根据播放模式决定
         if (_currentIndex == -1) return null;
-        
-        return CurrentSong;
+
+        var song = CurrentSong;
+        if (song == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PlayQueue] Next 得到越界索引，已重置: mode={PlayMode}, index={_currentIndex}, original={_originalList.Count}, shuffled={_shuffledList.Count}");
+            _currentIndex = -1;
+        }
+        return song;
     }
     
     /// <summary>
@@ -141,8 +146,15 @@ public class PlayQueue
     public Song? Previous()
     {
         if (_history.Count == 0) return CurrentSong;
-        
-        _currentIndex = _history.Pop();
+
+        var idx = _history.Pop();
+        var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
+        if (idx < 0 || idx >= list.Count)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PlayQueue] Previous 历史索引越界: mode={PlayMode}, idx={idx}, list.Count={list.Count}");
+            return CurrentSong;
+        }
+        _currentIndex = idx;
         return CurrentSong;
     }
     
@@ -231,14 +243,16 @@ public class PlayQueue
     private int GetNextIndex()
     {
         var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
-        
+
         if (PlayMode == PlayMode.SingleRepeat)
         {
-            return _currentIndex;  // 单曲循环，返回当前
+            // 单曲循环，返回当前；如果当前索引已越界，直接返回 0（若列表非空）
+            if (_currentIndex >= 0 && _currentIndex < list.Count) return _currentIndex;
+            return list.Count > 0 ? 0 : -1;
         }
-        
+
         int nextIndex = _currentIndex + 1;
-        
+
         if (nextIndex >= list.Count)
         {
             if (PlayMode == PlayMode.ListRepeat)
@@ -255,7 +269,7 @@ public class PlayQueue
                 return -1;
             }
         }
-        
+
         return nextIndex;
     }
 
@@ -268,6 +282,8 @@ public class PlayQueue
         if (_originalList.Count == 0 || _currentIndex < 0) return upcoming;
 
         var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
+        if (list.Count == 0 || _currentIndex >= list.Count) return upcoming;
+
         var peekIdx = _currentIndex;
 
         for (int i = 0; i < count; i++)

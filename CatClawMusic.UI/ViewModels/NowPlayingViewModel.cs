@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ALog = Android.Util.Log;
 using Android.Text;
 using Android.Text.Style;
 using CatClawMusic.Core.Interfaces;
@@ -437,14 +438,22 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     partial void OnCurrentSongChanged(Song? value)
     {
-        _songLoadCts?.Cancel();
-        _songLoadCts = new CancellationTokenSource();
-        var ct = _songLoadCts.Token;
-        _ = LoadLyricsAsync(value, ct);
-        _ = LoadCoverAsync(value, ct);
-        UpdateQueuePeek();
-        _ = CheckFavoriteAsync();
-        _ = ResolveSongDetails(value);
+        try
+        {
+            _songLoadCts?.Cancel();
+            _songLoadCts = new CancellationTokenSource();
+            var ct = _songLoadCts.Token;
+            _ = LoadLyricsAsync(value, ct);
+            _ = LoadCoverAsync(value, ct);
+            UpdateQueuePeek();
+            _ = CheckFavoriteAsync();
+            _ = ResolveSongDetails(value);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] OnCurrentSongChanged 异常: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            ALog.Error("CatClaw", $"[CatClaw] OnCurrentSongChanged 异常: {ex.GetType().Name}: {ex.Message}");
+        }
     }
     /// <summary>
     /// 收藏状态变化时更新图标
@@ -516,13 +525,49 @@ public partial class NowPlayingViewModel : ObservableObject
     /// 播放下一首
     /// </summary>
     [RelayCommand]
-    private void Next() { _isSwitchingSong = true; var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void Next()
+    {
+        try
+        {
+            _isSwitchingSong = true;
+            var s = _playQueue.Next();
+            if (s != null)
+            {
+                CurrentSong = s;
+                _ = _audioPlayer.PlayAsync(s.FilePath);
+                _ = RecordPlayAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] Next() 异常: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            ALog.Error("CatClaw", $"[CatClaw] Next() 异常: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// 播放上一首
     /// </summary>
     [RelayCommand]
-    private void Previous() { _isSwitchingSong = true; var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void Previous()
+    {
+        try
+        {
+            _isSwitchingSong = true;
+            var s = _playQueue.Previous();
+            if (s != null)
+            {
+                CurrentSong = s;
+                _ = _audioPlayer.PlayAsync(s.FilePath);
+                _ = RecordPlayAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] Previous() 异常: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            ALog.Error("CatClaw", $"[CatClaw] Previous() 异常: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// 循环切换播放模式：列表循环 → 随机播放 → 单曲循环
@@ -567,8 +612,8 @@ public partial class NowPlayingViewModel : ObservableObject
         else if (direction == "Right") OnPrevious();
     }
 
-    private void OnNext() { _isSwitchingSong = true; var s = _playQueue.Next(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
-    private void OnPrevious() { _isSwitchingSong = true; var s = _playQueue.Previous(); if (s != null) { CurrentSong = s; _ = _audioPlayer.PlayAsync(s.FilePath); _ = RecordPlayAsync(); } }
+    private void OnNext() => Next();
+    private void OnPrevious() => Previous();
 
     /// <summary>
     /// 与播放队列同步当前歌曲状态
@@ -711,10 +756,18 @@ public partial class NowPlayingViewModel : ObservableObject
     /// </summary>
     private void UpdateQueuePeek()
     {
-        UpcomingSongs.Clear();
-        foreach (var s in _playQueue.GetUpcomingSongs(3)) UpcomingSongs.Add(s);
-        QueueHint = UpcomingSongs.Count > 0 ? $"下一首: {UpcomingSongs[0].Title}" : "";
-        OnPropertyChanged(nameof(UpcomingSongs));
+        try
+        {
+            UpcomingSongs.Clear();
+            foreach (var s in _playQueue.GetUpcomingSongs(3)) UpcomingSongs.Add(s);
+            QueueHint = UpcomingSongs.Count > 0 ? $"下一首: {UpcomingSongs[0].Title}" : "";
+            OnPropertyChanged(nameof(UpcomingSongs));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CatClaw] UpdateQueuePeek 异常: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            ALog.Error("CatClaw", $"[CatClaw] UpdateQueuePeek 异常: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -724,8 +777,22 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         _dispatcher.Post(() =>
         {
-            if (e.State == PlaybackState.Stopped)
+            try
             {
+                HandlePlaybackStateChanged(e);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] OnPlaybackStateChanged 异常: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+                ALog.Error("CatClaw", $"[CatClaw] OnPlaybackStateChanged 异常: {ex.GetType().Name}: {ex.Message}");
+            }
+        });
+    }
+
+    private void HandlePlaybackStateChanged(PlaybackStateChangedEventArgs e)
+    {
+        if (e.State == PlaybackState.Stopped)
+        {
                 // 防御性检查：如果当前位置离歌曲末尾还很远，说明这是 seek 或缓冲导致的误判，不应切歌
                 var duration = _audioPlayer.Duration;
                 var pos = _audioPlayer.CurrentPosition;
@@ -784,8 +851,7 @@ public partial class NowPlayingViewModel : ObservableObject
                     _isRestoring = false;
                 }
             }
-        });
-    }
+        }
 
     /// <summary>延迟 1 秒显示错误对话框，期间如果恢复播放则取消</summary>
     private void ShowErrorDialogDelayed(string message)
