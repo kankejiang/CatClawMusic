@@ -40,6 +40,7 @@ public class ArtistAdapter : RecyclerView.Adapter
     {
         if (holder is ArtistViewHolder vh)
         {
+            if (position >= _artists.Count) return;
             var artist = _artists[position];
             vh.Bind(artist, _scraper, _coverCache, _mainHandler);
             vh.ItemView.Click -= vh.OnClick;

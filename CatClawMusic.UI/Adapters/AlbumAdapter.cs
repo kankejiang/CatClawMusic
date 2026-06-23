@@ -37,6 +37,7 @@ public class AlbumAdapter : RecyclerView.Adapter
     {
         if (holder is AlbumViewHolder vh)
         {
+            if (position >= _albums.Count) return;
             var album = _albums[position];
             vh.Bind(album, _coverCache, _mainHandler);
             vh.ItemView.Click -= vh.OnClick;

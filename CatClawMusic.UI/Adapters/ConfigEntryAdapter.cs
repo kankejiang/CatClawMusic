@@ -24,6 +24,7 @@ public class ConfigEntryAdapter : RecyclerView.Adapter
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         if (holder is not ConfigEntryViewHolder vh) return;
+        if (position >= _entries.Count) return;
         var entry = _entries[position];
 
         vh.Name.Text = entry.DisplayName;

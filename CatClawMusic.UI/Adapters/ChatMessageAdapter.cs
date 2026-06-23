@@ -37,7 +37,10 @@ public class ChatMessageAdapter : RecyclerView.Adapter
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         if (holder is ChatViewHolder vh)
+        {
+            if (position >= _messages.Count) return;
             vh.Bind(_messages[position]);
+        }
     }
 
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)

@@ -78,7 +78,10 @@ public class ExploreMessageAdapter : RecyclerView.Adapter
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         if (holder is ExploreViewHolder vh)
+        {
+            if (position >= _messages.Count) return;
             vh.Bind(_messages[position], _currentAgent);
+        }
     }
 
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
@@ -404,7 +407,10 @@ public class SongCardAdapter : RecyclerView.Adapter
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         if (holder is SongCardViewHolder vh)
+        {
+            if (position >= _songs.Count) return;
             vh.Bind(_songs[position]);
+        }
     }
 
     public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)

@@ -41,6 +41,7 @@ public class UpcomingSongAdapter : RecyclerView.Adapter
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
         var vh = (VH)holder;
+        if (position < 0 || position >= _songs.Count) return;
         var s = _songs[position];
         vh.Title.Text = s.Title;
         vh.Artist.Text = s.Artist;

@@ -47,6 +47,7 @@ public class SearchSuggestionAdapter : RecyclerView.Adapter
 
     public override int GetItemViewType(int position)
     {
+        if (position >= _items.Count) return ViewTypeHeader;
         return _items[position] switch
         {
             string => ViewTypeHeader,
@@ -73,6 +74,7 @@ public class SearchSuggestionAdapter : RecyclerView.Adapter
 
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
     {
+        if (position >= _items.Count) return;
         var item = _items[position];
         switch (holder)
         {

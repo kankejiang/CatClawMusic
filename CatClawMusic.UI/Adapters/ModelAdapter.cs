@@ -39,6 +39,7 @@ public class ModelAdapter : RecyclerView.Adapter
     {
         if (holder is ModelViewHolder vh)
         {
+            if (position >= _models.Count) return;
             vh.Bind(_models[position]);
         }
     }
