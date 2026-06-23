@@ -145,8 +145,7 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
 
         try
         {
-            var songs = await db.GetSongsWithDetailsAsync();
-            _song = songs.FirstOrDefault(s => s.Id == _songId);
+            _song = await db.GetSongByIdAsync(_songId);
 
             if (_song == null)
             {
@@ -157,6 +156,22 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
                 });
                 return;
             }
+
+            // 填充艺术家/专辑名称（GetSongByIdAsync 不预加载这些运行时字段）
+            if (_song.ArtistId > 0)
+            {
+                var artist = await db.FindArtistByIdAsync(_song.ArtistId);
+                if (!string.IsNullOrEmpty(artist?.Name))
+                    _song.Artist = artist.Name;
+            }
+            if (_song.AlbumId > 0)
+            {
+                var album = await db.FindAlbumByIdAsync(_song.AlbumId);
+                if (!string.IsNullOrEmpty(album?.Title))
+                    _song.Album = album.Title;
+            }
+            if (string.IsNullOrEmpty(_song.Artist)) _song.Artist = "未知艺术家";
+            if (string.IsNullOrEmpty(_song.Album)) _song.Album = "未知专辑";
 
             var durationSec = _song.Duration;
 

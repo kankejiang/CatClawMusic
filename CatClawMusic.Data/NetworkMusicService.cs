@@ -202,9 +202,26 @@ public class NetworkMusicService : INetworkMusicService
             _webDav.Configure(profile);
             if (_webDav is WebDavService wdsEnsure) await wdsEnsure.EnsureDetectedAsync();
 
+            // OpenList 自动检测回退：确保 CurrentServerType 已正确识别
+            if (_webDav is WebDavService wdsCheck
+                && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList
+                && wdsCheck.CurrentServerType != WebDavServerType.OpenList)
+            {
+                try
+                {
+                    var detected = await wdsCheck.DetectServerTypeAsync(profile);
+                    if (detected == WebDavServerType.OpenList)
+                    {
+                        profile.ServerType = (int)WebDavServerType.OpenList;
+                        try { await _db.SaveConnectionProfileAsync(profile); } catch { }
+                    }
+                }
+                catch { }
+            }
+
             // OpenList: 使用 raw_url (CDN 直链) 下载文件头，WebDAV 端点 302 到 CDN 会拒绝 Basic Auth
             var isOpenList = (WebDavServerType)profile.ServerType == WebDavServerType.OpenList;
-            if (!isOpenList && _webDav is WebDavService wdsCheck && wdsCheck.CurrentServerType == WebDavServerType.OpenList)
+            if (!isOpenList && _webDav is WebDavService wdsCheck2 && wdsCheck2.CurrentServerType == WebDavServerType.OpenList)
                 isOpenList = true;
 
             if (isOpenList && _webDav is WebDavService openListService)
@@ -413,6 +430,24 @@ public class NetworkMusicService : INetworkMusicService
 
         _webDav.Configure(profile);
         if (_webDav is WebDavService wdsMeta) await wdsMeta.EnsureDetectedAsync();
+
+        // OpenList 自动检测回退：确保 CurrentServerType 已正确识别
+        if (_webDav is WebDavService wdsCheck
+            && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList
+            && wdsCheck.CurrentServerType != WebDavServerType.OpenList)
+        {
+            try
+            {
+                var detected = await wdsCheck.DetectServerTypeAsync(profile);
+                if (detected == WebDavServerType.OpenList)
+                {
+                    profile.ServerType = (int)WebDavServerType.OpenList;
+                    try { await _db.SaveConnectionProfileAsync(profile); } catch { }
+                }
+            }
+            catch { }
+        }
+
         try
         {
             var ms = await DownloadHeadAsync(remotePath);

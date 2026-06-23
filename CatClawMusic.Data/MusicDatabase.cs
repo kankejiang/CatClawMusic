@@ -362,6 +362,14 @@ public class MusicDatabase
     public Task<Song?> GetSongByIdAsync(int id) =>
         _database.Table<Song>().Where(s => s.Id == id).FirstOrDefaultAsync();
 
+    /// <summary>根据 ID 查找艺术家</summary>
+    public Task<Artist?> FindArtistByIdAsync(int id) =>
+        _database.Table<Artist>().Where(a => a.Id == id).FirstOrDefaultAsync();
+
+    /// <summary>根据 ID 查找专辑</summary>
+    public Task<Album?> FindAlbumByIdAsync(int id) =>
+        _database.Table<Album>().Where(a => a.Id == id).FirstOrDefaultAsync();
+
     /// <summary>数据库层面搜索歌曲（JOIN Artist/Album/SongArtists 表，避免全部加载到内存）</summary>
     /// <param name="keyword">搜索关键词</param>
     /// <returns>匹配的歌曲列表</returns>
