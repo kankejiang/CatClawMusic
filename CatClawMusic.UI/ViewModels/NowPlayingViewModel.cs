@@ -1138,7 +1138,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 PrevLyricLine2 = "";
                 PrevLyricLine = "";
                 CurrentLyricLine = "";
-                NextLyricLine = lyrics.Lines[0].Text;
+                NextLyricLine = lyrics.Lines.Count > 0 ? lyrics.Lines[0].Text : "";
                 NextLyricLine2 = lyrics.Lines.Count > 1 ? lyrics.Lines[1].Text : "";
                 NextLyricLine3 = lyrics.Lines.Count > 2 ? lyrics.Lines[2].Text : "";
                 NextLyricLine4 = lyrics.Lines.Count > 3 ? lyrics.Lines[3].Text : "";
