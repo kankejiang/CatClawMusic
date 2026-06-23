@@ -33,6 +33,7 @@ public class SearchResultAdapter : RecyclerView.Adapter
     {
         if (holder is SearchResultViewHolder vh)
         {
+            if (position >= _songs.Count) return;
             vh.Bind(_songs[position]);
         }
     }

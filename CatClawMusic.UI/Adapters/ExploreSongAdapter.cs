@@ -83,6 +83,7 @@ public class ExploreSongAdapter : RecyclerView.Adapter
         if (holder is ExploreSongViewHolder vh)
         {
             var songIndex = ShowPlayAllButton ? position - 1 : position;
+            if (songIndex < 0 || songIndex >= _songs.Count) return;
             var song = _songs[songIndex];
             vh.Bind(song, ShowPlayCount, _coverCache);
             vh.ItemView.Click -= vh.OnClick;
