@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <AndroidSdkDirectory>C:\Users\lvjin\AppData\Local\Android\Sdk</AndroidSdkDirectory>
+    <AndroidSdkDirectory Condition="'$(ANDROID_SDK_ROOT)' != ''">$(ANDROID_SDK_ROOT)</AndroidSdkDirectory>
     <Aapt2SkipVersionCheck>true</Aapt2SkipVersionCheck>
   </PropertyGroup>
 </Project>

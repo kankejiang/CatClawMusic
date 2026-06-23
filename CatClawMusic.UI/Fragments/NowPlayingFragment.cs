@@ -28,6 +28,10 @@ namespace CatClawMusic.UI.Fragments;
 /// </summary>
 public class NowPlayingFragment : Fragment
 {
+    private static readonly Dictionary<string, string> DetailSourceLabels = new() {
+        ["netease"] = "网易云", ["qq"] = "QQ音乐", ["kugou"] = "酷狗",
+        ["soda"] = "汽水", ["apple"] = "Apple"
+    };
     private NowPlayingViewModel _viewModel = null!;
     private ImageView _albumCover = null!;
     private LinearLayout.LayoutParams? _coverLayoutParams;
@@ -2236,10 +2240,10 @@ public class NowPlayingFragment : Fragment
         resultsList.RemoveAllViews(); other.RemoveAllViews(); resultsList.Visibility = ViewStates.Gone;
         var keyword = $"{_detailSong.Artist} {_detailSong.Title}".Trim();
         if (string.IsNullOrWhiteSpace(keyword)) return;
-        var svc = new MultiSourceSearchService();
+        var svc = MainApplication.Services.GetRequiredService<MultiSourceSearchService>();
         var results = await Task.Run(() => svc.SearchAllAsync(keyword));
         if (results.Count == 0) { AddNoResultText(ctx, resultsList); return; }
-        var labels = new Dictionary<string, string> { ["netease"]="网易云",["qq"]="QQ音乐",["kugou"]="酷狗",["soda"]="汽水",["apple"]="Apple" };
+        var labels = DetailSourceLabels;
         foreach (var r in results.Take(12))
         {
             var btn = new Android.Widget.Button(ctx)
@@ -2291,11 +2295,11 @@ public class NowPlayingFragment : Fragment
         resultsList.RemoveAllViews(); other.RemoveAllViews(); resultsList.Visibility = ViewStates.Gone;
         var keyword = $"{_detailSong.Artist} {_detailSong.Title}".Trim();
         if (string.IsNullOrWhiteSpace(keyword)) return;
-        var svc = new MultiSourceSearchService();
+        var svc = MainApplication.Services.GetRequiredService<MultiSourceSearchService>();
         var results = await Task.Run(() => svc.SearchAllAsync(keyword));
         var withCovers = results.Where(r => !string.IsNullOrWhiteSpace(r.CoverUrl)).Take(8).ToList();
         if (withCovers.Count == 0) { AddNoResultText(ctx, resultsList); return; }
-        var labels = new Dictionary<string, string> { ["netease"]="网易云",["qq"]="QQ音乐",["kugou"]="酷狗",["soda"]="汽水",["apple"]="Apple" };
+        var labels = DetailSourceLabels;
         foreach (var r in withCovers)
         {
             var btn = new Android.Widget.Button(ctx)

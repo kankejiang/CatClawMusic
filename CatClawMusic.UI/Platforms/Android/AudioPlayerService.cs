@@ -80,7 +80,7 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
                 if (_player != null && _isPrepared)
                     return _player.CurrentPosition;
             }
-            catch { }
+            catch (Exception ex) { ALog.Warn("CatClaw", $"[CatClaw] CurrentPosition read failed: {ex.Message}"); }
             return _cachedPositionMs;
         }
     }
@@ -107,10 +107,6 @@ public class AudioPlayerService : IAudioPlayerService, IDisposable
     public event EventHandler<TimeSpan>? PositionChanged;
     /// <summary>音频会话ID变化事件（Player重建时触发，用于重新绑定Visualizer）</summary>
     public event Action<int>? AudioSessionIdChanged;
-#pragma warning disable CS0067
-    /// <summary>PCM 原始音频数据可用事件（当前未实现，保留接口）</summary>
-    public event Action<byte[]>? PcmDataAvailable;
-#pragma warning restore CS0067
 
     private readonly AudioFocusChangeListener? _focusListener;
 

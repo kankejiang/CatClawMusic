@@ -45,9 +45,6 @@ public interface IAudioPlayerService
 
     /// <summary>音频会话 ID（用于 Visualizer 绑定）</summary>
     int AudioSessionId { get; }
-
-    /// <summary>PCM 数据回调（原始音频字节，供频谱分析用）</summary>
-    event Action<byte[]>? PcmDataAvailable;
     
     /// <summary>
     /// 当前播放位置

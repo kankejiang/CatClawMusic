@@ -17,6 +17,11 @@ namespace CatClawMusic.UI.Fragments;
 /// <summary>歌曲详情底部弹窗（从任意页面底部弹出，下滑/返回关闭）</summary>
 public class SongDetailBottomSheet : BottomSheetDialogFragment
 {
+    private static readonly Dictionary<string, string> SourceLabels = new() {
+        ["netease"] = "网易云", ["qq"] = "QQ音乐", ["kugou"] = "酷狗",
+        ["soda"] = "汽水", ["apple"] = "Apple"
+    };
+
     private ImageView _albumCover = null!;
     private ImageView _artistThumb = null!;
     private ImageView _albumThumb = null!;
@@ -760,7 +765,7 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
         var keyword = $"{_song.Artist} {_song.Title}".Trim();
         if (string.IsNullOrWhiteSpace(keyword)) return;
 
-        var searchService = new MultiSourceSearchService();
+        var searchService = MainApplication.Services.GetRequiredService<MultiSourceSearchService>();
         var results = await Task.Run(() => searchService.SearchAllAsync(keyword));
 
         if (results.Count == 0)
@@ -779,10 +784,7 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
             return;
         }
 
-        var sourceLabels = new Dictionary<string, string> {
-            ["netease"] = "网易云", ["qq"] = "QQ音乐", ["kugou"] = "酷狗",
-            ["soda"] = "汽水", ["apple"] = "Apple"
-        };
+        var sourceLabels = SourceLabels;
 
         foreach (var r in results.Take(12))
         {
@@ -878,7 +880,7 @@ public class SongDetailBottomSheet : BottomSheetDialogFragment
         var keyword = $"{_song.Artist} {_song.Title}".Trim();
         if (string.IsNullOrWhiteSpace(keyword)) return;
 
-        var searchService = new MultiSourceSearchService();
+        var searchService = MainApplication.Services.GetRequiredService<MultiSourceSearchService>();
         var results = await Task.Run(() => searchService.SearchAllAsync(keyword));
 
         // Filter those with cover URLs

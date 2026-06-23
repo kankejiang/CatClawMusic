@@ -1,7 +1,7 @@
 using Android.Views;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
-using CatClawMusic.Core.Services.AI;
+using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.UI.Adapters;
 

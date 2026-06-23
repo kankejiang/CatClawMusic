@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services.AI;
 
 namespace CatClawMusic.Data;

@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Services;
+using Xunit;
 
 namespace CatClawMusic.Core.Tests;
 

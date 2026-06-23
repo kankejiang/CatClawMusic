@@ -1,4 +1,4 @@
-using CatClawMusic.Core.Services.AI;
+using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Core.Interfaces;
 

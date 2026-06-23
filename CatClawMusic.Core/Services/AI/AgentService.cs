@@ -3,6 +3,8 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 
+using CatClawMusic.Core.Models;
+
 namespace CatClawMusic.Core.Services.AI;
 
 public class AgentService : IAgentService

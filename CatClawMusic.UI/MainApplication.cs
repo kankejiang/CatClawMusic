@@ -279,6 +279,7 @@ public class MainApplication : Application
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
         services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<MultiSourceSearchService>();
         services.AddSingleton<ILogService, LogService>();
 
         // AI Agent services
