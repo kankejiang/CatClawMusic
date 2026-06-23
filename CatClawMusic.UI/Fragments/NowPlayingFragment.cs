@@ -1668,8 +1668,7 @@ public class NowPlayingFragment : Fragment
 
         try
         {
-            var songs = await db.GetSongsWithDetailsAsync();
-            _detailSong = songs.FirstOrDefault(s => s.Id == songId);
+            _detailSong = await db.GetSongByIdAsync(songId);
 
             if (_detailSong == null)
             {
@@ -1680,6 +1679,22 @@ public class NowPlayingFragment : Fragment
                 });
                 return;
             }
+
+            // 填充艺术家/专辑名称（GetSongByIdAsync 不预加载这些运行时字段）
+            if (_detailSong.ArtistId > 0)
+            {
+                var artist = await db.FindArtistByIdAsync(_detailSong.ArtistId);
+                if (!string.IsNullOrEmpty(artist?.Name))
+                    _detailSong.Artist = artist.Name;
+            }
+            if (_detailSong.AlbumId > 0)
+            {
+                var album = await db.FindAlbumByIdAsync(_detailSong.AlbumId);
+                if (!string.IsNullOrEmpty(album?.Title))
+                    _detailSong.Album = album.Title;
+            }
+            if (string.IsNullOrEmpty(_detailSong.Artist)) _detailSong.Artist = "未知艺术家";
+            if (string.IsNullOrEmpty(_detailSong.Album)) _detailSong.Album = "未知专辑";
 
             // 自动修复旧扫描遗留的"未知"元数据
             await Task.Run(() =>
