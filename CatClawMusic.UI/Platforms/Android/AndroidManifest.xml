@@ -74,7 +74,7 @@
         <!-- 主活动配置 -->
         <activity 
             android:name=".MainActivity"
-            android:theme="@style/CatClaw.Splash"
+            android:theme="@style/CatClaw.SplashTheme"
             android:windowSoftInputMode="adjustResize|stateHidden"
             android:configChanges="screenSize|orientation|uiMode"
             android:exported="true">

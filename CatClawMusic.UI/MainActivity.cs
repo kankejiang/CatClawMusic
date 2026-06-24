@@ -26,7 +26,7 @@ namespace CatClawMusic.UI;
 /// 应用主界面 Activity，管理 ViewPager2 + BottomNavigation 的 Tab 切换、
 /// 迷你播放器、侧面板（设置）、Fragment 导航栈和系统栏沉浸式适配
 /// </summary>
-[Activity(Theme = "@style/CatClaw.Splash",
+[Activity(Theme = "@style/CatClaw.SplashTheme",
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode,
     ScreenOrientation = Android.Content.PM.ScreenOrientation.Portrait)]
 public class MainActivity : AppCompatActivity
