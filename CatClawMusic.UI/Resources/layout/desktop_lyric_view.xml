@@ -76,6 +76,55 @@
                 android:paddingRight="4dp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/desktop_lyric_controls"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
+            <ImageButton
+                android:id="@+id/btn_desktop_prev"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_skip_previous"
+                android:tint="#FFFFFF"
+                android:contentDescription="上一首" />
+
+            <ImageButton
+                android:id="@+id/btn_desktop_play_pause"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_play"
+                android:tint="#FFFFFF"
+                android:contentDescription="播放/暂停" />
+
+            <ImageButton
+                android:id="@+id/btn_desktop_next"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_skip_next"
+                android:tint="#FFFFFF"
+                android:contentDescription="下一首" />
+
+            <ImageButton
+                android:id="@+id/btn_desktop_like"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_favorite_border"
+                android:tint="#FFFFFF"
+                android:contentDescription="喜欢" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView

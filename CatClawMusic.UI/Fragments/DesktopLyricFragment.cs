@@ -21,6 +21,9 @@ public class DesktopLyricFragment : Fragment
     private Switch? _swDesktopLyric;
     private Switch? _swFontBold;
     private Switch? _swShowBorder;
+    private Switch? _swShowControls;
+
+
     private SeekBar? _sbFontSize;
     private SeekBar? _sbBgAlpha;
     private TextView? _tvFontSizeValue;
@@ -70,6 +73,8 @@ public class DesktopLyricFragment : Fragment
         _swDesktopLyric = view.FindViewById<Switch>(Resource.Id.sw_desktop_lyric);
         _swFontBold = view.FindViewById<Switch>(Resource.Id.sw_font_bold);
         _swShowBorder = view.FindViewById<Switch>(Resource.Id.sw_show_border);
+        _swShowControls = view.FindViewById<Switch>(Resource.Id.sw_show_controls);
+
         _sbFontSize = view.FindViewById<SeekBar>(Resource.Id.sb_font_size);
         _sbBgAlpha = view.FindViewById<SeekBar>(Resource.Id.sb_bg_alpha);
         _tvFontSizeValue = view.FindViewById<TextView>(Resource.Id.tv_font_size_value);
@@ -108,6 +113,10 @@ public class DesktopLyricFragment : Fragment
 
         if (_swShowBorder != null)
             _swShowBorder.Checked = service.GetShowBorder();
+
+        if (_swShowControls != null)
+            _swShowControls.Checked = service.GetShowControls();
+
 
         var currentColor = service.GetFontColor();
         UpdateColorPreview(currentColor);
@@ -204,6 +213,16 @@ public class DesktopLyricFragment : Fragment
                 service.SetShowBorder(e.IsChecked);
             };
         }
+
+        if (_swShowControls != null)
+        {
+            _swShowControls.CheckedChange += (s, e) =>
+            {
+                if (!_isInitialized) return;
+                service.SetShowControls(e.IsChecked);
+            };
+        }
+
 
         if (_rgDisplayMode != null)
         {

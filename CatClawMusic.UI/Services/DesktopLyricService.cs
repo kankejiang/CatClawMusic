@@ -22,6 +22,9 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     private const string PrefKeyBgAlpha = "desktop_lyric_bg_alpha";
     private const string PrefKeyDisplayMode = "desktop_lyric_display_mode";
     private const string PrefKeyShowBorder = "desktop_lyric_show_border";
+    private const string PrefKeyShowControls = "desktop_lyric_show_controls";
+
+
     private const string PrefKeyFontBold = "desktop_lyric_font_bold";
     private const string PrefKeyPosX = "desktop_lyric_pos_x";
     private const string PrefKeyPosY = "desktop_lyric_pos_y";
@@ -36,7 +39,13 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     private TextView? _lyricPrevView;
     private TextView? _lyricNextView;
     private LinearLayout? _doubleLayout;
+    private LinearLayout? _controlsLayout;
+    private ImageButton? _btnPrev;
+    private ImageButton? _btnPlayPause;
+    private ImageButton? _btnNext;
+    private ImageButton? _btnLike;
     private TextView? _lockButton;
+
     private View? _rootLayout;
     private IAudioPlayerService? _audioPlayer;
     private NowPlayingViewModel? _nowPlayingVm;
@@ -57,7 +66,9 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
     private float _bgAlpha = 0f;
     private int _displayMode = 0;
     private bool _showBorder = true;
+    private bool _showControls = true;
     private bool _fontBold;
+
 
     private Handler? _fadeHandler;
     private Action? _fadeAction;
@@ -129,6 +140,8 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         _bgAlpha = prefs.GetFloat(PrefKeyBgAlpha, 0f);
         _displayMode = prefs.GetInt(PrefKeyDisplayMode, 0);
         _showBorder = prefs.GetBoolean(PrefKeyShowBorder, true);
+        _showControls = prefs.GetBoolean(PrefKeyShowControls, true);
+
         _fontBold = prefs.GetBoolean(PrefKeyFontBold, false);
     }
 
@@ -236,7 +249,13 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             var prevView = view.FindViewById<TextView>(Resource.Id.tv_desktop_lyric_prev);
             var nextView = view.FindViewById<TextView>(Resource.Id.tv_desktop_lyric_next);
             var doubleLayout = view.FindViewById<LinearLayout>(Resource.Id.desktop_lyric_double_layout);
+            var controlsLayout = view.FindViewById<LinearLayout>(Resource.Id.desktop_lyric_controls);
+            var btnPrev = view.FindViewById<ImageButton>(Resource.Id.btn_desktop_prev);
+            var btnPlayPause = view.FindViewById<ImageButton>(Resource.Id.btn_desktop_play_pause);
+            var btnNext = view.FindViewById<ImageButton>(Resource.Id.btn_desktop_next);
+            var btnLike = view.FindViewById<ImageButton>(Resource.Id.btn_desktop_like);
             var lockBtn = view.FindViewById<TextView>(Resource.Id.tv_desktop_lyric_lock_btn);
+
 
             var typeface = _fontBold ? Typeface.DefaultBold : Typeface.Default;
             if (singleView != null)
@@ -268,6 +287,14 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
                 if (singleView != null) singleView.Visibility = ViewStates.Visible;
                 if (doubleLayout != null) doubleLayout.Visibility = ViewStates.Gone;
             }
+
+            if (controlsLayout != null)
+            {
+                controlsLayout.Visibility = _showControls ? ViewStates.Visible : ViewStates.Gone;
+                SetupControlButtons(btnPrev, btnPlayPause, btnNext, btnLike);
+            }
+
+
 
             var bgDrawable = new Android.Graphics.Drawables.GradientDrawable();
             bgDrawable.SetCornerRadius(16f * (context.Resources?.DisplayMetrics?.Density ?? 2f));
@@ -310,7 +337,13 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
             _lyricPrevView = prevView;
             _lyricNextView = nextView;
             _doubleLayout = doubleLayout;
+            _controlsLayout = controlsLayout;
+            _btnPrev = btnPrev;
+            _btnPlayPause = btnPlayPause;
+            _btnNext = btnNext;
+            _btnLike = btnLike;
             _lockButton = lockBtn;
+
 
             ScheduleLockHide();
 
@@ -323,6 +356,55 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    private void SetupControlButtons(ImageButton? btnPrev, ImageButton? btnPlayPause, ImageButton? btnNext, ImageButton? btnLike)
+    {
+        if (_nowPlayingVm == null) return;
+
+        btnPrev?.SetOnClickListener(new ClickListener(() =>
+        {
+            _mainHandler.Post(() => _nowPlayingVm?.PreviousCommand.Execute(null));
+        }));
+
+        btnPlayPause?.SetOnClickListener(new ClickListener(() =>
+        {
+            _mainHandler.Post(() => _nowPlayingVm?.PlayPauseCommand.Execute(null));
+        }));
+
+        btnNext?.SetOnClickListener(new ClickListener(() =>
+        {
+            _mainHandler.Post(() => _nowPlayingVm?.NextCommand.Execute(null));
+        }));
+
+        btnLike?.SetOnClickListener(new ClickListener(() =>
+        {
+            _mainHandler.Post(() => _nowPlayingVm?.ToggleLikeCommand.Execute(null));
+        }));
+
+        UpdatePlayPauseIcon();
+        UpdateLikeIcon();
+    }
+
+    private void UpdatePlayPauseIcon()
+    {
+        if (_btnPlayPause == null || _nowPlayingVm == null) return;
+        var isPlaying = _nowPlayingVm.PlayPauseIcon == "⏸";
+        _btnPlayPause.SetImageResource(isPlaying ? Resource.Drawable.ic_pause : Resource.Drawable.ic_play);
+    }
+
+    private void UpdateLikeIcon()
+    {
+        if (_btnLike == null || _nowPlayingVm == null) return;
+        _btnLike.SetImageResource(_nowPlayingVm.IsLiked ? Resource.Drawable.ic_favorite : Resource.Drawable.ic_favorite_border);
+    }
+
+
+    private class ClickListener : Java.Lang.Object, View.IOnClickListener
+    {
+        private readonly Action _action;
+        public ClickListener(Action action) => _action = action;
+        public void OnClick(View? v) => _action();
+    }
+
     private class LockClickListener : Java.Lang.Object, View.IOnClickListener
     {
         private readonly DesktopLyricService _service;
@@ -332,13 +414,14 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         public void OnClick(View? v)
         {
             _service._isLocked = !_service._isLocked;
-            _btn.Text = _service._isLocked ? "馃攼" : "馃敀";
+            _btn.Text = _service._isLocked ? "🔒" : "🔓";
             _btn.SetTextColor(_service._isLocked
                 ? Color.ParseColor("#FF6B81")
                 : Color.White);
             _service.ApplyLockFlags();
         }
     }
+
 
     private void ShowLockButton()
     {
@@ -715,7 +798,16 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
                 }
             });
         }
+        else if (e.PropertyName == nameof(NowPlayingViewModel.PlayPauseIcon))
+        {
+            _mainHandler.Post(UpdatePlayPauseIcon);
+        }
+        else if (e.PropertyName == nameof(NowPlayingViewModel.IsLiked))
+        {
+            _mainHandler.Post(UpdateLikeIcon);
+        }
     }
+
 
     /// <summary>设置字体大小（单位 sp）</summary>
     public void SetFontSize(float fontSizeSp)
@@ -794,12 +886,29 @@ public class DesktopLyricService : Java.Lang.Object, IDisposable
         }
     }
 
+    /// <summary>设置是否显示播放控制按钮</summary>
+    public void SetShowControls(bool show)
+    {
+        _showControls = show;
+        SavePreference(PrefKeyShowControls, _showControls);
+        if (_isShowing)
+        {
+            _mainHandler.Post(() =>
+            {
+                if (_controlsLayout != null)
+                    _controlsLayout.Visibility = show ? ViewStates.Visible : ViewStates.Gone;
+            });
+        }
+    }
+
     public float GetFontSize() => _fontSize;
     public string GetFontColor() => _fontColor;
     public bool GetFontBold() => _fontBold;
     public float GetBackgroundAlpha() => _bgAlpha;
     public int GetDisplayMode() => _displayMode;
     public bool GetShowBorder() => _showBorder;
+    public bool GetShowControls() => _showControls;
+
     /// <summary>是否处于锁定状态</summary>
     public bool IsLocked => _isLocked;
     /// <summary>悬浮窗是否正在显示</summary>
