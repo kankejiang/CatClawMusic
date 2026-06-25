@@ -7,7 +7,7 @@
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-13.0-blue)
-![版本](https://img.shields.io/badge/版本-1.5.0-red)
+![版本](https://img.shields.io/badge/版本-1.5.1-red)
 ![最低版本](https://img.shields.io/badge/最低版本-Android%2012%20(API%2031)-orange)
 ![协议](https://img.shields.io/badge/协议-MIT-yellow)
 

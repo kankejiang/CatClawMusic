@@ -70,6 +70,12 @@ public class ForegroundPlayerService : Service
         var action = intent?.Action;
         if (!string.IsNullOrEmpty(action) && action != Intent.ActionMain)
         {
+            if (!_started)
+            {
+                StartForeground(NotifIdMain, BuildMainNotification());
+                _started = true;
+                StartProgressUpdates();
+            }
             if (action.StartsWith("catclaw_"))
                 HandleAction(action.Substring("catclaw_".Length));
             else
@@ -159,11 +165,12 @@ public class ForegroundPlayerService : Service
         }
     }
 
-    /// <summary>进度定时器回调，更新 MediaSession 播放状态（系统自动同步通知进度条）</summary>
+    /// <summary>进度定时器回调，更新 MediaSession 播放状态与桌面小组件进度</summary>
     private void ProgressTick()
     {
         if (_progressHandler == null) return;
         UpdateMediaSessionPlaybackState();
+        WidgetUpdateHelper.UpdateFromService(this, _nowPlayingVm, _audioPlayer);
         _progressHandler.PostDelayed(ProgressTick, 1000);
     }
 
@@ -520,6 +527,12 @@ public class ForegroundPlayerService : Service
             case "pause":
                 _audioPlayer?.PauseAsync();
                 break;
+            case "toggle_play":
+                if (_audioPlayer?.IsPlaying ?? false)
+                    _audioPlayer?.PauseAsync();
+                else
+                    _audioPlayer?.ResumeAsync();
+                break;
             case "next":
                 _nowPlayingVm?.NextCommand.Execute(null);
                 break;
@@ -598,6 +611,7 @@ public class ForegroundPlayerService : Service
         UpdateMediaSessionMetadata();
         // 延迟更新通知确保播放状态已同步到系统
         new Handler(Looper.MainLooper!).PostDelayed(() => UpdateNotification(), 150);
+        WidgetUpdateHelper.UpdateFromService(this, _nowPlayingVm, _audioPlayer);
     }
 
     /// <summary>ViewModel 属性变化时按需更新 MediaSession 元数据和通知</summary>
@@ -614,6 +628,7 @@ public class ForegroundPlayerService : Service
             UpdateMediaSessionMetadata();
             UpdateNotification();
         }
+        WidgetUpdateHelper.UpdateFromService(this, _nowPlayingVm, _audioPlayer);
     }
 
     #endregion

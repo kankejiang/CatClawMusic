@@ -9,8 +9,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion>31</SupportedOSPlatformVersion>
-    <ApplicationVersion>35</ApplicationVersion>
-    <ApplicationDisplayVersion>1.5.0</ApplicationDisplayVersion>
+    <ApplicationVersion>36</ApplicationVersion>
+    <ApplicationDisplayVersion>1.5.1</ApplicationDisplayVersion>
     <LangVersion>preview</LangVersion>
     <NoWarn>NU1605;NU1608</NoWarn>
     <AndroidUseFastDeployment>True</AndroidUseFastDeployment>
