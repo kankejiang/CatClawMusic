@@ -9,6 +9,7 @@ using CatClawMusic.UI.Platforms.Android;
 using CatClawMusic.UI.Services;
 using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
+using System.Threading.Tasks;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -119,7 +120,7 @@ public class SettingsFragment : Fragment
         base.OnResume();
         // 每次恢复时更新图标（可能从其他地方改了设置）
         UpdateDarkModeIcon();
-        UpdatePermissionStatus();
+        _ = UpdatePermissionStatusAsync();
     }
 
     /// <summary>
@@ -172,14 +173,14 @@ public class SettingsFragment : Fragment
     /// <summary>
     /// 更新权限管理状态文本
     /// </summary>
-    private void UpdatePermissionStatus()
+    private async Task UpdatePermissionStatusAsync()
     {
         try
         {
             var permService = MainApplication.Services.GetRequiredService<IPermissionService>();
-            var storageOk = permService.CheckStoragePermissionAsync().Result;
-            var overlayOk = permService.CheckOverlayPermissionAsync().Result;
-            var manageStorageOk = permService.CheckManageStoragePermissionAsync().Result;
+            var storageOk = await permService.CheckStoragePermissionAsync();
+            var overlayOk = await permService.CheckOverlayPermissionAsync();
+            var manageStorageOk = await permService.CheckManageStoragePermissionAsync();
 
             bool notificationOk = true;
             if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
@@ -301,7 +302,7 @@ public class SettingsFragment : Fragment
         }
 
         // 权限状态
-        UpdatePermissionStatus();
+        _ = UpdatePermissionStatusAsync();
     }
 
     /// <summary>

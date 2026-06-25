@@ -64,8 +64,7 @@ public static class CoverColorExtractor
     /// <summary>
     /// 色彩量化级别：将每个 RGB 通道从 256 级（8位）降为 32 级（5位）
     /// <para>量化公式：channel_key = channel_value / 32，范围 0-31</para>
-    /// <para>三个通道组合为 15 位 key：(r_key << 10) | (g_key << 5) | b_key</para>
-    /// </para>
+    /// <para>三个通道组合为 15 位 key：(r_key &lt;&lt; 10) | (g_key &lt;&lt; 5) | b_key</para>
     /// </summary>
     private const int QuantizeLevels = 32;
 

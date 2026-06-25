@@ -224,7 +224,7 @@ public partial class LibraryViewModel : ObservableObject
         {
             var ctx = global::Android.App.Application.Context;
             var prefs = ctx.GetSharedPreferences(PrefKey, FileCreationMode.Private);
-            _selectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
+            SelectedProtocolIndex = prefs.GetInt(PrefProtocolIndex, 0);
             var activeColor = UiHelper.ResolveThemeColorHex(ctx, Resource.Attribute.catClawPrimaryColor, "#9B7ED8");
             var inactiveColor = UiHelper.ResolveThemeColorHex(ctx, Resource.Attribute.catClawTabInactive, "#C0B8CA");
             var savedTab = prefs.GetString(PrefCurrentTab, "Local");
@@ -275,8 +275,8 @@ public partial class LibraryViewModel : ObservableObject
             }
 
             // 索引越界保护：若上次选中的协议已被禁用，重置为第一个
-            if (_selectedProtocolIndex >= ProtocolTypes.Count)
-                _selectedProtocolIndex = 0;
+            if (SelectedProtocolIndex >= ProtocolTypes.Count)
+                SelectedProtocolIndex = 0;
 
             OnPropertyChanged(nameof(ProtocolOptions));
             OnPropertyChanged(nameof(ProtocolTypes));
@@ -759,9 +759,9 @@ public partial class LibraryViewModel : ObservableObject
 
             var enabled = allProfiles.Where(p => p.IsEnabled).ToList();
 
-            if (_selectedProtocolIndex < ProtocolTypes.Count)
+            if (SelectedProtocolIndex < ProtocolTypes.Count)
             {
-                var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
+                var selectedProtocol = ProtocolTypes[SelectedProtocolIndex];
                 enabled = enabled.Where(p => p.Protocol == selectedProtocol).ToList();
             }
 
@@ -877,9 +877,9 @@ public partial class LibraryViewModel : ObservableObject
     /// <returns>过滤后的歌曲列表</returns>
     private List<CoreModels.Song> FilterSongsByProtocol(List<CoreModels.Song> songs)
     {
-        if (_selectedProtocolIndex < ProtocolTypes.Count)
+        if (SelectedProtocolIndex < ProtocolTypes.Count)
         {
-            var selectedProtocol = ProtocolTypes[_selectedProtocolIndex];
+            var selectedProtocol = ProtocolTypes[SelectedProtocolIndex];
             songs = songs.Where(s => s.Protocol == selectedProtocol).ToList();
         }
         return songs;

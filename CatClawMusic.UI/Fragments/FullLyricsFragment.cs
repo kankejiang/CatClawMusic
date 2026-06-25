@@ -20,11 +20,11 @@ public class FullLyricsFragment : Fragment
     // 颜色预设
     // 快速预设色（用于取色盘下方的快捷按钮）
     private static readonly string[] PresetColorNames = { "白色", "黑色", "黄色", "薄荷绿", "粉色", "天蓝", "橙色", "珊瑚", "薰衣草", "青色" };
-    private static readonly string[] PresetColorHex = { "#FFFFFFFF", "#FF000000", "#FFFFEB3B", "#FF69F0AE", "#FFFF80AB", "#FF64B5F6", "#FFFFAB40", "#FFFF6E6E", "#FFCE93D8", "#FF4DD0E1" };
+    private static readonly string[] PresetColorHex = LyricConstants.PresetColorHex;
     private static readonly string[] InactivePresetNames = { "灰色", "深灰", "黑色", "浅灰", "蓝灰", "淡紫", "暖灰", "石板" };
-    private static readonly string[] InactivePresetHex = { "#CCBBBBBB", "#CC555555", "#CC000000", "#DDDDDDDD", "#CC90A4AE", "#CCB39DDB", "#CCBDBDBD", "#CC78909C" };
+    private static readonly string[] InactivePresetHex = LyricConstants.InactivePresetHex;
     private static readonly string[] BgColorNames = { "浅色", "深色", "透明" };
-    private static readonly string[] BgColorHex = { "#99F0EBE3", "#990F0D16", "#33000000" };
+    private static readonly string[] BgColorHex = LyricConstants.FullScreenBgColorHex;
 
     // ViewModel
     private NowPlayingViewModel _viewModel = null!;
@@ -89,15 +89,11 @@ public class FullLyricsFragment : Fragment
         _dragIndicator = view.FindViewById<RelativeLayout>(Resource.Id.drag_indicator)!;
         _btnJump = view.FindViewById<Button>(Resource.Id.btn_jump)!;
         _bgDimOverlay = view.FindViewById(Resource.Id.lyric_bg_dim);
-        _fadeTop = view.FindViewById<View>(Resource.Id.lyric_fade_top);
-        _fadeBottom = view.FindViewById<View>(Resource.Id.lyric_fade_bottom);
-        _fadeTop!.Visibility = ViewStates.Gone;
-        _fadeBottom!.Visibility = ViewStates.Gone;
+
 
         // 初始化歌词渲染视图
         _lyricRenderer.Init(_viewModel, _prefs);
         _lyricRenderer.LoadSettings();
-        _lyricRenderer.EnableRaindropWordBounce = false;
         _lyricRenderer.BgDimOverlay = _bgDimOverlay;
 
         _lyricRenderer.OnDragSeek = pos =>

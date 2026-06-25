@@ -7,7 +7,7 @@
         android:layout_height="match_parent" android:scaleType="centerCrop"
         android:src="@drawable/cover_default" />
 
-    <!-- 中层：半透明暗色遮罩（毛玻璃感） -->
+    <!-- 中层：半透明暗色遮罩 -->
     <View android:id="@+id/lyric_bg_dim" android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#990F0D16" />
@@ -68,20 +68,6 @@
                 android:id="@+id/lyric_renderer"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
-
-            <!-- 顶部渐变遮罩：歌词向上滚动时顶部淡出 -->
-            <View android:id="@+id/lyric_fade_top"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_gravity="top"
-                android:background="@drawable/lyric_fade_top" />
-
-            <!-- 底部渐变遮罩：歌词向下滚动时底部淡出 -->
-            <View android:id="@+id/lyric_fade_bottom"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_gravity="bottom"
-                android:background="@drawable/lyric_fade_bottom" />
 
             <!-- 拖拽指示器：半透明圆角条 + 跳转按钮 -->
             <RelativeLayout android:id="@+id/drag_indicator"

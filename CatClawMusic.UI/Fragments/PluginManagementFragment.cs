@@ -7,6 +7,7 @@ using AndroidX.RecyclerView.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.UI.Adapters;
 using CatClawMusic.UI.Helpers;
+using CatClawMusic.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.UI.Fragments;
@@ -145,12 +146,7 @@ public class PluginManagementFragment : Fragment
             return;
         }
 
-        var progressDialog = new ProgressDialog(ctx);
-        progressDialog.SetTitle("安装中...");
-        progressDialog.SetMessage("正在加载插件...");
-        progressDialog.SetProgressStyle(ProgressDialogStyle.Horizontal);
-        progressDialog.SetCancelable(false);
-        progressDialog.Max = 100;
+        using var progressDialog = new MaterialProgressDialog(ctx, "安装中...", "正在加载插件...");
         progressDialog.Show();
 
         var pluginManager = MainApplication.Services.GetRequiredService<IPluginManager>();
@@ -159,8 +155,7 @@ public class PluginManagementFragment : Fragment
             {
                 Activity?.RunOnUiThread(() =>
                 {
-                    progressDialog.SetMessage(update.Status);
-                    progressDialog.Progress = update.Percent;
+                    progressDialog.Update(update.Status, update.Percent);
                 });
             }));
 
@@ -240,12 +235,7 @@ public class PluginManagementFragment : Fragment
                     return;
                 }
 
-                var progressDialog = new ProgressDialog(ctx);
-                progressDialog.SetTitle("安装中...");
-                progressDialog.SetMessage("正在连接 GitHub...");
-                progressDialog.SetProgressStyle(ProgressDialogStyle.Horizontal);
-                progressDialog.SetCancelable(false);
-                progressDialog.Max = 100;
+                using var progressDialog = new MaterialProgressDialog(ctx, "安装中...", "正在连接 GitHub...");
                 progressDialog.Show();
 
                 var pluginManager = MainApplication.Services.GetRequiredService<IPluginManager>();
@@ -254,8 +244,7 @@ public class PluginManagementFragment : Fragment
                     {
                         Activity?.RunOnUiThread(() =>
                         {
-                            progressDialog.SetMessage(update.Status);
-                            progressDialog.Progress = update.Percent;
+                            progressDialog.Update(update.Status, update.Percent);
                         });
                     }));
 

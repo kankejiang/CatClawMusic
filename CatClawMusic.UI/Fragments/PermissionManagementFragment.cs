@@ -5,6 +5,7 @@ using Android.Views;
 using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
+using System.Threading.Tasks;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -62,23 +63,23 @@ public class PermissionManagementFragment : SettingsSubPageFragment
     public override void OnResume()
     {
         base.OnResume();
-        RefreshAllStatus();
+        _ = RefreshAllStatusAsync();
     }
 
     /// <summary>
     /// 刷新所有权限状态
     /// </summary>
-    private void RefreshAllStatus()
+    private async Task RefreshAllStatusAsync()
     {
         if (Context == null || _permService == null) return;
 
         var notificationOk = AreNotificationsEnabled();
-        var overlayOk = _permService.CheckOverlayPermissionAsync().Result;
+        var overlayOk = await _permService.CheckOverlayPermissionAsync();
         var recordAudioOk = Context.CheckSelfPermission(Android.Manifest.Permission.RecordAudio)
             == Android.Content.PM.Permission.Granted;
         var mediaImagesOk = CheckMediaImagesPermission();
-        var mediaAudioOk = _permService.CheckStoragePermissionAsync().Result;
-        var manageStorageOk = _permService.CheckManageStoragePermissionAsync().Result;
+        var mediaAudioOk = await _permService.CheckStoragePermissionAsync();
+        var manageStorageOk = await _permService.CheckManageStoragePermissionAsync();
 
         SetStatusText(_tvNotificationStatus, notificationOk, "播放控制通知、锁屏控件");
         SetStatusText(_tvOverlayStatus, overlayOk, "桌面歌词悬浮显示");

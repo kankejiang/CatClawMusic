@@ -92,8 +92,8 @@ public class NowPlayingFragment : Fragment
     private int _detailSongId;
 
     // --- 歌词自定义设置（与 FullLyricsFragment 共享） ---
-    /// <summary>背景遮罩颜色预设（与 FullLyricsFragment 共享）</summary>
-    private static readonly string[] BgColorHex = { "#CCF0EBE3", "#CC0F0D16", "#00000000" };
+    /// <summary>背景遮罩颜色预设（播放页使用较不透明版本）</summary>
+    private static readonly string[] BgColorHex = LyricConstants.PlayerBgColorHex;
 
     private float _currentBgLuminance = 0.3f; // 当前背景亮度（用于自适应模式）
     private int _lyricBgColorIndex = 0; // 背景遮罩颜色索引

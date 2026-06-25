@@ -937,30 +937,30 @@ public partial class NowPlayingViewModel : ObservableObject
                     HasPerLineAlignment = CurrentLyrics.HasPerLineAlignment;
                     if (idx >= 0 && idx < CurrentLyrics.Lines.Count)
                     {
-                        _prevLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx - 8);
-                        _prevLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, idx - 7);
-                        _prevLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx - 6);
-                        _prevLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx - 5);
-                    _prevLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, idx - 4);
-                    _prevLyricLine3 = FormatLyricLine(CurrentLyrics.Lines, idx - 3);
-                    _prevLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx - 2);
-                    _prevLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx - 1);
-                    _nextLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx + 1);
-                    _nextLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx + 2);
-                    _nextLyricLine3 = FormatLyricLine(CurrentLyrics.Lines, idx + 3);
-                    _nextLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, idx + 4);
-                    _nextLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx + 5);
-                    _nextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx + 6);
-                    _nextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, idx + 7);
-                    _nextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx + 8);
-                    _currentLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx);
+                        PrevLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx - 8);
+                        PrevLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, idx - 7);
+                        PrevLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx - 6);
+                        PrevLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx - 5);
+                    PrevLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, idx - 4);
+                    PrevLyricLine3 = FormatLyricLine(CurrentLyrics.Lines, idx - 3);
+                    PrevLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx - 2);
+                    PrevLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx - 1);
+                    NextLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx + 1);
+                    NextLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, idx + 2);
+                    NextLyricLine3 = FormatLyricLine(CurrentLyrics.Lines, idx + 3);
+                    NextLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, idx + 4);
+                    NextLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, idx + 5);
+                    NextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, idx + 6);
+                    NextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, idx + 7);
+                    NextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, idx + 8);
+                    CurrentLyricLine = FormatLyricLine(CurrentLyrics.Lines, idx);
 
                     // 设置逐行对齐
-                    _prevLyricAlignment2 = GetLineAlignment(CurrentLyrics.Lines, idx - 2);
-                    _prevLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx - 1);
-                    _currentLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx);
-                    _nextLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx + 1);
-                    _nextLyricAlignment2 = GetLineAlignment(CurrentLyrics.Lines, idx + 2);
+                    PrevLyricAlignment2 = GetLineAlignment(CurrentLyrics.Lines, idx - 2);
+                    PrevLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx - 1);
+                    CurrentLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx);
+                    NextLyricAlignment = GetLineAlignment(CurrentLyrics.Lines, idx + 1);
+                    NextLyricAlignment2 = GetLineAlignment(CurrentLyrics.Lines, idx + 2);
 
                     CurrentLyricIndex = idx;
                     OnPropertyChanged(nameof(CurrentLyricLine));
@@ -975,23 +975,23 @@ public partial class NowPlayingViewModel : ObservableObject
                 }
                 else if (idx < 0)
                 {
-                    _prevLyricLine8 = "";
-                    _prevLyricLine7 = "";
-                    _prevLyricLine6 = "";
-                    _prevLyricLine5 = "";
-                    _prevLyricLine4 = "";
-                    _prevLyricLine3 = "";
-                    _prevLyricLine2 = "";
-                    _prevLyricLine = "";
-                    _currentLyricLine = "";
-                    _nextLyricLine = FormatLyricLine(CurrentLyrics.Lines, 0);
-                    _nextLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, 1);
-                    _nextLyricLine3 = FormatLyricLine(CurrentLyrics.Lines, 2);
-                    _nextLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, 3);
-                    _nextLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, 4);
-                    _nextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, 5);
-                    _nextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, 6);
-                    _nextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, 7);
+                    PrevLyricLine8 = "";
+                    PrevLyricLine7 = "";
+                    PrevLyricLine6 = "";
+                    PrevLyricLine5 = "";
+                    PrevLyricLine4 = "";
+                    PrevLyricLine3 = "";
+                    PrevLyricLine2 = "";
+                    PrevLyricLine = "";
+                    CurrentLyricLine = "";
+                    NextLyricLine = FormatLyricLine(CurrentLyrics.Lines, 0);
+                    NextLyricLine2 = FormatLyricLine(CurrentLyrics.Lines, 1);
+                    NextLyricLine3 = FormatLyricLine(CurrentLyrics.Lines, 2);
+                    NextLyricLine4 = FormatLyricLine(CurrentLyrics.Lines, 3);
+                    NextLyricLine5 = FormatLyricLine(CurrentLyrics.Lines, 4);
+                    NextLyricLine6 = FormatLyricLine(CurrentLyrics.Lines, 5);
+                    NextLyricLine7 = FormatLyricLine(CurrentLyrics.Lines, 6);
+                    NextLyricLine8 = FormatLyricLine(CurrentLyrics.Lines, 7);
                     CurrentLyricIndex = -1;
                     if (DuetPartnerIndex != -1)
                     {

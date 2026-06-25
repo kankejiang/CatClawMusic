@@ -47,8 +47,8 @@ public class LandscapeNowPlayingFragment : Fragment
     private string? _lastCoverSource;
     private readonly Android.Views.Animations.DecelerateInterpolator _lyricInterpolator = new(1.5f);
 
-    /// <summary>背景遮罩颜色预设（与 FullLyricsFragment 共享）</summary>
-    private static readonly string[] BgColorHex = { "#CCF0EBE3", "#CC0F0D16", "#00000000" };
+    /// <summary>背景遮罩颜色预设（横屏播放页使用较不透明版本）</summary>
+    private static readonly string[] BgColorHex = LyricConstants.PlayerBgColorHex;
 
     private float _currentBgLuminance = 0.3f;
     private int _lyricBgColorIndex = 0;
@@ -149,7 +149,6 @@ public class LandscapeNowPlayingFragment : Fragment
         _lyricRenderer.LoadSettings();
         _lyricRenderer.EnableScroll = true;
         _lyricRenderer.EnableDragSeek = false;
-        _lyricRenderer.EnableRaindropWordBounce = false;
         _lyricRenderer.BgDimOverlay = _bgDimOverlay;
         // 点击歌词：控件隐藏时弹出控件；控件可见时进入全屏歌词；全屏时退出全屏
         _lyricRenderer.OnClickCallback = OnLyricsTapped;
