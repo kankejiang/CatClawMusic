@@ -262,11 +262,16 @@
             app:cardCornerRadius="16dp" app:cardElevation="0dp"
             app:strokeColor="?attr/catClawCardBorder" app:strokeWidth="1dp"
             app:cardBackgroundColor="?attr/catClawCardBackground">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="horizontal" android:padding="16dp"
-                android:gravity="center_vertical">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                    android:layout_weight="1" android:orientation="vertical">
+
+            <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:id="@+id/about_text_area"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_toStartOf="@id/tv_arrow_about"
+                    android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="关于"
                         android:textSize="15sp" android:textColor="?attr/catClawTextPrimary"
@@ -276,9 +281,25 @@
                         android:textSize="12sp" android:textColor="?attr/catClawTextHint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="›" android:textSize="20sp" android:textColor="?attr/catClawTextHint" />
-            </LinearLayout>
+
+                <!-- 红点：有新版本时显示 -->
+                <TextView
+                    android:id="@+id/tv_update_red_dot"
+                    android:layout_width="18dp" android:layout_height="18dp"
+                    android:layout_toStartOf="@id/tv_arrow_about"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/red_dot"
+                    android:visibility="gone"
+                    android:contentDescription="有新版本" />
+
+                <TextView android:id="@+id/tv_arrow_about"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:text="›" android:textSize="20sp"
+                    android:textColor="?attr/catClawTextHint" />
+            </RelativeLayout>
         </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>

@@ -44,6 +44,30 @@
                 android:text="版本 1.0.0"
                 android:textSize="13sp" android:textColor="?attr/catClawTextHint"
                 android:layout_marginTop="4dp" />
+            <!-- 更新提示（有新版本时显示） -->
+            <LinearLayout android:id="@+id/update_prompt_area"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp"
+                android:visibility="gone">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="🆕 发现新版本 "
+                    android:textSize="13sp" android:textColor="?attr/catClawPrimaryColor" />
+                <TextView android:id="@+id/tv_latest_version"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="13sp" android:textColor="?attr/catClawPrimaryColor"
+                    android:fontFamily="sans-serif-medium" />
+                <Button android:id="@+id/btn_go_update"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="去更新"
+                    android:textSize="12sp"
+                    android:backgroundTint="?attr/catClawPrimaryColor"
+                    android:textColor="@android:color/white"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="4dp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- 作者信息 -->

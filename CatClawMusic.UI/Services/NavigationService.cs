@@ -68,6 +68,8 @@ public class NavigationService : INavigationService
             "WebDavSettings" => MainApplication.Services.GetRequiredService<WebDavSettingsFragment>(),
             "NavidromeSettings" => MainApplication.Services.GetRequiredService<NavidromeSettingsFragment>(),
             "SmbSettings" => MainApplication.Services.GetRequiredService<SmbSettingsFragment>(),
+            "ServerSettings" => MainApplication.Services.GetRequiredService<ServerSettingsFragment>(),
+            "P2PSettings" => MainApplication.Services.GetRequiredService<P2PSettingsFragment>(),
             "MusicFolderSettings" => MainApplication.Services.GetRequiredService<MusicFolderSettingsFragment>(),
             "LocalMusicSettings" => MainApplication.Services.GetRequiredService<LocalMusicSettingsFragment>(),
             "FolderBrowser" => MainApplication.Services.GetRequiredService<FolderBrowserFragment>(),

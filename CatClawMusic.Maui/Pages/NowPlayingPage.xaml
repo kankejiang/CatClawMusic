@@ -1,0 +1,61 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.NowPlayingPage"
+             Title="NowPlaying"
+             BackgroundColor="Black">
+    <Grid RowDefinitions="*,Auto" Padding="0">
+        <!-- Album Art + Info -->
+        <Grid RowDefinitions="Auto,*,Auto" Padding="16">
+            <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                <Image x:Name="ArtworkImage" 
+                       WidthRequest="300" HeightRequest="300"
+                       Aspect="AspectFill"
+                       HorizontalOptions="Center"/>
+                <Label x:Name="TitleLabel" 
+                       Text="未在播放" 
+                       FontSize="22" FontAttributes="Bold"
+                       TextColor="White" 
+                       HorizontalOptions="Center"
+                       LineBreakMode="TailTruncation"/>
+                <Label x:Name="ArtistLabel" 
+                       Text="" 
+                       FontSize="16"
+                       TextColor="#AAAAAA" 
+                       HorizontalOptions="Center"
+                       LineBreakMode="TailTruncation"/>
+            </VerticalStackLayout>
+
+            <!-- Lyrics Area -->
+            <ScrollView Grid.Row="1" Margin="0,16" VerticalOptions="Center">
+                <Label x:Name="LyricLabel"
+                       Text=""
+                       FontSize="18"
+                       TextColor="White"
+                       HorizontalTextAlignment="Center"
+                       LineBreakMode="WordWrap"/>
+            </ScrollView>
+
+            <!-- Progress Bar -->
+            <VerticalStackLayout Grid.Row="2" Spacing="4">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Label x:Name="CurrentTimeLabel" Text="0:00" TextColor="#AAAAAA" FontSize="12"/>
+                    <Label x:Name="TotalTimeLabel" Text="0:00" TextColor="#AAAAAA" FontSize="12" Grid.Column="2"/>
+                </Grid>
+                <Slider x:Name="ProgressSlider" Minimum="0" Maximum="1" Value="0"/>
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- Controls -->
+        <Grid Grid.Row="1" 
+              ColumnDefinitions="*,*,*,*,*" 
+              HeightRequest="72" 
+              Padding="16,8" 
+              BackgroundColor="#1A1A1A">
+            <Button Text="⏮" FontSize="20" BackgroundColor="Transparent" TextColor="White" Clicked="OnPreviousClicked"/>
+            <Button x:Name="PlayPauseButton" Text="▶" FontSize="28" BackgroundColor="Transparent" TextColor="White" Grid.Column="1" Clicked="OnPlayPauseClicked"/>
+            <Button Text="⏭" FontSize="20" BackgroundColor="Transparent" TextColor="White" Grid.Column="2" Clicked="OnNextClicked"/>
+            <Button Text="🔀" FontSize="16" BackgroundColor="Transparent" TextColor="White" Grid.Column="3" Clicked="OnShuffleClicked"/>
+            <Button Text="🔁" FontSize="16" BackgroundColor="Transparent" TextColor="White" Grid.Column="4" Clicked="OnRepeatClicked"/>
+        </Grid>
+    </Grid>
+</ContentPage>

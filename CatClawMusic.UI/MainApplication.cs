@@ -319,6 +319,18 @@ public class MainApplication : Application
                 sp.GetRequiredService<CatClawMusic.Core.Interfaces.IAgentConfigStorage>(),
                 artistCoversDir));
 
+        // Update service（GitHub Release 版本检查）
+        services.AddSingleton<CatClawMusic.Core.Services.IUpdateService, CatClawMusic.UI.Services.UpdateService>();
+
+        // ── CatClaw Server & P2P services ──
+        services.AddSingleton<ICatClawServerService>(sp =>
+        {
+            var db = sp.GetRequiredService<MusicDatabase>();
+            return new CatClawMusic.Data.CatClawServerClient(db);
+        });
+        services.AddSingleton<IP2PService, CatClawMusic.Data.P2PClientService>();
+        // ──────────────────────────────────────
+
         // ViewModels
         services.AddSingleton<LibraryViewModel>();       // 单例——Fragment 重建时不丢缓存
         services.AddSingleton<NowPlayingViewModel>();    // 单例——迷你播放器和全屏播放器共享状态
@@ -360,6 +372,8 @@ public class MainApplication : Application
         services.AddTransient<ArtistMatchFragment>();
         services.AddTransient<ArtistMatchDetailFragment>();
         services.AddTransient<SongDetailBottomSheet>();
+        services.AddTransient<ServerSettingsFragment>();
+        services.AddTransient<P2PSettingsFragment>();
         services.AddTransient<ModelAdapter>();
 
         // Adapters

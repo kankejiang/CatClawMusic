@@ -1,0 +1,26 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.SettingsPage"
+             Title="设置">
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="16">
+            <Label Text="设置" FontSize="24" FontAttributes="Bold" TextColor="White"/>
+            
+            <Frame Padding="16" CornerRadius="8" BackgroundColor="#1A1A1A" BorderColor="Transparent">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="音乐库" FontSize="18" FontAttributes="Bold" TextColor="White"/>
+                    <Label x:Name="LibraryStatus" Text="歌曲数: --" TextColor="#AAAAAA"/>
+                    <Button Text="重新扫描" BackgroundColor="#333333" TextColor="White" Clicked="OnRescan"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <Frame Padding="16" CornerRadius="8" BackgroundColor="#1A1A1A" BorderColor="Transparent">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="关于" FontSize="18" FontAttributes="Bold" TextColor="White"/>
+                    <Label Text="CatClaw v1.5.1" TextColor="#AAAAAA"/>
+                    <Label Text=".NET MAUI 10 — Android" TextColor="#666666" FontSize="12"/>
+                </VerticalStackLayout>
+            </Frame>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

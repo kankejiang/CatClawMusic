@@ -3,7 +3,9 @@ using Android.OS;
 using Android.Views;
 using Android.Widget;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using System.Threading.Tasks;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -30,19 +32,23 @@ public class AboutFragment : Fragment
 
         // 版本号
         var tvVersion = view.FindViewById<TextView>(Resource.Id.tv_version);
+        string currentVersion = "1.0.0";
         if (tvVersion != null)
         {
             try
             {
                 var pInfo = Context?.PackageManager?.GetPackageInfo(Context?.PackageName ?? "", 0);
-                var versionName = pInfo?.VersionName ?? "1.0.0";
-                tvVersion.Text = $"版本 {versionName}";
+                currentVersion = pInfo?.VersionName?.TrimStart('v') ?? "1.0.0";
+                tvVersion.Text = $"版本 {currentVersion}";
             }
             catch
             {
                 tvVersion.Text = "版本 1.0.0";
             }
         }
+
+        // 检查更新：显示提示 + 红点清除
+        _ = CheckAndShowUpdateAsync(view, currentVersion);
 
         // 开源地址 - 点击跳转浏览器
         var cardGithub = view.FindViewById<View>(Resource.Id.card_github);
@@ -58,6 +64,37 @@ public class AboutFragment : Fragment
         var cardQqGroup = view.FindViewById<View>(Resource.Id.card_qq_group);
         if (cardQqGroup != null)
             cardQqGroup.Click += (s, e) => OpenQqGroup();
+    }
+
+    private async Task CheckAndShowUpdateAsync(View view, string currentVersion)
+    {
+        try
+        {
+            var updateService = MainApplication.Services.GetService<IUpdateService>();
+            if (updateService == null) return;
+
+            var latestVersion = await updateService.CheckUpdateAsync();
+            if (latestVersion == null) return;
+
+            // 显示更新提示
+            var promptArea = view.FindViewById<LinearLayout>(Resource.Id.update_prompt_area);
+            var tvLatest = view.FindViewById<TextView>(Resource.Id.tv_latest_version);
+            var btnGoUpdate = view.FindViewById<Button>(Resource.Id.btn_go_update);
+
+            if (promptArea != null)
+                promptArea.Visibility = ViewStates.Visible;
+            if (tvLatest != null)
+                tvLatest.Text = $"v{latestVersion}";
+
+            if (btnGoUpdate != null)
+                btnGoUpdate.Click += (s, e) => OpenUrl(GithubUrl);
+
+            // 清除待提示标记（设置页红点消失）
+            updateService.SetPendingVersion("");
+            // 标记该版本已读
+            updateService.MarkVersionNotified(latestVersion);
+        }
+        catch { }
     }
 
     private void OpenUrl(string url)

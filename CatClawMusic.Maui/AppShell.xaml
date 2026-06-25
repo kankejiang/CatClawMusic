@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:pages="clr-namespace:CatClawMusic.Maui.Pages"
+       x:Class="CatClawMusic.Maui.AppShell"
+       Shell.TabBarBackgroundColor="#121212"
+       Shell.TabBarForegroundColor="White"
+       Shell.TabBarUnselectedColor="#666666"
+       Shell.TabBarTitleColor="White">
+
+    <TabBar>
+        <ShellContent Title="音乐库" Icon="music_note.png" ContentTemplate="{DataTemplate pages:LibraryPage}" Route="library"/>
+        <ShellContent Title="播放" Icon="play_circle.png" ContentTemplate="{DataTemplate pages:NowPlayingPage}" Route="nowplaying"/>
+        <ShellContent Title="搜索" Icon="search.png" ContentTemplate="{DataTemplate pages:SearchPage}" Route="search"/>
+        <ShellContent Title="设置" Icon="settings.png" ContentTemplate="{DataTemplate pages:SettingsPage}" Route="settings"/>
+    </TabBar>
+
+</Shell>

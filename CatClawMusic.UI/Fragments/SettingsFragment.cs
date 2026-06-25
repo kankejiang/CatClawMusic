@@ -7,6 +7,7 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CatClawMusic.UI.Platforms.Android;
 using CatClawMusic.UI.Services;
+using CatClawMusic.Core.Services;
 using CatClawMusic.Core.Services.AI;
 using Microsoft.Extensions.DependencyInjection;
 using System.Threading.Tasks;
@@ -25,6 +26,7 @@ public class SettingsFragment : Fragment
     private TextView? _tvPermissionStatus;
     private ImageButton? _btnDarkModeToggle;
     private IThemeService? _themeService;
+    private TextView? _tvUpdateRedDot;
 
     // 深浅色模式循环：Light → Dark → FollowSystem → Light
     private static readonly DarkModeSetting[] DarkModeCycle = {
@@ -97,8 +99,17 @@ public class SettingsFragment : Fragment
 
         // 关于
         var btnAbout = view.FindViewById<View>(Resource.Id.btn_about);
+        _tvUpdateRedDot = view.FindViewById<TextView>(Resource.Id.tv_update_red_dot);
         if (btnAbout != null)
-            btnAbout.SetOnClickListener(new ClickListener(() => nav.PushFragment("About")));
+            btnAbout.SetOnClickListener(new ClickListener(() =>
+            {
+                // 点击关于页面时清除红点
+                HideUpdateRedDot();
+                nav.PushFragment("About");
+            }));
+
+        // 启动版本检查（延迟 3 秒，避免影响启动速度）
+        _ = CheckUpdateAsync();
 
         return view;
     }
@@ -113,14 +124,14 @@ public class SettingsFragment : Fragment
     }
 
     /// <summary>
-    /// Fragment恢复可见时更新深浅色模式图标
+    /// Fragment恢复可见时更新深浅色模式图标，并刷新更新红点状态
     /// </summary>
     public override void OnResume()
     {
         base.OnResume();
-        // 每次恢复时更新图标（可能从其他地方改了设置）
         UpdateDarkModeIcon();
         _ = UpdatePermissionStatusAsync();
+        RefreshUpdateRedDot();
     }
 
     /// <summary>
@@ -303,6 +314,75 @@ public class SettingsFragment : Fragment
 
         // 权限状态
         _ = UpdatePermissionStatusAsync();
+    }
+
+    // ── 版本更新红点 ───────────────────────────────────────────────
+
+    /// <summary>异步检查 GitHub 最新版本，有新版本时显示红点</summary>
+    private async Task CheckUpdateAsync()
+    {
+        try
+        {
+            await Task.Delay(3000);
+            var updateService = MainApplication.Services.GetService<IUpdateService>();
+            if (updateService == null) return;
+
+            var latestVersion = await updateService.CheckUpdateAsync();
+            if (latestVersion == null) return;
+
+            var ignored = updateService.GetIgnoredVersion();
+            if (ignored == latestVersion) return;
+
+            // 存储待提示版本，设置页 OnResume 时读此标记
+            updateService.SetPendingVersion(latestVersion);
+            ShowUpdateRedDot();
+        }
+        catch { }
+    }
+
+    /// <summary>显示关于卡片上的更新红点</summary>
+    private void ShowUpdateRedDot()
+    {
+        if (_tvUpdateRedDot == null) return;
+        Activity?.RunOnUiThread(() => _tvUpdateRedDot.Visibility = ViewStates.Visible);
+    }
+
+    /// <summary>隐藏关于卡片上的更新红点</summary>
+    private void HideUpdateRedDot()
+    {
+        if (_tvUpdateRedDot == null) return;
+        Activity?.RunOnUiThread(() =>
+        {
+            _tvUpdateRedDot.Visibility = ViewStates.Gone;
+            // 标记当前版本已读
+            var updateService = MainApplication.Services.GetService<IUpdateService>();
+            // 这里只隐藏红点，不标记忽略；进入关于页后由 AboutFragment 处理
+        });
+    }
+
+    /// <summary>刷新红点状态（从关于页返回时调用）</summary>
+    private void RefreshUpdateRedDot()
+    {
+        try
+        {
+            var updateService = MainApplication.Services.GetService<IUpdateService>();
+            if (updateService == null) return;
+            var pending = updateService.GetPendingVersion();
+            if (!string.IsNullOrEmpty(pending))
+                ShowUpdateRedDot();
+            else
+                HideUpdateRedDotGone();
+        }
+        catch { HideUpdateRedDotGone(); }
+    }
+
+    private void HideUpdateRedDotGone()
+    {
+        Activity?.RunOnUiThread(() =>
+        {
+            if (_tvUpdateRedDot != null)
+                _tvUpdateRedDot.Visibility = ViewStates.Gone;
+        });
     }
 
     /// <summary>

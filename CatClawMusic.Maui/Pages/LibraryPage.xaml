@@ -1,0 +1,27 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.LibraryPage"
+             Title="音乐库">
+    <Grid RowDefinitions="Auto,*" Padding="0">
+        <!-- Status bar -->
+        <Label x:Name="StatusLabel" Text="加载中..." Padding="16,8" TextColor="#AAAAAA" FontSize="12"/>
+        
+        <!-- Song list -->
+        <CollectionView x:Name="SongList" Grid.Row="1" SelectionMode="Single"
+                         SelectionChanged="OnSongSelected">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="16,8" ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
+                        <Image Source="music_note.png" WidthRequest="48" HeightRequest="48" Aspect="AspectFill"/>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                            <Label Text="{Binding Title}" FontSize="16" TextColor="White" LineBreakMode="TailTruncation"/>
+                            <Label Text="{Binding Artist}" FontSize="13" TextColor="#AAAAAA" LineBreakMode="TailTruncation"/>
+                        </VerticalStackLayout>
+                        <Label Text="{Binding DurationString}" Grid.Column="2" VerticalOptions="Center" 
+                               FontSize="12" TextColor="#666666"/>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

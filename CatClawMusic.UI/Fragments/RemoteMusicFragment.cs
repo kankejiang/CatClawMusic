@@ -10,6 +10,7 @@ using CatClawMusic.UI.Helpers;
 using CatClawMusic.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidX.AppCompat.Widget;
+using Google.Android.Material.Card;
 
 namespace CatClawMusic.UI.Fragments;
 
@@ -90,6 +91,12 @@ public class RemoteMusicFragment : SettingsSubPageFragment
 
         if (_swSmb != null)
             _swSmb.CheckedChange += OnSmbSwitchChanged;
+
+        // CatClaw Server & P2P 入口（程序化添加）
+        AddSettingRow(view, "🐾 CatClaw 服务端", "连接 NAS 服务端快速获取元数据",
+            () => nav.PushFragment("ServerSettings"));
+        AddSettingRow(view, "🔗 P2P 网络", "设备发现、共享下载、限速设置",
+            () => nav.PushFragment("P2PSettings"));
 
         // 加载已保存的连接配置
         _ = LoadProfilesAsync();
@@ -265,5 +272,56 @@ public class RemoteMusicFragment : SettingsSubPageFragment
         /// 触发点击回调
         /// </summary>
         public void OnClick(View? v) => _action();
+    }
+
+    /// <summary>
+    /// 程序化添加一个设置行（用于在现有 XML 布局中动态添加入口）
+    /// </summary>
+    private void AddSettingRow(View rootView, string title, string subtitle, Action onClick)
+    {
+        var container = rootView.FindViewById<LinearLayout>(Resource.Id.remote_services_container);
+        if (container == null) return;
+
+        var card = new Google.Android.Material.Card.MaterialCardView(Context!)
+        {
+            LayoutParameters = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MatchParent, LinearLayout.LayoutParams.WrapContent)
+        };
+        (card.LayoutParameters as LinearLayout.LayoutParams)!.TopMargin = 12;
+
+        var inner = new LinearLayout(Context!)
+        {
+            Orientation = Orientation.Vertical,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MatchParent, LinearLayout.LayoutParams.WrapContent)
+        };
+        int dp16 = (int)(16 * Resources!.DisplayMetrics!.Density);
+        inner.SetPadding(dp16, dp16, dp16, dp16);
+        card.AddView(inner);
+
+        var titleTv = new TextView(Context!)
+        {
+            Text = title,
+            TextSize = 14,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WrapContent, LinearLayout.LayoutParams.WrapContent)
+        };
+        titleTv.SetTextColor(new Android.Graphics.Color(
+            UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextPrimary, -1)));
+        inner.AddView(titleTv);
+
+        var subtitleTv = new TextView(Context!)
+        {
+            Text = subtitle,
+            TextSize = 12,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WrapContent, LinearLayout.LayoutParams.WrapContent)
+        };
+        subtitleTv.SetTextColor(new Android.Graphics.Color(
+            UiHelper.ResolveThemeColor(Context!, Resource.Attribute.catClawTextHint, -1)));
+        inner.AddView(subtitleTv);
+
+        card.Click += (s, e) => onClick();
+        container.AddView(card);
     }
 }

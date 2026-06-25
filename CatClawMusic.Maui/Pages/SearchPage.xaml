@@ -1,0 +1,25 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.SearchPage"
+             Title="搜索">
+    <Grid RowDefinitions="Auto,*" Padding="0">
+        <SearchBar x:Name="SearchBox" Placeholder="搜索音乐、艺术家、专辑..." 
+                   SearchButtonPressed="OnSearch"/>
+        <CollectionView x:Name="ResultsList" Grid.Row="1" SelectionMode="Single"
+                         SelectionChanged="OnResultSelected">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="16,8" ColumnDefinitions="48,*,Auto">
+                        <Image Source="music_note.png" WidthRequest="48" HeightRequest="48"/>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                            <Label Text="{Binding Title}" FontSize="16" TextColor="White"/>
+                            <Label Text="{Binding Artist}" FontSize="13" TextColor="#AAAAAA"/>
+                        </VerticalStackLayout>
+                        <Label Text="{Binding DurationString}" Grid.Column="2" VerticalOptions="Center" 
+                               FontSize="12" TextColor="#666666"/>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>
