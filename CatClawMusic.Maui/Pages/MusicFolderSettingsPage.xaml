@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.MusicFolderSettingsPage"
+             Title="音乐文件夹设置"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="16">
+            
+            <!-- Folder List -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="音乐文件夹列表"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    
+                    <CollectionView ItemsSource="{Binding MusicFolders}"
+                                    SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,Auto"
+                                      Padding="0,8">
+                                    <Label Grid.Column="0"
+                                           Text="{Binding}"
+                                           FontSize="14"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           VerticalOptions="Center" />
+                                    <Button Grid.Column="1"
+                                            Text="移除"
+                                            Clicked="OnRemoveFolderClicked"
+                                            BackgroundColor="Red"
+                                            TextColor="White"
+                                            CornerRadius="6"
+                                            HeightRequest="30"
+                                            WidthRequest="60" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                    
+                    <Button Text="添加文件夹"
+                            Command="{Binding AddFolderCommand}"
+                            BackgroundColor="#9B7ED8"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="36"
+                            Margin="0,10,0,0" />
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- Folder Scan Options -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="扫描选项"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    
+                    <HorizontalStackLayout Spacing="8">
+                        <CheckBox IsChecked="{Binding ScanSubfolders}" />
+                        <Label Text="扫描子文件夹"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                    </HorizontalStackLayout>
+                    
+                    <HorizontalStackLayout Spacing="8">
+                        <CheckBox IsChecked="{Binding AutoScan}" />
+                        <Label Text="自动扫描"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Frame>
+            
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

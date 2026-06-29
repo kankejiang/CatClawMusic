@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.GeneralSettingsPage"
+             Title="通用设置"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="16">
+            
+            <!-- Language -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="语言"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    
+                    <Picker ItemsSource="{Binding LanguageOptions}"
+                            SelectedIndex="{Binding SelectedLanguageIndex, Mode=TwoWay}"
+                            BackgroundColor="{DynamicResource CardBackgroundColor}"
+                            TextColor="{DynamicResource TextPrimaryColor}" />
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- Cache Size -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <VerticalStackLayout Grid.Column="0"
+                                        Spacing="2">
+                        <Label Text="缓存大小"
+                               FontSize="16"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="{Binding CacheSize}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1"
+                            Text="清除缓存"
+                            Command="{Binding ClearCacheCommand}"
+                            BackgroundColor="#9B7ED8"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="36" />
+                </Grid>
+            </Frame>
+            
+            <!-- Reset Settings -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="恢复默认设置"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="将所有设置恢复为默认值"
+                           FontSize="12"
+                           TextColor="{DynamicResource TextHintColor}" />
+                    <Button Text="恢复默认"
+                            Command="{Binding ResetSettingsCommand}"
+                            BackgroundColor="Red"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="36" />
+                </VerticalStackLayout>
+            </Frame>
+            
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

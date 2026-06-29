@@ -1,0 +1,10 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.ArtistMatchPage"
+             Title="艺术家匹配"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+    <VerticalStackLayout Padding="24" Spacing="16">
+        <Label Text="艺术家匹配" FontSize="24" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}"/>
+        <!-- Page content placeholder -->
+    </VerticalStackLayout>
+</ContentPage>

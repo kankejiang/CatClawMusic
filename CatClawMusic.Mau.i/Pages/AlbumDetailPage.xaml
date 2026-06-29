@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:CatClawMusic.Mau.i.ViewModels"
+             x:Class="CatClawMusic.Mau.i.Pages.AlbumDetailPage"
+             Title="{Binding Album.Title}">
+
+    <ContentPage.BindingContext>
+        <vm:AlbumDetailViewModel />
+    </ContentPage.BindingContext>
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="0">
+
+            <!-- Album Header -->
+            <Grid Padding="20,20,20,15"
+                  BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}">
+                
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Album Art -->
+                <Frame Grid.Column="0"
+                       WidthRequest="120"
+                       HeightRequest="120"
+                       CornerRadius="8"
+                       Padding="0"
+                       BackgroundColor="#2B2B2B">
+                    <Image Source="{Binding Album.CoverPath}"
+                           Aspect="AspectFill" />
+                </Frame>
+
+                <!-- Album Info -->
+                <VerticalStackLayout Grid.Column="1"
+                                     Padding="15,0,0,0"
+                                     VerticalOptions="Center">
+                    
+                    <Label Text="{Binding Album.Title}"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                           MaxLines="2" />
+                    
+                    <Label Text="{Binding Album.Artist}"
+                           FontSize="14"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#B0B0B0}"
+                           Margin="0,5,0,0" />
+                    
+                    <Label Text="{Binding StatusText}"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#999999, Dark=#808080}"
+                           Margin="0,10,0,0" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <!-- Action Buttons -->
+            <HorizontalStackLayout Padding="20,15"
+                                  Spacing="15">
+                
+                <Button Text="▶ 播放"
+                        Command="{Binding PlayAllCommand}"
+                        BackgroundColor="#9B7ED8"
+                        TextColor="White"
+                        CornerRadius="20"
+                        WidthRequest="100"
+                        HeightRequest="40" />
+                
+                <Button Text="🔀 随机"
+                        Command="{Binding ShuffleCommand}"
+                        BackgroundColor="{AppThemeBinding Light=#E0E0E0, Dark=#404040}"
+                        TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                        CornerRadius="20"
+                        WidthRequest="100"
+                        HeightRequest="40" />
+            </HorizontalStackLayout>
+
+            <!-- Song List -->
+            <CollectionView ItemsSource="{Binding Songs}"
+                          SelectionMode="Single"
+                          SelectionChanged="OnSongSelected">
+                
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="20,12"
+                                StrokeThickness="0"
+                                BackgroundColor="Transparent">
+                            
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer 
+                                    Tapped="OnSongTapped"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            
+                            <Grid ColumnDefinitions="40,*,Auto">
+                                
+                                <!-- Track Number -->
+                                <Label Grid.Column="0"
+                                       Text="{Binding TrackNumber}"
+                                       FontSize="14"
+                                       TextColor="{AppThemeBinding Light=#999999, Dark=#808080}"
+                                       VerticalOptions="Center" />
+                                
+                                <!-- Song Info -->
+                                <VerticalStackLayout Grid.Column="1"
+                                                     VerticalOptions="Center">
+                                    
+                                    <Label Text="{Binding Title}"
+                                           FontSize="16"
+                                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                           MaxLines="1" />
+                                    
+                                    <Label Text="{Binding Artist}"
+                                           FontSize="12"
+                                           TextColor="{AppThemeBinding Light=#666666, Dark=#B0B0B0}"
+                                           MaxLines="1" />
+                                </VerticalStackLayout>
+                                
+                                <!-- Duration -->
+                                <Label Grid.Column="2"
+                                       Text="{Binding Duration, StringFormat='{0:mm\\:ss}'}"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#999999, Dark=#808080}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <!-- Loading Indicator -->
+            <ActivityIndicator IsRunning="{Binding IsLoading}"
+                              IsVisible="{Binding IsLoading}"
+                              VerticalOptions="Center"
+                              HorizontalOptions="Center"
+                              HeightRequest="50" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

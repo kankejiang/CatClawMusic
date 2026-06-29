@@ -1,61 +1,124 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.Maui.Pages.NowPlayingPage"
-             Title="NowPlaying"
-             BackgroundColor="Black">
-    <Grid RowDefinitions="*,Auto" Padding="0">
-        <!-- Album Art + Info -->
-        <Grid RowDefinitions="Auto,*,Auto" Padding="16">
-            <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+             Title="正在播放"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="20" Padding="24">
+            
+            <!-- Album Art -->
+            <Frame CornerRadius="16"
+                   WidthRequest="250" HeightRequest="250"
+                   HorizontalOptions="Center"
+                   IsClippedToBounds="True"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}">
                 <Image x:Name="ArtworkImage" 
-                       WidthRequest="300" HeightRequest="300"
+                       Source="{Binding AlbumArtUrl}"
                        Aspect="AspectFill"
-                       HorizontalOptions="Center"/>
-                <Label x:Name="TitleLabel" 
-                       Text="未在播放" 
-                       FontSize="22" FontAttributes="Bold"
-                       TextColor="White" 
+                       WidthRequest="250" HeightRequest="250"/>
+            </Frame>
+
+            <!-- Song Info -->
+            <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                <Label Text="{Binding Title}" 
+                       FontSize="24" FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimaryColor}"
                        HorizontalOptions="Center"
                        LineBreakMode="TailTruncation"/>
-                <Label x:Name="ArtistLabel" 
-                       Text="" 
+                
+                <Label Text="{Binding Artist}" 
                        FontSize="16"
-                       TextColor="#AAAAAA" 
+                       TextColor="{DynamicResource TextSecondaryColor}"
                        HorizontalOptions="Center"
                        LineBreakMode="TailTruncation"/>
             </VerticalStackLayout>
 
-            <!-- Lyrics Area -->
-            <ScrollView Grid.Row="1" Margin="0,16" VerticalOptions="Center">
-                <Label x:Name="LyricLabel"
-                       Text=""
-                       FontSize="18"
-                       TextColor="White"
-                       HorizontalTextAlignment="Center"
-                       LineBreakMode="WordWrap"/>
-            </ScrollView>
+            <!-- Lyrics Preview -->
+            <Label Text="{Binding CurrentLyric}"
+                   FontSize="16"
+                   TextColor="{DynamicResource TextPrimaryColor}"
+                   HorizontalTextAlignment="Center"
+                   VerticalOptions="Center"
+                   HeightRequest="60"
+                   LineBreakMode="WordWrap"/>
 
-            <!-- Progress Bar -->
-            <VerticalStackLayout Grid.Row="2" Spacing="4">
+            <!-- Progress Section -->
+            <VerticalStackLayout Spacing="8">
+                <Slider x:Name="ProgressSlider" 
+                        Minimum="0" 
+                        Maximum="{Binding Duration}"
+                        Value="{Binding Progress, Mode=TwoWay}"
+                        ThumbColor="{DynamicResource PrimaryColor}"
+                        MinimumTrackColor="{DynamicResource PrimaryColor}"/>
+                
                 <Grid ColumnDefinitions="Auto,*,Auto">
-                    <Label x:Name="CurrentTimeLabel" Text="0:00" TextColor="#AAAAAA" FontSize="12"/>
-                    <Label x:Name="TotalTimeLabel" Text="0:00" TextColor="#AAAAAA" FontSize="12" Grid.Column="2"/>
+                    <Label Text="{Binding CurrentTimeDisplay}" 
+                           TextColor="{DynamicResource TextSecondaryColor}" 
+                           FontSize="12"/>
+                    <Label Grid.Column="2" 
+                           Text="{Binding TotalTimeDisplay}" 
+                           TextColor="{DynamicResource TextSecondaryColor}" 
+                           FontSize="12"
+                           HorizontalOptions="End"/>
                 </Grid>
-                <Slider x:Name="ProgressSlider" Minimum="0" Maximum="1" Value="0"/>
             </VerticalStackLayout>
-        </Grid>
 
-        <!-- Controls -->
-        <Grid Grid.Row="1" 
-              ColumnDefinitions="*,*,*,*,*" 
-              HeightRequest="72" 
-              Padding="16,8" 
-              BackgroundColor="#1A1A1A">
-            <Button Text="⏮" FontSize="20" BackgroundColor="Transparent" TextColor="White" Clicked="OnPreviousClicked"/>
-            <Button x:Name="PlayPauseButton" Text="▶" FontSize="28" BackgroundColor="Transparent" TextColor="White" Grid.Column="1" Clicked="OnPlayPauseClicked"/>
-            <Button Text="⏭" FontSize="20" BackgroundColor="Transparent" TextColor="White" Grid.Column="2" Clicked="OnNextClicked"/>
-            <Button Text="🔀" FontSize="16" BackgroundColor="Transparent" TextColor="White" Grid.Column="3" Clicked="OnShuffleClicked"/>
-            <Button Text="🔁" FontSize="16" BackgroundColor="Transparent" TextColor="White" Grid.Column="4" Clicked="OnRepeatClicked"/>
-        </Grid>
-    </Grid>
+            <!-- Playback Controls -->
+            <HorizontalStackLayout Spacing="30" 
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+                
+                <Button Text="🔀"
+                        FontSize="20"
+                        BackgroundColor="Transparent"
+                        TextColor="{Binding ShuffleColor}"
+                        WidthRequest="50" HeightRequest="50"
+                        Command="{Binding ToggleShuffleCommand}"/>
+                
+                <Button Text="⏮"
+                        FontSize="28"
+                        BackgroundColor="Transparent"
+                        TextColor="{DynamicResource TextPrimaryColor}"
+                        WidthRequest="60" HeightRequest="60"
+                        Command="{Binding PlayPreviousCommand}"/>
+                
+                <Button x:Name="PlayPauseButton" 
+                        Text="{Binding PlayPauseIcon}"
+                        FontSize="36"
+                        BackgroundColor="{DynamicResource PrimaryColor}"
+                        TextColor="White"
+                        WidthRequest="70" HeightRequest="70"
+                        CornerRadius="35"
+                        Command="{Binding TogglePlayPauseCommand}"/>
+                
+                <Button Text="⏭"
+                        FontSize="28"
+                        BackgroundColor="Transparent"
+                        TextColor="{DynamicResource TextPrimaryColor}"
+                        WidthRequest="60" HeightRequest="60"
+                        Command="{Binding PlayNextCommand}"/>
+                
+                <Button Text="🔁"
+                        FontSize="20"
+                        BackgroundColor="Transparent"
+                        TextColor="{Binding RepeatColor}"
+                        WidthRequest="50" HeightRequest="50"
+                        Command="{Binding ToggleRepeatCommand}"/>
+            </HorizontalStackLayout>
+
+            <!-- Secondary Controls -->
+            <HorizontalStackLayout Spacing="20" 
+                                HorizontalOptions="Center">
+                
+                <Button Text="❤"
+                        FontSize="18"
+                        BackgroundColor="Transparent"
+                        TextColor="{Binding LikeColor}"
+                        WidthRequest="44" HeightRequest="44"
+                        Command="{Binding ToggleLikeCommand}"/>
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

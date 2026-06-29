@@ -1,25 +1,259 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.Maui.Pages.SearchPage"
-             Title="搜索">
-    <Grid RowDefinitions="Auto,*" Padding="0">
-        <SearchBar x:Name="SearchBox" Placeholder="搜索音乐、艺术家、专辑..." 
-                   SearchButtonPressed="OnSearch"/>
-        <CollectionView x:Name="ResultsList" Grid.Row="1" SelectionMode="Single"
-                         SelectionChanged="OnResultSelected">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Grid Padding="16,8" ColumnDefinitions="48,*,Auto">
-                        <Image Source="music_note.png" WidthRequest="48" HeightRequest="48"/>
-                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
-                            <Label Text="{Binding Title}" FontSize="16" TextColor="White"/>
-                            <Label Text="{Binding Artist}" FontSize="13" TextColor="#AAAAAA"/>
-                        </VerticalStackLayout>
-                        <Label Text="{Binding DurationString}" Grid.Column="2" VerticalOptions="Center" 
-                               FontSize="12" TextColor="#666666"/>
-                    </Grid>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+             Title="探索"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+        
+        <!-- Main Explore Content -->
+        <VerticalStackLayout x:Name="ExploreMain" Grid.Row="0" Grid.RowSpan="5">
+            
+            <!-- Page Title -->
+            <Label Text="探索"
+                   FontSize="28"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextPrimaryColor}"
+                   Padding="20,8,20,4" />
+            
+            <!-- Search Input + Yuki Avatar -->
+            <Grid Padding="16,8,16,10"
+                  ColumnDefinitions="*,Auto">
+                <Frame Grid.Column="0"
+                       Padding="10,0,10,0"
+                       CornerRadius="10"
+                       BackgroundColor="{DynamicResource CardBackgroundColor}"
+                       BorderColor="{DynamicResource CardBorderColor}"
+                       HeightRequest="38">
+                    <HorizontalStackLayout VerticalOptions="Center"
+                                          Spacing="6">
+                        <Image Source="ic_search" 
+                               WidthRequest="16" 
+                               HeightRequest="16"
+                               Opacity="0.5" />
+                        <Entry x:Name="SearchBox"
+                               Placeholder="搜索或输入指令..."
+                               PlaceholderColor="{DynamicResource TextHintColor}"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               BackgroundColor="Transparent"
+                               FontSize="14"
+                               HeightRequest="38"
+                               HorizontalOptions="FillAndExpand"
+                               ReturnType="Search"
+                               Completed="OnSearchCompleted" />
+                    </HorizontalStackLayout>
+                </Frame>
+                
+                <ImageButton Grid.Column="1"
+                             Source="avatar_yuki.png"
+                             WidthRequest="36"
+                             HeightRequest="36"
+                             Margin="12,0,0,0"
+                             Clicked="OnYukiAvatarClicked">
+                </ImageButton>
+            </Grid>
+            
+            <!-- Pill Tab Buttons -->
+            <ScrollView Padding="16,0,16,8"
+                        Orientation="Horizontal"
+                        HorizontalScrollBarVisibility="Never">
+                <HorizontalStackLayout x:Name="PillContainer" Spacing="8">
+                    <Button x:Name="PillDaily"
+                            Text="每日推荐"
+                            FontSize="13"
+                            CornerRadius="18"
+                            HeightRequest="36"
+                            Padding="20,0"
+                            BackgroundColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToColorConverter}, ConverterParameter=0}"
+                            TextColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToTextColorConverter}, ConverterParameter=0}"
+                            Clicked="OnPillClicked"
+                            CommandParameter="0" />
+                    <Button x:Name="PillArtists"
+                            Text="艺术家"
+                            FontSize="13"
+                            CornerRadius="18"
+                            HeightRequest="36"
+                            Padding="20,0"
+                            BackgroundColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToColorConverter}, ConverterParameter=1}"
+                            TextColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToTextColorConverter}, ConverterParameter=1}"
+                            Clicked="OnPillClicked"
+                            CommandParameter="1" />
+                    <Button x:Name="PillAlbums"
+                            Text="专辑"
+                            FontSize="13"
+                            CornerRadius="18"
+                            HeightRequest="36"
+                            Padding="20,0"
+                            BackgroundColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToColorConverter}, ConverterParameter=2}"
+                            TextColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToTextColorConverter}, ConverterParameter=2}"
+                            Clicked="OnPillClicked"
+                            CommandParameter="2" />
+                    <Button x:Name="PillTopPlayed"
+                            Text="最多播放"
+                            FontSize="13"
+                            CornerRadius="18"
+                            HeightRequest="36"
+                            Padding="20,0"
+                            BackgroundColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToColorConverter}, ConverterParameter=3}"
+                            TextColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToTextColorConverter}, ConverterParameter=3}"
+                            Clicked="OnPillClicked"
+                            CommandParameter="3" />
+                    <Button x:Name="PillRecent"
+                            Text="最新音乐"
+                            FontSize="13"
+                            CornerRadius="18"
+                            HeightRequest="36"
+                            Padding="20,0"
+                            BackgroundColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToColorConverter}, ConverterParameter=4}"
+                            TextColor="{Binding CurrentTabIndex, Converter={StaticResource TabIndexToTextColorConverter}, ConverterParameter=4}"
+                            Clicked="OnPillClicked"
+                            CommandParameter="4" />
+                </HorizontalStackLayout>
+            </ScrollView>
+            
+            <!-- Section Title -->
+            <HorizontalStackLayout Padding="20,4,20,8">
+                <Label Text="{Binding SectionTitle}"
+                       FontSize="18"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimaryColor}" />
+            </HorizontalStackLayout>
+            
+            <!-- Tab Content - Daily Recommend (default visible) -->
+            <CollectionView x:Name="DailyRecommendList"
+                           ItemsSource="{Binding DailyRecommendSongs}"
+                           IsVisible="{Binding CurrentTabIndex, Converter={StaticResource IntToBoolConverter}, ConverterParameter=0}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="16,8" ColumnDefinitions="48,*,Auto">
+                            <Image Source="{Binding AlbumArtUrl, TargetNullValue='cover_default'}"
+                                   WidthRequest="48" 
+                                   HeightRequest="48" 
+                                   Aspect="AspectFill" />
+                            <VerticalStackLayout Grid.Column="1" 
+                                                  VerticalOptions="Center" 
+                                                  Spacing="2">
+                                <Label Text="{Binding Title}" 
+                                       FontSize="16" 
+                                       TextColor="{DynamicResource TextPrimaryColor}" 
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Artist}" 
+                                       FontSize="13" 
+                                       TextColor="{DynamicResource TextSecondaryColor}" 
+                                       LineBreakMode="TailTruncation" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            
+            <!-- Tab Content - Artists -->
+            <CollectionView x:Name="ArtistsList"
+                           ItemsSource="{Binding Artists}"
+                           IsVisible="{Binding CurrentTabIndex, Converter={StaticResource IntToBoolConverter}, ConverterParameter=1}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="16,8">
+                            <Label Text="{Binding Name}" 
+                                   FontSize="16" 
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            
+            <!-- Tab Content - Albums -->
+            <CollectionView x:Name="AlbumsList"
+                           ItemsSource="{Binding Albums}"
+                           IsVisible="{Binding CurrentTabIndex, Converter={StaticResource IntToBoolConverter}, ConverterParameter=2}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="16,8">
+                            <Label Text="{Binding Title}" 
+                                   FontSize="16" 
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            
+            <!-- Tab Content - Top Played -->
+            <CollectionView x:Name="TopPlayedList"
+                           ItemsSource="{Binding TopPlayedSongs}"
+                           IsVisible="{Binding CurrentTabIndex, Converter={StaticResource IntToBoolConverter}, ConverterParameter=3}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="16,8">
+                            <Label Text="{Binding Title}" 
+                                   FontSize="16" 
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            
+            <!-- Tab Content - Recent -->
+            <CollectionView x:Name="RecentList"
+                           ItemsSource="{Binding RecentAddedSongs}"
+                           IsVisible="{Binding CurrentTabIndex, Converter={StaticResource IntToBoolConverter}, ConverterParameter=4}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="16,8">
+                            <Label Text="{Binding Title}" 
+                                   FontSize="16" 
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            
+        </VerticalStackLayout>
+        
+        <!-- Chat Overlay (shown when IsChatMode is true) -->
+        <Grid x:Name="ChatOverlay" 
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              IsVisible="{Binding IsChatMode}"
+              BackgroundColor="{DynamicResource PageBackgroundColor}"
+              RowDefinitions="Auto,*">
+            
+            <!-- Chat Header -->
+            <HorizontalStackLayout Grid.Row="0"
+                                   Padding="12,8"
+                                   Spacing="12"
+                                   VerticalOptions="Center">
+                <ImageButton Source="ic_arrow_back"
+                            WidthRequest="36"
+                            HeightRequest="36"
+                            BackgroundColor="Transparent"
+                            Clicked="OnChatBackClicked" />
+                <Label Text="{Binding AgentName}"
+                           FontSize="18"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           FontAttributes="Bold" />
+            </HorizontalStackLayout>
+            
+            <!-- Chat Messages -->
+            <CollectionView x:Name="ChatMessagesList"
+                           Grid.Row="1"
+                           ItemsSource="{Binding ChatMessages}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="12,4">
+                            <Frame Padding="12"
+                                  CornerRadius="12"
+                                  BackgroundColor="{Binding Role, Converter={StaticResource RoleToColorConverter}}">
+                                <Label Text="{Binding Content}" 
+                                       FontSize="14" 
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       LineBreakMode="WordWrap" />
+                            </Frame>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
+        
     </Grid>
 </ContentPage>

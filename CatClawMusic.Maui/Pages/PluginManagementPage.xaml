@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.PluginManagementPage"
+             Title="插件管理"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12">
+        <Label Text="🚧 插件管理"
+               FontSize="22"
+               FontAttributes="Bold"
+               TextColor="{DynamicResource TextPrimaryColor}"
+               HorizontalOptions="Center" />
+        <Label Text="该功能正在开发中，敬请期待"
+               FontSize="14"
+               TextColor="{DynamicResource TextHintColor}"
+               HorizontalOptions="Center" />
+    </VerticalStackLayout>
+</ContentPage>

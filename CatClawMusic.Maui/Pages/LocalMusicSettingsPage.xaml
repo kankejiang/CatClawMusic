@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.LocalMusicSettingsPage"
+             Title="本地音乐设置"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="16">
+            
+            <!-- Music Folder Path -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="音乐文件夹"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="{Binding MusicFolderPath}"
+                           FontSize="12"
+                           TextColor="{DynamicResource TextHintColor}" />
+                    <Button Text="选择文件夹"
+                            Command="{Binding SelectFolderCommand}"
+                            BackgroundColor="#9B7ED8"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="36" />
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- Scan Status -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="扫描状态"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="{Binding ScanStatus}"
+                           FontSize="12"
+                           TextColor="{DynamicResource TextSecondaryColor}" />
+                    <ProgressBar Progress="{Binding ScanProgress}"
+                                HeightRequest="4"
+                                IsVisible="{Binding IsScanning}" />
+                    <Button Text="扫描音乐"
+                            Command="{Binding ScanMusicCommand}"
+                            BackgroundColor="#9B7ED8"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="36" />
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- File Types -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="支持的文件格式"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <HorizontalStackLayout Spacing="8">
+                        <CheckBox IsChecked="{Binding IsMp3Enabled}" />
+                        <Label Text="MP3" TextColor="{DynamicResource TextPrimaryColor}" />
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="8">
+                        <CheckBox IsChecked="{Binding IsFlacEnabled}" />
+                        <Label Text="FLAC" TextColor="{DynamicResource TextPrimaryColor}" />
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="8">
+                        <CheckBox IsChecked="{Binding IsWavEnabled}" />
+                        <Label Text="WAV" TextColor="{DynamicResource TextPrimaryColor}" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Frame>
+            
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

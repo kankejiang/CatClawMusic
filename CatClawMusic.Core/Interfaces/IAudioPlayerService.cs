@@ -1,29 +1,67 @@
+using System;
+using System.Threading.Tasks;
+
 namespace CatClawMusic.Core.Interfaces;
 
 /// <summary>
-/// 音频播放服务接口
+/// 音频播放服务接口（平台抽象）
 /// </summary>
 public interface IAudioPlayerService
 {
     /// <summary>
+    /// 当前是否正在播放
+    /// </summary>
+    bool IsPlaying { get; }
+    
+    /// <summary>
+    /// 当前播放位置（秒）
+    /// </summary>
+    double CurrentPosition { get; }
+    
+    /// <summary>
+    /// 当前歌曲总时长（秒）
+    /// </summary>
+    double Duration { get; }
+    
+    /// <summary>
+    /// 音量（0.0 - 1.0）
+    /// </summary>
+    double Volume { get; set; }
+    
+    /// <summary>
+    /// 当前播放的歌曲文件路径
+    /// </summary>
+    string? CurrentSongFilePath { get; }
+    
+    /// <summary>
+    /// 播放状态变化事件
+    /// </summary>
+    event EventHandler<bool>? PlaybackStateChanged;
+    
+    /// <summary>
+    /// 播放进度变化事件
+    /// </summary>
+    event EventHandler<TimeSpan>? PositionChanged;
+    
+    /// <summary>
+    /// 播放完成事件
+    /// </summary>
+    event EventHandler? PlaybackCompleted;
+    
+    /// <summary>
     /// 播放指定歌曲
     /// </summary>
-    Task PlayAsync(string filePathOrUrl);
-
-    /// <summary>
-    /// 仅准备播放（不自动播放），用于恢复上次播放位置时避免短暂出声
-    /// </summary>
-    Task PrepareWithoutPlayAsync(string filePathOrUrl);
-
-    /// <summary>
-    /// 从暂停状态恢复播放（保持当前进度）
-    /// </summary>
-    Task ResumeAsync();
+    Task PlayAsync(string filePath);
     
     /// <summary>
     /// 暂停播放
     /// </summary>
     Task PauseAsync();
+    
+    /// <summary>
+    /// 恢复播放
+    /// </summary>
+    Task ResumeAsync();
     
     /// <summary>
     /// 停止播放
@@ -36,68 +74,7 @@ public interface IAudioPlayerService
     Task SeekAsync(TimeSpan position);
     
     /// <summary>
-    /// 是否正在播放
+    /// 初始化播放器
     /// </summary>
-    bool IsPlaying { get; }
-
-    /// <summary>当前播放的歌曲文件路径</summary>
-    string? CurrentSongFilePath { get; }
-
-    /// <summary>音频会话 ID（用于 Visualizer 绑定）</summary>
-    int AudioSessionId { get; }
-    
-    /// <summary>
-    /// 当前播放位置
-    /// </summary>
-    TimeSpan CurrentPosition { get; }
-    
-    /// <summary>
-    /// 直接从播放器读取实时位置（毫秒），不依赖定时器缓存，适用于通知栏/锁屏进度同步
-    /// </summary>
-    long RealtimePositionMs { get; }
-    
-    /// <summary>
-    /// 歌曲总时长
-    /// </summary>
-    TimeSpan Duration { get; }
-    
-    /// <summary>
-    /// 音量（0-100）
-    /// </summary>
-    int Volume { get; set; }
-    
-    /// <summary>
-    /// 播放状态改变事件
-    /// </summary>
-    event EventHandler<PlaybackStateChangedEventArgs> StateChanged;
-    
-    /// <summary>
-    /// 播放位置改变事件
-    /// </summary>
-    event EventHandler<TimeSpan> PositionChanged;
-}
-
-/// <summary>
-/// 播放状态改变事件参数
-/// </summary>
-public class PlaybackStateChangedEventArgs : EventArgs
-{
-    /// <summary>当前播放状态</summary>
-    public PlaybackState State { get; set; }
-    /// <summary>当前歌曲 ID</summary>
-    public string? SongId { get; set; }
-    /// <summary>错误消息（仅在 Error 状态时有值）</summary>
-    public string? ErrorMessage { get; set; }
-}
-
-/// <summary>
-/// 播放状态
-/// </summary>
-public enum PlaybackState
-{
-    Stopped,
-    Playing,
-    Paused,
-    Buffering,
-    Error
+    Task InitializeAsync();
 }

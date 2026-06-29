@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.catclaw.music">
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- 核心必选权限                             -->
+    <!-- ═══════════════════════════════════════ -->
+
+    <!-- Android 13+ 音频权限 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33" />
+
+    <!-- Android 13+ 图片/视频权限 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" android:minSdkVersion="33" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" android:minSdkVersion="33" />
+
+    <!-- Android 10-12 存储读写权限 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- Android 11+ 全文件管理权限 -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" android:minSdkVersion="30" />
+
+    <!-- 后台播放保活：前台服务 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Android 14+ 前台服务必须细分类型 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" android:minSdkVersion="34" />
+
+    <!-- 防止休眠时 CPU 暂停导致播放卡顿 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- 功能可选权限                             -->
+    <!-- ═══════════════════════════════════════ -->
+
+    <!-- 通知栏播放控制器（Android 13+ 必须声明） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" android:minSdkVersion="33" />
+
+    <!-- 蓝牙播放控制 / 车载系统同步 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- 网络权限（WebDAV / Navidrome / 在线歌词 / 更新） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- 振动反馈 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- 请求忽略电池优化，确保后台播放稳定 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- SMB 局域网设备发现（Android 13+ 需要） -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:minSdkVersion="33" />
+
+    <!-- 悬浮窗权限（桌面歌词） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 音频可视化 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application
+        android:label="猫爪音乐"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:forceDarkAllowed="false"
+        android:enableOnBackInvokedCallback="true"
+        android:resizeableActivity="true"
+        android:requestLegacyExternalStorage="true">
+
+        <meta-data android:name="android.max_aspect" android:value="2.4" />
+
+        <!-- 前台服务（后台播放，适配 Android 14+） -->
+        <service
+            android:name=".ForegroundPlayerService"
+            android:foregroundServiceType="mediaPlayback"
+            android:enabled="true"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

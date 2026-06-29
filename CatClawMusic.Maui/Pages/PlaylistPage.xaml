@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.PlaylistPage"
+             Title="播放列表"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
+    <Grid RowDefinitions="Auto,*"
+          Padding="0">
+        
+        <!-- Header -->
+        <Label Grid.Row="0"
+               Text="我的播放列表"
+               FontSize="28"
+               FontAttributes="Bold"
+               TextColor="{DynamicResource TextPrimaryColor}"
+               Padding="20,20,20,10" />
+        
+        <!-- Playlists List -->
+        <CollectionView Grid.Row="1"
+                        ItemsSource="{Binding Playlists}"
+                        SelectionMode="Single"
+                        SelectionChanged="OnPlaylistSelected">
+            
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnDefinitions="60,*,40"
+                          Padding="20,12"
+                          ColumnSpacing="15">
+                        
+                        <!-- Playlist Cover -->
+                        <Frame Grid.Column="0"
+                               WidthRequest="60"
+                               HeightRequest="60"
+                               CornerRadius="8"
+                               Padding="0"
+                               BackgroundColor="{DynamicResource CardBackgroundColor}">
+                            <Image Source="{Binding CoverUrl}"
+                                   Aspect="AspectFill" />
+                        </Frame>
+                        
+                        <!-- Playlist Info -->
+                        <VerticalStackLayout Grid.Column="1"
+                                             VerticalOptions="Center"
+                                             Spacing="2">
+                            
+                            <Label Text="{Binding Name}"
+                                   FontSize="16"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   MaxLines="1" />
+                            
+                            <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                        
+                        <!-- Menu Button -->
+                        <ImageButton Grid.Column="2"
+                                     Source="ic_menu"
+                                     WidthRequest="30"
+                                     HeightRequest="30"
+                                     BackgroundColor="Transparent"
+                                     Clicked="OnPlaylistMenuClicked" />
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

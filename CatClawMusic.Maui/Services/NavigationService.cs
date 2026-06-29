@@ -1,0 +1,97 @@
+using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Models;
+using System.Threading.Tasks;
+
+namespace CatClawMusic.Maui.Services;
+
+/// <summary>
+/// 导航服务实现 - 封装 Shell 导航逻辑
+/// </summary>
+public class NavigationService : INavigationService
+{
+    public async Task NavigateToAsync(string route, Dictionary<string, object>? parameters = null)
+    {
+        try
+        {
+            if (parameters != null)
+            {
+                await Shell.Current.GoToAsync(route, parameters);
+            }
+            else
+            {
+                await Shell.Current.GoToAsync(route);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Navigation error: {ex.Message}");
+        }
+    }
+
+    public async Task GoBackAsync()
+    {
+        try
+        {
+            await Shell.Current.GoToAsync("..");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Navigation back error: {ex.Message}");
+        }
+    }
+
+    public void SwitchTab(int tabIndex)
+    {
+        try
+        {
+            var shell = Shell.Current;
+            if (shell?.CurrentItem is TabBar tabBar && tabBar.Items.Count > tabIndex)
+            {
+                shell.CurrentItem = tabBar.Items[tabIndex];
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"SwitchTab error: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 导航到专辑详情页面（带参数）
+    /// </summary>
+    public async Task NavigateToAlbumDetailAsync(Album album)
+    {
+        var parameters = new Dictionary<string, object>
+        {
+            { "Album", album }
+        };
+        
+        await NavigateToAsync("//albumdetail", parameters);
+    }
+
+    /// <summary>
+    /// 导航到艺术家详情页面
+    /// </summary>
+    public async Task NavigateToArtistDetailAsync(Artist artist)
+    {
+        var parameters = new Dictionary<string, object>
+        {
+            { "Artist", artist }
+        };
+        
+        await NavigateToAsync("//artistdetail", parameters);
+    }
+
+    /// <summary>
+    /// 导航到播放列表详情页面
+    /// </summary>
+    public async Task NavigateToPlaylistDetailAsync(Playlist playlist)
+    {
+        var parameters = new Dictionary<string, object>
+        {
+            { "Playlist", playlist }
+        };
+        
+        await NavigateToAsync("//playlistdetail", parameters);
+    }
+}

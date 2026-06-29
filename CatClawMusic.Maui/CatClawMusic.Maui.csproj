@@ -2,6 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>CatClawMusic.Maui</RootNamespace>
@@ -9,21 +10,31 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<LangVersion>preview</LangVersion>
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
-		<ApplicationTitle>CatClaw</ApplicationTitle>
+		<ApplicationTitle>猫爪音乐</ApplicationTitle>
 		<ApplicationId>com.catclaw.music</ApplicationId>
-		<ApplicationDisplayVersion>1.5.1</ApplicationDisplayVersion>
-		<ApplicationVersion>1</ApplicationVersion>
+		<ApplicationDisplayVersion>1.5.3</ApplicationDisplayVersion>
+		<ApplicationVersion>36</ApplicationVersion>
 
+		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+		<EnableMsixTooling>true</EnableMsixTooling>
+
+		<!-- Platform min versions -->
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
+		<!-- Android release build settings -->
+		<PublishTrimmed Condition="'$(Configuration)' == 'Release'">true</PublishTrimmed>
+		<TrimMode Condition="'$(Configuration)' == 'Release'">partial</TrimMode>
+		<RunAOTCompilation Condition="'$(Configuration)' == 'Release'">true</RunAOTCompilation>
 	</PropertyGroup>
 
+	<!-- Shared project references -->
 	<ItemGroup>
 		<ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
 		<ProjectReference Include="..\CatClawMusic.Data\CatClawMusic.Data.csproj" />
@@ -34,14 +45,28 @@
 		<AndroidNativeLibrary Include="..\CatClawMusic.UI\Assets\ffmpeg\arm64-v8a\libffmpeg.so" Abi="arm64-v8a" />
 	</ItemGroup>
 
+	<!-- MAUI resources -->
+	<ItemGroup>
+		<MauiIcon Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher.png" />
+		<MauiSplashScreen Include="Resources\Images\catclaw_splash.png" Color="#121212" BaseSize="128,128" />
+		<MauiImage Include="Resources\Images\*" />
+		<MauiFont Include="Resources\Fonts\*" />
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<!-- NuGet packages -->
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-		<PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer" Version="1.10.1" />
-		<PackageReference Include="Xamarin.AndroidX.Media3.Datasource" Version="1.10.1" />
-		<PackageReference Include="Xamarin.AndroidX.Media" Version="1.8.0" />
-		<PackageReference Include="Xamarin.Google.Android.Material" Version="1.14.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+	</ItemGroup>
+
+	<!-- Android release signing -->
+	<ItemGroup Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<AndroidSigningKeyStore Include="..\catclaw.keystore" />
+		<AndroidSigningKeyAlias Include="catclaw" />
+		<AndroidSigningKeyPass Include="$(CatClawKeyPass)" />
+		<AndroidSigningStorePass Include="$(CatClawStorePass)" />
 	</ItemGroup>
 
 </Project>

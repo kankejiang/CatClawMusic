@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CatClawMusic.UI", "CatClawM
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CatClawMusic.Core.Tests", "CatClawMusic.Core.Tests\CatClawMusic.Core.Tests.csproj", "{228818BA-BB41-40D8-89D6-423431C4E8BC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CatClawMusic.Maui", "CatClawMusic.Maui\CatClawMusic.Maui.csproj", "{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -47,7 +49,6 @@ Global
 		{1F5A5AA8-72C3-444B-B1E4-E6DE0DA6898E}.Release|x86.Build.0 = Release|Any CPU
 		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
 		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|x64.ActiveCfg = Debug|Any CPU
 		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|x64.Build.0 = Debug|Any CPU
 		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|x86.ActiveCfg = Debug|Any CPU
@@ -71,6 +72,19 @@ Global
 		{228818BA-BB41-40D8-89D6-423431C4E8BC}.Release|x64.Build.0 = Release|Any CPU
 		{228818BA-BB41-40D8-89D6-423431C4E8BC}.Release|x86.ActiveCfg = Release|Any CPU
 		{228818BA-BB41-40D8-89D6-423431C4E8BC}.Release|x86.Build.0 = Release|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Debug|x64.Build.0 = Debug|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Debug|x86.Build.0 = Debug|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Release|x64.ActiveCfg = Release|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Release|x64.Build.0 = Release|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Release|x86.ActiveCfg = Release|Any CPU
+		{4A27F78D-BEAE-4B51-BF61-07B6DE2694FA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

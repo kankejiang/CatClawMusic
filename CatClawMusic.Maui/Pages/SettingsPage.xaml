@@ -1,26 +1,286 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.Maui.Pages.SettingsPage"
-             Title="设置">
+             Title="设置"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="16">
-            <Label Text="设置" FontSize="24" FontAttributes="Bold" TextColor="White"/>
             
-            <Frame Padding="16" CornerRadius="8" BackgroundColor="#1A1A1A" BorderColor="Transparent">
-                <VerticalStackLayout Spacing="12">
-                    <Label Text="音乐库" FontSize="18" FontAttributes="Bold" TextColor="White"/>
-                    <Label x:Name="LibraryStatus" Text="歌曲数: --" TextColor="#AAAAAA"/>
-                    <Button Text="重新扫描" BackgroundColor="#333333" TextColor="White" Clicked="OnRescan"/>
-                </VerticalStackLayout>
+            <!-- Title Bar + Dark Mode Toggle -->
+            <Grid ColumnDefinitions="*,Auto"
+                  Margin="0,0,0,16">
+                <Label Grid.Column="0"
+                       Text="设置"
+                       FontSize="22"
+                       FontFamily="HappyZCool2016"
+                       TextColor="{DynamicResource TextPrimaryColor}" />
+                <ImageButton Grid.Column="1"
+                             x:Name="DarkModeButton"
+                             WidthRequest="40"
+                             HeightRequest="40"
+                             BackgroundColor="Transparent"
+                             Clicked="OnDarkModeToggleClicked" />
+            </Grid>
+            
+            <!-- 🎨 外观与个性化 -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <VerticalStackLayout HorizontalOptions="FillAndExpand"
+                                          Spacing="2">
+                        <Label Text="🎨 外观与个性化"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label Text="主题颜色、启动页设置"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnAppearanceSettingsClicked" />
+                </Frame.GestureRecognizers>
             </Frame>
-
-            <Frame Padding="16" CornerRadius="8" BackgroundColor="#1A1A1A" BorderColor="Transparent">
-                <VerticalStackLayout Spacing="12">
-                    <Label Text="关于" FontSize="18" FontAttributes="Bold" TextColor="White"/>
-                    <Label Text="CatClaw v1.5.1" TextColor="#AAAAAA"/>
-                    <Label Text=".NET MAUI 10 — Android" TextColor="#666666" FontSize="12"/>
-                </VerticalStackLayout>
+            
+            <!-- 📁 本地音乐 -->
+            <Frame x:Name="LocalMusicFrame"
+                   Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <VerticalStackLayout HorizontalOptions="FillAndExpand"
+                                          Spacing="2">
+                        <Label Text="📁 本地音乐"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label x:Name="LocalMusicStatusLabel"
+                               Text="{Binding LocalMusicStatus}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnLocalMusicClicked" />
+                </Frame.GestureRecognizers>
             </Frame>
+            
+            <!-- ☁️ 远程音乐服务 -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <VerticalStackLayout HorizontalOptions="FillAndExpand"
+                                          Spacing="2">
+                        <Label Text="☁️ 远程音乐服务"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label x:Name="RemoteMusicStatusLabel"
+                               Text="{Binding RemoteMusicStatus}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnRemoteMusicClicked" />
+                </Frame.GestureRecognizers>
+            </Frame>
+            
+            <!-- 🧩 插件管理 -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <VerticalStackLayout HorizontalOptions="FillAndExpand"
+                                          Spacing="2">
+                        <Label Text="🧩 插件管理"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label x:Name="PluginStatusLabel"
+                               Text="{Binding PluginStatus}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnPluginManagementClicked" />
+                </Frame.GestureRecognizers>
+            </Frame>
+            
+            <!-- 🔍 探索设置 (AI) -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <VerticalStackLayout HorizontalOptions="FillAndExpand"
+                                          Spacing="2">
+                        <Label Text="🔍 探索设置"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label x:Name="AiStatusLabel"
+                               Text="{Binding AiStatus}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnAiSettingsClicked" />
+                </Frame.GestureRecognizers>
+            </Frame>
+            
+            <!-- 🔐 权限管理 -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <VerticalStackLayout HorizontalOptions="FillAndExpand"
+                                          Spacing="2">
+                        <Label Text="🔐 权限管理"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label x:Name="PermissionStatusLabel"
+                               Text="{Binding PermissionStatus}"
+                               FontSize="12"
+                               TextColor="{Binding PermissionStatusColor}" />
+                    </VerticalStackLayout>
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnPermissionManagementClicked" />
+                </Frame.GestureRecognizers>
+            </Frame>
+            
+            <!-- 通用设置 -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <Label Text="通用设置"
+                           FontSize="15"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           FontAttributes="Bold"
+                           HorizontalOptions="FillAndExpand" />
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnGeneralSettingsClicked" />
+                </Frame.GestureRecognizers>
+            </Frame>
+            
+            <!-- 💾 备份与恢复 -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <HorizontalStackLayout Padding="16"
+                                       Spacing="16"
+                                       VerticalOptions="Center">
+                    <VerticalStackLayout HorizontalOptions="FillAndExpand"
+                                          Spacing="2">
+                        <Label Text="💾 备份与恢复"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label Text="备份、恢复、管理备份文件"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    <Label Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}" />
+                </HorizontalStackLayout>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBackupRestoreClicked" />
+                </Frame.GestureRecognizers>
+            </Frame>
+            
+            <!-- 关于 -->
+            <Frame Padding="0"
+                   CornerRadius="16"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <Grid Padding="16"
+                      ColumnDefinitions="*,Auto,Auto">
+                    <VerticalStackLayout Grid.Column="0"
+                                          Spacing="2">
+                        <Label Text="关于"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               FontAttributes="Bold" />
+                        <Label Text="版本信息、开源协议、交流群"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                    
+                    <!-- Update Red Dot -->
+                    <BoxView Grid.Column="1"
+                              x:Name="UpdateRedDot"
+                              WidthRequest="18"
+                              HeightRequest="18"
+                              BackgroundColor="Red"
+                              CornerRadius="9"
+                              IsVisible="{Binding IsUpdateAvailable}"
+                              Margin="0,0,4,0"
+                              VerticalOptions="Center" />
+                    
+                    <Label Grid.Column="2"
+                           Text="›"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextHintColor}"
+                           VerticalOptions="Center" />
+                </Grid>
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnAboutClicked" />
+                </Frame.GestureRecognizers>
+            </Frame>
+            
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

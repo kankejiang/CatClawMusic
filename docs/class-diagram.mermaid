@@ -1,0 +1,276 @@
+```mermaid
+classDiagram
+    direction TB
+    
+    %% Core Models (from CatClawMusic.Core)
+    class Song {
+        +string Id
+        +string Title
+        +string Artist
+        +string Album
+        +string FilePath
+        +double Duration
+        +string AlbumArtUrl
+        +bool IsLiked
+    }
+    
+    class Album {
+        +string Id
+        +string Title
+        +string Artist
+        +string CoverUrl
+    }
+    
+    class Artist {
+        +string Id
+        +string Name
+        +string ImageUrl
+    }
+    
+    class Playlist {
+        +string Id
+        +string Name
+        +List~Song~ Songs
+    }
+    
+    %% Interfaces
+    class IAudioPlayerService {
+        <<interface>>
+        +PlayAsync(string filePath) Task
+        +PauseAsync() Task
+        +StopAsync() Task
+        +SeekAsync(double position) Task
+        +event EventHandler~bool~ PlaybackStateChanged
+        +event EventHandler PlaybackCompleted
+    }
+    
+    class INavigationService {
+        <<interface>>
+        +NavigateTo(string route) Task
+        +GoBack() Task
+    }
+    
+    class IDialogService {
+        <<interface>>
+        +ShowAlert(string title, string message) Task
+        +ShowConfirmation(string title, string message) Task~bool~
+    }
+    
+    %% ViewModels
+    class ObservableObject {
+        <<base>>
+        +SetProperty~T~(ref T, T) bool
+        +OnPropertyChanged(string propertyName) void
+    }
+    
+    class NowPlayingViewModel {
+        +string Title
+        +string Artist
+        +string AlbumArtUrl
+        +bool IsPlaying
+        +double Progress
+        +double Duration
+        +ICommand TogglePlayPauseCommand
+        +ICommand PlayNextCommand
+        +ICommand PlayPreviousCommand
+        +UpdateCurrentSong() void
+    }
+    
+    class LibraryViewModel {
+        +List~Song~ Songs
+        +bool IsLoading
+        +ICommand RefreshCommand
+        +LoadAsync() Task
+    }
+    
+    class SearchViewModel {
+        +string Query
+        +List~Song~ Results
+        +ICommand SearchCommand
+        +SearchAsync() Task
+    }
+    
+    class SettingsViewModel {
+        +bool IsDarkMode
+        +string Theme
+        +ICommand ToggleThemeCommand
+    }
+    
+    class AlbumDetailViewModel {
+        +Album Album
+        +List~Song~ Songs
+        +ICommand PlayAllCommand
+    }
+    
+    class ArtistDetailViewModel {
+        +Artist Artist
+        +List~Album~ Albums
+        +List~Song~ TopSongs
+    }
+    
+    class PlaylistViewModel {
+        +List~Playlist~ Playlists
+        +ICommand CreatePlaylistCommand
+    }
+    
+    class PlaylistDetailViewModel {
+        +Playlist Playlist
+        +ICommand AddSongsCommand
+        +ICommand RemoveSongCommand
+    }
+    
+    class HomeViewModel {
+        +List~Song~ RecentSongs
+        +List~Album~ RecentAlbums
+        +ICommand PlaySongCommand
+    }
+    
+    %% Pages
+    class ContentPage {
+        <<base>>
+        +object BindingContext
+        +void OnAppearing()
+        +void OnDisappearing()
+    }
+    
+    class NowPlayingPage {
+        +BindingContext NowPlayingViewModel
+    }
+    
+    class LibraryPage {
+        +BindingContext LibraryViewModel
+    }
+    
+    class SearchPage {
+        +BindingContext SearchViewModel
+    }
+    
+    class SettingsPage {
+        +BindingContext SettingsViewModel
+    }
+    
+    class AlbumDetailPage {
+        +BindingContext AlbumDetailViewModel
+    }
+    
+    class ArtistDetailPage {
+        +BindingContext ArtistDetailViewModel
+    }
+    
+    class PlaylistPage {
+        +BindingContext PlaylistViewModel
+    }
+    
+    class PlaylistDetailPage {
+        +BindingContext PlaylistDetailViewModel
+    }
+    
+    class HomePage {
+        +BindingContext HomeViewModel
+    }
+    
+    %% Services
+    class NavigationService {
+        +NavigateTo(string route) Task
+        +GoBack() Task
+    }
+    
+    class DialogService {
+        +ShowAlert(string title, string message) Task
+        +ShowConfirmation(string title, string message) Task~bool~
+    }
+    
+    class AudioPlayerService {
+        +PlayAsync(string filePath) Task
+        +PauseAsync() Task
+        +StopAsync() Task
+        +event EventHandler~bool~ PlaybackStateChanged
+    }
+    
+    %% Relationships
+    
+    ObservableObject <|-- NowPlayingViewModel
+    ObservableObject <|-- LibraryViewModel
+    ObservableObject <|-- SearchViewModel
+    ObservableObject <|-- SettingsViewModel
+    ObservableObject <|-- AlbumDetailViewModel
+    ObservableObject <|-- ArtistDetailViewModel
+    ObservableObject <|-- PlaylistViewModel
+    ObservableObject <|-- PlaylistDetailViewModel
+    ObservableObject <|-- HomeViewModel
+    
+    ContentPage <|-- NowPlayingPage
+    ContentPage <|-- LibraryPage
+    ContentPage <|-- SearchPage
+    ContentPage <|-- SettingsPage
+    ContentPage <|-- AlbumDetailPage
+    ContentPage <|-- ArtistDetailPage
+    ContentPage <|-- PlaylistPage
+    ContentPage <|-- PlaylistDetailPage
+    ContentPage <|-- HomePage
+    
+    NowPlayingPage --> NowPlayingViewModel : BindingContext
+    LibraryPage --> LibraryViewModel : BindingContext
+    SearchPage --> SearchViewModel : BindingContext
+    SettingsPage --> SettingsViewModel : BindingContext
+    AlbumDetailPage --> AlbumDetailViewModel : BindingContext
+    ArtistDetailPage --> ArtistDetailViewModel : BindingContext
+    PlaylistPage --> PlaylistViewModel : BindingContext
+    PlaylistDetailPage --> PlaylistDetailViewModel : BindingContext
+    HomePage --> HomeViewModel : BindingContext
+    
+    NowPlayingViewModel --> IAudioPlayerService : uses
+    NowPlayingViewModel --> Song : displays
+    LibraryViewModel --> Song : displays
+    SearchViewModel --> Song : searches
+    
+    AlbumDetailViewModel --> Album : displays
+    AlbumDetailViewModel --> Song : displays
+    ArtistDetailViewModel --> Artist : displays
+    ArtistDetailViewModel --> Album : displays
+    
+    PlaylistViewModel --> Playlist : displays
+    PlaylistDetailViewModel --> Playlist : displays
+    PlaylistDetailViewModel --> Song : manages
+    
+    HomeViewModel --> Song : displays recent
+    
+    NavigationService ..|> INavigationService : implements
+    DialogService ..|> IDialogService : implements
+    AudioPlayerService ..|> IAudioPlayerService : implements
+    
+    NowPlayingViewModel --> INavigationService : navigates
+    LibraryViewModel --> INavigationService : navigates
+```
+
+## Dependency Injection Container
+
+```mermaid
+classDiagram
+    direction LR
+    
+    class MauiProgram {
+        +CreateMauiApp() MauiApp
+        -ConfigureServices() void
+    }
+    
+    class IServiceProvider {
+        <<interface>>
+        +GetService~T~() T
+    }
+    
+    class ServiceCollection {
+        +AddSingleton~T~() void
+        +AddTransient~T~() void
+    }
+    
+    MauiProgram --> ServiceCollection : configures
+    ServiceCollection --> IServiceProvider : builds
+    
+    IAudioPlayerService <.. ServiceCollection : registers
+    INavigationService <.. ServiceCollection : registers
+    IDialogService <.. ServiceCollection : registers
+    
+    NowPlayingViewModel --> IServiceProvider : resolves
+    LibraryViewModel --> IServiceProvider : resolves
+```

@@ -1,0 +1,113 @@
+```mermaid
+sequenceDiagram
+    participant App as App.xaml.cs
+    participant Shell as AppShell
+    participant Page as ContentPage
+    participant VM as ViewModel
+    participant Core as CatClawMusic.Core
+    
+    App->>App: OnStart()
+    App->>Shell: Initialize Shell
+    Shell->>Shell: Register Routes
+    Shell->>Page: Create MainPage (LibraryPage)
+    Page->>VM: Set BindingContext
+    VM->>Core: Load Data
+    Core-->>VM: Return Data
+    VM-->>Page: Update UI via DataBinding
+    
+    Note over Page,VM: User interacts with UI
+    Page->>VM: Command Executed
+    VM->>Core: Business Logic
+    Core-->>VM: Result
+    VM-->>Page: Property Changed (UI updates)
+```
+
+## Navigation Flow (Shell)
+
+```mermaid
+sequenceDiagram
+    participant TabBar as Shell TabBar
+    participant Page1 as Current Page
+    participant Page2 as Target Page
+    participant VM as ViewModel
+    participant Nav as INavigationService
+    
+    User->>TabBar: Click Tab
+    TabBar->>Page2: Activate (Shell Navigation)
+    Page2->>Page2: OnAppearing()
+    Page2->>VM: Initialize/Refresh
+    VM-->>Page2: Data Loaded
+    
+    Note over Page1,Page2: Detail Page Navigation
+    User->>Page1: Click Item
+    Page1->>Nav: NavigateTo("AlbumDetail")
+    Nav->>Page2: PushAsync
+    Page2->>VM: Load with Parameter
+    VM-->>Page2: Display Data
+```
+
+## Playback Control Flow
+
+```mermaid
+sequenceDiagram
+    participant UI as NowPlayingPage
+    participant VM as NowPlayingViewModel
+    participant Audio as IAudioPlayerService
+    participant Queue as PlayQueue (Core)
+    
+    User->>UI: Click Play/Pause
+    UI->>VM: TogglePlayPauseCommand
+    VM->>Audio: PlayAsync/StopAsync
+    Audio->>Audio: Platform Audio API
+    Audio-->>VM: PlaybackStateChanged Event
+    VM->>VM: Update IsPlaying Property
+    VM-->>UI: PropertyChanged (UI updates)
+    
+    Note over Audio,Queue: Song Completed
+    Audio-->>VM: PlaybackCompleted Event
+    VM->>Queue: Next()
+    Queue-->>VM: CurrentSong Changed
+    VM->>Audio: PlayAsync(next song)
+    VM-->>UI: Update Song Info
+```
+
+## Search Flow
+
+```mermaid
+sequenceDiagram
+    participant UI as SearchPage
+    participant VM as SearchViewModel
+    participant DB as MusicDatabase (Core)
+    
+    User->>UI: Type Query
+    UI->>VM: Query Property (TwoWay binding)
+    VM->>VM: OnQueryChanged (debounced)
+    VM->>DB: SearchSongsAsync(query)
+    DB-->>VM: List<Song>
+    VM->>VM: Results Property
+    VM-->>UI: PropertyChanged
+    UI->>UI: Refresh ListView
+```
+
+## Settings Navigation Flow
+
+```mermaid
+sequenceDiagram
+    participant Settings as SettingsPage
+    participant VM as SettingsViewModel
+    participant Detail as SettingsDetailPage
+    participant DetailVM as DetailViewModel
+    
+    User->>Settings: Click Setting Item
+    Settings->>VM: NavigateToCommand(settingType)
+    VM->>Shell: Shell.Current.GoToAsync("settingType")
+    Shell->>Detail: Create Page
+    Detail->>DetailVM: Set BindingContext
+    DetailVM-->>Detail: Load Setting Options
+    Detail-->>UI: Display Settings UI
+    
+    User->>Detail: Change Setting
+    Detail->>DetailVM: Update Property
+    DetailVM->>DetailVM: Save to Preferences
+    DetailVM-->>Detail: Update UI
+```

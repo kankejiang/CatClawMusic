@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.BackupRestorePage"
+             Title="备份与恢复"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="16">
+            
+            <!-- Backup -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="备份数据"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="将应用数据备份到本地文件"
+                           FontSize="12"
+                           TextColor="{DynamicResource TextHintColor}" />
+                    <Button Text="创建备份"
+                            Command="{Binding CreateBackupCommand}"
+                            BackgroundColor="#9B7ED8"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="40" />
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- Restore -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="恢复数据"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="从备份文件恢复应用数据"
+                           FontSize="12"
+                           TextColor="{DynamicResource TextHintColor}" />
+                    <Button Text="选择备份文件"
+                            Command="{Binding RestoreBackupCommand}"
+                            BackgroundColor="#9B7ED8"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="40" />
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- Backup List -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="管理备份文件"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    
+                    <CollectionView ItemsSource="{Binding BackupFiles}"
+                                    SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*,Auto"
+                                      Padding="0,8">
+                                    <Label Grid.Column="0"
+                                           Text="{Binding FileName}"
+                                           FontSize="14"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           VerticalOptions="Center" />
+                                    <Button Grid.Column="1"
+                                            Text="删除"
+                                            Clicked="OnDeleteBackupClicked"
+                                            BackgroundColor="Red"
+                                            TextColor="White"
+                                            CornerRadius="6"
+                                            HeightRequest="30"
+                                            WidthRequest="60" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Frame>
+            
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

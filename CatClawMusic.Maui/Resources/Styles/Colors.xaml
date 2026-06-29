@@ -1,7 +1,8 @@
 ﻿<?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary 
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters">
 
     <!-- Note: For Android please see also Platforms\Android\Resources\values\colors.xml -->
 
@@ -41,4 +42,47 @@
     <SolidColorBrush x:Key="Gray600Brush" Color="{StaticResource Gray600}"/>
     <SolidColorBrush x:Key="Gray900Brush" Color="{StaticResource Gray900}"/>
     <SolidColorBrush x:Key="Gray950Brush" Color="{StaticResource Gray950}"/>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- CatClaw 动态主题资源键                          -->
+    <!-- ThemeService 在运行时覆盖这些默认值               -->
+    <!-- 页面通过 {DynamicResource Key} 引用               -->
+    <!-- ═══════════════════════════════════════════════ -->
+
+    <!-- 主题色（默认紫色） -->
+    <Color x:Key="PrimaryColor">#7B61FF</Color>
+    <Color x:Key="PrimaryLightColor">#E8E0FF</Color>
+    <Color x:Key="PrimaryDarkColor">#B8A9FF</Color>
+
+    <!-- 页面背景与卡片 -->
+    <Color x:Key="WindowBackgroundColor">#121212</Color>
+    <Color x:Key="SurfaceColor">#252525</Color>
+    <Color x:Key="CardBackgroundColor">#1E1E1E</Color>
+    <Color x:Key="DividerColor">#2C2C2C</Color>
+
+    <!-- 文本 -->
+    <Color x:Key="TextPrimaryColor">#FFFFFF</Color>
+    <Color x:Key="TextSecondaryColor">#B3B3B3</Color>
+    <Color x:Key="TextHintColor">#666666</Color>
+
+    <!-- Tab 栏 -->
+    <Color x:Key="TabActiveColor">#7B61FF</Color>
+    <Color x:Key="TabInactiveColor">#666666</Color>
+    <Color x:Key="TabBarBackgroundColor">#121212</Color>
+
+    <!-- 功能色 -->
+    <Color x:Key="SuccessColor">#4CAF50</Color>
+    <Color x:Key="WarningColor">#FF9800</Color>
+    <Color x:Key="ErrorColor">#F44336</Color>
+    <Color x:Key="LikeColor">#FF6B9D</Color>
+
+    <!-- Converters -->
+    <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
+    <converters:TabTextColorConverter x:Key="TabTextColorConverter" />
+    <converters:TabIndexToColorConverter x:Key="TabIndexToColorConverter" />
+    <converters:TabIndexToTextColorConverter x:Key="TabIndexToTextColorConverter" />
+    <converters:IntToBoolConverter x:Key="IntToBoolConverter" />
+    <converters:RoleToColorConverter x:Key="RoleToColorConverter" />
+    <converters:IndexConverter x:Key="IndexConverter" />
+    <converters:DurationConverter x:Key="DurationConverter" />
 </ResourceDictionary>

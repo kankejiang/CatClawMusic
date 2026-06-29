@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.AppearanceSettingsPage"
+             Title="外观与个性化"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+    
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="16">
+            
+            <!-- Theme Color -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="主题颜色"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    
+                    <HorizontalStackLayout Spacing="12">
+                        <Frame WidthRequest="50"
+                               HeightRequest="50"
+                               CornerRadius="25"
+                               BackgroundColor="#9B7ED8"
+                               Padding="0">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                      CommandParameter="#9B7ED8" />
+                            </Frame.GestureRecognizers>
+                        </Frame>
+                        
+                        <Frame WidthRequest="50"
+                               HeightRequest="50"
+                               CornerRadius="25"
+                               BackgroundColor="#2196F3"
+                               Padding="0">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                      CommandParameter="#2196F3" />
+                            </Frame.GestureRecognizers>
+                        </Frame>
+                        
+                        <Frame WidthRequest="50"
+                               HeightRequest="50"
+                               CornerRadius="25"
+                               BackgroundColor="#4CAF50"
+                               Padding="0">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                      CommandParameter="#4CAF50" />
+                            </Frame.GestureRecognizers>
+                        </Frame>
+                        
+                        <Frame WidthRequest="50"
+                               HeightRequest="50"
+                               CornerRadius="25"
+                               BackgroundColor="#FF5722"
+                               Padding="0">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                      CommandParameter="#FF5722" />
+                            </Frame.GestureRecognizers>
+                        </Frame>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Frame>
+            
+            <!-- Dark Mode -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Grid.Column="0"
+                           Text="深色模式"
+                           FontSize="16"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           VerticalOptions="Center" />
+                    <Switch Grid.Column="1"
+                            IsToggled="{Binding IsDarkMode}" />
+                </Grid>
+            </Frame>
+            
+            <!-- Startup Page -->
+            <Frame Padding="16"
+                   CornerRadius="12"
+                   BackgroundColor="{DynamicResource CardBackgroundColor}"
+                   BorderColor="{DynamicResource CardBorderColor}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="启动页"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    
+                    <Picker ItemsSource="{Binding StartupPageOptions}"
+                            SelectedIndex="{Binding SelectedStartupPageIndex, Mode=TwoWay}"
+                            BackgroundColor="{DynamicResource CardBackgroundColor}"
+                            TextColor="{DynamicResource TextPrimaryColor}" />
+                </VerticalStackLayout>
+            </Frame>
+            
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

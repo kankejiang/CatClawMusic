@@ -580,8 +580,8 @@ public class GetCurrentSongTool : IAgentTool
             song = new
             {
                 current.Id, current.Title, current.Artist, current.Album,
-                Duration = _player.Duration.TotalSeconds,
-                Position = _player.CurrentPosition.TotalSeconds
+                Duration = _player.Duration,
+                Position = _player.CurrentPosition
             }
         });
     }
