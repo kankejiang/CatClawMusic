@@ -7,10 +7,12 @@ public class TabTextColorConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         var currentTab = value?.ToString();
-        // 当前选项卡激活时显示白色，未激活时显示浅灰色
+        var resources = Application.Current?.Resources;
+        var active = resources?["ChipActiveTextColor"] as Color ?? Colors.White;
+        var inactive = resources?["ChipInactiveTextColor"] as Color ?? Colors.LightGray;
         return currentTab?.Equals(parameter?.ToString(), StringComparison.OrdinalIgnoreCase) == true
-            ? Colors.White
-            : Colors.LightGray;
+            ? active
+            : inactive;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

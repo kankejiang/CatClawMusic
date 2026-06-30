@@ -1,60 +1,104 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
-    
-    <!-- Colors -->
-    <Color x:Key="PrimaryColor">#9B7ED8</Color>
-    <Color x:Key="PrimaryDarkColor">#7B5DB8</Color>
-    <Color x:Key="AccentColor">#FF6B9D</Color>
-    
-    <!-- Page-level dynamic resources (referenced by Pages) -->
-    <Color x:Key="PageBackgroundColor">#FFFFFF</Color>
-    <Color x:Key="CardBackgroundColor">#F5F5F5</Color>
-    <Color x:Key="CardBorderColor">#E0E0E0</Color>
-    <Color x:Key="TextPrimaryColor">#000000</Color>
-    <Color x:Key="TextSecondaryColor">#666666</Color>
-    <Color x:Key="TextHintColor">#999999</Color>
-    
-    <!-- Styles with Theme Support -->
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
     <Style TargetType="Label">
-        <Setter Property="TextColor" Value="{AppThemeBinding Light=#000000, Dark=#FFFFFF}" />
+        <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
+        <Setter Property="LineBreakMode" Value="TailTruncation" />
     </Style>
-    
-    <Style TargetType="Button">
-        <Setter Property="BackgroundColor" Value="{StaticResource PrimaryColor}" />
-        <Setter Property="TextColor" Value="White" />
-        <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="Padding" Value="20,10" />
-    </Style>
-    
+
     <Style TargetType="Entry">
-        <Setter Property="TextColor" Value="{AppThemeBinding Light=#000000, Dark=#FFFFFF}" />
-        <Setter Property="PlaceholderColor" Value="{AppThemeBinding Light=#999999, Dark=#666666}" />
+        <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
+        <Setter Property="PlaceholderColor" Value="{DynamicResource TextHintColor}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontSize" Value="14" />
     </Style>
-    
+
+    <Style TargetType="Picker">
+        <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="TitleColor" Value="{DynamicResource TextHintColor}" />
+    </Style>
+
     <Style TargetType="CollectionView">
         <Setter Property="SelectionMode" Value="Single" />
     </Style>
-    
-    <!-- Custom Styles -->
-    <Style x:Key="CardStyle" TargetType="Frame">
-        <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}" />
-        <Setter Property="BorderColor" Value="{AppThemeBinding Light=#E0E0E0, Dark=#2C2C2C}" />
-        <Setter Property="CornerRadius" Value="10" />
-        <Setter Property="Padding" Value="15" />
-        <Setter Property="HasShadow" Value="False" />
-    </Style>
-    
-    <Style x:Key="SectionHeaderStyle" TargetType="Label">
-        <Setter Property="FontSize" Value="14" />
+
+    <Style x:Key="PageTitleStyle" TargetType="Label">
+        <Setter Property="FontSize" Value="30" />
         <Setter Property="FontAttributes" Value="Bold" />
-        <Setter Property="TextColor" Value="{AppThemeBinding Light=#666666, Dark=#B0B0B0}" />
-        <Setter Property="Margin" Value="20,15,20,5" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
     </Style>
-    
-    <Style x:Key="SongItemStyle" TargetType="Grid">
-        <Setter Property="Padding" Value="20,12" />
+
+    <Style x:Key="PageSubtitleStyle" TargetType="Label">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextColor" Value="{DynamicResource TextSecondaryColor}" />
+        <Setter Property="LineBreakMode" Value="WordWrap" />
     </Style>
-    
+
+    <Style x:Key="SectionTitleStyle" TargetType="Label">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
+    </Style>
+
+    <Style x:Key="StatValueStyle" TargetType="Label">
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontAttributes" Value="Bold" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="StatCaptionStyle" TargetType="Label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{DynamicResource TextSecondaryColor}" />
+        <Setter Property="HorizontalTextAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="GlassCardStyle" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundColor}" />
+        <Setter Property="Stroke" Value="{DynamicResource GlassStrokeColor}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 24" />
+        <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style x:Key="GlassCardStrongStyle" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundStrongColor}" />
+        <Setter Property="Stroke" Value="{DynamicResource GlassStrokeStrongColor}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 26" />
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+    <Style x:Key="GlassInputStyle" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{DynamicResource InputBackgroundColor}" />
+        <Setter Property="Stroke" Value="{DynamicResource InputBorderColor}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 20" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="HeightRequest" Value="52" />
+    </Style>
+
+    <Style x:Key="GlassIconContainerStyle" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundStrongColor}" />
+        <Setter Property="Stroke" Value="{DynamicResource GlassStrokeColor}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="WidthRequest" Value="44" />
+        <Setter Property="HeightRequest" Value="44" />
+    </Style>
+
+    <Style x:Key="GlassBadgeStyle" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{DynamicResource ChipInactiveColor}" />
+        <Setter Property="Stroke" Value="{DynamicResource GlassStrokeColor}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 999" />
+        <Setter Property="Padding" Value="12,6" />
+    </Style>
+
 </ResourceDictionary>

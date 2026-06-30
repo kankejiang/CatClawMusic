@@ -3,45 +3,41 @@
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        xmlns:pages="clr-namespace:CatClawMusic.Maui.Pages"
        x:Class="CatClawMusic.Maui.AppShell"
+       FlyoutBehavior="Disabled"
        Shell.TabBarBackgroundColor="{DynamicResource TabBarBackgroundColor}"
        Shell.TabBarForegroundColor="{DynamicResource TabActiveColor}"
        Shell.TabBarUnselectedColor="{DynamicResource TabInactiveColor}"
        Shell.TabBarTitleColor="{DynamicResource TabActiveColor}">
 
-    <TabBar>
-        <ShellContent Title="音乐库" Icon="ic_music_note" ContentTemplate="{DataTemplate pages:LibraryPage}" Route="library"/>
-        <ShellContent Title="播放" Icon="ic_play" ContentTemplate="{DataTemplate pages:NowPlayingPage}" Route="nowplaying"/>
-        <ShellContent Title="搜索" Icon="ic_search" ContentTemplate="{DataTemplate pages:SearchPage}" Route="search"/>
-        <ShellContent Title="设置" Icon="ic_settings" ContentTemplate="{DataTemplate pages:SettingsPage}" Route="settings"/>
-    </TabBar>
+    <Shell.Resources>
+        <ResourceDictionary>
+            <!-- 全局隐藏顶部导航栏，所有页面内容将延伸至状态栏下方 -->
+            <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+                <Setter Property="Shell.NavBarIsVisible" Value="False"/>
+            </Style>
+        </ResourceDictionary>
+    </Shell.Resources>
 
-    <!-- Register routes for detail pages -->
-    <ShellContent Route="albumdetail" ContentTemplate="{DataTemplate pages:AlbumDetailPage}" />
-    <ShellContent Route="artistdetail" ContentTemplate="{DataTemplate pages:ArtistDetailPage}" />
-    <ShellContent Route="playlist" ContentTemplate="{DataTemplate pages:PlaylistPage}" />
-    <ShellContent Route="playlistdetail" ContentTemplate="{DataTemplate pages:PlaylistDetailPage}" />
-    
-    <!-- Register routes for settings sub-pages -->
-    <ShellContent Route="appearancesettings" ContentTemplate="{DataTemplate pages:AppearanceSettingsPage}" />
-    <ShellContent Route="generalsettings" ContentTemplate="{DataTemplate pages:GeneralSettingsPage}" />
-    <ShellContent Route="backuprestore" ContentTemplate="{DataTemplate pages:BackupRestorePage}" />
-    <ShellContent Route="about" ContentTemplate="{DataTemplate pages:AboutPage}" />
-    <ShellContent Route="localmusicsettings" ContentTemplate="{DataTemplate pages:LocalMusicSettingsPage}" />
-    <ShellContent Route="musicfoldersettings" ContentTemplate="{DataTemplate pages:MusicFolderSettingsPage}" />
-    <ShellContent Route="remotemusicsettings" ContentTemplate="{DataTemplate pages:RemoteMusicSettingsPage}" />
-    <ShellContent Route="pluginmanagement" ContentTemplate="{DataTemplate pages:PluginManagementPage}" />
-    <ShellContent Route="aisettings" ContentTemplate="{DataTemplate pages:AiSettingsPage}" />
-    <ShellContent Route="permissionmanagement" ContentTemplate="{DataTemplate pages:PermissionManagementPage}" />
-    <ShellContent Route="fullyrics" ContentTemplate="{DataTemplate pages:FullLyricsPage}" />
-    <ShellContent Route="folderbrowser" ContentTemplate="{DataTemplate pages:FolderBrowserPage}" />
-    <ShellContent Route="artistmatch" ContentTemplate="{DataTemplate pages:ArtistMatchPage}" />
-    <ShellContent Route="artistmatchdetail" ContentTemplate="{DataTemplate pages:ArtistMatchDetailPage}" />
-    <ShellContent Route="desktoplyric" ContentTemplate="{DataTemplate pages:DesktopLyricPage}" />
-    <ShellContent Route="modelmanager" ContentTemplate="{DataTemplate pages:ModelManagerPage}" />
-    <ShellContent Route="modeledit" ContentTemplate="{DataTemplate pages:ModelEditPage}" />
-    <ShellContent Route="splashsettings" ContentTemplate="{DataTemplate pages:SplashSettingsPage}" />
-    <ShellContent Route="serversettings" ContentTemplate="{DataTemplate pages:ServerSettingsPage}" />
-    <ShellContent Route="p2psettings" ContentTemplate="{DataTemplate pages:P2PSettingsPage}" />
-    <ShellContent Route="songdetail" ContentTemplate="{DataTemplate pages:SongDetailPage}" />
+    <TabBar>
+        <Tab Title="播放" Icon="ic_play" Route="nowplaying">
+            <ShellContent ContentTemplate="{DataTemplate pages:NowPlayingPage}" />
+        </Tab>
+
+        <Tab Title="发现" Icon="ic_home" Route="discover">
+            <ShellContent ContentTemplate="{DataTemplate pages:SearchPage}" />
+        </Tab>
+
+        <Tab Title="歌单" Icon="ic_library" Route="playlists">
+            <ShellContent ContentTemplate="{DataTemplate pages:PlaylistPage}" />
+        </Tab>
+
+        <Tab Title="音乐库" Icon="ic_library" Route="library">
+            <ShellContent ContentTemplate="{DataTemplate pages:LibraryPage}" />
+        </Tab>
+
+        <Tab Title="设置" Icon="ic_settings" Route="settings">
+            <ShellContent ContentTemplate="{DataTemplate pages:SettingsPage}" />
+        </Tab>
+    </TabBar>
 
 </Shell>

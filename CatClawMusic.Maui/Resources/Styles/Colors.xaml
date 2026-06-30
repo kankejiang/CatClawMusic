@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary 
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
@@ -49,32 +49,81 @@
     <!-- 页面通过 {DynamicResource Key} 引用               -->
     <!-- ═══════════════════════════════════════════════ -->
 
-    <!-- 主题色（默认紫色） -->
-    <Color x:Key="PrimaryColor">#7B61FF</Color>
-    <Color x:Key="PrimaryLightColor">#E8E0FF</Color>
-    <Color x:Key="PrimaryDarkColor">#B8A9FF</Color>
+    <!-- 主题色（默认紫蓝渐变） -->
+    <Color x:Key="PrimaryColor">#8C7BFF</Color>
+    <Color x:Key="PrimaryLightColor">#B7AEFF</Color>
+    <Color x:Key="PrimaryDarkColor">#6250F6</Color>
+    <Color x:Key="AccentColor">#55D6FF</Color>
+    <Color x:Key="LikeColor">#FF7AAE</Color>
 
-    <!-- 页面背景与卡片 -->
-    <Color x:Key="WindowBackgroundColor">#121212</Color>
-    <Color x:Key="SurfaceColor">#252525</Color>
-    <Color x:Key="CardBackgroundColor">#1E1E1E</Color>
-    <Color x:Key="DividerColor">#2C2C2C</Color>
+    <!-- 页面背景与层次 — 深色基底 + 可见卡片层次 -->
+    <Color x:Key="WindowBackgroundColor">#080B1A</Color>
+    <Color x:Key="WindowBackgroundAltColor">#111636</Color>
+    <Color x:Key="SurfaceColor">#1A2040</Color>
+    <Color x:Key="CardBackgroundColor">#182244</Color>
+    <Color x:Key="CardBackgroundStrongColor">#1E2A52</Color>
+    <Color x:Key="InputBackgroundColor">#141C3A</Color>
+    <Color x:Key="InputBorderColor">#2E3A6A</Color>
+    <Color x:Key="DividerColor">#1E2A50</Color>
+    <Color x:Key="GlassStrokeColor">#2A3870</Color>
+    <Color x:Key="GlassStrokeStrongColor">#3A4A8C</Color>
+    <Color x:Key="ChipInactiveColor">#1C2850</Color>
+    <Color x:Key="ChipActiveColor">#FF6C5CE7</Color>
+    <Color x:Key="ChipInactiveTextColor">#B8C0E0</Color>
+    <Color x:Key="ChipActiveTextColor">#FFFFFF</Color>
+    <Color x:Key="BadgeBackgroundColor">#1A2650</Color>
 
     <!-- 文本 -->
-    <Color x:Key="TextPrimaryColor">#FFFFFF</Color>
-    <Color x:Key="TextSecondaryColor">#B3B3B3</Color>
-    <Color x:Key="TextHintColor">#666666</Color>
+    <Color x:Key="TextPrimaryColor">#F7F8FF</Color>
+    <Color x:Key="TextSecondaryColor">#C2C6E4</Color>
+    <Color x:Key="TextHintColor">#8D93B7</Color>
 
-    <!-- Tab 栏 -->
-    <Color x:Key="TabActiveColor">#7B61FF</Color>
-    <Color x:Key="TabInactiveColor">#666666</Color>
-    <Color x:Key="TabBarBackgroundColor">#121212</Color>
+    <!-- Shell / 控件 -->
+    <Color x:Key="TabActiveColor">#F7F8FF</Color>
+    <Color x:Key="TabInactiveColor">#8D93B7</Color>
+    <Color x:Key="TabBarBackgroundColor">#E6101838</Color>
 
     <!-- 功能色 -->
-    <Color x:Key="SuccessColor">#4CAF50</Color>
-    <Color x:Key="WarningColor">#FF9800</Color>
-    <Color x:Key="ErrorColor">#F44336</Color>
-    <Color x:Key="LikeColor">#FF6B9D</Color>
+    <Color x:Key="SuccessColor">#63D39E</Color>
+    <Color x:Key="WarningColor">#FFBF67</Color>
+    <Color x:Key="ErrorColor">#FF6E87</Color>
+
+    <!-- 页面/装饰笔刷 -->
+    <LinearGradientBrush x:Key="PageBackgroundBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#080B1A" Offset="0" />
+        <GradientStop Color="#101838" Offset="0.55" />
+        <GradientStop Color="#090C20" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="HeroBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#7A8C7BFF" Offset="0" />
+        <GradientStop Color="#4D55D6FF" Offset="1" />
+    </LinearGradientBrush>
+
+    <RadialGradientBrush x:Key="PrimaryGlowBrush"
+                         Center="0.5,0.5"
+                         Radius="0.9">
+        <GradientStop Color="#558C7BFF" Offset="0" />
+        <GradientStop Color="#008C7BFF" Offset="1" />
+    </RadialGradientBrush>
+
+    <RadialGradientBrush x:Key="AccentGlowBrush"
+                         Center="0.5,0.5"
+                         Radius="0.9">
+        <GradientStop Color="#3D55D6FF" Offset="0" />
+        <GradientStop Color="#0055D6FF" Offset="1" />
+    </RadialGradientBrush>
+
+    <LinearGradientBrush x:Key="GlassHighlightBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#30FFFFFF" Offset="0" />
+        <GradientStop Color="#05FFFFFF" Offset="1" />
+    </LinearGradientBrush>
 
     <!-- Converters -->
     <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
@@ -85,4 +134,9 @@
     <converters:RoleToColorConverter x:Key="RoleToColorConverter" />
     <converters:IndexConverter x:Key="IndexConverter" />
     <converters:DurationConverter x:Key="DurationConverter" />
+    <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+    <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
+    <converters:SearchSectionHeightConverter x:Key="SearchSectionHeightConverter" />
+    <converters:CountToBoolConverter x:Key="CountToBoolConverter" />
+    <converters:PlaylistIconConverter x:Key="PlaylistIconConverter" />
 </ResourceDictionary>

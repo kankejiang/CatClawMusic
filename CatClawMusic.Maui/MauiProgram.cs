@@ -50,6 +50,20 @@ public static class MauiProgram
         {
             try { return await File.ReadAllBytesAsync(filePath); } catch { return null; }
         };
+#if ANDROID
+        LyricsService.ContentUriReader = async uri =>
+        {
+            try
+            {
+                var ctx = global::Android.App.Application.Context;
+                using var stream = ctx.ContentResolver?.OpenInputStream(global::Android.Net.Uri.Parse(uri));
+                if (stream == null) return null;
+                using var reader = new StreamReader(stream);
+                return await reader.ReadToEndAsync();
+            }
+            catch { return null; }
+        };
+#endif
 
         // ═══════════════════════════════════════════════════
         // Network services
@@ -71,10 +85,26 @@ public static class MauiProgram
         });
 
         // ═══════════════════════════════════════════════════
-        // Audio (平台原生 MediaPlayer — 跨平台)
+        // Audio (Media3 ExoPlayer + FFmpeg — 跨平台)
         // ═══════════════════════════════════════════════════
         services.AddSingleton<AudioPlayerService>();
         services.AddSingleton<IAudioPlayerService>(sp => sp.GetRequiredService<AudioPlayerService>());
+#if ANDROID
+        services.AddSingleton<Services.FFmpegService>();
+
+        // 在启动时初始化 FFmpeg 并注入到 AudioPlayerService
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var ffmpeg = services.BuildServiceProvider().GetRequiredService<Services.FFmpegService>();
+                await ffmpeg.InitializeAsync();
+                var audio = services.BuildServiceProvider().GetRequiredService<AudioPlayerService>();
+                audio.SetFFmpegService(ffmpeg);
+            }
+            catch { }
+        });
+#endif
 
         // ═══════════════════════════════════════════════════
         // Data services
@@ -171,6 +201,11 @@ public static class MauiProgram
         services.AddSingleton<IDialogService, DialogService>();
 
         // ═══════════════════════════════════════════════════
+        // Local scan service
+        // ═══════════════════════════════════════════════════
+        services.AddSingleton<Services.LocalScanService>();
+
+        // ═══════════════════════════════════════════════════
         // Plugin Manager
         // ═══════════════════════════════════════════════════
         services.AddSingleton<IPluginManager>(sp =>
@@ -202,6 +237,10 @@ public static class MauiProgram
         services.AddTransient<AboutViewModel>();
         services.AddTransient<LocalMusicSettingsViewModel>();
         services.AddTransient<MusicFolderSettingsViewModel>();
+        services.AddTransient<AiSettingsViewModel>();
+        services.AddTransient<PermissionManagementViewModel>();
+        services.AddTransient<RemoteMusicSettingsViewModel>();
+        services.AddTransient<PluginManagementViewModel>();
 
         // ═══════════════════════════════════════════════════
         // Pages

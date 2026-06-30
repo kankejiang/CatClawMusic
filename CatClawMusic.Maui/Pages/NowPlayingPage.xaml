@@ -1,124 +1,135 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.Maui.Pages.NowPlayingPage"
              Title="正在播放"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <ScrollView>
-        <VerticalStackLayout Spacing="20" Padding="24">
-            
-            <!-- Album Art -->
-            <Frame CornerRadius="16"
-                   WidthRequest="250" HeightRequest="250"
-                   HorizontalOptions="Center"
-                   IsClippedToBounds="True"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}">
-                <Image x:Name="ArtworkImage" 
-                       Source="{Binding AlbumArtUrl}"
+    <Grid Background="{DynamicResource PageBackgroundBrush}"
+          RowDefinitions="*,Auto,Auto"
+          Padding="20,12,20,16">
+
+        <!-- Decorative glows -->
+        <Border WidthRequest="300" HeightRequest="300"
+                StrokeThickness="0" StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Center" VerticalOptions="Start"
+                TranslationY="-100" />
+
+        <!-- Row 0: Cover + Song Info (fills remaining space) -->
+        <VerticalStackLayout Grid.Row="0"
+                             VerticalOptions="Center"
+                             HorizontalOptions="Center"
+                             Spacing="12">
+            <Border StrokeThickness="0"
+                    StrokeShape="RoundRectangle 24"
+                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                    WidthRequest="220" HeightRequest="220"
+                    HorizontalOptions="Center">
+                <Image x:Name="ArtworkImage"
+                       Source="{Binding CoverImage}"
                        Aspect="AspectFill"
-                       WidthRequest="250" HeightRequest="250"/>
-            </Frame>
+                       WidthRequest="220" HeightRequest="220" />
+            </Border>
 
-            <!-- Song Info -->
-            <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
-                <Label Text="{Binding Title}" 
-                       FontSize="24" FontAttributes="Bold"
+            <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                <Label Text="{Binding Title}"
+                       FontSize="20"
+                       FontFamily="OpenSansSemibold"
                        TextColor="{DynamicResource TextPrimaryColor}"
-                       HorizontalOptions="Center"
-                       LineBreakMode="TailTruncation"/>
-                
-                <Label Text="{Binding Artist}" 
-                       FontSize="16"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding Artist}"
+                       FontSize="14"
                        TextColor="{DynamicResource TextSecondaryColor}"
-                       HorizontalOptions="Center"
-                       LineBreakMode="TailTruncation"/>
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
             </VerticalStackLayout>
 
-            <!-- Lyrics Preview -->
-            <Label Text="{Binding CurrentLyric}"
-                   FontSize="16"
-                   TextColor="{DynamicResource TextPrimaryColor}"
+            <!-- Current lyric line only -->
+            <Label Text="{Binding LyricCurrent}"
+                   FontSize="14"
+                   TextColor="{DynamicResource PrimaryLightColor}"
                    HorizontalTextAlignment="Center"
-                   VerticalOptions="Center"
-                   HeightRequest="60"
-                   LineBreakMode="WordWrap"/>
-
-            <!-- Progress Section -->
-            <VerticalStackLayout Spacing="8">
-                <Slider x:Name="ProgressSlider" 
-                        Minimum="0" 
-                        Maximum="{Binding Duration}"
-                        Value="{Binding Progress, Mode=TwoWay}"
-                        ThumbColor="{DynamicResource PrimaryColor}"
-                        MinimumTrackColor="{DynamicResource PrimaryColor}"/>
-                
-                <Grid ColumnDefinitions="Auto,*,Auto">
-                    <Label Text="{Binding CurrentTimeDisplay}" 
-                           TextColor="{DynamicResource TextSecondaryColor}" 
-                           FontSize="12"/>
-                    <Label Grid.Column="2" 
-                           Text="{Binding TotalTimeDisplay}" 
-                           TextColor="{DynamicResource TextSecondaryColor}" 
-                           FontSize="12"
-                           HorizontalOptions="End"/>
-                </Grid>
-            </VerticalStackLayout>
-
-            <!-- Playback Controls -->
-            <HorizontalStackLayout Spacing="30" 
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center">
-                
-                <Button Text="🔀"
-                        FontSize="20"
-                        BackgroundColor="Transparent"
-                        TextColor="{Binding ShuffleColor}"
-                        WidthRequest="50" HeightRequest="50"
-                        Command="{Binding ToggleShuffleCommand}"/>
-                
-                <Button Text="⏮"
-                        FontSize="28"
-                        BackgroundColor="Transparent"
-                        TextColor="{DynamicResource TextPrimaryColor}"
-                        WidthRequest="60" HeightRequest="60"
-                        Command="{Binding PlayPreviousCommand}"/>
-                
-                <Button x:Name="PlayPauseButton" 
-                        Text="{Binding PlayPauseIcon}"
-                        FontSize="36"
-                        BackgroundColor="{DynamicResource PrimaryColor}"
-                        TextColor="White"
-                        WidthRequest="70" HeightRequest="70"
-                        CornerRadius="35"
-                        Command="{Binding TogglePlayPauseCommand}"/>
-                
-                <Button Text="⏭"
-                        FontSize="28"
-                        BackgroundColor="Transparent"
-                        TextColor="{DynamicResource TextPrimaryColor}"
-                        WidthRequest="60" HeightRequest="60"
-                        Command="{Binding PlayNextCommand}"/>
-                
-                <Button Text="🔁"
-                        FontSize="20"
-                        BackgroundColor="Transparent"
-                        TextColor="{Binding RepeatColor}"
-                        WidthRequest="50" HeightRequest="50"
-                        Command="{Binding ToggleRepeatCommand}"/>
-            </HorizontalStackLayout>
-
-            <!-- Secondary Controls -->
-            <HorizontalStackLayout Spacing="20" 
-                                HorizontalOptions="Center">
-                
-                <Button Text="❤"
-                        FontSize="18"
-                        BackgroundColor="Transparent"
-                        TextColor="{Binding LikeColor}"
-                        WidthRequest="44" HeightRequest="44"
-                        Command="{Binding ToggleLikeCommand}"/>
-            </HorizontalStackLayout>
-
+                   MaxLines="2"
+                   LineBreakMode="WordWrap"
+                   HeightRequest="40"
+                   IsVisible="{Binding HasLyrics}" />
+            <Label Text="{Binding NoLyricsText}"
+                   FontSize="13"
+                   TextColor="{DynamicResource TextHintColor}"
+                   HorizontalTextAlignment="Center"
+                   HeightRequest="20"
+                   IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}" />
         </VerticalStackLayout>
-    </ScrollView>
+
+        <!-- Row 1: Progress -->
+        <VerticalStackLayout Grid.Row="1" Spacing="2" Margin="0,8,0,0">
+            <Slider x:Name="ProgressSlider"
+                    Minimum="0"
+                    Maximum="{Binding Duration, Mode=OneWay}"
+                    Value="{Binding Progress, Mode=TwoWay}"
+                    ThumbColor="{DynamicResource PrimaryColor}"
+                    MinimumTrackColor="{DynamicResource PrimaryColor}"
+                    MaximumTrackColor="{DynamicResource DividerColor}"
+                    DragStarted="OnSliderDragStarted"
+                    DragCompleted="OnSliderDragCompleted" />
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Label Text="{Binding CurrentTimeDisplay}"
+                       FontSize="11" TextColor="{DynamicResource TextHintColor}" />
+                <Label Grid.Column="2"
+                       Text="{Binding TotalTimeDisplay}"
+                       FontSize="11" TextColor="{DynamicResource TextHintColor}" />
+            </Grid>
+        </VerticalStackLayout>
+
+        <!-- Row 2: Main Controls -->
+        <Grid Grid.Row="2"
+              ColumnDefinitions="*,*,*,*,*"
+              HeightRequest="64"
+              Margin="0,4,0,0">
+            <!-- Play Mode -->
+            <ImageButton Grid.Column="0"
+                         Source="{Binding PlayModeIconSource}"
+                         WidthRequest="32" HeightRequest="32"
+                         BackgroundColor="Transparent"
+                         Command="{Binding CyclePlayModeCommand}"
+                         HorizontalOptions="Center" VerticalOptions="Center" />
+            <!-- Previous -->
+            <ImageButton Grid.Column="1"
+                         Source="ic_skip_previous"
+                         WidthRequest="40" HeightRequest="40"
+                         BackgroundColor="Transparent"
+                         Command="{Binding PlayPreviousCommand}"
+                         HorizontalOptions="Center" VerticalOptions="Center" />
+            <!-- Play/Pause -->
+            <Border Grid.Column="2"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 28"
+                    Background="{DynamicResource HeroBrush}"
+                    WidthRequest="56" HeightRequest="56"
+                    HorizontalOptions="Center" VerticalOptions="Center">
+                <ImageButton Source="{Binding PlayPauseIconSource}"
+                             WidthRequest="36" HeightRequest="36"
+                             BackgroundColor="Transparent"
+                             Command="{Binding TogglePlayPauseCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <!-- Next -->
+            <ImageButton Grid.Column="3"
+                         Source="ic_skip_next"
+                         WidthRequest="40" HeightRequest="40"
+                         BackgroundColor="Transparent"
+                         Command="{Binding PlayNextCommand}"
+                         HorizontalOptions="Center" VerticalOptions="Center" />
+            <!-- Like -->
+            <ImageButton Grid.Column="4"
+                         Source="{Binding LikeIconSource}"
+                         WidthRequest="32" HeightRequest="32"
+                         BackgroundColor="Transparent"
+                         Command="{Binding ToggleLikeCommand}"
+                         HorizontalOptions="Center" VerticalOptions="Center" />
+        </Grid>
+
+    </Grid>
 </ContentPage>

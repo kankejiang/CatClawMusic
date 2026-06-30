@@ -1,18 +1,114 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
              x:Class="CatClawMusic.Maui.Pages.PermissionManagementPage"
              Title="权限管理"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12">
-        <Label Text="🚧 权限管理"
-               FontSize="22"
-               FontAttributes="Bold"
-               TextColor="{DynamicResource TextPrimaryColor}"
-               HorizontalOptions="Center" />
-        <Label Text="该功能正在开发中，敬请期待"
-               FontSize="14"
-               TextColor="{DynamicResource TextHintColor}"
-               HorizontalOptions="Center" />
-    </VerticalStackLayout>
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240" HeightRequest="240"
+                StrokeThickness="0" StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start" VerticalOptions="Start"
+                TranslationX="-130" TranslationY="-70" />
+
+        <Border WidthRequest="180" HeightRequest="180"
+                StrokeThickness="0" StrokeShape="Ellipse"
+                Background="{DynamicResource AccentGlowBrush}"
+                HorizontalOptions="End" VerticalOptions="Start"
+                TranslationX="80" TranslationY="180" />
+
+        <ScrollView>
+            <VerticalStackLayout Padding="16,18,16,22" Spacing="14">
+
+                <!-- Hero Header -->
+                <Border Style="{StaticResource GlassCardStrongStyle}"
+                        Background="{DynamicResource HeroBrush}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="🔐 权限管理"
+                                   Style="{StaticResource PageTitleStyle}"
+                                   TextColor="White" />
+                            <Label Text="查看并授权应用所需的存储、通知与悬浮窗权限。"
+                                   Style="{StaticResource PageSubtitleStyle}"
+                                   TextColor="#F3F5FF" />
+                        </VerticalStackLayout>
+                        <Border Grid.Column="1"
+                                Style="{StaticResource GlassIconContainerStyle}"
+                                BackgroundColor="#24FFFFFF"
+                                Stroke="#40FFFFFF">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding RefreshCommand}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="🔄" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- 权限列表 -->
+                <VerticalStackLayout Spacing="10"
+                                     BindableLayout.ItemsSource="{Binding Permissions}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource GlassCardStyle}">
+                                <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <Image Source="{Binding Icon}"
+                                           WidthRequest="22" HeightRequest="22"
+                                           VerticalOptions="Center" Opacity="0.85" />
+                                    <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                        <Label Text="{Binding Title}"
+                                               FontSize="15"
+                                               FontFamily="OpenSansSemibold"
+                                               TextColor="{DynamicResource TextPrimaryColor}" />
+                                        <Label Text="{Binding Description}"
+                                               FontSize="11"
+                                               TextColor="{DynamicResource TextHintColor}" />
+                                        <HorizontalStackLayout Spacing="6">
+                                            <BoxView WidthRequest="8" HeightRequest="8"
+                                                     CornerRadius="4"
+                                                     Color="{Binding StatusColor}"
+                                                     VerticalOptions="Center" />
+                                            <Label Text="{Binding StatusText}"
+                                                   FontSize="11"
+                                                   TextColor="{Binding StatusColor}" />
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+                                    <Button Grid.Column="2"
+                                            Text="{Binding ActionText}"
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RequestPermissionCommand}"
+                                            CommandParameter="{Binding .}"
+                                            BackgroundColor="{DynamicResource PrimaryColor}"
+                                            TextColor="White"
+                                            CornerRadius="14"
+                                            HeightRequest="36"
+                                            WidthRequest="76"
+                                            FontSize="12"
+                                            VerticalOptions="Center" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <!-- 打开系统设置 -->
+                <Button Text="打开应用系统设置"
+                        Command="{Binding OpenAppSettingsCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="{DynamicResource TextHintColor}"
+                        CornerRadius="16"
+                        HeightRequest="40"
+                        FontSize="12"
+                        BorderColor="#33FFFFFF"
+                        BorderWidth="1" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

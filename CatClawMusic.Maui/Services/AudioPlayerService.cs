@@ -95,11 +95,20 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         {
             try
             {
+                // 始终拉取当前位置，确保进度条实时更新
+                // （即使 IsPlaying 在 buffering/seek 期间短暂返回 false，
+                //  只要 _player 存在，CurrentPosition 仍可正确反映播放进度）
+                var pos = CurrentPosition;
+                PositionChanged?.Invoke(this, TimeSpan.FromSeconds(pos));
+
                 if (IsPlaying)
-                    PositionChanged?.Invoke(this, TimeSpan.FromSeconds(CurrentPosition));
+                {
+                    // 在播放中：等待下一秒再拉
+                }
+                CheckPlatformCompletion();
             }
             catch { }
-        }, null, 1000, 1000);
+        }, null, 500, 500);
     }
 
     private void StopPositionTimer()
@@ -138,6 +147,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     partial void PlatformResume();
     partial void PlatformStop();
     partial void PlatformSeek(TimeSpan position);
+    partial void CheckPlatformCompletion();
     private partial bool GetPlatformIsPlaying();
     private partial double GetPlatformCurrentPositionSeconds();
     private partial double GetPlatformDurationSeconds();

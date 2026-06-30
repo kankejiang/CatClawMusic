@@ -1,94 +1,176 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:viewmodels="clr-namespace:CatClawMusic.Maui.ViewModels"
              x:Class="CatClawMusic.Maui.Pages.BackupRestorePage"
              Title="备份与恢复"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    
-    <ScrollView>
-        <VerticalStackLayout Padding="16" Spacing="16">
-            
-            <!-- Backup -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="备份数据"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    <Label Text="将应用数据备份到本地文件"
-                           FontSize="12"
-                           TextColor="{DynamicResource TextHintColor}" />
-                    <Button Text="创建备份"
-                            Command="{Binding CreateBackupCommand}"
-                            BackgroundColor="#9B7ED8"
-                            TextColor="White"
-                            CornerRadius="8"
-                            HeightRequest="40" />
-                </VerticalStackLayout>
-            </Frame>
-            
-            <!-- Restore -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="恢复数据"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    <Label Text="从备份文件恢复应用数据"
-                           FontSize="12"
-                           TextColor="{DynamicResource TextHintColor}" />
-                    <Button Text="选择备份文件"
-                            Command="{Binding RestoreBackupCommand}"
-                            BackgroundColor="#9B7ED8"
-                            TextColor="White"
-                            CornerRadius="8"
-                            HeightRequest="40" />
-                </VerticalStackLayout>
-            </Frame>
-            
-            <!-- Backup List -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="管理备份文件"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    
-                    <CollectionView ItemsSource="{Binding BackupFiles}"
-                                    SelectionMode="None">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ColumnDefinitions="*,Auto"
-                                      Padding="0,8">
-                                    <Label Grid.Column="0"
-                                           Text="{Binding FileName}"
-                                           FontSize="14"
-                                           TextColor="{DynamicResource TextPrimaryColor}"
-                                           VerticalOptions="Center" />
-                                    <Button Grid.Column="1"
-                                            Text="删除"
-                                            Clicked="OnDeleteBackupClicked"
-                                            BackgroundColor="Red"
-                                            TextColor="White"
-                                            CornerRadius="6"
-                                            HeightRequest="30"
-                                            WidthRequest="60" />
-                                </Grid>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
-                </VerticalStackLayout>
-            </Frame>
-            
-        </VerticalStackLayout>
-    </ScrollView>
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240"
+                HeightRequest="240"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start"
+                VerticalOptions="Start"
+                TranslationX="-130"
+                TranslationY="-70" />
+
+        <Border WidthRequest="180"
+                HeightRequest="180"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource AccentGlowBrush}"
+                HorizontalOptions="End"
+                VerticalOptions="Start"
+                TranslationX="80"
+                TranslationY="160" />
+
+        <ScrollView>
+            <VerticalStackLayout Padding="16,18,16,22"
+                                 Spacing="14">
+
+                <Border Style="{StaticResource GlassCardStrongStyle}"
+                        Background="{DynamicResource HeroBrush}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="备份与恢复"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="将应用数据备份到本地，或从备份恢复。"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F3F5FF" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="备份数据"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="将应用数据备份到本地文件"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                        <Button Text="创建备份"
+                                Command="{Binding CreateBackupCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="42"
+                                FontSize="13" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="恢复数据"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="从备份文件恢复应用数据"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                        <Button Text="选择备份文件"
+                                Command="{Binding RestoreBackupCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="42"
+                                FontSize="13" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{Binding IsBackingUp}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="备份进度"
+                               FontSize="14"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <ProgressBar Progress="{Binding Progress}"
+                                     ProgressColor="{DynamicResource PrimaryColor}" />
+                        <Label Text="{Binding ProgressMessage}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{Binding IsRestoring}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="恢复进度"
+                               FontSize="14"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <ProgressBar Progress="{Binding Progress}"
+                                     ProgressColor="{DynamicResource PrimaryColor}" />
+                        <Label Text="{Binding ProgressMessage}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="现有备份"
+                       Style="{StaticResource SectionTitleStyle}"
+                       Margin="4,12,0,2" />
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="管理备份文件"
+                               FontSize="14"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <CollectionView ItemsSource="{Binding BackupFiles}"
+                                        SelectionMode="None">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:BackupFileInfo">
+                                    <Grid ColumnDefinitions="*,Auto,Auto"
+                                          Padding="0,8"
+                                          ColumnSpacing="8">
+                                        <VerticalStackLayout Grid.Column="0"
+                                                             VerticalOptions="Center"
+                                                             Spacing="2">
+                                            <Label Text="{Binding DisplayDate}"
+                                                   FontSize="14"
+                                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                                   VerticalOptions="Center" />
+                                            <Label Text="{Binding SizeStr}"
+                                                   FontSize="11"
+                                                   TextColor="{DynamicResource TextHintColor}" />
+                                        </VerticalStackLayout>
+                                        <Button Grid.Column="1"
+                                                Text="恢复"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RestoreBackupCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                TextColor="White"
+                                                CornerRadius="12"
+                                                HeightRequest="30"
+                                                WidthRequest="56"
+                                                FontSize="12" />
+                                        <Button Grid.Column="2"
+                                                Text="删除"
+                                                Clicked="OnDeleteBackupClicked"
+                                                BackgroundColor="{DynamicResource ErrorColor}"
+                                                TextColor="White"
+                                                CornerRadius="12"
+                                                HeightRequest="30"
+                                                WidthRequest="56"
+                                                FontSize="12" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.BackButton"
+             HorizontalOptions="Start"
+             VerticalOptions="Start">
+
+    <Border WidthRequest="44"
+            HeightRequest="44"
+            StrokeThickness="1"
+            StrokeShape="RoundRectangle 16"
+            BackgroundColor="#33FFFFFF"
+            Stroke="#40FFFFFF"
+            Padding="0">
+        <Border.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnBackTapped" />
+        </Border.GestureRecognizers>
+        <Label Text="&#x2190;"
+               FontSize="22"
+               FontFamily="OpenSansSemibold"
+               TextColor="White"
+               HorizontalOptions="Center"
+               VerticalOptions="Center"
+               TranslationY="-2" />
+    </Border>
+</ContentView>

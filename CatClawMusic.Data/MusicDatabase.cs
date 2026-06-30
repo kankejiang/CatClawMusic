@@ -1122,6 +1122,17 @@ public class MusicDatabase
     public Task<List<ConnectionProfile>> GetConnectionProfilesAsync()
         => _database.Table<ConnectionProfile>().ToListAsync();
 
+    /// <summary>
+    /// 删除指定连接配置
+    /// </summary>
+    /// <param name="profileId">连接配置主键</param>
+    /// <returns>受影响的行数</returns>
+    public async Task<int> DeleteConnectionProfileAsync(int profileId)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        return await _database.DeleteAsync<ConnectionProfile>(profileId);
+    }
+
     // ═══════════ Playlist CRUD ═══════════
 
     /// <summary>
@@ -2430,3 +2441,4 @@ public class MusicDatabase
         public int pk { get; set; }
     }
 }
+

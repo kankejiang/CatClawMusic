@@ -1,85 +1,150 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.LocalMusicSettingsPage"
              Title="本地音乐设置"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    
-    <ScrollView>
-        <VerticalStackLayout Padding="16" Spacing="16">
-            
-            <!-- Music Folder Path -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="音乐文件夹"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    <Label Text="{Binding MusicFolderPath}"
-                           FontSize="12"
-                           TextColor="{DynamicResource TextHintColor}" />
-                    <Button Text="选择文件夹"
-                            Command="{Binding SelectFolderCommand}"
-                            BackgroundColor="#9B7ED8"
-                            TextColor="White"
-                            CornerRadius="8"
-                            HeightRequest="36" />
-                </VerticalStackLayout>
-            </Frame>
-            
-            <!-- Scan Status -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="扫描状态"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    <Label Text="{Binding ScanStatus}"
-                           FontSize="12"
-                           TextColor="{DynamicResource TextSecondaryColor}" />
-                    <ProgressBar Progress="{Binding ScanProgress}"
-                                HeightRequest="4"
-                                IsVisible="{Binding IsScanning}" />
-                    <Button Text="扫描音乐"
-                            Command="{Binding ScanMusicCommand}"
-                            BackgroundColor="#9B7ED8"
-                            TextColor="White"
-                            CornerRadius="8"
-                            HeightRequest="36" />
-                </VerticalStackLayout>
-            </Frame>
-            
-            <!-- File Types -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="支持的文件格式"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    <HorizontalStackLayout Spacing="8">
-                        <CheckBox IsChecked="{Binding IsMp3Enabled}" />
-                        <Label Text="MP3" TextColor="{DynamicResource TextPrimaryColor}" />
-                    </HorizontalStackLayout>
-                    <HorizontalStackLayout Spacing="8">
-                        <CheckBox IsChecked="{Binding IsFlacEnabled}" />
-                        <Label Text="FLAC" TextColor="{DynamicResource TextPrimaryColor}" />
-                    </HorizontalStackLayout>
-                    <HorizontalStackLayout Spacing="8">
-                        <CheckBox IsChecked="{Binding IsWavEnabled}" />
-                        <Label Text="WAV" TextColor="{DynamicResource TextPrimaryColor}" />
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Frame>
-            
-        </VerticalStackLayout>
-    </ScrollView>
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240"
+                HeightRequest="240"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start"
+                VerticalOptions="Start"
+                TranslationX="-130"
+                TranslationY="-70" />
+
+        <Border WidthRequest="180"
+                HeightRequest="180"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource AccentGlowBrush}"
+                HorizontalOptions="End"
+                VerticalOptions="Start"
+                TranslationX="80"
+                TranslationY="180" />
+
+        <ScrollView>
+            <VerticalStackLayout Padding="16,18,16,22"
+                                 Spacing="14">
+
+                <Border Style="{StaticResource GlassCardStrongStyle}"
+                        Background="{DynamicResource HeroBrush}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="本地音乐"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="选择音乐文件夹、扫描歌曲、管理支持的格式。"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F3F5FF" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="音乐文件夹"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="{Binding MusicFolderPath}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                        <Button Text="选择文件夹"
+                                Command="{Binding SelectFolderCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="40"
+                                FontSize="13" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="扫描状态"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="{Binding ScanStatus}"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextSecondaryColor}" />
+                        <ProgressBar Progress="{Binding ScanProgress}"
+                                     ProgressColor="{DynamicResource PrimaryColor}"
+                                     IsVisible="{Binding IsScanning}" />
+                        <Grid ColumnDefinitions="*,Auto"
+                              ColumnSpacing="10"
+                              IsVisible="{Binding IsScanning}">
+                            <Button Text="扫描音乐"
+                                    Command="{Binding ScanMusicCommand}"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    TextColor="White"
+                                    CornerRadius="16"
+                                    HeightRequest="40"
+                                    FontSize="13"
+                                    IsEnabled="False" />
+                            <Button Grid.Column="1"
+                                    Text="取消"
+                                    Command="{Binding CancelScanCommand}"
+                                    BackgroundColor="{DynamicResource ErrorColor}"
+                                    TextColor="White"
+                                    CornerRadius="16"
+                                    HeightRequest="40"
+                                    FontSize="13" />
+                        </Grid>
+                        <Button Text="扫描音乐"
+                                Command="{Binding ScanMusicCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="40"
+                                FontSize="13"
+                                IsVisible="{Binding IsScanning, Converter={StaticResource InvertedBoolConverter}}" />
+                        <Label Text="{Binding TotalSongsImported, StringFormat='共导入 {0} 首歌曲'}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}"
+                               IsVisible="{Binding TotalSongsImported, Converter={StaticResource IntToBoolConverter}}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="支持的文件格式"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <CheckBox IsChecked="{Binding IsMp3Enabled}" />
+                            <Label Grid.Column="1"
+                                   Text="MP3"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <CheckBox IsChecked="{Binding IsFlacEnabled}" />
+                            <Label Grid.Column="1"
+                                   Text="FLAC"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <CheckBox IsChecked="{Binding IsWavEnabled}" />
+                            <Label Grid.Column="1"
+                                   Text="WAV"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

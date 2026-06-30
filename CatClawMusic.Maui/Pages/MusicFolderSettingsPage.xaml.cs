@@ -6,9 +6,4 @@ public partial class MusicFolderSettingsPage : ContentPage
     {
         InitializeComponent();
     }
-
-    private void OnRemoveFolderClicked(object? sender, EventArgs e)
-    {
-        // Handle remove folder button click
-    }
 }

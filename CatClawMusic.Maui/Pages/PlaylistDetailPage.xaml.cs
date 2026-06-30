@@ -1,18 +1,61 @@
+using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.ViewModels;
+
 namespace CatClawMusic.Maui.Pages;
 
+[QueryProperty(nameof(PlaylistId), "playlistId")]
+[QueryProperty(nameof(PlaylistName), "name")]
 public partial class PlaylistDetailPage : ContentPage
 {
-    public PlaylistDetailPage()
+    private readonly PlaylistDetailViewModel _viewModel;
+    private int _playlistId;
+    private string _playlistName = "";
+
+    public int PlaylistId
     {
-        InitializeComponent();
+        get => _playlistId;
+        set
+        {
+            _playlistId = value;
+            _ = LoadPlaylistIfReady();
+        }
     }
 
-    private void OnSongSelected(object? sender, SelectionChangedEventArgs e)
+    public string PlaylistName
     {
-        // Handle song selection
-        if (e.CurrentSelection.FirstOrDefault() is CatClawMusic.Core.Models.Song song)
+        get => _playlistName;
+        set
         {
-            // Play the song
+            _playlistName = Uri.UnescapeDataString(value ?? "");
+            _ = LoadPlaylistIfReady();
         }
+    }
+
+    public PlaylistDetailPage(PlaylistDetailViewModel viewModel)
+    {
+        InitializeComponent();
+        _viewModel = viewModel;
+        BindingContext = viewModel;
+
+        _viewModel.SongPlayRequested += OnSongPlayRequested;
+    }
+
+    private async Task LoadPlaylistIfReady()
+    {
+        if (_playlistId != 0 && !string.IsNullOrEmpty(_playlistName))
+            await _viewModel.LoadPlaylistAsync(_playlistId, _playlistName);
+    }
+
+    private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is Song song)
+        {
+            await _viewModel.PlaySongCommand.ExecuteAsync(song);
+        }
+    }
+
+    private async void OnSongPlayRequested(Song song)
+    {
+        await Shell.Current.GoToAsync("//nowplaying");
     }
 }

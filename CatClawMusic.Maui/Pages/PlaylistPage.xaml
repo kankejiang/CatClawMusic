@@ -2,68 +2,95 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CatClawMusic.Maui.Pages.PlaylistPage"
-             Title="播放列表"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    
-    <Grid RowDefinitions="Auto,*"
-          Padding="0">
-        
-        <!-- Header -->
-        <Label Grid.Row="0"
-               Text="我的播放列表"
-               FontSize="28"
-               FontAttributes="Bold"
-               TextColor="{DynamicResource TextPrimaryColor}"
-               Padding="20,20,20,10" />
-        
-        <!-- Playlists List -->
-        <CollectionView Grid.Row="1"
-                        ItemsSource="{Binding Playlists}"
-                        SelectionMode="Single"
-                        SelectionChanged="OnPlaylistSelected">
-            
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Grid ColumnDefinitions="60,*,40"
-                          Padding="20,12"
-                          ColumnSpacing="15">
-                        
-                        <!-- Playlist Cover -->
-                        <Frame Grid.Column="0"
-                               WidthRequest="60"
-                               HeightRequest="60"
-                               CornerRadius="8"
-                               Padding="0"
-                               BackgroundColor="{DynamicResource CardBackgroundColor}">
-                            <Image Source="{Binding CoverUrl}"
-                                   Aspect="AspectFill" />
-                        </Frame>
-                        
-                        <!-- Playlist Info -->
-                        <VerticalStackLayout Grid.Column="1"
+             Title="歌单"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240" HeightRequest="240"
+                StrokeThickness="0" StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start" VerticalOptions="Start"
+                TranslationX="-120" TranslationY="-80" />
+
+        <Grid RowDefinitions="Auto,Auto,*">
+
+            <!-- Header -->
+            <Grid Grid.Row="0" Margin="16,16,16,10"
+                  ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <Label Text="歌单"
+                       Style="{StaticResource PageTitleStyle}"
+                       VerticalOptions="Center" />
+                <Border Grid.Column="1"
+                        Style="{StaticResource GlassIconContainerStyle}"
+                        VerticalOptions="Center">
+                    <ImageButton Source="ic_add"
+                                 WidthRequest="40" HeightRequest="40"
+                                 BackgroundColor="Transparent"
+                                 Clicked="OnCreatePlaylistClicked" />
+                </Border>
+            </Grid>
+
+            <!-- Status -->
+            <Label Grid.Row="1"
+                   Text="{Binding StatusText}"
+                   FontSize="12"
+                   TextColor="{DynamicResource TextHintColor}"
+                   HorizontalOptions="Center"
+                   Margin="0,0,0,6"
+                   IsVisible="{Binding IsLoading}" />
+
+            <!-- Playlist List -->
+            <CollectionView Grid.Row="2"
+                            ItemsSource="{Binding Playlists}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnPlaylistSelected"
+                            Margin="0,0,0,8">
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="16,0,16,10"
+                                Padding="14"
+                                StrokeShape="RoundRectangle 22"
+                                StrokeThickness="1"
+                                Stroke="{DynamicResource GlassStrokeColor}"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="14">
+                                <Border Grid.Column="0"
+                                        WidthRequest="60" HeightRequest="60"
+                                        StrokeShape="RoundRectangle 16"
+                                        StrokeThickness="0"
+                                        BackgroundColor="{DynamicResource SurfaceColor}">
+                                    <Label Text="{Binding Name, Converter={StaticResource PlaylistIconConverter}}"
+                                           FontSize="24"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1"
+                                                     VerticalOptions="Center" Spacing="4">
+                                    <Label Text="{Binding Name}"
+                                           FontSize="16"
+                                           FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           MaxLines="1" />
+                                    <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
+                                           FontSize="12"
+                                           TextColor="{DynamicResource TextHintColor}" />
+                                </VerticalStackLayout>
+                                <ImageButton Grid.Column="2"
+                                             Source="ic_menu"
+                                             WidthRequest="34" HeightRequest="34"
+                                             BackgroundColor="Transparent"
+                                             Padding="6"
                                              VerticalOptions="Center"
-                                             Spacing="2">
-                            
-                            <Label Text="{Binding Name}"
-                                   FontSize="16"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   MaxLines="1" />
-                            
-                            <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
-                                   FontSize="12"
-                                   TextColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-                        
-                        <!-- Menu Button -->
-                        <ImageButton Grid.Column="2"
-                                     Source="ic_menu"
-                                     WidthRequest="30"
-                                     HeightRequest="30"
-                                     BackgroundColor="Transparent"
-                                     Clicked="OnPlaylistMenuClicked" />
-                    </Grid>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+                                             IsVisible="{Binding IsSystem, Converter={StaticResource InvertedBoolConverter}}"
+                                             Clicked="OnPlaylistMenuClicked" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
     </Grid>
 </ContentPage>

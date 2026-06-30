@@ -1,6 +1,8 @@
 using CatClawMusic.Core.Interfaces;
 using CoreAppTheme = CatClawMusic.Core.Interfaces.AppTheme;
 using MauiAppTheme = Microsoft.Maui.ApplicationModel.AppTheme;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Graphics;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -69,31 +71,18 @@ public class ThemeService : IThemeService
             var isDark = IsEffectivelyDark();
 
             // 动态资源键 — 页面通过 {DynamicResource Key} 引用
-            app.Resources["PrimaryColor"] = Microsoft.Maui.Graphics.Color.FromArgb(colors.Primary);
-            app.Resources["PrimaryLightColor"] = Microsoft.Maui.Graphics.Color.FromArgb(colors.Light);
-            app.Resources["PrimaryDarkColor"] = Microsoft.Maui.Graphics.Color.FromArgb(colors.Dark);
+            app.Resources["PrimaryColor"] = Color.FromArgb(colors.Primary);
+            app.Resources["PrimaryLightColor"] = Color.FromArgb(colors.Light);
+            app.Resources["PrimaryDarkColor"] = Color.FromArgb(colors.Dark);
+            app.Resources["AccentColor"] = Color.FromArgb(GetAccentColor(_currentTheme));
 
             if (isDark)
             {
-                app.Resources["WindowBackgroundColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#121212");
-                app.Resources["CardBackgroundColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#1E1E1E");
-                app.Resources["TextPrimaryColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#FFFFFF");
-                app.Resources["TextSecondaryColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#B3B3B3");
-                app.Resources["TabActiveColor"] = Microsoft.Maui.Graphics.Color.FromArgb(colors.Primary);
-                app.Resources["TabInactiveColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#666666");
-                app.Resources["DividerColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#2C2C2C");
-                app.Resources["SurfaceColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#252525");
+                ApplyDarkPalette(app.Resources, colors);
             }
             else
             {
-                app.Resources["WindowBackgroundColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#FAFAFA");
-                app.Resources["CardBackgroundColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#FFFFFF");
-                app.Resources["TextPrimaryColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#1A1A1A");
-                app.Resources["TextSecondaryColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#666666");
-                app.Resources["TabActiveColor"] = Microsoft.Maui.Graphics.Color.FromArgb(colors.Primary);
-                app.Resources["TabInactiveColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#999999");
-                app.Resources["DividerColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#E0E0E0");
-                app.Resources["SurfaceColor"] = Microsoft.Maui.Graphics.Color.FromArgb("#F5F5F5");
+                ApplyLightPalette(app.Resources, colors);
             }
         }
         catch (Exception ex)
@@ -139,6 +128,125 @@ public class ThemeService : IThemeService
     }
 
     #endregion
+
+    private static void ApplyDarkPalette(ResourceDictionary resources, ThemeColors colors)
+    {
+        resources["WindowBackgroundColor"] = Color.FromArgb("#0A0B17");
+        resources["WindowBackgroundAltColor"] = Color.FromArgb("#171B34");
+        resources["SurfaceColor"] = Color.FromArgb("#1A1E38");
+        resources["CardBackgroundColor"] = Color.FromArgb("#22FFFFFF");
+        resources["CardBackgroundStrongColor"] = Color.FromArgb("#30FFFFFF");
+        resources["InputBackgroundColor"] = Color.FromArgb("#1AFFFFFF");
+        resources["InputBorderColor"] = Color.FromArgb("#33FFFFFF");
+        resources["DividerColor"] = Color.FromArgb("#24FFFFFF");
+        resources["GlassStrokeColor"] = Color.FromArgb("#2EFFFFFF");
+        resources["GlassStrokeStrongColor"] = Color.FromArgb("#52FFFFFF");
+        resources["ChipInactiveColor"] = Color.FromArgb("#18FFFFFF");
+        resources["ChipActiveColor"] = Color.FromArgb(colors.Primary);
+        resources["ChipInactiveTextColor"] = Color.FromArgb("#D0D5ED");
+        resources["ChipActiveTextColor"] = Colors.White;
+        resources["BadgeBackgroundColor"] = Color.FromArgb("#16FFFFFF");
+        resources["TextPrimaryColor"] = Color.FromArgb("#F7F8FF");
+        resources["TextSecondaryColor"] = Color.FromArgb("#C2C6E4");
+        resources["TextHintColor"] = Color.FromArgb("#8D93B7");
+        resources["TabActiveColor"] = Color.FromArgb("#F7F8FF");
+        resources["TabInactiveColor"] = Color.FromArgb("#8D93B7");
+        resources["TabBarBackgroundColor"] = Color.FromArgb("#CC111427");
+        resources["PageBackgroundBrush"] = BuildLinearBrush("#0A0B17", "#151933", "#0B0D1C");
+        resources["HeroBrush"] = BuildLinearBrush(colors.Primary, GetAccentColorHex(colors.Primary), 0.0f, 1.0f);
+        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x55)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
+        var accent = GetAccentColor(_currentThemeStatic(colors.Primary));
+        resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x44)}{accent[1..]}", $"{AlphaHex(0x00)}{accent[1..]}");
+        resources["GlassHighlightBrush"] = BuildLinearBrush("#30FFFFFF", "#05FFFFFF");
+    }
+
+    private static void ApplyLightPalette(ResourceDictionary resources, ThemeColors colors)
+    {
+        resources["WindowBackgroundColor"] = Color.FromArgb("#EEF2FF");
+        resources["WindowBackgroundAltColor"] = Color.FromArgb("#DCE4FF");
+        resources["SurfaceColor"] = Color.FromArgb("#F7F9FF");
+        resources["CardBackgroundColor"] = Color.FromArgb("#BFFFFFFF");
+        resources["CardBackgroundStrongColor"] = Color.FromArgb("#E6FFFFFF");
+        resources["InputBackgroundColor"] = Color.FromArgb("#D9FFFFFF");
+        resources["InputBorderColor"] = Color.FromArgb("#33FFFFFF");
+        resources["DividerColor"] = Color.FromArgb("#1F5060AA");
+        resources["GlassStrokeColor"] = Color.FromArgb("#26FFFFFF");
+        resources["GlassStrokeStrongColor"] = Color.FromArgb("#66FFFFFF");
+        resources["ChipInactiveColor"] = Color.FromArgb("#D9FFFFFF");
+        resources["ChipActiveColor"] = Color.FromArgb(colors.Primary);
+        resources["ChipInactiveTextColor"] = Color.FromArgb("#5C648F");
+        resources["ChipActiveTextColor"] = Colors.White;
+        resources["BadgeBackgroundColor"] = Color.FromArgb("#CCFFFFFF");
+        resources["TextPrimaryColor"] = Color.FromArgb("#1B2140");
+        resources["TextSecondaryColor"] = Color.FromArgb("#5D668E");
+        resources["TextHintColor"] = Color.FromArgb("#7E86A7");
+        resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
+        resources["TabInactiveColor"] = Color.FromArgb("#7E86A7");
+        resources["TabBarBackgroundColor"] = Color.FromArgb("#F2FFFFFF");
+        resources["PageBackgroundBrush"] = BuildLinearBrush("#EEF2FF", "#E4EAFF", "#F8FAFF");
+        resources["HeroBrush"] = BuildLinearBrush(colors.Primary, colors.Dark, 0.0f, 1.0f);
+        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x44)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
+        var accent = GetAccentColor(_currentThemeStatic(colors.Primary));
+        resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x2F)}{accent[1..]}", $"{AlphaHex(0x00)}{accent[1..]}");
+        resources["GlassHighlightBrush"] = BuildLinearBrush("#55FFFFFF", "#00FFFFFF");
+    }
+
+    private static LinearGradientBrush BuildLinearBrush(string startHex, string endHex, float startOffset = 0f, float endOffset = 1f)
+        => new(new GradientStopCollection
+        {
+            new(Color.FromArgb(startHex), startOffset),
+            new(Color.FromArgb(endHex), endOffset)
+        }, new Point(0, 0), new Point(1, 1));
+
+    private static LinearGradientBrush BuildLinearBrush(string startHex, string middleHex, string endHex)
+        => new(new GradientStopCollection
+        {
+            new(Color.FromArgb(startHex), 0f),
+            new(Color.FromArgb(middleHex), 0.55f),
+            new(Color.FromArgb(endHex), 1f)
+        }, new Point(0, 0), new Point(1, 1));
+
+    private static RadialGradientBrush BuildRadialBrush(string centerHex, string edgeHex)
+        => new(new GradientStopCollection
+        {
+            new(Color.FromArgb(centerHex), 0f),
+            new(Color.FromArgb(edgeHex), 1f)
+        })
+        {
+            Center = new Point(0.5, 0.5),
+            Radius = 0.9f
+        };
+
+    private static string GetAccentColor(CoreAppTheme theme) => theme switch
+    {
+        CoreAppTheme.Pink => "#FFB86E",
+        CoreAppTheme.Blue => "#5AE4FF",
+        CoreAppTheme.Green => "#67E5C1",
+        CoreAppTheme.Orange => "#FFD36E",
+        _ => "#55D6FF"
+    };
+
+    private static string GetAccentColorHex(string primaryHex)
+        => primaryHex switch
+        {
+            "#FF6B9D" => "#FFB86E",
+            "#4A90D9" => "#5AE4FF",
+            "#4CAF50" => "#67E5C1",
+            "#FF9800" => "#FFD36E",
+            _ => "#55D6FF"
+        };
+
+    private static CoreAppTheme _currentThemeStatic(string primaryHex)
+        => primaryHex switch
+        {
+            "#FF6B9D" => CoreAppTheme.Pink,
+            "#4A90D9" => CoreAppTheme.Blue,
+            "#4CAF50" => CoreAppTheme.Green,
+            "#FF9800" => CoreAppTheme.Orange,
+            _ => CoreAppTheme.Purple
+        };
+
+    private static string AlphaHex(byte alpha) => alpha.ToString("X2");
 
     /// <summary>主题颜色组</summary>
     private record ThemeColors(string Primary, string Light, string Dark);

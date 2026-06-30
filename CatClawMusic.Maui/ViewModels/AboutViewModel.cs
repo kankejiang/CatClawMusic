@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -5,43 +6,82 @@ namespace CatClawMusic.Maui.ViewModels;
 
 public partial class AboutViewModel : ObservableObject
 {
+    private readonly IUpdateService? _updateService;
+    private readonly IDialogService? _dialogService;
+
     [ObservableProperty]
     private string _version = "v1.5.3";
 
     [ObservableProperty]
     private string _copyright = "© 2024 CatClawMusic. All rights reserved.";
 
-    public IRelayCommand ViewLicenseCommand { get; }
-    public IRelayCommand JoinGroupCommand { get; }
-    public IRelayCommand OpenGitHubCommand { get; }
-    public IAsyncRelayCommand CheckUpdateCommand { get; }
+    [ObservableProperty]
+    private bool _isCheckingUpdate = false;
 
-    public AboutViewModel()
+    [ObservableProperty]
+    private string _updateStatus = "";
+
+    public AboutViewModel(IUpdateService? updateService = null, IDialogService? dialogService = null)
     {
-        ViewLicenseCommand = new RelayCommand(ViewLicense);
-        JoinGroupCommand = new RelayCommand(JoinGroup);
-        OpenGitHubCommand = new RelayCommand(OpenGitHub);
-        CheckUpdateCommand = new AsyncRelayCommand(CheckUpdateAsync);
+        _updateService = updateService;
+        _dialogService = dialogService;
     }
 
-    private void ViewLicense()
+    [RelayCommand]
+    public async Task ViewLicenseAsync()
     {
-        // Open license page
+        try
+        {
+            await Launcher.OpenAsync(new Uri("https://github.com/asciidwx/CatClawMusic/blob/main/LICENSE.txt"));
+        }
+        catch { }
     }
 
-    private void JoinGroup()
+    [RelayCommand]
+    public async Task JoinGroupAsync()
     {
-        // Open group chat/join link
+        if (_dialogService != null)
+            await _dialogService.ShowAlertAsync("交流群", "QQ交流群：123456789\n\n可通过QQ搜索群号加入");
     }
 
-    private void OpenGitHub()
+    [RelayCommand]
+    public async Task OpenGitHubAsync()
     {
-        // Open GitHub repository
+        try
+        {
+            await Launcher.OpenAsync(new Uri("https://github.com/asciidwx/CatClawMusic"));
+        }
+        catch { }
     }
 
-    private async Task CheckUpdateAsync()
+    [RelayCommand]
+    public async Task CheckUpdateAsync()
     {
-        // Check for app updates
-        await Task.CompletedTask;
+        if (_updateService == null) return;
+        IsCheckingUpdate = true;
+        UpdateStatus = "正在检查更新...";
+        try
+        {
+            var latestVersion = await _updateService.CheckUpdateAsync();
+            if (!string.IsNullOrEmpty(latestVersion) && latestVersion != Version.TrimStart('v'))
+            {
+                UpdateStatus = $"发现新版本 {latestVersion}";
+                if (_dialogService != null)
+                    await _dialogService.ShowAlertAsync("发现新版本",
+                        $"新版本 {latestVersion} 已发布！\n\n请前往 GitHub 下载最新版本。");
+            }
+            else
+            {
+                UpdateStatus = "已是最新版本";
+                if (_dialogService != null)
+                    await _dialogService.ShowAlertAsync("检查更新", "已是最新版本");
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = "检查失败";
+            System.Diagnostics.Debug.WriteLine($"[AboutVM] CheckUpdate failed: {ex}");
+        }
+        finally { IsCheckingUpdate = false; }
     }
 }

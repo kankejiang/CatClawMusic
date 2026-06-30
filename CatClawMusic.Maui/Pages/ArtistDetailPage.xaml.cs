@@ -1,27 +1,54 @@
+using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.ViewModels;
+
 namespace CatClawMusic.Maui.Pages;
 
+[QueryProperty(nameof(ArtistName), "artistName")]
 public partial class ArtistDetailPage : ContentPage
 {
-    public ArtistDetailPage()
+    private readonly ArtistDetailViewModel _viewModel;
+
+    public string ArtistName
+    {
+        set => _ = _viewModel.LoadArtistCommand.ExecuteAsync(value);
+    }
+
+    public ArtistDetailPage(ArtistDetailViewModel viewModel)
     {
         InitializeComponent();
+        _viewModel = viewModel;
+        BindingContext = viewModel;
+
+        _viewModel.SongPlayRequested += OnSongPlayRequested;
     }
 
-    private void OnAlbumSelected(object? sender, SelectionChangedEventArgs e)
+    private async void OnAlbumSelected(object? sender, SelectionChangedEventArgs e)
     {
-        // Handle album selection
-        if (e.CurrentSelection.FirstOrDefault() is CatClawMusic.Core.Models.Album album)
+        if (e.CurrentSelection.FirstOrDefault() is Album album)
         {
-            // Navigate to album detail page
+            if (sender is CollectionView collectionView)
+            {
+                collectionView.SelectedItem = null;
+            }
+
+            await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
         }
     }
 
-    private void OnSongSelected(object? sender, SelectionChangedEventArgs e)
+    private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
     {
-        // Handle song selection
-        if (e.CurrentSelection.FirstOrDefault() is CatClawMusic.Core.Models.Song song)
+        if (e.CurrentSelection.FirstOrDefault() is Song song)
         {
-            // Play the song
+            if (sender is CollectionView collectionView)
+            {
+                collectionView.SelectedItem = null;
+            }
+            await _viewModel.PlaySongCommand.ExecuteAsync(song);
         }
+    }
+
+    private async void OnSongPlayRequested(Song song)
+    {
+        await Shell.Current.GoToAsync("//nowplaying");
     }
 }

@@ -1,80 +1,92 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.AboutPage"
              Title="关于"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    
-    <ScrollView>
-        <VerticalStackLayout Padding="20" Spacing="20"
-                             VerticalOptions="Center">
-            
-            <!-- App Logo -->
-            <Image Source="cover_default"
-                   WidthRequest="120"
-                   HeightRequest="120"
-                   HorizontalOptions="Center" />
-            
-            <!-- App Name -->
-            <Label Text="猫爪音乐"
-                   FontSize="28"
-                   FontAttributes="Bold"
-                   TextColor="{DynamicResource TextPrimaryColor}"
-                   HorizontalOptions="Center" />
-            
-            <!-- Version -->
-            <Label Text="{Binding Version}"
-                   FontSize="14"
-                   TextColor="{DynamicResource TextHintColor}"
-                   HorizontalOptions="Center" />
-            
-            <!-- Description -->
-            <Label Text="一个简洁优雅的音乐播放器"
-                   FontSize="14"
-                   TextColor="{DynamicResource TextSecondaryColor}"
-                   HorizontalOptions="Center"
-                   Margin="0,20,0,0" />
-            
-            <!-- Links -->
-            <VerticalStackLayout Spacing="12"
-                                 Margin="0,30,0,0">
-                
-                <Button Text="📄 开源协议"
-                        Command="{Binding ViewLicenseCommand}"
-                        BackgroundColor="{DynamicResource CardBackgroundColor}"
-                        TextColor="{DynamicResource TextPrimaryColor}"
-                        CornerRadius="8"
-                        HeightRequest="44" />
-                
-                <Button Text="💬 交流群"
-                        Command="{Binding JoinGroupCommand}"
-                        BackgroundColor="{DynamicResource CardBackgroundColor}"
-                        TextColor="{DynamicResource TextPrimaryColor}"
-                        CornerRadius="8"
-                        HeightRequest="44" />
-                
-                <Button Text="⭐ GitHub"
-                        Command="{Binding OpenGitHubCommand}"
-                        BackgroundColor="{DynamicResource CardBackgroundColor}"
-                        TextColor="{DynamicResource TextPrimaryColor}"
-                        CornerRadius="8"
-                        HeightRequest="44" />
-                
-                <Button Text="检查更新"
-                        Command="{Binding CheckUpdateCommand}"
-                        BackgroundColor="#9B7ED8"
-                        TextColor="White"
-                        CornerRadius="8"
-                        HeightRequest="44" />
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="280"
+                HeightRequest="280"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Center"
+                VerticalOptions="Start"
+                TranslationY="-100" />
+
+        <ScrollView>
+            <VerticalStackLayout Padding="16,18,16,22"
+                                 Spacing="16"
+                                 VerticalOptions="Center">
+
+                <Border Style="{StaticResource GlassCardStrongStyle}">
+                    <VerticalStackLayout Spacing="14"
+                                         HorizontalOptions="Center">
+                        <Image Source="cover_default"
+                               WidthRequest="100"
+                               HeightRequest="100"
+                               HorizontalOptions="Center" />
+                        <Label Text="猫爪音乐"
+                               Style="{StaticResource PageTitleStyle}"
+                               HorizontalOptions="Center" />
+                        <Label Text="{Binding Version}"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextHintColor}"
+                               HorizontalOptions="Center" />
+                        <Label Text="一个简洁优雅的音乐播放器"
+                               FontSize="14"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Button Text="📄 开源协议"
+                                Command="{Binding ViewLicenseCommand}"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                TextColor="{DynamicResource TextPrimaryColor}"
+                                CornerRadius="16"
+                                HeightRequest="48"
+                                FontSize="14" />
+                        <Button Text="💬 交流群"
+                                Command="{Binding JoinGroupCommand}"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                TextColor="{DynamicResource TextPrimaryColor}"
+                                CornerRadius="16"
+                                HeightRequest="48"
+                                FontSize="14" />
+                        <Button Text="⭐ GitHub"
+                                Command="{Binding OpenGitHubCommand}"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                TextColor="{DynamicResource TextPrimaryColor}"
+                                CornerRadius="16"
+                                HeightRequest="48"
+                                FontSize="14" />
+                        <Button Text="检查更新"
+                                Command="{Binding CheckUpdateCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="48"
+                                FontSize="14"
+                                FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="{Binding Copyright}"
+                       FontSize="12"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalOptions="Center"
+                       Margin="0,8,0,0" />
             </VerticalStackLayout>
-            
-            <!-- Copyright -->
-            <Label Text="{Binding Copyright}"
-                   FontSize="12"
-                   TextColor="{DynamicResource TextHintColor}"
-                   HorizontalOptions="Center"
-                   Margin="0,30,0,0" />
-            
-        </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

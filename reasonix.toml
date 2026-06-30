@@ -1,0 +1,2 @@
+[permissions]
+allow = ["Edit", "explore", "Bash(cd /d/CatClawMusic && grep -rn \"PlaybackStateChanged\" CatClawMusic.UI/Platforms/Android/AudioPlayerService.cs 2>/dev/null | head -20)", "Bash(cd /d/CatClawMusic && grep -rn \"IAudioPlayerService\\.\" CatClawMusic.UI/Platforms/Android/AudioPlayerService.cs 2>/dev/null | head -20)"]

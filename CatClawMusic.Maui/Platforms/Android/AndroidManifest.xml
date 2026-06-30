@@ -69,13 +69,6 @@
 
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 
-        <!-- 前台服务（后台播放，适配 Android 14+） -->
-        <service
-            android:name=".ForegroundPlayerService"
-            android:foregroundServiceType="mediaPlayback"
-            android:enabled="true"
-            android:exported="false" />
-
     </application>
 
 </manifest>

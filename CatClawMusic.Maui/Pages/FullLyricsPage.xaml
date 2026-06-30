@@ -1,10 +1,83 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.FullLyricsPage"
              Title="全屏歌词"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
-    <VerticalStackLayout Padding="24" Spacing="16">
-        <Label Text="全屏歌词" FontSize="24" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}"/>
-        <!-- Page content placeholder -->
-    </VerticalStackLayout>
+
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240"
+                HeightRequest="240"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start"
+                VerticalOptions="Start"
+                TranslationX="-130"
+                TranslationY="-70" />
+
+        <Border Grid.Row="0"
+                Margin="16,18,16,10"
+                Style="{StaticResource GlassCardStrongStyle}"
+                Background="{DynamicResource HeroBrush}">
+            <Grid ColumnDefinitions="Auto,*,Auto"
+                  ColumnSpacing="12">
+                <Border Grid.Column="0"
+                        Style="{StaticResource GlassIconContainerStyle}"
+                        VerticalOptions="Center">
+                    <ImageButton Source="ic_arrow_back"
+                                 WidthRequest="40"
+                                 HeightRequest="40"
+                                 BackgroundColor="Transparent"
+                                 Clicked="OnBackClicked" />
+                </Border>
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="2"
+                                     VerticalOptions="Center">
+                    <Label Text="{Binding Title}"
+                           FontSize="16"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="White"
+                           MaxLines="1" />
+                    <Label Text="{Binding Artist}"
+                           FontSize="12"
+                           TextColor="#E0E3FF"
+                           MaxLines="1" />
+                </VerticalStackLayout>
+                <Border Grid.Column="2"
+                        Style="{StaticResource GlassBadgeStyle}"
+                        VerticalOptions="Center">
+                    <Label Text="LRC"
+                           FontSize="10"
+                           TextColor="{DynamicResource TextSecondaryColor}" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <ScrollView Grid.Row="1"
+                    x:Name="LyricScrollView"
+                    Scrolled="OnLyricScrolled">
+            <VerticalStackLayout x:Name="LyricStack"
+                                 Padding="24,100,24,300"
+                                 Spacing="14" />
+        </ScrollView>
+
+        <Border Grid.Row="1"
+                Margin="20,0"
+                VerticalOptions="End"
+                Style="{StaticResource GlassBadgeStyle}"
+                IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}">
+            <Label Text="{Binding NoLyricsText}"
+                   FontSize="14"
+                   TextColor="{DynamicResource TextSecondaryColor}"
+                   HorizontalTextAlignment="Center" />
+        </Border>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

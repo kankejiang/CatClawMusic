@@ -4,6 +4,13 @@ using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using System.IO;
+using Microsoft.Maui;
+
+#if ANDROID
+using Android.Media;
+using Android.Net;
+#endif
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -110,8 +117,12 @@ public partial class LibraryViewModel : ObservableObject
         {
             IsLoading = true;
             StatusText = "正在加载本地音乐...";
-            
+
             var songs = await _db.GetSongsWithDetailsAsync();
+
+            // 批量解析封面（磁盘缓存命中快，首次提取嵌入封面）
+            await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
+
             Songs = new ObservableCollection<Song>(songs);
             FilterSongs();
             UpdateStats();
@@ -133,8 +144,12 @@ public partial class LibraryViewModel : ObservableObject
         {
             IsLoading = true;
             StatusText = "正在加载网络音乐...";
-            
+
             var songs = await _db.GetCachedNetworkSongsAsync();
+
+            // 批量解析封面
+            await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
+
             Songs = new ObservableCollection<Song>(songs);
             FilterSongs();
             UpdateStats();
@@ -268,4 +283,5 @@ public partial class LibraryViewModel : ObservableObject
     {
         FilterSongs();
     }
+
 }

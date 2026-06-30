@@ -12,26 +12,98 @@ public partial class GeneralSettingsViewModel : ObservableObject
     private int _selectedLanguageIndex = 0;
 
     [ObservableProperty]
-    private string _cacheSize = "0 MB";
+    private string _cacheSize = "计算中...";
 
-    public IAsyncRelayCommand ClearCacheCommand { get; }
-    public IAsyncRelayCommand ResetSettingsCommand { get; }
+    [ObservableProperty]
+    private bool _isClearingCache = false;
 
     public GeneralSettingsViewModel()
     {
-        ClearCacheCommand = new AsyncRelayCommand(ClearCacheAsync);
-        ResetSettingsCommand = new AsyncRelayCommand(ResetSettingsAsync);
+        _ = RefreshCacheSizeAsync();
     }
 
-    private async Task ClearCacheAsync()
+    /// <summary>
+    /// 清除应用缓存（音乐缓存目录）
+    /// </summary>
+    [RelayCommand]
+    public async Task ClearCacheAsync()
     {
-        // Clear app cache
-        await Task.CompletedTask;
+        if (IsClearingCache) return;
+        IsClearingCache = true;
+        try
+        {
+            var cacheDir = Path.Combine(FileSystem.CacheDirectory, "music_cache");
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, true);
+                Directory.CreateDirectory(cacheDir);
+            }
+            await RefreshCacheSizeAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[GeneralVM] ClearCache failed: {ex}");
+        }
+        finally { IsClearingCache = false; }
     }
 
-    private async Task ResetSettingsAsync()
+    /// <summary>
+    /// 恢复默认设置
+    /// </summary>
+    [RelayCommand]
+    public async Task ResetSettingsAsync()
     {
-        // Reset all settings to default
-        await Task.CompletedTask;
+        try
+        {
+            Preferences.Clear();
+            await RefreshCacheSizeAsync();
+            SelectedLanguageIndex = 0;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[GeneralVM] ResetSettings failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// 刷新缓存大小显示
+    /// </summary>
+    public async Task RefreshCacheSizeAsync()
+    {
+        try
+        {
+            var cacheDir = Path.Combine(FileSystem.CacheDirectory, "music_cache");
+            long size = await Task.Run(() => GetDirectorySize(cacheDir));
+            CacheSize = FormatSize(size);
+        }
+        catch
+        {
+            CacheSize = "不可用";
+        }
+    }
+
+    private static long GetDirectorySize(string path)
+    {
+        if (!Directory.Exists(path)) return 0;
+        long size = 0;
+        try
+        {
+            foreach (var file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+            {
+                try { size += new FileInfo(file).Length; }
+                catch { }
+            }
+        }
+        catch { }
+        return size;
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes == 0) return "0 MB";
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
     }
 }

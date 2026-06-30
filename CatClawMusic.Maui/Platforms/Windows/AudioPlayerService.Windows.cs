@@ -91,4 +91,9 @@ public partial class AudioPlayerService
             _winPlayer = null;
         }
     }
+
+    partial void CheckPlatformCompletion()
+    {
+        // Windows uses MediaPlayer.MediaEnded event — handled in InitializePlatform
+    }
 }

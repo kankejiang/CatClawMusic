@@ -6,62 +6,99 @@
     <!-- 歌曲列表项模板                          -->
     <!-- ═══════════════════════════════════════ -->
     <DataTemplate x:Key="SongItemTemplate">
-        <Grid Padding="16,10" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto"
-              ColumnSpacing="12">
-            <!-- 封面缩略图 -->
-            <Border Grid.RowSpan="2" WidthRequest="48" HeightRequest="48"
-                    StrokeShape="RoundRectangle 6" StrokeThickness="0"
-                    BackgroundColor="{DynamicResource SurfaceColor}"
-                    VerticalOptions="Center">
-                <Image Source="{Binding CoverArtPath, FallbackValue='ic_music_note'}"
-                       Aspect="AspectFill" WidthRequest="48" HeightRequest="48"/>
-            </Border>
-            <!-- 标题 -->
-            <Label Grid.Column="1" Grid.Row="0"
-                   Text="{Binding Title}" FontSize="15" FontAttributes="Bold"
-                   TextColor="{DynamicResource TextPrimaryColor}"
-                   LineBreakMode="TailTruncation" MaxLines="1"/>
-            <!-- 艺术家 · 专辑 -->
-            <Label Grid.Column="1" Grid.Row="1"
-                   TextColor="{DynamicResource TextSecondaryColor}" FontSize="12"
-                   LineBreakMode="TailTruncation" MaxLines="1">
-                <Label.Text>
-                    <MultiBinding StringFormat="{}{0} · {1}">
-                        <Binding Path="Artist" FallbackValue="未知艺术家"/>
-                        <Binding Path="Album" FallbackValue="未知专辑"/>
-                    </MultiBinding>
-                </Label.Text>
-            </Label>
-            <!-- 时长 -->
-            <Label Grid.Column="2" Grid.RowSpan="2"
-                   Text="{Binding Duration, Converter={StaticResource DurationConverter}}"
-                   TextColor="{DynamicResource TextSecondaryColor}"
-                   FontSize="12" VerticalOptions="Center"/>
-        </Grid>
+        <Border Margin="16,0,16,10"
+                Padding="14"
+                StrokeShape="RoundRectangle 22"
+                StrokeThickness="1"
+                Stroke="{DynamicResource GlassStrokeColor}"
+                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+            <Grid ColumnDefinitions="Auto,*,Auto"
+                  RowDefinitions="Auto,Auto"
+                  ColumnSpacing="14">
+                <Border Grid.RowSpan="2"
+                        WidthRequest="58"
+                        HeightRequest="58"
+                        StrokeShape="RoundRectangle 16"
+                        StrokeThickness="0"
+                        BackgroundColor="{DynamicResource SurfaceColor}"
+                        VerticalOptions="Center">
+                    <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}"
+                           Aspect="AspectFill"
+                           WidthRequest="58"
+                           HeightRequest="58" />
+                </Border>
+                <Label Grid.Column="1"
+                       Text="{Binding Title}"
+                       FontSize="15"
+                       FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource TextPrimaryColor}"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="1" />
+                <Label Grid.Column="1"
+                       Grid.Row="1"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       FontSize="12"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="1">
+                    <Label.Text>
+                        <MultiBinding StringFormat="{}{0} · {1}">
+                            <Binding Path="Artist" TargetNullValue="未知艺术家" />
+                            <Binding Path="Album" TargetNullValue="未知专辑" />
+                        </MultiBinding>
+                    </Label.Text>
+                </Label>
+                <VerticalStackLayout Grid.Column="2"
+                                     Grid.RowSpan="2"
+                                     Spacing="4"
+                                     VerticalOptions="Center">
+                    <Label Text="{Binding Duration, Converter={StaticResource DurationConverter}}"
+                           TextColor="{DynamicResource TextSecondaryColor}"
+                           FontSize="12"
+                           HorizontalTextAlignment="End" />
+                    <Label Text="{Binding PlayCount, StringFormat='播放 {0}'}"
+                           TextColor="{DynamicResource TextHintColor}"
+                           FontSize="11"
+                           HorizontalTextAlignment="End" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
     </DataTemplate>
 
     <!-- ═══════════════════════════════════════ -->
     <!-- 专辑卡片模板                            -->
     <!-- ═══════════════════════════════════════ -->
     <DataTemplate x:Key="AlbumCardTemplate">
-        <Border Padding="0" StrokeShape="RoundRectangle 10" StrokeThickness="0"
-                BackgroundColor="{DynamicResource CardBackgroundColor}"
-                WidthRequest="140">
-            <VerticalStackLayout Spacing="6" Padding="0,0,0,10">
-                <Border WidthRequest="140" HeightRequest="140"
-                        StrokeShape="RoundRectangle 10 10 0 0" StrokeThickness="0"
+        <Border Padding="0"
+                StrokeShape="RoundRectangle 24"
+                StrokeThickness="1"
+                Stroke="{DynamicResource GlassStrokeColor}"
+                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+            <VerticalStackLayout Spacing="8" Padding="0,0,0,12">
+                <Border HeightRequest="160"
+                        StrokeShape="RoundRectangle 24 24 0 0"
+                        StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}">
-                    <Image Source="{Binding CoverArtPath, FallbackValue='ic_album'}"
-                           Aspect="AspectFill" WidthRequest="140" HeightRequest="140"/>
+                    <Image Source="{Binding CoverSource, TargetNullValue='ic_album'}"
+                           Aspect="AspectFill"
+                           HeightRequest="160" />
                 </Border>
-                <Label Text="{Binding Title}" FontSize="13" FontAttributes="Bold"
+                <Label Text="{Binding Title}"
+                       FontSize="14"
+                       FontFamily="OpenSansSemibold"
                        TextColor="{DynamicResource TextPrimaryColor}"
-                       LineBreakMode="TailTruncation" MaxLines="1"
-                       Padding="8,0"/>
-                <Label Text="{Binding Artist, FallbackValue='未知艺术家'}" FontSize="11"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="1"
+                       Padding="12,0,12,0" />
+                <Label Text="{Binding ArtistName}"
+                       FontSize="12"
                        TextColor="{DynamicResource TextSecondaryColor}"
-                       LineBreakMode="TailTruncation" MaxLines="1"
-                       Padding="8,0"/>
+                       LineBreakMode="TailTruncation"
+                       MaxLines="1"
+                       Padding="12,0,12,0" />
+                <Label Text="{Binding Subtitle}"
+                       FontSize="11"
+                       TextColor="{DynamicResource TextHintColor}"
+                       Padding="12,0,12,0" />
             </VerticalStackLayout>
         </Border>
     </DataTemplate>
@@ -70,19 +107,38 @@
     <!-- 艺术家卡片模板                          -->
     <!-- ═══════════════════════════════════════ -->
     <DataTemplate x:Key="ArtistCardTemplate">
-        <VerticalStackLayout Spacing="6" WidthRequest="90" Padding="4">
-            <Border WidthRequest="80" HeightRequest="80"
-                    StrokeShape="RoundRectangle 40" StrokeThickness="0"
-                    BackgroundColor="{DynamicResource SurfaceColor}"
-                    HorizontalOptions="Center">
-                <Image Source="{Binding PhotoPath, FallbackValue='ic_artist'}"
-                       Aspect="AspectFill" WidthRequest="80" HeightRequest="80"/>
-            </Border>
-            <Label Text="{Binding Name}" FontSize="12"
-                   TextColor="{DynamicResource TextPrimaryColor}"
-                   HorizontalTextAlignment="Center"
-                   LineBreakMode="TailTruncation" MaxLines="1"/>
-        </VerticalStackLayout>
+        <Border Padding="12"
+                StrokeShape="RoundRectangle 24"
+                StrokeThickness="1"
+                Stroke="{DynamicResource GlassStrokeColor}"
+                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+            <VerticalStackLayout Spacing="8">
+                <Border WidthRequest="84"
+                        HeightRequest="84"
+                        StrokeShape="RoundRectangle 42"
+                        StrokeThickness="0"
+                        BackgroundColor="{DynamicResource SurfaceColor}"
+                        HorizontalOptions="Center">
+                    <Image Source="{Binding CoverSource, TargetNullValue='ic_person'}"
+                           Aspect="AspectFill"
+                           WidthRequest="84"
+                           HeightRequest="84" />
+                </Border>
+                <Label Text="{Binding Name}"
+                       FontSize="13"
+                       FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource TextPrimaryColor}"
+                       HorizontalTextAlignment="Center"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="1" />
+                <Label Text="{Binding Subtitle}"
+                       FontSize="11"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalTextAlignment="Center"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="1" />
+            </VerticalStackLayout>
+        </Border>
     </DataTemplate>
 
 </ResourceDictionary>

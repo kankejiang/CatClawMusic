@@ -1,78 +1,112 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.GeneralSettingsPage"
              Title="通用设置"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    
-    <ScrollView>
-        <VerticalStackLayout Padding="16" Spacing="16">
-            
-            <!-- Language -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="语言"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    
-                    <Picker ItemsSource="{Binding LanguageOptions}"
-                            SelectedIndex="{Binding SelectedLanguageIndex, Mode=TwoWay}"
-                            BackgroundColor="{DynamicResource CardBackgroundColor}"
-                            TextColor="{DynamicResource TextPrimaryColor}" />
-                </VerticalStackLayout>
-            </Frame>
-            
-            <!-- Cache Size -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <Grid ColumnDefinitions="*,Auto">
-                    <VerticalStackLayout Grid.Column="0"
-                                        Spacing="2">
-                        <Label Text="缓存大小"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240"
+                HeightRequest="240"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start"
+                VerticalOptions="Start"
+                TranslationX="-130"
+                TranslationY="-70" />
+
+        <Border WidthRequest="180"
+                HeightRequest="180"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource AccentGlowBrush}"
+                HorizontalOptions="End"
+                VerticalOptions="Start"
+                TranslationX="80"
+                TranslationY="160" />
+
+        <ScrollView>
+            <VerticalStackLayout Padding="16,18,16,22"
+                                 Spacing="14">
+
+                <Border Style="{StaticResource GlassCardStrongStyle}"
+                        Background="{DynamicResource HeroBrush}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="通用设置"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="语言、缓存、恢复默认选项。"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F3F5FF" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="语言"
                                FontSize="16"
+                               FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Text="{Binding CacheSize}"
+                        <Border Style="{StaticResource GlassInputStyle}"
+                                Padding="0">
+                            <Picker ItemsSource="{Binding LanguageOptions}"
+                                    SelectedIndex="{Binding SelectedLanguageIndex, Mode=TwoWay}"
+                                    BackgroundColor="Transparent"
+                                    TextColor="{DynamicResource TextPrimaryColor}" />
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0"
+                                             Spacing="4"
+                                             VerticalOptions="Center">
+                            <Label Text="缓存大小"
+                                   FontSize="16"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding CacheSize}"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="清除缓存"
+                                Command="{Binding ClearCacheCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="38"
+                                FontSize="12" />
+                    </Grid>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="恢复默认设置"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="将所有设置恢复为默认值"
                                FontSize="12"
                                TextColor="{DynamicResource TextHintColor}" />
+                        <Button Text="恢复默认"
+                                Command="{Binding ResetSettingsCommand}"
+                                BackgroundColor="{DynamicResource ErrorColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="40"
+                                FontSize="13" />
                     </VerticalStackLayout>
-                    <Button Grid.Column="1"
-                            Text="清除缓存"
-                            Command="{Binding ClearCacheCommand}"
-                            BackgroundColor="#9B7ED8"
-                            TextColor="White"
-                            CornerRadius="8"
-                            HeightRequest="36" />
-                </Grid>
-            </Frame>
-            
-            <!-- Reset Settings -->
-            <Frame Padding="16"
-                   CornerRadius="12"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}"
-                   BorderColor="{DynamicResource CardBorderColor}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="恢复默认设置"
-                           FontSize="16"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    <Label Text="将所有设置恢复为默认值"
-                           FontSize="12"
-                           TextColor="{DynamicResource TextHintColor}" />
-                    <Button Text="恢复默认"
-                            Command="{Binding ResetSettingsCommand}"
-                            BackgroundColor="Red"
-                            TextColor="White"
-                            CornerRadius="8"
-                            HeightRequest="36" />
-                </VerticalStackLayout>
-            </Frame>
-            
-        </VerticalStackLayout>
-    </ScrollView>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

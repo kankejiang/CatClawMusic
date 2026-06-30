@@ -1,8 +1,11 @@
 # CatClawMusic 项目记忆
 
 ## 构建
-- **构建命令**: `dotnet publish CatClawMusic.UI.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8"`
-- **产出路径**: `publish-apk/CatClawMusic.UI-Signed.apk`
+- **构建入口**: `CatClawMusic.Maui/CatClawMusic.Maui.csproj`（v1.5.3, UseMaui=true, 单项目）。注意：旧的 `CatClawMusic.UI.csproj`（v1.5.1, Xamarin.Android 原生）已不是主线。
+- **Debug 验证命令**: `dotnet build CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Debug -f net10.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8"`
+- **Release 签名命令**: `dotnet publish CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8" -p:CatClawStorePass=catclaw123 -p:CatClawKeyPass=catclaw123`
+- **签名密码**: storepass=keypass=catclaw123，alias=catclaw，keystore=../catclaw.keystore
+- **产出路径**: `CatClawMusic.Maui/bin/Release/net10.0-android/publish/*-Signed.apk`（Maui csproj 无自动复制 target，与 UI csproj 不同）
 - **规则**: 每次有较大代码改动后，自动构建 APK
 - **版本**: v1.5.3
 
@@ -37,3 +40,9 @@
   1. `歌曲名.lrc` / `歌曲名.ttml` / `歌曲名.xml`
   2. `歌曲名*.lrc` / `歌曲名*.ttml` / `歌曲名*.xml`
 - **相关文件**：`LyricsService.cs`（解析器）、`MusicUtility.cs`（文件查找）、`ILyricsService.cs`（接口）
+
+## MAUI 顶部导航栏（NavBar）
+- **全局隐藏**：在 `AppShell.xaml` 中通过全局样式对所有 `ContentPage` 设置 `Shell.NavBarIsVisible="False"`
+- 效果：所有 Tab 页和二级页面均不再显示顶部导航栏标题区域，页面内容延伸到状态栏下方
+- 底部 TabBar 不受影响
+- 二级页面返回仍通过系统返回键/手势正常工作

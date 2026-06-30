@@ -1,121 +1,101 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:viewmodels="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.AlbumDetailPage"
              Title="专辑详情"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
     <Grid RowDefinitions="Auto,Auto,*"
-          Padding="0">
-        
-        <!-- Album Header -->
-        <Grid Grid.Row="0" 
-              ColumnDefinitions="120,*"
-              Padding="20"
-              ColumnSpacing="15">
-            
-            <!-- Album Cover -->
-            <Frame Grid.Column="0"
-                   WidthRequest="120"
-                   HeightRequest="120"
-                   CornerRadius="10"
-                   Padding="0"
-                   BackgroundColor="{DynamicResource CardBackgroundColor}">
-                <Image Source="{Binding Album.CoverUrl}"
-                       Aspect="AspectFill" />
-            </Frame>
-            
-            <!-- Album Info -->
-            <VerticalStackLayout Grid.Column="1"
-                                 VerticalOptions="Center">
-                
-                <Label Text="{Binding Album.Title}"
-                       FontSize="20"
-                       FontAttributes="Bold"
-                       TextColor="{DynamicResource TextPrimaryColor}"
-                       MaxLines="2" />
-                
-                <Label Text="{Binding Album.Artist}"
-                       FontSize="14"
-                       TextColor="{DynamicResource TextSecondaryColor}"
-                       Margin="0,5,0,0" />
-                
-                <Label Text="{Binding Album.Year}"
-                       FontSize="12"
-                       TextColor="{DynamicResource TextHintColor}"
-                       Margin="0,5,0,0" />
-                
-                <HorizontalStackLayout Spacing="10"
-                                       Margin="0,10,0,0">
-                    
-                    <Button Text="▶ 播放"
-                            Command="{Binding PlayAllCommand}"
-                            BackgroundColor="#9B7ED8"
-                            TextColor="White"
-                            CornerRadius="20"
-                            HeightRequest="36"
-                            FontSize="12" />
-                    
-                    <Button Text="＋ 添加到"
-                            Command="{Binding AddToPlaylistCommand}"
-                            BackgroundColor="Transparent"
-                            TextColor="#9B7ED8"
-                            CornerRadius="20"
-                            HeightRequest="36"
-                            FontSize="12"
-                            BorderColor="#9B7ED8"
-                            BorderWidth="1" />
-                </HorizontalStackLayout>
-            </VerticalStackLayout>
-        </Grid>
-        
-        <!-- Song Count -->
+          Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240"
+                HeightRequest="240"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start"
+                VerticalOptions="Start"
+                TranslationX="-130"
+                TranslationY="-70" />
+
+        <Border WidthRequest="180"
+                HeightRequest="180"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource AccentGlowBrush}"
+                HorizontalOptions="End"
+                VerticalOptions="Start"
+                TranslationX="80"
+                TranslationY="200" />
+
+        <Border Grid.Row="0"
+                Margin="16,18,16,14"
+                Style="{StaticResource GlassCardStrongStyle}">
+            <Grid ColumnDefinitions="Auto,*"
+                  ColumnSpacing="16">
+                <Border Grid.Column="0"
+                        WidthRequest="110"
+                        HeightRequest="110"
+                        StrokeShape="RoundRectangle 20"
+                        StrokeThickness="0"
+                        BackgroundColor="{DynamicResource SurfaceColor}">
+                    <Image Source="{Binding Album.CoverUrl}"
+                           Aspect="AspectFill"
+                           WidthRequest="110"
+                           HeightRequest="110" />
+                </Border>
+                <VerticalStackLayout Grid.Column="1"
+                                     VerticalOptions="Center"
+                                     Spacing="6">
+                    <Label Text="{Binding Album.Title}"
+                           FontSize="20"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           MaxLines="2" />
+                    <Label Text="{Binding Album.Artist}"
+                           FontSize="14"
+                           TextColor="{DynamicResource TextSecondaryColor}" />
+                    <Label Text="{Binding Album.Year}"
+                           FontSize="12"
+                           TextColor="{DynamicResource TextHintColor}" />
+                    <Grid ColumnDefinitions="Auto,Auto"
+                          ColumnSpacing="10"
+                          Margin="0,6,0,0">
+                        <Button Text="▶ 播放"
+                                Command="{Binding PlayAllCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="20"
+                                HeightRequest="36"
+                                FontSize="12" />
+                        <Button Grid.Column="1"
+                                Text="＋ 添加到"
+                                Command="{Binding AddToPlaylistCommand}"
+                                BackgroundColor="{DynamicResource ChipInactiveColor}"
+                                TextColor="{DynamicResource ChipInactiveTextColor}"
+                                CornerRadius="20"
+                                HeightRequest="36"
+                                FontSize="12" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
         <Label Grid.Row="1"
                Text="{Binding Songs.Count, StringFormat='共 {0} 首歌曲'}"
                FontSize="12"
                TextColor="{DynamicResource TextHintColor}"
-               Padding="20,10" />
-        
-        <!-- Songs List -->
+               Margin="20,6,20,10" />
+
         <CollectionView Grid.Row="2"
                         ItemsSource="{Binding Songs}"
                         SelectionMode="Single"
-                        SelectionChanged="OnSongSelected">
-            
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Grid ColumnDefinitions="40,*,60"
-                          Padding="20,12">
-                        
-                        <Label Grid.Column="0"
-                               Text="{Binding ., Converter={StaticResource IndexConverter}}"
-                               FontSize="14"
-                               TextColor="{DynamicResource TextHintColor}"
-                               HorizontalOptions="Center" />
-                        
-                        <VerticalStackLayout Grid.Column="1"
-                                             Spacing="2">
-                            
-                            <Label Text="{Binding Title}"
-                                   FontSize="14"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   MaxLines="1" />
-                            
-                            <Label Text="{Binding Artist}"
-                                   FontSize="12"
-                                   TextColor="{DynamicResource TextSecondaryColor}"
-                                   MaxLines="1" />
-                        </VerticalStackLayout>
-                        
-                        <Label Grid.Column="2"
-                               Text="{Binding Duration, Converter={StaticResource DurationConverter}}"
-                               FontSize="12"
-                               TextColor="{DynamicResource TextHintColor}"
-                               HorizontalOptions="End" />
-                    </Grid>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-    </Grid>
+                        SelectionChanged="OnSongSelected"
+                        ItemTemplate="{StaticResource SongItemTemplate}" />
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

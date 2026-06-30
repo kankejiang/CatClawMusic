@@ -10,11 +10,17 @@ public class ExploreDataService
 {
     private readonly MusicDatabase _db;
     private readonly IMusicLibraryService _library;
+    private readonly string _cacheDir;
     private readonly string _cacheFilePath;
 
     /// <summary>每日推荐缓存：Key 为日期字符串 "yyyy-MM-dd"，Value 为歌曲列表</summary>
     private string? _dailyRecommendDate;
     private List<Song>? _dailyRecommendCache;
+
+    /// <summary>每日推荐艺人缓存（每天随机10个）</summary>
+    private List<ArtistWithCount>? _dailyArtistsCache;
+    /// <summary>每日推荐专辑缓存（每天随机10个）</summary>
+    private List<AlbumWithCount>? _dailyAlbumsCache;
 
     /// <summary>来源筛选：all, local, network</summary>
     private string _sourceFilter = "all";
@@ -23,7 +29,9 @@ public class ExploreDataService
     {
         _db = db;
         _library = library;
+        _cacheDir = cacheDir;
         _cacheFilePath = Path.Combine(cacheDir, "daily_recommend.json");
+        try { Directory.CreateDirectory(cacheDir); } catch { }
     }
 
     /// <summary>设置来源筛选</summary>
@@ -92,6 +100,19 @@ public class ExploreDataService
         return shuffled;
     }
 
+    /// <summary>从磁盘缓存加载原始缓存对象（含艺人/专辑 ID）</summary>
+    private async Task<DailyRecommendCache?> LoadDailyCacheFromDiskAsync(string date)
+    {
+        try
+        {
+            if (!File.Exists(_cacheFilePath)) return null;
+            var json = await File.ReadAllTextAsync(_cacheFilePath);
+            var cache = System.Text.Json.JsonSerializer.Deserialize<DailyRecommendCache>(json);
+            return cache?.Date == date ? cache : null;
+        }
+        catch { return null; }
+    }
+
     /// <summary>从磁盘缓存加载每日推荐（异步版本，避免死锁）</summary>
     private async Task<List<Song>?> LoadDailyRecommendFromDiskAsync(string date)
     {
@@ -119,19 +140,104 @@ public class ExploreDataService
     {
         try
         {
-            var cache = new DailyRecommendCache
+            // 读取已有缓存以保留 artist/album IDs
+            DailyRecommendCache existing;
+            try
             {
-                Date = date,
-                Ids = songs.Select(s => s.Id).ToList()
-            };
-            var json = System.Text.Json.JsonSerializer.Serialize(cache);
-            File.WriteAllText(_cacheFilePath, json);
+                if (File.Exists(_cacheFilePath))
+                {
+                    var json = File.ReadAllText(_cacheFilePath);
+                    existing = System.Text.Json.JsonSerializer.Deserialize<DailyRecommendCache>(json) ?? new DailyRecommendCache();
+                }
+                else
+                {
+                    existing = new DailyRecommendCache();
+                }
+            }
+            catch { existing = new DailyRecommendCache(); }
+
+            existing.Date = date;
+            existing.Ids = songs.Select(s => s.Id).ToList();
+
+            Directory.CreateDirectory(_cacheDir);
+            var output = System.Text.Json.JsonSerializer.Serialize(existing);
+            File.WriteAllText(_cacheFilePath, output);
         }
         catch { }
     }
 
-    /// <summary>获取所有艺术家及其歌曲数量（通过 SongArtists 多对多表计数）</summary>
+    /// <summary>将艺人/专辑 ID 合并到已有磁盘缓存（不覆盖歌曲推荐）</summary>
+    private async Task SaveArtistAlbumIdsToCacheAsync(string date, List<int> artistIds, List<int> albumIds)
+    {
+        try
+        {
+            DailyRecommendCache existing;
+            try
+            {
+                if (File.Exists(_cacheFilePath))
+                {
+                    var json = await File.ReadAllTextAsync(_cacheFilePath);
+                    existing = System.Text.Json.JsonSerializer.Deserialize<DailyRecommendCache>(json) ?? new DailyRecommendCache();
+                }
+                else
+                {
+                    existing = new DailyRecommendCache { Date = date };
+                }
+            }
+            catch { existing = new DailyRecommendCache { Date = date }; }
+
+            existing.Date = date;
+            if (artistIds.Count > 0) existing.ArtistIds = artistIds;
+            if (albumIds.Count > 0) existing.AlbumIds = albumIds;
+
+            Directory.CreateDirectory(_cacheDir);
+            var output = System.Text.Json.JsonSerializer.Serialize(existing);
+            await File.WriteAllTextAsync(_cacheFilePath, output);
+        }
+        catch { }
+    }
+
+    /// <summary>获取每日推荐艺术家（每天随机10个，带缓存）</summary>
     public async Task<List<ArtistWithCount>> GetArtistsWithSongCountAsync()
+    {
+        var today = DateTime.Today.ToString("yyyy-MM-dd");
+
+        // 内存缓存命中
+        if (_dailyArtistsCache != null && _dailyRecommendDate == today)
+            return _dailyArtistsCache;
+
+        // 获取全部艺术家
+        var allArtists = await GetAllArtistsWithCountInternalAsync();
+
+        // 尝试从磁盘缓存恢复艺人 ID 列表
+        var diskCache = await LoadDailyCacheFromDiskAsync(today);
+        if (diskCache != null && diskCache.ArtistIds.Count > 0)
+        {
+            var cached = allArtists
+                .Where(a => diskCache.ArtistIds.Contains(a.Id))
+                .ToList();
+            if (cached.Count > 0)
+            {
+                _dailyArtistsCache = cached;
+                return cached;
+            }
+        }
+
+        // 随机选10个
+        var random = new Random();
+        var selected = allArtists.OrderBy(_ => random.Next()).Take(10).ToList();
+        _dailyArtistsCache = selected;
+
+        // 保存到磁盘缓存（合并到同一个 JSON 文件）
+        await SaveArtistAlbumIdsToCacheAsync(today,
+            selected.Select(a => a.Id).ToList(),
+            new List<int>());
+
+        return selected;
+    }
+
+    /// <summary>获取所有艺术家及其歌曲数量（内部方法，不缓存）</summary>
+    private async Task<List<ArtistWithCount>> GetAllArtistsWithCountInternalAsync()
     {
         await _db.EnsureInitializedAsync();
         var artists = await _db.GetAllArtistsAsync();
@@ -200,8 +306,47 @@ public class ExploreDataService
             .ToList();
     }
 
-    /// <summary>获取所有专辑及其歌曲数量</summary>
+    /// <summary>获取每日推荐专辑（每天随机10个，带缓存）</summary>
     public async Task<List<AlbumWithCount>> GetAlbumsWithSongCountAsync()
+    {
+        var today = DateTime.Today.ToString("yyyy-MM-dd");
+
+        // 内存缓存命中
+        if (_dailyAlbumsCache != null && _dailyRecommendDate == today)
+            return _dailyAlbumsCache;
+
+        // 获取全部专辑
+        var allAlbums = await GetAllAlbumsWithCountInternalAsync();
+
+        // 尝试从磁盘缓存恢复专辑 ID 列表
+        var diskCache = await LoadDailyCacheFromDiskAsync(today);
+        if (diskCache != null && diskCache.AlbumIds.Count > 0)
+        {
+            var cached = allAlbums
+                .Where(a => diskCache.AlbumIds.Contains(a.Id))
+                .ToList();
+            if (cached.Count > 0)
+            {
+                _dailyAlbumsCache = cached;
+                return cached;
+            }
+        }
+
+        // 随机选10个
+        var random = new Random();
+        var selected = allAlbums.OrderBy(_ => random.Next()).Take(10).ToList();
+        _dailyAlbumsCache = selected;
+
+        // 保存到磁盘缓存
+        await SaveArtistAlbumIdsToCacheAsync(today,
+            new List<int>(),
+            selected.Select(a => a.Id).ToList());
+
+        return selected;
+    }
+
+    /// <summary>获取所有专辑及歌曲数量（内部方法，不缓存）</summary>
+    private async Task<List<AlbumWithCount>> GetAllAlbumsWithCountInternalAsync()
     {
         await _db.EnsureInitializedAsync();
         var albums = await _db.GetAllAlbumsAsync();
@@ -321,6 +466,8 @@ public class ExploreDataService
     {
         public string Date { get; set; } = "";
         public List<int> Ids { get; set; } = new();
+        public List<int> ArtistIds { get; set; } = new();
+        public List<int> AlbumIds { get; set; } = new();
     }
 }
 

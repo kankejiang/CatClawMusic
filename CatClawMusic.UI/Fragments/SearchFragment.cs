@@ -30,6 +30,8 @@ public class SearchFragment : Fragment
     private PlayQueue? _playQueue;
     private ExploreDataService? _exploreData;
     private NetEaseMusicScraper? _scraper;
+    /// <summary>上次加载探索数据的日期（yyyy-MM-dd），用于每日只刷新一次</summary>
+    private string? _lastExploreLoadDate;
 
     // Explore mode views
     private EditText _searchInput = null!;
@@ -557,6 +559,11 @@ public class SearchFragment : Fragment
         base.OnResume();
         // 确保 _exploreData 已初始化（防止 OnViewCreated 中的 Task.Run 尚未完成）
         _exploreData ??= MainApplication.Services.GetService<ExploreDataService>();
+        var today = DateTime.Today.ToString("yyyy-MM-dd");
+        // 同一天内不重复刷新探索页数据
+        if (_lastExploreLoadDate == today)
+            return;
+        _lastExploreLoadDate = today;
         // 每次回到探索页刷新数据（后台线程执行避免阻塞 UI）
         _ = Task.Run(() => LoadExploreDataAsync());
     }

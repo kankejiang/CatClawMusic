@@ -1,10 +1,27 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.SongDetailPage"
              Title="歌曲详情"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
-    <VerticalStackLayout Padding="24" Spacing="16">
-        <Label Text="歌曲详情" FontSize="24" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}"/>
-        <!-- Page content placeholder -->
-    </VerticalStackLayout>
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+        <Border WidthRequest="220" HeightRequest="220"
+                StrokeThickness="0" StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Center" VerticalOptions="Start"
+                TranslationY="-60" />
+        <Border Margin="16,18,16,22"
+                Style="{StaticResource GlassCardStrongStyle}">
+            <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
+                <Label Text="歌曲详情" Style="{StaticResource PageTitleStyle}" />
+                <Label Text="该功能正在开发中，敬请期待"
+                       Style="{StaticResource PageSubtitleStyle}"
+                       HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+        </Border>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>

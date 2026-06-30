@@ -8,7 +8,10 @@ public class TabIndexToColorConverter : IValueConverter
     {
         var currentIndex = value is int i ? i : -1;
         var targetIndex = parameter is int pi ? pi : int.TryParse(parameter?.ToString(), out var parsed) ? parsed : -1;
-        return currentIndex == targetIndex ? Color.FromArgb("#9B7ED8") : Color.FromArgb("#E0E0E0");
+        var resources = Application.Current?.Resources;
+        var active = resources?["ChipActiveColor"] as Color ?? Color.FromArgb("#8C7BFF");
+        var inactive = resources?["ChipInactiveColor"] as Color ?? Color.FromArgb("#18FFFFFF");
+        return currentIndex == targetIndex ? active : inactive;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

@@ -1,18 +1,298 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
+             xmlns:coreModels="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              x:Class="CatClawMusic.Maui.Pages.RemoteMusicSettingsPage"
              Title="远程音乐服务"
-             BackgroundColor="{DynamicResource PageBackgroundColor}">
-    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="12">
-        <Label Text="🚧 远程音乐服务"
-               FontSize="22"
-               FontAttributes="Bold"
-               TextColor="{DynamicResource TextPrimaryColor}"
-               HorizontalOptions="Center" />
-        <Label Text="该功能正在开发中，敬请期待"
-               FontSize="14"
-               TextColor="{DynamicResource TextHintColor}"
-               HorizontalOptions="Center" />
-    </VerticalStackLayout>
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <ContentPage.Resources>
+        <converters:ProtocolToTextConverter x:Key="ProtocolToText" />
+    </ContentPage.Resources>
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <Border WidthRequest="240" HeightRequest="240"
+                StrokeThickness="0" StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start" VerticalOptions="Start"
+                TranslationX="-130" TranslationY="-70" />
+
+        <Border WidthRequest="180" HeightRequest="180"
+                StrokeThickness="0" StrokeShape="Ellipse"
+                Background="{DynamicResource AccentGlowBrush}"
+                HorizontalOptions="End" VerticalOptions="Start"
+                TranslationX="80" TranslationY="180" />
+
+        <ScrollView>
+            <VerticalStackLayout Padding="16,18,16,22" Spacing="14">
+
+                <!-- Hero Header -->
+                <Border Style="{StaticResource GlassCardStrongStyle}"
+                        Background="{DynamicResource HeroBrush}">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="☁️ 远程音乐服务"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="配置 WebDAV / Navidrome / SMB 连接，从远程音乐库播放歌曲。"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F3F5FF" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 缓存统计卡片 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <Grid Padding="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="缓存歌曲"
+                                   FontSize="15"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding CachedSongCount, StringFormat='已缓存 {0} 首网络歌曲'}"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="清空缓存"
+                                Command="{Binding ClearCacheCommand}"
+                                BackgroundColor="#33FFFFFF"
+                                TextColor="White"
+                                CornerRadius="14"
+                                HeightRequest="36"
+                                FontSize="12"
+                                VerticalOptions="Center"
+                                IsEnabled="{Binding CachedSongCount, Converter={StaticResource IntToBoolConverter}}" />
+                    </Grid>
+                </Border>
+
+                <!-- 连接列表标题 -->
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Label Text="已配置的连接"
+                           Style="{StaticResource SectionTitleStyle}"
+                           Margin="4,4,0,2" />
+                    <Button Grid.Column="1"
+                            Text="+ 新建"
+                            Command="{Binding StartCreateCommand}"
+                            BackgroundColor="{DynamicResource PrimaryColor}"
+                            TextColor="White"
+                            CornerRadius="14"
+                            HeightRequest="34"
+                            Padding="14,0"
+                            FontSize="12" />
+                </Grid>
+
+                <!-- 连接列表 -->
+                <VerticalStackLayout Spacing="10"
+                                     BindableLayout.ItemsSource="{Binding Profiles}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="coreModels:ConnectionProfile">
+                            <Border Style="{StaticResource GlassCardStyle}">
+                                <VerticalStackLayout Spacing="8">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                        <Label Text="🔗" FontSize="18" VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                            <Label Text="{Binding Name}"
+                                                   FontSize="15"
+                                                   FontFamily="OpenSansSemibold"
+                                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                                            <Label Text="{Binding Host, StringFormat='{0}'}"
+                                                   FontSize="11"
+                                                   TextColor="{DynamicResource TextHintColor}" />
+                                        </VerticalStackLayout>
+                                        <Border Grid.Column="2"
+                                                Padding="8,3"
+                                                Stroke="#40FFFFFF"
+                                                StrokeShape="RoundRectangle 10"
+                                                BackgroundColor="#1AFFFFFF"
+                                                VerticalOptions="Center">
+                                            <Label Text="{Binding Protocol, Converter={StaticResource ProtocolToText}}"
+                                                   FontSize="10"
+                                                   TextColor="#B8C7FF" />
+                                        </Border>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="8">
+                                        <Button Grid.Column="0"
+                                                Text="测试"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.TestProfileCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="#33FFFFFF"
+                                                TextColor="White"
+                                                CornerRadius="12"
+                                                HeightRequest="34"
+                                                FontSize="11" />
+                                        <Button Grid.Column="1"
+                                                Text="编辑"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.StartEditCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="#33FFFFFF"
+                                                TextColor="White"
+                                                CornerRadius="12"
+                                                HeightRequest="34"
+                                                FontSize="11" />
+                                        <Button Grid.Column="2"
+                                                Text="删除"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteProfileCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="{DynamicResource ErrorColor}"
+                                                TextColor="White"
+                                                CornerRadius="12"
+                                                HeightRequest="34"
+                                                WidthRequest="60"
+                                                FontSize="11" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <!-- 空状态 -->
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{Binding Profiles.Count, Converter={StaticResource InvertedBoolConverter}}">
+                    <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
+                        <Label Text="📡"
+                               FontSize="34"
+                               HorizontalOptions="Center" />
+                        <Label Text="尚未配置任何连接"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="点击右上角「新建」开始添加 WebDAV / Navidrome / SMB 服务"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextHintColor}"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 编辑/新建表单 -->
+                <Border Style="{StaticResource GlassCardStrongStyle}"
+                        IsVisible="{Binding IsEditing}">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="{Binding FormTitle}"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="名称" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                            <Entry Text="{Binding FormName}"
+                                   Placeholder="我的音乐库"
+                                   BackgroundColor="#22FFFFFF"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   PlaceholderColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="协议" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                            <Picker ItemsSource="{Binding ProtocolOptions}"
+                                    SelectedIndex="{Binding FormProtocolIndex}"
+                                    BackgroundColor="#22FFFFFF"
+                                    TextColor="{DynamicResource TextPrimaryColor}"
+                                    TitleColor="{DynamicResource TextSecondaryColor}" />
+                        </VerticalStackLayout>
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="主机地址" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Entry Text="{Binding FormHost}"
+                                       Placeholder="10.0.0.101 或 example.com"
+                                       Keyboard="Url"
+                                       BackgroundColor="#22FFFFFF"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       PlaceholderColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="4" WidthRequest="100">
+                                <Label Text="端口" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Entry Text="{Binding FormPort}"
+                                       Keyboard="Numeric"
+                                       BackgroundColor="#22FFFFFF"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="用户名" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Entry Text="{Binding FormUserName}"
+                                       BackgroundColor="#22FFFFFF"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       PlaceholderColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="4">
+                                <Label Text="密码" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Entry Text="{Binding FormPassword}"
+                                       IsPassword="True"
+                                       BackgroundColor="#22FFFFFF"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       PlaceholderColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="基础路径" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                            <Entry Text="{Binding FormBasePath}"
+                                   Placeholder="/dav/music"
+                                   BackgroundColor="#22FFFFFF"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   PlaceholderColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <Label Text="使用 HTTPS"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                            <Switch IsToggled="{Binding FormUseHttps}"
+                                    OnColor="{DynamicResource PrimaryColor}"
+                                    VerticalOptions="Center" />
+                        </Grid>
+
+                        <!-- SMB 专用字段 -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10"
+                              IsVisible="{Binding IsSmbForm}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="SMB 共享名" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Entry Text="{Binding FormShareName}"
+                                       BackgroundColor="#22FFFFFF"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       PlaceholderColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="4">
+                                <Label Text="域名（可选）" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Entry Text="{Binding FormDomainName}"
+                                       BackgroundColor="#22FFFFFF"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       PlaceholderColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,4,0,0">
+                            <Button Grid.Column="0"
+                                    Text="取消"
+                                    Command="{Binding CancelEditCommand}"
+                                    BackgroundColor="#33FFFFFF"
+                                    TextColor="White"
+                                    CornerRadius="16"
+                                    HeightRequest="42"
+                                    FontSize="13" />
+                            <Button Grid.Column="1"
+                                    Text="保存"
+                                    Command="{Binding SaveProfileCommand}"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    TextColor="White"
+                                    CornerRadius="16"
+                                    HeightRequest="42"
+                                    FontSize="13" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+            <controls:BackButton Margin="16,16,0,0"
+                             VerticalOptions="Start"
+                             HorizontalOptions="Start"
+                             ZIndex="100" />
+</Grid>
 </ContentPage>
