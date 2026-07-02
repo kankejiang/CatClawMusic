@@ -64,8 +64,7 @@ public partial class LibraryPage : ContentPage
                 await _audioPlayer.PlayAsync(song.FilePath);
             }
 
-            // Navigate to now playing page
-            await Shell.Current.GoToAsync("//nowplaying");
+            // 不再跳转播放页，迷你播放器会自动弹出
         }
         catch (Exception ex)
         {

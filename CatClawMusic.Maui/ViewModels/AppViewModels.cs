@@ -119,11 +119,19 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private void OnPlaybackStateChanged(object? sender, bool isPlaying)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
+        MainThread.BeginInvokeOnMainThread(async () =>
         {
             IsPlaying = isPlaying;
             PlayPauseIcon = isPlaying ? "\u23f8" : "\u25b6"; // ⏸ or ▶
             PlayPauseIconSource = isPlaying ? "ic_pause" : "ic_play";
+
+            // 检测队列当前歌曲是否变化（外部页面播放时触发）
+            // 此时 _loadedSongId 还是旧值，需要加载新歌信息更新迷你播放器
+            var queueSong = _queue.CurrentSong;
+            if (isPlaying && queueSong != null && queueSong.Id != _loadedSongId)
+            {
+                await LoadCurrentSongAsync(autoPlay: false);
+            }
         });
     }
 
@@ -261,7 +269,7 @@ public partial class NowPlayingViewModel : ObservableObject
 
     // === Load Song (called when page appears or song changes) ===
 
-    public async Task LoadCurrentSongAsync()
+    public async Task LoadCurrentSongAsync(bool autoPlay = true)
     {
         var song = _queue.CurrentSong;
 
@@ -360,9 +368,9 @@ public partial class NowPlayingViewModel : ObservableObject
         // Update upcoming songs
         RefreshUpcomingSongs();
 
-        if (!isSameSong)
+        if (!isSameSong && autoPlay)
         {
-            // 换歌时才（重新）开始播放
+            // 换歌时且允许自动播放才启动播放
             if (!string.IsNullOrEmpty(song.FilePath))
             {
                 try
@@ -378,6 +386,25 @@ public partial class NowPlayingViewModel : ObservableObject
             }
 
             // 换歌时重新加载封面和歌词
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(
+                        LoadCoverAsync(song, ct),
+                        LoadLyricsAsync(song, ct)
+                    );
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Load cover/lyrics error: {ex.Message}");
+                }
+            }, ct);
+        }
+        else if (!isSameSong && !autoPlay)
+        {
+            // 首次加载不自动播放，但加载封面和歌词
             _ = Task.Run(async () =>
             {
                 try

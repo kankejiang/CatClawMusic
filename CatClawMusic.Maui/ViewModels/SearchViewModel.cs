@@ -162,6 +162,42 @@ public partial class SearchViewModel : ObservableObject
         var savedDate = Preferences.Default.Get("explore_last_load_date", "");
         var isSameDay = savedDate == today;
 
+        // 同一天且已有数据：只跳过每日推荐生成，但仍刷新常听/最近添加（这些数据会随播放变化）
+        if (isSameDay && _allDailyRecommendSongs.Count > 0)
+        {
+            try
+            {
+                IsLoading = true;
+                var topPlayedTask = _exploreDataService.GetTopPlayedSongsAsync(20);
+                var recentTask = _exploreDataService.GetRecentlyAddedSongsAsync(20);
+                await Task.WhenAll(topPlayedTask, recentTask);
+
+                _allTopPlayedSongs = topPlayedTask.Result;
+                _allRecentAddedSongs = recentTask.Result;
+
+                var artistsTask = _exploreDataService.GetArtistsWithSongCountAsync();
+                var albumsTask = _exploreDataService.GetAlbumsWithSongCountAsync();
+                await Task.WhenAll(artistsTask, albumsTask);
+
+                _allArtists = artistsTask.Result.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = FirstNonEmpty(a.SampleCoverPath, a.Cover) }).ToList();
+                _allAlbums = albumsTask.Result.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover) }).ToList();
+
+                // 批量解析新加载歌曲的封面
+                var newSongs = _allTopPlayedSongs.Concat(_allRecentAddedSongs).ToList();
+                if (newSongs.Count > 0)
+                    await Task.Run(() => Services.CoverHelper.BatchResolveCovers(newSongs));
+
+                ApplyFilters();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadDataAsync(refresh) failed: {ex.Message}");
+            }
+            finally { IsLoading = false; }
+            return;
+        }
+
+
         try
         {
             IsLoading = true;
@@ -175,16 +211,6 @@ public partial class SearchViewModel : ObservableObject
             await Task.WhenAll(dailyTask, artistsTask, albumsTask, topPlayedTask, recentTask);
 
             _allDailyRecommendSongs = dailyTask.Result;
-
-            // 同一天且已有数据：跳过封面解析和英雄卡，只刷新列表
-            if (isSameDay && _allDailyRecommendSongs.Count > 0)
-            {
-                _allArtists = artistsTask.Result.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = FirstNonEmpty(a.SampleCoverPath, a.Cover) }).ToList();
-                _allAlbums = albumsTask.Result.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover) }).ToList();
-                ApplyFilters();
-                return;
-            }
-
             _allArtists = artistsTask.Result
                 .Select(a => new SearchArtistItem
                 {

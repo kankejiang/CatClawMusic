@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.MainPage"
+             Title="猫爪音乐"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid RowDefinitions="*,Auto,Auto">
+
+        <!-- ViewPager 区域：所有 tab 页面水平排列，滑动时同时移动 -->
+        <Grid x:Name="ViewPagerGrid" Grid.Row="0"
+              BackgroundColor="{DynamicResource WindowBackgroundColor}">
+            <Grid.GestureRecognizers>
+                <PanGestureRecognizer PanUpdated="OnPanUpdated" />
+            </Grid.GestureRecognizers>
+        </Grid>
+
+        <!-- 迷你播放器：封面 + 歌曲信息 + 上一曲/播放暂停/下一曲 -->
+        <Grid Grid.Row="1" x:Name="MiniPlayer"
+              ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+              ColumnSpacing="10"
+              Padding="10,6"
+              HeightRequest="52"
+              BackgroundColor="{DynamicResource CardBackgroundColor}"
+              IsVisible="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnMiniPlayerTapped" />
+            </Grid.GestureRecognizers>
+
+            <!-- 封面 -->
+            <Border Grid.Column="0"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8"
+                    WidthRequest="40" HeightRequest="40"
+                    BackgroundColor="{DynamicResource ChipInactiveColor}">
+                <Image Source="{Binding CoverImage}"
+                       Aspect="AspectFill" />
+            </Border>
+
+            <!-- 歌曲标题/艺术家 -->
+            <VerticalStackLayout Grid.Column="1"
+                                 Spacing="1"
+                                 VerticalOptions="Center">
+                <Label Text="{Binding Title}"
+                       FontSize="13"
+                       FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource TextPrimaryColor}"
+                       MaxLines="1"
+                       LineBreakMode="TailTruncation" />
+                <Label Text="{Binding Artist}"
+                       FontSize="11"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       MaxLines="1"
+                       LineBreakMode="TailTruncation" />
+            </VerticalStackLayout>
+
+            <!-- 上一曲 -->
+            <Border Grid.Column="2"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 14"
+                    Background="{DynamicResource PrimaryGlowBrush}"
+                    WidthRequest="28" HeightRequest="28"
+                    VerticalOptions="Center">
+                <ImageButton Source="ic_skip_previous"
+                             WidthRequest="18" HeightRequest="18"
+                             BackgroundColor="Transparent"
+                             Command="{Binding PlayPreviousCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+
+            <!-- 播放/暂停：主题色圆形背景 + 白色图标 -->
+            <Border Grid.Column="3"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 18"
+                    Background="{DynamicResource HeroBrush}"
+                    WidthRequest="36" HeightRequest="36"
+                    VerticalOptions="Center">
+                <ImageButton Source="{Binding PlayPauseIconSource}"
+                             WidthRequest="22" HeightRequest="22"
+                             BackgroundColor="Transparent"
+                             Command="{Binding TogglePlayPauseCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+
+            <!-- 下一曲 -->
+            <Border Grid.Column="4"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 14"
+                    Background="{DynamicResource PrimaryGlowBrush}"
+                    WidthRequest="28" HeightRequest="28"
+                    VerticalOptions="Center">
+                <ImageButton Source="ic_skip_next"
+                             WidthRequest="18" HeightRequest="18"
+                             BackgroundColor="Transparent"
+                             Command="{Binding PlayNextCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+        </Grid>
+
+        <!-- 自定义底部 TabBar -->
+        <Grid Grid.Row="2" x:Name="TabBar"
+              ColumnDefinitions="*,*,*,*,*"
+              HeightRequest="56"
+              BackgroundColor="{DynamicResource TabBarBackgroundColor}">
+
+            <VerticalStackLayout Grid.Column="0" Spacing="2" Padding="0,6,0,4"
+                                 HorizontalOptions="Center" x:Name="TabItem0">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabTapped" />
+                </VerticalStackLayout.GestureRecognizers>
+                <Image Source="ic_play" WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon0" />
+                <Label Text="播放" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Grid.Column="1" Spacing="2" Padding="0,6,0,4"
+                                 HorizontalOptions="Center" x:Name="TabItem1">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabTapped" />
+                </VerticalStackLayout.GestureRecognizers>
+                <Image Source="ic_home" WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon1" />
+                <Label Text="发现" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Grid.Column="2" Spacing="2" Padding="0,6,0,4"
+                                 HorizontalOptions="Center" x:Name="TabItem2">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabTapped" />
+                </VerticalStackLayout.GestureRecognizers>
+                <Image Source="ic_library" WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon2" />
+                <Label Text="歌单" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Grid.Column="3" Spacing="2" Padding="0,6,0,4"
+                                 HorizontalOptions="Center" x:Name="TabItem3">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabTapped" />
+                </VerticalStackLayout.GestureRecognizers>
+                <Image Source="ic_library" WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon3" />
+                <Label Text="音乐库" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Grid.Column="4" Spacing="2" Padding="0,6,0,4"
+                                 HorizontalOptions="Center" x:Name="TabItem4">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabTapped" />
+                </VerticalStackLayout.GestureRecognizers>
+                <Image Source="ic_settings" WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon4" />
+                <Label Text="设置" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel4" />
+            </VerticalStackLayout>
+        </Grid>
+    </Grid>
+</ContentPage>

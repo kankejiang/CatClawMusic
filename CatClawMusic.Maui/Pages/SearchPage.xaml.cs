@@ -222,7 +222,7 @@ public partial class SearchPage : ContentPage
                 await _audioPlayer.PlayAsync(song.FilePath);
             }
 
-            await Shell.Current.GoToAsync("//nowplaying");
+            // 不再跳转播放页，迷你播放器会自动弹出
         }
         catch (Exception ex)
         {

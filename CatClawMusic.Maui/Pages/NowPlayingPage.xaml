@@ -89,19 +89,31 @@
               HeightRequest="64"
               Margin="0,4,0,0">
             <!-- Play Mode -->
-            <ImageButton Grid.Column="0"
-                         Source="{Binding PlayModeIconSource}"
-                         WidthRequest="32" HeightRequest="32"
-                         BackgroundColor="Transparent"
-                         Command="{Binding CyclePlayModeCommand}"
-                         HorizontalOptions="Center" VerticalOptions="Center" />
+            <Border Grid.Column="0"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 16"
+                    Background="{DynamicResource PrimaryGlowBrush}"
+                    WidthRequest="32" HeightRequest="32"
+                    HorizontalOptions="Center" VerticalOptions="Center">
+                <ImageButton Source="{Binding PlayModeIconSource}"
+                             WidthRequest="20" HeightRequest="20"
+                             BackgroundColor="Transparent"
+                             Command="{Binding CyclePlayModeCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
             <!-- Previous -->
-            <ImageButton Grid.Column="1"
-                         Source="ic_skip_previous"
-                         WidthRequest="40" HeightRequest="40"
-                         BackgroundColor="Transparent"
-                         Command="{Binding PlayPreviousCommand}"
-                         HorizontalOptions="Center" VerticalOptions="Center" />
+            <Border Grid.Column="1"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 20"
+                    Background="{DynamicResource PrimaryGlowBrush}"
+                    WidthRequest="40" HeightRequest="40"
+                    HorizontalOptions="Center" VerticalOptions="Center">
+                <ImageButton Source="ic_skip_previous"
+                             WidthRequest="24" HeightRequest="24"
+                             BackgroundColor="Transparent"
+                             Command="{Binding PlayPreviousCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
             <!-- Play/Pause -->
             <Border Grid.Column="2"
                     StrokeThickness="0"
@@ -116,19 +128,31 @@
                              HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
             <!-- Next -->
-            <ImageButton Grid.Column="3"
-                         Source="ic_skip_next"
-                         WidthRequest="40" HeightRequest="40"
-                         BackgroundColor="Transparent"
-                         Command="{Binding PlayNextCommand}"
-                         HorizontalOptions="Center" VerticalOptions="Center" />
+            <Border Grid.Column="3"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 20"
+                    Background="{DynamicResource PrimaryGlowBrush}"
+                    WidthRequest="40" HeightRequest="40"
+                    HorizontalOptions="Center" VerticalOptions="Center">
+                <ImageButton Source="ic_skip_next"
+                             WidthRequest="24" HeightRequest="24"
+                             BackgroundColor="Transparent"
+                             Command="{Binding PlayNextCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
             <!-- Like -->
-            <ImageButton Grid.Column="4"
-                         Source="{Binding LikeIconSource}"
-                         WidthRequest="32" HeightRequest="32"
-                         BackgroundColor="Transparent"
-                         Command="{Binding ToggleLikeCommand}"
-                         HorizontalOptions="Center" VerticalOptions="Center" />
+            <Border Grid.Column="4"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 16"
+                    Background="{DynamicResource AccentGlowBrush}"
+                    WidthRequest="32" HeightRequest="32"
+                    HorizontalOptions="Center" VerticalOptions="Center">
+                <ImageButton Source="{Binding LikeIconSource}"
+                             WidthRequest="20" HeightRequest="20"
+                             BackgroundColor="Transparent"
+                             Command="{Binding ToggleLikeCommand}"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
         </Grid>
 
     </Grid>

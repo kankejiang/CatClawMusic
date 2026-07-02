@@ -10,10 +10,10 @@ public partial class AboutViewModel : ObservableObject
     private readonly IDialogService? _dialogService;
 
     [ObservableProperty]
-    private string _version = "v1.5.3";
+    private string _version = "v1.6.0";
 
     [ObservableProperty]
-    private string _copyright = "© 2024 CatClawMusic. All rights reserved.";
+    private string _copyright = "© 2024-2026 CatClawMusic. All rights reserved.";
 
     [ObservableProperty]
     private bool _isCheckingUpdate = false;

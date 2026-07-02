@@ -40,6 +40,18 @@
                                FontSize="14"
                                TextColor="{DynamicResource TextSecondaryColor}"
                                HorizontalOptions="Center" />
+                        <!-- 技术栈徽章：突出 .NET MAUI 重构 -->
+                        <Border StrokeThickness="0"
+                                StrokeShape="RoundRectangle 14"
+                                Background="{DynamicResource HeroBrush}"
+                                Padding="14,5"
+                                HorizontalOptions="Center">
+                            <Label Text=".NET MAUI Edition"
+                                   FontSize="11"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="White"
+                                   HorizontalOptions="Center" />
+                        </Border>
                     </VerticalStackLayout>
                 </Border>
 

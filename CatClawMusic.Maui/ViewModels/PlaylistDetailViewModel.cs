@@ -82,6 +82,14 @@ public partial class PlaylistDetailViewModel : ObservableObject
             foreach (var s in _allSongsRaw)
                 Songs.Add(s);
 
+            // 同步更新 Playlist 对象，让顶部"共 X 首歌曲"显示正确
+            Playlist = new Playlist
+            {
+                Id = playlistId,
+                Name = name,
+                SongCount = Songs.Count
+            };
+
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         }
         catch (Exception ex)
