@@ -36,8 +36,6 @@ public partial class PlaylistDetailPage : ContentPage
         InitializeComponent();
         _viewModel = viewModel;
         BindingContext = viewModel;
-
-        _viewModel.SongPlayRequested += OnSongPlayRequested;
     }
 
     private async Task LoadPlaylistIfReady()
@@ -52,10 +50,5 @@ public partial class PlaylistDetailPage : ContentPage
         {
             await _viewModel.PlaySongCommand.ExecuteAsync(song);
         }
-    }
-
-    private async void OnSongPlayRequested(Song song)
-    {
-        await Shell.Current.GoToAsync("//nowplaying");
     }
 }

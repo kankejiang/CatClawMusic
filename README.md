@@ -1,13 +1,13 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
-> 萌系 Android 音乐播放器，.NET 10 + C# 13 (preview) 原生开发。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、SMB/CIFS 协议、桌面悬浮歌词（可拖拽/锁定/双行KTV）、逐字歌词渐变高亮、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏5按钮媒体控制（HyperOS/MIUI适配）、权限统一管理、自定义启动页（API/本地图片）、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题、AI 对话式搜索、音效均衡器（12种预设）、备份恢复、艺术家元数据爬虫、插件体系。
+> 萌系 Android 音乐播放器，.NET 10 + C# 13 原生开发（MAUI）。支持本地音乐、Navidrome/Subsonic 网络音乐、WebDAV 远程文件、SMB/CIFS 协议、桌面悬浮歌词（可拖拽/锁定/双行KTV）、逐字歌词渐变高亮、全屏歌词体验、音频频谱可视化、睡眠定时、通知栏5按钮媒体控制（HyperOS/MIUI适配）、权限统一管理、自定义启动页（API/本地图片）、播放状态自动保存与恢复、MediaStore 极速封面加载、动态流光背景、封面取色主题、AI 对话式搜索、音效均衡器（12种预设）、备份恢复、艺术家元数据爬虫、插件体系。
 
 <div align="center">
 
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-13.0-blue)
-![版本](https://img.shields.io/badge/版本-1.5.1-red)
+![版本](https://img.shields.io/badge/版本-1.5.3-red)
 ![最低版本](https://img.shields.io/badge/最低版本-Android%2012%20(API%2031)-orange)
 ![协议](https://img.shields.io/badge/协议-MIT-yellow)
 
@@ -101,48 +101,30 @@ CatClawMusic/
 │   ├── MultiSourcePhotoScraper.cs # QQ音乐等多源图片爬虫
 │   └── IArtistMetadataScraper.cs # 爬虫接口 + ArtistSearchResult
 │
-└── CatClawMusic.UI/            # UI 层（Android 原生界面）
-    ├── MainApplication.cs       # DI 容器 / 全局初始化
-    ├── MainActivity.cs          # ViewPager2 + BottomNav + 侧滑面板 + 迷你播放器
-    ├── Fragments/               # 32 个 Fragment + 1 个抽象基类
-    │   ├── SettingsFragment.cs          # 设置主页（主题/深浅色/权限/启动页入口）
-    │   ├── PermissionManagementFragment # 权限统一管理（通知/悬浮窗/麦克风/照片/音频/存储）
-    │   ├── SplashSettingsFragment      # 启动页设置（自定义API/本地图片/缓存清除）
-    │   ├── LocalMusicSettingsFragment   # 本地音乐设置（文件夹/扫描）
-    │   ├── DesktopLyricFragment         # 桌面歌词设置
-    │   ├── GeneralSettingsFragment      # 省电策略/背景动画
-    │   ├── NowPlayingFragment           # 播放页（集成 Vertical ViewPager2 切歌详情）
-    │   ├── FullLyricsFragment           # 全屏歌词页
-    │   ├── LandscapeNowPlayingFragment  # 横屏播放页
-    │   ├── HomeFragment                 # 首页 / 探索（AI 对话 + 每日推荐）
-    │   ├── SearchFragment               # 搜索页
-    │   ├── LibraryFragment              # 音乐库浏览
-    │   ├── AlbumDetailFragment          # 专辑详情
-    │   ├── ArtistDetailFragment         # 艺术家详情
-    │   ├── PlaylistFragment             # 播放列表
-    │   ├── PlaylistDetailFragment       # 播放列表详情
-    │   ├── SongDetailBottomSheet        # 歌曲详情底部弹出
-    │   ├── ArtistMatchFragment          # 艺术家元数据匹配
-    │   ├── ArtistMatchDetailFragment    # 艺术家匹配详情
-    │   ├── ModelManagerFragment         # AI 模型管理
-    │   ├── ModelEditFragment            # AI 模型编辑
-    │   ├── AiSettingsFragment           # AI 设置
-    │   ├── BackupRestoreFragment        # 备份恢复
-    │   ├── PluginManagementFragment     # 插件管理
-    │   ├── RemoteMusicFragment          # 远程音乐设置入口
-    │   ├── NavidromeSettingsFragment    # Navidrome 设置
-    │   ├── WebDavSettingsFragment       # WebDAV 设置
-    │   ├── SmbSettingsFragment          # SMB 设置
-    │   ├── MusicFolderSettingsFragment  # 音乐文件夹设置
-    │   ├── AppearanceSettingsFragment   # 外观设置
-    │   ├── FolderBrowserFragment        # 文件夹浏览器
-    │   ├── AboutFragment                # 关于页面
-    │   └── SettingsSubPageFragment      # 设置子页抽象基类
-    ├── Adapters/                # 13 个 RecyclerView 适配器
-    └── Helpers/                 # 19 个自定义视图和工具类
+└── CatClawMusic.Maui/          # UI 层（.NET MAUI 跨平台界面）
+    ├── AppShell.xaml           # Shell 导航结构
+    ├── Pages/                  # 30+ 个页面（ContentPage）
+    │   ├── SearchPage.xaml             # 发现页（AI 对话 + 每日推荐）
+    │   ├── LibraryPage.xaml            # 音乐库浏览
+    │   ├── NowPlayingPage.xaml         # 播放页
+    │   ├── AlbumDetailPage.xaml        # 专辑详情
+    │   ├── ArtistDetailPage.xaml       # 艺术家详情
+    │   ├── SettingsPage.xaml           # 设置主页
+    │   ├── AiSettingsPage.xaml        # AI 设置
+    │   ├── PermissionManagementPage.xaml # 权限管理
+    │   ├── RemoteMusicSettingsPage.xaml # 远程音乐服务设置
+    │   ├── PluginManagementPage.xaml  # 插件管理
+    │   └── ...                        # 其他页面
+    ├── ViewModels/             # MVVM ViewModel（CommunityToolkit.Mvvm）
+    ├── Controls/               # 自定义控件（BackButton 等）
+    ├── Converters/             # 值转换器
+    ├── Platforms/Android/      # Android 平台特定代码
+    │   ├── AudioPlayerService.Android.cs  # ExoPlayer 实现
+    │   └── SafeContentScanner.cs         # SAF 扫描器（支持封面提取）
+    └── Resources/              # 资源文件（样式/图片/字体）
 ```
 
-**技术栈**：.NET 10 | C# 13 (preview) | AndroidX Media3 ExoPlayer 1.10.1 | CommunityToolkit.Mvvm 8.4.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | SMBLibrary 1.5.2 | Material 3 | Android Visualizer API | NativeAOT (Mono AOT) | Microsoft.Extensions.DI 9.0
+**技术栈**：.NET 10 | C# 13 | MAUI 10.0.20 | AndroidX Media3 ExoPlayer 1.10.1 | CommunityToolkit.Mvvm 8.4.2 | TagLibSharp 2.3.0 | SQLite (sqlite-net-pcl) | SMBLibrary 1.5.2 | Material 3 | Android Visualizer API | NativeAOT (Mono AOT) | Microsoft.Extensions.DI 9.0
 
 ***
 
@@ -163,6 +145,7 @@ CatClawMusic/
 | 增量式扫描 | 每 20 首一批回调入库 + 列表实时刷新，进度条动画 |
 | MediaStore 极速封面 | LruCache → 磁盘缓存 → MediaStore LoadThumbnail(Q+) → TagLib/网络 |
 | 封面懒加载 | 滚动到可见时加载，ConcurrentDictionary 去重 + SemaphoreSlim(4) 限流 |
+| **SAF 封面提取** | **扫描时直接通过 MediaMetadataRetriever 提取嵌入封面，支持 content:// URI** |
 
 ### ▶️ 音频播放 (ExoPlayer)
 
@@ -178,6 +161,7 @@ CatClawMusic/
 | 播放状态持久化 | 每 ~5 秒自动保存位置/模式，启动时同步恢复 |
 | 音频频谱可视化 | Android Visualizer API + FFT，64 频段实时跳动 |
 | 睡眠定时 | 10/20/30/45/60/90 分钟 + 自定义时间倒计时，可选播完再停 |
+| **进度条修复** | **通过 ExoPlayer IPlayerListener 准确跟踪播放状态，避免进度条卡死** |
 
 ### 🎛️ 音效系统
 
@@ -256,6 +240,7 @@ CatClawMusic/
 | 封面取色主题 | MaterialYouPalette HSV 色调映射，封面主色驱动播放页配色 |
 | 封面切换动画 | 缩小到 92% + 淡出 → 500ms Overshoot 弹回 + 淡入 |
 | 毛玻璃风格卡片 | CatClawCard / CatClawCardSmall / CatClawCardImage |
+| **全局导航栏隐藏** | **所有页面默认隐藏顶部导航栏，二级页面添加返回按钮** |
 
 ### ☁️ 网络协议
 
@@ -308,6 +293,7 @@ CatClawMusic/
 | 故障转移 | 主模型失败时自动回退到启用 Fallback 的备选模型 |
 | 向导式添加 | 4 步骤：选择服务商 → 输入 key → 选择模型 → 完成/启用 |
 | 流式文本 | LLM 客户端支持 GZip/Deflate 自动解压 |
+| **设置页完善** | **AI 设置/权限管理/远程音乐服务/插件管理 4 个占位页已全部转正为真实功能页** |
 
 ### 🔌 插件体系
 
@@ -353,6 +339,31 @@ CatClawMusic/
 | 缓存机制 | 网络图片自动缓存，下次启动秒开 |
 | 预览功能 | 设置页内实时预览当前启动页效果 |
 | 初始化等待 | 启动页等待数据库初始化 + 播放状态恢复完成后才跳转 |
+
+***
+
+## 📝 更新日志
+
+### v1.5.3 (2026-07-01)
+
+#### 🐛 问题修复
+- **修复封面不显示**：SAF 扫描的歌曲 FilePath 是 content:// URI，原逻辑跳过导致封面无法提取。现在扫描时通过 MediaMetadataRetriever 直接提取嵌入封面并缓存
+- **修复进度条不动**：通过 ExoPlayer IPlayerListener 准确跟踪播放状态（OnPlaybackStateChanged/OnIsPlayingChanged），避免依赖 .NET 绑定的 IsPlaying 属性；进度定时器改为每 500ms 始终更新，不再依赖 IsPlaying
+- **修复 MAUI 构建错误**：修复多处 Android 平台特定代码的命名冲突（File/Uri/MediaMetadataRetriever）
+
+#### ✨ 新功能
+- **设置页完善**：AI 设置/权限管理/远程音乐服务/插件管理 4 个占位页全部转正为真实功能页
+  - AI 设置页：支持 8 个提供商配置、测试连通性、保存/重置
+  - 权限管理页：4 类权限状态展示、一键去授权、打开系统设置
+  - 远程音乐服务页：连接列表 CRUD、测试连通性、缓存统计
+  - 插件管理页：插件列表、启用切换、分类展示
+- **全局导航优化**：隐藏所有页面顶部导航栏，二级页面添加返回按钮
+- **封面提取优化**：SafeContentScanner 扫描时直接提取嵌入封面，避免后续重复提取
+
+#### 🔧 技术改进
+- 项目结构从 CatClawMusic.UI (Xamarin) 迁移到 CatClawMusic.Maui (MAUI)
+- 使用 CommunityToolkit.Mvvm 实现 MVVM 模式
+- 添加 BackButton 公共控件，批量注入到 25 个二级页面
 
 ***
 

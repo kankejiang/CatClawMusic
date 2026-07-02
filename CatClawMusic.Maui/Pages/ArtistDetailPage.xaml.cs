@@ -18,8 +18,6 @@ public partial class ArtistDetailPage : ContentPage
         InitializeComponent();
         _viewModel = viewModel;
         BindingContext = viewModel;
-
-        _viewModel.SongPlayRequested += OnSongPlayRequested;
     }
 
     private async void OnAlbumSelected(object? sender, SelectionChangedEventArgs e)
@@ -45,10 +43,5 @@ public partial class ArtistDetailPage : ContentPage
             }
             await _viewModel.PlaySongCommand.ExecuteAsync(song);
         }
-    }
-
-    private async void OnSongPlayRequested(Song song)
-    {
-        await Shell.Current.GoToAsync("//nowplaying");
     }
 }

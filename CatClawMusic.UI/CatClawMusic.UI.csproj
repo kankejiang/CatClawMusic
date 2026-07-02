@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-android</TargetFramework>
-    <!-- 关键修复：禁用 .NET 10 默认的 MarshalMethods，避免 UnsatisfiedLinkError -->
+    <TargetFramework>net11.0-android</TargetFramework>
+    <!-- 关键修复：禁用默认的 MarshalMethods，避免 UnsatisfiedLinkError -->
     <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
     <OutputType>Exe</OutputType>
     <RootNamespace>CatClawMusic.UI</RootNamespace>

@@ -30,6 +30,10 @@ public class ForegroundPlayerService : Service
     private string _artist = "";
     private bool _isPlaying = false;
 
+    // 静态预存：Start() 调用时保存，OnStartCommand 立即用它们构建首条通知
+    private static string? _pendingTitle;
+    private static string? _pendingArtist;
+
     // 用于从外部（AudioPlayerService）触发 UI 更新
     public static event Action<string, string, bool>? OnUpdateRequested;
 
@@ -37,11 +41,29 @@ public class ForegroundPlayerService : Service
     {
         base.OnCreate();
         _instance = this;
+        // 应用 Start() 时预存的歌曲信息，让 OnStartCommand 首次 BuildNotification 能拿到正确标题
+        if (!string.IsNullOrEmpty(_pendingTitle))
+        {
+            _title = _pendingTitle!;
+            _artist = _pendingArtist ?? "";
+        }
         CreateNotificationChannel();
     }
 
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
+        // 关键：必须在 OnStartCommand 首行立即调用 StartForeground()，
+        // 否则 Android 14+ (target SDK 34+) 会在 5 秒后静默杀死进程（exit code 0）。
+        // 即使标题/ artist 还没传来，也要先用默认通知启动前台服务。
+        try
+        {
+            StartForeground(NotificationId, BuildNotification());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[FGService] StartForeground failed: {ex.Message}");
+        }
+
         if (intent?.Action != null)
         {
             switch (intent.Action)
@@ -79,6 +101,10 @@ public class ForegroundPlayerService : Service
     /// <summary>显示通知并启动前台服务</summary>
     public static void Start(global::Android.Content.Context context, string title, string artist)
     {
+        // 预存标题/artist，OnStartCommand 会立即用它们构建通知并调用 StartForeground()
+        _pendingTitle = title;
+        _pendingArtist = artist;
+
         var intent = new Intent(context, typeof(ForegroundPlayerService));
         if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
         {
@@ -89,11 +115,7 @@ public class ForegroundPlayerService : Service
             context.StartService(intent);
         }
 
-        // 延迟更新通知（等 Service 创建完成）
-        _ = Task.Delay(200).ContinueWith(_ =>
-        {
-            Instance?.UpdateNotification(title, artist, false);
-        }, TaskScheduler.Default);
+        // OnStartCommand 已会立即调用 StartForeground()，无需再延迟更新通知
     }
 
     /// <summary>停止前台服务</summary>
