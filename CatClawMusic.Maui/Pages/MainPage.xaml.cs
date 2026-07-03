@@ -392,20 +392,39 @@ public partial class MainPage : ContentPage
         _ = AnimateToPage(1);
     }
 
+    private static readonly string[] DarkIconSources = { "ic_play", "ic_home", "ic_playlist", "ic_library", "ic_settings" };
+
     /// <summary>更新 TabBar 选中状态（Tab 0-4 对应 ViewPager index 1-5）</summary>
     private void UpdateTabBarSelection()
     {
-        var activeColor = (Color)Application.Current!.Resources["TabActiveColor"];
+        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
         var inactiveColor = (Color)Application.Current!.Resources["TabInactiveColor"];
 
         var labels = new[] { TabLabel0, TabLabel1, TabLabel2, TabLabel3, TabLabel4 };
         var icons = new[] { TabIcon0, TabIcon1, TabIcon2, TabIcon3, TabIcon4 };
+        var bgs = new[] { TabBg0, TabBg1, TabBg2, TabBg3, TabBg4 };
 
         for (int i = 0; i < 5; i++)
         {
             var isActive = (i + 1) == _currentIndex;
-            labels[i].TextColor = isActive ? activeColor : inactiveColor;
-            icons[i].Opacity = isActive ? 1.0 : 0.6;
+            labels[i].TextColor = isActive ? primaryColor : inactiveColor;
+            bgs[i].Opacity = isActive ? 1.0 : 0.0;
+
+            if (isActive)
+            {
+                icons[i].Source = DarkIconSources[i];
+                icons[i].Scale = 1.1;
+            }
+            else
+            {
+                icons[i].Scale = 1.0;
+                AppThemeBinding lightDarkBinding = new()
+                {
+                    Light = $"{DarkIconSources[i]}_light",
+                    Dark = DarkIconSources[i]
+                };
+                icons[i].SetValue(Image.SourceProperty, lightDarkBinding);
+            }
         }
     }
 

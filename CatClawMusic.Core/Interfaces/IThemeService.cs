@@ -43,7 +43,12 @@ public enum AppTheme
     Pink = 1,
     Blue = 2,
     Green = 3,
-    Orange = 4
+    Orange = 4,
+    Red = 5,
+    Teal = 6,
+    Yellow = 7,
+    Indigo = 8,
+    Cyan = 9
 }
 
 /// <summary>

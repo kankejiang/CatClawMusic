@@ -8,7 +8,7 @@ using System.IO;
 namespace CatClawMusic.Maui.Services;
 
 /// <summary>
-/// MAUI 主题管理服务，支持 5 种颜色主题和明/暗/跟随系统三种模式。
+/// MAUI 主题管理服务，支持 10 种颜色主题和明/暗/跟随系统三种模式。
 /// 通过 MAUI ResourceDictionary 动态切换主题色。
 /// </summary>
 public class ThemeService : IThemeService
@@ -23,14 +23,19 @@ public class ThemeService : IThemeService
     private string? _customBackgroundPath;
     private double _customBackgroundOpacity = 0.5;
 
-    /// <summary>主题色定义（对应 5 主题：紫、粉、蓝、绿、橙）</summary>
+    /// <summary>主题色定义（10种主题：紫、粉、蓝、绿、橙、红、青、黄、靛蓝、青蓝）</summary>
     private static readonly Dictionary<CoreAppTheme, ThemeColors> ThemeMap = new()
     {
-        [CoreAppTheme.Purple] = new ThemeColors("#9B7ED8", "#E8E0FF", "#B8A9FF"),
-        [CoreAppTheme.Pink] = new ThemeColors("#EC407A", "#FFE0EB", "#F48FB1"),
-        [CoreAppTheme.Blue] = new ThemeColors("#42A5F5", "#D6E8FF", "#90CAF9"),
-        [CoreAppTheme.Green] = new ThemeColors("#66BB6A", "#D6F5D8", "#A5D6A7"),
-        [CoreAppTheme.Orange] = new ThemeColors("#FF7043", "#FFE0D6", "#FFAB91"),
+        [CoreAppTheme.Purple] = new ThemeColors("#9B7ED8", "#E8E0FF", "#7C5DCE"),
+        [CoreAppTheme.Pink] = new ThemeColors("#EC407A", "#FFE0EB", "#D81B60"),
+        [CoreAppTheme.Blue] = new ThemeColors("#42A5F5", "#D6E8FF", "#1E88E5"),
+        [CoreAppTheme.Green] = new ThemeColors("#66BB6A", "#D6F5D8", "#43A047"),
+        [CoreAppTheme.Orange] = new ThemeColors("#FF7043", "#FFE0D6", "#F4511E"),
+        [CoreAppTheme.Red] = new ThemeColors("#EF5350", "#FFE0E0", "#E53935"),
+        [CoreAppTheme.Teal] = new ThemeColors("#26A69A", "#D6F5F0", "#00897B"),
+        [CoreAppTheme.Yellow] = new ThemeColors("#FFC107", "#FFF8D6", "#FFB300"),
+        [CoreAppTheme.Indigo] = new ThemeColors("#5C6BC0", "#E0E4FF", "#3949AB"),
+        [CoreAppTheme.Cyan] = new ThemeColors("#00BCD4", "#D6F7FB", "#00ACC1"),
     };
 
     public CoreAppTheme CurrentTheme => _currentTheme;
@@ -171,6 +176,9 @@ public class ThemeService : IThemeService
             _customBackgroundOpacity = Preferences.Default.Get(KeyCustomBgOpacity, 0.5);
             if (_customBackgroundPath != null && !File.Exists(_customBackgroundPath))
                 _customBackgroundPath = null;
+
+            if (!ThemeMap.ContainsKey(_currentTheme))
+                _currentTheme = CoreAppTheme.Purple;
         }
         catch
         {
@@ -193,8 +201,8 @@ public class ThemeService : IThemeService
         var primary = Color.FromArgb(colors.Primary);
         var darkBase = Color.FromArgb("#080914");
         var midTone = Color.FromArgb("#0F1228");
-        var primaryTint = primary.WithAlpha(0.12f);
-        var accentTint = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.06f);
+        var primaryTint = primary.WithAlpha(0.18f);
+        var accentTint = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.1f);
 
         resources["WindowBackgroundColor"] = darkBase;
         resources["WindowBackgroundAltColor"] = Color.FromArgb("#131735");
@@ -214,24 +222,24 @@ public class ThemeService : IThemeService
         resources["TextPrimaryColor"] = Color.FromArgb("#F5F6FF");
         resources["TextSecondaryColor"] = Color.FromArgb("#BCC0DD");
         resources["TextHintColor"] = Color.FromArgb("#868CAE");
-        resources["TabActiveColor"] = Color.FromArgb("#F5F6FF");
+        resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
         resources["TabInactiveColor"] = Color.FromArgb("#868CAE");
-        resources["TabBarBackgroundColor"] = Color.FromArgb("#C80A0D1E");
+        resources["TabBarBackgroundColor"] = Color.FromArgb("#D80A0D1E");
 
-        // iOS-style multi-stop gradient: deep base → soft primary wash at top → deep base with accent hint at bottom
+        // 增强饱和度的iOS风格渐变背景
         resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
         {
             new(Color.FromArgb("#0B0D20"), 0f),
-            new(Blend(darkBase, primaryTint), 0.25f),
-            new(Blend(midTone, primaryTint), 0.5f),
+            new(Blend(darkBase, primaryTint), 0.2f),
+            new(Blend(midTone, primaryTint.WithAlpha(0.6f)), 0.45f),
             new(Blend(midTone, accentTint), 0.75f),
             new(darkBase, 1f),
         }, new Point(0.5, 0), new Point(0.5, 1));
 
         resources["HeroBrush"] = BuildLinearBrush(colors.Primary, GetAccentColorHex(colors.Primary), 0.0f, 1.0f);
-        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x4D)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
+        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x5A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
         var accent = GetAccentColor(_currentThemeStatic(colors.Primary));
-        resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x3D)}{accent[1..]}", $"{AlphaHex(0x00)}{accent[1..]}");
+        resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x45)}{accent[1..]}", $"{AlphaHex(0x00)}{accent[1..]}");
         resources["GlassHighlightBrush"] = BuildLinearBrush("#28FFFFFF", "#04FFFFFF");
     }
 
@@ -240,8 +248,8 @@ public class ThemeService : IThemeService
         var primary = Color.FromArgb(colors.Primary);
         var primaryLight = Color.FromArgb(colors.Light);
         var lightBase = Color.FromArgb("#F8F7FF");
-        var primaryWash = primaryLight.WithAlpha(0.45f);
-        var accent = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.15f);
+        var primaryWash = primaryLight.WithAlpha(0.6f);
+        var accent = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.22f);
 
         resources["WindowBackgroundColor"] = lightBase;
         resources["WindowBackgroundAltColor"] = Color.FromArgb("#EEEBFF");
@@ -255,30 +263,30 @@ public class ThemeService : IThemeService
         resources["GlassStrokeStrongColor"] = Color.FromArgb("#80FFFFFF");
         resources["ChipInactiveColor"] = Color.FromArgb("#D0FFFFFF");
         resources["ChipActiveColor"] = Color.FromArgb(colors.Primary);
-        resources["ChipInactiveTextColor"] = Color.FromArgb("#5C648F");
+        resources["ChipInactiveTextColor"] = Color.FromArgb("#4A5278");
         resources["ChipActiveTextColor"] = Colors.White;
         resources["BadgeBackgroundColor"] = Color.FromArgb("#E6FFFFFF");
         resources["TextPrimaryColor"] = Color.FromArgb("#1A1F3A");
-        resources["TextSecondaryColor"] = Color.FromArgb("#58608A");
-        resources["TextHintColor"] = Color.FromArgb("#7D85A8");
+        resources["TextSecondaryColor"] = Color.FromArgb("#4A5278");
+        resources["TextHintColor"] = Color.FromArgb("#6B7399");
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
-        resources["TabInactiveColor"] = Color.FromArgb("#8A90B2");
-        resources["TabBarBackgroundColor"] = Color.FromArgb("#F0F8F7FF");
+        resources["TabInactiveColor"] = Color.FromArgb("#5C648F");
+        resources["TabBarBackgroundColor"] = Color.FromArgb("#F5F8F7FF");
 
-        // iOS-style light gradient: soft primary tint at top → clean white middle → subtle accent at bottom
+        // 增强饱和度的iOS风格浅色渐变
         resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
         {
             new(Blend(lightBase, primaryWash), 0f),
-            new(Blend(lightBase, primaryWash.WithAlpha(0.25f)), 0.35f),
+            new(Blend(lightBase, primaryWash.WithAlpha(0.35f)), 0.35f),
             new(lightBase, 0.6f),
             new(Blend(lightBase, accent), 0.85f),
             new(lightBase, 1f),
         }, new Point(0.5, 0), new Point(0.5, 1));
 
         resources["HeroBrush"] = BuildLinearBrush(colors.Primary, colors.Dark, 0.0f, 1.0f);
-        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x3A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
+        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x4A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
         var accentCol = GetAccentColor(_currentThemeStatic(colors.Primary));
-        resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x25)}{accentCol[1..]}", $"{AlphaHex(0x00)}{accentCol[1..]}");
+        resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x35)}{accentCol[1..]}", $"{AlphaHex(0x00)}{accentCol[1..]}");
         resources["GlassHighlightBrush"] = BuildLinearBrush("#55FFFFFF", "#10FFFFFF");
     }
 
@@ -366,30 +374,48 @@ public class ThemeService : IThemeService
 
     private static string GetAccentColor(CoreAppTheme theme) => theme switch
     {
+        CoreAppTheme.Purple => "#55D6FF",
         CoreAppTheme.Pink => "#FFB86E",
         CoreAppTheme.Blue => "#5AE4FF",
         CoreAppTheme.Green => "#67E5C1",
         CoreAppTheme.Orange => "#FFD36E",
+        CoreAppTheme.Red => "#FF8A65",
+        CoreAppTheme.Teal => "#80CBC4",
+        CoreAppTheme.Yellow => "#FFAB40",
+        CoreAppTheme.Indigo => "#7C4DFF",
+        CoreAppTheme.Cyan => "#84FFFF",
         _ => "#55D6FF"
     };
 
     private static string GetAccentColorHex(string primaryHex)
         => primaryHex switch
         {
+            "#9B7ED8" => "#55D6FF",
             "#EC407A" => "#FFB86E",
             "#42A5F5" => "#5AE4FF",
             "#66BB6A" => "#67E5C1",
             "#FF7043" => "#FFD36E",
+            "#EF5350" => "#FF8A65",
+            "#26A69A" => "#80CBC4",
+            "#FFC107" => "#FFAB40",
+            "#5C6BC0" => "#7C4DFF",
+            "#00BCD4" => "#84FFFF",
             _ => "#55D6FF"
         };
 
     private static CoreAppTheme _currentThemeStatic(string primaryHex)
         => primaryHex switch
         {
+            "#9B7ED8" => CoreAppTheme.Purple,
             "#EC407A" => CoreAppTheme.Pink,
             "#42A5F5" => CoreAppTheme.Blue,
             "#66BB6A" => CoreAppTheme.Green,
             "#FF7043" => CoreAppTheme.Orange,
+            "#EF5350" => CoreAppTheme.Red,
+            "#26A69A" => CoreAppTheme.Teal,
+            "#FFC107" => CoreAppTheme.Yellow,
+            "#5C6BC0" => CoreAppTheme.Indigo,
+            "#00BCD4" => CoreAppTheme.Cyan,
             _ => CoreAppTheme.Purple
         };
 

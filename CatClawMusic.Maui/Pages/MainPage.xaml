@@ -119,14 +119,24 @@
               ColumnDefinitions="*,*,*,*,*"
               HeightRequest="64"
               BackgroundColor="{DynamicResource TabBarBackgroundColor}"
-              Padding="0,4,0,8">
+              Padding="0,6,0,8">
 
             <Grid Grid.Column="0" x:Name="TabItem0">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
-                <VerticalStackLayout Spacing="2" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="26" HeightRequest="26" HorizontalOptions="Center"
+                <!-- 选中主题色圆形背景 -->
+                <Border x:Name="TabBg0"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource PrimaryColor}"
+                        WidthRequest="48" HeightRequest="32"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Opacity="0"
+                        InputTransparent="True" />
+                <VerticalStackLayout Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
                            x:Name="TabIcon0">
                         <Image.Source>
                             <AppThemeBinding Light="ic_play_light" Dark="ic_play" />
@@ -140,8 +150,18 @@
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
-                <VerticalStackLayout Spacing="2" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="26" HeightRequest="26" HorizontalOptions="Center"
+                <!-- 选中主题色圆形背景 -->
+                <Border x:Name="TabBg1"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource PrimaryColor}"
+                        WidthRequest="48" HeightRequest="32"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Opacity="0"
+                        InputTransparent="True" />
+                <VerticalStackLayout Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
                            x:Name="TabIcon1">
                         <Image.Source>
                             <AppThemeBinding Light="ic_home_light" Dark="ic_home" />
@@ -155,8 +175,18 @@
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
-                <VerticalStackLayout Spacing="2" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="26" HeightRequest="26" HorizontalOptions="Center"
+                <!-- 选中主题色圆形背景 -->
+                <Border x:Name="TabBg2"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource PrimaryColor}"
+                        WidthRequest="48" HeightRequest="32"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Opacity="0"
+                        InputTransparent="True" />
+                <VerticalStackLayout Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
                            x:Name="TabIcon2">
                         <Image.Source>
                             <AppThemeBinding Light="ic_playlist_light" Dark="ic_playlist" />
@@ -170,8 +200,18 @@
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
-                <VerticalStackLayout Spacing="2" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="26" HeightRequest="26" HorizontalOptions="Center"
+                <!-- 选中主题色圆形背景 -->
+                <Border x:Name="TabBg3"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource PrimaryColor}"
+                        WidthRequest="48" HeightRequest="32"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Opacity="0"
+                        InputTransparent="True" />
+                <VerticalStackLayout Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
                            x:Name="TabIcon3">
                         <Image.Source>
                             <AppThemeBinding Light="ic_library_light" Dark="ic_library" />
@@ -185,8 +225,18 @@
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
-                <VerticalStackLayout Spacing="2" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="26" HeightRequest="26" HorizontalOptions="Center"
+                <!-- 选中主题色圆形背景 -->
+                <Border x:Name="TabBg4"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource PrimaryColor}"
+                        WidthRequest="48" HeightRequest="32"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Opacity="0"
+                        InputTransparent="True" />
+                <VerticalStackLayout Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
                            x:Name="TabIcon4">
                         <Image.Source>
                             <AppThemeBinding Light="ic_settings_light" Dark="ic_settings" />
@@ -197,36 +247,27 @@
             </Grid>
         </Grid>
 
-        <!-- 启动加载页：统一风格的品牌 Splash Screen，与 MAUI 原生 Splash 视觉一致 -->
+        <!-- 启动加载页：纯文字品牌 Splash Screen -->
         <Grid x:Name="LoadingOverlay"
               Grid.RowSpan="3"
               Background="{DynamicResource PageBackgroundBrush}"
               IsVisible="False"
               InputTransparent="False"
               ZIndex="999">
-            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="24">
-                <Border WidthRequest="120" HeightRequest="120"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 32"
-                        Background="{DynamicResource HeroBrush}"
-                        HorizontalOptions="Center">
-                    <Image Source="splash_cat_dark.png"
-                           WidthRequest="72" HeightRequest="72"
-                           HorizontalOptions="Center" VerticalOptions="Center" />
-                </Border>
+            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
                 <Label Text="猫爪音乐"
-                       FontSize="28"
+                       FontSize="42"
                        FontFamily="OpenSansSemibold"
                        TextColor="{DynamicResource TextPrimaryColor}"
                        HorizontalOptions="Center" />
                 <Label Text="CatClaw Music"
-                       FontSize="14"
+                       FontSize="16"
                        TextColor="{DynamicResource TextSecondaryColor}"
                        HorizontalOptions="Center" />
                 <ActivityIndicator IsRunning="True"
                                    Color="{DynamicResource PrimaryColor}"
                                    WidthRequest="36" HeightRequest="36"
-                                   Margin="0,16,0,0" />
+                                   Margin="0,32,0,0" />
             </VerticalStackLayout>
         </Grid>
     </Grid>

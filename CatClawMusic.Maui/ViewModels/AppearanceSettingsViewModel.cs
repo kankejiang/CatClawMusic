@@ -43,6 +43,11 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         ("蓝色", "#42A5F5"),
         ("绿色", "#66BB6A"),
         ("橙色", "#FF7043"),
+        ("红色", "#EF5350"),
+        ("青色", "#26A69A"),
+        ("黄色", "#FFC107"),
+        ("靛蓝", "#5C6BC0"),
+        ("青蓝", "#00BCD4"),
     };
 
     public AppearanceSettingsViewModel(IThemeService? themeService = null)
@@ -65,6 +70,11 @@ public partial class AppearanceSettingsViewModel : ObservableObject
                 "#42A5F5" => AppTheme.Blue,
                 "#66BB6A" => AppTheme.Green,
                 "#FF7043" => AppTheme.Orange,
+                "#EF5350" => AppTheme.Red,
+                "#26A69A" => AppTheme.Teal,
+                "#FFC107" => AppTheme.Yellow,
+                "#5C6BC0" => AppTheme.Indigo,
+                "#00BCD4" => AppTheme.Cyan,
                 _ => AppTheme.Purple
             };
             _themeService.SetTheme(theme);
@@ -150,6 +160,11 @@ public partial class AppearanceSettingsViewModel : ObservableObject
             AppTheme.Blue => "#42A5F5",
             AppTheme.Green => "#66BB6A",
             AppTheme.Orange => "#FF7043",
+            AppTheme.Red => "#EF5350",
+            AppTheme.Teal => "#26A69A",
+            AppTheme.Yellow => "#FFC107",
+            AppTheme.Indigo => "#5C6BC0",
+            AppTheme.Cyan => "#00BCD4",
             _ => "#9B7ED8"
         };
         SelectedStartupPageIndex = Preferences.Default.Get("StartupPageIndex", 2);

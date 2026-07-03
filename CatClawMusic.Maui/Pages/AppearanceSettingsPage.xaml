@@ -30,10 +30,15 @@
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
-                        <HorizontalStackLayout Spacing="14">
-                            <Border WidthRequest="48"
-                                    HeightRequest="48"
-                                    StrokeShape="RoundRectangle 24"
+                        <Grid ColumnDefinitions="*,*,*,*,*"
+                              ColumnSpacing="10"
+                              RowDefinitions="Auto,Auto"
+                              RowSpacing="10">
+                            <Border Grid.Row="0" Grid.Column="0"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
                                     StrokeThickness="2"
                                     Stroke="#52FFFFFF"
                                     BackgroundColor="#9B7ED8">
@@ -42,42 +47,11 @@
                                                           CommandParameter="#9B7ED8" />
                                 </Border.GestureRecognizers>
                             </Border>
-                            <Border WidthRequest="48"
-                                    HeightRequest="48"
-                                    StrokeShape="RoundRectangle 24"
-                                    StrokeThickness="2"
-                                    Stroke="#52FFFFFF"
-                                    BackgroundColor="#42A5F5">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
-                                                          CommandParameter="#42A5F5" />
-                                </Border.GestureRecognizers>
-                            </Border>
-                            <Border WidthRequest="48"
-                                    HeightRequest="48"
-                                    StrokeShape="RoundRectangle 24"
-                                    StrokeThickness="2"
-                                    Stroke="#52FFFFFF"
-                                    BackgroundColor="#66BB6A">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
-                                                          CommandParameter="#66BB6A" />
-                                </Border.GestureRecognizers>
-                            </Border>
-                            <Border WidthRequest="48"
-                                    HeightRequest="48"
-                                    StrokeShape="RoundRectangle 24"
-                                    StrokeThickness="2"
-                                    Stroke="#52FFFFFF"
-                                    BackgroundColor="#FF7043">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
-                                                          CommandParameter="#FF7043" />
-                                </Border.GestureRecognizers>
-                            </Border>
-                            <Border WidthRequest="48"
-                                    HeightRequest="48"
-                                    StrokeShape="RoundRectangle 24"
+                            <Border Grid.Row="0" Grid.Column="1"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
                                     StrokeThickness="2"
                                     Stroke="#52FFFFFF"
                                     BackgroundColor="#EC407A">
@@ -86,7 +60,111 @@
                                                           CommandParameter="#EC407A" />
                                 </Border.GestureRecognizers>
                             </Border>
-                        </HorizontalStackLayout>
+                            <Border Grid.Row="0" Grid.Column="2"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#42A5F5">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#42A5F5" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border Grid.Row="0" Grid.Column="3"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#66BB6A">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#66BB6A" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border Grid.Row="0" Grid.Column="4"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#FF7043">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#FF7043" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="0"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#EF5350">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#EF5350" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="1"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#26A69A">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#26A69A" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="2"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#FFC107">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#FFC107" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="3"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#5C6BC0">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#5C6BC0" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="4"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    HorizontalOptions="Center"
+                                    StrokeShape="RoundRectangle 22"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#00BCD4">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#00BCD4" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                        </Grid>
                     </VerticalStackLayout>
                 </Border>
 
