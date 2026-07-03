@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.5.11723.231
@@ -6,8 +6,6 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CatClawMusic.Core", "CatClawMusic.Core\CatClawMusic.Core.csproj", "{443F5B8C-F9BB-4D8F-907E-782D3E98C60D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CatClawMusic.Data", "CatClawMusic.Data\CatClawMusic.Data.csproj", "{1F5A5AA8-72C3-444B-B1E4-E6DE0DA6898E}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CatClawMusic.UI", "CatClawMusic.UI\CatClawMusic.UI.csproj", "{195B563C-5429-48DC-A5D2-3724CA429F47}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CatClawMusic.Core.Tests", "CatClawMusic.Core.Tests\CatClawMusic.Core.Tests.csproj", "{228818BA-BB41-40D8-89D6-423431C4E8BC}"
 EndProject
@@ -47,19 +45,6 @@ Global
 		{1F5A5AA8-72C3-444B-B1E4-E6DE0DA6898E}.Release|x64.Build.0 = Release|Any CPU
 		{1F5A5AA8-72C3-444B-B1E4-E6DE0DA6898E}.Release|x86.ActiveCfg = Release|Any CPU
 		{1F5A5AA8-72C3-444B-B1E4-E6DE0DA6898E}.Release|x86.Build.0 = Release|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|x64.Build.0 = Debug|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Debug|x86.Build.0 = Debug|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Release|Any CPU.Build.0 = Release|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Release|Any CPU.Deploy.0 = Release|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Release|x64.ActiveCfg = Release|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Release|x64.Build.0 = Release|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Release|x86.ActiveCfg = Release|Any CPU
-		{195B563C-5429-48DC-A5D2-3724CA429F47}.Release|x86.Build.0 = Release|Any CPU
 		{228818BA-BB41-40D8-89D6-423431C4E8BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{228818BA-BB41-40D8-89D6-423431C4E8BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{228818BA-BB41-40D8-89D6-423431C4E8BC}.Debug|x64.ActiveCfg = Debug|Any CPU

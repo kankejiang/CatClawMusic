@@ -48,7 +48,7 @@
 
 	<!-- Android-specific native lib (FFmpeg) -->
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-		<AndroidNativeLibrary Include="..\CatClawMusic.UI\Assets\ffmpeg\arm64-v8a\libffmpeg.so" Abi="arm64-v8a" />
+		<AndroidNativeLibrary Include="Assets\ffmpeg\arm64-v8a\libffmpeg.so" Abi="arm64-v8a" />
 	</ItemGroup>
 
 	<!-- MAUI resources -->

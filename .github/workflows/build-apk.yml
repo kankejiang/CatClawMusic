@@ -18,10 +18,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 9
+      - name: Setup .NET 11
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Install .NET Android workload
         run: |
@@ -29,12 +29,12 @@ jobs:
           dotnet workload list
 
       - name: Build Release APK
-        run: dotnet build CatClawMusic.UI/CatClawMusic.UI.csproj -c Release
+        run: dotnet build CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net11.0-android
 
       - name: Find APK
         id: find-apk
         run: |
-          APK_PATH=$(find CatClawMusic.UI/bin/Release -name "*.apk" -type f | head -1)
+          APK_PATH=$(find CatClawMusic.Maui/bin/Release -name "*.apk" -type f | head -1)
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "Found APK: $APK_PATH"
 

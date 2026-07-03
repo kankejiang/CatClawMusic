@@ -374,6 +374,8 @@ FodyWeavers.xsd
 /install-dotnet9.ps1
 /publish-apk
 /.trae/specs/enhance-lyric-scroll-effects
+/.trae/
+/.reasonix/
 /.workbuddy/memory
 /temp_download
 /build_output3.txt

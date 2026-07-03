@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Linq;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.ViewModels;
 using System.ComponentModel;
 using Microsoft.Maui.Storage;
@@ -109,6 +110,15 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // 启动时重新应用主题，确保 TabBar 等控件颜色正确
+        try
+        {
+            var themeService = MauiProgram.Services.GetService<IThemeService>();
+            themeService?.ApplyTheme();
+        }
+        catch { }
+
         System.Diagnostics.Debug.WriteLine($"[MainPage] OnAppearing, currentIndex={_currentIndex}, ViewPagerGrid.Width={ViewPagerGrid.Width}");
         UpdatePagePositions(0);
         UpdateTabBarVisibility();

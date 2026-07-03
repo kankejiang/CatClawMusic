@@ -49,6 +49,16 @@ public class ThemeService : IThemeService
     public ThemeService()
     {
         LoadSettings();
+        // 启动时立即设置 UserAppTheme，确保 RequestedTheme 正确
+        if (Application.Current != null)
+        {
+            Application.Current.UserAppTheme = _darkModeSetting switch
+            {
+                DarkModeSetting.Light => MauiAppTheme.Light,
+                DarkModeSetting.Dark => MauiAppTheme.Dark,
+                _ => MauiAppTheme.Unspecified,
+            };
+        }
     }
 
     public void SetCustomBackground(string? imagePath, double opacity = 0.5)

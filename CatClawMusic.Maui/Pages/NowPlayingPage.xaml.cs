@@ -37,6 +37,14 @@ public partial class NowPlayingPage : ContentPage
 
         BuildLyricViews();
 
+        // 延迟滚动到当前歌词行，确保布局完成后再定位
+        if (_lyricLabels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
+        {
+            _ = Task.Delay(100).ContinueWith(_ =>
+                MainThread.BeginInvokeOnMainThread(() =>
+                    HighlightLine(_viewModel.CurrentLyricIndexObservable)));
+        }
+
         if (!_progressTimer.IsRunning)
             _progressTimer.Start();
     }
@@ -120,7 +128,53 @@ public partial class NowPlayingPage : ContentPage
         }
 
         if (_lyricLabels.Count > 0)
-            HighlightLine(_viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0);
+        {
+            var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
+            HighlightLineWithoutScroll(idx);
+        }
+    }
+
+    private void HighlightLineWithoutScroll(int index)
+    {
+        if (index < 0 || index >= _lyricLabels.Count) return;
+
+        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
+        var secondaryColor = (Color)Application.Current!.Resources["TextSecondaryColor"];
+        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+
+        var current = _lyricLabels[index];
+        current.FontSize = 16;
+        current.FontAttributes = FontAttributes.Bold;
+        current.TextColor = primaryColor;
+
+        for (int i = 0; i < _lyricLabels.Count; i++)
+        {
+            if (i == index) continue;
+            var dist = Math.Abs(i - index);
+            var lbl = _lyricLabels[i];
+            if (dist == 1)
+            {
+                lbl.FontSize = 14;
+                lbl.TextColor = secondaryColor;
+            }
+            else if (dist == 2)
+            {
+                lbl.FontSize = 13;
+                lbl.TextColor = hintColor;
+            }
+            else if (dist == 3)
+            {
+                lbl.FontSize = 12;
+                lbl.TextColor = hintColor.WithAlpha(0.7f);
+            }
+            else
+            {
+                lbl.FontSize = 11;
+                lbl.TextColor = hintColor.WithAlpha(0.5f);
+            }
+        }
+
+        _lastHighlightIndex = index;
     }
 
     private void HighlightLine(int index)

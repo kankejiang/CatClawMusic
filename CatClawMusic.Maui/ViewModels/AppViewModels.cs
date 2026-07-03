@@ -705,6 +705,8 @@ public partial class NowPlayingViewModel : ObservableObject
             {
                 HasLyrics = true;
                 NoLyricsText = "";
+                CurrentLyricIndexObservable = -1;
+                OnPropertyChanged(nameof(AllLyricLines));
             });
             System.Diagnostics.Debug.WriteLine($"[Lyrics] 歌词已加载，首行: {lyrics.Lines[0].Text}");
         }
@@ -717,6 +719,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 HasLyrics = false;
                 NoLyricsText = "暂无歌词";
                 ClearLyrics();
+                OnPropertyChanged(nameof(AllLyricLines));
             });
             System.Diagnostics.Debug.WriteLine("[Lyrics] 未找到歌词");
         }
@@ -763,6 +766,7 @@ public partial class NowPlayingViewModel : ObservableObject
         LyricLine5 = "";
         LyricLine6 = "";
         LyricLine7 = "";
+        OnPropertyChanged(nameof(AllLyricLines));
     }
 
     private async Task RecordPlayAsync(int songId)
