@@ -25,7 +25,7 @@
                 <Border Grid.Column="1"
                         Style="{StaticResource GlassBadgeStyle}"
                         BackgroundColor="#26FFFFFF"
-                        Stroke="#40FFFFFF"
+                        Stroke="{DynamicResource GlassStrokeColor}"
                         VerticalOptions="Start">
                     <Label Text="ANDROID"
                            FontSize="11"

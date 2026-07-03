@@ -9,26 +9,6 @@
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
 
-        <Border WidthRequest="240"
-                HeightRequest="240"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Start"
-                VerticalOptions="Start"
-                TranslationX="-130"
-                TranslationY="-70" />
-
-        <Border WidthRequest="180"
-                HeightRequest="180"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource AccentGlowBrush}"
-                HorizontalOptions="End"
-                VerticalOptions="Start"
-                TranslationX="80"
-                TranslationY="180" />
-
         <ScrollView>
             <VerticalStackLayout Padding="16,18,16,22"
                                  Spacing="14">

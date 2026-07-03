@@ -8,16 +8,6 @@
     <Grid RowDefinitions="Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <Border WidthRequest="240"
-                HeightRequest="240"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Start"
-                VerticalOptions="Start"
-                TranslationX="-130"
-                TranslationY="-70" />
-
         <Border Grid.Row="0"
                 Margin="16,18,16,10"
                 Style="{StaticResource GlassCardStrongStyle}"
@@ -25,12 +15,14 @@
             <Grid ColumnDefinitions="Auto,*,Auto"
                   ColumnSpacing="12">
                 <Border Grid.Column="0"
-                        Style="{StaticResource GlassIconContainerStyle}"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 10"
+                        WidthRequest="40" HeightRequest="40"
                         VerticalOptions="Center">
-                    <ImageButton Source="ic_arrow_back"
-                                 WidthRequest="40"
-                                 HeightRequest="40"
+                    <ImageButton Source="{Binding CoverImage}"
+                                 Aspect="AspectFill"
                                  BackgroundColor="Transparent"
+                                 CornerRadius="10"
                                  Clicked="OnBackClicked" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1"
@@ -39,11 +31,11 @@
                     <Label Text="{Binding Title}"
                            FontSize="16"
                            FontFamily="OpenSansSemibold"
-                           TextColor="White"
+                           TextColor="{DynamicResource TextPrimaryColor}"
                            MaxLines="1" />
                     <Label Text="{Binding Artist}"
                            FontSize="12"
-                           TextColor="#E0E3FF"
+                           TextColor="{DynamicResource TextSecondaryColor}"
                            MaxLines="1" />
                 </VerticalStackLayout>
                 <Border Grid.Column="2"

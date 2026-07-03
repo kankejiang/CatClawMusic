@@ -13,22 +13,6 @@
             <TapGestureRecognizer Tapped="OnPageTapped" />
         </Grid.GestureRecognizers>
 
-        <!-- 左上角收起按钮：点击切换到发现页 -->
-        <Border HorizontalOptions="Start" VerticalOptions="Start"
-                StrokeThickness="0"
-                StrokeShape="RoundRectangle 16"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                WidthRequest="36" HeightRequest="36"
-                Margin="0,6,0,0"
-                ZIndex="10">
-            <ImageButton Source="ic_collapse"
-                         WidthRequest="18" HeightRequest="18"
-                         BackgroundColor="Transparent"
-                         Rotation="0"
-                         Clicked="OnCollapseClicked"
-                         HorizontalOptions="Center" VerticalOptions="Center" />
-        </Border>
-
         <!-- Row 0: Cover + Song Info (fills remaining space) -->
         <VerticalStackLayout Grid.Row="0"
                              x:Name="SongArea"
@@ -62,67 +46,20 @@
                        MaxLines="1" />
             </VerticalStackLayout>
 
-            <!-- Multi-line lyrics display -->
-            <VerticalStackLayout x:Name="LyricsContainer"
-                                 Spacing="4"
-                                 HorizontalOptions="Center"
-                                 IsVisible="{Binding HasLyrics}">
-                <Label Text="{Binding LyricLine0}"
-                       FontSize="11"
-                       Opacity="0.4"
-                       TextColor="{DynamicResource TextHintColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-                <Label Text="{Binding LyricLine1}"
-                       FontSize="12"
-                       Opacity="0.55"
-                       TextColor="{DynamicResource TextHintColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-                <Label Text="{Binding LyricLine2}"
-                       FontSize="13"
-                       Opacity="0.7"
-                       TextColor="{DynamicResource TextSecondaryColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-                <Label Text="{Binding LyricLine3}"
-                       FontSize="14"
-                       Opacity="0.85"
-                       TextColor="{DynamicResource TextSecondaryColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-                <Label Text="{Binding LyricCurrent}"
-                       FontSize="16"
-                       FontFamily="OpenSansSemibold"
-                       TextColor="{DynamicResource PrimaryLightColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="2"
-                       LineBreakMode="WordWrap" />
-                <Label Text="{Binding LyricLine4}"
-                       FontSize="14"
-                       Opacity="0.85"
-                       TextColor="{DynamicResource TextSecondaryColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-                <Label Text="{Binding LyricLine5}"
-                       FontSize="13"
-                       Opacity="0.7"
-                       TextColor="{DynamicResource TextSecondaryColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-                <Label Text="{Binding LyricLine6}"
-                       FontSize="12"
-                       Opacity="0.55"
-                       TextColor="{DynamicResource TextHintColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-                <Label Text="{Binding LyricLine7}"
-                       FontSize="11"
-                       Opacity="0.4"
-                       TextColor="{DynamicResource TextHintColor}"
-                       HorizontalTextAlignment="Center"
-                       MaxLines="1" />
-            </VerticalStackLayout>
+            <!-- Lyrics with smooth scrolling -->
+            <Grid x:Name="LyricsContainer"
+                  IsVisible="{Binding HasLyrics}"
+                  HeightRequest="280"
+                  IsClippedToBounds="True">
+                <ScrollView x:Name="LyricScrollView"
+                            Orientation="Vertical"
+                            VerticalScrollBarVisibility="Never">
+                    <VerticalStackLayout x:Name="LyricStack"
+                                         Padding="0,120,0,120"
+                                         Spacing="6"
+                                         HorizontalOptions="Center" />
+                </ScrollView>
+            </Grid>
             <Label x:Name="NoLyricsLabel"
                    Text="{Binding NoLyricsText}"
                    FontSize="13"

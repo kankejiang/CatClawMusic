@@ -8,26 +8,6 @@
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
 
-        <Border WidthRequest="240"
-                HeightRequest="240"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Start"
-                VerticalOptions="Start"
-                TranslationX="-130"
-                TranslationY="-70" />
-
-        <Border WidthRequest="180"
-                HeightRequest="180"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource AccentGlowBrush}"
-                HorizontalOptions="End"
-                VerticalOptions="Start"
-                TranslationX="80"
-                TranslationY="160" />
-
         <ScrollView>
             <VerticalStackLayout Padding="16,18,16,22"
                                  Spacing="14">
@@ -67,10 +47,10 @@
                                     StrokeShape="RoundRectangle 24"
                                     StrokeThickness="2"
                                     Stroke="#52FFFFFF"
-                                    BackgroundColor="#2196F3">
+                                    BackgroundColor="#42A5F5">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
-                                                          CommandParameter="#2196F3" />
+                                                          CommandParameter="#42A5F5" />
                                 </Border.GestureRecognizers>
                             </Border>
                             <Border WidthRequest="48"
@@ -78,10 +58,10 @@
                                     StrokeShape="RoundRectangle 24"
                                     StrokeThickness="2"
                                     Stroke="#52FFFFFF"
-                                    BackgroundColor="#4CAF50">
+                                    BackgroundColor="#66BB6A">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
-                                                          CommandParameter="#4CAF50" />
+                                                          CommandParameter="#66BB6A" />
                                 </Border.GestureRecognizers>
                             </Border>
                             <Border WidthRequest="48"
@@ -89,10 +69,21 @@
                                     StrokeShape="RoundRectangle 24"
                                     StrokeThickness="2"
                                     Stroke="#52FFFFFF"
-                                    BackgroundColor="#FF5722">
+                                    BackgroundColor="#FF7043">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
-                                                          CommandParameter="#FF5722" />
+                                                          CommandParameter="#FF7043" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="48"
+                                    HeightRequest="48"
+                                    StrokeShape="RoundRectangle 24"
+                                    StrokeThickness="2"
+                                    Stroke="#52FFFFFF"
+                                    BackgroundColor="#EC407A">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectThemeColorCommand}"
+                                                          CommandParameter="#EC407A" />
                                 </Border.GestureRecognizers>
                             </Border>
                         </HorizontalStackLayout>
@@ -124,6 +115,99 @@
                                     BackgroundColor="Transparent"
                                     TextColor="{DynamicResource TextPrimaryColor}" />
                         </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="自定义背景图片"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="选择自己喜欢的图片作为应用背景，让猫爪音乐更具个性"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondaryColor}" />
+
+                        <Grid ColumnDefinitions="80,*"
+                              ColumnSpacing="12"
+                              IsVisible="{Binding HasCustomBackground}">
+                            <Border Grid.Column="0"
+                                    WidthRequest="80" HeightRequest="80"
+                                    StrokeShape="RoundRectangle 12"
+                                    StrokeThickness="0"
+                                    Padding="0">
+                                <Image Source="{Binding CustomBackgroundPreview}"
+                                       Aspect="AspectFill"
+                                       WidthRequest="80" HeightRequest="80" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1"
+                                                 Spacing="4"
+                                                 VerticalOptions="Center">
+                                <Label Text="当前背景"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Label Text="{Binding CustomBackgroundName}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       MaxLines="1"
+                                       LineBreakMode="MiddleTruncation" />
+                                <HorizontalStackLayout Spacing="8" Margin="0,6,0,0">
+                                    <Button Text="更换图片"
+                                            Command="{Binding SelectBackgroundCommand}"
+                                            FontSize="13"
+                                            Padding="12,6"
+                                            BackgroundColor="{DynamicResource PrimaryColor}"
+                                            TextColor="White"
+                                            CornerRadius="16" />
+                                    <Button Text="清除"
+                                            Command="{Binding ClearBackgroundCommand}"
+                                            FontSize="13"
+                                            Padding="12,6"
+                                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                            TextColor="{DynamicResource TextSecondaryColor}"
+                                            CornerRadius="16" />
+                                </HorizontalStackLayout>
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,Auto"
+                              IsVisible="{Binding HasCustomBackground, Converter={StaticResource InvertedBoolConverter}}">
+                            <Label Grid.Column="0"
+                                   Text="未设置自定义背景，使用主题渐变背景"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   VerticalOptions="Center" />
+                            <Button Grid.Column="1"
+                                    Text="选择图片"
+                                    Command="{Binding SelectBackgroundCommand}"
+                                    FontSize="13"
+                                    Padding="14,7"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    TextColor="White"
+                                    CornerRadius="16" />
+                        </Grid>
+
+                        <VerticalStackLayout Spacing="6"
+                                             IsVisible="{Binding HasCustomBackground}">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0"
+                                       Text="背景透明度"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextSecondaryColor}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding BackgroundOpacity, StringFormat='{0:P0}'}"
+                                       FontSize="13"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Slider Minimum="0.1"
+                                    Maximum="1.0"
+                                    Value="{Binding BackgroundOpacity, Mode=TwoWay}"
+                                    MinimumTrackColor="{DynamicResource PrimaryColor}"
+                                    MaximumTrackColor="{DynamicResource InputBorderColor}"
+                                    ThumbColor="{DynamicResource PrimaryColor}" />
+                        </VerticalStackLayout>
                     </VerticalStackLayout>
                 </Border>
 

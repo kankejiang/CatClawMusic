@@ -133,9 +133,9 @@ public partial class SearchPage : ContentPage
         await DiscoverScroll.ScrollToAsync(RecentSection, ScrollToPosition.Start, true);
     }
 
-    private async void OnGoLibraryClicked(object? sender, EventArgs e)
+    private void OnGoLibraryClicked(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("//library");
+        MainPage.Instance?.SwitchToTab(3);
     }
 
     private async void OnArtistSelected(object? sender, SelectionChangedEventArgs e)

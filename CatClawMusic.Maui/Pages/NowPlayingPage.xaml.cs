@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 
@@ -8,6 +9,8 @@ public partial class NowPlayingPage : ContentPage
     private readonly NowPlayingViewModel _viewModel;
     private IDispatcherTimer? _progressTimer;
     private bool _isDragging;
+    private readonly List<Label> _lyricLabels = new();
+    private int _lastHighlightIndex = -1;
 
     public NowPlayingPage(NowPlayingViewModel viewModel)
     {
@@ -15,7 +18,8 @@ public partial class NowPlayingPage : ContentPage
         _viewModel = viewModel;
         BindingContext = _viewModel;
 
-        // 使用 Application 级别的 Dispatcher 创建 timer，确保在 Singleton 构造时可用
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
         _progressTimer = Application.Current!.Dispatcher.CreateTimer();
         _progressTimer.Interval = TimeSpan.FromMilliseconds(500);
         _progressTimer.Tick += OnProgressTimerTick;
@@ -26,24 +30,182 @@ public partial class NowPlayingPage : ContentPage
         base.OnAppearing();
         await _viewModel.LoadCurrentSongAsync();
 
-        // 确保 Slider Maximum 同步
         if (_viewModel.Duration > 0)
             ProgressSlider.Maximum = _viewModel.Duration;
 
-        // 启动 timer（每次页面出现时确保 timer 在运行）
+        Application.Current!.RequestedThemeChanged += OnThemeChanged;
+
+        BuildLyricViews();
+
         if (!_progressTimer.IsRunning)
             _progressTimer.Start();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        Application.Current!.RequestedThemeChanged -= OnThemeChanged;
+    }
+
+    private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(BuildLyricViews);
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
+            e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
+        {
+            MainThread.BeginInvokeOnMainThread(BuildLyricViews);
+        }
+
+        if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLyricIndexObservable))
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                HighlightLine(_viewModel.CurrentLyricIndexObservable);
+            });
+        }
+    }
+
+    private void BuildLyricViews()
+    {
+        LyricStack.Children.Clear();
+        _lyricLabels.Clear();
+        _lastHighlightIndex = -1;
+
+        var lines = _viewModel.AllLyricLines;
+        if (lines == null || lines.Count == 0)
+            return;
+
+        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
+
+        foreach (var line in lines)
+        {
+            var label = new Label
+            {
+                Text = line.Text,
+                FontSize = 14,
+                TextColor = hintColor,
+                HorizontalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Center,
+                LineBreakMode = LineBreakMode.WordWrap,
+                FontAttributes = FontAttributes.None,
+                Padding = new Thickness(16, 2)
+            };
+
+            if (!string.IsNullOrEmpty(line.Translation))
+            {
+                var stack = new VerticalStackLayout { Spacing = 1, HorizontalOptions = LayoutOptions.Center };
+                stack.Children.Add(label);
+
+                var transLabel = new Label
+                {
+                    Text = line.Translation,
+                    FontSize = 11,
+                    TextColor = hintColor.WithAlpha(0.6f),
+                    HorizontalTextAlignment = TextAlignment.Center,
+                    HorizontalOptions = LayoutOptions.Center
+                };
+                stack.Children.Add(transLabel);
+                LyricStack.Children.Add(stack);
+            }
+            else
+            {
+                LyricStack.Children.Add(label);
+            }
+
+            _lyricLabels.Add(label);
+        }
+
+        if (_lyricLabels.Count > 0)
+            HighlightLine(_viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0);
+    }
+
+    private void HighlightLine(int index)
+    {
+        if (index < 0 || index >= _lyricLabels.Count) return;
+
+        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
+        var secondaryColor = (Color)Application.Current!.Resources["TextSecondaryColor"];
+        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+
+        if (_lastHighlightIndex >= 0 && _lastHighlightIndex < _lyricLabels.Count)
+        {
+            var prev = _lyricLabels[_lastHighlightIndex];
+            prev.FontSize = 14;
+            prev.FontAttributes = FontAttributes.None;
+
+            var dist = Math.Abs(_lastHighlightIndex - index);
+            if (dist == 1)
+                prev.TextColor = secondaryColor;
+            else if (dist == 2)
+                prev.TextColor = hintColor;
+            else
+                prev.TextColor = hintColor.WithAlpha(0.55f);
+        }
+
+        var current = _lyricLabels[index];
+        current.FontSize = 16;
+        current.FontAttributes = FontAttributes.Bold;
+        current.TextColor = primaryColor;
+
+        for (int i = 0; i < _lyricLabels.Count; i++)
+        {
+            if (i == index) continue;
+            var dist = Math.Abs(i - index);
+            var lbl = _lyricLabels[i];
+            if (dist == 1)
+            {
+                lbl.FontSize = 14;
+                lbl.TextColor = secondaryColor;
+            }
+            else if (dist == 2)
+            {
+                lbl.FontSize = 13;
+                lbl.TextColor = hintColor;
+            }
+            else if (dist == 3)
+            {
+                lbl.FontSize = 12;
+                lbl.TextColor = hintColor.WithAlpha(0.7f);
+            }
+            else
+            {
+                lbl.FontSize = 11;
+                lbl.TextColor = hintColor.WithAlpha(0.5f);
+            }
+        }
+
+        _lastHighlightIndex = index;
+
+        ScrollToLine(index);
+    }
+
+    private async void ScrollToLine(int index)
+    {
+        if (index < 0 || index >= _lyricLabels.Count) return;
+
+        try
+        {
+            var label = _lyricLabels[index];
+            var y = label.Y + label.Height / 2;
+            var scrollY = y - LyricScrollView.Height / 2;
+            scrollY = Math.Max(0, scrollY);
+
+            await LyricScrollView.ScrollToAsync(0, scrollY, true);
+        }
+        catch { }
     }
 
     private void OnProgressTimerTick(object? sender, EventArgs e)
     {
         if (_isDragging) return;
 
-        // 直接设置 Maximum 和 Value，绕过 MAUI 绑定的不可靠性
         var duration = _viewModel.Duration;
         var progress = _viewModel.Progress;
 
-        // Duration 小于 1 秒视为无效，从 AudioService 拉取
         if (duration < 1)
         {
             duration = _viewModel.AudioServiceDuration;
@@ -59,7 +221,6 @@ public partial class NowPlayingPage : ContentPage
             if (ProgressSlider.Maximum != duration)
                 ProgressSlider.Maximum = duration;
 
-            // 只在差异较大时更新，避免不必要的 UI 刷新
             if (Math.Abs(ProgressSlider.Value - progress) > 0.5)
                 ProgressSlider.Value = progress;
         }
@@ -84,16 +245,8 @@ public partial class NowPlayingPage : ContentPage
         return $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
     }
 
-    /// <summary>收起按钮：切换到发现页</summary>
-    private void OnCollapseClicked(object? sender, EventArgs e)
-    {
-        MainPage.Instance?.SwitchToTab(1);
-    }
-
-    /// <summary>根Grid点击检测：判断是否点击在歌曲/歌词区域，若是则进入全屏歌词</summary>
     private void OnPageTapped(object? sender, TappedEventArgs e)
     {
-        // 点击封面区域 → 进入全屏歌词
         var ptCover = e.GetPosition(CoverArea);
         if (ptCover.HasValue && ptCover.Value.X >= -10 && ptCover.Value.X <= CoverArea.Width + 10
             && ptCover.Value.Y >= -10 && ptCover.Value.Y <= CoverArea.Height + 10)
@@ -102,7 +255,6 @@ public partial class NowPlayingPage : ContentPage
             return;
         }
 
-        // 点击歌词容器区域 → 进入全屏歌词
         if (LyricsContainer.IsVisible)
         {
             var pt = e.GetPosition(LyricsContainer);
@@ -114,7 +266,6 @@ public partial class NowPlayingPage : ContentPage
             }
         }
 
-        // 点击"暂无歌词"标签区域
         if (NoLyricsLabel.IsVisible)
         {
             var pt = e.GetPosition(NoLyricsLabel);

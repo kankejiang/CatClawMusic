@@ -26,6 +26,7 @@ public partial class FullLyricsPage : ContentPage
             e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
         {
             MainThread.BeginInvokeOnMainThread(BuildLyricViews);
+            return;
         }
 
         if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLyricIndexObservable))
@@ -37,7 +38,30 @@ public partial class FullLyricsPage : ContentPage
         }
     }
 
-    /// <summary>动态构建所有歌词行标签</summary>
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        Application.Current!.RequestedThemeChanged += OnThemeChanged;
+        if (_viewModel.AllLyricLines != null && _viewModel.AllLyricLines.Count > 0)
+        {
+            if (_lyricLabels.Count != _viewModel.AllLyricLines.Count)
+                BuildLyricViews();
+            else
+                HighlightLine(_lastHighlightIndex >= 0 ? _lastHighlightIndex : 0);
+        }
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        Application.Current!.RequestedThemeChanged -= OnThemeChanged;
+    }
+
+    private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(BuildLyricViews);
+    }
+
     private void BuildLyricViews()
     {
         LyricStack.Children.Clear();
@@ -59,20 +83,21 @@ public partial class FullLyricsPage : ContentPage
             return;
         }
 
+        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
+
         foreach (var line in lines)
         {
             var label = new Label
             {
                 Text = line.Text,
                 FontSize = 18,
-                TextColor = Color.FromArgb("#80FFFFFF"), // Inactive color
+                TextColor = hintColor,
                 HorizontalTextAlignment = TextAlignment.Center,
                 HorizontalOptions = LayoutOptions.Center,
                 LineBreakMode = LineBreakMode.WordWrap,
                 Padding = new Thickness(16, 4)
             };
 
-            // If line has translation, add a sub-label
             if (!string.IsNullOrEmpty(line.Translation))
             {
                 var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Center };
@@ -82,7 +107,7 @@ public partial class FullLyricsPage : ContentPage
                 {
                     Text = line.Translation,
                     FontSize = 13,
-                    TextColor = Color.FromArgb("#50FFFFFF"),
+                    TextColor = hintColor.WithAlpha(0.6f),
                     HorizontalTextAlignment = TextAlignment.Center,
                     HorizontalOptions = LayoutOptions.Center
                 };
@@ -97,45 +122,60 @@ public partial class FullLyricsPage : ContentPage
             _lyricLabels.Add(label);
         }
 
-        // 首行高亮
         HighlightLine(0);
     }
 
-    /// <summary>高亮指定行并自动滚动</summary>
     private void HighlightLine(int index)
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
-        // 取消上一行的高亮
-        if (_lastHighlightIndex >= 0 && _lastHighlightIndex < _lyricLabels.Count)
-        {
-            var prev = _lyricLabels[_lastHighlightIndex];
-            prev.FontSize = 18;
-            prev.FontAttributes = FontAttributes.None;
-            prev.TextColor = Color.FromArgb("#80FFFFFF");
-        }
+        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
+        var secondaryColor = (Color)Application.Current!.Resources["TextSecondaryColor"];
+        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
 
-        // 高亮当前行
-        var current = _lyricLabels[index];
-        current.FontSize = 22;
-        current.FontAttributes = FontAttributes.Bold;
-        current.TextColor = (Color)Application.Current!.Resources["PrimaryLightColor"];
+        for (int i = 0; i < _lyricLabels.Count; i++)
+        {
+            var lbl = _lyricLabels[i];
+            var dist = Math.Abs(i - index);
+
+            if (i == index)
+            {
+                lbl.FontSize = 22;
+                lbl.FontAttributes = FontAttributes.Bold;
+                lbl.TextColor = primaryColor;
+            }
+            else if (dist <= 1)
+            {
+                lbl.FontSize = 18;
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.TextColor = secondaryColor;
+            }
+            else if (dist <= 3)
+            {
+                lbl.FontSize = 16;
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.TextColor = hintColor;
+            }
+            else
+            {
+                lbl.FontSize = 14;
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.TextColor = hintColor.WithAlpha(0.5f);
+            }
+        }
 
         _lastHighlightIndex = index;
 
-        // 自动滚动到当前行
         if (!_userScrolling)
             ScrollToLine(index);
     }
 
-    /// <summary>将指定行滚动到视图中央</summary>
     private async void ScrollToLine(int index)
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
         try
         {
-            // 获取标签在父容器中的位置
             var label = _lyricLabels[index];
             var y = label.Y + label.Height / 2;
             var scrollY = y - LyricScrollView.Height / 2;
@@ -148,7 +188,6 @@ public partial class FullLyricsPage : ContentPage
 
     private void OnLyricScrolled(object? sender, ScrolledEventArgs e)
     {
-        // 检测用户手动滚动（3秒无操作后恢复自动滚动）
         _userScrolling = true;
         _ = ResetUserScrollingAsync();
     }
@@ -162,10 +201,5 @@ public partial class FullLyricsPage : ContentPage
     private void OnBackClicked(object? sender, EventArgs e)
     {
         MainPage.Instance?.SwitchToTab(0);
-    }
-
-    protected override void OnDisappearing()
-    {
-        base.OnDisappearing();
     }
 }

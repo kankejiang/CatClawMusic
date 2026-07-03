@@ -616,11 +616,14 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             var path = coverPath;
             CurrentCoverPath = path;
+            byte[]? coverBytes = null;
+            try { coverBytes = File.ReadAllBytes(path); } catch { }
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                // Use FromStream instead of FromFile because FileImageSource on Android
-                // may not render absolute paths like /data/.../cache/covers/cover_123.jpg
-                CoverImage = ImageSource.FromStream(() => File.OpenRead(path));
+                if (coverBytes != null)
+                    CoverImage = ImageSource.FromStream(() => new MemoryStream(coverBytes));
+                else
+                    CoverImage = ImageSource.FromFile(path);
                 HasCover = true;
             });
         }

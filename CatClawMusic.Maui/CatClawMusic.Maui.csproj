@@ -54,7 +54,7 @@
 	<!-- MAUI resources -->
 	<ItemGroup>
 		<MauiIcon Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher.png" />
-		<MauiSplashScreen Include="Resources\Images\catclaw_splash.png" Color="#121212" BaseSize="128,128" />
+		<MauiSplashScreen Include="Resources\Images\catclaw_splash.png" Color="#0B0D20" BaseSize="128,128" />
 		<MauiImage Include="Resources\Images\*" />
 		<MauiFont Include="Resources\Fonts\*" />
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />

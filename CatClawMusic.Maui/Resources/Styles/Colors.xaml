@@ -89,12 +89,14 @@
     <Color x:Key="ErrorColor">#FF6E87</Color>
 
     <!-- 页面/装饰笔刷 -->
+    <!-- iOS 风格渐变背景：深邃夜空紫调（深紫基底），ThemeService 在运行时根据主题色覆盖 -->
     <LinearGradientBrush x:Key="PageBackgroundBrush"
-                         StartPoint="0,0"
-                         EndPoint="1,1">
-        <GradientStop Color="#080B1A" Offset="0" />
-        <GradientStop Color="#101838" Offset="0.55" />
-        <GradientStop Color="#090C20" Offset="1" />
+                         StartPoint="0.5,0"
+                         EndPoint="0.5,1">
+        <GradientStop Color="#0B0D20" Offset="0" />
+        <GradientStop Color="#15132E" Offset="0.3" />
+        <GradientStop Color="#0A0C1C" Offset="0.7" />
+        <GradientStop Color="#080914" Offset="1" />
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="HeroBrush"
@@ -124,6 +126,11 @@
         <GradientStop Color="#30FFFFFF" Offset="0" />
         <GradientStop Color="#05FFFFFF" Offset="1" />
     </LinearGradientBrush>
+
+    <!-- 自定义背景图片 -->
+    <x:Boolean x:Key="CustomBackgroundEnabled">False</x:Boolean>
+    <x:Double x:Key="CustomBackgroundOpacity">0.5</x:Double>
+    <Color x:Key="CustomBackgroundMaskColor">#80000000</Color>
 
     <!-- Converters -->
     <converters:StringToBoolConverter x:Key="StringToBoolConverter" />

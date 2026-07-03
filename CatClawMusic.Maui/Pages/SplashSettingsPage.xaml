@@ -5,11 +5,6 @@
              Title="启动画面设置"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
     <Grid Background="{DynamicResource PageBackgroundBrush}">
-        <Border WidthRequest="220" HeightRequest="220"
-                StrokeThickness="0" StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Center" VerticalOptions="Start"
-                TranslationY="-60" />
         <Border Margin="16,18,16,22"
                 Style="{StaticResource GlassCardStrongStyle}">
             <VerticalStackLayout Spacing="12" HorizontalOptions="Center">

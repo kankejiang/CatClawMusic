@@ -5,45 +5,33 @@ namespace CatClawMusic.Core.Interfaces;
 /// </summary>
 public interface IThemeService
 {
-    /// <summary>
-    /// 获取当前主题
-    /// </summary>
     AppTheme CurrentTheme { get; }
 
-    /// <summary>
-    /// 获取深色模式设置
-    /// </summary>
     DarkModeSetting DarkModeSetting { get; }
 
-    /// <summary>
-    /// 获取所有可用的主题
-    /// </summary>
     List<AppTheme> AvailableThemes { get; }
 
-    /// <summary>
-    /// 设置主题
-    /// </summary>
+    string? CustomBackgroundPath { get; }
+
+    double CustomBackgroundOpacity { get; }
+
+    bool HasCustomBackground { get; }
+
     void SetTheme(AppTheme theme);
 
-    /// <summary>
-    /// 设置深色模式设置
-    /// </summary>
     void SetDarkModeSetting(DarkModeSetting setting);
 
-    /// <summary>
-    /// 应用当前主题到活动
-    /// </summary>
     void ApplyTheme();
 
-    /// <summary>
-    /// 检测系统当前是否处于深色模式
-    /// </summary>
     bool IsSystemDarkMode();
 
-    /// <summary>
-    /// 判断当前是否实际处于深色模式（综合用户设置与系统状态）
-    /// </summary>
     bool IsEffectivelyDark();
+
+    void SetCustomBackground(string? imagePath, double opacity = 0.5);
+
+    void SetCustomBackgroundOpacity(double opacity);
+
+    void ClearCustomBackground();
 }
 
 /// <summary>

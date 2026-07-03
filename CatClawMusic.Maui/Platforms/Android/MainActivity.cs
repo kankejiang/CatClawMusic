@@ -52,9 +52,8 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
-    private void UpdateDecorViewBackground()
+    public void UpdateDecorViewBackground()
     {
-        // 从 MAUI 主题资源获取 WindowBackgroundColor
         try
         {
             var resources = CatClawMusic.Maui.App.Current?.Resources;
@@ -67,12 +66,24 @@ public class MainActivity : MauiAppCompatActivity
                     (int)(mauiColor.Green * 255),
                     (int)(mauiColor.Blue * 255));
                 Window?.DecorView.SetBackgroundColor(androidColor);
+
+                if (Build.VERSION.SdkInt >= BuildVersionCodes.M && Window?.DecorView != null)
+                {
+                    var brightness = 0.299f * mauiColor.Red + 0.587f * mauiColor.Green + 0.114f * mauiColor.Blue;
+                    var isLight = brightness > 0.5f;
+                    const int lightStatusBarFlag = 0x00002000; // SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    var flags = (int)Window.DecorView.SystemUiVisibility;
+                    if (isLight)
+                        flags |= lightStatusBarFlag;
+                    else
+                        flags &= ~lightStatusBarFlag;
+                    Window.DecorView.SystemUiVisibility = (StatusBarVisibility)flags;
+                }
                 return;
             }
         }
         catch { }
 
-        // 回退默认色
         Window?.DecorView.SetBackgroundColor(Android.Graphics.Color.ParseColor("#080B1A"));
     }
 

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Linq;
 using CatClawMusic.Maui.ViewModels;
 using System.ComponentModel;
+using Microsoft.Maui.Storage;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -65,20 +66,17 @@ public partial class MainPage : ContentPage
             page.Content = null;
             content.BindingContext = page.BindingContext;
 
-            // MAUI 11: ScrollView 会消费水平手势，导致父级 PanGestureRecognizer 收不到事件
-            // 1. 强制所有 ScrollView 只支持垂直滚动，让水平手势传播
             ForceVerticalScroll(content);
 
-            // 2. 给每个页面 Content 也添加 PanGestureRecognizer 作为后备
             var panGesture = new PanGestureRecognizer();
             panGesture.PanUpdated += OnPanUpdated;
-            content.GestureRecognizers.Add(panGesture);
+            AddPanToLayouts(content, panGesture);
 
             ViewPagerGrid.Children.Add(content);
         }
     }
 
-    /// <summary>递归遍历所有 ScrollView，强制设为垂直滚动，避免消费水平手势</summary>
+    /// <summary>递归遍历所有 ScrollView，强制设为垂直滚动</summary>
     private static void ForceVerticalScroll(VisualElement element)
     {
         if (element is ScrollView scrollView)
@@ -91,6 +89,19 @@ public partial class MainPage : ContentPage
             foreach (var child in layout.Children.OfType<VisualElement>())
             {
                 ForceVerticalScroll(child);
+            }
+        }
+    }
+
+    /// <summary>递归给所有 Layout 子元素添加 PanGestureRecognizer，确保空白区域也能滑动</summary>
+    private static void AddPanToLayouts(VisualElement element, PanGestureRecognizer panGesture)
+    {
+        if (element is Layout layout && element is not ScrollView && element is not Slider)
+        {
+            layout.GestureRecognizers.Add(panGesture);
+            foreach (var child in layout.Children.OfType<VisualElement>())
+            {
+                AddPanToLayouts(child, panGesture);
             }
         }
     }
@@ -121,7 +132,16 @@ public partial class MainPage : ContentPage
         if (_isFirstLoad)
         {
             _isFirstLoad = false;
+
+            var startupIdx = Preferences.Default.Get("StartupPageIndex", 2);
+            var targetTabIdx = AppearanceSettingsViewModel.MapStartupIndexToTabIndex(startupIdx);
+
             await PreloadTabDataAsync();
+
+            if (targetTabIdx != 0)
+            {
+                SwitchToTab(targetTabIdx);
+            }
         }
     }
 
@@ -343,7 +363,7 @@ public partial class MainPage : ContentPage
         var isFullScreen = _currentIndex <= 1;
         // MAUI 11: IsVisible=false 在 Auto 行中可能不收缩行高，需要同时设置 HeightRequest=0
         TabBar.IsVisible = !isFullScreen;
-        TabBar.HeightRequest = isFullScreen ? 0 : 56;
+        TabBar.HeightRequest = isFullScreen ? 0 : 64;
         UpdateMiniPlayerVisibility();
     }
 

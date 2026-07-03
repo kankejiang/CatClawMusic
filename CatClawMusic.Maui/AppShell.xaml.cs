@@ -65,5 +65,6 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("permissionmanagement", typeof(Pages.PermissionManagementPage));
         Routing.RegisterRoute("albumdetail", typeof(Pages.AlbumDetailPage));
         Routing.RegisterRoute("artistdetail", typeof(Pages.ArtistDetailPage));
+        Routing.RegisterRoute("playlistdetail", typeof(Pages.PlaylistDetailPage));
     }
 }

@@ -2,12 +2,15 @@ using CatClawMusic.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using AppTheme = CatClawMusic.Core.Interfaces.AppTheme;
+using Microsoft.Maui.Storage;
+using System.IO;
 
 namespace CatClawMusic.Maui.ViewModels;
 
 public partial class AppearanceSettingsViewModel : ObservableObject
 {
     private readonly IThemeService? _themeService;
+    private bool _isLoadingTheme = false;
 
     [ObservableProperty]
     private bool _isDarkMode = false;
@@ -21,7 +24,18 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedStartupPageIndex = 0;
 
-    /// <summary>主题色选项</summary>
+    [ObservableProperty]
+    private bool _hasCustomBackground = false;
+
+    [ObservableProperty]
+    private ImageSource? _customBackgroundPreview = null;
+
+    [ObservableProperty]
+    private double _backgroundOpacity = 0.5;
+
+    [ObservableProperty]
+    private string _customBackgroundName = string.Empty;
+
     public static readonly (string Name, string Color)[] ThemeColors = new[]
     {
         ("紫色", "#9B7ED8"),
@@ -36,7 +50,6 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         _themeService = themeService;
     }
 
-    /// <summary>选择主题颜色并立即应用</summary>
     [RelayCommand]
     public async Task SelectThemeColorAsync(string? colorHex)
     {
@@ -60,7 +73,6 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         await Task.CompletedTask;
     }
 
-    /// <summary>深色模式变化时自动应用</summary>
     partial void OnIsDarkModeChanged(bool value)
     {
         if (_themeService != null)
@@ -70,10 +82,65 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>加载当前主题状态</summary>
+    partial void OnSelectedStartupPageIndexChanged(int value)
+    {
+        Preferences.Default.Set("StartupPageIndex", value);
+    }
+
+    partial void OnBackgroundOpacityChanged(double value)
+    {
+        if (_isLoadingTheme) return;
+        if (_themeService != null && _themeService.HasCustomBackground)
+        {
+            _themeService.SetCustomBackgroundOpacity(value);
+        }
+    }
+
+    [RelayCommand]
+    public async Task SelectBackgroundAsync()
+    {
+        try
+        {
+            var options = new PickOptions
+            {
+                FileTypes = FilePickerFileType.Images,
+                PickerTitle = "选择背景图片"
+            };
+
+            var result = await FilePicker.Default.PickAsync(options);
+            if (result == null) return;
+
+            var appDataDir = FileSystem.AppDataDirectory;
+            var bgDir = Path.Combine(appDataDir, "backgrounds");
+            Directory.CreateDirectory(bgDir);
+            var destPath = Path.Combine(bgDir, $"custom_bg{Path.GetExtension(result.FileName)}");
+
+            using (var src = await result.OpenReadAsync())
+            using (var dst = File.Create(destPath))
+            {
+                await src.CopyToAsync(dst);
+            }
+
+            _themeService?.SetCustomBackground(destPath, BackgroundOpacity);
+            LoadCurrentTheme();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AppearanceVM] SelectBackground failed: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    public void ClearBackground()
+    {
+        _themeService?.ClearCustomBackground();
+        LoadCurrentTheme();
+    }
+
     public void LoadCurrentTheme()
     {
-        if (_themeService == null) return;
+        _isLoadingTheme = true;
+        if (_themeService == null) { _isLoadingTheme = false; return; }
         var currentTheme = _themeService.CurrentTheme;
         IsDarkMode = _themeService.DarkModeSetting == DarkModeSetting.Dark;
         SelectedThemeColor = currentTheme switch
@@ -84,6 +151,42 @@ public partial class AppearanceSettingsViewModel : ObservableObject
             AppTheme.Green => "#66BB6A",
             AppTheme.Orange => "#FF7043",
             _ => "#9B7ED8"
+        };
+        SelectedStartupPageIndex = Preferences.Default.Get("StartupPageIndex", 2);
+
+        HasCustomBackground = _themeService.HasCustomBackground;
+        BackgroundOpacity = _themeService.CustomBackgroundOpacity;
+        if (HasCustomBackground && _themeService.CustomBackgroundPath != null)
+        {
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(_themeService.CustomBackgroundPath);
+                CustomBackgroundPreview = ImageSource.FromStream(() => new MemoryStream(bytes));
+                CustomBackgroundName = Path.GetFileName(_themeService.CustomBackgroundPath);
+            }
+            catch
+            {
+                CustomBackgroundPreview = null;
+                CustomBackgroundName = string.Empty;
+            }
+        }
+        else
+        {
+            CustomBackgroundPreview = null;
+            CustomBackgroundName = string.Empty;
+        }
+        _isLoadingTheme = false;
+    }
+
+    public static int MapStartupIndexToTabIndex(int startupIndex)
+    {
+        return startupIndex switch
+        {
+            0 => 3,
+            1 => 1,
+            2 => 0,
+            3 => 4,
+            _ => 0
         };
     }
 }

@@ -79,7 +79,6 @@ public partial class SettingsViewModel : ObservableObject
         _themeService.SetDarkModeSetting(next);
         _themeService.ApplyTheme();
         SyncDarkModeIcon();
-        NavigationRequested?.Invoke(this, $"TOAST:{GetDarkModeMessage(next)}");
     }
 
     public async Task LoadStatusAsync()
@@ -174,16 +173,6 @@ public partial class SettingsViewModel : ObservableObject
             DarkModeSetting.Light => "ic_light_mode",
             DarkModeSetting.Dark => "ic_dark_mode",
             _ => "ic_system_mode"
-        };
-    }
-
-    private static string GetDarkModeMessage(DarkModeSetting setting)
-    {
-        return setting switch
-        {
-            DarkModeSetting.Light => "已切换为浅色模式",
-            DarkModeSetting.Dark => "已切换为深色模式",
-            _ => "已切换为跟随系统"
         };
     }
 }

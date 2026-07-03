@@ -26,7 +26,7 @@
                         <Border Grid.Column="1"
                                 Style="{StaticResource GlassIconContainerStyle}"
                                 BackgroundColor="#24FFFFFF"
-                                Stroke="#40FFFFFF"
+                                Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Start">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnDarkModeToggleClicked" />

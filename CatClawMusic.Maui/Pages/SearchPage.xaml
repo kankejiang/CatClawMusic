@@ -39,7 +39,7 @@
                             Padding="4"
                             StrokeThickness="0"
                             StrokeShape="RoundRectangle 20"
-                            BackgroundColor="#20FFFFFF"
+                            Background="{DynamicResource BadgeBackgroundColor}"
                             VerticalOptions="Center">
                         <ImageButton Source="avatar_yuki.png"
                                      WidthRequest="44" HeightRequest="44"
@@ -228,7 +228,7 @@
                         <Border WidthRequest="110" HeightRequest="110"
                                 StrokeShape="RoundRectangle 18"
                                 StrokeThickness="0"
-                                BackgroundColor="#20FFFFFF">
+                                BackgroundColor="Transparent">
                             <Image Source="{Binding FeaturedSongCover}"
                                    Aspect="AspectFill"
                                    WidthRequest="110" HeightRequest="110" />
@@ -533,12 +533,6 @@
               IsVisible="{Binding IsChatMode}"
               Background="{DynamicResource PageBackgroundBrush}"
               RowDefinitions="Auto,*,Auto">
-
-            <Border WidthRequest="320" HeightRequest="320"
-                    StrokeThickness="0" StrokeShape="Ellipse"
-                    Background="{DynamicResource PrimaryGlowBrush}"
-                    HorizontalOptions="End" VerticalOptions="Start"
-                    TranslationX="150" TranslationY="-60" />
 
             <Border Grid.Row="0" Margin="16,18,16,10"
                     Style="{StaticResource GlassCardStrongStyle}">
