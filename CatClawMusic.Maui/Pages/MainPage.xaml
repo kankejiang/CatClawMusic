@@ -10,7 +10,8 @@
 
         <!-- ViewPager 区域：所有 tab 页面水平排列，滑动时同时移动 -->
         <Grid x:Name="ViewPagerGrid" Grid.Row="0"
-              BackgroundColor="{DynamicResource WindowBackgroundColor}">
+              BackgroundColor="{DynamicResource WindowBackgroundColor}"
+              IsClippedToBounds="True">
             <Grid.GestureRecognizers>
                 <PanGestureRecognizer PanUpdated="OnPanUpdated" />
             </Grid.GestureRecognizers>
@@ -109,8 +110,12 @@
                 <VerticalStackLayout.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </VerticalStackLayout.GestureRecognizers>
-                <Image Source="ic_play" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" x:Name="TabIcon0" />
+                <Image WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon0">
+                    <Image.Source>
+                        <AppThemeBinding Light="ic_play_light" Dark="ic_play" />
+                    </Image.Source>
+                </Image>
                 <Label Text="播放" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
             </VerticalStackLayout>
 
@@ -119,8 +124,12 @@
                 <VerticalStackLayout.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </VerticalStackLayout.GestureRecognizers>
-                <Image Source="ic_home" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" x:Name="TabIcon1" />
+                <Image WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon1">
+                    <Image.Source>
+                        <AppThemeBinding Light="ic_home_light" Dark="ic_home" />
+                    </Image.Source>
+                </Image>
                 <Label Text="发现" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
             </VerticalStackLayout>
 
@@ -129,8 +138,12 @@
                 <VerticalStackLayout.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </VerticalStackLayout.GestureRecognizers>
-                <Image Source="ic_library" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" x:Name="TabIcon2" />
+                <Image WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon2">
+                    <Image.Source>
+                        <AppThemeBinding Light="ic_playlist_light" Dark="ic_playlist" />
+                    </Image.Source>
+                </Image>
                 <Label Text="歌单" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
             </VerticalStackLayout>
 
@@ -139,8 +152,12 @@
                 <VerticalStackLayout.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </VerticalStackLayout.GestureRecognizers>
-                <Image Source="ic_library" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" x:Name="TabIcon3" />
+                <Image WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon3">
+                    <Image.Source>
+                        <AppThemeBinding Light="ic_library_light" Dark="ic_library" />
+                    </Image.Source>
+                </Image>
                 <Label Text="音乐库" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
             </VerticalStackLayout>
 
@@ -149,9 +166,30 @@
                 <VerticalStackLayout.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </VerticalStackLayout.GestureRecognizers>
-                <Image Source="ic_settings" WidthRequest="22" HeightRequest="22"
-                       HorizontalOptions="Center" x:Name="TabIcon4" />
+                <Image WidthRequest="22" HeightRequest="22"
+                       HorizontalOptions="Center" x:Name="TabIcon4">
+                    <Image.Source>
+                        <AppThemeBinding Light="ic_settings_light" Dark="ic_settings" />
+                    </Image.Source>
+                </Image>
                 <Label Text="设置" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel4" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- 启动预加载遮罩：首次加载各 Tab 数据时显示，加载完成后隐藏 -->
+        <Grid x:Name="LoadingOverlay"
+              Grid.RowSpan="3"
+              BackgroundColor="{DynamicResource WindowBackgroundColor}"
+              IsVisible="False"
+              InputTransparent="False">
+            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
+                <ActivityIndicator IsRunning="True"
+                                   Color="{DynamicResource PrimaryColor}"
+                                   WidthRequest="40" HeightRequest="40" />
+                <Label Text="正在加载..."
+                       FontSize="14"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       HorizontalTextAlignment="Center" />
             </VerticalStackLayout>
         </Grid>
     </Grid>

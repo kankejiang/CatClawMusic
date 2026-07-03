@@ -20,6 +20,7 @@ public partial class MainPage : ContentPage
     private double _panTotalX;
     private bool _isPanning;
     private bool _directionLocked;
+    private bool _isFirstLoad = true;
     private const double SwipeThresholdRatio = 0.25;
     private const int AnimDuration = 280;
 
@@ -63,11 +64,38 @@ public partial class MainPage : ContentPage
             var content = page.Content;
             page.Content = null;
             content.BindingContext = page.BindingContext;
+
+            // MAUI 11: ScrollView 会消费水平手势，导致父级 PanGestureRecognizer 收不到事件
+            // 1. 强制所有 ScrollView 只支持垂直滚动，让水平手势传播
+            ForceVerticalScroll(content);
+
+            // 2. 给每个页面 Content 也添加 PanGestureRecognizer 作为后备
+            var panGesture = new PanGestureRecognizer();
+            panGesture.PanUpdated += OnPanUpdated;
+            content.GestureRecognizers.Add(panGesture);
+
             ViewPagerGrid.Children.Add(content);
         }
     }
 
-    protected override void OnAppearing()
+    /// <summary>递归遍历所有 ScrollView，强制设为垂直滚动，避免消费水平手势</summary>
+    private static void ForceVerticalScroll(VisualElement element)
+    {
+        if (element is ScrollView scrollView)
+        {
+            scrollView.Orientation = ScrollOrientation.Vertical;
+        }
+
+        if (element is Layout layout)
+        {
+            foreach (var child in layout.Children.OfType<VisualElement>())
+            {
+                ForceVerticalScroll(child);
+            }
+        }
+    }
+
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
         System.Diagnostics.Debug.WriteLine($"[MainPage] OnAppearing, currentIndex={_currentIndex}, ViewPagerGrid.Width={ViewPagerGrid.Width}");
@@ -88,6 +116,43 @@ public partial class MainPage : ContentPage
         }
 
         InvokeLifecycle(_tabPages[_currentIndex], "OnAppearing");
+
+        // 首次加载：显示遮罩，并行预加载所有 Tab 的 ViewModel 数据
+        if (_isFirstLoad)
+        {
+            _isFirstLoad = false;
+            await PreloadTabDataAsync();
+        }
+    }
+
+    /// <summary>预加载所有 Tab 页面的 ViewModel 数据，加载完成后隐藏遮罩</summary>
+    private async Task PreloadTabDataAsync()
+    {
+        LoadingOverlay.IsVisible = true;
+
+        try
+        {
+            var libraryVm = _services.GetRequiredService<LibraryViewModel>();
+            var playlistVm = _services.GetRequiredService<PlaylistViewModel>();
+            var searchVm = _services.GetRequiredService<SearchViewModel>();
+
+            // 并行预加载（各方法内部已用 Task.Run/Task.WhenAll 进行后台数据获取）
+            await Task.WhenAll(
+                libraryVm.LoadLocalAsync(),
+                playlistVm.LoadPlaylistsAsync(),
+                searchVm.LoadExploreDataAsync()
+            );
+
+            System.Diagnostics.Debug.WriteLine("[MainPage] 预加载完成");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainPage] 预加载失败: {ex.Message}");
+        }
+        finally
+        {
+            LoadingOverlay.IsVisible = false;
+        }
     }
 
     protected override void OnDisappearing()
@@ -239,6 +304,13 @@ public partial class MainPage : ContentPage
         await AnimateToPage(vpIndex);
     }
 
+    /// <summary>切换到全屏歌词页（ViewPager index 0）</summary>
+    public void SwitchToFullLyrics()
+    {
+        if (_currentIndex == 0) return;
+        _ = AnimateToPage(0);
+    }
+
     /// <summary>导航到指定 tab（静态方法，供外部调用。tab 索引 0-4）</summary>
     public static async Task GoToTabAsync(int tabIndex)
     {
@@ -269,7 +341,9 @@ public partial class MainPage : ContentPage
     {
         // index 0 = 全屏歌词, index 1 = 播放页，两者都全屏
         var isFullScreen = _currentIndex <= 1;
+        // MAUI 11: IsVisible=false 在 Auto 行中可能不收缩行高，需要同时设置 HeightRequest=0
         TabBar.IsVisible = !isFullScreen;
+        TabBar.HeightRequest = isFullScreen ? 0 : 56;
         UpdateMiniPlayerVisibility();
     }
 
@@ -277,7 +351,9 @@ public partial class MainPage : ContentPage
     private void UpdateMiniPlayerVisibility()
     {
         var hasSong = !string.IsNullOrEmpty(_nowPlayingVm.Title);
-        MiniPlayer.IsVisible = hasSong && _currentIndex > 1;
+        var visible = hasSong && _currentIndex > 1;
+        MiniPlayer.IsVisible = visible;
+        MiniPlayer.HeightRequest = visible ? 52 : 0;
     }
 
     /// <summary>ViewModel 属性变化时更新迷你播放器显隐</summary>

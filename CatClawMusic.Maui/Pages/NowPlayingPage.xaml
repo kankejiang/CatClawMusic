@@ -5,31 +5,47 @@
              Title="正在播放"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}"
+    <Grid x:Name="RootGrid"
+          Background="{DynamicResource PageBackgroundBrush}"
           RowDefinitions="*,Auto,Auto"
           Padding="20,12,20,16">
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnPageTapped" />
+        </Grid.GestureRecognizers>
 
-        <!-- Decorative glows -->
-        <Border WidthRequest="300" HeightRequest="300"
-                StrokeThickness="0" StrokeShape="Ellipse"
+        <!-- 左上角收起按钮：点击切换到发现页 -->
+        <Border HorizontalOptions="Start" VerticalOptions="Start"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
                 Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Center" VerticalOptions="Start"
-                TranslationY="-100" />
+                WidthRequest="36" HeightRequest="36"
+                Margin="0,6,0,0"
+                ZIndex="10">
+            <ImageButton Source="ic_collapse"
+                         WidthRequest="18" HeightRequest="18"
+                         BackgroundColor="Transparent"
+                         Rotation="0"
+                         Clicked="OnCollapseClicked"
+                         HorizontalOptions="Center" VerticalOptions="Center" />
+        </Border>
 
         <!-- Row 0: Cover + Song Info (fills remaining space) -->
         <VerticalStackLayout Grid.Row="0"
-                             VerticalOptions="Center"
+                             x:Name="SongArea"
+                             VerticalOptions="Start"
                              HorizontalOptions="Center"
-                             Spacing="12">
-            <Border StrokeThickness="0"
-                    StrokeShape="RoundRectangle 24"
+                             Spacing="12"
+                             Padding="0,40,0,0">
+            <Border x:Name="CoverArea"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 30"
                     BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                    WidthRequest="220" HeightRequest="220"
+                    WidthRequest="300" HeightRequest="300"
                     HorizontalOptions="Center">
                 <Image x:Name="ArtworkImage"
                        Source="{Binding CoverImage}"
                        Aspect="AspectFill"
-                       WidthRequest="220" HeightRequest="220" />
+                       WidthRequest="300" HeightRequest="300" />
             </Border>
 
             <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
@@ -46,16 +62,69 @@
                        MaxLines="1" />
             </VerticalStackLayout>
 
-            <!-- Current lyric line only -->
-            <Label Text="{Binding LyricCurrent}"
-                   FontSize="14"
-                   TextColor="{DynamicResource PrimaryLightColor}"
-                   HorizontalTextAlignment="Center"
-                   MaxLines="2"
-                   LineBreakMode="WordWrap"
-                   HeightRequest="40"
-                   IsVisible="{Binding HasLyrics}" />
-            <Label Text="{Binding NoLyricsText}"
+            <!-- Multi-line lyrics display -->
+            <VerticalStackLayout x:Name="LyricsContainer"
+                                 Spacing="4"
+                                 HorizontalOptions="Center"
+                                 IsVisible="{Binding HasLyrics}">
+                <Label Text="{Binding LyricLine0}"
+                       FontSize="11"
+                       Opacity="0.4"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding LyricLine1}"
+                       FontSize="12"
+                       Opacity="0.55"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding LyricLine2}"
+                       FontSize="13"
+                       Opacity="0.7"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding LyricLine3}"
+                       FontSize="14"
+                       Opacity="0.85"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding LyricCurrent}"
+                       FontSize="16"
+                       FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource PrimaryLightColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="2"
+                       LineBreakMode="WordWrap" />
+                <Label Text="{Binding LyricLine4}"
+                       FontSize="14"
+                       Opacity="0.85"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding LyricLine5}"
+                       FontSize="13"
+                       Opacity="0.7"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding LyricLine6}"
+                       FontSize="12"
+                       Opacity="0.55"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+                <Label Text="{Binding LyricLine7}"
+                       FontSize="11"
+                       Opacity="0.4"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalTextAlignment="Center"
+                       MaxLines="1" />
+            </VerticalStackLayout>
+            <Label x:Name="NoLyricsLabel"
+                   Text="{Binding NoLyricsText}"
                    FontSize="13"
                    TextColor="{DynamicResource TextHintColor}"
                    HorizontalTextAlignment="Center"
@@ -67,8 +136,8 @@
         <VerticalStackLayout Grid.Row="1" Spacing="2" Margin="0,8,0,0">
             <Slider x:Name="ProgressSlider"
                     Minimum="0"
-                    Maximum="{Binding Duration, Mode=OneWay}"
-                    Value="{Binding Progress, Mode=TwoWay}"
+                    Maximum="1"
+                    Value="0"
                     ThumbColor="{DynamicResource PrimaryColor}"
                     MinimumTrackColor="{DynamicResource PrimaryColor}"
                     MaximumTrackColor="{DynamicResource DividerColor}"

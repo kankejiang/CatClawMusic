@@ -2,9 +2,12 @@ namespace CatClawMusic.Maui;
 
 public partial class AppShell : Shell
 {
-    public AppShell()
+    public AppShell(IServiceProvider services)
     {
         InitializeComponent();
+
+        // 从 DI 容器获取 MainPage 实例（Singleton），设置为 ShellContent 的内容
+        MainShellContent.Content = services.GetRequiredService<Pages.MainPage>();
 
         Routing.RegisterRoute("search", typeof(Pages.SearchPage));
         Routing.RegisterRoute("discover", typeof(Pages.SearchPage));

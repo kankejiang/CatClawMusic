@@ -6,6 +6,7 @@ namespace CatClawMusic.Maui.Pages;
 public partial class PlaylistPage : ContentPage
 {
     private readonly PlaylistViewModel _viewModel;
+    private bool _isFirstAppearing = true;
 
     public PlaylistPage(PlaylistViewModel viewModel)
     {
@@ -17,6 +18,13 @@ public partial class PlaylistPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        if (_isFirstAppearing)
+        {
+            _isFirstAppearing = false;
+            if (_viewModel.Playlists.Count > 0) return;
+        }
+
         await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
     }
 

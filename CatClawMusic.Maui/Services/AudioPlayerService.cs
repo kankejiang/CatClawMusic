@@ -88,33 +88,39 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    private void StartPositionTimer()
+    internal void StartPositionTimer()
     {
         StopPositionTimer();
         _positionTimer = new System.Threading.Timer(_ =>
         {
-            try
+            // ExoPlayer 必须在主线程访问，MAUI 11 严格检查线程
+            MainThread.BeginInvokeOnMainThread(() =>
             {
-                // 始终拉取当前位置，确保进度条实时更新
-                // （即使 IsPlaying 在 buffering/seek 期间短暂返回 false，
-                //  只要 _player 存在，CurrentPosition 仍可正确反映播放进度）
-                var pos = CurrentPosition;
-                PositionChanged?.Invoke(this, TimeSpan.FromSeconds(pos));
-
-                if (IsPlaying)
+                try
                 {
-                    // 在播放中：等待下一秒再拉
+                    var pos = CurrentPosition;
+                    var dur = Duration;
+                    System.Diagnostics.Debug.WriteLine($"[PositionTimer] Tick: pos={pos:F1}s, dur={dur:F1}s");
+                    PositionChanged?.Invoke(this, TimeSpan.FromSeconds(pos));
+                    CheckPlatformCompletion();
                 }
-                CheckPlatformCompletion();
-            }
-            catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PositionTimer] Error: {ex.Message}");
+                }
+            });
         }, null, 500, 500);
+        System.Diagnostics.Debug.WriteLine($"[PositionTimer] Started, hasSubscribers={PositionChanged != null}");
     }
 
-    private void StopPositionTimer()
+    internal void StopPositionTimer()
     {
-        _positionTimer?.Dispose();
-        _positionTimer = null;
+        if (_positionTimer != null)
+        {
+            _positionTimer.Dispose();
+            _positionTimer = null;
+            System.Diagnostics.Debug.WriteLine("[PositionTimer] Stopped");
+        }
     }
 
     #endregion

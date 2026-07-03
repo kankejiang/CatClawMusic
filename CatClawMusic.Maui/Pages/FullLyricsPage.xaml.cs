@@ -159,14 +159,13 @@ public partial class FullLyricsPage : ContentPage
         _userScrolling = false;
     }
 
-    private async void OnBackClicked(object? sender, EventArgs e)
+    private void OnBackClicked(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("..");
+        MainPage.Instance?.SwitchToTab(0);
     }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
     }
 }

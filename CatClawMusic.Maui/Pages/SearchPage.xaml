@@ -7,18 +7,6 @@
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
 
-        <!-- Decorative glows -->
-        <Border WidthRequest="300" HeightRequest="300"
-                StrokeThickness="0" StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Start" VerticalOptions="Start"
-                TranslationX="-135" TranslationY="-95" />
-        <Border WidthRequest="250" HeightRequest="250"
-                StrokeThickness="0" StrokeShape="Ellipse"
-                Background="{DynamicResource AccentGlowBrush}"
-                HorizontalOptions="End" VerticalOptions="Start"
-                TranslationX="110" TranslationY="110" />
-
         <ScrollView x:Name="DiscoverScroll"
                     IsVisible="{Binding IsChatMode, Converter={StaticResource InvertedBoolConverter}}">
             <VerticalStackLayout Padding="0,0,0,24" Spacing="0">

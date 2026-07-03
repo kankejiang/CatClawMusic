@@ -4,40 +4,18 @@
        xmlns:pages="clr-namespace:CatClawMusic.Maui.Pages"
        x:Class="CatClawMusic.Maui.AppShell"
        FlyoutBehavior="Disabled"
-       Shell.TabBarBackgroundColor="{DynamicResource TabBarBackgroundColor}"
-       Shell.TabBarForegroundColor="{DynamicResource TabActiveColor}"
-       Shell.TabBarUnselectedColor="{DynamicResource TabInactiveColor}"
-       Shell.TabBarTitleColor="{DynamicResource TabActiveColor}">
+       Shell.TabBarIsVisible="False"
+       Shell.NavBarIsVisible="False">
 
     <Shell.Resources>
         <ResourceDictionary>
-            <!-- 全局隐藏顶部导航栏，所有页面内容将延伸至状态栏下方 -->
             <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
                 <Setter Property="Shell.NavBarIsVisible" Value="False"/>
             </Style>
         </ResourceDictionary>
     </Shell.Resources>
 
-    <TabBar>
-        <Tab Title="播放" Icon="ic_play" Route="nowplaying">
-            <ShellContent ContentTemplate="{DataTemplate pages:NowPlayingPage}" />
-        </Tab>
-
-        <Tab Title="发现" Icon="ic_home" Route="discover">
-            <ShellContent ContentTemplate="{DataTemplate pages:SearchPage}" />
-        </Tab>
-
-        <Tab Title="歌单" Icon="ic_library" Route="playlists">
-            <ShellContent ContentTemplate="{DataTemplate pages:PlaylistPage}" />
-        </Tab>
-
-        <Tab Title="音乐库" Icon="ic_library" Route="library">
-            <ShellContent ContentTemplate="{DataTemplate pages:LibraryPage}" />
-        </Tab>
-
-        <Tab Title="设置" Icon="ic_settings" Route="settings">
-            <ShellContent ContentTemplate="{DataTemplate pages:SettingsPage}" />
-        </Tab>
-    </TabBar>
+    <!-- 主页面：包含 ViewPager + 自定义 TabBar + 迷你播放器，通过 code-behind 从 DI 注入 -->
+    <ShellContent Route="main" x:Name="MainShellContent" />
 
 </Shell>

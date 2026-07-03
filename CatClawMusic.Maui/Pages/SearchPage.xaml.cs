@@ -11,6 +11,7 @@ public partial class SearchPage : ContentPage
     private readonly PlayQueue _queue;
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService _audioPlayer;
+    private bool _isFirstAppearing = true;
 
     public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer)
     {
@@ -25,6 +26,12 @@ public partial class SearchPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        if (_isFirstAppearing)
+        {
+            _isFirstAppearing = false;
+            if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0) return;
+        }
 
         try
         {

@@ -1,4 +1,4 @@
-﻿using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,6 +39,6 @@ public partial class App : Application
 
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        return new Window(new AppShell());
+        return new Window(MauiProgram.Services.GetRequiredService<AppShell>());
     }
 }

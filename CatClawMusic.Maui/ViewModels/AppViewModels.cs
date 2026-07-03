@@ -23,6 +23,8 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>上次 LoadCurrentSongAsync 加载的歌曲ID，用于判断切页时是否需要重新播放</summary>
     private int _loadedSongId = -1;
     private CancellationTokenSource? _loadCts;
+    /// <summary>标记启动恢复，避免恢复后自动播放</summary>
+    private bool _isStartupRestore;
 
     // === Basic Song Info ===
 
@@ -34,6 +36,8 @@ public partial class NowPlayingViewModel : ObservableObject
     // === Cover Art ===
     [ObservableProperty] private ImageSource? _coverImage;
     [ObservableProperty] private bool _hasCover;
+    /// <summary>当前封面图片的本地文件路径（供取色用）</summary>
+    public string? CurrentCoverPath { get; private set; }
 
     // === Playback State ===
     [ObservableProperty] private bool _isPlaying;
@@ -59,11 +63,15 @@ public partial class NowPlayingViewModel : ObservableObject
 
     // === Lyrics ===
     [ObservableProperty] private bool _hasLyrics;
-    [ObservableProperty] private string _lyricLine0 = "";  // 2 lines before
-    [ObservableProperty] private string _lyricLine1 = "";  // 1 line before
+    [ObservableProperty] private string _lyricLine0 = "";  // 4 lines before
+    [ObservableProperty] private string _lyricLine1 = "";  // 3 lines before
+    [ObservableProperty] private string _lyricLine2 = "";  // 2 lines before
+    [ObservableProperty] private string _lyricLine3 = "";  // 1 line before
     [ObservableProperty] private string _lyricCurrent = ""; // current
-    [ObservableProperty] private string _lyricLine2 = "";  // 1 line after
-    [ObservableProperty] private string _lyricLine3 = "";  // 2 lines after
+    [ObservableProperty] private string _lyricLine4 = "";  // 1 line after
+    [ObservableProperty] private string _lyricLine5 = "";  // 2 lines after
+    [ObservableProperty] private string _lyricLine6 = "";  // 3 lines after
+    [ObservableProperty] private string _lyricLine7 = "";  // 4 lines after
     [ObservableProperty] private string _noLyricsText = "暂无歌词";
 
     // Full lyrics (for FullLyricsPage)
@@ -77,6 +85,9 @@ public partial class NowPlayingViewModel : ObservableObject
     public ObservableCollection<Song> UpcomingSongs { get; } = new();
 
     public Song? CurrentSong => _queue.CurrentSong;
+
+    /// <summary>暴露 AudioService 的 Duration 供 NowPlayingPage timer 直接拉取</summary>
+    public double AudioServiceDuration => _audioService.Duration;
 
     public NowPlayingViewModel(
         PlayQueue queue,
@@ -139,9 +150,14 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            // Update Duration from audio service if not yet set (e.g. before PlayAsync completes)
-            if (Duration <= 0 && _audioService.Duration > 0)
+            // Duration 小于 1 秒视为无效，从 audio service 重新拉取
+            // (某些歌曲数据库存储的 Duration 不正确，需要依赖 ExoPlayer 的真实时长)
+            if (Duration < 1 && _audioService.Duration > 1)
+            {
                 Duration = _audioService.Duration;
+                TotalTimeDisplay = FormatTime(Duration);
+                System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] Duration updated from audio service: {Duration}s");
+            }
 
             // Auto-release _isSeeking after 10s in case DragCompleted never fires
             if (!_isSeeking)
@@ -177,13 +193,20 @@ public partial class NowPlayingViewModel : ObservableObject
         if (IsPlaying)
         {
             await _audioService.PauseAsync();
+            return;
+        }
+
+        var song = _queue.CurrentSong;
+        if (song == null || string.IsNullOrEmpty(song.FilePath)) return;
+
+        // 同一首歌已加载：使用 Resume 从暂停位置恢复，避免 PlayAsync 重新加载媒体导致从头播放
+        if (_audioService.CurrentSongFilePath == song.FilePath)
+        {
+            await _audioService.ResumeAsync();
         }
         else
         {
-            if (_queue.CurrentSong != null && !string.IsNullOrEmpty(_queue.CurrentSong.FilePath))
-            {
-                await _audioService.PlayAsync(_queue.CurrentSong.FilePath);
-            }
+            await _audioService.PlayAsync(song.FilePath);
         }
     }
 
@@ -273,34 +296,26 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         var song = _queue.CurrentSong;
 
-        // 启动恢复：如果队列为空，尝试从 Preferences 恢复上次播放的歌曲
+        // 启动恢复：如果队列为空，尝试从 Preferences 恢复上次的整个播放队列
         if (song == null)
         {
             try
             {
-                var savedId = Preferences.Default.Get("last_playing_song_id", -1);
-                if (savedId > 0)
+                await _db.EnsureInitializedAsync();
+                var (restoredSongs, restoredCurrentId) = RestoreQueueState();
+                if (restoredSongs.Count > 0 && restoredCurrentId > 0)
                 {
-                    await _db.EnsureInitializedAsync();
-                    var restoredSong = await _db.GetSongByIdAsync(savedId);
-                    if (restoredSong != null)
-                    {
-                        // 填充 Artist/Album 名称
-                        var artist = await _db.FindArtistByIdAsync(restoredSong.ArtistId);
-                        var album = await _db.FindAlbumByIdAsync(restoredSong.AlbumId);
-                        restoredSong.Artist = artist?.Name ?? "未知艺术家";
-                        restoredSong.Album = album?.Title ?? "未知专辑";
-                        restoredSong.AllArtists = restoredSong.Artist;
-
-                        _queue.SetSongs([restoredSong]);
-                        _queue.SelectSong(restoredSong.Id);
-                        song = _queue.CurrentSong;
-                    }
+                    _queue.SetSongs(restoredSongs);
+                    _queue.SelectSong(restoredCurrentId);
+                    song = _queue.CurrentSong;
+                    // 标记启动恢复，避免自动播放
+                    _isStartupRestore = true;
+                    System.Diagnostics.Debug.WriteLine($"[NowPlaying] 恢复播放队列: {restoredSongs.Count} 首, 当前歌曲ID={restoredCurrentId}");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[NowPlaying] 恢复上次歌曲失败: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[NowPlaying] 恢复播放队列失败: {ex.Message}");
             }
         }
 
@@ -340,8 +355,10 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             // 切歌：重置进度和歌词
             // Song.Duration 单位是毫秒，Slider 需要秒
-            Duration = song.Duration > 0 ? song.Duration / 1000.0 : _audioService.Duration;
-            TotalTimeDisplay = FormatTime(Duration);
+            // 部分歌曲 Duration 可能存储不正确（过小），使用 _audioService.Duration 作为回退
+            var songDurationSec = song.Duration > 1000 ? song.Duration / 1000.0 : 0;
+            Duration = songDurationSec > 0 ? songDurationSec : _audioService.Duration;
+            TotalTimeDisplay = Duration > 0 ? FormatTime(Duration) : "--:--";
             Progress = 0;
             CurrentTimeDisplay = "0:00";
             ClearLyrics();
@@ -368,9 +385,9 @@ public partial class NowPlayingViewModel : ObservableObject
         // Update upcoming songs
         RefreshUpcomingSongs();
 
-        if (!isSameSong && autoPlay)
+        if (!isSameSong && autoPlay && !_isStartupRestore)
         {
-            // 换歌时且允许自动播放才启动播放
+            // 换歌时且允许自动播放才启动播放（启动恢复除外）
             if (!string.IsNullOrEmpty(song.FilePath))
             {
                 try
@@ -421,11 +438,106 @@ public partial class NowPlayingViewModel : ObservableObject
                 }
             }, ct);
         }
+        else if (!isSameSong && _isStartupRestore)
+        {
+            // 启动恢复：加载封面和歌词，但不播放
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(
+                        LoadCoverAsync(song, ct),
+                        LoadLyricsAsync(song, ct)
+                    );
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Load cover/lyrics error: {ex.Message}");
+                }
+            }, ct);
+        }
         else
         {
             // 同一首歌回到播放页：恢复正确的播放/暂停状态图标
             PlayPauseIcon = _audioService.IsPlaying ? "\u23f8" : "\u25b6";
             PlayPauseIconSource = _audioService.IsPlaying ? "ic_pause" : "ic_play";
+        }
+
+        // 重置启动恢复标志
+        _isStartupRestore = false;
+
+        // 保存队列状态（歌曲ID列表 + 当前歌曲ID）
+        SaveQueueState();
+    }
+
+    // === 队列状态持久化 ===
+
+    /// <summary>保存当前播放队列状态到 Preferences</summary>
+    private void SaveQueueState()
+    {
+        try
+        {
+            var songs = _queue.GetSongs();
+            var songIds = songs.Select(s => s.Id).ToArray();
+            var currentSong = _queue.CurrentSong;
+
+            Preferences.Default.Set("queue_song_ids", string.Join(",", songIds));
+            Preferences.Default.Set("queue_current_song_id", currentSong?.Id ?? -1);
+            Preferences.Default.Set("queue_play_mode", (int)_queue.PlayMode);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[NowPlaying] 保存队列状态失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>从 Preferences 恢复播放队列状态</summary>
+    private (List<Song> songs, int currentSongId) RestoreQueueState()
+    {
+        try
+        {
+            var songIdsStr = Preferences.Default.Get("queue_song_ids", "");
+            var currentSongId = Preferences.Default.Get("queue_current_song_id", -1);
+            var playMode = Preferences.Default.Get("queue_play_mode", (int)PlayMode.ListRepeat);
+
+            if (string.IsNullOrEmpty(songIdsStr) || currentSongId <= 0)
+                return (new List<Song>(), -1);
+
+            var songIds = songIdsStr.Split(',')
+                .Where(s => int.TryParse(s, out _))
+                .Select(int.Parse)
+                .ToList();
+
+            if (songIds.Count == 0)
+                return (new List<Song>(), -1);
+
+            // 从数据库批量查询完整 Song 对象
+            var songs = new List<Song>();
+            foreach (var id in songIds)
+            {
+                var song = _db.GetSongByIdAsync(id).GetAwaiter().GetResult();
+                if (song != null)
+                {
+                    // 填充 Artist/Album 名称
+                    var artist = _db.FindArtistByIdAsync(song.ArtistId).GetAwaiter().GetResult();
+                    var album = _db.FindAlbumByIdAsync(song.AlbumId).GetAwaiter().GetResult();
+                    song.Artist = artist?.Name ?? "未知艺术家";
+                    song.Album = album?.Title ?? "未知专辑";
+                    song.AllArtists = song.Artist;
+                    songs.Add(song);
+                }
+            }
+
+            // 恢复播放模式
+            _queue.PlayMode = (PlayMode)playMode;
+
+            return (songs, currentSongId);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[NowPlaying] 恢复队列状态失败: {ex.Message}");
+            return (new List<Song>(), -1);
         }
     }
 
@@ -503,6 +615,7 @@ public partial class NowPlayingViewModel : ObservableObject
         if (coverPath != null)
         {
             var path = coverPath;
+            CurrentCoverPath = path;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 // Use FromStream instead of FromFile because FileImageSource on Android
@@ -513,6 +626,7 @@ public partial class NowPlayingViewModel : ObservableObject
         }
         else
         {
+            CurrentCoverPath = null;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 CoverImage = null;
@@ -619,10 +733,14 @@ public partial class NowPlayingViewModel : ObservableObject
         var lines = _currentLyrics.Lines;
 
         LyricCurrent = GetLineText(lines, newIndex);
-        LyricLine0 = GetLineText(lines, newIndex - 2);
-        LyricLine1 = GetLineText(lines, newIndex - 1);
-        LyricLine2 = GetLineText(lines, newIndex + 1);
-        LyricLine3 = GetLineText(lines, newIndex + 2);
+        LyricLine0 = GetLineText(lines, newIndex - 4);
+        LyricLine1 = GetLineText(lines, newIndex - 3);
+        LyricLine2 = GetLineText(lines, newIndex - 2);
+        LyricLine3 = GetLineText(lines, newIndex - 1);
+        LyricLine4 = GetLineText(lines, newIndex + 1);
+        LyricLine5 = GetLineText(lines, newIndex + 2);
+        LyricLine6 = GetLineText(lines, newIndex + 3);
+        LyricLine7 = GetLineText(lines, newIndex + 4);
     }
 
     private static string GetLineText(List<LrcLyricLine> lines, int index)
@@ -638,6 +756,10 @@ public partial class NowPlayingViewModel : ObservableObject
         LyricLine1 = "";
         LyricLine2 = "";
         LyricLine3 = "";
+        LyricLine4 = "";
+        LyricLine5 = "";
+        LyricLine6 = "";
+        LyricLine7 = "";
     }
 
     private async Task RecordPlayAsync(int songId)

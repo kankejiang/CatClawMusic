@@ -1,4 +1,4 @@
-﻿using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Core.Services.AI;
 using CatClawMusic.Data;
@@ -243,8 +243,14 @@ public static class MauiProgram
         services.AddTransient<PluginManagementViewModel>();
 
         // ═══════════════════════════════════════════════════
+        // App Shell
+        // ═══════════════════════════════════════════════════
+        services.AddSingleton<AppShell>();
+
+        // ═══════════════════════════════════════════════════
         // Pages
         // ═══════════════════════════════════════════════════
+        services.AddSingleton<Pages.MainPage>();
         services.AddTransient<Pages.NowPlayingPage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();

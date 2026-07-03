@@ -13,6 +13,7 @@ public partial class LibraryPage : ContentPage
     private readonly PlayQueue _queue;
     private readonly LibraryViewModel _vm;
     private readonly IAudioPlayerService? _audioPlayer;
+    private bool _isFirstAppearing = true;
 
     public LibraryPage(MusicDatabase db, PlayQueue queue, LibraryViewModel vm, IServiceProvider sp)
     {
@@ -22,13 +23,17 @@ public partial class LibraryPage : ContentPage
         _vm = vm;
         _audioPlayer = sp.GetService<IAudioPlayerService>();
         BindingContext = _vm;
-
-        // Note: Event subscriptions removed - using commands and method calls instead
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        if (_isFirstAppearing)
+        {
+            _isFirstAppearing = false;
+            if (_vm.Songs.Count > 0) return;
+        }
         
         try
         {

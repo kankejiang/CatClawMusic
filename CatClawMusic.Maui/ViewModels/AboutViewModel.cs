@@ -32,7 +32,7 @@ public partial class AboutViewModel : ObservableObject
     {
         try
         {
-            await Launcher.OpenAsync(new Uri("https://github.com/asciidwx/CatClawMusic/blob/main/LICENSE.txt"));
+            await Launcher.OpenAsync(new Uri("https://github.com/kankejiang/CatClawMusic/blob/main/LICENSE.txt"));
         }
         catch { }
     }
@@ -40,8 +40,15 @@ public partial class AboutViewModel : ObservableObject
     [RelayCommand]
     public async Task JoinGroupAsync()
     {
-        if (_dialogService != null)
-            await _dialogService.ShowAlertAsync("交流群", "QQ交流群：123456789\n\n可通过QQ搜索群号加入");
+        try
+        {
+            await Launcher.OpenAsync(new Uri("https://qm.qq.com/q/Fhu3IEzqa4"));
+        }
+        catch
+        {
+            if (_dialogService != null)
+                await _dialogService.ShowAlertAsync("交流群", "QQ交流群：855383639\n\n可通过QQ搜索群号加入");
+        }
     }
 
     [RelayCommand]
@@ -49,7 +56,7 @@ public partial class AboutViewModel : ObservableObject
     {
         try
         {
-            await Launcher.OpenAsync(new Uri("https://github.com/asciidwx/CatClawMusic"));
+            await Launcher.OpenAsync(new Uri("https://github.com/kankejiang/CatClawMusic"));
         }
         catch { }
     }

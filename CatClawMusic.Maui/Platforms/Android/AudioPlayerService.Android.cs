@@ -247,10 +247,17 @@ public partial class AudioPlayerService
     {
         try
         {
-            if (_player != null && _player.Duration > 0)
-                return _player.Duration / 1000.0;
+            if (_player != null)
+            {
+                var dur = _player.Duration;
+                if (dur > 0)
+                    return dur / 1000.0;
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] GetDuration error: {ex.Message}");
+        }
         return 0;
     }
 
@@ -319,6 +326,22 @@ public partial class AudioPlayerService
                     _owner.AbandonAudioFocus();
                 });
             }
+            else if (playbackState == 3)
+            {
+                // STATE_READY: 主动推送 Duration 和初始 Position，避免依赖 timer 轮询
+                _owner._mainHandler.Post(() =>
+                {
+                    try
+                    {
+                        var dur = _owner._player?.Duration ?? 0;
+                        var pos = _owner._player?.CurrentPosition ?? 0;
+                        System.Diagnostics.Debug.WriteLine($"[ExoPlayer] STATE_READY: Duration={dur}ms, Position={pos}ms");
+                        if (dur > 0)
+                            _owner.PositionChanged?.Invoke(_owner, TimeSpan.FromSeconds(pos / 1000.0));
+                    }
+                    catch { }
+                });
+            }
             System.Diagnostics.Debug.WriteLine($"[ExoPlayer] State={playbackState} prepared={_owner._isPrepared}");
         }
 
@@ -329,6 +352,11 @@ public partial class AudioPlayerService
             // 同步通知上层 PlaybackStateChanged
             try { _owner.PlaybackStateChanged?.Invoke(_owner, isPlaying); }
             catch { }
+            // 播放开始时确保 timer 在运行
+            if (isPlaying)
+            {
+                _owner._mainHandler.Post(() => _owner.StartPositionTimer());
+            }
         }
 
         public void OnPlayWhenReadyChanged(bool playWhenReady, int reason)

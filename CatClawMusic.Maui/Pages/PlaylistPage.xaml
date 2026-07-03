@@ -7,12 +7,6 @@
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
 
-        <Border WidthRequest="240" HeightRequest="240"
-                StrokeThickness="0" StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Start" VerticalOptions="Start"
-                TranslationX="-120" TranslationY="-80" />
-
         <Grid RowDefinitions="Auto,Auto,*">
 
             <!-- Header -->

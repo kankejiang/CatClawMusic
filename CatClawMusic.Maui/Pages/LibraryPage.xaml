@@ -8,28 +8,6 @@
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <Border Grid.RowSpan="6"
-                WidthRequest="260"
-                HeightRequest="260"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Start"
-                VerticalOptions="Start"
-                TranslationX="-120"
-                TranslationY="-70" />
-
-        <Border Grid.RowSpan="6"
-                WidthRequest="220"
-                HeightRequest="220"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource AccentGlowBrush}"
-                HorizontalOptions="End"
-                VerticalOptions="Start"
-                TranslationX="80"
-                TranslationY="140" />
-
         <Border Grid.Row="0"
                 Margin="16,18,16,14"
                 Style="{StaticResource GlassCardStrongStyle}"
