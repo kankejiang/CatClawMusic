@@ -248,10 +248,36 @@ public class TagReader
         if (string.IsNullOrEmpty(filePath)) return null;
         if (filePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)) return null;
 
+        // 对 m4a/mp4 文件，无论 TagLibSharp 是否抛异常，只要歌词为空都尝试 M4aMetadataReader 回退
+        // 原因：TagLibSharp 对部分 m4a 文件的 ©lyr atom 读取不完整，会成功返回但 Lyrics 字段为空
+        var ext = Path.GetExtension(filePath);
+        bool isM4a = ext.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
+                      ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                      ext.Equals(".m4b", StringComparison.OrdinalIgnoreCase);
+
         try
         {
             using var file = TagLib.File.Create(filePath);
-            return ExtractLyricsFromFile(file);
+            var lyrics = ExtractLyricsFromFile(file);
+            if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
+            // TagLibSharp 读取成功但歌词为空，对 m4a 尝试手动解析回退
+            if (isM4a)
+            {
+                try
+                {
+                    var m4aLyrics = M4aMetadataReader.ExtractLyrics(filePath);
+                    if (!string.IsNullOrWhiteSpace(m4aLyrics))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 回退成功: {filePath}");
+                        return m4aLyrics;
+                    }
+                }
+                catch (Exception mex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 回退异常: {mex.Message}");
+                }
+            }
+            return null;
         }
         catch (Exception ex)
         {
@@ -259,10 +285,7 @@ public class TagReader
             if (ex is not ArgumentException)
                 System.Diagnostics.Debug.WriteLine($"[TagReader] ReadEmbeddedLyrics FAILED for {filePath}: {ex.GetType().Name}: {ex.Message}");
             // m4a/mp4 回退：手动解析 atom 树
-            var ext = Path.GetExtension(filePath);
-            if (ext.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".m4b", StringComparison.OrdinalIgnoreCase))
+            if (isM4a)
             {
                 try
                 {
@@ -280,21 +303,43 @@ public class TagReader
     /// <param name="fileName">文件名（用于推断格式）</param>
     public static string? ReadEmbeddedLyricsFromStream(Stream stream, string fileName)
     {
+        var ext = Path.GetExtension(fileName);
+        bool isM4a = ext.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
+                      ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                      ext.Equals(".m4b", StringComparison.OrdinalIgnoreCase);
+
         try
         {
             var abstraction = new ReadOnlyFileAbstraction(fileName, stream);
             using var file = TagLibFile.Create(abstraction);
-            return ExtractLyricsFromFile(file);
+            var lyrics = ExtractLyricsFromFile(file);
+            if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
+            // TagLibSharp 读取成功但歌词为空，对 m4a 尝试手动解析回退
+            if (isM4a)
+            {
+                try
+                {
+                    if (stream.CanSeek) stream.Position = 0;
+                    var m4aLyrics = M4aMetadataReader.ExtractLyricsFromStream(stream);
+                    if (!string.IsNullOrWhiteSpace(m4aLyrics))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 流回退成功: {fileName}");
+                        return m4aLyrics;
+                    }
+                }
+                catch (Exception mex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 流回退异常: {mex.Message}");
+                }
+            }
+            return null;
         }
         catch (Exception ex)
         {
             if (ex is not ArgumentException)
                 System.Diagnostics.Debug.WriteLine($"[TagReader] ReadEmbeddedLyricsFromStream FAILED: {ex.GetType().Name}: {ex.Message}");
             // m4a/mp4 回退
-            var ext = Path.GetExtension(fileName);
-            if (ext.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".m4b", StringComparison.OrdinalIgnoreCase))
+            if (isM4a)
             {
                 try
                 {

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:coreModels="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              x:Class="CatClawMusic.Maui.Pages.RemoteMusicSettingsPage"
              Title="远程音乐服务"
@@ -230,20 +231,26 @@
                         <VerticalStackLayout Spacing="4">
                             <Label Text="基础路径" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <Entry Text="{Binding FormBasePath}"
-                                       Placeholder="/dav/music"
-                                       BackgroundColor="#22FFFFFF"
-                                       TextColor="{DynamicResource TextPrimaryColor}"
-                                       PlaceholderColor="{DynamicResource TextHintColor}" />
+                                <Border BackgroundColor="#22FFFFFF"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 8"
+                                        Padding="12,0"
+                                        HeightRequest="40">
+                                    <Label Text="{Binding FormBasePath}"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           VerticalOptions="Center"
+                                           LineBreakMode="TailTruncation" />
+                                </Border>
                                 <Button Grid.Column="1"
-                                        Text="选择"
-                                        Clicked="OnSelectRemotePathClicked"
-                                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                                        TextColor="{DynamicResource TextPrimaryColor}"
+                                        Text="选择路径"
+                                        Command="{Binding BrowsePathCommand}"
+                                        BackgroundColor="{DynamicResource PrimaryColor}"
+                                        TextColor="White"
                                         CornerRadius="8"
                                         HeightRequest="40"
                                         FontSize="12"
-                                        WidthRequest="56" />
+                                        WidthRequest="72" />
                             </Grid>
                         </VerticalStackLayout>
 
@@ -303,5 +310,125 @@
                              VerticalOptions="Start"
                              HorizontalOptions="Start"
                              ZIndex="100" />
+
+        <!-- 远程目录浏览弹窗 -->
+        <Grid BackgroundColor="#80000000"
+              IsVisible="{Binding IsBrowsing}"
+              ZIndex="200">
+            <Border Style="{StaticResource GlassCardStrongStyle}"
+                    BackgroundColor="{DynamicResource CardBackgroundColor}"
+                    WidthRequest="340"
+                    MaximumHeightRequest="520"
+                    VerticalOptions="Center"
+                    HorizontalOptions="Center"
+                    Padding="0">
+                <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="0">
+
+                    <!-- 标题栏 -->
+                    <Grid Grid.Row="0"
+                          ColumnDefinitions="*,Auto"
+                          Background="{DynamicResource HeroBrush}"
+                          Padding="16,12">
+                        <Label Text="选择远程目录"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="White"
+                               VerticalOptions="Center" />
+                        <Button Grid.Column="1"
+                                Text="✕"
+                                Command="{Binding CloseBrowseCommand}"
+                                BackgroundColor="Transparent"
+                                TextColor="White"
+                                FontSize="16"
+                                Padding="0"
+                                WidthRequest="36"
+                                HeightRequest="36"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- 当前路径 + 选择此目录按钮 -->
+                    <Grid Grid.Row="1"
+                          ColumnDefinitions="*,Auto"
+                          Padding="12,10"
+                          BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                        <Label Text="{Binding BrowseCurrentPath}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               VerticalOptions="Center"
+                               LineBreakMode="TailTruncation" />
+                        <Button Grid.Column="1"
+                                Text="选择此目录"
+                                Command="{Binding SelectCurrentDirCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="10"
+                                HeightRequest="32"
+                                FontSize="11"
+                                Padding="10,0" />
+                    </Grid>
+
+                    <!-- 目录列表 -->
+                    <Grid Grid.Row="2" BackgroundColor="{DynamicResource CardBackgroundColor}">
+                        <CollectionView ItemsSource="{Binding DirectoryItems}"
+                                        SelectionMode="None"
+                                        Margin="0">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RemoteDirItem">
+                                    <Grid ColumnDefinitions="Auto,*"
+                                          ColumnSpacing="10"
+                                          Padding="16,12">
+                                        <Image Source="ic_folder"
+                                               WidthRequest="20"
+                                               HeightRequest="20"
+                                               VerticalOptions="Center"
+                                               Opacity="0.8" />
+                                        <Label Grid.Column="1"
+                                               Text="{Binding Name}"
+                                               FontSize="14"
+                                               TextColor="{DynamicResource TextPrimaryColor}"
+                                               VerticalOptions="Center"
+                                               LineBreakMode="TailTruncation" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenDirCommand}"
+                                                                  CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                        <ActivityIndicator IsRunning="{Binding IsLoadingDirs}"
+                                           IsVisible="{Binding IsLoadingDirs}"
+                                           VerticalOptions="Center"
+                                           HorizontalOptions="Center"
+                                           Color="{DynamicResource PrimaryColor}" />
+                    </Grid>
+
+                    <!-- 底部操作栏 -->
+                    <Grid Grid.Row="3"
+                          ColumnDefinitions="*,*"
+                          Padding="12,10"
+                          BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                        <Button Text="返回上级"
+                                Command="{Binding GoUpCommand}"
+                                BackgroundColor="{DynamicResource CardBackgroundColor}"
+                                TextColor="{DynamicResource TextSecondaryColor}"
+                                CornerRadius="10"
+                                HeightRequest="36"
+                                FontSize="12" />
+                        <Button Grid.Column="1"
+                                Text="确定"
+                                Command="{Binding SelectCurrentDirCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="10"
+                                HeightRequest="36"
+                                FontSize="12" />
+                    </Grid>
+
+                </Grid>
+            </Border>
+        </Grid>
+
 </Grid>
 </ContentPage>

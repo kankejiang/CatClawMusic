@@ -104,6 +104,22 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsNavidromeForm))]
     private bool _isSmbForm;
 
+    // ── 远程目录浏览相关字段 ──
+    /// <summary>是否正在浏览远程目录</summary>
+    [ObservableProperty]
+    private bool _isBrowsing;
+
+    /// <summary>是否正在加载目录列表</summary>
+    [ObservableProperty]
+    private bool _isLoadingDirs;
+
+    /// <summary>当前浏览的远程路径</summary>
+    [ObservableProperty]
+    private string _browseCurrentPath = "/";
+
+    /// <summary>远程目录浏览中的子目录列表</summary>
+    public ObservableCollection<RemoteDirItem> DirectoryItems { get; } = new();
+
     /// <summary>当前表单是否为 WebDAV 协议</summary>
     public bool IsWebDavForm => FormProtocolIndex == (int)ProtocolType.WebDAV;
 
@@ -426,4 +442,191 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
                 await page.DisplayAlert("提示", message, "确定");
         });
     }
+
+    // ═══════════════════════════════════════
+    // 远程目录浏览
+    // ═══════════════════════════════════════
+
+    /// <summary>
+    /// 打开远程目录浏览器：根据当前表单信息构建临时连接配置，
+    /// 测试连通后列出根目录下的子目录。
+    /// </summary>
+    [RelayCommand]
+    public async Task BrowsePathAsync()
+    {
+        if (IsNavidromeForm)
+        {
+            await ToastAsync("Navidrome 协议无需选择基础路径");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(FormHost))
+        {
+            await ToastAsync("请先填写主机地址");
+            return;
+        }
+
+        IsBrowsing = true;
+        BrowseCurrentPath = "/";
+        DirectoryItems.Clear();
+        await LoadDirectoriesAsync("/");
+    }
+
+    /// <summary>关闭远程目录浏览弹窗</summary>
+    [RelayCommand]
+    public void CloseBrowse()
+    {
+        IsBrowsing = false;
+    }
+
+    /// <summary>进入子目录</summary>
+    [RelayCommand]
+    public async Task OpenDirAsync(RemoteDirItem? item)
+    {
+        if (item == null) return;
+        if (item.IsParent)
+        {
+            await GoUpAsync();
+            return;
+        }
+        BrowseCurrentPath = item.Path;
+        DirectoryItems.Clear();
+        await LoadDirectoriesAsync(item.Path);
+    }
+
+    /// <summary>返回上一级目录</summary>
+    [RelayCommand]
+    public async Task GoUpAsync()
+    {
+        var parent = GetParentPath(BrowseCurrentPath);
+        if (parent == BrowseCurrentPath) return;
+        BrowseCurrentPath = parent;
+        DirectoryItems.Clear();
+        await LoadDirectoriesAsync(parent);
+    }
+
+    /// <summary>选择当前浏览路径作为基础路径并关闭弹窗</summary>
+    [RelayCommand]
+    public void SelectCurrentDir()
+    {
+        FormBasePath = BrowseCurrentPath;
+        IsBrowsing = false;
+    }
+
+    /// <summary>根据当前表单配置加载指定远程路径下的子目录</summary>
+    private async Task LoadDirectoriesAsync(string path)
+    {
+        IsLoadingDirs = true;
+        try
+        {
+            var profile = BuildFormProfile();
+            var svc = profile.Protocol == ProtocolType.SMB
+                ? _fileServices.FirstOrDefault(s => s is SmbService)
+                : _fileServices.FirstOrDefault(s => s is WebDavService);
+
+            if (svc == null)
+            {
+                await ToastAsync("未找到对应协议服务");
+                return;
+            }
+
+            svc.Configure(profile);
+            var files = await svc.ListFilesAsync(path);
+            var dirs = files.Where(f => f.IsDirectory).OrderBy(f => f.Name).ToList();
+
+            DirectoryItems.Clear();
+
+            // 添加返回上级项
+            var parent = GetParentPath(path);
+            if (parent != path)
+            {
+                DirectoryItems.Add(new RemoteDirItem
+                {
+                    Name = "← 返回上级",
+                    Path = parent,
+                    IsDirectory = true,
+                    IsParent = true
+                });
+            }
+
+            foreach (var d in dirs)
+            {
+                DirectoryItems.Add(new RemoteDirItem
+                {
+                    Name = d.Name,
+                    Path = d.Path,
+                    IsDirectory = true,
+                    IsParent = false
+                });
+            }
+
+            if (DirectoryItems.Count == 0 || (DirectoryItems.Count == 1 && DirectoryItems[0].IsParent))
+            {
+                DirectoryItems.Add(new RemoteDirItem
+                {
+                    Name = "（空目录）",
+                    Path = path,
+                    IsDirectory = false,
+                    IsParent = false
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BrowsePath] LoadDirs error: {ex}");
+            await ToastAsync($"加载目录失败：{ex.Message}");
+        }
+        finally
+        {
+            IsLoadingDirs = false;
+        }
+    }
+
+    /// <summary>根据当前表单字段构建临时连接配置（用于目录浏览）</summary>
+    private ConnectionProfile BuildFormProfile()
+    {
+        return new ConnectionProfile
+        {
+            Name = FormName,
+            Protocol = (ProtocolType)FormProtocolIndex,
+            Host = FormHost,
+            Port = FormPort,
+            UserName = FormUserName,
+            Password = FormPassword,
+            BasePath = "/",
+            UseHttps = FormUseHttps,
+            ShareName = FormShareName,
+            DomainName = FormDomainName
+        };
+    }
+
+    /// <summary>获取远程路径的父目录</summary>
+    private static string GetParentPath(string path)
+    {
+        if (string.IsNullOrEmpty(path) || path == "/") return "/";
+        var trimmed = path.TrimEnd('/');
+        var idx = trimmed.LastIndexOf('/');
+        if (idx <= 0) return "/";
+        return trimmed[..idx];
+    }
+}
+
+/// <summary>远程目录项（用于浏览弹窗显示）</summary>
+public partial class RemoteDirItem : ObservableObject
+{
+    /// <summary>显示名称</summary>
+    [ObservableProperty]
+    private string _name = "";
+
+    /// <summary>完整远程路径</summary>
+    [ObservableProperty]
+    private string _path = "";
+
+    /// <summary>是否为目录</summary>
+    [ObservableProperty]
+    private bool _isDirectory;
+
+    /// <summary>是否为"返回上级"项</summary>
+    [ObservableProperty]
+    private bool _isParent;
 }

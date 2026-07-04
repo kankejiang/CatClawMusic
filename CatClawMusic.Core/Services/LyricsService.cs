@@ -254,7 +254,12 @@ public class LyricsService : ILyricsService
         }
 
         var lyrics = TagReader.ReadEmbeddedLyrics(songPath);
-        if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
+        if (!string.IsNullOrWhiteSpace(lyrics))
+        {
+            System.Diagnostics.Debug.WriteLine($"[Lyrics] 内嵌歌词读取成功: {songPath} (长度={lyrics.Length})");
+            return lyrics;
+        }
+        System.Diagnostics.Debug.WriteLine($"[Lyrics] 内嵌歌词为空: {songPath}");
 
         if (AndroidFileStreamOpener != null)
         {
@@ -266,11 +271,18 @@ public class LyricsService : ILyricsService
                     using (stream)
                     {
                         lyrics = TagReader.ReadEmbeddedLyricsFromStream(stream, Path.GetFileName(songPath));
-                        if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
+                        if (!string.IsNullOrWhiteSpace(lyrics))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Lyrics] 流内嵌歌词读取成功 (长度={lyrics.Length})");
+                            return lyrics;
+                        }
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] AndroidFileStreamOpener 读取异常: {ex.Message}");
+            }
         }
 
         return null;

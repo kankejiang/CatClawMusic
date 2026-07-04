@@ -89,6 +89,14 @@ public partial class AudioPlayerService
         _player.RepeatMode = 0; // REPEAT_MODE_OFF
         _player.PlayWhenReady = false;
 
+        // 设置 AudioAttributes，让 ExoPlayer 自动管理音频焦点与音频路由
+        // 在 MIUI/HyperOS 等设备上，未设置 AudioAttributes 会导致音频无法正确路由到扬声器/蓝牙，表现为静音
+        var audioAttributes = new AndroidX.Media3.Common.AudioAttributes.Builder()
+            .SetUsage(C.UsageMedia)
+            .SetContentType(C.AudioContentTypeMusic)
+            .Build();
+        _player.SetAudioAttributes(audioAttributes, true);
+
         // 注册 Listener 准确跟踪播放状态
         _playerListener = new ExoPlayerListener(this);
         _player.AddListener(_playerListener);
@@ -126,20 +134,38 @@ public partial class AudioPlayerService
             player.Stop();
             player.ClearMediaItems();
 
-            // FFmpeg 转码回退：对 ExoPlayer 原生不支持的格式先用 FFmpeg 转 WAV
             var playUri = source;
             var localPath = source.IsFile ? source.LocalPath :
                 source.Scheme == "file" ? source.AbsolutePath : null;
 
             var ffmpegEnabled = Preferences.Get("ffmpeg_enabled", true);
-            if (ffmpegEnabled && localPath != null && _ffmpeg != null && _ffmpeg.IsAvailable && NeedsTranscoding(localPath))
+            // 对 m4a/mp4 等 ExoPlayer 原生解码不完整的格式强制走 FFmpeg 软解
+            // 原因：MIUI/HyperOS 上 ExoPlayer 对 m4a (AAC-LC/ALAC) 可能 prepare 成功但实际无声
+            if (ffmpegEnabled && localPath != null && NeedsTranscoding(localPath))
             {
-                System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 转码: {Path.GetFileName(localPath)}");
-                var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath);
-                if (wavPath != null)
+                // 确保 FFmpeg 已初始化（首次播放时 Task.Run 注入可能尚未完成）
+                if (_ffmpeg == null || !_ffmpeg.IsAvailable)
                 {
-                    playUri = new Uri("file://" + wavPath);
-                    System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 转码完成，使用 WAV 播放");
+                    await EnsureFFmpegReadyAsync();
+                }
+
+                if (_ffmpeg != null && _ffmpeg.IsAvailable)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 转码: {Path.GetFileName(localPath)}");
+                    var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath);
+                    if (wavPath != null)
+                    {
+                        playUri = new Uri("file://" + wavPath);
+                        System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 转码完成，使用 WAV 播放");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 转码失败，回退原生播放");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 不可用，回退原生播放 m4a");
                 }
             }
 
@@ -151,7 +177,7 @@ public partial class AudioPlayerService
 
             // 不在这里设置 _isPrepared，由 ExoPlayerListener.OnPlaybackStateChanged(STATE_READY) 触发
             AcquireWakeLock();
-            RequestAudioFocus();
+            // 音频焦点由 ExoPlayer.SetAudioAttributes(handleAudioFocus=true) 自动管理，无需手动请求
             StartForegroundService();
         }
         catch (Exception ex)
@@ -159,6 +185,22 @@ public partial class AudioPlayerService
             System.Diagnostics.Debug.WriteLine($"[ExoPlayer] Play error: {ex.Message}");
             // FFmpeg 兜底：如果 ExoPlayer 直接播放失败，尝试转码
             await TryFFmpegFallbackAsync(source);
+        }
+    }
+
+    /// <summary>确保 FFmpegService 已初始化并注入（解决启动时 Task.Run 注入时序问题）</summary>
+    private async Task EnsureFFmpegReadyAsync()
+    {
+        if (_ffmpeg != null && _ffmpeg.IsAvailable) return;
+        try
+        {
+            _ffmpeg ??= new FFmpegService();
+            await _ffmpeg.InitializeAsync();
+            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 就绪: {_ffmpeg.IsAvailable}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 初始化异常: {ex.Message}");
         }
     }
 
@@ -186,7 +228,7 @@ public partial class AudioPlayerService
             player.Prepare();
             player.Play();
             AcquireWakeLock();
-            RequestAudioFocus();
+            // 音频焦点由 ExoPlayer 自动管理
             StartForegroundService();
             System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 兜底成功");
         }
@@ -210,13 +252,13 @@ public partial class AudioPlayerService
     // 播放控制
     // ═══════════════════════════════════════
 
-    /// <summary>平台特定的暂停逻辑：暂停 ExoPlayer、释放唤醒锁并放弃音频焦点</summary>
+    /// <summary>平台特定的暂停逻辑：暂停 ExoPlayer、释放唤醒锁（音频焦点由 ExoPlayer 自动管理）</summary>
     partial void PlatformPause()
     {
-        try { _player?.Pause(); ReleaseWakeLock(); AbandonAudioFocus(); } catch { }
+        try { _player?.Pause(); ReleaseWakeLock(); } catch { }
     }
 
-    /// <summary>平台特定的恢复播放逻辑：恢复 ExoPlayer 播放、重新获取唤醒锁与音频焦点</summary>
+    /// <summary>平台特定的恢复播放逻辑：恢复 ExoPlayer 播放、重新获取唤醒锁（音频焦点由 ExoPlayer 自动管理）</summary>
     partial void PlatformResume()
     {
         try
@@ -226,13 +268,12 @@ public partial class AudioPlayerService
                 _player.PlayWhenReady = true;
                 _player.Play();
                 AcquireWakeLock();
-                RequestAudioFocus();
             }
         }
         catch { }
     }
 
-    /// <summary>平台特定的停止逻辑：停止播放器、清空媒体项并重置状态、释放唤醒锁与音频焦点</summary>
+    /// <summary>平台特定的停止逻辑：停止播放器、清空媒体项并重置状态、释放唤醒锁（音频焦点由 ExoPlayer 自动管理）</summary>
     partial void PlatformStop()
     {
         try
@@ -243,7 +284,6 @@ public partial class AudioPlayerService
             _isActuallyPlaying = false;
             _cachedPositionMs = 0;
             ReleaseWakeLock();
-            AbandonAudioFocus();
         }
         catch { }
     }
@@ -506,6 +546,11 @@ public partial class AudioPlayerService
                     _pausedByFocusLoss = false;
                     _ = ResumeAsync();
                 }
+                // 恢复因 Duck 降低的音量（_volume 字段保存的是用户设置的原始音量）
+                if (_player != null && _player.Volume < _volume)
+                {
+                    try { _player.Volume = _volume; } catch { }
+                }
                 break;
             case AudioFocus.Loss:
                 _pausedByFocusLoss = false;
@@ -515,7 +560,11 @@ public partial class AudioPlayerService
                 if (IsPlaying) { _pausedByFocusLoss = true; _ = PauseAsync(); }
                 break;
             case AudioFocus.LossTransientCanDuck:
-                SetPlatformVolume(_volume * 0.3);
+                // Duck：降低音量但不暂停，_volume 字段保持原值以便恢复
+                if (_player != null)
+                {
+                    try { _player.Volume = _volume * 0.3f; } catch { }
+                }
                 break;
         }
     }
