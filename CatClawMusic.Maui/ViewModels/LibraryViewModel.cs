@@ -16,7 +16,7 @@ namespace CatClawMusic.Maui.ViewModels;
 
 /// <summary>
 /// 音乐库页 ViewModel：管理本地与网络缓存歌曲的加载、搜索过滤、排序、清空与播放等交互，
-/// 同时维护歌曲/专辑/艺术家数量统计与 Tab 切换状态。
+/// 同时维护歌曲/专辑/艺术家数量统计、Tab 切换状态与网络协议筛选。
 /// </summary>
 public partial class LibraryViewModel : ObservableObject
 {
@@ -25,7 +25,7 @@ public partial class LibraryViewModel : ObservableObject
 
     // === Observable Properties ===
 
-    /// <summary>当前 Tab 下的全部歌曲集合（应用搜索过滤前）</summary>
+    /// <summary>当前 Tab 下的全部歌曲集合（应用搜索/协议过滤前）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _songs = new();
 
@@ -57,9 +57,13 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     private string _networkTabColor = "#3D3D3D";
 
-    /// <summary>“网络”Tab 是否处于可见/选中状态</summary>
+    /// <summary>网络协议选择器是否可见（在 Network Tab 且有多个协议时显示）</summary>
     [ObservableProperty]
     private bool _isNetworkTabVisible;
+
+    /// <summary>是否配置了至少一个网络协议（控制“网络音乐”Tab 是否显示）</summary>
+    [ObservableProperty]
+    private bool _hasNetworkProtocols;
 
     /// <summary>当前 Tab 下的歌曲数量</summary>
     [ObservableProperty]
@@ -77,13 +81,19 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     private string _sectionTitle = "全部歌曲";
 
-    /// <summary>可选协议列表（用于网络音乐配置展示）</summary>
+    /// <summary>可选网络协议列表（第一项始终为“全部”，后续为已启用协议名称）</summary>
     [ObservableProperty]
-    private List<string> _protocolOptions = new() { "HTTP", "HTTPS" };
+    private List<string> _protocolOptions = new();
 
-    /// <summary>当前选中的协议索引</summary>
+    /// <summary>当前选中的协议索引（0 = 全部）</summary>
     [ObservableProperty]
     private int _selectedProtocolIndex;
+
+    /// <summary>缓存已启用的协议类型列表，与 ProtocolOptions 索引对齐（第0位为 null 表示全部）</summary>
+    private List<ProtocolType?> _protocolTypes = new();
+
+    /// <summary>缓存所有网络歌曲（未过滤），用于切换协议时快速过滤</summary>
+    private List<Song> _allNetworkSongs = new();
 
     // === Commands ===
 
@@ -103,26 +113,70 @@ public partial class LibraryViewModel : ObservableObject
     /// <summary>请求播放某首歌曲时触发，供外部页面订阅以同步 UI 状态</summary>
     public event Action<Song>? SongPlayRequested;
 
-    /// <summary>
-    /// 初始化 <see cref="LibraryViewModel"/> 实例，并创建各交互命令。
-    /// </summary>
-    /// <param name="db">音乐数据库访问对象</param>
-    /// <param name="queue">播放队列</param>
     public LibraryViewModel(MusicDatabase db, PlayQueue queue)
     {
         _db = db;
         _queue = queue;
 
-        // Initialize commands
         SwitchTabCommand = new RelayCommand<string>(SwitchTab);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         SortCommand = new RelayCommand(ShowSortDialog);
         ClearCommand = new RelayCommand(ConfirmClear);
     }
 
+    /// <summary>
+    /// 初始化/刷新网络协议列表。
+    /// 从数据库读取已启用的协议，更新 HasNetworkProtocols 和 ProtocolOptions。
+    /// 如果当前在 Network Tab 但所有协议都已删除，自动切回 Local Tab。
+    /// </summary>
+    public async Task RefreshProtocolsAsync()
+    {
+        var enabled = await _db.GetEnabledProtocolsAsync();
+
+        _protocolTypes = new List<ProtocolType?> { null }; // 第一项：全部
+        var options = new List<string> { "全部" };
+
+        if (enabled.Contains(ProtocolType.WebDAV))
+        {
+            _protocolTypes.Add(ProtocolType.WebDAV);
+            options.Add("WebDAV");
+        }
+        if (enabled.Contains(ProtocolType.SMB))
+        {
+            _protocolTypes.Add(ProtocolType.SMB);
+            options.Add("SMB");
+        }
+        if (enabled.Contains(ProtocolType.Navidrome))
+        {
+            _protocolTypes.Add(ProtocolType.Navidrome);
+            options.Add("Navidrome");
+        }
+
+        ProtocolOptions = options;
+        HasNetworkProtocols = options.Count > 1; // 有除"全部"之外的协议
+
+        if (!HasNetworkProtocols && CurrentTab == "Network")
+        {
+            // 所有协议都已删除，切回本地
+            SwitchTab("Local");
+        }
+        else if (HasNetworkProtocols && SelectedProtocolIndex >= options.Count)
+        {
+            SelectedProtocolIndex = 0;
+        }
+
+        // 如果在 Network Tab，重新应用协议过滤
+        if (CurrentTab == "Network")
+        {
+            ApplyProtocolFilter();
+        }
+    }
+
     private void SwitchTab(string? tab)
     {
         if (string.IsNullOrEmpty(tab)) return;
+
+        if (tab == "Network" && !HasNetworkProtocols) return;
 
         CurrentTab = tab;
 
@@ -137,9 +191,45 @@ public partial class LibraryViewModel : ObservableObject
         {
             LocalTabColor = "#3D3D3D";
             NetworkTabColor = "#9B7ED8";
-            IsNetworkTabVisible = true;
+            IsNetworkTabVisible = ProtocolOptions.Count > 2; // 超过"全部+一个协议"才显示选择器
             _ = LoadNetworkAsync();
         }
+    }
+
+    partial void OnSelectedProtocolIndexChanged(int value)
+    {
+        if (CurrentTab == "Network")
+        {
+            ApplyProtocolFilter();
+        }
+    }
+
+    /// <summary>根据当前选中的协议过滤网络歌曲，并叠加搜索过滤</summary>
+    private void ApplyProtocolFilter()
+    {
+        if (_allNetworkSongs.Count == 0)
+        {
+            Songs = new ObservableCollection<Song>();
+            FilterSongs();
+            UpdateStats();
+            return;
+        }
+
+        List<Song> filtered;
+        if (SelectedProtocolIndex <= 0 || SelectedProtocolIndex >= _protocolTypes.Count)
+        {
+            // "全部" 或索引无效：显示所有网络歌曲
+            filtered = _allNetworkSongs;
+        }
+        else
+        {
+            var protocol = _protocolTypes[SelectedProtocolIndex];
+            filtered = _allNetworkSongs.Where(s => s.Protocol == protocol).ToList();
+        }
+
+        Songs = new ObservableCollection<Song>(filtered);
+        FilterSongs();
+        UpdateStats();
     }
 
     /// <summary>异步加载本地音乐：从数据库读取歌曲并批量解析封面</summary>
@@ -152,9 +242,9 @@ public partial class LibraryViewModel : ObservableObject
 
             var songs = await _db.GetSongsWithDetailsAsync();
 
-            // 批量解析封面（磁盘缓存命中快，首次提取嵌入封面）
             await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
 
+            _allNetworkSongs = new List<Song>();
             Songs = new ObservableCollection<Song>(songs);
             FilterSongs();
             UpdateStats();
@@ -170,7 +260,7 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
-    /// <summary>异步加载网络缓存音乐：从数据库读取缓存网络歌曲并批量解析封面</summary>
+    /// <summary>异步加载网络缓存音乐：从数据库读取缓存网络歌曲，按协议过滤后展示</summary>
     public async Task LoadNetworkAsync()
     {
         try
@@ -180,12 +270,11 @@ public partial class LibraryViewModel : ObservableObject
 
             var songs = await _db.GetCachedNetworkSongsAsync();
 
-            // 批量解析封面
             await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
 
-            Songs = new ObservableCollection<Song>(songs);
-            FilterSongs();
-            UpdateStats();
+            _allNetworkSongs = songs;
+            IsNetworkTabVisible = ProtocolOptions.Count > 2;
+            ApplyProtocolFilter();
             StatusText = $"已加载 {Songs.Count} 首网络歌曲";
         }
         catch (Exception ex)
@@ -200,6 +289,7 @@ public partial class LibraryViewModel : ObservableObject
 
     private async Task RefreshAsync()
     {
+        await RefreshProtocolsAsync();
         if (CurrentTab == "Local")
         {
             await LoadLocalAsync();
@@ -212,20 +302,20 @@ public partial class LibraryViewModel : ObservableObject
 
     private void FilterSongs()
     {
-        if (string.IsNullOrWhiteSpace(SearchQuery))
-        {
-            FilteredSongs = new ObservableCollection<Song>(Songs);
-        }
-        else
+        IEnumerable<Song> source = Songs;
+
+        if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             var query = SearchQuery.ToLowerInvariant();
-            var filtered = Songs.Where(s =>
+            source = source.Where(s =>
                 (s.Title?.ToLowerInvariant().Contains(query) == true) ||
                 (s.Artist?.ToLowerInvariant().Contains(query) == true) ||
                 (s.Album?.ToLowerInvariant().Contains(query) == true)
-            ).ToList();
-            FilteredSongs = new ObservableCollection<Song>(filtered);
+            );
         }
+
+        var filtered = source.ToList();
+        FilteredSongs = new ObservableCollection<Song>(filtered);
 
         SongCount = FilteredSongs.Count;
         SectionTitle = string.IsNullOrWhiteSpace(SearchQuery) ? "全部歌曲" : $"搜索结果 ({FilteredSongs.Count})";
@@ -233,12 +323,12 @@ public partial class LibraryViewModel : ObservableObject
 
     private void UpdateStats()
     {
-        SongCount = Songs.Count;
-        AlbumCount = Songs
+        SongCount = FilteredSongs.Count;
+        AlbumCount = FilteredSongs
             .Select(s => s.Album ?? "未知专辑")
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
-        ArtistCount = Songs
+        ArtistCount = FilteredSongs
             .Select(s => s.Artist ?? "未知艺术家")
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
@@ -255,7 +345,6 @@ public partial class LibraryViewModel : ObservableObject
     }
 
     /// <summary>对当前过滤后的歌曲按指定方式排序</summary>
-    /// <param name="sortBy">排序方式（文件名/入库时间/文件大小/文件夹/艺术家/标题）</param>
     public void ApplySort(string sortBy)
     {
         var songs = FilteredSongs.ToList();
@@ -289,6 +378,7 @@ public partial class LibraryViewModel : ObservableObject
 
             Songs.Clear();
             FilteredSongs.Clear();
+            _allNetworkSongs.Clear();
             StatusText = $"{(CurrentTab == "Local" ? "本地音乐库" : "网络音乐库")}已清空";
         }
         catch (Exception ex)
@@ -298,17 +388,15 @@ public partial class LibraryViewModel : ObservableObject
     }
 
     /// <summary>播放指定歌曲：将其加入播放队列并选中（实际音频播放由页面处理）</summary>
-    /// <param name="song">要播放的歌曲，为空则忽略</param>
     public async Task PlaySongAsync(Song? song)
     {
         if (song == null) return;
 
         try
         {
-            _queue.SetSongs([.. Songs]);
+            _queue.SetSongs([.. FilteredSongs]);
             _queue.SelectSong(song.Id);
 
-            // Note: Audio playback would be handled by the Page
             StatusText = $"正在播放: {song.Title}";
         }
         catch (Exception ex)

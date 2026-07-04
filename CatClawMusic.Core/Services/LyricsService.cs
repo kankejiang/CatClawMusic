@@ -69,6 +69,23 @@ public class LyricsService : ILyricsService
         var songPath = song.FilePath;
 
         bool isContentUri = !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
+        bool isRemoteUrl = !string.IsNullOrEmpty(songPath) && (
+            songPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            songPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            songPath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase));
+
+        // 远程 URL 不支持本地同名 .lrc 文件查找，直接尝试内嵌歌词（通过网络流）
+        if (isRemoteUrl)
+        {
+            if (skipEmbedded) return null;
+            var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri: false, isRemoteUrl: true));
+            if (!string.IsNullOrWhiteSpace(embeddedLyrics))
+            {
+                var parsed = await Task.Run(() => TryParseLyrics(embeddedLyrics));
+                if (parsed != null) return parsed;
+            }
+            return null;
+        }
 
         // 优先使用已知的 LyricsPath（SAF 扫描时已匹配的歌词 content:// URI 或文件路径）
         if (!string.IsNullOrEmpty(song.LyricsPath))
@@ -239,10 +256,11 @@ public class LyricsService : ILyricsService
         return null;
     }
 
-    /// <summary>读取音频文件的内嵌歌词（支持普通文件路径与 content:// URI）</summary>
-    /// <param name="songPath">音频文件路径或 content:// URI</param>
+    /// <summary>读取音频文件的内嵌歌词（支持普通文件路径、content:// URI 与 http(s):// 远程 URL）</summary>
+    /// <param name="songPath">音频文件路径、content:// URI 或 http(s):// URL</param>
     /// <param name="isContentUri">是否为 Android content:// URI</param>
-    private static string? ReadEmbeddedLyrics(string? songPath, bool isContentUri)
+    /// <param name="isRemoteUrl">是否为 http(s):// 远程 URL</param>
+    private static string? ReadEmbeddedLyrics(string? songPath, bool isContentUri, bool isRemoteUrl = false)
     {
         if (string.IsNullOrEmpty(songPath)) return null;
 
@@ -250,6 +268,31 @@ public class LyricsService : ILyricsService
         {
             if (ContentUriLyricsReader != null)
                 return ContentUriLyricsReader(songPath);
+            return null;
+        }
+
+        if (isRemoteUrl)
+        {
+            if (RemoteUrlStreamOpener != null)
+            {
+                try
+                {
+                    using var stream = RemoteUrlStreamOpener(songPath);
+                    if (stream != null)
+                    {
+                        var remoteLyrics = TagReader.ReadEmbeddedLyricsFromStream(stream, GetFileNameFromUrl(songPath));
+                        if (!string.IsNullOrWhiteSpace(remoteLyrics))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Lyrics] 远程流内嵌歌词读取成功 (长度={remoteLyrics.Length})");
+                            return remoteLyrics;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 读取异常: {ex.Message}");
+                }
+            }
             return null;
         }
 
@@ -288,11 +331,27 @@ public class LyricsService : ILyricsService
         return null;
     }
 
-    /// <summary>静态方法：读取内嵌歌词（含 AndroidFileStreamOpener / ContentUriLyricsReader 回退）</summary>
+    private static string GetFileNameFromUrl(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            var name = Path.GetFileName(uri.LocalPath);
+            if (!string.IsNullOrEmpty(name)) return name;
+        }
+        catch { }
+        return "remote.audio";
+    }
+
+    /// <summary>静态方法：读取内嵌歌词（含 AndroidFileStreamOpener / ContentUriLyricsReader / RemoteUrlStreamOpener 回退）</summary>
     public static string? ReadEmbeddedLyricsStatic(string? songPath)
     {
-        return ReadEmbeddedLyrics(songPath,
-            !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrEmpty(songPath)) return null;
+        bool isContent = songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
+        bool isRemote = songPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || songPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            || songPath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase);
+        return ReadEmbeddedLyrics(songPath, isContentUri: isContent, isRemoteUrl: isRemote);
     }
 
     /// <summary>查找外部 .lrc 歌词文件并返回文本内容（含 SAF content:// 回退）</summary>
@@ -637,6 +696,9 @@ public class LyricsService : ILyricsService
 
     /// <summary>通过 Android ContentResolver 打开文件流（由平台层注入，用于普通文件路径在 scoped storage 下无法直接访问时的回退）</summary>
     public static Func<string, Stream?>? AndroidFileStreamOpener { get; set; }
+
+    /// <summary>通过 HTTP 请求打开远程音频文件流（由平台层注入，用于 WebDAV/SMB 等网络歌曲的内嵌歌词读取）。返回的流必须支持 Seek（建议返回 MemoryStream）</summary>
+    public static Func<string, Stream?>? RemoteUrlStreamOpener { get; set; }
 
     /// <summary>读取任意文件字节（含 ContentResolver 回退），由平台层注入，用于 Android 11+ scoped storage 下读取 .lrc 等文件</summary>
     public static Func<string, Task<byte[]?>>? FileBytesReaderAsync { get; set; }

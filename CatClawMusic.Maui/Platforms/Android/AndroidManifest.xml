@@ -65,7 +65,8 @@
         android:forceDarkAllowed="false"
         android:enableOnBackInvokedCallback="true"
         android:resizeableActivity="true"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true">
 
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 

@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
@@ -631,16 +632,32 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             ct.ThrowIfCancellationRequested();
 
-            // Android SAF content:// 路径：用 MediaMetadataRetriever.GetEmbeddedPicture() 提取
+            // Android SAF content:// 路径、远程 http(s):// URL 和 smb://（通过本地代理转 http）：用 MediaMetadataRetriever.GetEmbeddedPicture() 提取
 #if ANDROID
-            if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            string? extractUri = null;
+            if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)
+                || song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                extractUri = song.FilePath;
+            }
+            else if (song.FilePath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
+            {
+                var proxy = SmbStreamProxy.Current;
+                proxy?.Start();
+                extractUri = proxy?.ToProxyUrl(song.FilePath);
+            }
+            if (extractUri != null)
             {
                 coverPath = await Task.Run(() =>
-                    ExtractCoverFromContentUri(song.FilePath, song.Id), ct);
+                    ExtractCoverFromContentUri(extractUri, song.Id), ct);
             }
             else
 #endif
             if (!song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)
+                && !song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && !song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                && !song.FilePath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase)
                 && File.Exists(song.FilePath))
             {
                 coverPath = await Task.Run(() =>

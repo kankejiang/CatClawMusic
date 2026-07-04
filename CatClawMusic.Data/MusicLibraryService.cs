@@ -39,12 +39,17 @@ public class MusicLibraryService : IMusicLibraryService
     {
         await _db.EnsureInitializedAsync();
 
-        var scanDirs = new List<string> { "/storage/emulated/0/Music", "/storage/emulated/0/Download" };
+        var scanDirs = new List<string>();
         if (customFolders != null)
         {
             foreach (var f in customFolders)
                 if (!string.IsNullOrWhiteSpace(f) && Directory.Exists(f) && !scanDirs.Contains(f))
                     scanDirs.Add(f);
+        }
+        else
+        {
+            scanDirs.Add("/storage/emulated/0/Music");
+            scanDirs.Add("/storage/emulated/0/Download");
         }
 
         var result = await Task.Run(() =>
@@ -208,7 +213,9 @@ public class MusicLibraryService : IMusicLibraryService
     public async Task<Stream?> GetAlbumCoverAsync(Song song)
     {
         if (song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            song.FilePath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase) ||
+            song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             return null;
         var coverBytes = TagReader.ExtractCoverArt(song.FilePath);
         if (coverBytes != null) return new MemoryStream(coverBytes);

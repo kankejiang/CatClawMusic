@@ -39,6 +39,9 @@ public partial class LibraryPage : ContentPage
     {
         base.OnAppearing();
 
+        // 每次显示时刷新协议列表（从设置页返回后可能新增/删除了协议）
+        await _vm.RefreshProtocolsAsync();
+
         if (_isFirstAppearing)
         {
             _isFirstAppearing = false;
@@ -47,7 +50,10 @@ public partial class LibraryPage : ContentPage
         
         try
         {
-            await _vm.LoadLocalAsync();
+            if (_vm.CurrentTab == "Local")
+                await _vm.LoadLocalAsync();
+            else
+                await _vm.LoadNetworkAsync();
         }
         catch (Exception ex)
         {
@@ -73,8 +79,7 @@ public partial class LibraryPage : ContentPage
     {
         try
         {
-            // Add all songs to queue and play selected
-            _queue.SetSongs([.. _vm.Songs]);
+            _queue.SetSongs([.. _vm.FilteredSongs]);
             _queue.SelectSong(song.Id);
 
             if (_audioPlayer != null && !string.IsNullOrEmpty(song.FilePath))

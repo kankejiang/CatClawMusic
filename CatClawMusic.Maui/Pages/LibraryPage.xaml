@@ -125,6 +125,7 @@
             <Grid ColumnDefinitions="*,*"
                   ColumnSpacing="8">
                 <Button Grid.Column="0"
+                        x:Name="LocalTabBtn"
                         Text="本地音乐"
                         HeightRequest="44"
                         CornerRadius="18"
@@ -140,6 +141,11 @@
                             <Setter Property="BackgroundColor" Value="{DynamicResource ChipActiveColor}" />
                             <Setter Property="TextColor" Value="{DynamicResource ChipActiveTextColor}" />
                         </DataTrigger>
+                        <DataTrigger TargetType="Button"
+                                     Binding="{Binding HasNetworkProtocols}"
+                                     Value="False">
+                            <Setter Property="Grid.ColumnSpan" Value="2" />
+                        </DataTrigger>
                     </Button.Triggers>
                 </Button>
                 <Button Grid.Column="1"
@@ -150,7 +156,8 @@
                         BackgroundColor="{DynamicResource ChipInactiveColor}"
                         TextColor="{DynamicResource ChipInactiveTextColor}"
                         Command="{Binding SwitchTabCommand}"
-                        CommandParameter="Network">
+                        CommandParameter="Network"
+                        IsVisible="{Binding HasNetworkProtocols}">
                     <Button.Triggers>
                         <DataTrigger TargetType="Button"
                                      Binding="{Binding CurrentTab}"

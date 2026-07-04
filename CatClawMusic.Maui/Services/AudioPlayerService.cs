@@ -13,6 +13,12 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private bool _disposed;
     private System.Threading.Timer? _positionTimer;
 
+    /// <summary>
+    /// 平台可注入的 URL 转换器，用于将 smb:// 等 ExoPlayer 不支持的协议 URL 转换为可播放的 URL（如本地 HTTP 代理地址）。
+    /// 输入为原始 URL，输出为转换后的 URL。若返回 null 则使用原始 URL。
+    /// </summary>
+    public static Func<string, string?>? UrlTransformer { get; set; }
+
     /// <summary>播放状态变化事件（参数为是否正在播放）</summary>
     public event EventHandler<bool>? PlaybackStateChanged;
     /// <summary>播放位置变化事件（参数为当前播放位置）</summary>
@@ -68,7 +74,9 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         try
         {
             _currentFilePath = filePath;
-            PlatformPlay(BuildSourceUri(filePath));
+            // 应用平台 URL 转换器（如 smb:// → http://127.0.0.1:xxxx/ 代理）
+            var resolvedPath = UrlTransformer?.Invoke(filePath) ?? filePath;
+            PlatformPlay(BuildSourceUri(resolvedPath));
             StartPositionTimer();
             PlaybackStateChanged?.Invoke(this, true);
         }

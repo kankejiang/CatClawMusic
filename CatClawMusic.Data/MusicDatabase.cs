@@ -564,6 +564,44 @@ public class MusicDatabase
         return toDeleteIds.Count;
     }
 
+    /// <summary>删除 Source=Local 且文件路径不在保留集合中的歌曲，并清理关联的播放历史/收藏/艺术家关联</summary>
+    /// <param name="retainPaths">本次扫描到的所有本地歌曲文件路径集合（精确匹配，大小写不敏感）</param>
+    /// <returns>删除的歌曲数量</returns>
+    public async Task<int> RemoveLocalSongsNotInPathsAsync(HashSet<string> retainPaths)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var localSongs = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).ToListAsync();
+        var toDeleteIds = new List<int>();
+        foreach (var s in localSongs)
+        {
+            if (string.IsNullOrEmpty(s.FilePath))
+            {
+                toDeleteIds.Add(s.Id);
+                continue;
+            }
+            if (!retainPaths.Contains(s.FilePath))
+            {
+                toDeleteIds.Add(s.Id);
+            }
+        }
+
+        if (toDeleteIds.Count == 0) return 0;
+
+        await _database.RunInTransactionAsync(tran =>
+        {
+            foreach (var id in toDeleteIds)
+            {
+                try { tran.Delete<Song>(id); } catch { }
+                try { tran.Execute("DELETE FROM PlayHistory WHERE SongId = ?", id); } catch { }
+                try { tran.Execute("DELETE FROM Favorites WHERE SongId = ?", id); } catch { }
+                try { tran.Execute("DELETE FROM SongArtists WHERE SongId = ?", id); } catch { }
+            }
+        });
+
+        await CleanupOrphanedArtistsAndAlbumsAsync();
+        return toDeleteIds.Count;
+    }
+
     /// <summary>清理没有关联歌曲的孤立艺术家和专辑</summary>
     public async Task CleanupOrphanedArtistsAndAlbumsAsync()
     {

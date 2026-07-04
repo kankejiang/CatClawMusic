@@ -50,6 +50,42 @@ public static class MauiProgram
         {
             try { return await File.ReadAllBytesAsync(filePath); } catch { return null; }
         };
+
+        // 远程 URL 流打开器：下载 http(s):// 文件到 MemoryStream（供内嵌歌词读取），限制大小避免下载超大文件
+        LyricsService.RemoteUrlStreamOpener = url =>
+        {
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(20);
+                // 先请求 HEAD 获取文件大小，超过 50MB 则跳过
+                try
+                {
+                    var headReq = new HttpRequestMessage(HttpMethod.Head, url);
+                    var headResp = httpClient.Send(headReq);
+                    if (headResp.IsSuccessStatusCode && headResp.Content.Headers.ContentLength.HasValue)
+                    {
+                        var size = headResp.Content.Headers.ContentLength.Value;
+                        if (size > 50 * 1024 * 1024)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Lyrics] 远程文件过大 ({size / 1024 / 1024}MB)，跳过内嵌歌词读取");
+                            return null;
+                        }
+                    }
+                }
+                catch { /* HEAD 失败则继续 GET */ }
+
+                var bytes = httpClient.GetByteArrayAsync(url).GetAwaiter().GetResult();
+                if (bytes.Length == 0) return null;
+                if (bytes.Length > 50 * 1024 * 1024) return null;
+                return new MemoryStream(bytes);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 异常: {ex.Message}");
+                return null;
+            }
+        };
 #if ANDROID
         LyricsService.ContentUriReader = async uri =>
         {
@@ -205,6 +241,15 @@ public static class MauiProgram
         // ═══════════════════════════════════════════════════
         services.AddSingleton<Services.LocalScanService>();
 
+        // SMB 本地 HTTP 代理（将 smb:// URL 桥接为 http://127.0.0.1:port 供 ExoPlayer 播放）
+        services.AddSingleton<SmbStreamProxy>(sp =>
+        {
+            var smbSvc = sp.GetRequiredService<SmbService>();
+            var proxy = new SmbStreamProxy(smbSvc);
+            SmbStreamProxy.Current = proxy;
+            return proxy;
+        });
+
         // ═══════════════════════════════════════════════════
         // Plugin Manager
         // ═══════════════════════════════════════════════════
@@ -292,6 +337,41 @@ public static class MauiProgram
 
         var app = builder.Build();
         Services = app.Services;
+
+        // 初始化 SMB 代理并配置播放器 URL 转换器
+        var smbProxy = Services.GetRequiredService<SmbStreamProxy>();
+        AudioPlayerService.UrlTransformer = url =>
+        {
+            if (url.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
+                return smbProxy.ToProxyUrl(url);
+            return null;
+        };
+
+        // 扩展 RemoteUrlStreamOpener 支持 smb:// URL（用于读取内嵌歌词）
+        var prevStreamOpener = LyricsService.RemoteUrlStreamOpener;
+        LyricsService.RemoteUrlStreamOpener = url =>
+        {
+            if (url.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var proxyUrl = smbProxy.ToProxyUrl(url);
+                    if (proxyUrl == null) return null;
+                    using var httpClient = new HttpClient();
+                    httpClient.Timeout = TimeSpan.FromSeconds(20);
+                    var bytes = httpClient.GetByteArrayAsync(proxyUrl).GetAwaiter().GetResult();
+                    if (bytes.Length == 0 || bytes.Length > 50 * 1024 * 1024) return null;
+                    return new MemoryStream(bytes);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB 流打开异常: {ex.Message}");
+                    return null;
+                }
+            }
+            return prevStreamOpener?.Invoke(url);
+        };
+
         return app;
     }
 }

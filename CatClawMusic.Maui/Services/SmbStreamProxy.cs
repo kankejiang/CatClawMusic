@@ -1,0 +1,310 @@
+using System.Net;
+using System.Text;
+using CatClawMusic.Data;
+using ConnectionProfile = CatClawMusic.Core.Models.ConnectionProfile;
+using ProtocolType = CatClawMusic.Core.Models.ProtocolType;
+
+namespace CatClawMusic.Maui.Services;
+
+/// <summary>
+/// SMB 流媒体本地 HTTP 代理服务。
+/// 将 smb://user:pass@host/share/path 转换为 http://127.0.0.1:port/...，
+/// 使 ExoPlayer 可以通过 HTTP 协议播放 SMB 共享中的音频文件。
+/// 支持 HTTP Range 请求，支持拖动进度条。
+/// </summary>
+public class SmbStreamProxy : IDisposable
+{
+    private HttpListener? _listener;
+    private readonly SmbService _smb;
+    private int _port;
+    private bool _disposed;
+    private CancellationTokenSource? _cts;
+    private readonly object _smbLock = new();
+
+    /// <summary>全局静态实例（由 MauiProgram 设置）</summary>
+    public static SmbStreamProxy? Current { get; set; }
+
+    /// <summary>代理是否正在运行</summary>
+    public bool IsRunning => _listener?.IsListening ?? false;
+    /// <summary>代理监听端口</summary>
+    public int Port => _port;
+
+    public SmbStreamProxy(SmbService smb)
+    {
+        _smb = smb;
+    }
+
+    /// <summary>
+    /// 启动本地 HTTP 代理服务器（在随机可用端口上）。
+    /// </summary>
+    public void Start()
+    {
+        if (IsRunning) return;
+
+        _cts = new CancellationTokenSource();
+
+        // 尝试多个端口
+        for (int port = 19876; port < 19976; port++)
+        {
+            try
+            {
+                _listener = new HttpListener();
+                _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+                _listener.Start();
+                _port = port;
+                break;
+            }
+            catch
+            {
+                _listener?.Close();
+                _listener = null;
+            }
+        }
+
+        if (_listener == null || !_listener.IsListening)
+        {
+            System.Diagnostics.Debug.WriteLine("[SmbProxy] 无法绑定端口，代理启动失败");
+            return;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[SmbProxy] 代理已启动: http://127.0.0.1:{_port}/");
+
+        // 开始监听请求
+        _ = Task.Run(() => ListenLoop(_cts.Token));
+    }
+
+    private async Task ListenLoop(CancellationToken ct)
+    {
+        var listener = _listener;
+        if (listener == null) return;
+
+        try
+        {
+            while (!ct.IsCancellationRequested && listener.IsListening)
+            {
+                try
+                {
+                    var context = await listener.GetContextAsync().WaitAsync(ct);
+                    _ = Task.Run(() => HandleRequest(context), ct);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    if (!ct.IsCancellationRequested)
+                        System.Diagnostics.Debug.WriteLine($"[SmbProxy] Accept error: {ex.Message}");
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    /// <summary>
+    /// 将 smb:// URL 转换为本地代理 http:// URL。
+    /// </summary>
+    public string? ToProxyUrl(string smbUrl)
+    {
+        if (!smbUrl.StartsWith("smb://", StringComparison.OrdinalIgnoreCase)) return null;
+        if (!IsRunning) Start();
+        if (!IsRunning) return null;
+
+        // smb://user:pass@host/share/path/file.flac → /path/file.flac 被编码
+        // 将 smbUrl URL 安全编码后放入路径
+        var encoded = WebUtility.UrlEncode(smbUrl);
+        return $"http://127.0.0.1:{_port}/smb/{encoded}";
+    }
+
+    private async void HandleRequest(HttpListenerContext context)
+    {
+        var request = context.Request;
+        var response = context.Response;
+
+        try
+        {
+            var rawUrl = request.RawUrl ?? "";
+            const string prefix = "/smb/";
+            if (!rawUrl.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                response.StatusCode = 404;
+                response.Close();
+                return;
+            }
+
+            var encodedPart = rawUrl.Substring(prefix.Length);
+            // 去掉查询字符串
+            var qIdx = encodedPart.IndexOf('?');
+            if (qIdx >= 0) encodedPart = encodedPart.Substring(0, qIdx);
+
+            var smbUrl = WebUtility.UrlDecode(encodedPart);
+            if (string.IsNullOrEmpty(smbUrl) || !smbUrl.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
+            {
+                response.StatusCode = 400;
+                response.Close();
+                return;
+            }
+
+            // 解析 smb:// URL 为 ConnectionProfile 和 远程路径
+            if (!TryParseSmbUrl(smbUrl, out var profile, out var remotePath))
+            {
+                response.StatusCode = 400;
+                response.Close();
+                return;
+            }
+
+            // 配置 SMB 连接并获取文件信息
+            RemoteFile? fileInfo;
+            lock (_smbLock)
+            {
+                _smb.Configure(profile);
+                fileInfo = _smb.GetFileInfoAsync(remotePath).GetAwaiter().GetResult();
+            }
+
+            if (fileInfo == null)
+            {
+                response.StatusCode = 404;
+                response.Close();
+                return;
+            }
+
+            var fileSize = fileInfo.Size;
+            if (fileSize <= 0) fileSize = 1; // 避免 Content-Length: 0 导致 ExoPlayer 出错
+
+            // 解析 Range 头
+            long start = 0;
+            long end = fileSize - 1;
+            bool isRangeRequest = false;
+
+            var rangeHeader = request.Headers["Range"];
+            if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
+            {
+                var range = rangeHeader.Substring(6);
+                var dashIdx = range.IndexOf('-');
+                if (dashIdx > 0)
+                {
+                    var startStr = range.Substring(0, dashIdx);
+                    var endStr = range.Substring(dashIdx + 1);
+                    if (long.TryParse(startStr, out var s) && s >= 0 && s < fileSize)
+                    {
+                        start = s;
+                        isRangeRequest = true;
+                        if (long.TryParse(endStr, out var e) && e >= start && e < fileSize)
+                            end = e;
+                    }
+                }
+            }
+
+            var contentLength = end - start + 1;
+
+            response.StatusCode = isRangeRequest ? 206 : 200;
+            response.ContentType = "application/octet-stream";
+            response.ContentLength64 = contentLength;
+            response.Headers["Accept-Ranges"] = "bytes";
+            if (isRangeRequest)
+                response.Headers["Content-Range"] = $"bytes {start}-{end}/{fileSize}";
+
+            // 从 SMB 按范围读取并发送
+            const int chunkSize = 128 * 1024; // 128KB
+            var output = response.OutputStream;
+            long bytesRemaining = contentLength;
+            long currentOffset = start;
+
+            try
+            {
+                while (bytesRemaining > 0 && response.OutputStream.CanWrite)
+                {
+                    var toRead = (int)Math.Min(chunkSize, bytesRemaining);
+                    byte[] chunk;
+                    lock (_smbLock)
+                    {
+                        _smb.Configure(profile);
+                        chunk = _smb.OpenReadRangeAsync(remotePath, currentOffset, toRead).GetAwaiter().GetResult();
+                    }
+
+                    if (chunk == null || chunk.Length == 0) break;
+
+                    await output.WriteAsync(chunk, 0, chunk.Length);
+                    await output.FlushAsync();
+                    currentOffset += chunk.Length;
+                    bytesRemaining -= chunk.Length;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SmbProxy] Streaming error: {ex.Message}");
+            }
+
+            response.Close();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SmbProxy] HandleRequest error: {ex.Message}");
+            try
+            {
+                response.StatusCode = 500;
+                response.Close();
+            }
+            catch { }
+        }
+    }
+
+    /// <summary>
+    /// 解析 smb:// URL 为 ConnectionProfile 和 相对共享路径。
+    /// 格式: smb://[user[:password]@]host[:port]/shareName/path/to/file
+    /// </summary>
+    private static bool TryParseSmbUrl(string smbUrl, out ConnectionProfile profile, out string remotePath)
+    {
+        profile = new ConnectionProfile { Protocol = ProtocolType.SMB, Port = 445 };
+        remotePath = "";
+
+        try
+        {
+            var uri = new Uri(smbUrl);
+            profile.Host = uri.Host;
+            if (uri.Port > 0 && uri.Port != 445) profile.Port = uri.Port;
+
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                var userInfo = Uri.UnescapeDataString(uri.UserInfo);
+                var colonIdx = userInfo.IndexOf(':');
+                if (colonIdx > 0)
+                {
+                    profile.UserName = userInfo.Substring(0, colonIdx);
+                    profile.Password = userInfo.Substring(colonIdx + 1);
+                }
+                else
+                {
+                    profile.UserName = userInfo;
+                }
+            }
+
+            // 路径: /shareName/path/to/file
+            var absPath = uri.AbsolutePath.TrimStart('/');
+            var firstSlash = absPath.IndexOf('/');
+            if (firstSlash < 0)
+            {
+                // 只有共享名，没有文件路径
+                profile.ShareName = absPath;
+                remotePath = "\\";
+            }
+            else
+            {
+                profile.ShareName = absPath.Substring(0, firstSlash);
+                remotePath = absPath.Substring(firstSlash).Replace('/', '\\');
+            }
+
+            return !string.IsNullOrEmpty(profile.Host) && !string.IsNullOrEmpty(profile.ShareName);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        try { _cts?.Cancel(); } catch { }
+        try { _listener?.Stop(); } catch { }
+        try { _listener?.Close(); } catch { }
+    }
+}
