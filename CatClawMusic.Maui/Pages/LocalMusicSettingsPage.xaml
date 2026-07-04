@@ -73,23 +73,13 @@
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
                         
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                            <Button Text="选择SAF文件夹"
-                                    Command="{Binding SelectFolderCommand}"
-                                    BackgroundColor="{DynamicResource PrimaryColor}"
-                                    TextColor="White"
-                                    CornerRadius="16"
-                                    HeightRequest="40"
-                                    FontSize="13" />
-                            <Button Grid.Column="1"
-                                    Text="浏览文件系统"
-                                    Clicked="OnBrowseFilesystemClicked"
-                                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                                    TextColor="{DynamicResource TextPrimaryColor}"
-                                    CornerRadius="16"
-                                    HeightRequest="40"
-                                    FontSize="13" />
-                        </Grid>
+                        <Button Text="添加文件夹"
+                                Clicked="OnAddFolderClicked"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="40"
+                                FontSize="13" />
 
                         <Label Text="{Binding FolderSummaryText}"
                                FontSize="12"

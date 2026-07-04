@@ -16,12 +16,19 @@ public partial class LocalMusicSettingsPage : ContentPage
         BindingContext = viewModel;
     }
 
-    /// <summary>点击浏览文件系统按钮时触发，导航到文件夹浏览页面以选择音乐文件夹。</summary>
+    /// <summary>点击添加文件夹按钮时触发，根据「使用 SAF 文件夹扫描」开关决定使用系统 SAF 选择器还是自研文件管理器。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>
-    private async void OnBrowseFilesystemClicked(object? sender, EventArgs e)
+    private async void OnAddFolderClicked(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("folderbrowser?mode=music&title=选择音乐文件夹");
+        if (_viewModel.UseSafScan)
+        {
+            await _viewModel.SelectFolderAsync();
+        }
+        else
+        {
+            await Shell.Current.GoToAsync("folderbrowser?mode=music&title=选择音乐文件夹");
+        }
     }
 
     /// <summary>当页面显示在屏幕上时触发，加载已保存的音乐文件夹列表。</summary>
