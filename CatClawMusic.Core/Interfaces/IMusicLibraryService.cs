@@ -42,11 +42,22 @@ public interface IMusicLibraryService
     /// </summary>
     Task<List<Song>> GetMergedSongsAsync();
 
+    /// <summary>获取去重合并后的歌曲总数</summary>
     Task<int> GetMergedSongCountAsync();
+
+    /// <summary>获取收藏歌曲的总数</summary>
     Task<int> GetFavoriteSongCountAsync();
+
+    /// <summary>获取最近播放歌曲的总数</summary>
     Task<int> GetRecentSongCountAsync();
+
+    /// <summary>获取全部歌曲中的第一首歌曲 ID（用于占位/默认选择）</summary>
     Task<int> GetFirstSongIdForAllAsync();
+
+    /// <summary>获取收藏列表中的第一首歌曲 ID</summary>
     Task<int> GetFirstFavoriteSongIdAsync();
+
+    /// <summary>获取最近播放列表中的第一首歌曲 ID</summary>
     Task<int> GetFirstRecentSongIdAsync();
     
     /// <summary>

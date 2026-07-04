@@ -71,6 +71,9 @@ public class MusicScanner
     /// </summary>
     private readonly HashSet<string> _batchRemoteIds = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 同步锁，保护待处理缓冲区与批次去重集合的并发访问。
+    /// </summary>
     private readonly object _lock = new();
 
     /// <summary>
@@ -207,6 +210,22 @@ public class MusicScanner
         await FlushBatchAsync(batch);
     }
 
+    /// <summary>
+    /// 将一批歌曲批量写入数据库的内部实现。
+    /// <para>
+    /// 处理流程：
+    /// <list type="number">
+    ///   <item>懒加载艺术家/专辑内存缓存（仅首次）。</item>
+    ///   <item>确保默认艺术家和默认专辑存在。</item>
+    ///   <item>拆分多艺术家名称（如 "周杰伦/林俊杰"），收集全部艺术家名并批量入库。</item>
+    ///   <item>设置每首歌的 ArtistId，再批量确保专辑存在并设置 AlbumId。</item>
+    ///   <item>批量插入歌曲记录。</item>
+    ///   <item>为多艺术家歌曲创建 SongArtist 多对多关联。</item>
+    ///   <item>更新累计计数并触发批次回调。</item>
+    /// </list>
+    /// </para>
+    /// </summary>
+    /// <param name="toInsert">待批量插入的歌曲数组。</param>
     private async Task FlushBatchAsync(Song[] toInsert)
     {
         if (toInsert.Length == 0) return;

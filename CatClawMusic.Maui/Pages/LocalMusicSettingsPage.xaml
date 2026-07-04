@@ -18,9 +18,51 @@
                         <Label Text="本地音乐"
                                Style="{StaticResource PageTitleStyle}"
                                TextColor="White" />
-                        <Label Text="选择音乐文件夹、扫描歌曲、管理支持的格式。"
+                        <Label Text="选择扫描方式、添加音乐文件夹、扫描歌曲。"
                                Style="{StaticResource PageSubtitleStyle}"
                                TextColor="#F3F5FF" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="扫描方式"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <CheckBox IsChecked="{Binding UseMediaStore}" />
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="2">
+                                <Label Text="使用 Android 媒体库扫描"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                <Label Text="扫描系统媒体库中的所有音乐文件（需要读取权限）"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <CheckBox IsChecked="{Binding UseSafScan}" />
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="2">
+                                <Label Text="使用 SAF 文件夹扫描"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                <Label Text="使用系统 SAF 选择文件夹进行扫描（兼容 Android 11+）"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                        </Grid>
+
+                        <Label Text="提示：若同时开启多个扫描方式，最终扫描结果为并集；若仅使用自定义文件夹，请关闭以上两个选项。"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextHintColor}"
+                               LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
 
@@ -30,16 +72,67 @@
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Text="{Binding MusicFolderPath}"
+                        
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button Text="选择SAF文件夹"
+                                    Command="{Binding SelectFolderCommand}"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    TextColor="White"
+                                    CornerRadius="16"
+                                    HeightRequest="40"
+                                    FontSize="13" />
+                            <Button Grid.Column="1"
+                                    Text="浏览文件系统"
+                                    Clicked="OnBrowseFilesystemClicked"
+                                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                    TextColor="{DynamicResource TextPrimaryColor}"
+                                    CornerRadius="16"
+                                    HeightRequest="40"
+                                    FontSize="13" />
+                        </Grid>
+
+                        <Label Text="{Binding FolderSummaryText}"
                                FontSize="12"
-                               TextColor="{DynamicResource TextHintColor}" />
-                        <Button Text="选择文件夹"
-                                Command="{Binding SelectFolderCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
-                                TextColor="White"
-                                CornerRadius="16"
-                                HeightRequest="40"
-                                FontSize="13" />
+                               TextColor="{DynamicResource TextSecondaryColor}" />
+
+                        <CollectionView ItemsSource="{Binding MusicFolders}"
+                                        SelectionMode="None">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="Auto,*,Auto"
+                                          ColumnSpacing="8"
+                                          Margin="0,4,0,4">
+                                        <Image Source="ic_folder"
+                                               WidthRequest="18"
+                                               HeightRequest="18"
+                                               VerticalOptions="Center"
+                                               Opacity="0.7" />
+                                        <VerticalStackLayout Grid.Column="1"
+                                                             VerticalOptions="Center"
+                                                             Spacing="2">
+                                            <Label Text="{Binding DisplayName}"
+                                                   FontSize="13"
+                                                   TextColor="{DynamicResource TextSecondaryColor}"
+                                                   LineBreakMode="TailTruncation" />
+                                            <Label Text="{Binding Path}"
+                                                   FontSize="10"
+                                                   TextColor="{DynamicResource TextHintColor}"
+                                                   LineBreakMode="TailTruncation" />
+                                        </VerticalStackLayout>
+                                        <Button Grid.Column="2"
+                                                Text="删除"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RemoveFolderCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="{DynamicResource ErrorColor}"
+                                                TextColor="White"
+                                                CornerRadius="12"
+                                                HeightRequest="30"
+                                                FontSize="11"
+                                                WidthRequest="50" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
                     </VerticalStackLayout>
                 </Border>
 
@@ -91,31 +184,23 @@
                 </Border>
 
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="支持的文件格式"
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="解码设置"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <CheckBox IsChecked="{Binding IsMp3Enabled}" />
-                            <Label Grid.Column="1"
-                                   Text="MP3"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   VerticalOptions="Center" />
-                        </Grid>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <CheckBox IsChecked="{Binding IsFlacEnabled}" />
-                            <Label Grid.Column="1"
-                                   Text="FLAC"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   VerticalOptions="Center" />
-                        </Grid>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <CheckBox IsChecked="{Binding IsWavEnabled}" />
-                            <Label Grid.Column="1"
-                                   Text="WAV"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   VerticalOptions="Center" />
+                            <CheckBox IsChecked="{Binding IsFfmpegEnabled}" />
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="2">
+                                <Label Text="启用 FFmpeg 软解码"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                <Label Text="支持更多音频格式，会增加少量CPU占用"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
                         </Grid>
                     </VerticalStackLayout>
                 </Border>

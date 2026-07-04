@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
@@ -7,14 +8,21 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.Pages;
 
+/// <summary>音乐库页面，展示本地与网络音乐库中的歌曲列表，支持播放、排序、清除等操作。</summary>
 public partial class LibraryPage : ContentPage
 {
     private readonly MusicDatabase _db;
     private readonly PlayQueue _queue;
     private readonly LibraryViewModel _vm;
     private readonly IAudioPlayerService? _audioPlayer;
+    private readonly INetworkMusicService? _networkMusicService;
     private bool _isFirstAppearing = true;
 
+    /// <summary>初始化 <see cref="LibraryPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
+    /// <param name="db">音乐数据库访问对象。</param>
+    /// <param name="queue">播放队列。</param>
+    /// <param name="vm">音乐库页面对应的视图模型。</param>
+    /// <param name="sp">服务提供程序，用于获取音频播放与网络音乐服务。</param>
     public LibraryPage(MusicDatabase db, PlayQueue queue, LibraryViewModel vm, IServiceProvider sp)
     {
         InitializeComponent();
@@ -22,9 +30,11 @@ public partial class LibraryPage : ContentPage
         _queue = queue;
         _vm = vm;
         _audioPlayer = sp.GetService<IAudioPlayerService>();
+        _networkMusicService = sp.GetService<INetworkMusicService>();
         BindingContext = _vm;
     }
 
+    /// <summary>当页面显示在屏幕上时触发，首次出现时加载本地音乐库数据。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -45,6 +55,9 @@ public partial class LibraryPage : ContentPage
         }
     }
 
+    /// <summary>在歌曲列表中选中某首歌曲时触发，清除选中状态并播放该歌曲。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">选择变更事件参数。</param>
     private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is Song song)
@@ -77,6 +90,9 @@ public partial class LibraryPage : ContentPage
         }
     }
 
+    /// <summary>当视图模型触发歌曲点击事件时触发，根据特殊标识执行排序或清除操作。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="song">被点击的歌曲，可能携带特殊操作标识。</param>
     private void OnViewModelSongClicked(object? sender, Song song)
     {
         // Handle special actions from ViewModel
@@ -90,6 +106,9 @@ public partial class LibraryPage : ContentPage
         }
     }
 
+    /// <summary>当视图模型触发歌曲长按事件时触发，显示该歌曲的上下文菜单。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="song">被长按的歌曲。</param>
     private void OnViewModelSongLongClicked(object? sender, Song song)
     {
         ShowSongContextMenu(song);
@@ -272,19 +291,51 @@ public partial class LibraryPage : ContentPage
         return $"{bytes / (1024.0 * 1024.0):F1} MB";
     }
 
+    /// <summary>点击排序按钮时触发，弹出排序方式选择对话框。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private void OnSortClicked(object? sender, EventArgs e)
     {
         ShowSortDialog();
     }
 
+    /// <summary>点击清除按钮时触发，弹出确认清除音乐库的对话框。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private async void OnClearClicked(object? sender, EventArgs e)
     {
         ConfirmClearAsync();
     }
 
+    /// <summary>触发加载更多歌曲时调用，用于分页加载场景。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private void OnLoadMore(object? sender, EventArgs e)
     {
         // Load more songs if using pagination
         System.Diagnostics.Debug.WriteLine("Load more songs triggered");
+    }
+
+    /// <summary>点击歌曲分类按钮时触发（当前为空实现，预留扩展）。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    private void OnSongsClicked(object? sender, EventArgs e)
+    {
+    }
+
+    /// <summary>点击专辑分类按钮时触发，导航到专辑列表页面。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    private async void OnAlbumsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("albums");
+    }
+
+    /// <summary>点击艺术家分类按钮时触发，导航到艺术家列表页面。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    private async void OnArtistsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("artists");
     }
 }

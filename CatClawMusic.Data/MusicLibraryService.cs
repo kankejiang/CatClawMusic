@@ -257,36 +257,60 @@ public class MusicLibraryService : IMusicLibraryService
         return deduped;
     }
 
+    /// <summary>
+    /// 委托：获取去重合并后的歌曲总数
+    /// </summary>
+    /// <returns>歌曲数量</returns>
     public async Task<int> GetMergedSongCountAsync()
     {
         await _db.EnsureInitializedAsync();
         return await _db.GetMergedDedupedCountAsync();
     }
 
+    /// <summary>
+    /// 委托：获取收藏歌曲数量
+    /// </summary>
+    /// <returns>收藏歌曲数量</returns>
     public async Task<int> GetFavoriteSongCountAsync()
     {
         await _db.EnsureInitializedAsync();
         return await _db.GetFavoriteCountAsync();
     }
 
+    /// <summary>
+    /// 委托：获取最近播放歌曲数量
+    /// </summary>
+    /// <returns>最近播放歌曲数量</returns>
     public async Task<int> GetRecentSongCountAsync()
     {
         await _db.EnsureInitializedAsync();
         return await _db.GetRecentPlayCountAsync();
     }
 
+    /// <summary>
+    /// 委托：获取"全部音乐"中第一首歌曲的 ID
+    /// </summary>
+    /// <returns>歌曲 ID，无歌曲时返回 0</returns>
     public async Task<int> GetFirstSongIdForAllAsync()
     {
         await _db.EnsureInitializedAsync();
         return await _db.GetFirstSongIdForAllAsync();
     }
 
+    /// <summary>
+    /// 委托：获取最近收藏的第一首歌曲 ID
+    /// </summary>
+    /// <returns>歌曲 ID，无收藏时返回 0</returns>
     public async Task<int> GetFirstFavoriteSongIdAsync()
     {
         await _db.EnsureInitializedAsync();
         return await _db.GetFirstFavoriteSongIdAsync();
     }
 
+    /// <summary>
+    /// 委托：获取最近一次播放的歌曲 ID
+    /// </summary>
+    /// <returns>歌曲 ID，无播放历史时返回 0</returns>
     public async Task<int> GetFirstRecentSongIdAsync()
     {
         await _db.EnsureInitializedAsync();

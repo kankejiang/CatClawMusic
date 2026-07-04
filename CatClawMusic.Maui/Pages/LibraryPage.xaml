@@ -82,6 +82,9 @@
               ColumnSpacing="10">
             <Border Grid.Column="0"
                     Style="{StaticResource GlassCardStyle}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnSongsClicked" />
+                </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="6">
                     <Label Text="歌曲"
                            Style="{StaticResource StatCaptionStyle}" />
@@ -91,6 +94,9 @@
             </Border>
             <Border Grid.Column="1"
                     Style="{StaticResource GlassCardStyle}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnAlbumsClicked" />
+                </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="6">
                     <Label Text="专辑"
                            Style="{StaticResource StatCaptionStyle}" />
@@ -100,6 +106,9 @@
             </Border>
             <Border Grid.Column="2"
                     Style="{StaticResource GlassCardStyle}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnArtistsClicked" />
+                </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="6">
                     <Label Text="艺术家"
                            Style="{StaticResource StatCaptionStyle}" />

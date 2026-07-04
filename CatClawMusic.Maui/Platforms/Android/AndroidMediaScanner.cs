@@ -9,7 +9,8 @@ namespace CatClawMusic.Maui.Platforms.Android;
 /// <summary>Android MediaStore 音频扫描器 — 无需权限即可读取系统媒体库</summary>
 public static class AndroidMediaScanner
 {
-    /// <summary>通过 MediaStore 查询所有音频文件</summary>
+    /// <summary>通过 MediaStore 查询所有音频文件，并将其转换为 Song 列表返回</summary>
+    /// <returns>从 MediaStore 读取到的 Song 列表，查询失败时返回空列表</returns>
     public static List<Song> ScanFromMediaStore()
     {
         var songs = new List<Song>();

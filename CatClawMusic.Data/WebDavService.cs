@@ -14,7 +14,9 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class WebDavService : INetworkFileService, IDisposable
 {
+    /// <summary>WebDAV 主请求 HttpClient（带 Basic Auth）</summary>
     private HttpClient? _client;
+    /// <summary>当前已配置的连接信息</summary>
     private ConnectionProfile? _profile;
 
     /// <summary>最近一次 TestConnection 检测到的服务器类型</summary>
@@ -24,10 +26,14 @@ public class WebDavService : INetworkFileService, IDisposable
     public WebDavServerType CurrentServerType { get; private set; } = WebDavServerType.Standard;
 
     // ── OpenList / Alist REST API 字段 ──
+    /// <summary>OpenList REST API 的 Bearer token（登录后缓存）</summary>
     private string? _openListToken;
+    /// <summary>OpenList REST API 专用 HttpClient（无 Basic Auth）</summary>
     private HttpClient? _openListApiClient;
     // ── 检测缓存：同一 host 只检测一次 ──
+    /// <summary>最近一次完成服务器类型检测的 host:port 键值，避免重复检测</summary>
     private string? _lastDetectedHost;
+    /// <summary>正在进行的异步服务器类型检测任务</summary>
     private Task<WebDavServerType>? _detectionTask;
 
     /// <summary>
@@ -151,6 +157,11 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 获取当前已配置的 HttpClient，未配置时抛出异常。
+    /// </summary>
+    /// <returns>已初始化的 HttpClient 实例。</returns>
+    /// <exception cref="InvalidOperationException">未调用 Configure 或 EnsureClient。</exception>
     private HttpClient GetClient()
     {
         if (_client == null || _profile == null)
@@ -158,6 +169,12 @@ public class WebDavService : INetworkFileService, IDisposable
         return _client;
     }
 
+    /// <summary>
+    /// 确保 HttpClient 已按 profile 完成初始化。
+    /// 当 host/port/账号密码/协议变化时重新创建 HttpClient，避免复用旧连接。
+    /// </summary>
+    /// <param name="profile">连接配置。</param>
+    /// <param name="forceNew">是否强制重新创建 HttpClient（忽略缓存判断）。</param>
     private void EnsureClient(ConnectionProfile profile, bool forceNew = false)
     {
         if (!forceNew && _client != null && _profile?.Host == profile.Host
@@ -193,12 +210,26 @@ public class WebDavService : INetworkFileService, IDisposable
         _profile = profile;
     }
 
+    /// <summary>
+    /// 基于当前 profile 构建完整的 WebDAV 请求 URL。
+    /// </summary>
+    /// <param name="path">远程路径（相对或绝对）。</param>
+    /// <param name="isDirectory">是否为目录（影响是否补尾部斜杠）。</param>
+    /// <returns>完整 URL 字符串。</returns>
     private string BuildUrl(string path, bool isDirectory = false)
     {
         var profile = _profile ?? throw new InvalidOperationException("未配置连接");
         return BuildUrlForProfile(profile, path, isDirectory);
     }
 
+    /// <summary>
+    /// 基于指定 profile 构建完整的 WebDAV 请求 URL。
+    /// 处理 host 中已包含 scheme/port 的情况，统一输出 scheme://host:port/path 形式。
+    /// </summary>
+    /// <param name="profile">连接配置。</param>
+    /// <param name="path">远程路径。</param>
+    /// <param name="isDirectory">是否为目录。</param>
+    /// <returns>完整 URL 字符串。</returns>
     private static string BuildUrlForProfile(ConnectionProfile profile, string path, bool isDirectory = false)
     {
         var scheme = profile.UseHttps ? "https" : "http";
@@ -228,6 +259,12 @@ public class WebDavService : INetworkFileService, IDisposable
         return url;
     }
 
+    /// <summary>
+    /// 将 PROPFIND 响应中的 href 规范化为路径形式。
+    /// 完整 URL 会被提取为 AbsolutePath，相对路径原样返回。
+    /// </summary>
+    /// <param name="href">PROPFIND 响应中的 href 值。</param>
+    /// <returns>规范化后的路径。</returns>
     private static string NormalizeHrefToPath(string href)
     {
         if (string.IsNullOrEmpty(href)) return "/";
@@ -243,6 +280,11 @@ public class WebDavService : INetworkFileService, IDisposable
         return href;
     }
 
+    /// <summary>
+    /// 创建用于连接测试的临时 HttpClient（独立于缓存的 _client，便于一次性探测）。
+    /// </summary>
+    /// <param name="profile">连接配置。</param>
+    /// <returns>带 Basic Auth 和忽略 SSL 校验的 HttpClient。</returns>
     private static HttpClient CreateTestClient(ConnectionProfile profile)
     {
         var handler = new SocketsHttpHandler
@@ -269,6 +311,9 @@ public class WebDavService : INetworkFileService, IDisposable
         return client;
     }
 
+    /// <summary>
+    /// PROPFIND 请求体模板，请求 resourcetype / contentlength / lastmodified / displayname 四个属性。
+    /// </summary>
     private const string PropFindBody = @"<?xml version='1.0' encoding='utf-8'?>
 <D:propfind xmlns:D='DAV:'>
   <D:prop>
@@ -279,11 +324,27 @@ public class WebDavService : INetworkFileService, IDisposable
   </D:prop>
 </D:propfind>";
 
+    /// <summary>
+    /// 使用当前 HttpClient 发送 PROPFIND 请求并解析响应为 XDocument。
+    /// </summary>
+    /// <param name="url">请求 URL。</param>
+    /// <param name="depth">Depth 头值，0=仅当前资源，1=当前+直接子项，&gt;1=递归（服务器支持时）。</param>
+    /// <returns>解析后的 XML 文档；请求失败时返回 null。</returns>
     private async Task<XDocument?> PropFindAsync(string url, int depth = 1)
     {
         return await PropFindWithRedirectAsync(GetClient(), url, depth);
     }
 
+    /// <summary>
+    /// 发送 PROPFIND 请求并手动跟随 301/302/307/308 重定向。
+    /// 标准 HttpClient 默认会跟随重定向，但 OpenList/Alist 重定向后可能丢弃 PROPFIND 方法，
+    /// 因此手动处理以保证方法体完整传输。
+    /// </summary>
+    /// <param name="client">用于发送请求的 HttpClient。</param>
+    /// <param name="url">起始 URL。</param>
+    /// <param name="depth">Depth 头值。</param>
+    /// <param name="maxRedirects">最大重定向次数。</param>
+    /// <returns>解析后的 XML 文档。</returns>
     private static async Task<XDocument?> PropFindWithRedirectAsync(HttpClient client, string url, int depth = 1, int maxRedirects = 3)
     {
         var currentUrl = url;
@@ -502,6 +563,14 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>
+    /// 递归列出指定路径下的所有文件（不含目录）。
+    /// 优先尝试深度 PROPFIND（depth=infinity）；若服务器不支持（如 OpenList/Alist），
+    /// 自动回退到 REST API 递归扫描。
+    /// </summary>
+    /// <param name="path">起始目录路径。</param>
+    /// <param name="serverType">服务器类型，决定使用 PROPFIND 还是 REST API。</param>
+    /// <returns>扁平化的文件列表（仅文件，不含目录）。</returns>
     public async Task<List<RemoteFile>> ListAllFilesAsync(string path, WebDavServerType serverType = WebDavServerType.Standard)
     {
         // OpenList/Alist: 使用 /api/fs/list 递归扫描（PROPFIND depth>1 被当作 depth=1）
@@ -608,6 +677,10 @@ public class WebDavService : INetworkFileService, IDisposable
     /// 无认证头的 HttpClient，专用于跟随重定向后访问 CDN（CDN 拒绝带有 Basic Auth 的请求）
     /// </summary>
     private HttpClient? _redirectClient;
+    /// <summary>
+    /// 获取或创建无 Auth 头的 CDN HttpClient。
+    /// </summary>
+    /// <returns>无认证头的 HttpClient 实例。</returns>
     private HttpClient GetRedirectClient()
     {
         if (_redirectClient == null)

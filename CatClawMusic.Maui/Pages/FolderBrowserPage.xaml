@@ -1,27 +1,122 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              x:Class="CatClawMusic.Maui.Pages.FolderBrowserPage"
-             Title="文件夹浏览"
+             Title="{Binding Title}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
     <Grid Background="{DynamicResource PageBackgroundBrush}">
-        <Border WidthRequest="220" HeightRequest="220"
-                StrokeThickness="0" StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Center" VerticalOptions="Start"
-                TranslationY="-60" />
-        <Border Margin="16,18,16,22"
-                Style="{StaticResource GlassCardStrongStyle}">
-            <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
-                <Label Text="文件夹浏览" Style="{StaticResource PageTitleStyle}" />
-                <Label Text="该功能正在开发中，敬请期待"
-                       Style="{StaticResource PageSubtitleStyle}"
-                       HorizontalTextAlignment="Center" />
-            </VerticalStackLayout>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Style="{StaticResource GlassCardStrongStyle}"
+                Background="{DynamicResource HeroBrush}"
+                Margin="16,18,16,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Text="← 返回"
+                        Command="{Binding CancelCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="White"
+                        FontSize="14"
+                        Padding="0"
+                        Margin="0"
+                        VerticalOptions="Center" />
+                <VerticalStackLayout Grid.Column="1"
+                                     VerticalOptions="Center"
+                                     Spacing="2"
+                                     Padding="8,0">
+                    <Label Text="{Binding Title}"
+                           FontSize="18"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="White" />
+                    <Label Text="{Binding CurrentPath}"
+                           FontSize="11"
+                           TextColor="#F3F5FF"
+                           LineBreakMode="TailTruncation" />
+                </VerticalStackLayout>
+                <Button Grid.Column="2"
+                        Text="选择此文件夹"
+                        Command="{Binding SelectCurrentFolderCommand}"
+                        BackgroundColor="White"
+                        TextColor="{DynamicResource PrimaryColor}"
+                        CornerRadius="14"
+                        HeightRequest="36"
+                        FontSize="12" />
+            </Grid>
         </Border>
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
-</Grid>
+
+        <Grid Grid.Row="1" Margin="16,10,16,0">
+            <CollectionView ItemsSource="{Binding Items}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnItemSelected">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              ColumnSpacing="10"
+                              Padding="4,12">
+                            <Image Source="{Binding Icon}"
+                                   WidthRequest="22"
+                                   HeightRequest="22"
+                                   VerticalOptions="Center"
+                                   Opacity="0.85" />
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="2">
+                                <Label Text="{Binding Name}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding FullPath}"
+                                       FontSize="10"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       LineBreakMode="TailTruncation"
+                                       IsVisible="{Binding IsParent, Converter={StaticResource InvertedBoolConverter}}" />
+                            </VerticalStackLayout>
+                            <Image Grid.Column="2"
+                                   Source="ic_chevron_right"
+                                   WidthRequest="16"
+                                   HeightRequest="16"
+                                   VerticalOptions="Center"
+                                   Opacity="0.5"
+                                   IsVisible="{Binding IsDirectory}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <ActivityIndicator IsRunning="{Binding IsLoading}"
+                               IsVisible="{Binding IsLoading}"
+                               VerticalOptions="Center"
+                               HorizontalOptions="Center"
+                               Color="{DynamicResource PrimaryColor}" />
+        </Grid>
+
+        <Border Grid.Row="2"
+                Style="{StaticResource GlassCardStyle}"
+                Margin="16,0,16,16">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <Button Text="根目录"
+                        Command="{Binding NavigateToRootCommand}"
+                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                        TextColor="{DynamicResource TextSecondaryColor}"
+                        CornerRadius="14"
+                        HeightRequest="38"
+                        FontSize="12" />
+                <Button Grid.Column="2"
+                        Text="上级目录"
+                        Command="{Binding NavigateUpCommand}"
+                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                        TextColor="{DynamicResource TextSecondaryColor}"
+                        CornerRadius="14"
+                        HeightRequest="38"
+                        FontSize="12"
+                        IsEnabled="{Binding CanGoBack}" />
+            </Grid>
+        </Border>
+    </Grid>
 </ContentPage>

@@ -64,9 +64,16 @@ public class LrcMetadata
 /// </summary>
 public class LrcLyricLine
 {
+    /// <summary>该行歌词的开始时间</summary>
     public TimeSpan Timestamp { get; set; }
+
+    /// <summary>歌词文本</summary>
     public string Text { get; set; } = string.Empty;
+
+    /// <summary>翻译文本（可选）</summary>
     public string? Translation { get; set; }
+
+    /// <summary>逐字时间戳列表，用于卡拉OK效果（可选）</summary>
     public List<WordTimestamp>? WordTimestamps { get; set; }
     
     /// <summary>
@@ -111,7 +118,12 @@ public class LrcLyricLine
 /// </summary>
 public class WordTimestamp
 {
+    /// <summary>该字词的文本</summary>
     public string Word { get; set; } = string.Empty;
+
+    /// <summary>该字词的开始时间</summary>
     public TimeSpan Start { get; set; }
+
+    /// <summary>该字词的持续时长</summary>
     public TimeSpan Duration { get; set; }
 }

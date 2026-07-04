@@ -7,35 +7,47 @@ using System.IO;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 外观设置页 ViewModel：管理深色模式、主题色、启动页选择、自定义背景图与背景透明度等外观相关配置。
+/// </summary>
 public partial class AppearanceSettingsViewModel : ObservableObject
 {
     private readonly IThemeService? _themeService;
     private bool _isLoadingTheme = false;
 
+    /// <summary>是否启用深色模式</summary>
     [ObservableProperty]
     private bool _isDarkMode = false;
 
+    /// <summary>当前选中的主题色（十六进制）</summary>
     [ObservableProperty]
     private string _selectedThemeColor = "#9B7ED8";
 
+    /// <summary>启动页可选项列表</summary>
     [ObservableProperty]
     private List<string> _startupPageOptions = new() { "音乐库", "探索", "播放", "设置" };
 
+    /// <summary>当前选中的启动页索引</summary>
     [ObservableProperty]
     private int _selectedStartupPageIndex = 0;
 
+    /// <summary>是否存在自定义背景图</summary>
     [ObservableProperty]
     private bool _hasCustomBackground = false;
 
+    /// <summary>自定义背景图预览</summary>
     [ObservableProperty]
     private ImageSource? _customBackgroundPreview = null;
 
+    /// <summary>自定义背景透明度（0.0 - 1.0）</summary>
     [ObservableProperty]
     private double _backgroundOpacity = 0.5;
 
+    /// <summary>自定义背景文件名</summary>
     [ObservableProperty]
     private string _customBackgroundName = string.Empty;
 
+    /// <summary>可选主题色列表（名称 + 十六进制颜色）</summary>
     public static readonly (string Name, string Color)[] ThemeColors = new[]
     {
         ("紫色", "#9B7ED8"),
@@ -50,11 +62,17 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         ("青蓝", "#00BCD4"),
     };
 
+    /// <summary>
+    /// 初始化 <see cref="AppearanceSettingsViewModel"/> 实例。
+    /// </summary>
+    /// <param name="themeService">主题服务，可为空（设计时支持）</param>
     public AppearanceSettingsViewModel(IThemeService? themeService = null)
     {
         _themeService = themeService;
     }
 
+    /// <summary>选择主题色：根据十六进制颜色值切换主题，并同步到主题服务</summary>
+    /// <param name="colorHex">主题色十六进制字符串</param>
     [RelayCommand]
     public async Task SelectThemeColorAsync(string? colorHex)
     {
@@ -106,6 +124,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>选择自定义背景图：通过文件选择器选取图片并应用为应用背景</summary>
     [RelayCommand]
     public async Task SelectBackgroundAsync()
     {
@@ -140,6 +159,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>清除自定义背景图：移除当前背景并恢复默认外观</summary>
     [RelayCommand]
     public void ClearBackground()
     {
@@ -147,6 +167,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         LoadCurrentTheme();
     }
 
+    /// <summary>从主题服务加载当前外观配置，同步到各绑定属性</summary>
     public void LoadCurrentTheme()
     {
         _isLoadingTheme = true;
@@ -193,6 +214,9 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         _isLoadingTheme = false;
     }
 
+    /// <summary>将启动页索引映射为应用主 Tab 的索引</summary>
+    /// <param name="startupIndex">启动页索引（0=音乐库, 1=探索, 2=播放, 3=设置）</param>
+    /// <returns>主 Tab 索引</returns>
     public static int MapStartupIndexToTabIndex(int startupIndex)
     {
         return startupIndex switch

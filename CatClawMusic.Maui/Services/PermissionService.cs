@@ -8,6 +8,8 @@ namespace CatClawMusic.Maui.Services;
 /// </summary>
 public class PermissionService : IPermissionService
 {
+    /// <summary>检查存储读取权限是否已授予</summary>
+    /// <returns>已授予返回 true；Windows 平台始终返回 true</returns>
     public async Task<bool> CheckStoragePermissionAsync()
     {
 #if ANDROID
@@ -18,6 +20,8 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>请求存储读取权限</summary>
+    /// <returns>授权成功返回 true；已授权或 Windows 平台返回 true</returns>
     public async Task<bool> RequestStoragePermissionAsync()
     {
 #if ANDROID
@@ -31,6 +35,8 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>检查"管理所有文件"权限（Android 11+ 的 IsExternalStorageManager）</summary>
+    /// <returns>已授予或不需要返回 true；否则返回 false</returns>
     public async Task<bool> CheckManageStoragePermissionAsync()
     {
 #if ANDROID
@@ -44,6 +50,11 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>
+    /// 请求"管理所有文件"权限。
+    /// 跳转到系统设置页面由用户手动授权，调用方需监听应用恢复后再检查权限状态。
+    /// </summary>
+    /// <returns>始终返回 false，需要用户在系统设置中手动授权</returns>
     public Task<bool> RequestManageStoragePermissionAsync()
     {
 #if ANDROID
@@ -73,6 +84,8 @@ public class PermissionService : IPermissionService
         return Task.FromResult(false); // 需要用户手动授权
     }
 
+    /// <summary>获取当前权限状态的可读文本描述</summary>
+    /// <returns>权限状态文本</returns>
     public string GetPermissionStatus()
     {
 #if ANDROID
@@ -83,6 +96,8 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>检查权限是否被永久拒绝（MAUI 不直接支持此检测，固定返回 false）</summary>
+    /// <returns>始终返回 false</returns>
     public bool IsPermanentlyDenied()
     {
 #if ANDROID
@@ -93,6 +108,7 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>打开当前应用的系统设置详情页</summary>
     public void OpenAppSettings()
     {
 #if ANDROID
@@ -108,6 +124,8 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>检查悬浮窗权限是否已授予</summary>
+    /// <returns>已授予或 Windows 平台返回 true；否则返回 false</returns>
     public async Task<bool> CheckOverlayPermissionAsync()
     {
 #if ANDROID
@@ -117,6 +135,11 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>
+    /// 请求悬浮窗权限。
+    /// 跳转到系统设置页面由用户手动授权，调用方需监听应用恢复后再检查权限状态。
+    /// </summary>
+    /// <returns>始终返回 false，需要用户在系统设置中手动授权</returns>
     public Task<bool> RequestOverlayPermissionAsync()
     {
 #if ANDROID

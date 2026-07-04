@@ -3,10 +3,17 @@ using System.Globalization;
 namespace CatClawMusic.Maui.Converters;
 
 /// <summary>
-/// Converts playlist name to an icon emoji for system playlists.
+/// 播放列表名称转图标 Emoji 转换器。
+/// 为系统内置播放列表（全部歌曲/收藏歌曲/最近播放）返回对应图标，其它返回光盘图标。
 /// </summary>
 public class PlaylistIconConverter : IValueConverter
 {
+    /// <summary>根据播放列表名称返回对应的图标 Emoji</summary>
+    /// <param name="value">播放列表名称</param>
+    /// <param name="targetType">目标类型</param>
+    /// <param name="parameter">额外参数（未使用）</param>
+    /// <param name="culture">区域性信息</param>
+    /// <returns>对应图标 Emoji 字符串</returns>
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var name = value as string;
@@ -19,6 +26,7 @@ public class PlaylistIconConverter : IValueConverter
         };
     }
 
+    /// <summary>反向转换不支持</summary>
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotSupportedException();

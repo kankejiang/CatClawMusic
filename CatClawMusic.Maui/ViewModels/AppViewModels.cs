@@ -8,6 +8,10 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 正在播放页 ViewModel：承载当前播放歌曲信息、播放控制（播放/暂停/上一首/下一首/进度跳转）、
+/// 播放模式切换、收藏、封面加载、歌词同步、播放队列持久化与启动恢复等核心交互逻辑。
+/// </summary>
 public partial class NowPlayingViewModel : ObservableObject
 {
     private readonly PlayQueue _queue;
@@ -28,67 +32,110 @@ public partial class NowPlayingViewModel : ObservableObject
 
     // === Basic Song Info ===
 
+    /// <summary>当前歌曲标题</summary>
     [ObservableProperty] private string _title = "";
+    /// <summary>当前歌曲艺术家</summary>
     [ObservableProperty] private string _artist = "";
+    /// <summary>当前歌曲专辑名</summary>
     [ObservableProperty] private string _album = "";
+    /// <summary>是否存在有效的专辑信息</summary>
     [ObservableProperty] private bool _hasAlbum;
 
     // === Cover Art ===
+    /// <summary>当前歌曲封面图片源</summary>
     [ObservableProperty] private ImageSource? _coverImage;
+    /// <summary>是否存在可用封面</summary>
     [ObservableProperty] private bool _hasCover;
     /// <summary>当前封面图片的本地文件路径（供取色用）</summary>
     public string? CurrentCoverPath { get; private set; }
 
     // === Playback State ===
+    /// <summary>是否正在播放</summary>
     [ObservableProperty] private bool _isPlaying;
+    /// <summary>当前播放进度（秒）</summary>
     [ObservableProperty] private double _progress;
+    /// <summary>歌曲总时长（秒）</summary>
     [ObservableProperty] private double _duration;
+    /// <summary>音量（0.0 - 1.0）</summary>
     [ObservableProperty] private double _volume = 1.0;
+    /// <summary>当前播放时间显示文本</summary>
     [ObservableProperty] private string _currentTimeDisplay = "0:00";
+    /// <summary>总时长显示文本</summary>
     [ObservableProperty] private string _totalTimeDisplay = "0:00";
 
     // === Play Mode ===
+    /// <summary>播放模式图标字符（Unicode 符号）</summary>
     [ObservableProperty] private string _playModeIcon = "\U0001f501"; // 🔁 list repeat
+    /// <summary>播放模式显示文本</summary>
     [ObservableProperty] private string _playModeLabel = "列表循环";
+    /// <summary>播放模式图标资源名称</summary>
     [ObservableProperty] private string _playModeIconSource = "ic_repeat_all";
 
     // === Play/Pause ===
+    /// <summary>播放/暂停按钮图标字符（▶ 或 ⏸）</summary>
     [ObservableProperty] private string _playPauseIcon = "\u25b6"; // ▶
+    /// <summary>播放/暂停按钮图标资源名称</summary>
     [ObservableProperty] private string _playPauseIconSource = "ic_play";
 
     // === Like ===
+    /// <summary>当前歌曲是否已收藏</summary>
     [ObservableProperty] private bool _isLiked;
+    /// <summary>收藏按钮图标字符（♡ 或 ♥）</summary>
     [ObservableProperty] private string _likeIcon = "\u2661"; // ♡
+    /// <summary>收藏按钮图标资源名称</summary>
     [ObservableProperty] private string _likeIconSource = "ic_favorite_border";
 
     // === Lyrics ===
+    /// <summary>是否存在可用歌词</summary>
     [ObservableProperty] private bool _hasLyrics;
+    /// <summary>歌词显示行：当前行前第 4 行</summary>
     [ObservableProperty] private string _lyricLine0 = "";  // 4 lines before
+    /// <summary>歌词显示行：当前行前第 3 行</summary>
     [ObservableProperty] private string _lyricLine1 = "";  // 3 lines before
+    /// <summary>歌词显示行：当前行前第 2 行</summary>
     [ObservableProperty] private string _lyricLine2 = "";  // 2 lines before
+    /// <summary>歌词显示行：当前行前第 1 行</summary>
     [ObservableProperty] private string _lyricLine3 = "";  // 1 line before
+    /// <summary>歌词显示行：当前行</summary>
     [ObservableProperty] private string _lyricCurrent = ""; // current
+    /// <summary>歌词显示行：当前行后第 1 行</summary>
     [ObservableProperty] private string _lyricLine4 = "";  // 1 line after
+    /// <summary>歌词显示行：当前行后第 2 行</summary>
     [ObservableProperty] private string _lyricLine5 = "";  // 2 lines after
+    /// <summary>歌词显示行：当前行后第 3 行</summary>
     [ObservableProperty] private string _lyricLine6 = "";  // 3 lines after
+    /// <summary>歌词显示行：当前行后第 4 行</summary>
     [ObservableProperty] private string _lyricLine7 = "";  // 4 lines after
+    /// <summary>无歌词时的提示文本</summary>
     [ObservableProperty] private string _noLyricsText = "暂无歌词";
 
     // Full lyrics (for FullLyricsPage)
+    /// <summary>当前高亮的歌词行索引（供全屏歌词页使用）</summary>
     [ObservableProperty] private int _currentLyricIndexObservable = -1;
+    /// <summary>全部歌词行（供全屏歌词页使用，只读）</summary>
     public IReadOnlyList<LrcLyricLine>? AllLyricLines => _currentLyrics?.Lines;
 
     private LrcLyrics? _currentLyrics;
     private int _currentLyricIndex = -1;
 
     // === Upcoming Songs (for playlist drawer) ===
+    /// <summary>即将播放的歌曲列表（用于播放队列抽屉展示）</summary>
     public ObservableCollection<Song> UpcomingSongs { get; } = new();
 
+    /// <summary>当前播放队列中的歌曲</summary>
     public Song? CurrentSong => _queue.CurrentSong;
 
     /// <summary>暴露 AudioService 的 Duration 供 NowPlayingPage timer 直接拉取</summary>
     public double AudioServiceDuration => _audioService.Duration;
 
+    /// <summary>
+    /// 初始化 <see cref="NowPlayingViewModel"/> 实例，订阅音频播放事件并创建播放控制命令。
+    /// </summary>
+    /// <param name="queue">播放队列</param>
+    /// <param name="lyrics">歌词服务</param>
+    /// <param name="db">音乐数据库访问对象</param>
+    /// <param name="audioService">音频播放服务</param>
+    /// <param name="musicLibrary">音乐库服务，用于获取封面等</param>
     public NowPlayingViewModel(
         PlayQueue queue,
         ILyricsService lyrics,
@@ -121,11 +168,17 @@ public partial class NowPlayingViewModel : ObservableObject
     }
 
     // === Commands ===
+    /// <summary>切换播放/暂停命令</summary>
     public IRelayCommand TogglePlayPauseCommand { get; }
+    /// <summary>播放下一首命令</summary>
     public IRelayCommand PlayNextCommand { get; }
+    /// <summary>播放上一首命令</summary>
     public IRelayCommand PlayPreviousCommand { get; }
+    /// <summary>循环切换播放模式命令（列表循环 → 单曲循环 → 随机播放）</summary>
     public IRelayCommand CyclePlayModeCommand { get; }
+    /// <summary>切换当前歌曲收藏状态命令</summary>
     public IRelayCommand ToggleLikeCommand { get; }
+    /// <summary>进度跳转命令，参数为目标位置（秒）</summary>
     public RelayCommand<double> SeekCommand { get; }
 
     private void OnPlaybackStateChanged(object? sender, bool isPlaying)
@@ -292,6 +345,11 @@ public partial class NowPlayingViewModel : ObservableObject
 
     // === Load Song (called when page appears or song changes) ===
 
+    /// <summary>
+    /// 加载播放队列中的当前歌曲：刷新基础信息、封面、歌词、播放模式与即将播放列表，
+    /// 并在 <paramref name="autoPlay"/> 为 true 时自动播放（启动恢复除外）。
+    /// </summary>
+    /// <param name="autoPlay">是否在切换歌曲后自动播放</param>
     public async Task LoadCurrentSongAsync(bool autoPlay = true)
     {
         var song = _queue.CurrentSong;

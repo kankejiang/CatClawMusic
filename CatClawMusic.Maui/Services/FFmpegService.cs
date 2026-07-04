@@ -10,11 +10,15 @@ public class FFmpegService
     private bool _initAttempted;
     private readonly SemaphoreSlim _transcodeLock = new(2, 2);
 
+    /// <summary>需要 FFmpeg 软解的扩展名集合</summary>
     private static readonly string[] TranscodeExtensions =
         { ".m4a", ".m4b", ".mp4", ".mov", ".wma", ".ogg", ".opus", ".ape", ".wv", ".aiff", ".aif", ".alac" };
 
+    /// <summary>获取 FFmpeg 是否可用（已成功定位 libffmpeg.so）</summary>
     public bool IsAvailable => _ffmpegPath != null;
 
+    /// <summary>异步初始化 FFmpeg，定位并校验 libffmpeg.so 的可用性</summary>
+    /// <returns>初始化成功返回 true，否则返回 false</returns>
     public async Task<bool> InitializeAsync()
     {
         if (_initAttempted) return _ffmpegPath != null;
@@ -32,13 +36,19 @@ public class FFmpegService
         return false;
     }
 
+    /// <summary>判断指定文件是否需要通过 FFmpeg 转码（按扩展名匹配）</summary>
+    /// <param name="filePath">待检测的文件路径</param>
+    /// <returns>需要转码返回 true，否则返回 false</returns>
     public bool NeedsTranscoding(string filePath)
     {
         var ext = Path.GetExtension(filePath)?.ToLowerInvariant();
         return !string.IsNullOrEmpty(ext) && TranscodeExtensions.Contains(ext);
     }
 
-    /// <summary>用 FFmpeg 软解为 WAV</summary>
+    /// <summary>用 FFmpeg 软解为 WAV（PCM 16bit / 44.1kHz / 双声道）</summary>
+    /// <param name="inputPath">输入文件路径</param>
+    /// <param name="ct">取消令牌</param>
+    /// <returns>生成的 WAV 临时文件路径；失败返回 null</returns>
     public async Task<string?> TranscodeToWavAsync(string inputPath, CancellationToken ct = default)
     {
         if (_ffmpegPath == null && !await InitializeAsync())

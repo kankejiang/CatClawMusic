@@ -8,41 +8,61 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 艺术家详情页 ViewModel：加载指定艺术家的基本信息、专辑列表与歌曲列表，
+/// 提供专辑/歌曲 Tab 切换、整列表播放与单曲播放/暂停等交互能力。
+/// </summary>
 public partial class ArtistDetailViewModel : ObservableObject
 {
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService? _audioPlayer;
     private readonly PlayQueue? _playQueue;
 
+    /// <summary>当前艺术家信息</summary>
     [ObservableProperty]
     private Artist _artist = new();
 
+    /// <summary>该艺术家的专辑集合（从其歌曲中聚合去重）</summary>
     [ObservableProperty]
     private ObservableCollection<Album> _albums = new();
 
+    /// <summary>该艺术家的歌曲集合</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _songs = new();
 
+    /// <summary>“专辑”Tab 是否可见（处于选中状态）</summary>
     [ObservableProperty]
     private bool _isAlbumsTabVisible = true;
 
+    /// <summary>“歌曲”Tab 是否可见（处于选中状态）</summary>
     [ObservableProperty]
     private bool _isSongsTabVisible = false;
 
+    /// <summary>“专辑”Tab 的背景色</summary>
     [ObservableProperty]
     private Color _albumsTabColor = Colors.Transparent;
 
+    /// <summary>“歌曲”Tab 的背景色</summary>
     [ObservableProperty]
     private Color _songsTabColor = Colors.Transparent;
 
+    /// <summary>是否正在加载艺术家数据</summary>
     [ObservableProperty]
     private bool _isLoading = false;
 
+    /// <summary>状态文本（用于向用户展示加载进度或结果）</summary>
     [ObservableProperty]
     private string _statusText = "";
 
+    /// <summary>请求播放某首歌曲时触发，供外部页面订阅以同步 UI 状态</summary>
     public event Action<Song>? SongPlayRequested;
 
+    /// <summary>
+    /// 初始化 <see cref="ArtistDetailViewModel"/> 实例，并设置默认 Tab 颜色。
+    /// </summary>
+    /// <param name="db">音乐数据库访问对象</param>
+    /// <param name="audioPlayer">音频播放服务，可为空（设计时支持）</param>
+    /// <param name="playQueue">播放队列，可为空（设计时支持）</param>
     public ArtistDetailViewModel(MusicDatabase db,
         IAudioPlayerService? audioPlayer = null,
         PlayQueue? playQueue = null)
@@ -56,7 +76,8 @@ public partial class ArtistDetailViewModel : ObservableObject
         SongsTabColor = Color.FromArgb("#1E787880");
     }
 
-    /// <summary>加载艺术家详情、专辑和歌曲</summary>
+    /// <summary>加载艺术家详情：从数据库读取艺术家信息、歌曲列表，并按专辑去重聚合</summary>
+    /// <param name="artistName">艺术家名称</param>
     [RelayCommand]
     public async Task LoadArtistAsync(string artistName)
     {
@@ -106,6 +127,8 @@ public partial class ArtistDetailViewModel : ObservableObject
         finally { IsLoading = false; }
     }
 
+    /// <summary>切换详情页 Tab：在“专辑”与“歌曲”之间切换并更新 Tab 颜色</summary>
+    /// <param name="tab">目标 Tab 名称（"Albums" 或 "Songs"）</param>
     [RelayCommand]
     public void SwitchTab(string tab)
     {
@@ -115,6 +138,7 @@ public partial class ArtistDetailViewModel : ObservableObject
         SongsTabColor = IsSongsTabVisible ? Color.FromArgb("#9B7ED8") : Color.FromArgb("#1E787880");
     }
 
+    /// <summary>播放该艺术家的全部歌曲：将歌曲加入播放队列并从首曲开始播放</summary>
     [RelayCommand]
     public async Task PlayAllAsync()
     {
@@ -128,6 +152,8 @@ public partial class ArtistDetailViewModel : ObservableObject
         SongPlayRequested?.Invoke(first);
     }
 
+    /// <summary>播放指定歌曲：若为当前曲则切换播放/暂停，否则将其设为播放队列当前曲并播放</summary>
+    /// <param name="song">要播放的歌曲，为空则忽略</param>
     [RelayCommand]
     public async Task PlaySongAsync(Song? song)
     {

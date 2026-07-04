@@ -45,8 +45,8 @@
                         <Button Grid.Column="1"
                                 Text="清空缓存"
                                 Command="{Binding ClearCacheCommand}"
-                                BackgroundColor="#33FFFFFF"
-                                TextColor="White"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                TextColor="{DynamicResource TextPrimaryColor}"
                                 CornerRadius="14"
                                 HeightRequest="36"
                                 FontSize="12"
@@ -100,26 +100,36 @@
                                                    TextColor="#B8C7FF" />
                                         </Border>
                                     </Grid>
-                                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="8">
+                                    <Grid ColumnDefinitions="*,*,*,Auto" ColumnSpacing="8">
                                         <Button Grid.Column="0"
                                                 Text="测试"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.TestProfileCommand}"
                                                 CommandParameter="{Binding .}"
-                                                BackgroundColor="#33FFFFFF"
+                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                Opacity="0.75"
                                                 TextColor="White"
                                                 CornerRadius="12"
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="1"
-                                                Text="编辑"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.StartEditCommand}"
+                                                Text="同步"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SyncProfileCommand}"
                                                 CommandParameter="{Binding .}"
-                                                BackgroundColor="#33FFFFFF"
+                                                BackgroundColor="{DynamicResource PrimaryColor}"
                                                 TextColor="White"
                                                 CornerRadius="12"
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="2"
+                                                Text="编辑"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.StartEditCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                                TextColor="{DynamicResource TextPrimaryColor}"
+                                                CornerRadius="12"
+                                                HeightRequest="34"
+                                                FontSize="11" />
+                                        <Button Grid.Column="3"
                                                 Text="删除"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteProfileCommand}"
                                                 CommandParameter="{Binding .}"
@@ -219,11 +229,22 @@
 
                         <VerticalStackLayout Spacing="4">
                             <Label Text="基础路径" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
-                            <Entry Text="{Binding FormBasePath}"
-                                   Placeholder="/dav/music"
-                                   BackgroundColor="#22FFFFFF"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   PlaceholderColor="{DynamicResource TextHintColor}" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Entry Text="{Binding FormBasePath}"
+                                       Placeholder="/dav/music"
+                                       BackgroundColor="#22FFFFFF"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       PlaceholderColor="{DynamicResource TextHintColor}" />
+                                <Button Grid.Column="1"
+                                        Text="选择"
+                                        Clicked="OnSelectRemotePathClicked"
+                                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                        TextColor="{DynamicResource TextPrimaryColor}"
+                                        CornerRadius="8"
+                                        HeightRequest="40"
+                                        FontSize="12"
+                                        WidthRequest="56" />
+                            </Grid>
                         </VerticalStackLayout>
 
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -259,8 +280,8 @@
                             <Button Grid.Column="0"
                                     Text="取消"
                                     Command="{Binding CancelEditCommand}"
-                                    BackgroundColor="#33FFFFFF"
-                                    TextColor="White"
+                                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                    TextColor="{DynamicResource TextPrimaryColor}"
                                     CornerRadius="16"
                                     HeightRequest="42"
                                     FontSize="13" />

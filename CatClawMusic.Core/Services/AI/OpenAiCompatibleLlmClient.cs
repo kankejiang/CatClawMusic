@@ -8,12 +8,19 @@ using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Core.Services.AI;
 
+/// <summary>
+/// OpenAI 兼容的 LLM 客户端实现，支持多服务商对接、退回模型机制、连接测试与模型列表查询。
+/// </summary>
 public class OpenAiCompatibleLlmClient : ILlmClient
 {
+    /// <summary>HTTP 客户端，用于发送对话请求</summary>
     private readonly HttpClient _httpClient;
+    /// <summary>当前生效 LLM 配置的提供函数</summary>
     private readonly Func<LlmConfig> _configProvider;
+    /// <summary>退回配置列表的提供函数（可选）</summary>
     private readonly Func<List<LlmConfig>>? _fallbackConfigsProvider;
 
+    /// <summary>JSON 序列化选项，使用蛇形命名与忽略 null 值</summary>
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -21,6 +28,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
+    /// <summary>
+    /// 构造 OpenAiCompatibleLlmClient 实例
+    /// </summary>
+    /// <param name="configProvider">当前生效配置提供函数</param>
+    /// <param name="fallbackConfigsProvider">退回配置列表提供函数（可选）</param>
     public OpenAiCompatibleLlmClient(Func<LlmConfig> configProvider, Func<List<LlmConfig>>? fallbackConfigsProvider = null)
     {
         _configProvider = configProvider;
@@ -45,6 +57,14 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             .ToList();
     }
 
+    /// <summary>
+    /// 发起对话请求，自动支持退回模型机制
+    /// </summary>
+    /// <param name="messages">对话消息列表</param>
+    /// <param name="tools">可用工具定义列表（可选）</param>
+    /// <param name="ct">取消令牌</param>
+    /// <returns>LLM 响应</returns>
+    /// <exception cref="InvalidOperationException">API 未配置或所有退回均失败时抛出</exception>
     public async Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default)
     {
         var config = _configProvider();
@@ -85,6 +105,14 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         }
     }
 
+    /// <summary>
+    /// 使用指定配置发起对话请求
+    /// </summary>
+    /// <param name="config">LLM 配置</param>
+    /// <param name="messages">对话消息列表</param>
+    /// <param name="tools">可用工具定义列表</param>
+    /// <param name="ct">取消令牌</param>
+    /// <returns>LLM 响应</returns>
     private async Task<LlmResponse> ChatWithConfigAsync(LlmConfig config, List<ChatMessage> messages, List<ToolDefinition>? tools, CancellationToken ct)
     {
         var url = BuildChatUrl(config.ApiUrl);
@@ -103,6 +131,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return ParseResponse(responseBody);
     }
 
+    /// <summary>
+    /// 测试当前配置的连接是否可用（发送一个极简请求）
+    /// </summary>
+    /// <returns>连接成功返回 true，否则返回 false</returns>
     public async Task<bool> TestConnectionAsync()
     {
         try
@@ -129,6 +161,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         catch { return false; }
     }
 
+    /// <summary>
+    /// 获取当前配置对应的 API 所支持的模型列表
+    /// </summary>
+    /// <returns>模型 ID 字符串列表</returns>
+    /// <exception cref="InvalidOperationException">API 未配置或请求失败时抛出</exception>
     public async Task<List<string>> GetModelsAsync()
     {
         var config = _configProvider();
@@ -149,6 +186,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return ParseModelsResponse(responseBody);
     }
 
+    /// <summary>
+    /// 根据 API 基础地址构建获取模型列表的完整 URL
+    /// </summary>
+    /// <param name="apiUrl">API 基础地址</param>
+    /// <returns>模型列表接口 URL</returns>
     private static string BuildModelsUrl(string apiUrl)
     {
         var url = apiUrl.TrimEnd('/');
@@ -161,6 +203,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return url + "/v1/models";
     }
 
+    /// <summary>
+    /// 解析 /models 接口返回的 JSON 响应
+    /// </summary>
+    /// <param name="responseBody">响应体字符串</param>
+    /// <returns>模型 ID 列表（按字母顺序排序）</returns>
     private static List<string> ParseModelsResponse(string responseBody)
     {
         var models = new List<string>();
@@ -186,6 +233,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return models;
     }
 
+    /// <summary>
+    /// 根据 API 基础地址构建对话补全接口的完整 URL
+    /// </summary>
+    /// <param name="apiUrl">API 基础地址</param>
+    /// <returns>对话补全接口 URL</returns>
     private static string BuildChatUrl(string apiUrl)
     {
         var url = apiUrl.TrimEnd('/');
@@ -198,6 +250,13 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return url + "/v1/chat/completions";
     }
 
+    /// <summary>
+    /// 构建对话请求的 JSON 请求体
+    /// </summary>
+    /// <param name="messages">对话消息列表</param>
+    /// <param name="tools">可用工具定义列表</param>
+    /// <param name="config">LLM 配置</param>
+    /// <returns>JSON 字符串请求体</returns>
     private static string BuildRequestBody(List<ChatMessage> messages, List<ToolDefinition>? tools, LlmConfig config)
     {
         var msgList = new List<object>();
@@ -264,6 +323,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return JsonSerializer.Serialize(body, JsonOpts);
     }
 
+    /// <summary>
+    /// 构建工具参数属性对象（包含 type、description 与可选 enum）
+    /// </summary>
+    /// <param name="prop">工具参数属性</param>
+    /// <returns>用于 JSON 序列化的字典对象</returns>
     private static object BuildPropertyObj(ToolParameterProperty prop)
     {
         var dict = new Dictionary<string, object?>
@@ -276,6 +340,12 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return dict;
     }
 
+    /// <summary>
+    /// 解析对话接口返回的 JSON 响应
+    /// </summary>
+    /// <param name="responseBody">响应体字符串</param>
+    /// <returns>解析得到的 LLM 响应对象</returns>
+    /// <exception cref="InvalidOperationException">响应体格式错误或包含 API 错误时抛出</exception>
     private static LlmResponse ParseResponse(string responseBody)
     {
         var result = new LlmResponse();
@@ -329,6 +399,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return result;
     }
 
+    /// <summary>截断字符串到指定长度，超出部分以 "..." 结尾</summary>
+    /// <param name="s">原字符串</param>
+    /// <param name="maxLen">最大长度</param>
+    /// <returns>截断后的字符串</returns>
     private static string Truncate(string s, int maxLen) =>
         s.Length <= maxLen ? s : s[..maxLen] + "...";
 }

@@ -1,36 +1,55 @@
 namespace CatClawMusic.Core.Interfaces;
 
 /// <summary>
-/// 主题管理服务接口
+/// 主题管理服务接口，负责应用主题、深色模式及自定义背景的设置与应用
 /// </summary>
 public interface IThemeService
 {
+    /// <summary>当前应用的主题</summary>
     AppTheme CurrentTheme { get; }
 
+    /// <summary>当前的深色模式设置</summary>
     DarkModeSetting DarkModeSetting { get; }
 
+    /// <summary>可选的主题列表</summary>
     List<AppTheme> AvailableThemes { get; }
 
+    /// <summary>自定义背景图片路径（未设置时为 null）</summary>
     string? CustomBackgroundPath { get; }
 
+    /// <summary>自定义背景的不透明度（0.0 - 1.0）</summary>
     double CustomBackgroundOpacity { get; }
 
+    /// <summary>是否设置了自定义背景</summary>
     bool HasCustomBackground { get; }
 
+    /// <summary>切换当前主题</summary>
+    /// <param name="theme">目标主题</param>
     void SetTheme(AppTheme theme);
 
+    /// <summary>设置深色模式策略</summary>
+    /// <param name="setting">深色模式设置</param>
     void SetDarkModeSetting(DarkModeSetting setting);
 
+    /// <summary>将当前主题与深色模式设置应用到界面</summary>
     void ApplyTheme();
 
+    /// <summary>判断系统当前是否处于深色模式</summary>
     bool IsSystemDarkMode();
 
+    /// <summary>判断应用当前实际显示效果是否为深色（综合考虑系统与设置）</summary>
     bool IsEffectivelyDark();
 
+    /// <summary>设置自定义背景图片及不透明度</summary>
+    /// <param name="imagePath">图片文件路径，传入 null 表示清除</param>
+    /// <param name="opacity">背景不透明度</param>
     void SetCustomBackground(string? imagePath, double opacity = 0.5);
 
+    /// <summary>仅修改自定义背景的不透明度</summary>
+    /// <param name="opacity">背景不透明度</param>
     void SetCustomBackgroundOpacity(double opacity);
 
+    /// <summary>清除自定义背景设置</summary>
     void ClearCustomBackground();
 }
 
@@ -39,15 +58,25 @@ public interface IThemeService
 /// </summary>
 public enum AppTheme
 {
+    /// <summary>紫色主题</summary>
     Purple = 0,
+    /// <summary>粉色主题</summary>
     Pink = 1,
+    /// <summary>蓝色主题</summary>
     Blue = 2,
+    /// <summary>绿色主题</summary>
     Green = 3,
+    /// <summary>橙色主题</summary>
     Orange = 4,
+    /// <summary>红色主题</summary>
     Red = 5,
+    /// <summary>青色主题</summary>
     Teal = 6,
+    /// <summary>黄色主题</summary>
     Yellow = 7,
+    /// <summary>靛蓝主题</summary>
     Indigo = 8,
+    /// <summary>蓝绿主题</summary>
     Cyan = 9
 }
 
@@ -56,7 +85,10 @@ public enum AppTheme
 /// </summary>
 public enum DarkModeSetting
 {
-    Light = 0,      // 浅色模式
-    Dark = 1,       // 深色模式
-    FollowSystem = 2 // 跟随系统
+    /// <summary>浅色模式</summary>
+    Light = 0,
+    /// <summary>深色模式</summary>
+    Dark = 1,
+    /// <summary>跟随系统</summary>
+    FollowSystem = 2
 }

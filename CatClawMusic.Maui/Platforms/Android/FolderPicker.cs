@@ -6,16 +6,22 @@ using AUri = Android.Net.Uri;
 namespace CatClawMusic.Maui.Platforms.Android;
 
 /// <summary>
-/// Android SAF 文件夹选择器
+/// Android SAF（Storage Access Framework）文件夹选择器，
+/// 负责打开系统文件夹选择器、持久化授权、查询/移除/验证已保存的文件夹 URI 列表。
 /// </summary>
 public static class FolderPicker
 {
+    /// <summary>文件夹选择请求码，用于 OnActivityResult 中区分来源</summary>
     private const int PickFolderCode = 9001;
+    /// <summary>SharedPreferences 中保存单个文件夹 URI 的键（兼容旧版本）</summary>
     private const string PrefKey = "music_folder_uri";
+    /// <summary>SharedPreferences 中保存多个文件夹 URI 列表的键（以 | 分隔）</summary>
     private const string PrefKeyList = "music_folder_uris";
+    /// <summary>等待文件夹选择结果的 TaskCompletionSource</summary>
     private static TaskCompletionSource<string?>? _tcs;
 
-    /// <summary>打开系统文件夹选择器，返回 content:// URI</summary>
+    /// <summary>打开系统文件夹选择器，返回所选文件夹的 content:// URI 字符串；用户取消时返回 null</summary>
+    /// <returns>所选文件夹的 content:// URI 字符串，取消时为 null</returns>
     public static async Task<string?> PickFolderAsync()
     {
         var activity = Platform.CurrentActivity;
@@ -33,7 +39,8 @@ public static class FolderPicker
         return await _tcs.Task;
     }
 
-    /// <summary>获取已保存的所有文件夹 URI 列表</summary>
+    /// <summary>获取已保存的所有文件夹 URI 列表，优先读取列表键，缺失时回退到单个键（兼容旧版本）</summary>
+    /// <returns>已保存的文件夹 URI 字符串列表</returns>
     public static List<string> GetSavedFolderUris()
     {
         var ctx = global::Android.App.Application.Context;
@@ -50,14 +57,16 @@ public static class FolderPicker
         return new List<string>();
     }
 
-    /// <summary>获取第一个已保存的 URI（兼容）</summary>
+    /// <summary>获取第一个已保存的文件夹 URI（兼容旧版本的单文件夹场景）</summary>
+    /// <returns>第一个已保存的文件夹 URI，无则返回 null</returns>
     public static string? GetSavedFolderUri()
     {
         var uris = GetSavedFolderUris();
         return uris.Count > 0 ? uris[0] : null;
     }
 
-    /// <summary>移除指定的已保存文件夹</summary>
+    /// <summary>移除指定的已保存文件夹：从列表中删除并释放其持久化 URI 权限</summary>
+    /// <param name="uri">要移除的文件夹 URI 字符串</param>
     public static void RemoveSavedFolder(string uri)
     {
         var ctx = global::Android.App.Application.Context;
@@ -95,7 +104,7 @@ public static class FolderPicker
         }
     }
 
-    /// <summary>清空所有文件夹</summary>
+    /// <summary>清空所有已保存的文件夹 URI（不释放持久化权限）</summary>
     public static void ClearFolders()
     {
         var ctx = global::Android.App.Application.Context;
@@ -103,7 +112,8 @@ public static class FolderPicker
         prefs.Edit()!.Remove(PrefKey)!.Remove(PrefKeyList)!.Commit();
     }
 
-    /// <summary>验证已保存的文件夹 URI 权限是否仍有效</summary>
+    /// <summary>验证已保存的文件夹 URI 权限是否仍有效，移除已失效的 URI，并返回仍有效的数量</summary>
+    /// <returns>仍有效的文件夹 URI 数量</returns>
     public static int ValidateSavedFolders()
     {
         var uris = GetSavedFolderUris();
@@ -156,7 +166,11 @@ public static class FolderPicker
         return valid.Count;
     }
 
-    /// <summary>MainActivity.OnActivityResult 中调用</summary>
+    /// <summary>处理 MainActivity.OnActivityResult 中的文件夹选择结果：申请持久化权限、保存 URI 并完成 TaskCompletionSource</summary>
+    /// <param name="requestCode">请求码</param>
+    /// <param name="resultCode">结果码</param>
+    /// <param name="data">返回的 Intent 数据</param>
+    /// <returns>是否由本选择器处理</returns>
     public static bool HandleResult(int requestCode, Result resultCode, Intent? data)
     {
         if (requestCode != PickFolderCode) return false;

@@ -11,11 +11,18 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class DoubanScraper : IArtistMetadataScraper
 {
+    /// <summary>HTTP 客户端，用于访问豆瓣网页/API</summary>
     private readonly HttpClient _http;
+    /// <summary>艺术家封面缓存目录绝对路径</summary>
     private readonly string _cacheDir;
 
+    /// <summary>数据源名称：豆瓣</summary>
     public string SourceName => "豆瓣";
 
+    /// <summary>
+    /// 初始化豆瓣刮削器，配置模拟浏览器请求头以规避反爬。
+    /// </summary>
+    /// <param name="cacheDir">艺术家封面缓存目录（不存在会自动创建）。</param>
     public DoubanScraper(string cacheDir)
     {
         _cacheDir = cacheDir;
@@ -30,6 +37,14 @@ public class DoubanScraper : IArtistMetadataScraper
         _http.DefaultRequestHeaders.Add("Referer", "https://www.douban.com/");
     }
 
+    /// <summary>
+    /// 搜索豆瓣艺术家。
+    /// 优先使用 JSON 接口（cat=1002 音乐分类），失败或返回空时回退到网页搜索。
+    /// 对每个结果尝试调用 EnrichArtistInfoAsync 获取详细信息。
+    /// </summary>
+    /// <param name="name">艺术家名称关键词。</param>
+    /// <param name="limit">最大返回数量。</param>
+    /// <returns>匹配的艺术家列表；请求失败时返回空列表。</returns>
     public async Task<List<ArtistSearchResult>> SearchArtistsAsync(string name, int limit = 10)
     {
         var results = new List<ArtistSearchResult>();
@@ -226,6 +241,13 @@ public class DoubanScraper : IArtistMetadataScraper
         return match.Success ? match.Groups[1].Value : null;
     }
 
+    /// <summary>
+    /// 下载豆瓣艺术家封面图片到缓存目录。
+    /// 文件名添加 "_douban" 后缀以避免与其他来源的封面冲突。
+    /// </summary>
+    /// <param name="coverUrl">封面图片 URL。</param>
+    /// <param name="artistName">艺术家名称（用于生成缓存文件名）。</param>
+    /// <returns>缓存文件绝对路径；URL 为空、已存在缓存或下载失败时返回 null。</returns>
     public async Task<string?> DownloadAndCacheArtistCoverAsync(string coverUrl, string artistName)
     {
         if (string.IsNullOrEmpty(coverUrl)) return null;

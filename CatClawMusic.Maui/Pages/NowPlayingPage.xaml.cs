@@ -4,6 +4,7 @@ using Microsoft.Maui.Controls;
 
 namespace CatClawMusic.Maui.Pages;
 
+/// <summary>正在播放页面，展示当前播放歌曲的封面、进度、歌词及播放控制。</summary>
 public partial class NowPlayingPage : ContentPage
 {
     private readonly NowPlayingViewModel _viewModel;
@@ -12,6 +13,8 @@ public partial class NowPlayingPage : ContentPage
     private readonly List<Label> _lyricLabels = new();
     private int _lastHighlightIndex = -1;
 
+    /// <summary>初始化 <see cref="NowPlayingPage"/> 类的新实例，并绑定对应的视图模型。</summary>
+    /// <param name="viewModel">当前播放视图模型，提供歌曲、进度与歌词数据。</param>
     public NowPlayingPage(NowPlayingViewModel viewModel)
     {
         InitializeComponent();
@@ -25,6 +28,7 @@ public partial class NowPlayingPage : ContentPage
         _progressTimer.Tick += OnProgressTimerTick;
     }
 
+    /// <summary>当页面显示在屏幕上时触发，加载当前歌曲、构建歌词视图并启动进度定时器。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -49,17 +53,24 @@ public partial class NowPlayingPage : ContentPage
             _progressTimer.Start();
     }
 
+    /// <summary>当页面从屏幕上消失时触发，取消订阅主题变更事件。</summary>
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
         Application.Current!.RequestedThemeChanged -= OnThemeChanged;
     }
 
+    /// <summary>当系统主题发生变更时触发，在主线程上重建歌词视图以应用新主题颜色。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">主题变更事件参数。</param>
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
     {
         MainThread.BeginInvokeOnMainThread(BuildLyricViews);
     }
 
+    /// <summary>当视图模型属性变更时触发，根据变更的属性重建歌词视图或更新高亮行。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">属性变更事件参数。</param>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
@@ -253,6 +264,9 @@ public partial class NowPlayingPage : ContentPage
         catch { }
     }
 
+    /// <summary>进度定时器每次触发时调用，在用户未拖动时同步进度条与播放时长显示。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private void OnProgressTimerTick(object? sender, EventArgs e)
     {
         if (_isDragging) return;
@@ -280,12 +294,18 @@ public partial class NowPlayingPage : ContentPage
         }
     }
 
+    /// <summary>当用户开始拖动进度条时触发，标记拖动状态并通知视图模型开始定位。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private void OnSliderDragStarted(object? sender, EventArgs e)
     {
         _isDragging = true;
         _viewModel.OnSeekStarted();
     }
 
+    /// <summary>当用户结束拖动进度条时触发，通知视图模型定位到拖动结束位置。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private async void OnSliderDragCompleted(object? sender, EventArgs e)
     {
         _isDragging = false;
@@ -299,6 +319,9 @@ public partial class NowPlayingPage : ContentPage
         return $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
     }
 
+    /// <summary>点击页面空白区域时触发，若点击位于封面、歌词或无歌词提示区域则切换到全屏歌词页。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">点击事件参数。</param>
     private void OnPageTapped(object? sender, TappedEventArgs e)
     {
         var ptCover = e.GetPosition(CoverArea);

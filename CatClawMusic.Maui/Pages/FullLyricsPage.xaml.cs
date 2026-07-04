@@ -3,6 +3,7 @@ using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
 
+/// <summary>全屏歌词页面，以全屏方式展示当前播放歌曲的完整歌词并支持自动滚动与高亮。</summary>
 public partial class FullLyricsPage : ContentPage
 {
     private readonly NowPlayingViewModel _viewModel;
@@ -10,6 +11,8 @@ public partial class FullLyricsPage : ContentPage
     private bool _userScrolling = false;
     private int _lastHighlightIndex = -1;
 
+    /// <summary>初始化 <see cref="FullLyricsPage"/> 类的新实例，并绑定对应的视图模型。</summary>
+    /// <param name="viewModel">当前播放视图模型，提供歌词与播放状态数据。</param>
     public FullLyricsPage(NowPlayingViewModel viewModel)
     {
         InitializeComponent();
@@ -20,6 +23,9 @@ public partial class FullLyricsPage : ContentPage
         BuildLyricViews();
     }
 
+    /// <summary>当视图模型属性变更时触发，根据变更的属性重建歌词视图或更新高亮行。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">属性变更事件参数。</param>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
@@ -38,6 +44,7 @@ public partial class FullLyricsPage : ContentPage
         }
     }
 
+    /// <summary>当页面显示在屏幕上时触发，订阅主题变更事件并重建或恢复歌词高亮状态。</summary>
     protected override void OnAppearing()
     {
         base.OnAppearing();
@@ -62,12 +69,16 @@ public partial class FullLyricsPage : ContentPage
         }
     }
 
+    /// <summary>当页面从屏幕上消失时触发，取消订阅主题变更事件。</summary>
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
         Application.Current!.RequestedThemeChanged -= OnThemeChanged;
     }
 
+    /// <summary>当系统主题发生变更时触发，在主线程上重建歌词视图以应用新主题颜色。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">主题变更事件参数。</param>
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
     {
         MainThread.BeginInvokeOnMainThread(BuildLyricViews);
@@ -240,6 +251,9 @@ public partial class FullLyricsPage : ContentPage
         catch { }
     }
 
+    /// <summary>当用户手动滚动歌词视图时触发，标记用户正在滚动以暂停自动滚动定位。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">滚动事件参数。</param>
     private void OnLyricScrolled(object? sender, ScrolledEventArgs e)
     {
         _userScrolling = true;
@@ -252,6 +266,9 @@ public partial class FullLyricsPage : ContentPage
         _userScrolling = false;
     }
 
+    /// <summary>点击返回按钮时触发，切换回主页面的第一个标签页。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private void OnBackClicked(object? sender, EventArgs e)
     {
         MainPage.Instance?.SwitchToTab(0);

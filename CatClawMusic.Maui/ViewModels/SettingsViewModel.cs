@@ -6,6 +6,10 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 设置页 ViewModel：聚合展示本地音乐、远程音乐、插件、AI、权限、更新等模块状态，
+/// 提供深色模式切换与各子页面导航入口。
+/// </summary>
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly MusicDatabase _db;
@@ -15,37 +19,57 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IAgentService _agentService;
     private readonly IUpdateService _updateService;
 
+    /// <summary>深色模式图标（跟随系统/浅色/深色）</summary>
     [ObservableProperty]
     private string _darkModeIcon = "ic_system_mode";
 
+    /// <summary>本地音乐状态文本</summary>
     [ObservableProperty]
     private string _localMusicStatus = "加载中...";
 
+    /// <summary>远程音乐状态文本</summary>
     [ObservableProperty]
     private string _remoteMusicStatus = "加载中...";
 
+    /// <summary>插件状态文本</summary>
     [ObservableProperty]
     private string _pluginStatus = "加载中...";
 
+    /// <summary>AI 助手状态文本</summary>
     [ObservableProperty]
     private string _aiStatus = "未配置";
 
+    /// <summary>权限状态文本</summary>
     [ObservableProperty]
     private string _permissionStatus = "检测中...";
 
+    /// <summary>是否存在可用更新</summary>
     [ObservableProperty]
     private bool _isUpdateAvailable;
 
+    /// <summary>权限状态展示颜色（绿色/橙色/红色）</summary>
     [ObservableProperty]
     private string _permissionStatusColor = "#4CAF50";
 
     // === Commands ===
-    
+
+    /// <summary>切换深色模式命令（在 跟随系统 → 浅色 → 深色 之间循环）</summary>
     public IRelayCommand ToggleDarkModeCommand { get; }
+    /// <summary>加载各模块状态命令</summary>
     public IAsyncRelayCommand LoadStatusCommand { get; }
 
+    /// <summary>请求导航到指定子页面时触发，供页面订阅</summary>
     public event EventHandler<string>? NavigationRequested;
 
+    /// <summary>
+    /// 初始化 <see cref="SettingsViewModel"/> 实例，创建交互命令并同步深色模式图标。
+    /// </summary>
+    /// <param name="db">音乐数据库访问对象</param>
+    /// <param name="themeService">主题服务，用于切换深浅色模式</param>
+    /// <param name="permissionService">权限服务，用于检测存储/悬浮窗等权限</param>
+    /// <param name="pluginManager">插件管理器，用于读取插件状态</param>
+    /// <param name="agentService">Agent 服务，用于读取当前 AI 助手配置</param>
+    /// <param name="updateService">更新服务，用于检查可用更新</param>
     public SettingsViewModel(
         MusicDatabase db,
         IThemeService themeService,
@@ -67,6 +91,7 @@ public partial class SettingsViewModel : ObservableObject
         SyncDarkModeIcon();
     }
 
+    /// <summary>切换深色模式设置（跟随系统 → 浅色 → 深色 → 跟随系统）</summary>
     private void ToggleDarkMode()
     {
         var next = _themeService.DarkModeSetting switch
@@ -81,6 +106,10 @@ public partial class SettingsViewModel : ObservableObject
         SyncDarkModeIcon();
     }
 
+    /// <summary>
+    /// 异步加载各模块状态：本地音乐数量、网络缓存数量、插件启用情况、AI 配置、
+    /// 权限状态以及是否存在可用更新。
+    /// </summary>
     public async Task LoadStatusAsync()
     {
         try
@@ -127,21 +156,29 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>检查是否存在可用更新并刷新红点状态</summary>
     public void CheckForUpdates()
     {
         IsUpdateAvailable = !string.IsNullOrWhiteSpace(_updateService.GetPendingVersion());
     }
 
+    /// <summary>清除更新红点（用户已知晓更新后调用）</summary>
     public void ClearUpdateRedDot()
     {
         IsUpdateAvailable = false;
     }
 
+    /// <summary>触发导航请求到指定页面</summary>
+    /// <param name="page">目标页面标识</param>
     public void NavigateTo(string page)
     {
         NavigationRequested?.Invoke(this, page);
     }
 
+    /// <summary>
+    /// 异步加载权限状态：检测存储、管理所有文件、悬浮窗权限，
+    /// 并据此更新 <see cref="PermissionStatus"/> 与 <see cref="PermissionStatusColor"/>。
+    /// </summary>
     private async Task LoadPermissionStatusAsync()
     {
         var storageGranted = await _permissionService.CheckStoragePermissionAsync();
@@ -166,6 +203,7 @@ public partial class SettingsViewModel : ObservableObject
         PermissionStatusColor = "#F44336";
     }
 
+    /// <summary>根据当前深色模式设置同步图标资源名称</summary>
     private void SyncDarkModeIcon()
     {
         DarkModeIcon = _themeService.DarkModeSetting switch

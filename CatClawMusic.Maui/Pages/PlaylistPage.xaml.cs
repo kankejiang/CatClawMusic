@@ -3,11 +3,14 @@ using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
 
+/// <summary>歌单列表页面，展示用户创建与系统的歌单集合。</summary>
 public partial class PlaylistPage : ContentPage
 {
     private readonly PlaylistViewModel _viewModel;
     private bool _isFirstAppearing = true;
 
+    /// <summary>初始化 <see cref="PlaylistPage"/> 类的新实例，并绑定对应的视图模型。</summary>
+    /// <param name="viewModel">歌单列表页面对应的视图模型。</param>
     public PlaylistPage(PlaylistViewModel viewModel)
     {
         InitializeComponent();
@@ -15,6 +18,7 @@ public partial class PlaylistPage : ContentPage
         BindingContext = viewModel;
     }
 
+    /// <summary>当页面显示在屏幕上时触发，首次出现时加载歌单列表数据。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -28,6 +32,9 @@ public partial class PlaylistPage : ContentPage
         await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
     }
 
+    /// <summary>在歌单列表中选中某个歌单时触发，导航到该歌单的详情页。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">选择变更事件参数。</param>
     private async void OnPlaylistSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is Playlist playlist)
@@ -36,6 +43,9 @@ public partial class PlaylistPage : ContentPage
         }
     }
 
+    /// <summary>点击歌单项的菜单按钮时触发，弹出操作菜单以执行删除歌单等操作。</summary>
+    /// <param name="sender">事件源，通常为携带歌单上下文的图片按钮。</param>
+    /// <param name="e">事件参数。</param>
     private async void OnPlaylistMenuClicked(object? sender, EventArgs e)
     {
         if (sender is ImageButton button && button.BindingContext is Playlist playlist)
@@ -59,6 +69,9 @@ public partial class PlaylistPage : ContentPage
         }
     }
 
+    /// <summary>点击新建歌单按钮时触发，弹出输入对话框以创建新的歌单。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private async void OnCreatePlaylistClicked(object? sender, EventArgs e)
     {
         var name = await DisplayPromptAsync("新建歌单", "请输入歌单名称", "创建", "取消", maxLength: 30);

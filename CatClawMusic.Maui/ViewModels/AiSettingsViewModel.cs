@@ -26,23 +26,23 @@ public partial class AiSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _currentAgentName = "Yuki";
 
-    /// <summary>配置名称</summary>
+    /// <summary>配置名称，用于本地标识当前 LLM 配置</summary>
     [ObservableProperty]
     private string _configName = "默认配置";
 
-    /// <summary>提供商 ID</summary>
+    /// <summary>当前选中的 LLM 提供商信息（含 ID、默认 URL 与预设模型列表）</summary>
     [ObservableProperty]
     private LlmProviderInfo? _selectedProvider;
 
-    /// <summary>API Base URL</summary>
+    /// <summary>LLM 服务的 API Base URL</summary>
     [ObservableProperty]
     private string _apiUrl = "https://api.deepseek.com/v1";
 
-    /// <summary>API Key</summary>
+    /// <summary>LLM 服务的 API Key</summary>
     [ObservableProperty]
     private string _apiKey = "";
 
-    /// <summary>模型名</summary>
+    /// <summary>模型名称，如 deepseek-chat</summary>
     [ObservableProperty]
     private string _model = "deepseek-chat";
 
@@ -82,6 +82,12 @@ public partial class AiSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _configuredStatus = "未配置";
 
+    /// <summary>
+    /// 初始化 <see cref="AiSettingsViewModel"/> 实例，并填充可选提供商列表。
+    /// </summary>
+    /// <param name="agentService">Agent 服务，用于读取/切换默认 Agent</param>
+    /// <param name="llmClient">LLM 客户端，用于连接测试</param>
+    /// <param name="configStorage">Agent 配置存储</param>
     public AiSettingsViewModel(
         IAgentService agentService,
         ILlmClient llmClient,

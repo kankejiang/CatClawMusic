@@ -13,33 +13,56 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private bool _disposed;
     private System.Threading.Timer? _positionTimer;
 
+    /// <summary>播放状态变化事件（参数为是否正在播放）</summary>
     public event EventHandler<bool>? PlaybackStateChanged;
+    /// <summary>播放位置变化事件（参数为当前播放位置）</summary>
     public event EventHandler<TimeSpan>? PositionChanged;
+    /// <summary>播放完成事件</summary>
     public event EventHandler? PlaybackCompleted;
+    /// <summary>请求播放下一首事件</summary>
+    public event Func<Task>? PlayNextRequested;
+    /// <summary>请求播放上一首事件</summary>
+    public event Func<Task>? PlayPreviousRequested;
+    /// <summary>收藏状态切换事件（参数为是否收藏）</summary>
+    public event Action<bool>? FavoriteToggled;
 
+    /// <summary>获取当前是否正在播放</summary>
     public bool IsPlaying => GetPlatformIsPlaying();
+    /// <summary>获取当前播放位置（秒）</summary>
     public double CurrentPosition => GetPlatformCurrentPositionSeconds();
+    /// <summary>获取媒体总时长（秒）</summary>
     public double Duration => GetPlatformDurationSeconds();
 
+    /// <summary>
+    /// 获取或设置音量（0.0 ~ 1.0），超出范围会被自动钳制。
+    /// </summary>
     public double Volume
     {
         get => GetPlatformVolume();
         set => SetPlatformVolume(Math.Clamp(value, 0.0, 1.0));
     }
 
+    /// <summary>获取当前播放歌曲的文件路径</summary>
     public string? CurrentSongFilePath => _currentFilePath;
 
+    /// <summary>构造函数，初始化平台原生播放器</summary>
     public AudioPlayerService()
     {
         InitializePlatform();
     }
 
+    /// <summary>异步初始化服务（占位实现，平台可在 partial 中扩展）</summary>
     public Task InitializeAsync()
     {
         System.Diagnostics.Debug.WriteLine("[AudioPlayerService] Initialized");
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 异步播放指定文件或网络地址。
+    /// 支持 http/https/rtsp/content 协议及本地文件路径。
+    /// </summary>
+    /// <param name="filePath">音频文件路径或网络地址</param>
     public Task PlayAsync(string filePath)
     {
         try
@@ -56,6 +79,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>异步暂停播放</summary>
     public Task PauseAsync()
     {
         PlatformPause();
@@ -63,6 +87,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>异步恢复播放</summary>
     public Task ResumeAsync()
     {
         PlatformResume();
@@ -71,6 +96,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>异步停止播放并停止进度定时器</summary>
     public Task StopAsync()
     {
         PlatformStop();
@@ -79,6 +105,8 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>异步跳转到指定播放位置</summary>
+    /// <param name="position">目标播放位置</param>
     public Task SeekAsync(TimeSpan position)
     {
         PlatformSeek(position);
@@ -88,6 +116,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
+    /// <summary>启动进度定时器，每 500ms 触发一次位置更新</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
@@ -113,6 +142,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         System.Diagnostics.Debug.WriteLine($"[PositionTimer] Started, hasSubscribers={PositionChanged != null}");
     }
 
+    /// <summary>停止进度定时器并释放资源</summary>
     internal void StopPositionTimer()
     {
         if (_positionTimer != null)
@@ -138,6 +168,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         return new Uri($"file://{fullPath}");
     }
 
+    /// <summary>释放平台原生播放器及定时器资源</summary>
     public void Dispose()
     {
         if (_disposed) return;

@@ -8,15 +8,25 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class SearchResultItem
 {
+    /// <summary>来源标识：netease / qq / kugou / soda / apple</summary>
     public string Source { get; set; } = "";
+    /// <summary>歌曲在对应来源中的唯一 ID</summary>
     public string Id { get; set; } = "";
+    /// <summary>歌曲标题</summary>
     public string Title { get; set; } = "";
+    /// <summary>艺术家名（多艺术家以 " / " 分隔）</summary>
     public string Artist { get; set; } = "";
+    /// <summary>专辑名</summary>
     public string? Album { get; set; }
+    /// <summary>歌曲时长（毫秒）</summary>
     public long DurationMs { get; set; }
+    /// <summary>封面图 URL</summary>
     public string? CoverUrl { get; set; }
+    /// <summary>歌词文本（LRC 格式）</summary>
     public string? LrcContent { get; set; }
+    /// <summary>翻译歌词文本（LRC 格式）</summary>
     public string? TlyricContent { get; set; }
+    /// <summary>源特有字段（如酷狗的 FileHash），用于歌词获取等后续操作</summary>
     public Dictionary<string, object>? Internal { get; set; }
 }
 
@@ -26,8 +36,12 @@ public class SearchResultItem
 /// </summary>
 public class MultiSourceSearchService
 {
+    /// <summary>共享的 HttpClient，超时 12 秒</summary>
     private readonly HttpClient _http;
 
+    /// <summary>
+    /// 初始化多源搜索服务，配置默认 User-Agent 模拟浏览器请求。
+    /// </summary>
     public MultiSourceSearchService()
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
@@ -76,6 +90,11 @@ public class MultiSourceSearchService
     // 网易云音乐
     // ═══════════════════════════════════════════
 
+    /// <summary>
+    /// 通过网易云 cloudsearch API 搜索歌曲。
+    /// </summary>
+    /// <param name="keyword">搜索关键词。</param>
+    /// <returns>搜索结果列表；请求失败时返回 null。</returns>
     private async Task<List<SearchResultItem>?> SearchNetEaseAsync(string keyword)
     {
         try
@@ -123,6 +142,11 @@ public class MultiSourceSearchService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 获取网易云歌曲歌词（含翻译歌词）。
+    /// </summary>
+    /// <param name="song">待获取歌词的歌曲（需含 Id）。</param>
+    /// <returns>更新后的歌曲对象；失败时返回 null。</returns>
     private async Task<SearchResultItem?> FetchNetEaseLyricAsync(SearchResultItem song)
     {
         try
@@ -149,6 +173,11 @@ public class MultiSourceSearchService
     // QQ音乐
     // ═══════════════════════════════════════════
 
+    /// <summary>
+    /// 通过 QQ 音乐 client_search_cp 接口搜索歌曲。
+    /// </summary>
+    /// <param name="keyword">搜索关键词。</param>
+    /// <returns>搜索结果列表；请求失败时返回 null。</returns>
     private async Task<List<SearchResultItem>?> SearchQQAsync(string keyword)
     {
         try
@@ -192,6 +221,12 @@ public class MultiSourceSearchService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 获取 QQ 音乐歌词（含翻译歌词）。需设置 Referer 头规避防盗链。
+    /// QQ 接口可能返回 base64 编码的歌词，自动检测并解码。
+    /// </summary>
+    /// <param name="song">待获取歌词的歌曲（需含 Id 即 songmid）。</param>
+    /// <returns>更新后的歌曲对象；失败时返回 null。</returns>
     private async Task<SearchResultItem?> FetchQQLyricAsync(SearchResultItem song)
     {
         try
@@ -242,6 +277,11 @@ public class MultiSourceSearchService
     // 酷狗音乐
     // ═══════════════════════════════════════════
 
+    /// <summary>
+    /// 通过酷狗 complexsearch 接口搜索歌曲。
+    /// </summary>
+    /// <param name="keyword">搜索关键词。</param>
+    /// <returns>搜索结果列表；请求失败时返回 null。</returns>
     private async Task<List<SearchResultItem>?> SearchKuGouAsync(string keyword)
     {
         try
@@ -287,6 +327,11 @@ public class MultiSourceSearchService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 获取酷狗歌词。两步流程：先通过 hash 搜索候选歌词，再下载 LRC 格式歌词。
+    /// </summary>
+    /// <param name="song">待获取歌词的歌曲（Internal 中需含 FileHash）。</param>
+    /// <returns>更新后的歌曲对象；失败时返回 null。</returns>
     private async Task<SearchResultItem?> FetchKuGouLyricAsync(SearchResultItem song)
     {
         try
@@ -336,6 +381,11 @@ public class MultiSourceSearchService
     // 汽水音乐 (Soda / 抖音音乐)
     // ═══════════════════════════════════════════
 
+    /// <summary>
+    /// 通过抖音 web search item 接口搜索汽水音乐（抖音音乐）。
+    /// </summary>
+    /// <param name="keyword">搜索关键词。</param>
+    /// <returns>搜索结果列表；请求失败时返回 null。</returns>
     private async Task<List<SearchResultItem>?> SearchSodaAsync(string keyword)
     {
         try
@@ -395,6 +445,11 @@ public class MultiSourceSearchService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 获取汽水音乐歌词。当前为占位实现（汽水音乐 Luna API 需复杂签名，暂不支持）。
+    /// </summary>
+    /// <param name="song">待获取歌词的歌曲。</param>
+    /// <returns>始终返回 null。</returns>
     private async Task<SearchResultItem?> FetchSodaLyricAsync(SearchResultItem song)
     {
         // 汽水音乐使用 Luna API，需要复杂的签名逻辑
@@ -406,6 +461,11 @@ public class MultiSourceSearchService
     // Apple Music
     // ═══════════════════════════════════════════
 
+    /// <summary>
+    /// 通过 iTunes Search API 搜索 Apple Music 歌曲。
+    /// </summary>
+    /// <param name="keyword">搜索关键词。</param>
+    /// <returns>搜索结果列表；请求失败时返回 null。</returns>
     private async Task<List<SearchResultItem>?> SearchAppleAsync(string keyword)
     {
         try
@@ -435,6 +495,12 @@ public class MultiSourceSearchService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 通过 paxsenix 第三方 API 获取 Apple Music 歌词（无需 Developer Token）。
+    /// 优先级：lrc &gt; elrc &gt; ttmlContent。
+    /// </summary>
+    /// <param name="song">待获取歌词的歌曲（需含 Id）。</param>
+    /// <returns>更新后的歌曲对象；失败时返回 null。</returns>
     private async Task<SearchResultItem?> FetchAppleLyricAsync(SearchResultItem song)
     {
         if (string.IsNullOrWhiteSpace(song.Id)) return null;

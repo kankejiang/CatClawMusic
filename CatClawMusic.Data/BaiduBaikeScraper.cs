@@ -12,12 +12,18 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class BaiduBaikeScraper : IArtistMetadataScraper
 {
+    /// <summary>艺术家封面缓存目录绝对路径</summary>
     private readonly string _cacheDir;
+    /// <summary>HTTP 客户端，配置了连接池复用以提升性能</summary>
     private readonly HttpClient _http;
 
-    /// <summary>来源名称</summary>
+    /// <summary>来源名称：百度百科</summary>
     public string SourceName => "百度百科";
 
+    /// <summary>
+    /// 初始化百度百科刮削器，配置连接池复用和移动端浏览器 UA。
+    /// </summary>
+    /// <param name="cacheDir">艺术家封面缓存目录。</param>
     public BaiduBaikeScraper(string cacheDir)
     {
         _cacheDir = cacheDir;
@@ -30,7 +36,13 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
     }
 
-    /// <summary>搜索艺术家</summary>
+    /// <summary>
+    /// 搜索百度百科艺术家。
+    /// 先通过搜索页获取匹配的词条链接，再逐个抓取详情页解析元数据。
+    /// </summary>
+    /// <param name="name">艺术家名称关键词。</param>
+    /// <param name="limit">最大返回数量。</param>
+    /// <returns>匹配的艺术家列表；搜索失败时返回空列表。</returns>
     public async Task<List<ArtistSearchResult>> SearchArtistsAsync(string name, int limit = 10)
     {
         var results = new List<ArtistSearchResult>();
@@ -55,7 +67,13 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         return results;
     }
 
-    /// <summary>下载并缓存封面</summary>
+    /// <summary>
+    /// 下载并缓存艺术家封面图片。
+    /// 根据封面 URL 推断扩展名，文件名添加 "baidubaike_" 前缀以避免与其他来源冲突。
+    /// </summary>
+    /// <param name="coverUrl">封面图片 URL。</param>
+    /// <param name="artistName">艺术家名称（用于生成缓存文件名）。</param>
+    /// <returns>缓存文件绝对路径；URL 为空、已存在缓存或下载失败时返回 null。</returns>
     public async Task<string?> DownloadAndCacheArtistCoverAsync(string coverUrl, string artistName)
     {
         if (string.IsNullOrEmpty(coverUrl)) return null;
@@ -385,6 +403,11 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         r.Occupation = CleanField(r.Occupation);
     }
 
+    /// <summary>
+    /// 清理单个字段值：移除 HTML 标签、压缩空白、移除百度百科引用标记（如 [1][2]）。
+    /// </summary>
+    /// <param name="val">原始字段值。</param>
+    /// <returns>清理后的字段值；清理后为空则返回 null。</returns>
     private static string? CleanField(string? val)
     {
         if (string.IsNullOrEmpty(val)) return null;
@@ -394,12 +417,22 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         return string.IsNullOrEmpty(val) ? null : val;
     }
 
+    /// <summary>
+    /// 移除字符串中的所有 HTML 标签。
+    /// </summary>
+    /// <param name="html">包含 HTML 标签的字符串。</param>
+    /// <returns>纯文本字符串。</returns>
     private static string StripHtml(string html)
     {
         if (string.IsNullOrEmpty(html)) return "";
         return Regex.Replace(html, @"<[^>]+>", "");
     }
 
+    /// <summary>
+    /// 规范化生日字符串，移除百度百科引用标记并校验长度。
+    /// </summary>
+    /// <param name="raw">原始生日字符串。</param>
+    /// <returns>规范化后的生日字符串；长度异常时返回 null。</returns>
     private static string? NormalizeBirthday(string raw)
     {
         if (string.IsNullOrEmpty(raw)) return null;
@@ -409,6 +442,13 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         return null;
     }
 
+    /// <summary>
+    /// 将标签-值对追加到 ExtraInfo 字符串中，使用 " | " 分隔多个条目。
+    /// </summary>
+    /// <param name="current">当前的 ExtraInfo 字符串。</param>
+    /// <param name="label">标签名。</param>
+    /// <param name="value">值。</param>
+    /// <returns>追加后的 ExtraInfo 字符串。</returns>
     private static string AppendExtra(string current, string label, string value)
     {
         var item = $"{label}: {value}";

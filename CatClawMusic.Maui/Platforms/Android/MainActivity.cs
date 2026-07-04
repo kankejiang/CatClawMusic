@@ -8,6 +8,7 @@ using CatClawMusic.Maui.Services;
 
 namespace CatClawMusic.Maui;
 
+/// <summary>Android 主 Activity，承载应用入口、Edge-to-Edge 显示、Android Context 注入以及 FolderPicker 结果处理</summary>
 [Activity(
     Theme = "@style/Maui.SplashTheme",
     MainLauncher = true,
@@ -20,6 +21,8 @@ namespace CatClawMusic.Maui;
         | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
+    /// <summary>Activity 创建时回调：执行基类创建、设置 Edge-to-Edge 并将自身注入到 AudioPlayerService</summary>
+    /// <param name="savedInstanceState">保存的实例状态</param>
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
@@ -30,6 +33,7 @@ public class MainActivity : MauiAppCompatActivity
         audioPlayer?.SetAndroidContext(this);
     }
 
+    /// <summary>配置 Edge-to-Edge 显示：内容延伸到系统栏下方、状态栏与导航栏透明、并应用 insets 监听器</summary>
     private void SetupEdgeToEdge()
     {
         if (Window == null) return;
@@ -52,6 +56,7 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
+    /// <summary>从应用资源读取 WindowBackgroundColor 并应用到 DecorView，同时根据亮度自动调整状态栏图标颜色</summary>
     public void UpdateDecorViewBackground()
     {
         try
@@ -87,6 +92,10 @@ public class MainActivity : MauiAppCompatActivity
         Window?.DecorView.SetBackgroundColor(Android.Graphics.Color.ParseColor("#080B1A"));
     }
 
+    /// <summary>Activity 结果回调：优先交给 FolderPicker 处理文件夹选择结果，未处理时回退到基类实现</summary>
+    /// <param name="requestCode">请求码</param>
+    /// <param name="resultCode">结果码</param>
+    /// <param name="data">返回的 Intent 数据</param>
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
     {
         if (!Platforms.Android.FolderPicker.HandleResult(requestCode, resultCode, data))
@@ -100,6 +109,10 @@ public class MainActivity : MauiAppCompatActivity
 /// </summary>
 internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
 {
+    /// <summary>系统栏 insets 应用回调：将系统栏 insets 转换为根视图的 padding，使内容显示在安全区域内</summary>
+    /// <param name="v">应用 insets 的视图</param>
+    /// <param name="insets">窗口 insets</param>
+    /// <returns>消费后的 WindowInsetsCompat</returns>
     public WindowInsetsCompat OnApplyWindowInsets(Android.Views.View? v, WindowInsetsCompat? insets)
     {
         if (v == null || insets == null) return insets!;

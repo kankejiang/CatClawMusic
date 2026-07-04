@@ -5,32 +5,47 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 音乐文件夹设置页 ViewModel：管理已添加的文件夹列表、扫描选项（子目录扫描/自动扫描）
+/// 与扫描进度，提供文件夹的增删与批量扫描能力。
+/// </summary>
 public partial class MusicFolderSettingsViewModel : ObservableObject
 {
     private readonly List<string> _folderUris = new();
     private readonly LocalScanService? _scanService;
 
+    /// <summary>音乐文件夹显示名集合</summary>
     [ObservableProperty]
     private ObservableCollection<string> _musicFolders = new();
 
+    /// <summary>是否扫描子文件夹</summary>
     [ObservableProperty]
     private bool _scanSubfolders = true;
 
+    /// <summary>是否在添加文件夹后自动扫描</summary>
     [ObservableProperty]
     private bool _autoScan = false;
 
+    /// <summary>是否正在扫描</summary>
     [ObservableProperty]
     private bool _isScanning = false;
 
+    /// <summary>扫描进度（0.0 - 1.0）</summary>
     [ObservableProperty]
     private double _scanProgress = 0;
 
+    /// <summary>扫描状态文本</summary>
     [ObservableProperty]
     private string _scanStatus = "";
 
+    /// <summary>本次扫描已导入的歌曲数</summary>
     [ObservableProperty]
     private int _totalSongsImported = 0;
 
+    /// <summary>
+    /// 初始化 <see cref="MusicFolderSettingsViewModel"/> 实例，并加载已保存的文件夹。
+    /// </summary>
+    /// <param name="scanService">本地扫描服务，可为空（设计时支持）</param>
     public MusicFolderSettingsViewModel(LocalScanService? scanService = null)
     {
         _scanService = scanService;
@@ -80,6 +95,7 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>添加文件夹：调用 Android SAF 选择器，添加后若开启自动扫描则立即触发扫描</summary>
     [RelayCommand]
     private async Task AddFolderAsync()
     {
@@ -107,6 +123,8 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
 #endif
     }
 
+    /// <summary>移除指定的文件夹：从集合与持久化记录中同步删除</summary>
+    /// <param name="folder">要移除的文件夹显示名，为空则忽略</param>
     [RelayCommand]
     private void RemoveFolder(string? folder)
     {

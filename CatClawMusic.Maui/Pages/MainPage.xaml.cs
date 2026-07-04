@@ -32,6 +32,9 @@ public partial class MainPage : ContentPage
     /// <summary>待切换的 tab 索引（从子页面返回时使用）</summary>
     public static int? PendingTabIndex;
 
+    /// <summary>初始化 <see cref="MainPage"/> 类的新实例，构建各 Tab 页面并绑定迷你播放器。</summary>
+    /// <param name="services">服务提供程序，用于解析各 Tab 页面及其依赖。</param>
+    /// <param name="nowPlayingVm">当前播放视图模型，用于驱动迷你播放器。</param>
     public MainPage(IServiceProvider services, NowPlayingViewModel nowPlayingVm)
     {
         InitializeComponent();
@@ -107,6 +110,7 @@ public partial class MainPage : ContentPage
         }
     }
 
+    /// <summary>当页面显示在屏幕上时触发，应用主题、更新页面位置与 TabBar 状态，并在首次加载时预加载数据。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -185,12 +189,16 @@ public partial class MainPage : ContentPage
         }
     }
 
+    /// <summary>当页面从屏幕上消失时触发，通知当前 Tab 页面其正在消失。</summary>
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
         InvokeLifecycle(_tabPages[_currentIndex], "OnDisappearing");
     }
 
+    /// <summary>当 ViewPager 网格尺寸发生变化时触发，重新计算各页面位置以适配新尺寸。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
     private void OnViewPagerSizeChanged(object? sender, EventArgs e)
     {
         UpdatePagePositions(0);
@@ -356,6 +364,9 @@ public partial class MainPage : ContentPage
         }
     }
 
+    /// <summary>点击底部 TabBar 的某个 Tab 按钮时触发，切换到对应的页面。</summary>
+    /// <param name="sender">事件源，对应被点击的 Tab 按钮。</param>
+    /// <param name="e">点击事件参数。</param>
     private void OnTabTapped(object? sender, TappedEventArgs e)
     {
         // Tab 按钮 0-4 对应 ViewPager index 1-5

@@ -8,13 +8,18 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class ExploreDataService
 {
+    /// <summary>数据库访问实例，用于查询歌曲、艺术家、专辑及播放历史</summary>
     private readonly MusicDatabase _db;
+    /// <summary>音乐库服务，用于获取合并去重后的歌曲列表</summary>
     private readonly IMusicLibraryService _library;
+    /// <summary>缓存目录绝对路径，用于存储每日推荐磁盘缓存文件</summary>
     private readonly string _cacheDir;
+    /// <summary>每日推荐磁盘缓存文件完整路径（daily_recommend.json）</summary>
     private readonly string _cacheFilePath;
 
     /// <summary>每日推荐缓存：Key 为日期字符串 "yyyy-MM-dd"，Value 为歌曲列表</summary>
     private string? _dailyRecommendDate;
+    /// <summary>每日推荐歌曲列表的内存缓存</summary>
     private List<Song>? _dailyRecommendCache;
 
     /// <summary>每日推荐艺人缓存（每天随机10个）</summary>
@@ -25,6 +30,12 @@ public class ExploreDataService
     /// <summary>来源筛选：all, local, network</summary>
     private string _sourceFilter = "all";
 
+    /// <summary>
+    /// 初始化探索页面数据服务。
+    /// </summary>
+    /// <param name="db">数据库访问实例。</param>
+    /// <param name="library">音乐库服务，用于获取合并去重后的歌曲列表。</param>
+    /// <param name="cacheDir">缓存目录路径，用于存储每日推荐磁盘缓存。</param>
     public ExploreDataService(MusicDatabase db, IMusicLibraryService library, string cacheDir)
     {
         _db = db;
@@ -422,6 +433,18 @@ public class ExploreDataService
         return ApplySourceFilter(songs);
     }
 
+    /// <summary>获取所有专辑列表（含歌曲数量）</summary>
+    public async Task<List<AlbumWithCount>> GetAllAlbumsAsync()
+    {
+        return await GetAllAlbumsWithCountInternalAsync();
+    }
+
+    /// <summary>获取所有艺术家列表（含歌曲数量）</summary>
+    public async Task<List<ArtistWithCount>> GetAllArtistsAsync()
+    {
+        return await GetAllArtistsWithCountInternalAsync();
+    }
+
     /// <summary>获取经过来源筛选和协议过滤的全部歌曲（含 PlayCount）</summary>
     private async Task<List<Song>> GetFilteredSongsAsync()
     {
@@ -462,11 +485,19 @@ public class ExploreDataService
         catch { }
     }
 
+    /// <summary>
+    /// 每日推荐磁盘缓存数据结构，序列化为 daily_recommend.json 持久化存储。
+    /// 同一文件中同时保存歌曲、艺术家、专辑三组 ID，确保同一天的推荐结果一致。
+    /// </summary>
     private class DailyRecommendCache
     {
+        /// <summary>缓存日期，格式 "yyyy-MM-dd"，与当日推荐匹配时才使用</summary>
         public string Date { get; set; } = "";
+        /// <summary>每日推荐歌曲 ID 列表</summary>
         public List<int> Ids { get; set; } = new();
+        /// <summary>每日推荐艺术家 ID 列表</summary>
         public List<int> ArtistIds { get; set; } = new();
+        /// <summary>每日推荐专辑 ID 列表</summary>
         public List<int> AlbumIds { get; set; } = new();
     }
 }
@@ -474,9 +505,13 @@ public class ExploreDataService
 /// <summary>艺术家及其歌曲数量</summary>
 public class ArtistWithCount
 {
+    /// <summary>艺术家数据库 ID</summary>
     public int Id { get; set; }
+    /// <summary>艺术家名称</summary>
     public string Name { get; set; } = "";
+    /// <summary>艺术家封面 URL（来自元数据刮削）</summary>
     public string? Cover { get; set; }
+    /// <summary>该艺术家的歌曲总数（含合作歌曲）</summary>
     public int SongCount { get; set; }
     /// <summary>从该艺术家第一首歌曲获取的封面路径，用于列表页快速显示</summary>
     public string? SampleCoverPath { get; set; }
@@ -489,11 +524,17 @@ public class ArtistWithCount
 /// <summary>专辑及其歌曲数量</summary>
 public class AlbumWithCount
 {
+    /// <summary>专辑数据库 ID</summary>
     public int Id { get; set; }
+    /// <summary>专辑标题</summary>
     public string Title { get; set; } = "";
+    /// <summary>专辑封面图本地路径</summary>
     public string? CoverArtPath { get; set; }
+    /// <summary>专辑封面 URL</summary>
     public string? Cover { get; set; }
+    /// <summary>专辑所属艺术家名称</summary>
     public string ArtistName { get; set; } = "";
+    /// <summary>该专辑的歌曲总数</summary>
     public int SongCount { get; set; }
     /// <summary>从该专辑第一首歌曲获取的封面路径，用于列表页快速显示</summary>
     public string? SampleCoverPath { get; set; }

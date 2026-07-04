@@ -38,14 +38,21 @@ public class ThemeService : IThemeService
         [CoreAppTheme.Cyan] = new ThemeColors("#00BCD4", "#D6F7FB", "#00ACC1"),
     };
 
+    /// <summary>获取当前主题色枚举</summary>
     public CoreAppTheme CurrentTheme => _currentTheme;
+    /// <summary>获取当前暗黑模式设置</summary>
     public DarkModeSetting DarkModeSetting => _darkModeSetting;
+    /// <summary>获取自定义背景图片的绝对路径；未设置时为 null</summary>
     public string? CustomBackgroundPath => _customBackgroundPath;
+    /// <summary>获取自定义背景的不透明度（0.1 ~ 1.0）</summary>
     public double CustomBackgroundOpacity => _customBackgroundOpacity;
+    /// <summary>获取是否存在有效的自定义背景图片</summary>
     public bool HasCustomBackground => !string.IsNullOrEmpty(_customBackgroundPath) && File.Exists(_customBackgroundPath);
 
+    /// <summary>获取所有可选主题列表</summary>
     public List<CoreAppTheme> AvailableThemes => Enum.GetValues<CoreAppTheme>().ToList();
 
+    /// <summary>构造函数，加载持久化设置并立即应用主题</summary>
     public ThemeService()
     {
         LoadSettings();
@@ -61,6 +68,9 @@ public class ThemeService : IThemeService
         }
     }
 
+    /// <summary>设置自定义背景图片及不透明度</summary>
+    /// <param name="imagePath">背景图片路径；传 null 或空字符串表示清除背景</param>
+    /// <param name="opacity">不透明度（0.1 ~ 1.0），自动钳制到范围内</param>
     public void SetCustomBackground(string? imagePath, double opacity = 0.5)
     {
         _customBackgroundPath = imagePath;
@@ -78,6 +88,8 @@ public class ThemeService : IThemeService
         ApplyTheme();
     }
 
+    /// <summary>仅更新自定义背景的不透明度</summary>
+    /// <param name="opacity">不透明度（0.1 ~ 1.0），自动钳制到范围内</param>
     public void SetCustomBackgroundOpacity(double opacity)
     {
         _customBackgroundOpacity = Math.Clamp(opacity, 0.1, 1.0);
@@ -85,11 +97,14 @@ public class ThemeService : IThemeService
         ApplyTheme();
     }
 
+    /// <summary>清除自定义背景图片设置</summary>
     public void ClearCustomBackground()
     {
         SetCustomBackground(null);
     }
 
+    /// <summary>切换主题色并持久化</summary>
+    /// <param name="theme">目标主题色枚举</param>
     public void SetTheme(CoreAppTheme theme)
     {
         _currentTheme = theme;
@@ -97,6 +112,8 @@ public class ThemeService : IThemeService
         ApplyTheme();
     }
 
+    /// <summary>设置暗黑模式（明/暗/跟随系统）并持久化</summary>
+    /// <param name="setting">暗黑模式选项</param>
     public void SetDarkModeSetting(DarkModeSetting setting)
     {
         _darkModeSetting = setting;
@@ -112,6 +129,7 @@ public class ThemeService : IThemeService
         ApplyTheme();
     }
 
+    /// <summary>应用当前主题色与暗黑模式到应用资源字典，刷新所有绑定</summary>
     public void ApplyTheme()
     {
         try
@@ -159,11 +177,15 @@ public class ThemeService : IThemeService
         });
     }
 
+    /// <summary>获取系统当前是否处于暗黑模式</summary>
+    /// <returns>系统暗黑模式返回 true；否则返回 false</returns>
     public bool IsSystemDarkMode()
     {
         return Application.Current?.RequestedTheme == MauiAppTheme.Dark;
     }
 
+    /// <summary>获取应用最终生效的暗黑状态（综合用户设置与系统状态）</summary>
+    /// <returns>暗黑模式生效返回 true；否则返回 false</returns>
     public bool IsEffectivelyDark()
     {
         return _darkModeSetting switch

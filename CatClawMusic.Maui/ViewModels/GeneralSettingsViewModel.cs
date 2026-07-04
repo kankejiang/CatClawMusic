@@ -3,27 +3,37 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 通用设置页 ViewModel：管理语言选择、缓存大小展示与清理、恢复默认设置等通用配置项。
+/// </summary>
 public partial class GeneralSettingsViewModel : ObservableObject
 {
+    /// <summary>可选语言列表</summary>
     [ObservableProperty]
     private List<string> _languageOptions = new() { "简体中文", "English" };
 
+    /// <summary>当前选中的语言索引</summary>
     [ObservableProperty]
     private int _selectedLanguageIndex = 0;
 
+    /// <summary>当前缓存大小展示文本</summary>
     [ObservableProperty]
     private string _cacheSize = "计算中...";
 
+    /// <summary>是否正在清除缓存</summary>
     [ObservableProperty]
     private bool _isClearingCache = false;
 
+    /// <summary>
+    /// 初始化 <see cref="GeneralSettingsViewModel"/> 实例，并立即刷新缓存大小。
+    /// </summary>
     public GeneralSettingsViewModel()
     {
         _ = RefreshCacheSizeAsync();
     }
 
     /// <summary>
-    /// 清除应用缓存（音乐缓存目录）
+    /// 清除应用缓存（音乐缓存目录）。
     /// </summary>
     [RelayCommand]
     public async Task ClearCacheAsync()
@@ -48,7 +58,7 @@ public partial class GeneralSettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 恢复默认设置
+    /// 恢复默认设置：清空所有 Preferences 并重置语言选项。
     /// </summary>
     [RelayCommand]
     public async Task ResetSettingsAsync()
@@ -66,7 +76,7 @@ public partial class GeneralSettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 刷新缓存大小显示
+    /// 刷新缓存大小显示：扫描音乐缓存目录并格式化为可读字符串。
     /// </summary>
     public async Task RefreshCacheSizeAsync()
     {

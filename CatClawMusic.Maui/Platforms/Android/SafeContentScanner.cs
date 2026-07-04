@@ -11,6 +11,7 @@ namespace CatClawMusic.Maui.Platforms.Android;
 /// <summary>SAF（Storage Access Framework）安全内容扫描器，通过 content:// URI 遍历并读取音频文件元数据</summary>
 public static class SafeContentScanner
 {
+    /// <summary>支持的音频文件扩展名集合（不区分大小写）</summary>
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".mp3", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".mp4", ".aac", ".wma",
@@ -18,16 +19,29 @@ public static class SafeContentScanner
         ".mid", ".midi", ".rmi", ".spx", ".amr", ".3gp"
     };
 
+    /// <summary>MediaMetadataRetriever 元数据键：音轨号</summary>
     private const int MdKeyTrackNumber = 0;
+    /// <summary>MediaMetadataRetriever 元数据键：专辑名</summary>
     private const int MdKeyAlbum = 1;
+    /// <summary>MediaMetadataRetriever 元数据键：艺术家</summary>
     private const int MdKeyArtist = 2;
+    /// <summary>MediaMetadataRetriever 元数据键：流派</summary>
     private const int MdKeyGenre = 6;
+    /// <summary>MediaMetadataRetriever 元数据键：标题</summary>
     private const int MdKeyTitle = 7;
+    /// <summary>MediaMetadataRetriever 元数据键：年份</summary>
     private const int MdKeyYear = 8;
+    /// <summary>MediaMetadataRetriever 元数据键：时长（毫秒）</summary>
     private const int MdKeyDuration = 9;
+    /// <summary>MediaMetadataRetriever 元数据键：比特率（bps）</summary>
     private const int MdKeyBitrate = 20;
 
-    /// <summary>扫描已保存的 SAF 文件夹，批量读取音频文件元数据</summary>
+    /// <summary>扫描已保存的 SAF 文件夹，批量读取音频文件元数据，并通过回调分批返回 Song 列表</summary>
+    /// <param name="songCallback">每批 Song 列表的异步回调</param>
+    /// <param name="progress">进度上报，包含已完成数、总数和状态文本</param>
+    /// <param name="existingPathModTimes">已有文件的最后修改时间映射，用于增量扫描（跳过未变更的文件）</param>
+    /// <param name="onPathDiscovered">每发现一个音频文件时的回调</param>
+    /// <returns>表示异步扫描完成的任务</returns>
     public static async Task ScanSavedFoldersAsync(
         Func<List<Song>, Task> songCallback,
         IProgress<(int done, int total, string status)>? progress = null,
@@ -53,6 +67,13 @@ public static class SafeContentScanner
         }
     }
 
+    /// <summary>扫描单个 SAF 树形 URI：递归收集音频文件、增量过滤未变更文件、并行读取元数据并分批回调</summary>
+    /// <param name="treeUri">SAF 树形 URI</param>
+    /// <param name="songCallback">每批 Song 列表的异步回调</param>
+    /// <param name="progress">进度上报</param>
+    /// <param name="existingPathModTimes">已有文件的最后修改时间映射，用于增量扫描</param>
+    /// <param name="onPathDiscovered">每发现一个音频文件时的回调</param>
+    /// <returns>表示异步扫描完成的任务</returns>
     private static async Task ScanTreeUriAsync(AUri treeUri, Func<List<Song>, Task> songCallback,
         IProgress<(int done, int total, string status)>? progress,
         Dictionary<string, long>? existingPathModTimes,
@@ -138,6 +159,13 @@ public static class SafeContentScanner
         Debug.WriteLine($"[SAF] 扫描完成：{fileList.Count} 个文件，读取 {total}，耗时 {sw.ElapsedMilliseconds}ms");
     }
 
+    /// <summary>使用多线程递归遍历 SAF 树形 URI 下的所有子文档，收集音频文件与歌词文件</summary>
+    /// <param name="ctx">Android 上下文</param>
+    /// <param name="treeUri">SAF 树形 URI</param>
+    /// <param name="rootDocId">根文档 ID</param>
+    /// <param name="results">收集到的音频文件列表（线程安全）</param>
+    /// <param name="lrcMap">歌词文件映射（按文件名小写无扩展名）</param>
+    /// <param name="onPathDiscovered">每发现一个音频文件时的回调</param>
     private static void CollectAudioFiles(Context ctx, AUri treeUri, string rootDocId,
         ConcurrentBag<(AUri uri, string name, long size, long lastModified)> results,
         ConcurrentDictionary<string, AUri>? lrcMap = null,
@@ -226,6 +254,12 @@ public static class SafeContentScanner
         Task.WaitAll(workers);
     }
 
+    /// <summary>使用 MediaMetadataRetriever 读取单个音频文件的元数据并构造 Song 对象；读取失败时返回仅含基础信息的 Song</summary>
+    /// <param name="uri">音频文件的 SAF URI</param>
+    /// <param name="displayName">文件显示名</param>
+    /// <param name="size">文件大小（字节）</param>
+    /// <param name="lastModified">最后修改时间（毫秒）</param>
+    /// <returns>构造完成的 Song 对象</returns>
     private static Song? ReadSongWithRetriever(AUri uri, string displayName, long size, long lastModified)
     {
         var retriever = new global::Android.Media.MediaMetadataRetriever();
@@ -288,6 +322,9 @@ public static class SafeContentScanner
     /// 从 MediaMetadataRetriever 提取嵌入封面并缓存到文件。
     /// 用 filePath 的哈希值作为文件名（因为 song.Id 还未生成）。
     /// </summary>
+    /// <param name="retriever">已设置数据源的 MediaMetadataRetriever</param>
+    /// <param name="filePath">音频文件路径，用于生成封面文件名</param>
+    /// <returns>封面文件路径，无封面时返回 null</returns>
     private static string? ExtractCover(global::Android.Media.MediaMetadataRetriever retriever, string filePath)
     {
         try
@@ -310,6 +347,9 @@ public static class SafeContentScanner
         return null;
     }
 
+    /// <summary>根据文件名扩展名判断是否为受支持的音频文件</summary>
+    /// <param name="fileName">文件名</param>
+    /// <returns>是音频文件返回 true，否则返回 false</returns>
     private static bool IsAudioFile(string fileName)
     {
         var ext = Path.GetExtension(fileName);

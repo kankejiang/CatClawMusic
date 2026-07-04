@@ -11,12 +11,23 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class SmbService : INetworkFileService, IDisposable
 {
+    /// <summary>同步锁，保护 SMB 客户端和文件存储的并发访问</summary>
     private readonly object _lock = new();
+    /// <summary>SMB2 客户端实例</summary>
     private SMB2Client? _client;
+    /// <summary>当前已配置的连接信息</summary>
     private ConnectionProfile? _profile;
+    /// <summary>当前已连接的共享名</summary>
     private string? _connectedShare;
+    /// <summary>SMB 文件存储句柄，用于文件列举/读取操作</summary>
     private ISMBFileStore? _fileStore;
 
+    /// <summary>
+    /// 确保 SMB 客户端已按 profile 完成连接和共享挂载。
+    /// 若 host/port/共享名/账号密码未变化，则复用现有连接；否则重新建立连接。
+    /// </summary>
+    /// <param name="profile">连接配置。</param>
+    /// <exception cref="InvalidOperationException">连接、登录或挂载共享失败时抛出。</exception>
     private void EnsureConnected(ConnectionProfile profile)
     {
         lock (_lock)
@@ -336,6 +347,13 @@ public class SmbService : INetworkFileService, IDisposable
         });
     }
 
+    /// <summary>
+    /// SMB 协议不支持深度 PROPFIND，递归扫描由调用方通过 ListFilesAsync 实现。
+    /// 此方法直接返回空列表（接口兼容实现）。
+    /// </summary>
+    /// <param name="path">起始目录路径。</param>
+    /// <param name="serverType">服务器类型（SMB 忽略此参数）。</param>
+    /// <returns>空列表。</returns>
     public Task<List<RemoteFile>> ListAllFilesAsync(string path, WebDavServerType serverType = WebDavServerType.Standard)
         => Task.FromResult(new List<RemoteFile>());
 
@@ -517,6 +535,12 @@ public class SmbService : INetworkFileService, IDisposable
         return Task.FromResult((false, "SMB 上传暂不支持"));
     }
 
+    /// <summary>
+    /// 将路径规范化为 SMB 客户端期望的格式（去除前导反斜杠，正斜杠转反斜杠）。
+    /// 根路径返回空字符串，由调用方特殊处理。
+    /// </summary>
+    /// <param name="path">原始路径。</param>
+    /// <returns>规范化后的路径。</returns>
     private static string NormalizePath(string path)
     {
         if (string.IsNullOrEmpty(path) || path == "/" || path == "\\" || path == @"\")
@@ -525,6 +549,9 @@ public class SmbService : INetworkFileService, IDisposable
         return p;
     }
 
+    /// <summary>
+    /// 在已持有 _lock 的情况下断开 SMB 连接并释放资源（无锁版本）。
+    /// </summary>
     private void DisconnectLocked()
     {
         if (_fileStore != null)

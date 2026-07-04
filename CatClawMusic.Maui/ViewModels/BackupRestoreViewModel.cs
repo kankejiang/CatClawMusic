@@ -5,41 +5,62 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>备份文件信息展示模型，用于在 UI 中呈现单个备份文件。</summary>
 public class BackupFileInfo
 {
+    /// <summary>文件名（含扩展名）</summary>
     public string FileName { get; set; } = "";
+    /// <summary>文件完整路径</summary>
     public string FilePath { get; set; } = "";
+    /// <summary>展示用的备份日期文本</summary>
     public string DisplayDate { get; set; } = "";
+    /// <summary>展示用的文件大小文本</summary>
     public string SizeStr { get; set; } = "";
+    /// <summary>文件创建时间</summary>
     public DateTime CreatedDate { get; set; }
 }
 
+/// <summary>
+/// 备份与恢复页 ViewModel：管理本地备份文件列表，提供创建备份、恢复备份、删除备份以及读取备份信息等能力。
+/// </summary>
 public partial class BackupRestoreViewModel : ObservableObject
 {
     private readonly BackupService _backupService;
     private readonly IDialogService? _dialogService;
 
+    /// <summary>本地备份文件集合</summary>
     [ObservableProperty]
     private ObservableCollection<BackupFileInfo> _backupFiles = new();
 
+    /// <summary>是否正在加载备份列表</summary>
     [ObservableProperty]
     private bool _isLoading = false;
 
+    /// <summary>是否正在创建备份</summary>
     [ObservableProperty]
     private bool _isBackingUp = false;
 
+    /// <summary>是否正在恢复备份</summary>
     [ObservableProperty]
     private bool _isRestoring = false;
 
+    /// <summary>状态文本（用于向用户展示当前操作结果）</summary>
     [ObservableProperty]
     private string _statusText = "";
 
+    /// <summary>操作进度（0.0 - 1.0）</summary>
     [ObservableProperty]
     private double _progress = 0;
 
+    /// <summary>进度提示文本</summary>
     [ObservableProperty]
     private string _progressMessage = "";
 
+    /// <summary>
+    /// 初始化 <see cref="BackupRestoreViewModel"/> 实例。
+    /// </summary>
+    /// <param name="backupService">备份服务</param>
+    /// <param name="dialogService">对话框服务，可为空（设计时支持）</param>
     public BackupRestoreViewModel(BackupService backupService, IDialogService? dialogService = null)
     {
         _backupService = backupService;
@@ -47,7 +68,7 @@ public partial class BackupRestoreViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 加载备份文件列表
+    /// 加载备份文件列表：扫描备份目录，解析每个备份文件并填充到集合中。
     /// </summary>
     [RelayCommand]
     public async Task LoadBackupFilesAsync()
@@ -91,7 +112,7 @@ public partial class BackupRestoreViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 创建备份
+    /// 创建备份：备份全部数据（数据库 + 封面等），实时反馈进度并刷新列表。
     /// </summary>
     [RelayCommand]
     public async Task CreateBackupAsync()
@@ -135,8 +156,9 @@ public partial class BackupRestoreViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 从指定文件恢复备份
+    /// 从指定文件恢复备份：还原数据库与封面等数据，实时反馈进度。
     /// </summary>
+    /// <param name="file">要恢复的备份文件信息，为空则忽略</param>
     [RelayCommand]
     public async Task RestoreBackupAsync(BackupFileInfo? file)
     {
@@ -177,8 +199,9 @@ public partial class BackupRestoreViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 删除备份文件
+    /// 删除备份文件：移除备份本体及其同名 covers 目录，并刷新列表。
     /// </summary>
+    /// <param name="file">要删除的备份文件信息，为空则忽略</param>
     [RelayCommand]
     public async Task DeleteBackupAsync(BackupFileInfo? file)
     {
@@ -205,8 +228,10 @@ public partial class BackupRestoreViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 读取备份文件信息（用于确认恢复内容）
+    /// 读取备份文件信息（用于确认恢复内容）。
     /// </summary>
+    /// <param name="filePath">备份文件完整路径</param>
+    /// <returns>备份内含的数据摘要；读取失败时返回 null</returns>
     public async Task<BackupData?> ReadBackupInfoAsync(string filePath)
     {
         try { return await BackupService.ReadBackupInfoAsync(filePath); }

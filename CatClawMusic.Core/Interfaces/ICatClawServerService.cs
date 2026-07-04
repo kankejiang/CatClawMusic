@@ -58,10 +58,21 @@ public interface IP2PService
 /// </summary>
 public class ServerStatus
 {
+    /// <summary>服务端歌曲总数</summary>
     public int Songs { get; set; }
+
+    /// <summary>服务端艺术家总数</summary>
     public int Artists { get; set; }
+
+    /// <summary>服务端专辑总数</summary>
     public int Albums { get; set; }
+
+    /// <summary>DHT 网络中的节点数</summary>
     public int DhtPeers { get; set; }
+
+    /// <summary>当前请求的速率限制（请求数/时间窗口）</summary>
     public int RateLimit { get; set; }
+
+    /// <summary>服务端标识的设备名称</summary>
     public string Device { get; set; } = "";
 }

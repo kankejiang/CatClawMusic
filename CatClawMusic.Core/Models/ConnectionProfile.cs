@@ -7,8 +7,11 @@ namespace CatClawMusic.Core.Models;
 /// </summary>
 public enum ProtocolType
 {
+    /// <summary>WebDAV 协议</summary>
     WebDAV = 0,
+    /// <summary>Navidrome / Subsonic 协议</summary>
     Navidrome = 1,
+    /// <summary>SMB 协议</summary>
     SMB = 2
 }
 
@@ -17,8 +20,10 @@ public enum ProtocolType
 /// </summary>
 public enum WebDavServerType
 {
-    Standard = 0,   // 标准 WebDAV（NAS、Apache、IIS 等）
-    OpenList = 1    // OpenList / Alist
+    /// <summary>标准 WebDAV（NAS、Apache、IIS 等）</summary>
+    Standard = 0,
+    /// <summary>OpenList / Alist</summary>
+    OpenList = 1
 }
 
 /// <summary>

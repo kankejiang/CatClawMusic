@@ -7,6 +7,10 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 探索/搜索页 ViewModel：加载每日推荐、艺术家、专辑、最多播放、最新音乐等内容，
+/// 提供搜索过滤、Tab 切换、AI 聊天模式入口及消息收发等能力。
+/// </summary>
 public partial class SearchViewModel : ObservableObject
 {
     private readonly ExploreDataService _exploreDataService;
@@ -18,91 +22,128 @@ public partial class SearchViewModel : ObservableObject
     private List<Song> _allTopPlayedSongs = [];
     private List<Song> _allRecentAddedSongs = [];
 
+    /// <summary>每日推荐歌曲集合（已应用筛选）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _dailyRecommendSongs = new();
 
+    /// <summary>搜索关键字</summary>
     [ObservableProperty]
     private string _searchQuery = "";
 
+    /// <summary>是否正在加载数据</summary>
     [ObservableProperty]
     private bool _isLoading;
 
+    /// <summary>当前 Tab 索引（0=每日推荐, 1=艺术家, 2=专辑, 3=最多播放, 4=最新音乐）</summary>
     [ObservableProperty]
     private int _currentTabIndex;
 
+    /// <summary>当前分区标题</summary>
     [ObservableProperty]
     private string _sectionTitle = "每日推荐";
 
+    /// <summary>艺术家集合（已应用筛选）</summary>
     [ObservableProperty]
     private ObservableCollection<SearchArtistItem> _artists = new();
 
+    /// <summary>专辑集合（已应用筛选）</summary>
     [ObservableProperty]
     private ObservableCollection<SearchAlbumItem> _albums = new();
 
+    /// <summary>最多播放歌曲集合（已应用筛选）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _topPlayedSongs = new();
 
+    /// <summary>最新添加歌曲集合（已应用筛选）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _recentAddedSongs = new();
 
+    /// <summary>当前 Agent 名称</summary>
     [ObservableProperty]
     private string _agentName = BuiltinAgent.Yuki.Name;
 
+    /// <summary>聊天消息集合</summary>
     [ObservableProperty]
     private ObservableCollection<ChatMessage> _chatMessages = new();
 
+    /// <summary>聊天输入框文本</summary>
     [ObservableProperty]
     private string _chatInput = "";
 
+    /// <summary>是否处于聊天模式</summary>
     [ObservableProperty]
     private bool _isChatMode;
 
+    /// <summary>空状态提示文本</summary>
     [ObservableProperty]
     private string _emptyStateText = "这里还没有内容";
 
+    /// <summary>当前 Tab 是否为空</summary>
     [ObservableProperty]
     private bool _isCurrentTabEmpty;
 
     // Featured hero card
+    /// <summary>是否存在英雄卡片展示的歌曲</summary>
     [ObservableProperty]
     private bool _hasFeaturedSong;
 
+    /// <summary>英雄卡片歌曲标题</summary>
     [ObservableProperty]
     private string _featuredSongTitle = "";
 
+    /// <summary>英雄卡片歌曲艺术家</summary>
     [ObservableProperty]
     private string _featuredSongArtist = "";
 
+    /// <summary>英雄卡片歌曲封面</summary>
     [ObservableProperty]
     private ImageSource? _featuredSongCover;
 
     private Song? _featuredSong;
 
+    /// <summary>英雄卡片对应的歌曲</summary>
     public Song? FeaturedSong => _featuredSong;
 
     // Search dropdown
+    /// <summary>搜索下拉歌曲结果</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _searchResults = new();
 
+    /// <summary>搜索下拉艺术家结果</summary>
     [ObservableProperty]
     private ObservableCollection<SearchArtistItem> _searchArtistResults = new();
 
+    /// <summary>搜索下拉专辑结果</summary>
     [ObservableProperty]
     private ObservableCollection<SearchAlbumItem> _searchAlbumResults = new();
 
+    /// <summary>是否显示搜索下拉结果</summary>
     [ObservableProperty]
     private bool _showSearchResults;
 
+    /// <summary>切换 Tab 命令（参数为 Tab 索引）</summary>
     public IRelayCommand<int> SwitchTabCommand { get; }
+    /// <summary>加载探索数据命令</summary>
     public IAsyncRelayCommand LoadDataCommand { get; }
+    /// <summary>加载探索数据命令（与 LoadDataCommand 等价）</summary>
     public IAsyncRelayCommand LoadExploreDataCommand { get; }
+    /// <summary>进入聊天模式命令</summary>
     public IRelayCommand EnterChatModeCommand { get; }
+    /// <summary>退出聊天模式命令</summary>
     public IRelayCommand ExitChatModeCommand { get; }
+    /// <summary>发送聊天消息命令</summary>
     public IAsyncRelayCommand SendMessageCommand { get; }
 
+    /// <summary>请求进入聊天模式时触发，供页面订阅</summary>
     public event EventHandler? EnterChatModeRequested;
+    /// <summary>请求退出聊天模式时触发，供页面订阅</summary>
     public event EventHandler? ExitChatModeRequested;
 
+    /// <summary>
+    /// 初始化 <see cref="SearchViewModel"/> 实例，创建各交互命令并触发首次数据加载。
+    /// </summary>
+    /// <param name="exploreDataService">探索页数据服务</param>
+    /// <param name="agentService">Agent 服务，用于 AI 聊天</param>
     public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService)
     {
         _exploreDataService = exploreDataService;
@@ -156,7 +197,11 @@ public partial class SearchViewModel : ObservableObject
         ExitChatModeRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task LoadDataAsync()
+    /// <summary>
+    /// 异步加载探索数据：每日推荐、艺术家、专辑、最多播放、最新音乐。
+    /// 同日重复加载时跳过每日推荐生成，仅刷新随播放变化的列表。
+    /// </summary>
+    public async Task LoadDataAsync()
     {
         var today = DateTime.Today.ToString("yyyy-MM-dd");
         var savedDate = Preferences.Default.Get("explore_last_load_date", "");
@@ -283,11 +328,15 @@ public partial class SearchViewModel : ObservableObject
         }
     }
 
+    /// <summary>加载探索数据（与 <see cref="LoadDataAsync"/> 等价）</summary>
     public async Task LoadExploreDataAsync()
     {
         await LoadDataAsync();
     }
 
+    /// <summary>获取指定 Tab 下的歌曲列表（用于列表页播放交互）</summary>
+    /// <param name="tabIndex">Tab 索引</param>
+    /// <returns>该 Tab 下的歌曲只读列表</returns>
     public IReadOnlyList<Song> GetSongsForTab(int tabIndex)
     {
         return tabIndex switch
@@ -347,6 +396,7 @@ public partial class SearchViewModel : ObservableObject
         ShowSearchResults = songs.Count > 0 || artists.Count > 0 || albums.Count > 0;
     }
 
+    /// <summary>清空搜索下拉结果</summary>
     public void ClearSearchDropdown()
     {
         ShowSearchResults = false;
@@ -355,6 +405,7 @@ public partial class SearchViewModel : ObservableObject
         SearchAlbumResults.Clear();
     }
 
+    /// <summary>发送聊天消息：将用户输入发送给 Agent 并追加回复</summary>
     public async Task SendMessageAsync()
     {
         var userMessage = ChatInput?.Trim();
@@ -483,19 +534,30 @@ public partial class SearchViewModel : ObservableObject
     }
 }
 
+/// <summary>搜索页艺术家展示项</summary>
 public class SearchArtistItem
 {
+    /// <summary>艺术家 ID</summary>
     public int Id { get; set; }
+    /// <summary>艺术家名称</summary>
     public string Name { get; set; } = "";
+    /// <summary>副标题（如歌曲数量）</summary>
     public string Subtitle { get; set; } = "";
+    /// <summary>封面来源路径</summary>
     public string? CoverSource { get; set; }
 }
 
+/// <summary>搜索页专辑展示项</summary>
 public class SearchAlbumItem
 {
+    /// <summary>专辑 ID</summary>
     public int Id { get; set; }
+    /// <summary>专辑标题</summary>
     public string Title { get; set; } = "";
+    /// <summary>艺术家名称</summary>
     public string ArtistName { get; set; } = "";
+    /// <summary>副标题（如歌曲数量）</summary>
     public string Subtitle { get; set; } = "";
+    /// <summary>封面来源路径</summary>
     public string? CoverSource { get; set; }
 }

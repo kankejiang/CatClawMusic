@@ -9,11 +9,18 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class CatClawServerClient : ICatClawServerService
 {
+    /// <summary>HTTP 客户端，超时 30 秒</summary>
     private readonly HttpClient _http;
+    /// <summary>数据库访问实例，用于将服务端元数据入库</summary>
     private readonly MusicDatabase _db;
 
+    /// <summary>CatClaw 服务端基础 URL（如 http://nas.local:8080）</summary>
     public string ServerUrl { get; set; } = "";
 
+    /// <summary>
+    /// 初始化 CatClaw 服务端客户端。
+    /// </summary>
+    /// <param name="db">数据库访问实例。</param>
     public CatClawServerClient(MusicDatabase db)
     {
         _db = db;
@@ -23,6 +30,10 @@ public class CatClawServerClient : ICatClawServerService
         };
     }
 
+    /// <summary>
+    /// 测试与服务端的连接是否可用（GET /api/status）。
+    /// </summary>
+    /// <returns>连接成功返回 true，否则返回 false。</returns>
     public async Task<bool> TestConnectionAsync()
     {
         if (string.IsNullOrEmpty(ServerUrl))
@@ -39,6 +50,10 @@ public class CatClawServerClient : ICatClawServerService
         }
     }
 
+    /// <summary>
+    /// 获取服务端状态信息（GET /api/status）。
+    /// </summary>
+    /// <returns>服务端状态对象；请求失败时返回 null。</returns>
     public async Task<ServerStatus?> GetStatusAsync()
     {
         if (string.IsNullOrEmpty(ServerUrl))
@@ -55,6 +70,12 @@ public class CatClawServerClient : ICatClawServerService
         }
     }
 
+    /// <summary>
+    /// 从服务端同步全部歌曲元数据并入库。
+    /// 已存在的文件路径会跳过（增量同步）。
+    /// </summary>
+    /// <param name="progress">进度回调，参数为 (状态消息, 百分比)。</param>
+    /// <returns>本次新增入库的歌曲数量。</returns>
     public async Task<int> SyncMetadataAsync(IProgress<(string, int)>? progress = null)
     {
         if (string.IsNullOrEmpty(ServerUrl))
@@ -136,6 +157,11 @@ public class CatClawServerClient : ICatClawServerService
         return inserted;
     }
 
+    /// <summary>
+    /// 在服务端搜索歌曲（GET /api/search?q=...），返回匹配结果但不入库。
+    /// </summary>
+    /// <param name="keyword">搜索关键词。</param>
+    /// <returns>匹配的歌曲列表；请求失败时返回空列表。</returns>
     public async Task<List<Song>> SearchServerAsync(string keyword)
     {
         if (string.IsNullOrEmpty(ServerUrl))
@@ -174,11 +200,17 @@ public class CatClawServerClient : ICatClawServerService
         }
     }
 
+    /// <summary>
+    /// 构建服务端歌曲流播放 URL（GET /api/stream/{songId}）。
+    /// </summary>
+    /// <param name="songId">服务端歌曲 ID。</param>
+    /// <returns>流播放 URL。</returns>
     public string GetStreamUrl(int songId)
     {
         return $"{ServerUrl.TrimEnd('/')}/api/stream/{songId}";
     }
 
+    /// <summary>JSON 反序列化选项：属性名大小写不敏感</summary>
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true

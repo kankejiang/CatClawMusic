@@ -8,11 +8,16 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class NetEaseMusicScraper : IArtistMetadataScraper
 {
+    /// <summary>HTTP 客户端，用于访问网易云 API</summary>
     private readonly HttpClient _httpClient;
+    /// <summary>数据库访问实例，用于查询艺术家封面缓存</summary>
     private readonly MusicDatabase _db;
+    /// <summary>艺术家封面缓存目录绝对路径</summary>
     private readonly string _artistCoverCacheDir;
+    /// <summary>专辑封面缓存目录绝对路径</summary>
     private readonly string _albumCoverCacheDir;
 
+    /// <summary>数据源名称：网易云</summary>
     public string SourceName => "网易云";
 
     /// <summary>艺术家详细信息</summary>
@@ -33,6 +38,12 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         public string? CoverUrl { get; set; }
     }
 
+    /// <summary>
+    /// 初始化网易云音乐刮削器。
+    /// </summary>
+    /// <param name="db">数据库访问实例，用于查询已有艺术家封面。</param>
+    /// <param name="artistCoverCacheDir">艺术家封面缓存目录（不存在会自动创建）。</param>
+    /// <param name="albumCoverCacheDir">专辑封面缓存目录（不存在会自动创建）。</param>
     public NetEaseMusicScraper(MusicDatabase db, string artistCoverCacheDir, string albumCoverCacheDir)
     {
         _db = db;
@@ -394,6 +405,12 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         return null;
     }
 
+    /// <summary>
+    /// 根据艺术家名称生成封面缓存文件路径。
+    /// 文件名中的非法字符会被替换为下划线。
+    /// </summary>
+    /// <param name="artistName">艺术家名称。</param>
+    /// <returns>缓存文件绝对路径（如 /cache/周杰伦.jpg）。</returns>
     private string GetArtistCoverPath(string artistName)
     {
         var safeName = string.Join("_", artistName.Split(Path.GetInvalidFileNameChars()));
@@ -572,12 +589,22 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         return Path.Combine(_albumCoverCacheDir, $"{safeName}.jpg");
     }
 
-    // IArtistMetadataScraper 显式实现
+    /// <summary>
+    /// 显式实现 IArtistMetadataScraper.SearchArtistsAsync，
+    /// 转发至内部方法以将网易云原生结果转换为统一模型。
+    /// </summary>
     Task<List<ArtistSearchResult>> IArtistMetadataScraper.SearchArtistsAsync(string name, int limit)
     {
         return SearchArtistsInternalAsync(name, limit);
     }
 
+    /// <summary>
+    /// 内部实现：将网易云原生的 SearchResult 列表转换为统一的 ArtistSearchResult 列表。
+    /// 由 IArtistMetadataScraper.SearchArtistsAsync 显式实现调用。
+    /// </summary>
+    /// <param name="name">艺术家名称关键词。</param>
+    /// <param name="limit">最大返回数量。</param>
+    /// <returns>转换后的统一搜索结果列表。</returns>
     private async Task<List<ArtistSearchResult>> SearchArtistsInternalAsync(string name, int limit)
     {
         var oldResults = await SearchArtistsAsync(name, limit);

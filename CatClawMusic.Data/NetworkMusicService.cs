@@ -23,14 +23,17 @@ public class NetworkMusicService : INetworkMusicService
     /// WebDAV 文件服务
     /// </summary>
     private readonly INetworkFileService _webDav;
+    /// <summary>SMB 文件服务</summary>
     private readonly INetworkFileService _smb;
 
+    /// <summary>限制并发元数据下载的信号量（最多 8 个并行任务），避免压垮远程服务器</summary>
     private static readonly SemaphoreSlim ScanSemaphore = new(8, 8);
     /// <summary>控制递归目录扫描的并发数（OpenList 等不支持深度 PROPFIND 的服务器）</summary>
     private static readonly SemaphoreSlim DirScanSemaphore = new(4, 4);
 
     /// <summary>OpenList stream URL 缓存：filePath → (url, expiry)，避免每次播放重复 API 调用</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string url, DateTime expiry)> _streamUrlCache = new();
+    /// <summary>OpenList stream URL 缓存有效期（5 分钟），过期后重新请求 /api/fs/get</summary>
     private static readonly TimeSpan StreamUrlCacheTtl = TimeSpan.FromMinutes(5);
 
     /// <summary>
@@ -166,6 +169,12 @@ public class NetworkMusicService : INetworkMusicService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 下载 SMB 远程文件的头部数据用于标签解析，失败时回退到完整下载。
+    /// </summary>
+    /// <param name="remotePath">SMB 远程文件路径。</param>
+    /// <param name="profile">连接配置，用于初始化 SMB 客户端。</param>
+    /// <returns>包含文件头数据的内存流，失败时返回 null。</returns>
     private async Task<MemoryStream?> DownloadSmbHeadAsync(string remotePath, ConnectionProfile profile)
     {
         _smb.Configure(profile);
@@ -441,6 +450,13 @@ public class NetworkMusicService : INetworkMusicService
         return null;
     }
 
+    /// <summary>
+    /// 从 WebDAV 远程文件头部数据中解析歌曲元数据（标题、艺术家、专辑、时长等）并更新歌曲对象。
+    /// 内部会自动处理 OpenList 服务器类型检测与缓存。
+    /// </summary>
+    /// <param name="song">待更新元数据的歌曲对象，需包含 RemoteId 或 CoverArtPath。</param>
+    /// <param name="profile">WebDAV 连接配置。</param>
+    /// <returns>更新后的歌曲对象；解析失败或无远程路径时返回 null。</returns>
     private async Task<Song?> FetchWebDavMetadataAsync(Song song, ConnectionProfile profile)
     {
         var remotePath = song.RemoteId ?? song.CoverArtPath;
@@ -509,6 +525,12 @@ public class NetworkMusicService : INetworkMusicService
         return null;
     }
 
+    /// <summary>
+    /// 从 SMB 远程文件头部数据中解析歌曲元数据并更新歌曲对象。
+    /// </summary>
+    /// <param name="song">待更新元数据的歌曲对象，需包含 RemoteId 或 CoverArtPath。</param>
+    /// <param name="profile">SMB 连接配置。</param>
+    /// <returns>更新后的歌曲对象；解析失败或无远程路径时返回 null。</returns>
     private async Task<Song?> FetchSmbMetadataAsync(Song song, ConnectionProfile profile)
     {
         var remotePath = song.RemoteId ?? song.CoverArtPath;
@@ -610,6 +632,12 @@ public class NetworkMusicService : INetworkMusicService
         return song.FilePath;
     }
 
+    /// <summary>
+    /// 构建 SMB 流媒体 URL（smb:// scheme），包含认证信息，供 ExoPlayer 直接播放。
+    /// </summary>
+    /// <param name="filePath">SMB 文件相对路径。</param>
+    /// <param name="profile">连接配置，提供主机、共享名、认证信息。</param>
+    /// <returns>完整的 smb:// URL 字符串。</returns>
     private static string BuildSmbStreamUrl(string filePath, ConnectionProfile profile)
     {
         if (filePath.StartsWith("smb://")) return filePath;
@@ -990,6 +1018,12 @@ public class NetworkMusicService : INetworkMusicService
         System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 后台元数据补齐完成: {updated}/{songs.Count} 首已更新");
     }
 
+    /// <summary>
+    /// 递归扫描 SMB 共享目录，批量入库发现的音频文件。
+    /// </summary>
+    /// <param name="profile">SMB 连接配置。</param>
+    /// <param name="songBatchCallback">每批次歌曲扫描完成后的回调。</param>
+    /// <returns>(新扫描到的歌曲列表, 所有发现的文件路径 ID 集合)。</returns>
     private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanSmbAsync(
         ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
     {
@@ -1022,6 +1056,18 @@ public class NetworkMusicService : INetworkMusicService
         return (songs, foundIds);
     }
 
+    /// <summary>
+    /// 递归扫描 SMB 单个目录，将其中的音频文件入库并继续扫描子目录。
+    /// 使用 visitedDirs 集合防止循环引用，depth 限制最大递归深度。
+    /// </summary>
+    /// <param name="path">当前扫描的 SMB 目录路径。</param>
+    /// <param name="profile">SMB 连接配置。</param>
+    /// <param name="songs">累计扫描到的歌曲列表。</param>
+    /// <param name="foundIds">本次扫描发现的所有文件路径 ID 集合。</param>
+    /// <param name="existingIds">数据库中已存在的文件路径 ID 集合（用于增量扫描跳过）。</param>
+    /// <param name="scanner">音乐扫描器实例。</param>
+    /// <param name="visitedDirs">已访问目录集合（防止循环）。</param>
+    /// <param name="depth">当前递归深度。</param>
     private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
         HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
     {

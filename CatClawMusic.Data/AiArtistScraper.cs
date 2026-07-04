@@ -9,12 +9,21 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class AiArtistScraper : IArtistMetadataScraper
 {
+    /// <summary>HTTP 客户端，用于调用 LLM API</summary>
     private readonly HttpClient _httpClient;
+    /// <summary>艺术家封面缓存目录绝对路径</summary>
     private readonly string _artistCoverCacheDir;
+    /// <summary>LLM 配置提供函数（运行时动态获取，确保使用最新配置）</summary>
     private readonly Func<LlmConfig> _configProvider;
 
+    /// <summary>数据源名称：AI 搜索</summary>
     public string SourceName => "AI搜索";
 
+    /// <summary>
+    /// 初始化 AI 艺术家元数据刮削器。
+    /// </summary>
+    /// <param name="artistCoverCacheDir">艺术家封面缓存目录（不存在会自动创建）。</param>
+    /// <param name="configProvider">LLM 配置提供函数，运行时动态获取以确保使用最新配置。</param>
     public AiArtistScraper(string artistCoverCacheDir, Func<LlmConfig> configProvider)
     {
         _artistCoverCacheDir = artistCoverCacheDir;
@@ -29,6 +38,13 @@ public class AiArtistScraper : IArtistMetadataScraper
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
     }
 
+    /// <summary>
+    /// 使用 LLM 搜索艺术家信息（性别、国籍、生日、简介、别名、本名等）。
+    /// 通过构造结构化 prompt 要求 LLM 返回 JSON 格式结果，并解析为统一的 ArtistSearchResult。
+    /// </summary>
+    /// <param name="name">艺术家名称关键词。</param>
+    /// <param name="limit">最大返回数量（AI 通常只返回 1 条最匹配结果，此参数被忽略）。</param>
+    /// <returns>包含艺术家信息的搜索结果列表；未配置或请求失败时返回空列表。</returns>
     public async Task<List<ArtistSearchResult>> SearchArtistsAsync(string name, int limit = 10)
     {
         var results = new List<ArtistSearchResult>();
@@ -119,6 +135,12 @@ public class AiArtistScraper : IArtistMetadataScraper
         return results;
     }
 
+    /// <summary>
+    /// 下载艺术家封面图片到缓存目录。
+    /// </summary>
+    /// <param name="coverUrl">封面图片 URL。</param>
+    /// <param name="artistName">艺术家名称（用于生成缓存文件名）。</param>
+    /// <returns>缓存文件绝对路径；URL 为空或下载失败时返回 null。</returns>
     public async Task<string?> DownloadAndCacheArtistCoverAsync(string coverUrl, string artistName)
     {
         if (string.IsNullOrWhiteSpace(coverUrl)) return null;
@@ -143,6 +165,12 @@ public class AiArtistScraper : IArtistMetadataScraper
         return null;
     }
 
+    /// <summary>
+    /// 根据用户配置的 API URL 构建完整的 Chat Completions 请求 URL。
+    /// 自动补全 /v1/chat/completions 路径，兼容用户只填域名或填到 /v1 的情况。
+    /// </summary>
+    /// <param name="apiUrl">用户配置的 API 基础 URL。</param>
+    /// <returns>完整的 Chat Completions URL。</returns>
     private static string BuildChatUrl(string apiUrl)
     {
         var url = apiUrl.TrimEnd('/');
@@ -155,6 +183,12 @@ public class AiArtistScraper : IArtistMetadataScraper
         return url + "/v1/chat/completions";
     }
 
+    /// <summary>
+    /// 从 LLM API 响应体中提取 message.content 字段内容。
+    /// 兼容标准 OpenAI Chat Completions 响应格式。
+    /// </summary>
+    /// <param name="responseBody">LLM API 的原始 JSON 响应体。</param>
+    /// <returns>提取出的文本内容；解析失败时返回空字符串。</returns>
     private static string ExtractContent(string responseBody)
     {
         try
@@ -179,6 +213,12 @@ public class AiArtistScraper : IArtistMetadataScraper
         return "";
     }
 
+    /// <summary>
+    /// 从 LLM 返回的文本中提取 JSON 对象字符串。
+    /// 兼容三种情况：1) 直接返回 JSON；2) 包裹在 ```json ``` 代码块中；3) 文本中嵌入 JSON 对象。
+    /// </summary>
+    /// <param name="text">LLM 返回的原始文本。</param>
+    /// <returns>提取出的 JSON 字符串；未找到时返回空字符串。</returns>
     private static string ExtractJson(string text)
     {
         text = text.Trim();
@@ -207,6 +247,11 @@ public class AiArtistScraper : IArtistMetadataScraper
         return "";
     }
 
+    /// <summary>
+    /// 清理文件名中的非法字符（替换为下划线），空名返回 "unknown"。
+    /// </summary>
+    /// <param name="name">原始名称。</param>
+    /// <returns>合法的文件名（不含路径）。</returns>
     private static string SanitizeFileName(string name)
     {
         var invalid = Path.GetInvalidFileNameChars();

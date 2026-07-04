@@ -31,6 +31,8 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("playlists/playlistdetail", typeof(Pages.PlaylistDetailPage));
 
         // ── 音乐库 Tab 子页面 ──
+        Routing.RegisterRoute("library/albums", typeof(Pages.AlbumsPage));
+        Routing.RegisterRoute("library/artists", typeof(Pages.ArtistsPage));
         Routing.RegisterRoute("library/albumdetail", typeof(Pages.AlbumDetailPage));
         Routing.RegisterRoute("library/artistdetail", typeof(Pages.ArtistDetailPage));
         Routing.RegisterRoute("library/playlist", typeof(Pages.PlaylistPage));
@@ -65,6 +67,8 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("permissionmanagement", typeof(Pages.PermissionManagementPage));
         Routing.RegisterRoute("albumdetail", typeof(Pages.AlbumDetailPage));
         Routing.RegisterRoute("artistdetail", typeof(Pages.ArtistDetailPage));
+        Routing.RegisterRoute("albums", typeof(Pages.AlbumsPage));
+        Routing.RegisterRoute("artists", typeof(Pages.ArtistsPage));
         Routing.RegisterRoute("playlistdetail", typeof(Pages.PlaylistDetailPage));
     }
 }

@@ -275,6 +275,9 @@ public class TagReader
         }
     }
 
+    /// <summary>从音频流中读取嵌入歌词（用于 SAF content:// URI 等无法直接访问文件路径的场景）</summary>
+    /// <param name="stream">音频文件流</param>
+    /// <param name="fileName">文件名（用于推断格式）</param>
     public static string? ReadEmbeddedLyricsFromStream(Stream stream, string fileName)
     {
         try
@@ -304,6 +307,12 @@ public class TagReader
         }
     }
 
+    /// <summary>
+    /// 从已打开的 TagLibSharp 文件对象中提取歌词文本。
+    /// <para>查找顺序：标准 Lyrics 标签 → ID3v2 USLT 帧 → Xiph LYRICS/UNSYNCEDLYRICS → APE LYRICS</para>
+    /// </summary>
+    /// <param name="file">已打开的 TagLibSharp 文件对象</param>
+    /// <returns>歌词文本，未找到返回 null</returns>
     private static string? ExtractLyricsFromFile(TagLibFile file)
     {
         var lyrics = file.Tag.Lyrics;

@@ -8,6 +8,10 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 歌单详情页 ViewModel：加载指定歌单（含“全部歌曲/收藏/最近播放”等虚拟歌单）的歌曲列表，
+/// 提供单曲播放、整列表播放、移除歌曲、切换收藏与按来源筛选等交互能力。
+/// </summary>
 public partial class PlaylistDetailViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -15,25 +19,38 @@ public partial class PlaylistDetailViewModel : ObservableObject
     private readonly PlayQueue? _playQueue;
     private readonly MusicDatabase _db;
 
+    /// <summary>当前歌单下的歌曲集合（已应用筛选）</summary>
     public ObservableCollection<Song> Songs { get; } = new();
 
     private List<Song> _allSongsRaw = new();
     private int _playlistId;
 
+    /// <summary>当前歌单信息</summary>
     [ObservableProperty]
     private Playlist _playlist = new();
 
+    /// <summary>当前歌单名称</summary>
     [ObservableProperty]
     private string _playlistName = "";
 
+    /// <summary>状态文本（用于向用户展示加载进度或结果）</summary>
     [ObservableProperty]
     private string _statusText = "";
 
+    /// <summary>是否正在加载歌单数据</summary>
     [ObservableProperty]
     private bool _isLoading = false;
 
+    /// <summary>请求播放某首歌曲时触发，供外部页面订阅以同步 UI 状态</summary>
     public event Action<Song>? SongPlayRequested;
 
+    /// <summary>
+    /// 初始化 <see cref="PlaylistDetailViewModel"/> 实例。
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务，用于读取歌单歌曲</param>
+    /// <param name="db">音乐数据库访问对象</param>
+    /// <param name="audioPlayer">音频播放服务，可为空（设计时支持）</param>
+    /// <param name="playQueue">播放队列，可为空（设计时支持）</param>
     public PlaylistDetailViewModel(IMusicLibraryService musicLibrary,
         MusicDatabase db,
         IAudioPlayerService? audioPlayer = null,
@@ -46,8 +63,11 @@ public partial class PlaylistDetailViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 设置歌单参数并加载
+    /// 设置歌单参数并加载：根据歌单 ID 选择不同数据源（全部/收藏/最近/普通歌单），
+    /// 并按已启用协议过滤歌曲。
     /// </summary>
+    /// <param name="playlistId">歌单 ID（-1=全部, -2=收藏, -3=最近播放, 其他=普通歌单）</param>
+    /// <param name="name">歌单名称</param>
     public async Task LoadPlaylistAsync(int playlistId, string name)
     {
         _playlistId = playlistId;
@@ -101,8 +121,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 播放歌曲
+    /// 播放歌曲：若为当前曲则切换播放/暂停，否则将其设为播放队列当前曲并播放。
     /// </summary>
+    /// <param name="song">要播放的歌曲，为空则忽略</param>
     [RelayCommand]
     public async Task PlaySongAsync(Song? song)
     {
@@ -127,9 +148,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// 播放全部
-    /// </summary>
+    /// <summary>播放全部：将歌单全部歌曲加入播放队列并从首曲开始播放</summary>
     [RelayCommand]
     public async Task PlayAllAsync()
     {
@@ -144,8 +163,9 @@ public partial class PlaylistDetailViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 从歌单移除歌曲
+    /// 从歌单移除歌曲。
     /// </summary>
+    /// <param name="song">要移除的歌曲，为空则忽略</param>
     [RelayCommand]
     public async Task RemoveSongAsync(Song? song)
     {
@@ -154,8 +174,10 @@ public partial class PlaylistDetailViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 批量移除歌曲
+    /// 批量移除歌曲：从歌单移除多首歌曲并同步集合。
     /// </summary>
+    /// <param name="songIds">要移除的歌曲 ID 集合</param>
+    /// <returns>实际移除的歌曲数量</returns>
     public async Task<int> RemoveSongsFromPlaylistAsync(IEnumerable<int> songIds)
     {
         if (_playlistId <= 0) return 0;
@@ -172,16 +194,19 @@ public partial class PlaylistDetailViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 切换收藏
+    /// 切换收藏状态。
     /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="isFav">是否收藏</param>
     public async Task ToggleFavoriteAsync(int songId, bool isFav)
     {
         await _db.SetFavoriteAsync(songId, isFav);
     }
 
     /// <summary>
-    /// 按来源筛选
+    /// 按来源筛选：在原始歌曲集合上按 local / network / all 进行筛选。
     /// </summary>
+    /// <param name="filter">筛选方式（"local" / "network" / 其他=全部）</param>
     public void ApplySourceFilter(string filter)
     {
         var filtered = filter switch

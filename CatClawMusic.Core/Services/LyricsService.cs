@@ -239,6 +239,9 @@ public class LyricsService : ILyricsService
         return null;
     }
 
+    /// <summary>读取音频文件的内嵌歌词（支持普通文件路径与 content:// URI）</summary>
+    /// <param name="songPath">音频文件路径或 content:// URI</param>
+    /// <param name="isContentUri">是否为 Android content:// URI</param>
     private static string? ReadEmbeddedLyrics(string? songPath, bool isContentUri)
     {
         if (string.IsNullOrEmpty(songPath)) return null;
@@ -333,6 +336,8 @@ public class LyricsService : ILyricsService
         return null;
     }
 
+    /// <summary>尝试读取与音频同名的歌词文件（.lrc / .ttml / .xml），并按格式解析</summary>
+    /// <param name="songPath">音频文件路径</param>
     private async Task<LrcLyrics?> TryReadLrcFileAsync(string songPath)
     {
         var dir = Path.GetDirectoryName(songPath) ?? "";
@@ -938,8 +943,10 @@ public class LyricsService : ILyricsService
         return script1 != script2 && script1 != ScriptType.Unknown && script2 != ScriptType.Unknown;
     }
 
+    /// <summary>文字系统类型，用于区分原文与翻译</summary>
     private enum ScriptType { Unknown, Cjk, Japanese, Hangul, Latin }
 
+    /// <summary>统计文本中各类字符的数量，返回占主导地位的文字系统</summary>
     private static ScriptType GetDominantScript(string text)
     {
         int cjk = 0, japanese = 0, hangul = 0, latin = 0;
@@ -1550,7 +1557,12 @@ public class LyricsService : ILyricsService
             return null;
         }
     }
+    /// <summary>
+    /// 根据播放位置获取当前歌词行索引（二分查找，O(log n)）
     /// </summary>
+    /// <param name="lyrics">歌词对象</param>
+    /// <param name="position">当前播放位置</param>
+    /// <returns>当前高亮行索引，-1 表示无匹配</returns>
     public int GetCurrentLyricIndex(LrcLyrics? lyrics, TimeSpan position)
     {
         if (lyrics?.Lines == null || lyrics.Lines.Count == 0) return -1;
@@ -1619,6 +1631,12 @@ public class LyricsService : ILyricsService
         return -1;
     }
 
+    /// <summary>
+    /// 拆分双语歌词行：从原文本中识别并切分出原文与翻译。
+    /// <para>策略1：日文+中文（含假名 vs 纯汉字）；策略2：通用 CJK + 非 CJK 分割。</para>
+    /// </summary>
+    /// <param name="text">待拆分的歌词文本</param>
+    /// <returns>(原文, 翻译)；无翻译时第二项为 null</returns>
     private static (string original, string? translation) SplitBilingual(string text)
     {
         if (string.IsNullOrEmpty(text)) return (text, null);
@@ -1774,6 +1792,7 @@ public class LyricsService : ILyricsService
         return 0;
     }
 
+    /// <summary>判断字符是否为 CJK 中日韩统一表意文字（含兼容区与全角符号）</summary>
     private static bool IsCjk(char ch)
     {
         return (ch >= 0x4E00 && ch <= 0x9FFF) || (ch >= 0x3400 && ch <= 0x4DBF) ||
@@ -1781,6 +1800,7 @@ public class LyricsService : ILyricsService
                (ch >= 0xFF00 && ch <= 0xFFEF);
     }
 
+    /// <summary>判断字符是否为日文假名（平假名/片假名/半角片假名）</summary>
     private static bool IsJapanese(char ch)
     {
         return (ch >= 0x3040 && ch <= 0x309F) || (ch >= 0x30A0 && ch <= 0x30FF) ||

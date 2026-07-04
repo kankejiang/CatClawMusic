@@ -16,9 +16,14 @@ public partial class PermissionManagementViewModel : ObservableObject
     /// <summary>权限项列表</summary>
     public ObservableCollection<PermissionItem> Permissions { get; } = new();
 
+    /// <summary>是否正在刷新权限状态</summary>
     [ObservableProperty]
     private bool _isRefreshing;
 
+    /// <summary>
+    /// 初始化 <see cref="PermissionManagementViewModel"/> 实例。
+    /// </summary>
+    /// <param name="permissionService">权限服务，用于检查与请求各类权限</param>
     public PermissionManagementViewModel(IPermissionService permissionService)
     {
         _permissionService = permissionService;
@@ -149,21 +154,37 @@ public partial class PermissionManagementViewModel : ObservableObject
 /// <summary>权限项展示模型</summary>
 public partial class PermissionItem : ObservableObject
 {
+    /// <summary>权限标题</summary>
     public string Title { get; }
+    /// <summary>权限描述</summary>
     public string Description { get; }
+    /// <summary>权限项图标资源名称</summary>
     public string Icon { get; }
+    /// <summary>权限类型</summary>
     public PermissionKind Kind { get; }
 
+    /// <summary>该权限是否已授予</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText))]
     [NotifyPropertyChangedFor(nameof(StatusColor))]
     [NotifyPropertyChangedFor(nameof(ActionText))]
     private bool _isGranted;
 
+    /// <summary>权限状态展示文本（已授予 / 未授权）</summary>
     public string StatusText => IsGranted ? "已授予" : "未授权";
+    /// <summary>权限状态展示颜色（已授予绿色 / 未授权橙色）</summary>
     public string StatusColor => IsGranted ? "#4CAF50" : "#FF9800";
+    /// <summary>操作按钮文本（已授予时为“查看”，未授权时为“去授权”）</summary>
     public string ActionText => IsGranted ? "查看" : "去授权";
 
+    /// <summary>
+    /// 初始化 <see cref="PermissionItem"/> 实例。
+    /// </summary>
+    /// <param name="title">权限标题</param>
+    /// <param name="description">权限描述</param>
+    /// <param name="icon">图标资源名称</param>
+    /// <param name="isGranted">是否已授予</param>
+    /// <param name="kind">权限类型</param>
     public PermissionItem(string title, string description, string icon, bool isGranted, PermissionKind kind)
     {
         Title = title;
@@ -177,8 +198,12 @@ public partial class PermissionItem : ObservableObject
 /// <summary>权限类型枚举</summary>
 public enum PermissionKind
 {
+    /// <summary>存储 / 媒体读取权限</summary>
     Storage,
+    /// <summary>管理所有文件权限（Android 11+）</summary>
     ManageStorage,
+    /// <summary>悬浮窗权限</summary>
     Overlay,
+    /// <summary>通知权限（Android 13+）</summary>
     Notification
 }

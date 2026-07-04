@@ -8,7 +8,10 @@ namespace CatClawMusic.Data;
 [Table("MigrationFlag")]
 internal class MigrationFlag
 {
+    /// <summary>迁移任务名称（主键）</summary>
     [PrimaryKey] public string Name { get; set; } = "";
+
+    /// <summary>迁移任务状态值，"done" 表示已完成</summary>
     public string Value { get; set; } = "";
 }
 
@@ -247,12 +250,20 @@ public class MusicDatabase
     /// <returns>本地歌曲列表</returns>
     public Task<List<Song>> GetSongsAsync() => GetSongsWithDetailsAsync();
 
+    /// <summary>
+    /// 获取本地歌曲总数
+    /// </summary>
+    /// <returns>本地歌曲数量</returns>
     public async Task<int> GetLocalSongCountAsync()
     {
         await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
     }
 
+    /// <summary>
+    /// 获取网络歌曲总数（WebDAV + SMB）
+    /// </summary>
+    /// <returns>网络歌曲数量</returns>
     public async Task<int> GetNetworkSongCountAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -261,6 +272,10 @@ public class MusicDatabase
             .CountAsync();
     }
 
+    /// <summary>
+    /// 获取去重后的歌曲总数（仅统计本地歌曲，与本地音乐标签页一致）
+    /// </summary>
+    /// <returns>本地歌曲数量</returns>
     public async Task<int> GetMergedDedupedCountAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -270,12 +285,20 @@ public class MusicDatabase
             .CountAsync();
     }
 
+    /// <summary>
+    /// 获取收藏歌曲总数
+    /// </summary>
+    /// <returns>收藏记录数量</returns>
     public async Task<int> GetFavoriteCountAsync()
     {
         await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Favorite>().CountAsync();
     }
 
+    /// <summary>
+    /// 获取最近播放歌曲数量（仅统计 Songs 表中仍存在的歌曲）
+    /// </summary>
+    /// <returns>最近播放且未删除的歌曲数量</returns>
     public async Task<int> GetRecentPlayCountAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -287,6 +310,10 @@ public class MusicDatabase
         return allSongs.Count(s => songIds.Contains(s.Id));
     }
 
+    /// <summary>
+    /// 获取"全部音乐"中第一首歌曲的 ID（优先返回本地歌曲）
+    /// </summary>
+    /// <returns>歌曲 ID，无歌曲时返回 0</returns>
     public async Task<int> GetFirstSongIdForAllAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -296,6 +323,10 @@ public class MusicDatabase
         return song?.Id ?? 0;
     }
 
+    /// <summary>
+    /// 获取最近收藏的第一首歌曲 ID
+    /// </summary>
+    /// <returns>歌曲 ID，无收藏时返回 0</returns>
     public async Task<int> GetFirstFavoriteSongIdAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -303,6 +334,10 @@ public class MusicDatabase
         return fav?.SongId ?? 0;
     }
 
+    /// <summary>
+    /// 获取最近一次播放的歌曲 ID
+    /// </summary>
+    /// <returns>歌曲 ID，无播放历史时返回 0</returns>
     public async Task<int> GetFirstRecentSongIdAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -614,18 +649,30 @@ public class MusicDatabase
         return firstId > 0 ? firstId : 0;
     }
 
+    /// <summary>
+    /// 获取所有艺术家列表
+    /// </summary>
+    /// <returns>艺术家列表</returns>
     public async Task<List<Artist>> GetAllArtistsAsync()
     {
         await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Artist>().ToListAsync();
     }
 
+    /// <summary>
+    /// 更新艺术家信息
+    /// </summary>
+    /// <param name="artist">艺术家对象</param>
     public async Task UpdateArtistAsync(Artist artist)
     {
         await EnsureMaintenanceCompletedAsync();
         await _database.UpdateAsync(artist);
     }
 
+    /// <summary>
+    /// 获取所有专辑列表
+    /// </summary>
+    /// <returns>专辑列表</returns>
     public async Task<List<Album>> GetAllAlbumsAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -864,7 +911,6 @@ public class MusicDatabase
         return newAlbum.Id;
     }
 
-    /// <summary>
     // ═══════════ Play History ═══════════
 
     /// <summary>
@@ -1605,6 +1651,10 @@ public class MusicDatabase
     public async Task<int> GetCachedNetworkSongCountAsync()
         => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB).CountAsync();
 
+    /// <summary>
+    /// 开始替换网络歌曲：先保存现有网络歌曲的收藏引用，再清空 WebDAV 歌曲数据。
+    /// 配合 RestoreNetworkFavoritesAsync 使用以保留收藏状态。
+    /// </summary>
     public async Task ReplaceNetworkSongsBeginAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -1908,7 +1958,6 @@ public class MusicDatabase
         return result;
     }
 
-    /// <summary>SongArtist JOIN 查询的中间结果行</summary>
     /// <summary>
     /// 批量查询指定歌曲的 SongArtist 关联记录（用于计算艺术家歌曲计数）。
     /// </summary>
@@ -1923,9 +1972,13 @@ public class MusicDatabase
             $"SELECT * FROM SongArtists WHERE SongId IN ({ids})");
     }
 
+    /// <summary>SongArtist JOIN 查询的中间结果行，用于批量加载歌曲的多艺术家名称</summary>
     private class SongArtistRow
     {
+        /// <summary>歌曲 ID</summary>
         public int SongId { get; set; }
+
+        /// <summary>艺术家名称</summary>
         public string Name { get; set; } = "";
     }
 

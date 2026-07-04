@@ -5,14 +5,27 @@ using CatClawMusic.Core.Services;
 
 namespace CatClawMusic.Core.Services.AI;
 
+/// <summary>
+/// 搜索音乐库工具，按关键词（歌名、艺术家、专辑）检索本地与远程合并后的歌曲列表。
+/// </summary>
 public class SearchMusicTool : IAgentTool
 {
+    /// <summary>音乐库服务，用于执行歌曲搜索</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称（LLM 调用时使用的 function name）</summary>
     public string Name => "search_music";
+    /// <summary>工具描述，提供给 LLM 用于判断何时调用该工具</summary>
     public string Description => "搜索音乐库中的歌曲，支持按歌名、艺术家、专辑关键词搜索";
 
+    /// <summary>
+    /// 构造 SearchMusicTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public SearchMusicTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义（参数 schema）
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -30,6 +43,11 @@ public class SearchMusicTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行搜索操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 keyword 字段</param>
+    /// <returns>JSON 序列化结果，包含 count 与 songs 列表</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var keyword = ArgHelper.ExtractStringArgFallback(arguments, "keyword");
@@ -45,14 +63,27 @@ public class SearchMusicTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 创建歌单工具，用于在音乐库中创建一个新的播放列表。
+/// </summary>
 public class CreatePlaylistTool : IAgentTool
 {
+    /// <summary>音乐库服务，用于执行歌单创建</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "create_playlist";
+    /// <summary>工具描述</summary>
     public string Description => "创建新的播放列表（歌单）";
 
+    /// <summary>
+    /// 构造 CreatePlaylistTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public CreatePlaylistTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -70,6 +101,11 @@ public class CreatePlaylistTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行创建歌单操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 name 字段</param>
+    /// <returns>JSON 序列化结果，包含 success、playlistId、playlistName、message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var name = ArgHelper.ExtractStringArgFallback(arguments, "name");
@@ -80,14 +116,27 @@ public class CreatePlaylistTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 添加歌曲到歌单工具，将指定歌曲加入目标播放列表。
+/// </summary>
 public class AddSongToPlaylistTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "add_song_to_playlist";
+    /// <summary>工具描述</summary>
     public string Description => "将歌曲添加到指定歌单中";
 
+    /// <summary>
+    /// 构造 AddSongToPlaylistTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public AddSongToPlaylistTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -106,6 +155,11 @@ public class AddSongToPlaylistTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行添加歌曲到歌单操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 playlist_id 与 song_id 字段</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
@@ -119,14 +173,27 @@ public class AddSongToPlaylistTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 从歌单移除歌曲工具，将指定歌曲从目标播放列表中删除。
+/// </summary>
 public class RemoveSongFromPlaylistTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "remove_song_from_playlist";
+    /// <summary>工具描述</summary>
     public string Description => "从指定歌单中移除歌曲";
 
+    /// <summary>
+    /// 构造 RemoveSongFromPlaylistTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public RemoveSongFromPlaylistTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -145,6 +212,11 @@ public class RemoveSongFromPlaylistTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行从歌单移除歌曲操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 playlist_id 与 song_id 字段</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
@@ -157,14 +229,27 @@ public class RemoveSongFromPlaylistTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 列出所有歌单工具，返回用户全部播放列表概要信息。
+/// </summary>
 public class ListPlaylistsTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "list_playlists";
+    /// <summary>工具描述</summary>
     public string Description => "获取用户所有播放列表（歌单）";
 
+    /// <summary>
+    /// 构造 ListPlaylistsTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public ListPlaylistsTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -175,6 +260,11 @@ public class ListPlaylistsTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行列出所有歌单操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串（该工具无参数）</param>
+    /// <returns>JSON 序列化结果，包含 count 与 playlists 列表</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var playlists = await _musicLibrary.GetAllPlaylistsAsync();
@@ -183,14 +273,27 @@ public class ListPlaylistsTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 获取歌单歌曲列表工具，返回指定播放列表内的全部歌曲。
+/// </summary>
 public class GetPlaylistSongsTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "get_playlist_songs";
+    /// <summary>工具描述</summary>
     public string Description => "获取指定歌单中的歌曲列表";
 
+    /// <summary>
+    /// 构造 GetPlaylistSongsTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public GetPlaylistSongsTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -208,6 +311,11 @@ public class GetPlaylistSongsTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行获取歌单歌曲列表操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 playlist_id 字段</param>
+    /// <returns>JSON 序列化结果，包含 count 与 songs 列表</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
@@ -219,14 +327,27 @@ public class GetPlaylistSongsTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 删除歌单工具，删除指定的播放列表。
+/// </summary>
 public class DeletePlaylistTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "delete_playlist";
+    /// <summary>工具描述</summary>
     public string Description => "删除指定的播放列表（歌单）";
 
+    /// <summary>
+    /// 构造 DeletePlaylistTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public DeletePlaylistTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -244,6 +365,11 @@ public class DeletePlaylistTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行删除歌单操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 playlist_id 字段</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var playlistId = ArgHelper.ExtractIntArgFallback(arguments, "playlist_id");
@@ -254,14 +380,28 @@ public class DeletePlaylistTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 播放歌曲工具，根据歌曲 ID 查找歌曲并加入播放队列后立即播放。
+/// </summary>
 public class PlaySongTool : IAgentTool
 {
+    /// <summary>音频播放器服务</summary>
     private readonly IAudioPlayerService _player;
+    /// <summary>音乐库服务，用于获取合并歌曲列表</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>播放队列，用于设置播放列表并选中歌曲</summary>
     private readonly PlayQueue _playQueue;
+    /// <summary>工具名称</summary>
     public string Name => "play_song";
+    /// <summary>工具描述</summary>
     public string Description => "播放指定歌曲";
 
+    /// <summary>
+    /// 构造 PlaySongTool 实例
+    /// </summary>
+    /// <param name="player">音频播放器服务</param>
+    /// <param name="musicLibrary">音乐库服务</param>
+    /// <param name="playQueue">播放队列</param>
     public PlaySongTool(IAudioPlayerService player, IMusicLibraryService musicLibrary, PlayQueue playQueue)
     {
         _player = player;
@@ -269,6 +409,9 @@ public class PlaySongTool : IAgentTool
         _playQueue = playQueue;
     }
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -286,6 +429,11 @@ public class PlaySongTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行播放歌曲操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 song_id 字段</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
@@ -302,12 +450,21 @@ public class PlaySongTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 联网搜索工具，通过 DuckDuckGo HTML 接口在互联网上搜索信息。
+/// </summary>
 public class WebSearchTool : IAgentTool
 {
+    /// <summary>HTTP 客户端，用于发起搜索请求</summary>
     private readonly HttpClient _httpClient;
+    /// <summary>工具名称</summary>
     public string Name => "web_search";
+    /// <summary>工具描述</summary>
     public string Description => "在互联网上搜索信息，可以搜索新闻、知识、音乐资讯等内容";
 
+    /// <summary>
+    /// 构造 WebSearchTool 实例，初始化 HttpClient 并设置 UA 与超时
+    /// </summary>
     public WebSearchTool()
     {
         _httpClient = new HttpClient();
@@ -315,6 +472,9 @@ public class WebSearchTool : IAgentTool
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
     }
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -332,6 +492,11 @@ public class WebSearchTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行联网搜索操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 query 字段</param>
+    /// <returns>JSON 序列化结果，包含 success、query、results、message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var query = ArgHelper.ExtractStringArgFallback(arguments, "query");
@@ -364,6 +529,12 @@ public class WebSearchTool : IAgentTool
         }
     }
 
+    /// <summary>
+    /// 从 DuckDuckGo 返回的 HTML 中简单解析搜索结果（标题、URL、摘要）
+    /// </summary>
+    /// <param name="html">搜索结果 HTML</param>
+    /// <param name="query">原始搜索关键词（无结果时用于提示）</param>
+    /// <returns>解析得到的结果列表，最多 5 条</returns>
     private List<object> ExtractSearchResults(string html, string query)
     {
         var results = new List<object>();
@@ -459,19 +630,34 @@ public class WebSearchTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 播放控制工具，支持暂停、恢复、上一首、下一首、停止、调节音量与跳转进度等操作。
+/// </summary>
 public class ControlPlaybackTool : IAgentTool
 {
+    /// <summary>音频播放器服务</summary>
     private readonly IAudioPlayerService _player;
+    /// <summary>播放队列，用于切换上一首/下一首</summary>
     private readonly PlayQueue _playQueue;
+    /// <summary>工具名称</summary>
     public string Name => "control_playback";
+    /// <summary>工具描述</summary>
     public string Description => "控制音乐播放，支持暂停、恢复、下一首、上一首、停止、调节音量、跳转到指定位置";
 
+    /// <summary>
+    /// 构造 ControlPlaybackTool 实例
+    /// </summary>
+    /// <param name="player">音频播放器服务</param>
+    /// <param name="playQueue">播放队列</param>
     public ControlPlaybackTool(IAudioPlayerService player, PlayQueue playQueue)
     {
         _player = player;
         _playQueue = playQueue;
     }
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -491,6 +677,11 @@ public class ControlPlaybackTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行播放控制操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 action、可选 volume、seek_to 字段</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 或 error 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var action = ArgHelper.ExtractStringArgFallback(arguments, "action");
@@ -545,19 +736,34 @@ public class ControlPlaybackTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 获取当前播放歌曲工具，返回正在播放歌曲的详细信息及播放进度。
+/// </summary>
 public class GetCurrentSongTool : IAgentTool
 {
+    /// <summary>播放队列，用于获取当前歌曲</summary>
     private readonly PlayQueue _playQueue;
+    /// <summary>音频播放器服务，用于获取播放状态与进度</summary>
     private readonly IAudioPlayerService _player;
+    /// <summary>工具名称</summary>
     public string Name => "get_current_song";
+    /// <summary>工具描述</summary>
     public string Description => "获取当前正在播放的歌曲信息，包括歌名、艺术家、专辑、播放进度等";
 
+    /// <summary>
+    /// 构造 GetCurrentSongTool 实例
+    /// </summary>
+    /// <param name="playQueue">播放队列</param>
+    /// <param name="player">音频播放器服务</param>
     public GetCurrentSongTool(PlayQueue playQueue, IAudioPlayerService player)
     {
         _playQueue = playQueue;
         _player = player;
     }
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -568,6 +774,11 @@ public class GetCurrentSongTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行获取当前播放歌曲信息操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串（该工具无参数）</param>
+    /// <returns>JSON 序列化结果，包含 is_playing 与 song 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var current = _playQueue.CurrentSong;
@@ -587,14 +798,27 @@ public class GetCurrentSongTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 获取播放队列工具，返回当前播放模式、队列总歌曲数与即将播放的歌曲。
+/// </summary>
 public class GetPlayQueueTool : IAgentTool
 {
+    /// <summary>播放队列</summary>
     private readonly PlayQueue _playQueue;
+    /// <summary>工具名称</summary>
     public string Name => "get_play_queue";
+    /// <summary>工具描述</summary>
     public string Description => "获取当前播放队列信息，包括播放模式、队列中的歌曲和即将播放的歌曲";
 
+    /// <summary>
+    /// 构造 GetPlayQueueTool 实例
+    /// </summary>
+    /// <param name="playQueue">播放队列</param>
     public GetPlayQueueTool(PlayQueue playQueue) => _playQueue = playQueue;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -605,6 +829,11 @@ public class GetPlayQueueTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行获取播放队列信息操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串（该工具无参数）</param>
+    /// <returns>JSON 序列化结果，包含 play_mode、total_songs、current_song、upcoming 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         try
@@ -636,17 +865,30 @@ public class GetPlayQueueTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 切换收藏状态工具，对指定歌曲进行收藏或取消收藏操作。
+/// </summary>
 public class ToggleFavoriteTool : IAgentTool
 {
+    /// <summary>收藏切换回调，参数为歌曲 ID 与是否收藏</summary>
     private readonly Func<int, bool, Task> _toggleFavorite;
+    /// <summary>工具名称</summary>
     public string Name => "toggle_favorite";
+    /// <summary>工具描述</summary>
     public string Description => "收藏或取消收藏一首歌曲";
 
+    /// <summary>
+    /// 构造 ToggleFavoriteTool 实例
+    /// </summary>
+    /// <param name="toggleFavorite">收藏切换回调函数</param>
     public ToggleFavoriteTool(Func<int, bool, Task> toggleFavorite)
     {
         _toggleFavorite = toggleFavorite;
     }
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -665,6 +907,11 @@ public class ToggleFavoriteTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行切换收藏状态操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 song_id 与 favorite 字段</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
@@ -689,14 +936,27 @@ public class ToggleFavoriteTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 获取收藏歌曲列表工具，返回用户已收藏的歌曲。
+/// </summary>
 public class GetFavoriteSongsTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "get_favorite_songs";
+    /// <summary>工具描述</summary>
     public string Description => "获取收藏的歌曲列表";
 
+    /// <summary>
+    /// 构造 GetFavoriteSongsTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public GetFavoriteSongsTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -713,6 +973,11 @@ public class GetFavoriteSongsTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行获取收藏歌曲列表操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，可选 limit 字段（默认 20）</param>
+    /// <returns>JSON 序列化结果，包含 count 与 songs 列表</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var limit = ArgHelper.ExtractIntArgFallback(arguments, "limit");
@@ -734,14 +999,27 @@ public class GetFavoriteSongsTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 获取最近播放歌曲工具，返回用户最近播放过的歌曲列表。
+/// </summary>
 public class GetRecentSongsTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "get_recent_songs";
+    /// <summary>工具描述</summary>
     public string Description => "获取最近播放的歌曲列表";
 
+    /// <summary>
+    /// 构造 GetRecentSongsTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public GetRecentSongsTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -758,6 +1036,11 @@ public class GetRecentSongsTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行获取最近播放歌曲操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，可选 limit 字段（默认 20）</param>
+    /// <returns>JSON 序列化结果，包含 count 与 songs 列表</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var limit = ArgHelper.ExtractIntArgFallback(arguments, "limit");
@@ -779,14 +1062,27 @@ public class GetRecentSongsTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 获取播放统计工具，返回播放次数最多的歌曲排行榜数据。
+/// </summary>
 public class GetListeningStatsTool : IAgentTool
 {
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>工具名称</summary>
     public string Name => "get_listening_stats";
+    /// <summary>工具描述</summary>
     public string Description => "获取播放统计数据，包括播放次数最多的歌曲排行";
 
+    /// <summary>
+    /// 构造 GetListeningStatsTool 实例
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务</param>
     public GetListeningStatsTool(IMusicLibraryService musicLibrary) => _musicLibrary = musicLibrary;
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -803,6 +1099,11 @@ public class GetListeningStatsTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行获取播放统计操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，可选 top_n 字段（默认 10）</param>
+    /// <returns>JSON 序列化结果，包含 top_n、total_plays、songs 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var topN = ArgHelper.ExtractIntArgFallback(arguments, "top_n");
@@ -831,14 +1132,28 @@ public class GetListeningStatsTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 添加到播放队列工具，将歌曲添加为下一首播放或队列末尾。
+/// </summary>
 public class AddToPlayQueueTool : IAgentTool
 {
+    /// <summary>播放队列</summary>
     private readonly PlayQueue _playQueue;
+    /// <summary>音乐库服务</summary>
     private readonly IMusicLibraryService _musicLibrary;
+    /// <summary>音频播放器服务</summary>
     private readonly IAudioPlayerService _player;
+    /// <summary>工具名称</summary>
     public string Name => "add_to_play_queue";
+    /// <summary>工具描述</summary>
     public string Description => "将歌曲添加到播放队列，可以添加到下一首播放或添加到队列末尾";
 
+    /// <summary>
+    /// 构造 AddToPlayQueueTool 实例
+    /// </summary>
+    /// <param name="playQueue">播放队列</param>
+    /// <param name="musicLibrary">音乐库服务</param>
+    /// <param name="player">音频播放器服务</param>
     public AddToPlayQueueTool(PlayQueue playQueue, IMusicLibraryService musicLibrary, IAudioPlayerService player)
     {
         _playQueue = playQueue;
@@ -846,6 +1161,9 @@ public class AddToPlayQueueTool : IAgentTool
         _player = player;
     }
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -864,6 +1182,11 @@ public class AddToPlayQueueTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行添加歌曲到播放队列操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串，包含 song_id 与可选 position（next/end，默认 next）字段</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         var songId = ArgHelper.ExtractIntArgFallback(arguments, "song_id");
@@ -897,19 +1220,34 @@ public class AddToPlayQueueTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 清空播放队列工具，停止播放并清空当前队列。
+/// </summary>
 public class ClearPlayQueueTool : IAgentTool
 {
+    /// <summary>播放队列</summary>
     private readonly PlayQueue _playQueue;
+    /// <summary>音频播放器服务</summary>
     private readonly IAudioPlayerService _player;
+    /// <summary>工具名称</summary>
     public string Name => "clear_play_queue";
+    /// <summary>工具描述</summary>
     public string Description => "清空播放队列并停止播放";
 
+    /// <summary>
+    /// 构造 ClearPlayQueueTool 实例
+    /// </summary>
+    /// <param name="playQueue">播放队列</param>
+    /// <param name="player">音频播放器服务</param>
     public ClearPlayQueueTool(PlayQueue playQueue, IAudioPlayerService player)
     {
         _playQueue = playQueue;
         _player = player;
     }
 
+    /// <summary>
+    /// 返回该工具的 OpenAI 兼容函数定义
+    /// </summary>
     public ToolDefinition GetDefinition() => new()
     {
         Function = new ToolFunctionDef
@@ -920,6 +1258,11 @@ public class ClearPlayQueueTool : IAgentTool
         }
     };
 
+    /// <summary>
+    /// 执行清空播放队列操作
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串（该工具无参数）</param>
+    /// <returns>JSON 序列化结果，包含 success 与 message 字段</returns>
     public async Task<string> ExecuteAsync(string arguments)
     {
         try
@@ -935,8 +1278,17 @@ public class ClearPlayQueueTool : IAgentTool
     }
 }
 
+/// <summary>
+/// 工具参数解析辅助类，从 JSON 参数字符串中提取字符串或整数参数。
+/// </summary>
 internal static class ArgHelper
 {
+    /// <summary>
+    /// 从 JSON 参数字符串中提取字符串参数
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串</param>
+    /// <param name="key">参数键名</param>
+    /// <returns>参数值；解析失败或不存在时返回 null</returns>
     internal static string? ExtractStringArgFallback(string arguments, string key)
     {
         try
@@ -947,6 +1299,12 @@ internal static class ArgHelper
         catch { return null; }
     }
 
+    /// <summary>
+    /// 从 JSON 参数字符串中提取整数参数
+    /// </summary>
+    /// <param name="arguments">JSON 格式参数字符串</param>
+    /// <param name="key">参数键名</param>
+    /// <returns>参数值；解析失败或不存在时返回 0</returns>
     internal static int ExtractIntArgFallback(string arguments, string key)
     {
         try

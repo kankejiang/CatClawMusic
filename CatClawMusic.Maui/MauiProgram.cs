@@ -230,6 +230,8 @@ public static class MauiProgram
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AlbumDetailViewModel>();
         services.AddTransient<ArtistDetailViewModel>();
+        services.AddTransient<AlbumsViewModel>();
+        services.AddTransient<ArtistsViewModel>();
         services.AddTransient<PlaylistDetailViewModel>();
         services.AddTransient<AppearanceSettingsViewModel>();
         services.AddTransient<GeneralSettingsViewModel>();
@@ -241,6 +243,7 @@ public static class MauiProgram
         services.AddTransient<PermissionManagementViewModel>();
         services.AddTransient<RemoteMusicSettingsViewModel>();
         services.AddTransient<PluginManagementViewModel>();
+        services.AddTransient<FolderBrowserViewModel>();
 
         // ═══════════════════════════════════════════════════
         // App Shell
@@ -257,6 +260,8 @@ public static class MauiProgram
         services.AddTransient<Pages.SettingsPage>();
         services.AddTransient<Pages.AlbumDetailPage>();
         services.AddTransient<Pages.ArtistDetailPage>();
+        services.AddTransient<Pages.AlbumsPage>();
+        services.AddTransient<Pages.ArtistsPage>();
         services.AddTransient<Pages.PlaylistPage>();
         services.AddTransient<Pages.PlaylistDetailPage>();
         services.AddTransient<Pages.AppearanceSettingsPage>();

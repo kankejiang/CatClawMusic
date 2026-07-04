@@ -25,6 +25,7 @@ public static class CoverHelper
     /// 批量解析歌曲封面：先查磁盘缓存，未命中则提取嵌入封面。
     /// 直接修改 song.CoverArtPath 为缓存文件路径。
     /// </summary>
+    /// <param name="songs">待解析封面的歌曲集合</param>
     public static void BatchResolveCovers(IEnumerable<Song> songs)
     {
         foreach (var song in songs)
@@ -57,6 +58,8 @@ public static class CoverHelper
     /// 解析单首歌曲的封面路径。
     /// 优先检查磁盘缓存，然后尝试从音频文件提取嵌入封面。
     /// </summary>
+    /// <param name="song">待解析封面的歌曲对象</param>
+    /// <returns>封面文件路径；无可用封面时返回 null</returns>
     public static string? ResolveSingleCover(Song song)
     {
         if (song.Id <= 0) return null;
@@ -105,6 +108,8 @@ public static class CoverHelper
     }
 
     /// <summary>获取歌曲封面的标准缓存路径</summary>
+    /// <param name="songId">歌曲唯一标识</param>
+    /// <returns>封面缓存文件绝对路径</returns>
     public static string GetCachedPath(int songId)
     {
         return Path.Combine(_coverCacheDir, $"cover_{songId}.jpg");

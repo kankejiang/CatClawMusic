@@ -13,6 +13,11 @@ public class UpdateService : IUpdateService
     private const string KeyIgnoredVersion = "update_ignored_version";
     private const string KeyPendingVersion = "update_pending_version";
 
+    /// <summary>
+    /// 异步检查 GitHub Release 是否有新版本。
+    /// 比较远端最新版本号与本地版本号（仅比较前 3 段）。
+    /// </summary>
+    /// <returns>有新版本时返回最新版本号字符串；否则返回 null</returns>
     public async Task<string?> CheckUpdateAsync()
     {
         try
@@ -45,18 +50,26 @@ public class UpdateService : IUpdateService
         }
     }
 
+    /// <summary>标记指定版本为"已通知用户"，同时清空待处理版本</summary>
+    /// <param name="version">已通知的版本号</param>
     public void MarkVersionNotified(string version)
     {
         Preferences.Default.Set(KeyIgnoredVersion, version);
         Preferences.Default.Set(KeyPendingVersion, "");
     }
 
+    /// <summary>获取用户已忽略的版本号</summary>
+    /// <returns>已忽略的版本号字符串；未设置时返回空字符串</returns>
     public string GetIgnoredVersion()
         => Preferences.Default.Get(KeyIgnoredVersion, "");
 
+    /// <summary>设置待处理的更新版本号（用于应用启动时提示用户）</summary>
+    /// <param name="version">待处理版本号</param>
     public void SetPendingVersion(string version)
         => Preferences.Default.Set(KeyPendingVersion, version);
 
+    /// <summary>获取待处理的更新版本号</summary>
+    /// <returns>待处理版本号字符串；未设置时返回空字符串</returns>
     public string GetPendingVersion()
         => Preferences.Default.Get(KeyPendingVersion, "");
 

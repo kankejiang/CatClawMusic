@@ -94,16 +94,26 @@ public class FavoriteBackupEntry
 /// <summary>备份与恢复服务</summary>
 public class BackupService
 {
+    /// <summary>数据库访问实例</summary>
     private readonly MusicDatabase _db;
+    /// <summary>AI Agent 配置存储（保留兼容，当前直接通过 AgentService 静态方法访问）</summary>
     private readonly IAgentConfigStorage _configStorage;
+    /// <summary>艺术家封面缓存目录绝对路径</summary>
     private readonly string _artistCoversDir;
 
+    /// <summary>JSON 序列化选项：缩进输出 + camelCase 命名</summary>
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    /// <summary>
+    /// 初始化备份与恢复服务。
+    /// </summary>
+    /// <param name="db">数据库访问实例。</param>
+    /// <param name="configStorage">AI Agent 配置存储。</param>
+    /// <param name="artistCoversDir">艺术家封面缓存目录路径。</param>
     public BackupService(MusicDatabase db, IAgentConfigStorage configStorage, string artistCoversDir)
     {
         _db = db;
@@ -269,6 +279,10 @@ public class BackupService
         catch { return null; }
     }
 
+    /// <summary>
+    /// 加载所有歌单的歌曲关联记录，附带歌曲标题和艺术家（用于跨设备恢复）。
+    /// </summary>
+    /// <returns>歌单歌曲备份条目列表。</returns>
     private async Task<List<PlaylistSongBackupEntry>> LoadAllPlaylistSongsWithInfoAsync()
     {
         var playlists = await _db.GetAllPlaylistsAsync();
@@ -304,6 +318,10 @@ public class BackupService
         return allEntries;
     }
 
+    /// <summary>
+    /// 加载最近 200 条播放记录，附带歌曲标题和艺术家（用于跨设备恢复）。
+    /// </summary>
+    /// <returns>播放记录备份条目列表。</returns>
     private async Task<List<PlayHistoryBackupEntry>> LoadPlayHistoryWithInfoAsync()
     {
         var history = await _db.GetRecentPlaysAsync(200);
@@ -324,6 +342,10 @@ public class BackupService
         }).ToList();
     }
 
+    /// <summary>
+    /// 加载所有收藏记录，附带歌曲标题和艺术家（用于跨设备恢复）。
+    /// </summary>
+    /// <returns>收藏备份条目列表。</returns>
     private async Task<List<FavoriteBackupEntry>> LoadFavoritesWithInfoAsync()
     {
         var favs = await _db.GetFavoritesAsync();
@@ -343,6 +365,10 @@ public class BackupService
         }).ToList();
     }
 
+    /// <summary>
+    /// 加载所有包含元数据（性别/生日/地区/简介）的艺术家。
+    /// </summary>
+    /// <returns>艺术家备份条目列表。</returns>
     private async Task<List<ArtistBackupEntry>> LoadArtistMetadataAsync()
     {
         var artists = await _db.GetAllArtistsAsync();
@@ -362,6 +388,11 @@ public class BackupService
             .ToList();
     }
 
+    /// <summary>
+    /// 恢复歌单及其歌曲关联。
+    /// 通过歌单名称去重，歌曲匹配优先用 SongId，其次用 Title+Artist 组合键。
+    /// </summary>
+    /// <param name="data">备份数据。</param>
     private async Task RestorePlaylistsAsync(BackupData data)
     {
         // 获取当前歌单名称集合，避免重复
@@ -410,6 +441,10 @@ public class BackupService
         }
     }
 
+    /// <summary>
+    /// 恢复播放记录。通过 SongId 或 Title+Artist 匹配本地歌曲，重复 RecordPlay 以还原播放次数。
+    /// </summary>
+    /// <param name="data">备份数据。</param>
     private async Task RestorePlayHistoryAsync(BackupData data)
     {
         var allSongs = await _db.GetSongsAsync();
@@ -446,6 +481,10 @@ public class BackupService
         }
     }
 
+    /// <summary>
+    /// 恢复收藏记录。通过 SongId 或 Title+Artist 匹配本地歌曲，已收藏的跳过。
+    /// </summary>
+    /// <param name="data">备份数据。</param>
     private async Task RestoreFavoritesAsync(BackupData data)
     {
         var allSongs = await _db.GetSongsAsync();
@@ -483,6 +522,10 @@ public class BackupService
         }
     }
 
+    /// <summary>
+    /// 恢复艺术家元数据。仅当本地对应字段为空时才填充，避免覆盖用户已编辑的数据。
+    /// </summary>
+    /// <param name="data">备份数据。</param>
     private async Task RestoreArtistMetadataAsync(BackupData data)
     {
         var artists = await _db.GetAllArtistsAsync();
@@ -507,6 +550,10 @@ public class BackupService
         }
     }
 
+    /// <summary>
+    /// 恢复 LLM 配置（AI 模型配置、当前配置名、当前 Agent ID）。
+    /// </summary>
+    /// <param name="data">备份数据。</param>
     private void RestoreLlmConfigs(BackupData data)
     {
         if (data.LlmConfigs.Count > 0)
@@ -519,6 +566,11 @@ public class BackupService
 
     // ═══════════ ZIP 打包 / 解压 ═══════════
 
+    /// <summary>
+    /// 将 backup.json 和 covers/ 目录打包成单一 zip 文件。
+    /// </summary>
+    /// <param name="zipPath">目标 zip 文件路径。</param>
+    /// <param name="jsonPath">backup.json 文件路径。</param>
     private static void CreateBackupZip(string zipPath, string jsonPath)
     {
         var coversDir = GetBackupCoversDirectory(jsonPath);
@@ -538,6 +590,10 @@ public class BackupService
         }
     }
 
+    /// <summary>
+    /// 清理备份过程中产生的中间文件（backup.json 和临时 covers 目录）。
+    /// </summary>
+    /// <param name="jsonPath">backup.json 文件路径。</param>
     private static void CleanupBackupTempFiles(string jsonPath)
     {
         try
@@ -556,6 +612,12 @@ public class BackupService
         catch { /* 清理失败不影响备份结果 */ }
     }
 
+    /// <summary>
+    /// 从 zip 备份文件中读取 backup.json 并反序列化为 BackupData。
+    /// </summary>
+    /// <param name="zipPath">zip 备份文件路径。</param>
+    /// <returns>反序列化后的备份数据。</returns>
+    /// <exception cref="InvalidOperationException">zip 中缺少 backup.json 或格式无效。</exception>
     private static async Task<BackupData> ReadBackupDataFromZipAsync(string zipPath)
     {
         using var zipStream = System.IO.File.OpenRead(zipPath);
@@ -572,6 +634,14 @@ public class BackupService
             ?? throw new InvalidOperationException("备份文件格式无效");
     }
 
+    /// <summary>
+    /// 从 zip 备份文件恢复艺术家封面到本地缓存目录，并更新数据库中的 Cover 路径。
+    /// </summary>
+    /// <param name="zipPath">zip 备份文件路径。</param>
+    /// <param name="data">备份数据。</param>
+    /// <param name="progress">进度回调。</param>
+    /// <param name="startPercent">起始进度百分比。</param>
+    /// <param name="endPercent">结束进度百分比。</param>
     private async Task RestoreArtistCoversFromZipAsync(
         string zipPath, BackupData data, IProgress<BackupProgress>? progress, int startPercent, int endPercent)
     {
@@ -616,6 +686,16 @@ public class BackupService
         }
     }
 
+    /// <summary>
+    /// 加载艺术家封面文件到备份临时目录，返回备份条目列表。
+    /// 优先使用数据库中记录的 Cover 路径；若失效，则在缓存目录按艺术家名兜底查找。
+    /// </summary>
+    /// <param name="backupFilePath">备份文件路径（用于推导临时 covers 目录）。</param>
+    /// <param name="data">备份数据。</param>
+    /// <param name="progress">进度回调。</param>
+    /// <param name="startPercent">起始进度百分比。</param>
+    /// <param name="endPercent">结束进度百分比。</param>
+    /// <returns>艺术家封面备份条目列表。</returns>
     private async Task<List<ArtistCoverBackupEntry>> LoadArtistCoversAsync(
         string backupFilePath, BackupData data, IProgress<BackupProgress>? progress, int startPercent, int endPercent)
     {
@@ -746,6 +826,14 @@ public class BackupService
         return null;
     }
 
+    /// <summary>
+    /// 从旧版 JSON 备份的临时 covers 目录恢复艺术家封面（zip 备份请使用 RestoreArtistCoversFromZipAsync）。
+    /// </summary>
+    /// <param name="backupFilePath">备份文件路径。</param>
+    /// <param name="data">备份数据。</param>
+    /// <param name="progress">进度回调。</param>
+    /// <param name="startPercent">起始进度百分比。</param>
+    /// <param name="endPercent">结束进度百分比。</param>
     private async Task RestoreArtistCoversAsync(
         string backupFilePath, BackupData data, IProgress<BackupProgress>? progress, int startPercent, int endPercent)
     {
@@ -783,11 +871,21 @@ public class BackupService
         }
     }
 
+    /// <summary>
+    /// 根据备份文件路径推导临时 covers 目录路径（与备份文件同名 + "_covers" 后缀）。
+    /// </summary>
+    /// <param name="backupFilePath">备份文件路径。</param>
+    /// <returns>临时 covers 目录路径。</returns>
     private static string GetBackupCoversDirectory(string backupFilePath)
         => System.IO.Path.Combine(
             System.IO.Path.GetDirectoryName(backupFilePath)!,
             System.IO.Path.GetFileNameWithoutExtension(backupFilePath) + "_covers");
 
+    /// <summary>
+    /// 异步复制文件。
+    /// </summary>
+    /// <param name="sourcePath">源文件路径。</param>
+    /// <param name="destPath">目标文件路径。</param>
     private static async Task CopyFileAsync(string sourcePath, string destPath)
     {
         await using var sourceStream = System.IO.File.OpenRead(sourcePath);
@@ -795,6 +893,11 @@ public class BackupService
         await sourceStream.CopyToAsync(destStream);
     }
 
+    /// <summary>
+    /// 将艺术家名中的非法文件名字符替换为下划线，空名返回 "unknown"。
+    /// </summary>
+    /// <param name="name">原始艺术家名。</param>
+    /// <returns>安全文件名。</returns>
     private static string SanitizeFileName(string name)
     {
         var invalid = System.IO.Path.GetInvalidFileNameChars();
@@ -802,6 +905,12 @@ public class BackupService
         return string.IsNullOrWhiteSpace(sanitized) ? "unknown" : sanitized;
     }
 
+    /// <summary>
+    /// 安全报告进度，progress 为 null 时无操作。
+    /// </summary>
+    /// <param name="progress">进度回调。</param>
+    /// <param name="percent">百分比。</param>
+    /// <param name="message">状态消息。</param>
     private static void Report(IProgress<BackupProgress>? progress, int percent, string message)
     {
         progress?.Report(new BackupProgress { Percent = percent, Message = message });

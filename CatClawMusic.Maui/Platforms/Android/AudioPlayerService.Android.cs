@@ -7,40 +7,67 @@ using CatClawMusic.Maui.Platforms.Android;
 using SimpleExoPlayer = AndroidX.Media3.ExoPlayer.SimpleExoPlayer;
 namespace CatClawMusic.Maui.Services;
 
-/// <summary>基于 Media3 ExoPlayer + FFmpeg 的 Android 音频播放服务</summary>
+/// <summary>基于 Media3 ExoPlayer + FFmpeg 的 Android 音频播放服务，提供音频播放、暂停、跳转、音量控制及前台通知、音频焦点、唤醒锁等能力</summary>
 public partial class AudioPlayerService
 {
+    /// <summary>ExoPlayer 播放器实例</summary>
     private SimpleExoPlayer? _player;
+    /// <summary>当前音量（0.0 ~ 1.0）</summary>
     private float _volume = 1.0f;
+    /// <summary>ExoPlayer 是否已进入 STATE_READY/STATE_ENDED 状态（即 Prepare 完成）</summary>
     private volatile bool _isPrepared;
+    /// <summary>由 ExoPlayerListener 维护的真实播放状态，避免依赖 .NET 绑定的 IsPlaying 属性</summary>
     private volatile bool _isActuallyPlaying;
+    /// <summary>Android 上下文，由 MainActivity 注入，用于启动前台服务及获取系统服务</summary>
     private global::Android.Content.Context? _androidContext;
+    /// <summary>播放期间持有的 PARTIAL_WAKE_LOCK，防止 CPU 进入休眠</summary>
     private PowerManager.WakeLock? _wakeLock;
+    /// <summary>Android 音频管理器，用于请求/释放音频焦点</summary>
     private AudioManager? _audioManager;
+    /// <summary>是否因短暂失去音频焦点而自动暂停，焦点恢复后用于决定是否自动继续播放</summary>
     private bool _pausedByFocusLoss;
+    /// <summary>最近一次缓存的播放位置（毫秒），避免播放器释放后无法获取进度</summary>
     private long _cachedPositionMs;
+    /// <summary>当前播放文件的 URI 字符串</summary>
     private string? _currentPath;
+    /// <summary>FFmpeg 转码服务实例，用于处理 ExoPlayer 原生不支持的音频格式</summary>
     private FFmpegService? _ffmpeg;
+    /// <summary>绑定到主线程 Looper 的 Handler，用于在主线程上回调 UI 相关事件</summary>
     private readonly Android.OS.Handler _mainHandler = new(Looper.MainLooper!);
+    /// <summary>最近一次 SeekTo 调用的时间戳（Ticks），用于防抖避免频繁跳转</summary>
     private long _lastSeekTicks;
+    /// <summary>Seek 防抖窗口时间（毫秒），在该时间内的重复 seek 将被忽略</summary>
     private const int SeekGuardMs = 800;
+    /// <summary>ExoPlayer 状态监听器实例</summary>
     private ExoPlayerListener? _playerListener;
 
     // Audio focus listener
+    /// <summary>音频焦点变化监听器实例</summary>
     private AudioFocusListener? _focusListener;
 
+    /// <summary>平台特定的初始化逻辑：注册音频管理器、音频焦点监听器以及前台服务通知回调</summary>
     partial void InitializePlatform()
     {
         var ctx = global::Android.App.Application.Context;
         _audioManager = (AudioManager?)ctx.GetSystemService(Context.AudioService);
         _focusListener = new AudioFocusListener(this);
+
+        ForegroundPlayerService.OnPlayPauseRequested += OnNotifPlayPauseRequested;
+        ForegroundPlayerService.OnNextRequested += OnNotifNextRequested;
+        ForegroundPlayerService.OnPreviousRequested += OnNotifPreviousRequested;
+        ForegroundPlayerService.OnLyricsRequested += OnNotifLyricsRequested;
+        ForegroundPlayerService.OnFavoriteToggled += OnNotifFavoriteToggled;
     }
 
+    /// <summary>注入 Android 上下文，用于启动前台服务及获取系统服务</summary>
+    /// <param name="context">Android 上下文，通常由 MainActivity 提供</param>
     public void SetAndroidContext(global::Android.Content.Context context)
     {
         _androidContext = context;
     }
 
+    /// <summary>注入 FFmpeg 服务实例，用于处理 ExoPlayer 原生不支持的音频格式</summary>
+    /// <param name="ffmpeg">FFmpeg 服务实例</param>
     public void SetFFmpegService(FFmpegService ffmpeg)
     {
         _ffmpeg = ffmpeg;
@@ -50,6 +77,8 @@ public partial class AudioPlayerService
     // ExoPlayer 构建
     // ═══════════════════════════════════════
 
+    /// <summary>确保 ExoPlayer 实例已创建，若尚未创建则按当前音量与监听器配置构建一个新的实例</summary>
+    /// <returns>已创建或已存在的 SimpleExoPlayer 实例</returns>
     private SimpleExoPlayer EnsurePlayer()
     {
         if (_player != null) return _player;
@@ -71,11 +100,16 @@ public partial class AudioPlayerService
     // 播放核心
     // ═══════════════════════════════════════
 
+    /// <summary>平台特定的播放入口，由跨平台 AudioPlayerService 调用</summary>
+    /// <param name="source">音频源 URI</param>
     partial void PlatformPlay(Uri source)
     {
         _ = PlayInternalAsync(source, autoPlay: true);
     }
 
+    /// <summary>执行实际的播放流程：重置状态、必要时通过 FFmpeg 转码、设置媒体项、Prepare 并启动前台服务</summary>
+    /// <param name="source">音频源 URI</param>
+    /// <param name="autoPlay">是否在 Prepare 完成后立即开始播放</param>
     private async Task PlayInternalAsync(Uri source, bool autoPlay)
     {
         // 重置状态：在切换歌曲期间，IsPlaying 应返回 false，
@@ -97,7 +131,8 @@ public partial class AudioPlayerService
             var localPath = source.IsFile ? source.LocalPath :
                 source.Scheme == "file" ? source.AbsolutePath : null;
 
-            if (localPath != null && _ffmpeg != null && _ffmpeg.IsAvailable && NeedsTranscoding(localPath))
+            var ffmpegEnabled = Preferences.Get("ffmpeg_enabled", true);
+            if (ffmpegEnabled && localPath != null && _ffmpeg != null && _ffmpeg.IsAvailable && NeedsTranscoding(localPath))
             {
                 System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 转码: {Path.GetFileName(localPath)}");
                 var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath);
@@ -127,12 +162,14 @@ public partial class AudioPlayerService
         }
     }
 
-    /// <summary>ExoPlayer 播放失败后的 FFmpeg 兜底</summary>
+    /// <summary>ExoPlayer 播放失败后的 FFmpeg 兜底：将原文件转码为 WAV 后再次尝试播放</summary>
+    /// <param name="source">原始音频源 URI</param>
     private async Task TryFFmpegFallbackAsync(Uri source)
     {
         var localPath = source.IsFile ? source.LocalPath :
             source.Scheme == "file" ? source.AbsolutePath : null;
-        if (localPath == null || _ffmpeg == null || !_ffmpeg.IsAvailable) return;
+        var ffmpegEnabled = Preferences.Get("ffmpeg_enabled", true);
+        if (!ffmpegEnabled || localPath == null || _ffmpeg == null || !_ffmpeg.IsAvailable) return;
 
         try
         {
@@ -159,6 +196,9 @@ public partial class AudioPlayerService
         }
     }
 
+    /// <summary>判断指定文件是否需要 FFmpeg 转码（ExoPlayer 原生不支持的格式）</summary>
+    /// <param name="filePath">文件路径</param>
+    /// <returns>需要转码返回 true，否则返回 false</returns>
     private static bool NeedsTranscoding(string filePath)
     {
         var ext = Path.GetExtension(filePath)?.ToLowerInvariant();
@@ -170,11 +210,13 @@ public partial class AudioPlayerService
     // 播放控制
     // ═══════════════════════════════════════
 
+    /// <summary>平台特定的暂停逻辑：暂停 ExoPlayer、释放唤醒锁并放弃音频焦点</summary>
     partial void PlatformPause()
     {
         try { _player?.Pause(); ReleaseWakeLock(); AbandonAudioFocus(); } catch { }
     }
 
+    /// <summary>平台特定的恢复播放逻辑：恢复 ExoPlayer 播放、重新获取唤醒锁与音频焦点</summary>
     partial void PlatformResume()
     {
         try
@@ -190,6 +232,7 @@ public partial class AudioPlayerService
         catch { }
     }
 
+    /// <summary>平台特定的停止逻辑：停止播放器、清空媒体项并重置状态、释放唤醒锁与音频焦点</summary>
     partial void PlatformStop()
     {
         try
@@ -205,6 +248,8 @@ public partial class AudioPlayerService
         catch { }
     }
 
+    /// <summary>平台特定的跳转逻辑：跳转到指定位置并更新缓存</summary>
+    /// <param name="position">目标位置</param>
     partial void PlatformSeek(TimeSpan position)
     {
         try
@@ -216,6 +261,8 @@ public partial class AudioPlayerService
         catch { }
     }
 
+    /// <summary>获取平台真实的播放状态（由 ExoPlayerListener 维护）</summary>
+    /// <returns>正在播放返回 true，否则返回 false</returns>
     private partial bool GetPlatformIsPlaying()
     {
         // 使用 listener 维护的真实状态，避免 ExoPlayer.IsPlaying 绑定差异
@@ -229,6 +276,8 @@ public partial class AudioPlayerService
         // 不再通过定时器检测，避免延迟和重复触发
     }
 
+    /// <summary>获取当前播放位置（秒），优先取 ExoPlayer 实时位置，失败时回退到缓存值</summary>
+    /// <returns>当前播放位置（秒）</returns>
     private partial double GetPlatformCurrentPositionSeconds()
     {
         try
@@ -243,6 +292,8 @@ public partial class AudioPlayerService
         return _cachedPositionMs / 1000.0;
     }
 
+    /// <summary>获取音频总时长（秒），仅当 ExoPlayer 报告的时长大于 0 时返回</summary>
+    /// <returns>音频总时长（秒），无法获取时返回 0</returns>
     private partial double GetPlatformDurationSeconds()
     {
         try
@@ -261,14 +312,19 @@ public partial class AudioPlayerService
         return 0;
     }
 
+    /// <summary>获取当前音量（0.0 ~ 1.0）</summary>
+    /// <returns>当前音量</returns>
     private partial double GetPlatformVolume() => _volume;
 
+    /// <summary>设置当前音量，并同步到 ExoPlayer</summary>
+    /// <param name="volume">音量值（0.0 ~ 1.0）</param>
     partial void SetPlatformVolume(double volume)
     {
         _volume = (float)Math.Clamp(volume, 0.0, 1.0);
         try { if (_player != null) _player.Volume = _volume; } catch { }
     }
 
+    /// <summary>释放平台相关资源：停止前台服务、释放唤醒锁与音频焦点、释放 ExoPlayer 及监听器</summary>
     partial void DisposePlatform()
     {
         StopForegroundService();
@@ -304,10 +360,15 @@ public partial class AudioPlayerService
     /// </summary>
     private sealed class ExoPlayerListener : Java.Lang.Object, IPlayerListener
     {
+        /// <summary>拥有该监听器的 AudioPlayerService 实例</summary>
         private readonly AudioPlayerService _owner;
 
+        /// <summary>构造监听器并关联播放服务实例</summary>
+        /// <param name="owner">拥有该监听器的 AudioPlayerService 实例</param>
         public ExoPlayerListener(AudioPlayerService owner) => _owner = owner;
 
+        /// <summary>播放状态变化回调：在 STATE_READY 时推送时长与位置，在 STATE_ENDED 时触发完成事件并停止服务</summary>
+        /// <param name="playbackState">播放状态值，STATE_IDLE=1, STATE_BUFFERING=2, STATE_READY=3, STATE_ENDED=4</param>
         public void OnPlaybackStateChanged(int playbackState)
         {
             // STATE_IDLE=1, STATE_BUFFERING=2, STATE_READY=3, STATE_ENDED=4
@@ -345,6 +406,8 @@ public partial class AudioPlayerService
             System.Diagnostics.Debug.WriteLine($"[ExoPlayer] State={playbackState} prepared={_owner._isPrepared}");
         }
 
+        /// <summary>IsPlaying 状态变化回调：同步更新真实播放状态，并通知上层 PlaybackStateChanged</summary>
+        /// <param name="isPlaying">是否正在播放</param>
         public void OnIsPlayingChanged(bool isPlaying)
         {
             _owner._isActuallyPlaying = isPlaying;
@@ -359,6 +422,9 @@ public partial class AudioPlayerService
             }
         }
 
+        /// <summary>PlayWhenReady 变化回调：当 PlayWhenReady=false 时立即标记为未播放，避免在 buffering 期间误判</summary>
+        /// <param name="playWhenReady">是否准备好播放</param>
+        /// <param name="reason">变化原因</param>
         public void OnPlayWhenReadyChanged(bool playWhenReady, int reason)
         {
             // 如果 playWhenReady=false 但仍在 buffering，IsPlaying 也会变 false
@@ -376,6 +442,7 @@ public partial class AudioPlayerService
     // Wake Lock
     // ═══════════════════════════════════════
 
+    /// <summary>获取 PARTIAL_WAKE_LOCK，防止播放期间 CPU 进入休眠。若已存在但未持有则重新 Acquire</summary>
     private void AcquireWakeLock()
     {
         if (_wakeLock == null)
@@ -390,6 +457,7 @@ public partial class AudioPlayerService
         }
     }
 
+    /// <summary>释放持有的唤醒锁（若已持有）</summary>
     private void ReleaseWakeLock()
     {
         if (_wakeLock?.IsHeld == true)
@@ -402,6 +470,7 @@ public partial class AudioPlayerService
     // Audio Focus
     // ═══════════════════════════════════════
 
+    /// <summary>请求音频焦点（Gain 模式），用于在播放期间独占音频输出</summary>
     private void RequestAudioFocus()
     {
         if (_audioManager == null || _focusListener == null) return;
@@ -413,6 +482,7 @@ public partial class AudioPlayerService
         catch { }
     }
 
+    /// <summary>放弃音频焦点并重置因焦点失去而暂停的标记</summary>
     private void AbandonAudioFocus()
     {
         if (_audioManager == null || _focusListener == null) return;
@@ -424,6 +494,8 @@ public partial class AudioPlayerService
         catch { }
     }
 
+    /// <summary>处理音频焦点变化：根据焦点类型决定继续播放、暂停、降低音量或停止</summary>
+    /// <param name="focusChange">音频焦点变化类型</param>
     internal void HandleAudioFocusChange(AudioFocus focusChange)
     {
         switch (focusChange)
@@ -451,10 +523,16 @@ public partial class AudioPlayerService
     // Audio Focus Listener
     // ═══════════════════════════════════════
 
+    /// <summary>音频焦点变化监听器：将系统回调转发到主线程，由 AudioPlayerService 处理</summary>
     private class AudioFocusListener : Java.Lang.Object, AudioManager.IOnAudioFocusChangeListener
     {
+        /// <summary>拥有该监听器的 AudioPlayerService 实例</summary>
         private readonly AudioPlayerService _s;
+        /// <summary>构造监听器并关联播放服务实例</summary>
+        /// <param name="s">拥有该监听器的 AudioPlayerService 实例</param>
         public AudioFocusListener(AudioPlayerService s) => _s = s;
+        /// <summary>系统音频焦点变化回调，转发到主线程处理</summary>
+        /// <param name="focusChange">音频焦点变化类型</param>
         public void OnAudioFocusChange(AudioFocus focusChange)
         {
             _s._mainHandler.Post(() => _s.HandleAudioFocusChange(focusChange));
@@ -465,9 +543,14 @@ public partial class AudioPlayerService
     // 前台服务
     // ═══════════════════════════════════════
 
+    /// <summary>当前歌曲标题（用于前台通知）</summary>
     private string _currentTitle = "";
+    /// <summary>当前歌曲艺术家（用于前台通知）</summary>
     private string _currentArtist = "";
 
+    /// <summary>更新当前歌曲信息并刷新前台通知显示</summary>
+    /// <param name="title">歌曲标题</param>
+    /// <param name="artist">歌曲艺术家</param>
     public void UpdateSongInfo(string title, string artist)
     {
         _currentTitle = title;
@@ -475,6 +558,7 @@ public partial class AudioPlayerService
         UpdateForegroundNotification();
     }
 
+    /// <summary>启动前台播放服务</summary>
     private void StartForegroundService()
     {
         var ctx = _androidContext ?? global::Android.App.Application.Context;
@@ -482,14 +566,101 @@ public partial class AudioPlayerService
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AudioPlayer] FG start: {ex.Message}"); }
     }
 
+    /// <summary>停止前台播放服务</summary>
     private void StopForegroundService()
     {
         var ctx = _androidContext ?? global::Android.App.Application.Context;
         try { ForegroundPlayerService.Stop(ctx); } catch { }
     }
 
+    /// <summary>更新前台通知的播放状态与歌曲信息</summary>
     private void UpdateForegroundNotification()
     {
-        try { ForegroundPlayerService.UpdatePlayState(_currentTitle, _currentArtist, IsPlaying); } catch { }
+        try
+        {
+            var isFavorite = false;
+            try { isFavorite = false; } catch { }
+            Android.Graphics.Bitmap? albumArt = null;
+            ForegroundPlayerService.UpdatePlayState(_currentTitle, _currentArtist, IsPlaying, isFavorite, albumArt);
+        }
+        catch { }
+    }
+
+    /// <summary>前台通知"播放/暂停"按钮回调：在主线程切换播放状态</summary>
+    /// <param name="shouldPlay">true 表示请求播放，false 表示请求暂停</param>
+    private void OnNotifPlayPauseRequested(bool shouldPlay)
+    {
+        _mainHandler.Post(async () =>
+        {
+            try
+            {
+                if (shouldPlay)
+                    await ResumeAsync();
+                else
+                    await PauseAsync();
+            }
+            catch { }
+        });
+    }
+
+    /// <summary>前台通知"下一首"按钮回调：在主线程触发 PlayNextRequested 事件</summary>
+    private void OnNotifNextRequested()
+    {
+        _mainHandler.Post(async () =>
+        {
+            try
+            {
+                if (PlayNextRequested != null)
+                    await PlayNextRequested.Invoke();
+            }
+            catch { }
+        });
+    }
+
+    /// <summary>前台通知"上一首"按钮回调：在主线程触发 PlayPreviousRequested 事件</summary>
+    private void OnNotifPreviousRequested()
+    {
+        _mainHandler.Post(async () =>
+        {
+            try
+            {
+                if (PlayPreviousRequested != null)
+                    await PlayPreviousRequested.Invoke();
+            }
+            catch { }
+        });
+    }
+
+    /// <summary>前台通知"歌词"按钮回调：在主线程导航到全屏歌词页</summary>
+    private void OnNotifLyricsRequested()
+    {
+        _mainHandler.Post(() =>
+        {
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    if (Application.Current?.Windows[0]?.Page is Page page)
+                    {
+                        await Shell.Current.GoToAsync("nowplaying/fullyrics");
+                    }
+                });
+            }
+            catch { }
+        });
+    }
+
+    /// <summary>前台通知"收藏"按钮回调：在主线程触发 FavoriteToggled 事件</summary>
+    /// <param name="isFavorite">收藏按钮最新状态</param>
+    private void OnNotifFavoriteToggled(bool isFavorite)
+    {
+        _mainHandler.Post(async () =>
+        {
+            try
+            {
+                FavoriteToggled?.Invoke(isFavorite);
+            }
+            catch { }
+        });
     }
 }

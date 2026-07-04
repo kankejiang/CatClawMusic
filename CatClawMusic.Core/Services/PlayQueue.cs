@@ -206,6 +206,7 @@ public class PlayQueue
         RebuildIndex();
     }
 
+    /// <summary>将一首歌追加到播放队列末尾</summary>
     public void AddToEnd(Song song)
     {
         _originalList.Add(song);
@@ -342,8 +343,12 @@ public static class ShuffleService
 /// </summary>
 public enum PlayMode
 {
-    Sequential,      // 顺序播放
-    Shuffle,         // 随机播放
-    SingleRepeat,    // 单曲循环
-    ListRepeat       // 列表循环
+    /// <summary>顺序播放（播完即止）</summary>
+    Sequential,
+    /// <summary>随机播放</summary>
+    Shuffle,
+    /// <summary>单曲循环</summary>
+    SingleRepeat,
+    /// <summary>列表循环</summary>
+    ListRepeat
 }

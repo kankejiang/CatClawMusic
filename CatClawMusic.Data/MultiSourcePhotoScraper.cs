@@ -8,16 +8,27 @@ namespace CatClawMusic.Data;
 /// </summary>
 public class MultiSourcePhotoScraper : IArtistMetadataScraper
 {
+    /// <summary>艺术家封面缓存目录绝对路径</summary>
     private readonly string _artistCoverCacheDir;
 
+    /// <summary>数据源名称：QQ音乐</summary>
     public string SourceName => "QQ音乐";
 
+    /// <summary>
+    /// 初始化 QQ 音乐刮削器。
+    /// </summary>
+    /// <param name="artistCoverCacheDir">艺术家封面缓存目录（不存在会自动创建）。</param>
     public MultiSourcePhotoScraper(string artistCoverCacheDir)
     {
         _artistCoverCacheDir = artistCoverCacheDir;
         Directory.CreateDirectory(_artistCoverCacheDir);
     }
 
+    /// <summary>
+    /// 创建配置好浏览器 UA 和超时的 HTTP 客户端。
+    /// 每次调用都新建实例，避免连接池长期占用。
+    /// </summary>
+    /// <returns>配置好的 HttpClient 实例。</returns>
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
@@ -32,7 +43,13 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
         return await SearchQqMusicAsync(name, limit);
     }
 
-    /// <summary>下载并保存艺术家封面到缓存</summary>
+    /// <summary>
+    /// 下载并保存艺术家封面到缓存目录。
+    /// 若 coverUrl 已是本地文件路径则直接返回。
+    /// </summary>
+    /// <param name="coverUrl">封面图片 URL 或本地路径。</param>
+    /// <param name="artistName">艺术家名称（用于生成缓存文件名）。</param>
+    /// <returns>缓存文件绝对路径；URL 为空、已存在缓存或下载失败时返回 null。</returns>
     public async Task<string?> DownloadAndCacheArtistCoverAsync(string coverUrl, string artistName)
     {
         if (!string.IsNullOrEmpty(coverUrl) && File.Exists(coverUrl))
@@ -112,6 +129,13 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
         }
     }
 
+    /// <summary>
+    /// 通过 QQ音乐 smartbox 接口搜索艺术家。
+    /// 对每个结果，若有 mid 则尝试调用 GetQqMusicArtistInfoAsync 获取详细信息。
+    /// </summary>
+    /// <param name="name">艺术家名称关键词。</param>
+    /// <param name="limit">最大返回数量。</param>
+    /// <returns>匹配的艺术家列表；请求失败时返回空列表。</returns>
     private async Task<List<ArtistSearchResult>> SearchQqMusicAsync(string name, int limit)
     {
         var results = new List<ArtistSearchResult>();
@@ -169,6 +193,12 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
 
     // ==================== 缓存路径 ====================
 
+    /// <summary>
+    /// 根据艺术家名称生成 QQ音乐封面缓存文件路径。
+    /// 文件名添加 "_qq" 后缀以避免与其他来源的封面冲突。
+    /// </summary>
+    /// <param name="artistName">艺术家名称。</param>
+    /// <returns>缓存文件绝对路径。</returns>
     private string GetArtistCoverPath(string artistName)
     {
         var safeName = string.Join("_", artistName.Split(Path.GetInvalidFileNameChars()));

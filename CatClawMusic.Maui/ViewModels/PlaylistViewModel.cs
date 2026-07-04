@@ -7,6 +7,10 @@ using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>
+/// 歌单列表页 ViewModel：管理 3 个系统歌单（全部歌曲/收藏/最近播放）与用户自定义歌单的加载、
+/// 创建、删除、收藏切换与计数刷新等交互。
+/// </summary>
 public partial class PlaylistViewModel : ObservableObject
 {
     private readonly IMusicLibraryService _musicLibrary;
@@ -15,20 +19,29 @@ public partial class PlaylistViewModel : ObservableObject
 
     private static readonly long _epoch = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
 
+    /// <summary>歌单集合（含系统歌单与用户歌单）</summary>
     public ObservableCollection<Playlist> Playlists { get; } = new();
 
+    /// <summary>状态文本（用于向用户展示加载进度或结果）</summary>
     [ObservableProperty]
     private string _statusText = "";
 
+    /// <summary>是否正在加载歌单数据</summary>
     [ObservableProperty]
     private bool _isLoading = false;
 
+    /// <summary>
+    /// 初始化 <see cref="PlaylistViewModel"/> 实例。
+    /// </summary>
+    /// <param name="musicLibrary">音乐库服务，用于读写歌单数据</param>
+    /// <param name="db">音乐数据库访问对象</param>
     public PlaylistViewModel(IMusicLibraryService musicLibrary, MusicDatabase db)
     {
         _musicLibrary = musicLibrary;
         _db = db;
     }
 
+    /// <summary>标记数据已变更，下次刷新时强制重新加载</summary>
     public void MarkDirty() => _isDirty = true;
 
     /// <summary>
