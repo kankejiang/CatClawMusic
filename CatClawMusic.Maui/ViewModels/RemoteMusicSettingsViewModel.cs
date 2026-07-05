@@ -363,9 +363,7 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
 
         try
         {
-            var cached = await _db.GetCachedNetworkSongsAsync();
-            foreach (var s in cached)
-                await _db.DeleteCachedSongAsync(s.Id);
+            await _db.ClearCachedNetworkSongsAsync();
             await RefreshAsync();
             await ToastAsync("已清空缓存");
         }

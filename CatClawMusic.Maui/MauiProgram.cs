@@ -340,6 +340,7 @@ public static class MauiProgram
 
         // 初始化 SMB 代理并配置播放器 URL 转换器
         var smbProxy = Services.GetRequiredService<SmbStreamProxy>();
+        var networkMusic = Services.GetRequiredService<INetworkMusicService>();
         AudioPlayerService.UrlTransformer = url =>
         {
             if (url.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
@@ -347,7 +348,25 @@ public static class MauiProgram
             return null;
         };
 
-        // 扩展 RemoteUrlStreamOpener 支持 smb:// URL（用于读取内嵌歌词）
+        // 异步 URL 解析器：修复 WebDAV/OpenList URL（添加 /dav 前缀或获取签名 raw_url）
+        AudioPlayerService.AsyncUrlResolver = async url =>
+        {
+            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    return await networkMusic.ResolveWebDavPlaybackUrlAsync(url);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[AsyncUrlResolver] WebDAV URL 解析失败: {ex.Message}");
+                }
+            }
+            return null;
+        };
+
+        // 扩展 RemoteUrlStreamOpener 支持 smb:// URL（用于读取内嵌歌词）和 WebDAV URL 修复
         var prevStreamOpener = LyricsService.RemoteUrlStreamOpener;
         LyricsService.RemoteUrlStreamOpener = url =>
         {
@@ -369,6 +388,53 @@ public static class MauiProgram
                     return null;
                 }
             }
+
+            // WebDAV HTTP URL：先解析正确的URL（修复/dav前缀或获取raw_url）
+            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var resolvedUrl = networkMusic.ResolveWebDavPlaybackUrlAsync(url).GetAwaiter().GetResult();
+                    var downloadUrl = string.IsNullOrEmpty(resolvedUrl) ? url : resolvedUrl;
+
+                    var handler = new HttpClientHandler
+                    {
+                        ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+                        AllowAutoRedirect = true
+                    };
+                    using var httpClient = new HttpClient(handler);
+                    httpClient.Timeout = TimeSpan.FromSeconds(20);
+                    httpClient.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
+
+                    try
+                    {
+                        var headReq = new HttpRequestMessage(HttpMethod.Head, downloadUrl);
+                        var headResp = httpClient.Send(headReq);
+                        if (headResp.IsSuccessStatusCode && headResp.Content.Headers.ContentLength.HasValue)
+                        {
+                            var size = headResp.Content.Headers.ContentLength.Value;
+                            if (size > 50 * 1024 * 1024)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Lyrics] 远程文件过大 ({size / 1024 / 1024}MB)，跳过内嵌歌词读取");
+                                return null;
+                            }
+                        }
+                    }
+                    catch { /* HEAD 失败则继续 GET */ }
+
+                    var bytes = httpClient.GetByteArrayAsync(downloadUrl).GetAwaiter().GetResult();
+                    if (bytes.Length == 0) return null;
+                    if (bytes.Length > 50 * 1024 * 1024) return null;
+                    return new MemoryStream(bytes);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] WebDAV/HTTP 流打开异常: {ex.Message}");
+                    return null;
+                }
+            }
+
             return prevStreamOpener?.Invoke(url);
         };
 

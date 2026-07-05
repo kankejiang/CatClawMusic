@@ -19,6 +19,12 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     /// </summary>
     public static Func<string, string?>? UrlTransformer { get; set; }
 
+    /// <summary>
+    /// 异步 URL 解析器：用于需要异步操作的URL解析（如 OpenList raw_url 获取）。
+    /// 输入为原始 URL，返回解析后的URL。返回null则继续使用 UrlTransformer 和原始URL。
+    /// </summary>
+    public static Func<string, Task<string?>>? AsyncUrlResolver { get; set; }
+
     /// <summary>播放状态变化事件（参数为是否正在播放）</summary>
     public event EventHandler<bool>? PlaybackStateChanged;
     /// <summary>播放位置变化事件（参数为当前播放位置）</summary>
@@ -69,13 +75,33 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     /// 支持 http/https/rtsp/content 协议及本地文件路径。
     /// </summary>
     /// <param name="filePath">音频文件路径或网络地址</param>
-    public Task PlayAsync(string filePath)
+    public async Task PlayAsync(string filePath)
     {
         try
         {
             _currentFilePath = filePath;
-            // 应用平台 URL 转换器（如 smb:// → http://127.0.0.1:xxxx/ 代理）
-            var resolvedPath = UrlTransformer?.Invoke(filePath) ?? filePath;
+
+            // 先尝试异步URL解析器（如 OpenList raw_url 获取）
+            string resolvedPath = filePath;
+            if (AsyncUrlResolver != null)
+            {
+                try
+                {
+                    var asyncResolved = await AsyncUrlResolver(filePath);
+                    if (!string.IsNullOrEmpty(asyncResolved))
+                        resolvedPath = asyncResolved;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[AudioPlayerService] AsyncUrlResolver error: {ex.Message}");
+                }
+            }
+
+            // 应用同步 URL 转换器（如 smb:// → http://127.0.0.1:xxxx/ 代理）
+            var syncResolved = UrlTransformer?.Invoke(resolvedPath);
+            if (!string.IsNullOrEmpty(syncResolved))
+                resolvedPath = syncResolved;
+
             PlatformPlay(BuildSourceUri(resolvedPath));
             StartPositionTimer();
             PlaybackStateChanged?.Invoke(this, true);
@@ -84,7 +110,6 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         {
             System.Diagnostics.Debug.WriteLine($"[AudioPlayerService] Play error: {ex.Message}");
         }
-        return Task.CompletedTask;
     }
 
     /// <summary>异步暂停播放</summary>

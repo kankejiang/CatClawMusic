@@ -35,6 +35,8 @@ public class WebDavService : INetworkFileService, IDisposable
     private string? _lastDetectedHost;
     /// <summary>正在进行的异步服务器类型检测任务</summary>
     private Task<WebDavServerType>? _detectionTask;
+    /// <summary>自动探测到的 WebDAV 路径前缀（如 "/dav"、"/webdav"），为空表示无前缀</summary>
+    private string _davPrefix = "";
 
     /// <summary>
     /// 等待首次服务器类型检测完成（如有正在进行的检测）。
@@ -51,8 +53,83 @@ public class WebDavService : INetworkFileService, IDisposable
     }
 
     /// <summary>
+    /// 尝试通过 REST API 检测是否为 OpenList/Alist 服务器
+    /// </summary>
+    private static async Task<bool> IsOpenListByApiAsync(ConnectionProfile profile)
+    {
+        try
+        {
+            var scheme = profile.UseHttps ? "https" : "http";
+            var host = (profile.Host ?? "").TrimEnd('/');
+            if (host.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) host = host[7..];
+            else if (host.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) host = host[8..];
+            var colonIdx = host.LastIndexOf(':');
+            if (colonIdx > 0 && int.TryParse(host[(colonIdx + 1)..], out _)) host = host[..colonIdx];
+            var port = profile.Port;
+            var apiUrl = port == 80 || port == 443
+                ? $"{scheme}://{host}/api/public/settings"
+                : $"{scheme}://{host}:{port}/api/public/settings";
+
+            using var apiClient = new HttpClient(new SocketsHttpHandler
+            {
+                SslOptions = new SslClientAuthenticationOptions
+                {
+                    RemoteCertificateValidationCallback = (_, _, _, _) => true
+                },
+                ConnectTimeout = TimeSpan.FromSeconds(5)
+            })
+            { Timeout = TimeSpan.FromSeconds(5) };
+
+            var apiResp = await apiClient.GetAsync(apiUrl);
+            if (apiResp.IsSuccessStatusCode)
+            {
+                var body = await apiResp.Content.ReadAsStringAsync();
+                if (body.Contains("\"version\"", StringComparison.Ordinal) &&
+                    (body.Contains("alist", StringComparison.OrdinalIgnoreCase) ||
+                     body.Contains("openlist", StringComparison.OrdinalIgnoreCase)))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebDAV] API 检测到 OpenList/Alist");
+                    return true;
+                }
+            }
+        }
+        catch { /* API 检测失败不影响主流程 */ }
+        return false;
+    }
+
+    /// <summary>
+    /// 尝试对指定 URL 发送 PROPFIND depth=0 请求，返回是否成功
+    /// </summary>
+    private async Task<bool> TryPropFindAsync(string url, HttpClient? client = null)
+    {
+        try
+        {
+            var httpClient = client ?? GetClient();
+            var req = new HttpRequestMessage(new HttpMethod("PROPFIND"), url);
+            req.Headers.Add("Depth", "0");
+            req.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
+            var resp = await httpClient.SendAsync(req);
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 对指定组合（前缀 + 路径）尝试 PROPFIND，返回 (是否成功, 完整URL)
+    /// </summary>
+    private async Task<(bool Success, string Url)> TryPropFindWithPrefixAsync(ConnectionProfile profile, string prefix, string path, HttpClient? client = null)
+    {
+        var normalizedPrefix = prefix.TrimEnd('/');
+        var combined = normalizedPrefix + "/" + path.TrimStart('/');
+        if (string.IsNullOrEmpty(combined) || combined == "/") combined = normalizedPrefix != "" ? normalizedPrefix : "/";
+        var url = BuildUrlForProfile(profile, combined, isDirectory: true);
+        var ok = await TryPropFindAsync(url, client);
+        return (ok, url);
+    }
+
+    /// <summary>
     /// 检测 WebDAV 服务器类型（标准 vs OpenList/Alist）
-    /// 通过 OPTIONS 或 PROPFIND 响应的 Server 头判断
+    /// 优先通过 REST API 检测；PROPFIND 返回 405 时自动尝试 /dav、/webdav 等前缀。
     /// </summary>
     public async Task<WebDavServerType> DetectServerTypeAsync(ConnectionProfile profile)
     {
@@ -61,91 +138,95 @@ public class WebDavService : INetworkFileService, IDisposable
             EnsureClient(profile);
             var basePath = profile.BasePath?.Trim() ?? "/";
             if (string.IsNullOrEmpty(basePath)) basePath = "/";
-            var url = BuildUrlForProfile(profile, basePath, isDirectory: true);
 
-            // 使用 PROPFIND depth=0 检查 Server 响应头
-            var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), url);
-            request.Headers.Add("Depth", "0");
-            request.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
+            // ── 第1步：优先通过 REST API 检测 OpenList（不依赖 PROPFIND 可用）──
+            bool isApiOpenList = await IsOpenListByApiAsync(profile);
 
-            var response = await GetClient().SendAsync(request);
-
-            // 405 Method Not Allowed on root: OpenList/Alist 特征（根路径不支持 PROPFIND）
-            if ((int)response.StatusCode == 405 && (basePath == "/" || basePath == ""))
+            // ── 第2步：尝试 PROPFIND，覆盖多种前缀组合 ──
+            // 先尝试无前缀，再尝试 /dav、/webdav 前缀
+            string? foundPrefix = null;
+            string? foundUrl = null;
+            foreach (var prefix in new[] { "", "/dav", "/webdav" })
             {
-                // 尝试 /dav/ 路径确认
-                foreach (var tryPath in new[] { "/dav", "/webdav" })
+                var (ok, url) = await TryPropFindWithPrefixAsync(profile, prefix, basePath, GetClient());
+                if (ok)
                 {
-                    try
-                    {
-                        var tryUrl = BuildUrlForProfile(profile, tryPath, isDirectory: true);
-                        var tryReq = new HttpRequestMessage(new HttpMethod("PROPFIND"), tryUrl);
-                        tryReq.Headers.Add("Depth", "0");
-                        tryReq.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
-                        var tryResp = await GetClient().SendAsync(tryReq);
-                        if (tryResp.IsSuccessStatusCode)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[WebDAV] 根路径 405 + {tryPath} 可用 → OpenList");
-                            DetectedServerType = WebDavServerType.OpenList;
-                            return WebDavServerType.OpenList;
-                        }
-                    }
-                    catch { }
+                    foundPrefix = prefix;
+                    foundUrl = url;
+                    break;
                 }
             }
 
-            if (!response.IsSuccessStatusCode)
-                return WebDavServerType.Standard;
-
-            // 检查 Server 头
-            var serverHeader = response.Headers.Server?.ToString() ?? "";
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] Server 头: '{serverHeader}'");
-            if (serverHeader.Contains("Alist", StringComparison.OrdinalIgnoreCase) ||
-                serverHeader.Contains("OpenList", StringComparison.OrdinalIgnoreCase))
+            // 如果用户路径完全失败，也尝试纯前缀路径（用户可能把整个 WebDAV 端点填在了 basePath 里）
+            if (foundPrefix == null)
             {
+                foreach (var prefix in new[] { "/dav", "/webdav" })
+                {
+                    var tryUrl = BuildUrlForProfile(profile, prefix, isDirectory: true);
+                    if (await TryPropFindAsync(tryUrl, GetClient()))
+                    {
+                        foundPrefix = prefix;
+                        foundUrl = tryUrl;
+                        break;
+                    }
+                }
+            }
+
+            if (foundPrefix != null)
+            {
+                _davPrefix = foundPrefix;
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 成功: prefix='{foundPrefix}', url={foundUrl}");
+            }
+
+            // ── 第3步：综合判断服务器类型 ──
+            if (isApiOpenList)
+            {
+                // API 明确表明是 OpenList
+                if (foundPrefix == null)
+                {
+                    // PROPFIND 完全不行但 API 可用 —— 使用 /dav 默认前缀（所有 Alist/OpenList 都用 /dav）
+                    _davPrefix = "/dav";
+                    System.Diagnostics.Debug.WriteLine($"[WebDAV] API 检测为 OpenList，但 PROPFIND 不可用（将仅使用 REST API，默认前缀 /dav）");
+                }
                 DetectedServerType = WebDavServerType.OpenList;
                 return WebDavServerType.OpenList;
             }
 
-            // 部分 OpenList 实例不在 Server 头中标识，尝试访问 /api/public/settings 判断
-            // （OpenList/Alist 特有的 REST API 端点）
+            if (foundPrefix != null && !string.IsNullOrEmpty(foundPrefix))
+            {
+                // 非空前缀才可用 → OpenList/Alist 特征（标准 WebDAV 不会要求前缀）
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] 需要前缀 '{foundPrefix}' → OpenList");
+                DetectedServerType = WebDavServerType.OpenList;
+                return WebDavServerType.OpenList;
+            }
+
+            if (foundPrefix == null)
+            {
+                // 连无前缀的 PROPFIND 也失败了，无法判断，返回 Standard
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 全部失败，无法确定服务器类型");
+                DetectedServerType = WebDavServerType.Standard;
+                return WebDavServerType.Standard;
+            }
+
+            // PROPFIND 无前缀成功（标准 WebDAV），检查 Server 头确认
             try
             {
-                var scheme = profile.UseHttps ? "https" : "http";
-                var host = (profile.Host ?? "").TrimEnd('/');
-                if (host.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) host = host[7..];
-                else if (host.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) host = host[8..];
-                var colonIdx = host.LastIndexOf(':');
-                if (colonIdx > 0 && int.TryParse(host[(colonIdx + 1)..], out _)) host = host[..colonIdx];
-                var port = profile.Port;
-                var apiUrl = port == 80 || port == 443
-                    ? $"{scheme}://{host}/api/public/settings"
-                    : $"{scheme}://{host}:{port}/api/public/settings";
-
-                using var apiClient = new HttpClient(new SocketsHttpHandler
+                var req = new HttpRequestMessage(new HttpMethod("PROPFIND"), foundUrl);
+                req.Headers.Add("Depth", "0");
+                req.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
+                var resp = await GetClient().SendAsync(req);
+                if (resp.IsSuccessStatusCode)
                 {
-                    SslOptions = new SslClientAuthenticationOptions
-                    {
-                        RemoteCertificateValidationCallback = (_, _, _, _) => true
-                    },
-                    ConnectTimeout = TimeSpan.FromSeconds(5)
-                })
-                { Timeout = TimeSpan.FromSeconds(5) };
-
-                var apiResp = await apiClient.GetAsync(apiUrl);
-                if (apiResp.IsSuccessStatusCode)
-                {
-                    var body = await apiResp.Content.ReadAsStringAsync();
-                    if (body.Contains("\"version\"", StringComparison.Ordinal) &&
-                        (body.Contains("alist", StringComparison.OrdinalIgnoreCase) ||
-                         body.Contains("openlist", StringComparison.OrdinalIgnoreCase)))
+                    var serverHeader = resp.Headers.Server?.ToString() ?? "";
+                    if (serverHeader.Contains("Alist", StringComparison.OrdinalIgnoreCase) ||
+                        serverHeader.Contains("OpenList", StringComparison.OrdinalIgnoreCase))
                     {
                         DetectedServerType = WebDavServerType.OpenList;
                         return WebDavServerType.OpenList;
                     }
                 }
             }
-            catch { /* API 检测失败不影响主流程 */ }
+            catch { }
 
             DetectedServerType = WebDavServerType.Standard;
             return WebDavServerType.Standard;
@@ -212,6 +293,7 @@ public class WebDavService : INetworkFileService, IDisposable
 
     /// <summary>
     /// 基于当前 profile 构建完整的 WebDAV 请求 URL。
+    /// 自动 prepend 已探测到的 dav 前缀（如 /dav）。
     /// </summary>
     /// <param name="path">远程路径（相对或绝对）。</param>
     /// <param name="isDirectory">是否为目录（影响是否补尾部斜杠）。</param>
@@ -219,7 +301,19 @@ public class WebDavService : INetworkFileService, IDisposable
     private string BuildUrl(string path, bool isDirectory = false)
     {
         var profile = _profile ?? throw new InvalidOperationException("未配置连接");
-        return BuildUrlForProfile(profile, path, isDirectory);
+        // 自动拼接 dav 前缀（避免双重前缀）
+        var effectivePath = path;
+        if (!string.IsNullOrEmpty(_davPrefix))
+        {
+            var trimmedPath = path.TrimStart('/');
+            var prefixTrimmed = _davPrefix.Trim('/');
+            if (!trimmedPath.StartsWith(prefixTrimmed + "/", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(trimmedPath, prefixTrimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                effectivePath = _davPrefix.TrimEnd('/') + "/" + trimmedPath;
+            }
+        }
+        return BuildUrlForProfile(profile, effectivePath, isDirectory);
     }
 
     /// <summary>
@@ -382,6 +476,7 @@ public class WebDavService : INetworkFileService, IDisposable
 
     /// <summary>
     /// 测试 WebDAV 服务器连接是否可用
+    /// 自动探测 /dav、/webdav 等前缀（适配 OpenList/Alist），支持任意 basePath。
     /// </summary>
     /// <param name="profile">连接配置</param>
     /// <returns>包含是否成功和消息的元组</returns>
@@ -393,87 +488,148 @@ public class WebDavService : INetworkFileService, IDisposable
         try
         {
             EnsureClient(profile, forceNew: true);
+            _davPrefix = ""; // 重置前缀
             var basePath = profile.BasePath?.Trim() ?? "/";
             if (string.IsNullOrEmpty(basePath)) basePath = "/";
 
-            var basePathUrl = BuildUrlForProfile(profile, basePath, isDirectory: true);
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试连接: {basePathUrl}");
+            // ── 第1步：通过 API 快速检测是否为 OpenList ──
+            bool isApiOpenList = await IsOpenListByApiAsync(profile);
 
-            try
+            // ── 第2步：尝试 PROPFIND 多种组合 ──
+            // 构建要尝试的 (prefix, path) 组合列表
+            var attempts = new List<(string prefix, string path, string desc)>();
+
+            // (a) 无前缀 + 用户路径
+            attempts.Add(("", basePath, $"basePath {basePath}"));
+            // (b) 已知前缀 + 用户路径（OpenList/Alist：WebDAV 端点在 /dav 下）
+            foreach (var p in new[] { "/dav", "/webdav" })
+                attempts.Add((p, basePath, $"{p}{basePath}"));
+            // (c) 非根路径时，也尝试无前缀根路径
+            if (basePath != "/")
+                attempts.Add(("", "/", "/"));
+            // (d) 非根路径时，尝试前缀 + 根路径
+            if (basePath != "/")
+                foreach (var p in new[] { "/dav", "/webdav" })
+                    attempts.Add((p, "/", $"{p}/"));
+
+            string? workingPrefix = null;
+            string? workingUrl = null;
+
+            foreach (var (prefix, path, desc) in attempts)
             {
-                await PropFindAsync(basePathUrl, 1);
-                // 连接成功，尝试自动检测服务器类型
+                var (ok, url) = await TryPropFindWithPrefixAsync(profile, prefix, path, GetClient());
+                if (ok)
+                {
+                    workingPrefix = prefix;
+                    workingUrl = url;
+                    System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试连接 PROPFIND 成功: {desc} → {url}");
+                    break;
+                }
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试连接 PROPFIND 失败: {desc}");
+            }
+
+            if (workingPrefix != null)
+            {
+                _davPrefix = workingPrefix;
+                // 启动后台检测获取完整服务器类型
                 _ = Task.Run(async () =>
                 {
-                    try { await DetectServerTypeAsync(profile); }
-                    catch { /* 检测失败不影响连接结果 */ }
+                    try { CurrentServerType = await DetectServerTypeAsync(profile); }
+                    catch { }
                 });
+
+                if (!string.IsNullOrEmpty(workingPrefix))
+                    return (true, $"连接成功 → {hostInfo}\n检测到 OpenList/Alist，WebDAV 前缀为 {workingPrefix}");
                 return (true, $"连接成功 → {hostInfo}");
             }
-            catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
+
+            // ── 第3步：PROPFIND 全部失败，但 API 检测到 OpenList → 验证 API 可访问 ──
+            if (isApiOpenList)
+            {
+                try
+                {
+                    _openListToken = null;
+                    var apiBaseUrl = BuildApiBaseUrl(profile);
+                    var listUrl = $"{apiBaseUrl}/api/fs/list";
+                    var openListVirtualPath = ToOpenListPath(basePath);
+                    // 确保 _profile 已设置（用于 BuildApiBaseUrl 和 OpenListSendAsync）
+                    if (_profile == null) _profile = profile;
+
+                    var body = JsonSerializer.Serialize(new
+                    {
+                        path = openListVirtualPath,
+                        password = "",
+                        page = 1,
+                        per_page = 1,
+                        refresh = false
+                    });
+
+                    // 尝试登录
+                    var token = await OpenListLoginAsync(profile);
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        var req = new HttpRequestMessage(HttpMethod.Post, listUrl);
+                        req.Headers.Add("Authorization", token);
+                        req.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                        var resp = await GetOpenListApiClient().SendAsync(req);
+                        var json = await resp.Content.ReadAsStringAsync();
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            using var doc = JsonDocument.Parse(json);
+                            var code = doc.RootElement.GetProperty("code").GetInt32();
+                            if (code == 200)
+                            {
+                                _davPrefix = "/dav";
+                                CurrentServerType = WebDavServerType.OpenList;
+                                DetectedServerType = WebDavServerType.OpenList;
+                                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 不可用但 REST API 正常，使用 API 模式");
+                                return (true, $"连接成功 → {hostInfo}\n检测到 OpenList/Alist，将使用 REST API 模式（PROPFIND 不可用）");
+                            }
+                            var apiMsg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : "";
+                            System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenList API 返回 code={code}: {apiMsg}");
+                            if (code == 403 || apiMsg?.Contains("permission") == true || apiMsg?.Contains("密码") == true)
+                                return (false, $"认证失败：{hostInfo}，请检查账号和密码");
+                            if (code == 400 || apiMsg?.Contains("not found") == true || apiMsg?.Contains("不存在") == true)
+                                return (false, $"路径不存在：{basePath}\nURL: {BuildUrlForProfile(profile, basePath, isDirectory: true)}");
+                        }
+                    }
+                    else
+                    {
+                        return (false, $"认证失败：{hostInfo}，OpenList 登录不成功，请检查账号和密码");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenList API 验证失败: {ex.Message}");
+                }
+            }
+
+            // ── 第4步：区分认证错误 ──
+            try
+            {
+                var rootUrl = BuildUrlForProfile(profile, "/", isDirectory: true);
+                var req = new HttpRequestMessage(new HttpMethod("PROPFIND"), rootUrl);
+                req.Headers.Add("Depth", "0");
+                req.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
+                var resp = await GetClient().SendAsync(req);
+                if ((int)resp.StatusCode == 401 || (int)resp.StatusCode == 403)
+                    return (false, $"认证失败：{hostInfo}，请检查账号和密码");
+            }
+            catch (HttpRequestException aex) when ((int?)aex.StatusCode == 401 || (int?)aex.StatusCode == 403)
             {
                 return (false, $"认证失败：{hostInfo}，请检查账号和密码");
             }
-            catch (HttpRequestException ex)
-            {
-                var innerMsg = ex.InnerException?.Message ?? ex.Message;
-                var statusCode = (int?)ex.StatusCode;
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 失败 basePath: {ex.StatusCode} - {ex.Message}");
+            catch { }
 
-                // 405 Method Not Allowed: OpenList/Alist 根路径不支持 PROPFIND，尝试常见 WebDAV 路径
-                if (statusCode == 405 && (basePath == "/" || basePath == ""))
-                {
-                    foreach (var tryPath in new[] { "/dav", "/webdav" })
-                    {
-                        try
-                        {
-                            var tryUrl = BuildUrlForProfile(profile, tryPath, isDirectory: true);
-                            System.Diagnostics.Debug.WriteLine($"[WebDAV] 405 回退，尝试: {tryUrl}");
-                            await PropFindAsync(tryUrl, 1);
-                            return (true, $"连接成功 → {hostInfo}\n检测到 OpenList/Alist，WebDAV 路径为 {tryPath}");
-                        }
-                        catch { /* 继续尝试下一个路径 */ }
-                    }
-                }
-
-                if (basePath != "/")
-                {
-                    try
-                    {
-                        var rootUrl = BuildUrlForProfile(profile, "/", isDirectory: true);
-                        System.Diagnostics.Debug.WriteLine($"[WebDAV] 尝试根 {rootUrl}");
-                        await PropFindAsync(rootUrl, 1);
-                        return (false, $"{hostInfo} 连接成功，但路径 {basePath} 不可访问。\nURL: {basePathUrl}");
-                    }
-                    catch (HttpRequestException ex2) when ((int?)ex2.StatusCode == 401 || (int?)ex2.StatusCode == 403)
-                    {
-                        return (false, $"认证失败：{hostInfo}，请检查账号和密码");
-                    }
-                    catch (Exception ex2)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[WebDAV] 根路径也失败: {ex2.Message}");
-                    }
-                }
-
-                if (innerMsg.Contains("PROPFIND") && innerMsg.Contains("Expected"))
-                    innerMsg = "服务器不支持 WebDAV，请确认已启用 WebDAV 服务";
-                else if (innerMsg.Contains("SSL") || innerMsg.Contains("certificate") || innerMsg.Contains("TLS"))
-                    innerMsg = $"SSL/TLS 连接失败：{innerMsg}";
-                else if (innerMsg.Contains("timed out") || innerMsg.Contains("timeout"))
-                    innerMsg = "连接超时，请检查服务器地址和端口";
-                else if (innerMsg.Contains("refused"))
-                    innerMsg = $"连接被拒绝：{hostInfo}，请检查地址和端口";
-                else if (innerMsg.Contains("Name or service not known") || innerMsg.Contains("No such host"))
-                    innerMsg = $"无法解析主机名：{hostInfo}，请检查地址";
-
-                return (false, $"{hostInfo}\nURL: {basePathUrl}\n{innerMsg}");
-            }
+            return (false, $"连接失败：{hostInfo}\nURL: {BuildUrlForProfile(profile, basePath, isDirectory: true)}\n服务器不响应 PROPFIND，请确认地址、端口和 WebDAV 路径是否正确\n（OpenList/Alist 用户请确保 WebDAV 功能已开启）");
         }
         catch (HttpRequestException ex)
         {
             var msg = ex.Message;
             if ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403) msg = "认证失败，请检查账号和密码";
             else if ((int?)ex.StatusCode == 404) msg = $"路径不存在 → {hostInfo}";
+            else if (ex.Message.Contains("timeout") || ex.Message.Contains("timed out")) msg = $"连接超时：{hostInfo}";
+            else if (ex.Message.Contains("refused")) msg = $"连接被拒绝：{hostInfo}";
             return (false, msg);
         }
         catch (TaskCanceledException)
@@ -494,6 +650,8 @@ public class WebDavService : INetworkFileService, IDisposable
     /// <returns>远程文件信息列表</returns>
     public async Task<List<RemoteFile>> ListFilesAsync(string path)
     {
+        await EnsureDetectedAsync();
+
         // OpenList: 使用 /api/fs/list 替代 PROPFIND（更快、无 405/深度限制）
         if (CurrentServerType == WebDavServerType.OpenList)
         {
@@ -573,6 +731,9 @@ public class WebDavService : INetworkFileService, IDisposable
     /// <returns>扁平化的文件列表（仅文件，不含目录）。</returns>
     public async Task<List<RemoteFile>> ListAllFilesAsync(string path, WebDavServerType serverType = WebDavServerType.Standard)
     {
+        await EnsureDetectedAsync();
+        if (serverType == WebDavServerType.Standard) serverType = CurrentServerType;
+
         // OpenList/Alist: 使用 /api/fs/list 递归扫描（PROPFIND depth>1 被当作 depth=1）
         if (serverType == WebDavServerType.OpenList)
         {
@@ -658,11 +819,13 @@ public class WebDavService : INetworkFileService, IDisposable
     public void Configure(ConnectionProfile profile)
     {
         EnsureClient(profile);
-        // 同一 host 已检测过则跳过，避免每次操作都触发网络请求
         var hostKey = $"{profile.Host}:{profile.Port}";
+
+        // 同一 host 已检测过则跳过（保留已探测的 _davPrefix 和 CurrentServerType）
         if (_lastDetectedHost == hostKey) return;
 
         _openListToken = null;
+        _davPrefix = "";
         CurrentServerType = WebDavServerType.Standard;
         _lastDetectedHost = hostKey;
         _detectionTask = DetectServerTypeAsync(profile);
@@ -672,6 +835,35 @@ public class WebDavService : INetworkFileService, IDisposable
                 CurrentServerType = t.Result;
         });
     }
+
+    /// <summary>
+    /// 构建带 Basic Auth 认证的完整播放/流 URL（自动包含 /dav 前缀）。
+    /// 供扫描、播放等场景使用，返回 ExoPlayer 可直接使用的 http://user:pass@host:port/dav/path 形式。
+    /// </summary>
+    public string BuildStreamUrl(string path)
+    {
+        if (_profile == null) throw new InvalidOperationException("WebDAV 未配置连接");
+
+        // 使用 BuildUrl 获取正确的路径（含 /dav 前缀），然后添加 Basic Auth
+        var url = BuildUrl(path, isDirectory: false);
+        var profile = _profile;
+
+        var authUser = string.IsNullOrEmpty(profile.UserName) ? "" : Uri.EscapeDataString(profile.UserName);
+        var authPass = string.IsNullOrEmpty(profile.Password) ? "" : Uri.EscapeDataString(profile.Password);
+
+        if (string.IsNullOrEmpty(authUser)) return url;
+
+        // 在 URL 的 scheme:// 后插入 user:pass@
+        var schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd < 0) return url;
+        var insertPos = schemeEnd + 3;
+        return url[..insertPos] + $"{authUser}:{authPass}@" + url[insertPos..];
+    }
+
+    /// <summary>
+    /// 当前探测到的 WebDAV 路径前缀（如 "/dav"），公开供外部使用。
+    /// </summary>
+    public string DavPrefix => _davPrefix;
 
     /// <summary>
     /// 无认证头的 HttpClient，专用于跟随重定向后访问 CDN（CDN 拒绝带有 Basic Auth 的请求）
@@ -776,6 +968,7 @@ public class WebDavService : INetworkFileService, IDisposable
     /// <returns>包含文件内容的可读流</returns>
     public async Task<Stream> OpenReadAsync(string filePath)
     {
+        await EnsureDetectedAsync();
         try
         {
             // OpenList: 通过 REST API 获取 raw_url 直连 CDN，避免 302+Auth→400
@@ -812,6 +1005,7 @@ public class WebDavService : INetworkFileService, IDisposable
     /// <returns>指定范围的字节数组</returns>
     public async Task<byte[]> OpenReadRangeAsync(string filePath, long offset, long length)
     {
+        await EnsureDetectedAsync();
         try
         {
             // OpenList: 通过 REST API 获取 raw_url + Range 请求，避免 302+Auth→400
@@ -850,6 +1044,48 @@ public class WebDavService : INetworkFileService, IDisposable
     /// <returns>文件信息，失败时返回 null</returns>
     public async Task<RemoteFile?> GetFileInfoAsync(string filePath)
     {
+        await EnsureDetectedAsync();
+
+        // OpenList: 使用 /api/fs/get 获取文件信息
+        if (CurrentServerType == WebDavServerType.OpenList)
+        {
+            try
+            {
+                var openListPath = ToOpenListPath(filePath);
+                var baseUrl = BuildApiBaseUrl();
+                var url = $"{baseUrl}/api/fs/get";
+                var body = JsonSerializer.Serialize(new { path = openListPath, password = "" });
+                var response = await OpenListSendAsync(url,
+                    new StringContent(body, Encoding.UTF8, "application/json"));
+                var json = await response.Content.ReadAsStringAsync();
+                if (response.IsSuccessStatusCode)
+                {
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.GetProperty("code").GetInt32() == 200)
+                    {
+                        var data = doc.RootElement.GetProperty("data");
+                        var name = data.GetProperty("name").GetString() ?? "";
+                        var size = data.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
+                        var isDir = data.GetProperty("is_dir").GetBoolean();
+                        var modified = data.TryGetProperty("modified", out var mod) ? mod.GetString() : "";
+                        DateTimeOffset.TryParse(modified, out var dt);
+                        return new RemoteFile
+                        {
+                            Name = name,
+                            Path = filePath,
+                            IsDirectory = isDir,
+                            Size = size,
+                            LastModified = dt.ToUnixTimeSeconds()
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenList GetFileInfo 失败: {ex.Message}");
+            }
+        }
+
         try
         {
             var url = BuildUrl(filePath);
@@ -959,20 +1195,26 @@ public class WebDavService : INetworkFileService, IDisposable
         return _openListApiClient;
     }
 
-    /// <summary>将包含 WebDAV 挂载前缀的路径转换为 OpenList 虚拟文件系统路径</summary>
+    /// <summary>将 WebDAV 路径转换为 OpenList 虚拟文件系统路径（去除自动探测的 dav 前缀）</summary>
     private string ToOpenListPath(string webDavPath)
     {
-        var basePath = (_profile?.BasePath?.TrimEnd('/') ?? "").TrimStart('/');
-        if (string.IsNullOrEmpty(basePath)) return webDavPath;
-
         var cleanPath = webDavPath.TrimStart('/');
-        if (cleanPath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
+        // 如果路径以 _davPrefix 开头，先去掉此前缀
+        if (!string.IsNullOrEmpty(_davPrefix))
         {
-            var remainder = cleanPath[basePath.Length..].TrimStart('/');
-            return string.IsNullOrEmpty(remainder) ? "/" : "/" + remainder;
+            var prefixTrimmed = _davPrefix.Trim('/');
+            if (cleanPath.StartsWith(prefixTrimmed + "/", StringComparison.OrdinalIgnoreCase))
+                cleanPath = cleanPath[prefixTrimmed.Length..].TrimStart('/');
+            else if (string.Equals(cleanPath, prefixTrimmed, StringComparison.OrdinalIgnoreCase))
+                cleanPath = "";
         }
-        // 路径可能已经是不含前缀的 OpenList 路径
-        return webDavPath;
+        // 也兼容用户手动在 basePath 中写了 /dav 前缀的情况
+        if (cleanPath.StartsWith("dav/", StringComparison.OrdinalIgnoreCase))
+            cleanPath = cleanPath[4..].TrimStart('/');
+        else if (string.Equals(cleanPath, "dav", StringComparison.OrdinalIgnoreCase))
+            cleanPath = "";
+
+        return string.IsNullOrEmpty(cleanPath) ? "/" : "/" + cleanPath;
     }
 
     /// <summary>登录 OpenList REST API，获取 Bearer token</summary>
@@ -1103,78 +1345,9 @@ public class WebDavService : INetworkFileService, IDisposable
 
             var data = doc.RootElement.GetProperty("data");
             var files = new List<RemoteFile>();
-            var webDavPrefix = (_profile.BasePath?.TrimEnd('/') ?? "").TrimStart('/');
 
             if (data.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
             {
-                // 检测挂载包装目录：在根路径查询时，OpenList 可能返回挂载目录本身作为唯一子条目
-                // 例如 BasePath="/dav/WEBDAV"，查询 OpenList "/" 时返回 [{name:"WEBDAV", is_dir:true}]
-                // 此时自动跟踪到包装目录内部，返回实际内容（避免路径重复和递归循环）
-                if ((string.IsNullOrEmpty(openListPath) || openListPath == "/")
-                    && !string.IsNullOrEmpty(webDavPrefix)
-                    && content.GetArrayLength() == 1)
-                {
-                    var firstItem = content[0];
-                    var firstName = firstItem.GetProperty("name").GetString() ?? "";
-                    var firstIsDir = firstItem.GetProperty("is_dir").GetBoolean();
-                    var lastSegment = webDavPrefix.Contains('/')
-                        ? webDavPrefix[(webDavPrefix.LastIndexOf('/') + 1)..]
-                        : webDavPrefix;
-
-                    if (firstIsDir && string.Equals(firstName, lastSegment, StringComparison.OrdinalIgnoreCase))
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[OpenList] 检测到挂载包装目录: {firstName}，自动跟踪到内部");
-                        var innerBody = JsonSerializer.Serialize(new
-                        {
-                            path = "/" + firstName,
-                            password = "",
-                            page = 1,
-                            per_page = 0,
-                            refresh = false
-                        });
-                        var innerResponse = await OpenListSendAsync(url,
-                            new StringContent(innerBody, Encoding.UTF8, "application/json"));
-                        var innerJson = await innerResponse.Content.ReadAsStringAsync();
-
-                        if (innerResponse.IsSuccessStatusCode)
-                        {
-                            using var innerDoc = JsonDocument.Parse(innerJson);
-                            var innerCode = innerDoc.RootElement.GetProperty("code").GetInt32();
-                            if (innerCode == 200 && innerDoc.RootElement.TryGetProperty("data", out var innerData)
-                                && innerData.TryGetProperty("content", out var innerContent)
-                                && innerContent.ValueKind == JsonValueKind.Array)
-                            {
-                                // 直接在 using 块内构建文件条目并返回（避免 JsonElement 生命周期问题）
-                                var innerPath = "/" + firstName;
-                                foreach (var item in innerContent.EnumerateArray())
-                                {
-                                    var name = item.GetProperty("name").GetString() ?? "";
-                                    var isDir = item.GetProperty("is_dir").GetBoolean();
-                                    var size = item.TryGetProperty("size", out var s) ? s.GetInt64() : 0;
-                                    var modified = item.TryGetProperty("modified", out var m2) ? m2.GetString() ?? "" : "";
-
-                                    var openListItemPath = innerPath.TrimEnd('/') + "/" + name;
-                                    var webDavPath = string.IsNullOrEmpty(webDavPrefix)
-                                        ? openListItemPath
-                                        : "/" + webDavPrefix + openListItemPath;
-
-                                    files.Add(new RemoteFile
-                                    {
-                                        Name = name,
-                                        Path = webDavPath,
-                                        IsDirectory = isDir,
-                                        Size = size,
-                                        LastModified = DateTimeOffset.TryParse(modified, out var dt) ? dt.ToUnixTimeSeconds() : 0
-                                    });
-                                }
-
-                                System.Diagnostics.Debug.WriteLine($"[OpenList] ListFiles 结果: {files.Count} 个条目 ({path} → {innerPath}，挂载包装自动跟踪)");
-                                return files;
-                            }
-                        }
-                    }
-                }
-
                 foreach (var item in content.EnumerateArray())
                 {
                     var name = item.GetProperty("name").GetString() ?? "";
@@ -1182,20 +1355,15 @@ public class WebDavService : INetworkFileService, IDisposable
                     var size = item.TryGetProperty("size", out var s) ? s.GetInt64() : 0;
                     var modified = item.TryGetProperty("modified", out var m2) ? m2.GetString() ?? "" : "";
 
-                    // 构建 OpenList 条目路径
+                    // openListItemPath 是 OpenList 虚拟路径（从根开始的完整路径），也是 WebDAV 路径（BuildUrl 会自动加 /dav 前缀）
                     var openListItemPath = "/" + name;
                     if (!string.IsNullOrEmpty(openListPath) && openListPath != "/")
                         openListItemPath = openListPath.TrimEnd('/') + "/" + name;
 
-                    // 转换为完整 WebDAV 路径（含挂载前缀）
-                    var webDavPath = string.IsNullOrEmpty(webDavPrefix)
-                        ? openListItemPath
-                        : "/" + webDavPrefix + openListItemPath;
-
                     files.Add(new RemoteFile
                     {
                         Name = name,
-                        Path = webDavPath,
+                        Path = openListItemPath,
                         IsDirectory = isDir,
                         Size = size,
                         LastModified = DateTimeOffset.TryParse(modified, out var dt) ? dt.ToUnixTimeSeconds() : 0

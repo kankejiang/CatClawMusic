@@ -62,6 +62,130 @@ public class NetworkMusicService : INetworkMusicService
     }
 
     /// <summary>
+    /// 解析 WebDAV 播放 URL：自动检测 OpenList 服务器，修复 /dav 前缀或获取签名 raw_url。
+    /// 用于播放时动态修正旧的错误URL（缺少 /dav 前缀）或获取OpenList签名链接。
+    /// </summary>
+    /// <param name="url">原始URL（可能是带认证信息的 http://user:pass@host:port/path）</param>
+    /// <returns>可直接播放的URL；如果不需要修复则返回原URL</returns>
+    public async Task<string?> ResolveWebDavPlaybackUrlAsync(string url)
+    {
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            var uri = new Uri(url);
+            var host = uri.Host;
+            var port = uri.Port;
+
+            // 从URL提取认证信息
+            string user = "";
+            string pass = "";
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                var parts = uri.UserInfo.Split(':');
+                if (parts.Length >= 1) user = Uri.UnescapeDataString(parts[0]);
+                if (parts.Length >= 2) pass = Uri.UnescapeDataString(parts[1]);
+            }
+
+            // 如果路径已经包含 /dav/ 或 /webdav/，认为URL已正确，直接尝试OpenList签名URL获取
+            var path = uri.AbsolutePath;
+            bool hasDavPrefix = path.StartsWith("/dav/", StringComparison.OrdinalIgnoreCase)
+                             || path.Equals("/dav", StringComparison.OrdinalIgnoreCase)
+                             || path.StartsWith("/webdav/", StringComparison.OrdinalIgnoreCase)
+                             || path.Equals("/webdav", StringComparison.OrdinalIgnoreCase);
+
+            // 查找匹配的ConnectionProfile
+            await _db.EnsureInitializedAsync();
+            var profiles = await _db.GetConnectionProfilesAsync();
+            var matchingProfile = profiles.FirstOrDefault(p =>
+                p.Protocol == ProtocolType.WebDAV && p.IsEnabled
+                && string.Equals(p.Host.Trim('/'), host, StringComparison.OrdinalIgnoreCase)
+                && p.Port == port);
+
+            ConnectionProfile profileToUse;
+            if (matchingProfile != null)
+            {
+                profileToUse = matchingProfile;
+            }
+            else
+            {
+                // 数据库中无匹配，从URL构建临时profile用于检测
+                profileToUse = new ConnectionProfile
+                {
+                    Protocol = ProtocolType.WebDAV,
+                    Host = host,
+                    Port = port,
+                    UserName = user,
+                    Password = pass,
+                    UseHttps = uri.Scheme == "https",
+                    BasePath = "/"
+                };
+            }
+
+            // 配置WebDAV服务并检测服务器类型
+            _webDav.Configure(profileToUse);
+            if (_webDav is WebDavService wds)
+            {
+                await wds.EnsureDetectedAsync();
+
+                // 提取虚拟路径（去掉 /dav 前缀后的实际文件路径）
+                string virtualPath;
+                if (hasDavPrefix)
+                {
+                    // URL已有dav前缀，提取后面的部分作为虚拟路径
+                    virtualPath = path;
+                    var davPrefix = wds.DavPrefix;
+                    if (!string.IsNullOrEmpty(davPrefix) && path.StartsWith(davPrefix + "/", StringComparison.OrdinalIgnoreCase))
+                        virtualPath = path[davPrefix.Length..];
+                    else if (path.StartsWith("/dav/", StringComparison.OrdinalIgnoreCase))
+                        virtualPath = path[4..];
+                    else if (path.StartsWith("/webdav/", StringComparison.OrdinalIgnoreCase))
+                        virtualPath = path[7..];
+                }
+                else
+                {
+                    virtualPath = path;
+                }
+
+                // 对于OpenList，尝试获取签名raw_url
+                if (wds.CurrentServerType == WebDavServerType.OpenList)
+                {
+                    try
+                    {
+                        var rawUrl = await wds.GetOpenListStreamUrlAsync(virtualPath);
+                        if (!string.IsNullOrEmpty(rawUrl))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[URL Resolver] OpenList raw_url: {rawUrl[..Math.Min(80, rawUrl.Length)]}...");
+                            return rawUrl;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[URL Resolver] OpenList raw_url 获取失败: {ex.Message}");
+                    }
+                }
+
+                // 如果URL缺少dav前缀且探测到需要前缀，用BuildStreamUrl修复
+                if (!hasDavPrefix && !string.IsNullOrEmpty(wds.DavPrefix))
+                {
+                    var fixedUrl = wds.BuildStreamUrl(virtualPath);
+                    System.Diagnostics.Debug.WriteLine($"[URL Resolver] 修复URL: {url[..Math.Min(60, url.Length)]}... → {fixedUrl[..Math.Min(80, fixedUrl.Length)]}...");
+                    return fixedUrl;
+                }
+            }
+
+            return null; // 无需修复
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[URL Resolver] 解析失败: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// 扫描网络音乐源，按协议类型分发到 Subsonic 或 WebDAV/SMB 扫描
     /// </summary>
     /// <param name="profile">连接配置</param>
@@ -591,37 +715,32 @@ public class NetworkMusicService : INetworkMusicService
         {
             var filePath = song.RemoteId ?? song.FilePath;
 
-            // OpenList: 使用 /d/ 端点 + token，绕过 302+Auth→400 问题
-            var isOpenList = (WebDavServerType)profile.ServerType == WebDavServerType.OpenList;
-            if (!isOpenList)
-            {
-                _webDav.Configure(profile);
-                if (_webDav is WebDavService wdsStream) await wdsStream.EnsureDetectedAsync();
-                if (_webDav is WebDavService wds && wds.CurrentServerType == WebDavServerType.OpenList)
-                    isOpenList = true;
-            }
-            if (isOpenList)
-            {
-                _webDav.Configure(profile);
-                if (_webDav is WebDavService webDavService)
-                {
-                    // 检查缓存，避免短时间内重复请求 /api/fs/get
-                    var cacheKey = filePath;
-                    if (_streamUrlCache.TryGetValue(cacheKey, out var cached)
-                        && cached.expiry > DateTime.UtcNow)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl cache hit: {cacheKey[..Math.Min(60, cacheKey.Length)]}");
-                        return cached.url;
-                    }
+            _webDav.Configure(profile);
+            if (_webDav is WebDavService wdsDetect) await wdsDetect.EnsureDetectedAsync();
 
-                    var openListUrl = await webDavService.GetOpenListStreamUrlAsync(filePath);
-                    if (!string.IsNullOrEmpty(openListUrl))
-                    {
-                        _streamUrlCache[cacheKey] = (openListUrl, DateTime.UtcNow + StreamUrlCacheTtl);
-                        return openListUrl;
-                    }
+            var isOpenList = _webDav is WebDavService wdsCheck && wdsCheck.CurrentServerType == WebDavServerType.OpenList;
+            if (isOpenList && _webDav is WebDavService webDavService)
+            {
+                // 检查缓存，避免短时间内重复请求 /api/fs/get
+                var cacheKey = filePath;
+                if (_streamUrlCache.TryGetValue(cacheKey, out var cached)
+                    && cached.expiry > DateTime.UtcNow)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl cache hit: {cacheKey[..Math.Min(60, cacheKey.Length)]}");
+                    return cached.url;
+                }
+
+                var openListUrl = await webDavService.GetOpenListStreamUrlAsync(filePath);
+                if (!string.IsNullOrEmpty(openListUrl))
+                {
+                    _streamUrlCache[cacheKey] = (openListUrl, DateTime.UtcNow + StreamUrlCacheTtl);
+                    return openListUrl;
                 }
             }
+
+            // 使用 BuildStreamUrl 构建带 /dav 前缀和 Basic Auth 的正确 URL
+            if (_webDav is WebDavService wds)
+                return wds.BuildStreamUrl(filePath);
 
             return BuildWebDavStreamUrl(filePath, profile);
         }
@@ -804,7 +923,13 @@ public class NetworkMusicService : INetworkMusicService
                 if (existingIds.Contains(file.Path))
                     return;
 
-                var streamUrl = BuildWebDavStreamUrl(file.Path, profile);
+                // 使用 WebDavService.BuildStreamUrl 构建正确的 URL（自动包含 /dav 前缀和 Basic Auth）
+                string streamUrl;
+                if (_webDav is WebDavService wds)
+                    streamUrl = wds.BuildStreamUrl(file.Path);
+                else
+                    streamUrl = BuildWebDavStreamUrl(file.Path, profile);
+
                 var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
                 if (string.IsNullOrEmpty(title))
                     title = System.IO.Path.GetFileNameWithoutExtension(file.Path) ?? file.Path;
@@ -933,7 +1058,13 @@ public class NetworkMusicService : INetworkMusicService
                 if (existingIds.Contains(file.Path))
                     return;
 
-                var streamUrl = BuildWebDavStreamUrl(file.Path, profile);
+                // 使用 WebDavService.BuildStreamUrl 构建正确的 URL（自动包含 /dav 前缀和 Basic Auth）
+                string streamUrl;
+                if (_webDav is WebDavService wds)
+                    streamUrl = wds.BuildStreamUrl(file.Path);
+                else
+                    streamUrl = BuildWebDavStreamUrl(file.Path, profile);
+
                 var title = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? file.Name;
                 if (string.IsNullOrEmpty(title))
                     title = System.IO.Path.GetFileNameWithoutExtension(file.Path) ?? file.Path;

@@ -635,11 +635,30 @@ public partial class NowPlayingViewModel : ObservableObject
             // Android SAF content:// 路径、远程 http(s):// URL 和 smb://（通过本地代理转 http）：用 MediaMetadataRetriever.GetEmbeddedPicture() 提取
 #if ANDROID
             string? extractUri = null;
-            if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)
-                || song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
                 extractUri = song.FilePath;
+            }
+            else if (song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var networkSvc = MauiProgram.Services.GetService<INetworkMusicService>();
+                    if (networkSvc != null)
+                    {
+                        var resolved = await networkSvc.ResolveWebDavPlaybackUrlAsync(song.FilePath);
+                        extractUri = string.IsNullOrEmpty(resolved) ? song.FilePath : resolved;
+                    }
+                    else
+                    {
+                        extractUri = song.FilePath;
+                    }
+                }
+                catch
+                {
+                    extractUri = song.FilePath;
+                }
             }
             else if (song.FilePath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
             {

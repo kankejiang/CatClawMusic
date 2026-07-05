@@ -27,6 +27,9 @@ public interface INetworkMusicService
     /// <summary>获取流媒体 URL（用于播放）</summary>
     Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile);
 
+    /// <summary>解析 WebDAV 播放 URL：自动检测服务器类型并修复/dav前缀或获取OpenList签名URL</summary>
+    Task<string?> ResolveWebDavPlaybackUrlAsync(string url);
+
     /// <summary>获取远程歌词文本（LRC 或纯文本）</summary>
     Task<string?> GetLyricsAsync(string remotePath, ConnectionProfile profile);
 
