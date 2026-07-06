@@ -22,6 +22,20 @@ public static class MauiProgram
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+            })
+            .ConfigureMauiHandlers(handlers =>
+            {
+#if ANDROID
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),
+                    typeof(CatClawMusic.Maui.Platforms.Android.FrostedBackgroundHandler));
+#endif
+            })
+            .ConfigureImageSources(images =>
+            {
+#if ANDROID
+                // 注册自定义 FileImageSource 服务：使用内存缓存避免 CollectionView 滑动时反复解码封面图片
+                images.AddService<Microsoft.Maui.Controls.FileImageSource, CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService>();
+#endif
             });
 
         var services = builder.Services;

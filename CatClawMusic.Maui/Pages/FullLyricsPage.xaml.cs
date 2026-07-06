@@ -20,7 +20,21 @@ public partial class FullLyricsPage : ContentPage
         BindingContext = viewModel;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
         BuildLyricViews();
+    }
+
+    /// <summary>系统栏高度变化时触发，更新内容区域的顶部 padding 以避开状态栏</summary>
+    private void OnSafeAreaChanged(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(ApplySafeArea);
+    }
+
+    /// <summary>给 ContentGrid 应用 SafeArea 顶部 padding（雾面背景不应用，保持延伸到状态栏）</summary>
+    private void ApplySafeArea()
+    {
+        var top = SafeAreaHelper.TopInset;
+        ContentGrid.Padding = new Thickness(0, top, 0, 0);
     }
 
     /// <summary>当视图模型属性变更时触发，根据变更的属性重建歌词视图或更新高亮行。</summary>
@@ -48,6 +62,7 @@ public partial class FullLyricsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        ApplySafeArea();
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
         if (_viewModel.AllLyricLines != null && _viewModel.AllLyricLines.Count > 0)
         {
@@ -105,7 +120,8 @@ public partial class FullLyricsPage : ContentPage
             return;
         }
 
-        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
+        var nonCurrentColor = Colors.White;
+        var translationColor = Colors.White.WithAlpha(0.7f);
 
         foreach (var line in lines)
         {
@@ -113,7 +129,7 @@ public partial class FullLyricsPage : ContentPage
             {
                 Text = line.Text,
                 FontSize = 18,
-                TextColor = hintColor,
+                TextColor = nonCurrentColor,
                 HorizontalTextAlignment = TextAlignment.Center,
                 HorizontalOptions = LayoutOptions.Center,
                 LineBreakMode = LineBreakMode.WordWrap,
@@ -129,7 +145,7 @@ public partial class FullLyricsPage : ContentPage
                 {
                     Text = line.Translation,
                     FontSize = 13,
-                    TextColor = hintColor.WithAlpha(0.6f),
+                    TextColor = translationColor,
                     HorizontalTextAlignment = TextAlignment.Center,
                     HorizontalOptions = LayoutOptions.Center
                 };
@@ -152,38 +168,31 @@ public partial class FullLyricsPage : ContentPage
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
-        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
-        var secondaryColor = (Color)Application.Current!.Resources["TextSecondaryColor"];
         var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+        var nonCurrentColor = Colors.White;
 
         for (int i = 0; i < _lyricLabels.Count; i++)
         {
             var lbl = _lyricLabels[i];
             var dist = Math.Abs(i - index);
 
+            // 非当前行颜色统一，仅字号递减以保持层次感
             if (i == index)
             {
                 lbl.FontSize = 22;
                 lbl.FontAttributes = FontAttributes.Bold;
                 lbl.TextColor = primaryColor;
             }
-            else if (dist <= 1)
-            {
-                lbl.FontSize = 18;
-                lbl.FontAttributes = FontAttributes.None;
-                lbl.TextColor = secondaryColor;
-            }
-            else if (dist <= 3)
-            {
-                lbl.FontSize = 16;
-                lbl.FontAttributes = FontAttributes.None;
-                lbl.TextColor = hintColor;
-            }
             else
             {
-                lbl.FontSize = 14;
                 lbl.FontAttributes = FontAttributes.None;
-                lbl.TextColor = hintColor.WithAlpha(0.5f);
+                lbl.TextColor = nonCurrentColor;
+                if (dist <= 1)
+                    lbl.FontSize = 18;
+                else if (dist <= 3)
+                    lbl.FontSize = 16;
+                else
+                    lbl.FontSize = 14;
             }
         }
 
@@ -194,38 +203,35 @@ public partial class FullLyricsPage : ContentPage
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
-        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
-        var secondaryColor = (Color)Application.Current!.Resources["TextSecondaryColor"];
         var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+        var nonCurrentColor = Colors.White;
 
-        for (int i = 0; i < _lyricLabels.Count; i++)
+        // 仅更新新旧索引附近 ±4 范围内的行（避免全量遍历所有 Label）
+        var affectedMin = Math.Max(0, Math.Min(index, _lastHighlightIndex) - 4);
+        var affectedMax = Math.Min(_lyricLabels.Count - 1, Math.Max(index, _lastHighlightIndex) + 4);
+
+        for (int i = affectedMin; i <= affectedMax; i++)
         {
             var lbl = _lyricLabels[i];
             var dist = Math.Abs(i - index);
 
+            // 非当前行颜色统一，仅字号递减以保持层次感
             if (i == index)
             {
                 lbl.FontSize = 22;
                 lbl.FontAttributes = FontAttributes.Bold;
                 lbl.TextColor = primaryColor;
             }
-            else if (dist <= 1)
-            {
-                lbl.FontSize = 18;
-                lbl.FontAttributes = FontAttributes.None;
-                lbl.TextColor = secondaryColor;
-            }
-            else if (dist <= 3)
-            {
-                lbl.FontSize = 16;
-                lbl.FontAttributes = FontAttributes.None;
-                lbl.TextColor = hintColor;
-            }
             else
             {
-                lbl.FontSize = 14;
                 lbl.FontAttributes = FontAttributes.None;
-                lbl.TextColor = hintColor.WithAlpha(0.5f);
+                lbl.TextColor = nonCurrentColor;
+                if (dist <= 1)
+                    lbl.FontSize = 18;
+                else if (dist <= 3)
+                    lbl.FontSize = 16;
+                else
+                    lbl.FontSize = 14;
             }
         }
 
@@ -242,13 +248,27 @@ public partial class FullLyricsPage : ContentPage
         try
         {
             var label = _lyricLabels[index];
-            var y = label.Y + label.Height / 2;
+            // 累加父容器 Y 坐标，处理带翻译歌词被包装在 VerticalStackLayout 中的情况
+            var y = GetRelativeY(label);
             var scrollY = y - LyricScrollView.Height / 2;
             scrollY = Math.Max(0, scrollY);
 
             await LyricScrollView.ScrollToAsync(0, scrollY, true);
         }
         catch { }
+    }
+
+    /// <summary>获取元素相对于 LyricStack 的 Y 坐标（累加所有父容器的 Y）</summary>
+    private double GetRelativeY(VisualElement element)
+    {
+        double y = element.Y + element.Height / 2;
+        var parent = element.Parent as VisualElement;
+        while (parent != null && parent != LyricStack)
+        {
+            y += parent.Y;
+            parent = parent.Parent as VisualElement;
+        }
+        return y;
     }
 
     /// <summary>当用户手动滚动歌词视图时触发，标记用户正在滚动以暂停自动滚动定位。</summary>

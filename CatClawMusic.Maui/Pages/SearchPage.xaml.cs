@@ -12,7 +12,6 @@ public partial class SearchPage : ContentPage
     private readonly PlayQueue _queue;
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService _audioPlayer;
-    private bool _isFirstAppearing = true;
 
     /// <summary>初始化 <see cref="SearchPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
     /// <param name="db">音乐数据库访问对象。</param>
@@ -29,16 +28,13 @@ public partial class SearchPage : ContentPage
         BindingContext = _vm;
     }
 
-    /// <summary>当页面显示在屏幕上时触发，首次出现时加载发现页数据。</summary>
+    /// <summary>当页面显示在屏幕上时触发，仅首次加载数据，避免每次切换 tab 都重载数据导致封面图片重新解码。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
 
-        if (_isFirstAppearing)
-        {
-            _isFirstAppearing = false;
-            if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0) return;
-        }
+        // 已有数据则跳过加载，避免每次切换 tab 都重新解码所有封面图片造成 GC 压力
+        if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0) return;
 
         try
         {

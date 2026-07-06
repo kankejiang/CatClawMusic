@@ -104,12 +104,13 @@ public class MainActivity : MauiAppCompatActivity
 }
 
 /// <summary>
-/// 处理窗口 insets：底部 TabBar 区域需要 navigation bar 的 padding，
-/// 顶部状态栏由 MAUI Shell 自行处理。
+/// 处理窗口 insets：将系统栏高度通知 SafeAreaHelper，不自动设置 padding。
+/// 顶部状态栏由各页面通过 SafeAreaHelper.TopInset 手动应用 padding（让雾面背景延伸到状态栏）。
+/// 底部导航栏高度同样通过 SafeAreaHelper.BottomInset 查询。
 /// </summary>
 internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
 {
-    /// <summary>系统栏 insets 应用回调：将系统栏 insets 转换为根视图的 padding，使内容显示在安全区域内</summary>
+    /// <summary>系统栏 insets 应用回调：将 insets 转换为逻辑像素并通知 SafeAreaHelper</summary>
     /// <param name="v">应用 insets 的视图</param>
     /// <param name="insets">窗口 insets</param>
     /// <returns>消费后的 WindowInsetsCompat</returns>
@@ -117,13 +118,15 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
     {
         if (v == null || insets == null) return insets!;
         var systemBars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars());
-        // 顶部留出状态栏高度，底部留出导航栏高度，让内容在安全区域内
-        v.SetPadding(
-            systemBars.Left,
-            systemBars.Top,
-            systemBars.Right,
-            systemBars.Bottom
-        );
+
+        // 将物理像素转换为逻辑像素（除以密度）
+        var density = v.Resources?.DisplayMetrics?.Density ?? 1f;
+        var top = systemBars.Top / density;
+        var bottom = systemBars.Bottom / density;
+
+        // 通知 SafeAreaHelper 更新 insets（不自动设置 padding）
+        SafeAreaHelper.UpdateInsets(top, bottom);
+
         return WindowInsetsCompat.Consumed;
     }
 }

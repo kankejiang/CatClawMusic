@@ -47,8 +47,8 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private ImageSource? _coverImage;
     /// <summary>是否存在可用封面</summary>
     [ObservableProperty] private bool _hasCover;
-    /// <summary>当前封面图片的本地文件路径（供取色用）</summary>
-    public string? CurrentCoverPath { get; private set; }
+    /// <summary>当前封面图片的本地文件路径（供取色和跨实例缓存共享用）</summary>
+    [ObservableProperty] private string? _currentCoverPath;
 
     // === Playback State ===
     /// <summary>是否正在播放</summary>
@@ -710,14 +710,12 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             var path = coverPath;
             CurrentCoverPath = path;
-            byte[]? coverBytes = null;
-            try { coverBytes = File.ReadAllBytes(path); } catch { }
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                if (coverBytes != null)
-                    CoverImage = ImageSource.FromStream(() => new MemoryStream(coverBytes));
-                else
-                    CoverImage = ImageSource.FromFile(path);
+                // 使用 FileImageSource 而非 StreamImageSource：
+                // 1. 避免 StreamImageSource 内部取消机制导致 FrostedBackground 加载失败
+                // 2. 让 CachingFileImageSourceService 命中内存缓存，减少重复解码
+                CoverImage = ImageSource.FromFile(path);
                 HasCover = true;
             });
         }

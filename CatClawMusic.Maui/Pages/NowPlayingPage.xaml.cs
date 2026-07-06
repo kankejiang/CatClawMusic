@@ -8,7 +8,6 @@ namespace CatClawMusic.Maui.Pages;
 public partial class NowPlayingPage : ContentPage
 {
     private readonly NowPlayingViewModel _viewModel;
-    private IDispatcherTimer? _progressTimer;
     private bool _isDragging;
     private readonly List<Label> _lyricLabels = new();
     private int _lastHighlightIndex = -1;
@@ -22,16 +21,28 @@ public partial class NowPlayingPage : ContentPage
         BindingContext = _viewModel;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+    }
 
-        _progressTimer = Application.Current!.Dispatcher.CreateTimer();
-        _progressTimer.Interval = TimeSpan.FromMilliseconds(500);
-        _progressTimer.Tick += OnProgressTimerTick;
+    /// <summary>系统栏高度变化时触发，更新内容区域的顶部 padding 以避开状态栏</summary>
+    private void OnSafeAreaChanged(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(() => ApplySafeArea());
+    }
+
+    /// <summary>给 RootGrid 应用 SafeArea 顶部 padding（雾面背景不应用，保持延伸到状态栏）</summary>
+    private void ApplySafeArea()
+    {
+        // RootGrid 原始 Padding 为 (20,12,20,16)，顶部加上状态栏高度
+        var top = SafeAreaHelper.TopInset;
+        RootGrid.Padding = new Thickness(20, top + 12, 20, 16);
     }
 
     /// <summary>当页面显示在屏幕上时触发，加载当前歌曲、构建歌词视图并启动进度定时器。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        ApplySafeArea();
         await _viewModel.LoadCurrentSongAsync();
 
         if (_viewModel.Duration > 0)
@@ -48,9 +59,6 @@ public partial class NowPlayingPage : ContentPage
                 MainThread.BeginInvokeOnMainThread(() =>
                     HighlightLine(_viewModel.CurrentLyricIndexObservable)));
         }
-
-        if (!_progressTimer.IsRunning)
-            _progressTimer.Start();
     }
 
     /// <summary>当页面从屏幕上消失时触发，取消订阅主题变更事件。</summary>
@@ -86,6 +94,22 @@ public partial class NowPlayingPage : ContentPage
                 HighlightLine(_viewModel.CurrentLyricIndexObservable);
             });
         }
+
+        // 直接响应 ViewModel 的 Progress/Duration 变化，替代冗余的 500ms UI 定时器
+        if (e.PropertyName == nameof(NowPlayingViewModel.Duration))
+        {
+            var duration = _viewModel.Duration;
+            if (duration > 1 && ProgressSlider.Maximum != duration)
+                ProgressSlider.Maximum = duration;
+        }
+
+        if (e.PropertyName == nameof(NowPlayingViewModel.Progress) && !_isDragging)
+        {
+            var progress = _viewModel.Progress;
+            var duration = _viewModel.Duration;
+            if (duration > 1 && Math.Abs(ProgressSlider.Value - progress) > 0.5)
+                ProgressSlider.Value = progress;
+        }
     }
 
     private void BuildLyricViews()
@@ -98,7 +122,8 @@ public partial class NowPlayingPage : ContentPage
         if (lines == null || lines.Count == 0)
             return;
 
-        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
+        var nonCurrentColor = Colors.White;
+        var translationColor = Colors.White.WithAlpha(0.7f);
 
         foreach (var line in lines)
         {
@@ -106,7 +131,7 @@ public partial class NowPlayingPage : ContentPage
             {
                 Text = line.Text,
                 FontSize = 14,
-                TextColor = hintColor,
+                TextColor = nonCurrentColor,
                 HorizontalTextAlignment = TextAlignment.Center,
                 HorizontalOptions = LayoutOptions.Center,
                 LineBreakMode = LineBreakMode.WordWrap,
@@ -123,7 +148,7 @@ public partial class NowPlayingPage : ContentPage
                 {
                     Text = line.Translation,
                     FontSize = 11,
-                    TextColor = hintColor.WithAlpha(0.6f),
+                    TextColor = translationColor,
                     HorizontalTextAlignment = TextAlignment.Center,
                     HorizontalOptions = LayoutOptions.Center
                 };
@@ -149,9 +174,8 @@ public partial class NowPlayingPage : ContentPage
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
-        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
-        var secondaryColor = (Color)Application.Current!.Resources["TextSecondaryColor"];
         var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+        var nonCurrentColor = Colors.White;
 
         var current = _lyricLabels[index];
         current.FontSize = 16;
@@ -163,26 +187,17 @@ public partial class NowPlayingPage : ContentPage
             if (i == index) continue;
             var dist = Math.Abs(i - index);
             var lbl = _lyricLabels[i];
+            // 非当前行颜色统一，仅字号递减以保持层次感
+            lbl.FontAttributes = FontAttributes.None;
+            lbl.TextColor = nonCurrentColor;
             if (dist == 1)
-            {
                 lbl.FontSize = 14;
-                lbl.TextColor = secondaryColor;
-            }
             else if (dist == 2)
-            {
                 lbl.FontSize = 13;
-                lbl.TextColor = hintColor;
-            }
             else if (dist == 3)
-            {
                 lbl.FontSize = 12;
-                lbl.TextColor = hintColor.WithAlpha(0.7f);
-            }
             else
-            {
                 lbl.FontSize = 11;
-                lbl.TextColor = hintColor.WithAlpha(0.5f);
-            }
         }
 
         _lastHighlightIndex = index;
@@ -192,55 +207,31 @@ public partial class NowPlayingPage : ContentPage
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
-        var hintColor = (Color)Application.Current!.Resources["TextHintColor"];
-        var secondaryColor = (Color)Application.Current!.Resources["TextSecondaryColor"];
         var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+        var nonCurrentColor = Colors.White;
 
-        if (_lastHighlightIndex >= 0 && _lastHighlightIndex < _lyricLabels.Count)
+        // 仅更新新旧索引附近 ±3 范围内的行（避免全量遍历所有 Label）
+        // 范围之外保持 11px / 白色的默认样式，无需重复设置
+        var affectedMin = Math.Max(0, Math.Min(index, _lastHighlightIndex) - 3);
+        var affectedMax = Math.Min(_lyricLabels.Count - 1, Math.Max(index, _lastHighlightIndex) + 3);
+
+        for (int i = affectedMin; i <= affectedMax; i++)
         {
-            var prev = _lyricLabels[_lastHighlightIndex];
-            prev.FontSize = 14;
-            prev.FontAttributes = FontAttributes.None;
-
-            var dist = Math.Abs(_lastHighlightIndex - index);
-            if (dist == 1)
-                prev.TextColor = secondaryColor;
-            else if (dist == 2)
-                prev.TextColor = hintColor;
-            else
-                prev.TextColor = hintColor.WithAlpha(0.55f);
-        }
-
-        var current = _lyricLabels[index];
-        current.FontSize = 16;
-        current.FontAttributes = FontAttributes.Bold;
-        current.TextColor = primaryColor;
-
-        for (int i = 0; i < _lyricLabels.Count; i++)
-        {
-            if (i == index) continue;
-            var dist = Math.Abs(i - index);
             var lbl = _lyricLabels[i];
-            if (dist == 1)
-            {
+            var dist = Math.Abs(i - index);
+            // 非当前行颜色统一，仅字号递减以保持层次感
+            lbl.FontAttributes = dist == 0 ? FontAttributes.Bold : FontAttributes.None;
+            lbl.TextColor = dist == 0 ? primaryColor : nonCurrentColor;
+            if (dist == 0)
+                lbl.FontSize = 16;
+            else if (dist == 1)
                 lbl.FontSize = 14;
-                lbl.TextColor = secondaryColor;
-            }
             else if (dist == 2)
-            {
                 lbl.FontSize = 13;
-                lbl.TextColor = hintColor;
-            }
             else if (dist == 3)
-            {
                 lbl.FontSize = 12;
-                lbl.TextColor = hintColor.WithAlpha(0.7f);
-            }
             else
-            {
                 lbl.FontSize = 11;
-                lbl.TextColor = hintColor.WithAlpha(0.5f);
-            }
         }
 
         _lastHighlightIndex = index;
@@ -255,7 +246,8 @@ public partial class NowPlayingPage : ContentPage
         try
         {
             var label = _lyricLabels[index];
-            var y = label.Y + label.Height / 2;
+            // 累加父容器 Y 坐标，处理带翻译歌词被包装在 VerticalStackLayout 中的情况
+            var y = GetRelativeY(label);
             var scrollY = y - LyricScrollView.Height / 2;
             scrollY = Math.Max(0, scrollY);
 
@@ -264,34 +256,17 @@ public partial class NowPlayingPage : ContentPage
         catch { }
     }
 
-    /// <summary>进度定时器每次触发时调用，在用户未拖动时同步进度条与播放时长显示。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
-    private void OnProgressTimerTick(object? sender, EventArgs e)
+    /// <summary>获取元素相对于 LyricStack 的 Y 坐标（累加所有父容器的 Y）</summary>
+    private double GetRelativeY(VisualElement element)
     {
-        if (_isDragging) return;
-
-        var duration = _viewModel.Duration;
-        var progress = _viewModel.Progress;
-
-        if (duration < 1)
+        double y = element.Y + element.Height / 2;
+        var parent = element.Parent as VisualElement;
+        while (parent != null && parent != LyricStack)
         {
-            duration = _viewModel.AudioServiceDuration;
-            if (duration > 1)
-            {
-                _viewModel.Duration = duration;
-                _viewModel.TotalTimeDisplay = FormatTime(duration);
-            }
+            y += parent.Y;
+            parent = parent.Parent as VisualElement;
         }
-
-        if (duration > 1)
-        {
-            if (ProgressSlider.Maximum != duration)
-                ProgressSlider.Maximum = duration;
-
-            if (Math.Abs(ProgressSlider.Value - progress) > 0.5)
-                ProgressSlider.Value = progress;
-        }
+        return y;
     }
 
     /// <summary>当用户开始拖动进度条时触发，标记拖动状态并通知视图模型开始定位。</summary>

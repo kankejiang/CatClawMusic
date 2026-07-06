@@ -48,6 +48,9 @@ public partial class MainPage : ContentPage
 
         SetupPages();
         ViewPagerGrid.SizeChanged += OnViewPagerSizeChanged;
+
+        // 订阅系统栏高度变化，更新 SafeArea padding
+        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
     }
 
     /// <summary>创建 6 个页面（全屏歌词 + 5 个 tab），提取 Content 放入 ViewPager</summary>
@@ -97,16 +100,52 @@ public partial class MainPage : ContentPage
         }
     }
 
-    /// <summary>递归给所有 Layout 子元素添加 PanGestureRecognizer，确保空白区域也能滑动</summary>
+    /// <summary>
+    /// 递归给所有 Layout 子元素（包括 ScrollView）添加 PanGestureRecognizer，
+    /// 确保页面任意区域都能响应左右滑动切换。
+    /// ScrollView 也需要添加手势，否则在 Android 上会消费所有触摸事件，
+    /// 导致父 Layout 的 PanGestureRecognizer 收不到水平滑动。
+    /// 方向锁定逻辑（OnPanUpdated 中）会区分水平/垂直滑动，不影响 ScrollView 的垂直滚动。
+    /// 注意：ScrollView/Border/ContentView 不是 Layout，但其内部内容也需要能响应手势，
+    /// 因此递归需要穿过这些容器到达其 Content。
+    /// </summary>
     private static void AddPanToLayouts(VisualElement element, PanGestureRecognizer panGesture)
     {
-        if (element is Layout layout && element is not ScrollView && element is not Slider)
+        if (element is Slider) return;
+
+        // Layout（Grid/StackLayout等）：添加手势并递归子元素
+        if (element is Layout layout)
         {
             layout.GestureRecognizers.Add(panGesture);
             foreach (var child in layout.Children.OfType<VisualElement>())
             {
                 AddPanToLayouts(child, panGesture);
             }
+            return;
+        }
+
+        // ScrollView：递归到其 Content（ScrollView 本身的手势会与内置滚动冲突，不添加）
+        if (element is ScrollView scrollView)
+        {
+            if (scrollView.Content is VisualElement scrollContent)
+                AddPanToLayouts(scrollContent, panGesture);
+            return;
+        }
+
+        // ContentView / Border：递归到其 Content
+        if (element is ContentView contentView)
+        {
+            if (contentView.Content is VisualElement content)
+                AddPanToLayouts(content, panGesture);
+            return;
+        }
+
+        // ContentPage：递归到其 Content
+        if (element is ContentPage page)
+        {
+            if (page.Content is VisualElement content)
+                AddPanToLayouts(content, panGesture);
+            return;
         }
     }
 
@@ -386,6 +425,31 @@ public partial class MainPage : ContentPage
         TabBar.IsVisible = !isFullScreen;
         TabBar.HeightRequest = isFullScreen ? 0 : 64;
         UpdateMiniPlayerVisibility();
+        UpdateSafeAreaPadding();
+    }
+
+    /// <summary>系统栏高度变化时触发，更新各区域 SafeArea padding</summary>
+    private void OnSafeAreaChanged(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(UpdateSafeAreaPadding);
+    }
+
+    /// <summary>
+    /// 根据当前页面是否全屏，更新 SafeArea padding：
+    /// - 全屏页面（播放页/歌词页）：ViewPagerGrid 无顶部 padding，让雾面背景延伸到状态栏；TabBar 隐藏无需底部 padding
+    /// - 非全屏页面：ViewPagerGrid 顶部留出状态栏高度；TabBar 底部留出导航栏高度
+    /// </summary>
+    private void UpdateSafeAreaPadding()
+    {
+        var top = SafeAreaHelper.TopInset;
+        var bottom = SafeAreaHelper.BottomInset;
+        var isFullScreen = _currentIndex <= 1;
+
+        // 非全屏页面：顶部留出状态栏高度保护内容
+        ViewPagerGrid.Padding = isFullScreen ? new Thickness(0) : new Thickness(0, top, 0, 0);
+
+        // TabBar 底部留出导航栏高度（全屏页面 TabBar 已隐藏）
+        TabBar.Padding = new Thickness(0, 6, 0, isFullScreen ? 8 : bottom + 8);
     }
 
     /// <summary>迷你播放器仅在有当前歌曲且非全屏页时显示</summary>

@@ -12,11 +12,12 @@
 		<Nullable>enable</Nullable>
 		<LangVersion>preview</LangVersion>
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
 		<ApplicationId>com.catclaw.music</ApplicationId>
-		<ApplicationDisplayVersion>1.6.0</ApplicationDisplayVersion>
-		<ApplicationVersion>37</ApplicationVersion>
+		<ApplicationDisplayVersion>1.6.1</ApplicationDisplayVersion>
+		<ApplicationVersion>38</ApplicationVersion>
 
 		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>
