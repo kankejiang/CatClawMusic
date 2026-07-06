@@ -52,7 +52,7 @@
                                 HeightRequest="36"
                                 FontSize="12"
                                 VerticalOptions="Center"
-                                IsEnabled="{Binding CachedSongCount, Converter={StaticResource IntToBoolConverter}}" />
+                                IsEnabled="{Binding HasCachedSongs}" />
                     </Grid>
                 </Border>
 

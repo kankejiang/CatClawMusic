@@ -293,7 +293,7 @@ public class ForegroundPlayerService : Service
             PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
     }
 
-    /// <summary>构建播放控制通知，包含歌曲信息、专辑封面、点击跳转以及"播放/暂停/上一首/下一首/歌词/收藏"按钮</summary>
+    /// <summary>构建播放控制通知，使用系统 MediaStyle 绑定 MediaSession，显示标准媒体播放控件</summary>
     /// <returns>构建完成的 Notification</returns>
     private Notification BuildNotification()
     {
@@ -316,27 +316,35 @@ public class ForegroundPlayerService : Service
             ? global::Android.Resource.Drawable.StarOn
             : global::Android.Resource.Drawable.StarOff;
 
-        var builder = new NotificationCompat.Builder(this, ChannelId)
+        // 使用框架 Notification.Builder + MediaStyle 实现系统标准媒体播放控件
+        var builder = new Notification.Builder(this, ChannelId)
             .SetContentTitle(_title)
             .SetContentText(_artist)
             .SetSmallIcon(global::Android.Resource.Drawable.IcMediaPlay)
             .SetContentIntent(contentPending)
             .SetOngoing(true)
-            .SetPriority(NotificationCompat.PriorityHigh)
-            .SetVisibility(NotificationCompat.VisibilityPublic);
+            .SetVisibility(NotificationVisibility.Public)
+            .SetPriority((int)NotificationPriority.High);
 
         if (_albumArt != null)
         {
             builder.SetLargeIcon(_albumArt);
         }
 
-        builder
-            .AddAction(global::Android.Resource.Drawable.IcMenuInfoDetails, "歌词", lyricsIntent)
-            .AddAction(global::Android.Resource.Drawable.IcMediaPrevious, "上一首", prevIntent)
-            .AddAction(playIcon, _isPlaying ? "暂停" : "播放", playPauseIntent)
-            .AddAction(global::Android.Resource.Drawable.IcMediaNext, "下一首", nextIntent)
-            .AddAction(favoriteIcon, _isFavorite ? "已收藏" : "收藏", favoriteIntent)
-            .SetStyle(new NotificationCompat.BigTextStyle().BigText(_artist));
+        builder.AddAction(global::Android.Resource.Drawable.IcMenuInfoDetails, "歌词", lyricsIntent);
+        builder.AddAction(global::Android.Resource.Drawable.IcMediaPrevious, "上一首", prevIntent);
+        builder.AddAction(playIcon, _isPlaying ? "暂停" : "播放", playPauseIntent);
+        builder.AddAction(global::Android.Resource.Drawable.IcMediaNext, "下一首", nextIntent);
+        builder.AddAction(favoriteIcon, _isFavorite ? "已收藏" : "收藏", favoriteIntent);
+
+        // 使用 MediaStyle 绑定 MediaSession，在通知栏显示系统标准媒体控件（含进度条/封面）
+        if (_mediaSession != null)
+        {
+            var mediaStyle = new Notification.MediaStyle()
+                .SetMediaSession(_mediaSession.SessionToken)
+                .SetShowActionsInCompactView(1, 2, 3); // 上一首、播放/暂停、下一首
+            builder.SetStyle(mediaStyle);
+        }
 
         return builder.Build();
     }

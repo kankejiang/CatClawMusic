@@ -361,7 +361,7 @@ public partial class NowPlayingViewModel : ObservableObject
             try
             {
                 await _db.EnsureInitializedAsync();
-                var (restoredSongs, restoredCurrentId) = RestoreQueueState();
+                var (restoredSongs, restoredCurrentId) = await RestoreQueueStateAsync();
                 if (restoredSongs.Count > 0 && restoredCurrentId > 0)
                 {
                     _queue.SetSongs(restoredSongs);
@@ -551,47 +551,49 @@ public partial class NowPlayingViewModel : ObservableObject
         }
     }
 
-    /// <summary>从 Preferences 恢复播放队列状态</summary>
-    private (List<Song> songs, int currentSongId) RestoreQueueState()
+    /// <summary>从 Preferences 恢复播放队列状态（在线程池线程执行以避免阻塞主线程）</summary>
+    private async Task<(List<Song> songs, int currentSongId)> RestoreQueueStateAsync()
     {
         try
         {
-            var songIdsStr = Preferences.Default.Get("queue_song_ids", "");
-            var currentSongId = Preferences.Default.Get("queue_current_song_id", -1);
-            var playMode = Preferences.Default.Get("queue_play_mode", (int)PlayMode.ListRepeat);
-
-            if (string.IsNullOrEmpty(songIdsStr) || currentSongId <= 0)
-                return (new List<Song>(), -1);
-
-            var songIds = songIdsStr.Split(',')
-                .Where(s => int.TryParse(s, out _))
-                .Select(int.Parse)
-                .ToList();
-
-            if (songIds.Count == 0)
-                return (new List<Song>(), -1);
-
-            // 从数据库批量查询完整 Song 对象
-            var songs = new List<Song>();
-            foreach (var id in songIds)
+            // 将所有 I/O 与 SQLite 查询放到线程池线程，避免 sync-over-async 阻塞主线程
+            return await Task.Run(async () =>
             {
-                var song = _db.GetSongByIdAsync(id).GetAwaiter().GetResult();
-                if (song != null)
+                var songIdsStr = Preferences.Default.Get("queue_song_ids", "");
+                var currentSongId = Preferences.Default.Get("queue_current_song_id", -1);
+                var playMode = Preferences.Default.Get("queue_play_mode", (int)PlayMode.ListRepeat);
+
+                if (string.IsNullOrEmpty(songIdsStr) || currentSongId <= 0)
+                    return (new List<Song>(), -1);
+
+                var songIds = songIdsStr.Split(',')
+                    .Where(s => int.TryParse(s, out _))
+                    .Select(int.Parse)
+                    .ToList();
+
+                if (songIds.Count == 0)
+                    return (new List<Song>(), -1);
+
+                // 并行查询所有歌曲（避免串行 await）
+                var songTasks = songIds.Select(async id =>
                 {
-                    // 填充 Artist/Album 名称
-                    var artist = _db.FindArtistByIdAsync(song.ArtistId).GetAwaiter().GetResult();
-                    var album = _db.FindAlbumByIdAsync(song.AlbumId).GetAwaiter().GetResult();
-                    song.Artist = artist?.Name ?? "未知艺术家";
-                    song.Album = album?.Title ?? "未知专辑";
+                    var song = await _db.GetSongByIdAsync(id);
+                    if (song == null) return null;
+                    // 并行查询 artist 和 album
+                    var artistTask = _db.FindArtistByIdAsync(song.ArtistId);
+                    var albumTask = _db.FindAlbumByIdAsync(song.AlbumId);
+                    await Task.WhenAll(artistTask, albumTask);
+                    song.Artist = artistTask.Result?.Name ?? "未知艺术家";
+                    song.Album = albumTask.Result?.Title ?? "未知专辑";
                     song.AllArtists = song.Artist;
-                    songs.Add(song);
-                }
-            }
+                    return song;
+                }).ToList();
+                var results = await Task.WhenAll(songTasks);
+                var songs = results.Where(s => s != null).Cast<Song>().ToList();
 
-            // 恢复播放模式
-            _queue.PlayMode = (PlayMode)playMode;
-
-            return (songs, currentSongId);
+                _queue.PlayMode = (PlayMode)playMode;
+                return (songs, currentSongId);
+            }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -599,6 +601,10 @@ public partial class NowPlayingViewModel : ObservableObject
             return (new List<Song>(), -1);
         }
     }
+
+    /// <summary>同步恢复（仅兼容旧调用，内部已异步化）</summary>
+    private (List<Song> songs, int currentSongId) RestoreQueueState()
+        => RestoreQueueStateAsync().GetAwaiter().GetResult();
 
     private void RefreshUpcomingSongs()
     {

@@ -300,25 +300,69 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
-    private void FilterSongs()
+    private CancellationTokenSource? _filterCts;
+
+    partial void OnSearchQueryChanged(string value)
     {
-        IEnumerable<Song> source = Songs;
+        // 防抖 250ms 避免每次按键触发过滤
+        _filterCts?.Cancel();
+        _filterCts = new CancellationTokenSource();
+        _ = FilterSongsAsync(_filterCts.Token);
+    }
 
-        if (!string.IsNullOrWhiteSpace(SearchQuery))
+    /// <summary>同步过滤入口（保留给非搜索路径如 LoadLocalAsync 调用）</summary>
+    private void FilterSongs() => FilterSongsAsync(default).GetAwaiter().GetResult();
+
+    private async Task FilterSongsAsync(CancellationToken ct)
+    {
+        try
         {
-            var query = SearchQuery.ToLowerInvariant();
-            source = source.Where(s =>
-                (s.Title?.ToLowerInvariant().Contains(query) == true) ||
-                (s.Artist?.ToLowerInvariant().Contains(query) == true) ||
-                (s.Album?.ToLowerInvariant().Contains(query) == true)
-            );
+            // 仅在搜索框有内容时启用防抖
+            if (!string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                await Task.Delay(250, ct).ConfigureAwait(false);
+            }
+
+            var query = SearchQuery;
+            var songs = Songs;
+
+            // 后台线程执行 LINQ 过滤
+            var filtered = await Task.Run(() =>
+            {
+                IEnumerable<Song> source = songs;
+                if (!string.IsNullOrWhiteSpace(query))
+                {
+                    var q = query.ToLowerInvariant();
+                    source = source.Where(s =>
+                        (s.Title?.ToLowerInvariant().Contains(q) == true) ||
+                        (s.Artist?.ToLowerInvariant().Contains(q) == true) ||
+                        (s.Album?.ToLowerInvariant().Contains(q) == true)
+                    );
+                }
+                return source.ToList();
+            }, ct).ConfigureAwait(false);
+
+            ct.ThrowIfCancellationRequested();
+
+            // 回到主线程更新 ObservableCollection
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (ct.IsCancellationRequested) return;
+                FilteredSongs = new ObservableCollection<Song>(filtered);
+                SongCount = FilteredSongs.Count;
+                SectionTitle = string.IsNullOrWhiteSpace(SearchQuery)
+                    ? "全部歌曲"
+                    : $"搜索结果 ({FilteredSongs.Count})";
+            });
         }
-
-        var filtered = source.ToList();
-        FilteredSongs = new ObservableCollection<Song>(filtered);
-
-        SongCount = FilteredSongs.Count;
-        SectionTitle = string.IsNullOrWhiteSpace(SearchQuery) ? "全部歌曲" : $"搜索结果 ({FilteredSongs.Count})";
+        catch (OperationCanceledException)
+        {
+            // 防抖正常行为
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Library] FilterSongs failed: {ex.Message}");
+        }
     }
 
     private void UpdateStats()
@@ -403,11 +447,6 @@ public partial class LibraryViewModel : ObservableObject
         {
             StatusText = $"播放失败: {ex.Message}";
         }
-    }
-
-    partial void OnSearchQueryChanged(string value)
-    {
-        FilterSongs();
     }
 
 }

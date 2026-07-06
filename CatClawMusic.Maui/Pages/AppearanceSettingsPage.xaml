@@ -237,6 +237,13 @@
                                             BackgroundColor="{DynamicResource PrimaryColor}"
                                             TextColor="White"
                                             CornerRadius="16" />
+                                    <Button Text="默认"
+                                            Command="{Binding UseDefaultBackgroundCommand}"
+                                            FontSize="13"
+                                            Padding="12,6"
+                                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                            TextColor="{DynamicResource TextSecondaryColor}"
+                                            CornerRadius="16" />
                                     <Button Text="清除"
                                             Command="{Binding ClearBackgroundCommand}"
                                             FontSize="13"
@@ -248,7 +255,7 @@
                             </VerticalStackLayout>
                         </Grid>
 
-                        <Grid ColumnDefinitions="*,Auto"
+                        <Grid ColumnDefinitions="*,Auto,Auto"
                               IsVisible="{Binding HasCustomBackground, Converter={StaticResource InvertedBoolConverter}}">
                             <Label Grid.Column="0"
                                    Text="未设置自定义背景，使用主题渐变背景"
@@ -256,6 +263,14 @@
                                    TextColor="{DynamicResource TextHintColor}"
                                    VerticalOptions="Center" />
                             <Button Grid.Column="1"
+                                    Text="默认"
+                                    Command="{Binding UseDefaultBackgroundCommand}"
+                                    FontSize="13"
+                                    Padding="14,7"
+                                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                    TextColor="{DynamicResource TextSecondaryColor}"
+                                    CornerRadius="16" />
+                            <Button Grid.Column="2"
                                     Text="选择图片"
                                     Command="{Binding SelectBackgroundCommand}"
                                     FontSize="13"
@@ -286,6 +301,26 @@
                                     MaximumTrackColor="{DynamicResource InputBorderColor}"
                                     ThumbColor="{DynamicResource PrimaryColor}" />
                         </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="雾面动态背景"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding FrostedBackgroundEnabled, Mode=TwoWay}"
+                                    OnColor="{DynamicResource PrimaryColor}"
+                                    ThumbColor="{DynamicResource TextPrimaryColor}" />
+                        </Grid>
+                        <Label Text="在播放页和歌词页面使用封面雾面动态背景。将封面裁成4块旋转拼接，再经过多重模糊和色调处理，形成雾面玻璃质感的动态背景。"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondaryColor}" />
                     </VerticalStackLayout>
                 </Border>
 
