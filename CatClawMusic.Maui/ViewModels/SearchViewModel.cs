@@ -348,12 +348,18 @@ public partial class SearchViewModel : ObservableObject
         };
     }
 
+    /// <summary>搜索防抖令牌，避免每次按键都触发过滤</summary>
+    private CancellationTokenSource? _searchDebounceCts;
+
     partial void OnSearchQueryChanged(string value)
     {
-        UpdateSearchDropdown(value);
+        // 防抖 250ms，避免连续按键重复过滤
+        _searchDebounceCts?.Cancel();
+        _searchDebounceCts = new CancellationTokenSource();
+        _ = UpdateSearchDropdownAsync(value, _searchDebounceCts.Token);
     }
 
-    private void UpdateSearchDropdown(string query)
+    private async Task UpdateSearchDropdownAsync(string query, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -364,36 +370,63 @@ public partial class SearchViewModel : ObservableObject
             return;
         }
 
-        var q = query.Trim();
+        try
+        {
+            // 等待防抖窗口（250ms 内若再次按键则取消此次）
+            await Task.Delay(250, ct).ConfigureAwait(false);
 
-        var songs = _allDailyRecommendSongs
-            .Concat(_allTopPlayedSongs)
-            .Concat(_allRecentAddedSongs)
-            .Where(s =>
-                (s.Title?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (s.Artist?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (s.Album?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false))
-            .GroupBy(s => s.Id)
-            .Select(g => g.First())
-            .Take(10)
-            .ToList();
+            var q = query.Trim();
 
-        var artists = _allArtists
-            .Where(a => a.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
-            .Take(6)
-            .ToList();
+            // 将 LINQ 过滤放到线程池线程执行
+            var (songs, artists, albums) = await Task.Run(() =>
+            {
+                var songs = _allDailyRecommendSongs
+                    .Concat(_allTopPlayedSongs)
+                    .Concat(_allRecentAddedSongs)
+                    .Where(s =>
+                        (s.Title?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        (s.Artist?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        (s.Album?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false))
+                    .GroupBy(s => s.Id)
+                    .Select(g => g.First())
+                    .Take(10)
+                    .ToList();
 
-        var albums = _allAlbums
-            .Where(a =>
-                a.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                a.ArtistName.Contains(q, StringComparison.OrdinalIgnoreCase))
-            .Take(6)
-            .ToList();
+                var artists = _allArtists
+                    .Where(a => a.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+                    .Take(6)
+                    .ToList();
 
-        SearchResults = new ObservableCollection<Song>(songs);
-        SearchArtistResults = new ObservableCollection<SearchArtistItem>(artists);
-        SearchAlbumResults = new ObservableCollection<SearchAlbumItem>(albums);
-        ShowSearchResults = songs.Count > 0 || artists.Count > 0 || albums.Count > 0;
+                var albums = _allAlbums
+                    .Where(a =>
+                        a.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                        a.ArtistName.Contains(q, StringComparison.OrdinalIgnoreCase))
+                    .Take(6)
+                    .ToList();
+
+                return (songs, artists, albums);
+            }, ct).ConfigureAwait(false);
+
+            ct.ThrowIfCancellationRequested();
+
+            // 回到主线程更新 ObservableCollection
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (ct.IsCancellationRequested) return;
+                SearchResults = new ObservableCollection<Song>(songs);
+                SearchArtistResults = new ObservableCollection<SearchArtistItem>(artists);
+                SearchAlbumResults = new ObservableCollection<SearchAlbumItem>(albums);
+                ShowSearchResults = songs.Count > 0 || artists.Count > 0 || albums.Count > 0;
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // 防抖正常行为，忽略
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Search] UpdateSearchDropdown failed: {ex.Message}");
+        }
     }
 
     /// <summary>清空搜索下拉结果</summary>

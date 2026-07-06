@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -37,8 +38,39 @@ public partial class App : Application
         });
     }
 
+    /// <summary>
+    /// Shell 导航完成后触发：为非 MainPage 的二级页面根 Grid 自动添加 SafeAreaPaddingBehavior，
+    /// 让内容避开状态栏区域。已添加 Behavior 的页面不会重复添加。
+    /// </summary>
+    private void OnShellNavigated(object? sender, ShellNavigatedEventArgs e)
+    {
+        if (sender is not Shell shell) return;
+        var currentPage = shell.CurrentPage;
+        if (currentPage == null) return;
+
+        // MainPage 自身已处理 SafeArea，跳过
+        if (currentPage is Pages.MainPage) return;
+
+        // ContentPage 才有 Content 属性
+        if (currentPage is not ContentPage contentPage) return;
+
+        // 找到页面内容的根 Grid
+        if (contentPage.Content is not Grid rootGrid) return;
+
+        // 检查是否已添加 SafeAreaPaddingBehavior，避免重复添加
+        foreach (var behavior in rootGrid.Behaviors)
+        {
+            if (behavior is SafeAreaPaddingBehavior)
+                return; // 已存在，跳过
+        }
+
+        rootGrid.Behaviors.Add(new SafeAreaPaddingBehavior());
+    }
+
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        return new Window(MauiProgram.Services.GetRequiredService<AppShell>());
+        var shell = MauiProgram.Services.GetRequiredService<AppShell>();
+        shell.Navigated += OnShellNavigated;
+        return new Window(shell);
     }
 }

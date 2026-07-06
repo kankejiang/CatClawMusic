@@ -23,8 +23,11 @@ public partial class MainPage : ContentPage
     private bool _isPanning;
     private bool _directionLocked;
     private bool _isFirstLoad = true;
+    private System.Timers.Timer? _panWatchdogTimer;
+    private DateTime _lastPanRunningTime;
     private const double SwipeThresholdRatio = 0.25;
     private const int AnimDuration = 280;
+    private const int PanWatchdogInterval = 400;
 
     /// <summary>全局实例，供外部调用 SwitchToTab</summary>
     public static MainPage? Instance { get; private set; }
@@ -129,6 +132,15 @@ public partial class MainPage : ContentPage
         {
             if (scrollView.Content is VisualElement scrollContent)
                 AddPanToLayouts(scrollContent, panGesture);
+            return;
+        }
+
+        // ItemsView (CollectionView/ListView 等)：直接添加手势，
+        // 避免滚动控件消费水平触摸事件导致滑动切换中断。
+        // 方向锁定逻辑会区分水平/垂直，垂直滚动不受影响。
+        if (element is ItemsView itemsView)
+        {
+            itemsView.GestureRecognizers.Add(panGesture);
             return;
         }
 
@@ -265,10 +277,13 @@ public partial class MainPage : ContentPage
                 _panTotalX = 0;
                 _isPanning = true;
                 _directionLocked = false;
+                _lastPanRunningTime = DateTime.Now;
+                StartPanWatchdog();
                 break;
 
             case GestureStatus.Running:
                 if (!_isPanning) return;
+                _lastPanRunningTime = DateTime.Now;
 
                 // 方向锁定：只响应水平滑动，垂直交给 ScrollView
                 if (!_directionLocked)
@@ -279,6 +294,7 @@ public partial class MainPage : ContentPage
                         if (Math.Abs(e.TotalY) > Math.Abs(e.TotalX))
                         {
                             _isPanning = false;
+                            StopPanWatchdog();
                             return;
                         }
                     }
@@ -303,6 +319,7 @@ public partial class MainPage : ContentPage
             case GestureStatus.Completed:
                 if (!_isPanning) return;
                 _isPanning = false;
+                StopPanWatchdog();
 
                 var sw = ViewPagerGrid.Width;
                 var threshold = sw * SwipeThresholdRatio;
@@ -325,9 +342,47 @@ public partial class MainPage : ContentPage
 
             case GestureStatus.Canceled:
                 _isPanning = false;
+                StopPanWatchdog();
                 await BounceBack();
                 break;
         }
+    }
+
+    /// <summary>启动滑动看门狗：防止滚动控件偷走触摸事件导致页面卡在中间</summary>
+    private void StartPanWatchdog()
+    {
+        StopPanWatchdog();
+        _panWatchdogTimer = new System.Timers.Timer(PanWatchdogInterval);
+        _panWatchdogTimer.Elapsed += (_, _) =>
+        {
+            if (!_isPanning)
+            {
+                StopPanWatchdog();
+                return;
+            }
+            if ((DateTime.Now - _lastPanRunningTime).TotalMilliseconds >= PanWatchdogInterval)
+            {
+                StopPanWatchdog();
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    if (_isPanning)
+                    {
+                        _isPanning = false;
+                        await BounceBack();
+                    }
+                });
+            }
+        };
+        _panWatchdogTimer.AutoReset = true;
+        _panWatchdogTimer.Start();
+    }
+
+    /// <summary>停止滑动看门狗</summary>
+    private void StopPanWatchdog()
+    {
+        _panWatchdogTimer?.Stop();
+        _panWatchdogTimer?.Dispose();
+        _panWatchdogTimer = null;
     }
 
     /// <summary>动画切换到指定页面</summary>

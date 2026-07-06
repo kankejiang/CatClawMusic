@@ -23,6 +23,9 @@ public interface IThemeService
     /// <summary>是否设置了自定义背景</summary>
     bool HasCustomBackground { get; }
 
+    /// <summary>是否启用雾面动态背景（播放页/歌词页）</summary>
+    bool FrostedBackgroundEnabled { get; }
+
     /// <summary>切换当前主题</summary>
     /// <param name="theme">目标主题</param>
     void SetTheme(AppTheme theme);
@@ -51,6 +54,10 @@ public interface IThemeService
 
     /// <summary>清除自定义背景设置</summary>
     void ClearCustomBackground();
+
+    /// <summary>设置雾面动态背景开关</summary>
+    /// <param name="enabled">是否启用雾面背景</param>
+    void SetFrostedBackgroundEnabled(bool enabled);
 }
 
 /// <summary>

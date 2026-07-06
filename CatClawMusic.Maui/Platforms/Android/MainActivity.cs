@@ -104,13 +104,12 @@ public class MainActivity : MauiAppCompatActivity
 }
 
 /// <summary>
-/// 处理窗口 insets：将系统栏高度通知 SafeAreaHelper，不自动设置 padding。
-/// 顶部状态栏由各页面通过 SafeAreaHelper.TopInset 手动应用 padding（让雾面背景延伸到状态栏）。
-/// 底部导航栏高度同样通过 SafeAreaHelper.BottomInset 查询。
+/// 处理窗口 insets：记录系统栏高度到静态属性，供页面手动应用 SafeArea padding。
+/// 不再给根视图设置 padding，让全屏页面（播放页/歌词页）的雾面背景能延伸到状态栏和导航栏区域。
 /// </summary>
 internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
 {
-    /// <summary>系统栏 insets 应用回调：将 insets 转换为逻辑像素并通知 SafeAreaHelper</summary>
+    /// <summary>系统栏 insets 应用回调：记录系统栏高度并通知页面更新 padding</summary>
     /// <param name="v">应用 insets 的视图</param>
     /// <param name="insets">窗口 insets</param>
     /// <returns>消费后的 WindowInsetsCompat</returns>
@@ -119,13 +118,19 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
         if (v == null || insets == null) return insets!;
         var systemBars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars());
 
-        // 将物理像素转换为逻辑像素（除以密度）
-        var density = v.Resources?.DisplayMetrics?.Density ?? 1f;
-        var top = systemBars.Top / density;
-        var bottom = systemBars.Bottom / density;
+        // 不设置根视图 padding，让内容延伸到系统栏区域
+        // 各页面通过 SafeAreaHelper 自行处理 padding
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            var density = activity?.Resources?.DisplayMetrics?.Density ?? 1f;
+            var topDp = systemBars.Top / density;
+            var bottomDp = systemBars.Bottom / density;
 
-        // 通知 SafeAreaHelper 更新 insets（不自动设置 padding）
-        SafeAreaHelper.UpdateInsets(top, bottom);
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
+                SafeAreaHelper.UpdateInsets(topDp, bottomDp));
+        }
+        catch { }
 
         return WindowInsetsCompat.Consumed;
     }

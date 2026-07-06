@@ -17,11 +17,13 @@ public class ThemeService : IThemeService
     private const string KeyDarkMode = "dark_mode";
     private const string KeyCustomBgPath = "custom_bg_path";
     private const string KeyCustomBgOpacity = "custom_bg_opacity";
+    private const string KeyFrostedBg = "frosted_bg_enabled";
 
     private CoreAppTheme _currentTheme;
     private DarkModeSetting _darkModeSetting;
     private string? _customBackgroundPath;
     private double _customBackgroundOpacity = 0.5;
+    private bool _frostedBackgroundEnabled = true;
 
     /// <summary>主题色定义（10种主题：紫、粉、蓝、绿、橙、红、青、黄、靛蓝、青蓝）</summary>
     private static readonly Dictionary<CoreAppTheme, ThemeColors> ThemeMap = new()
@@ -48,6 +50,9 @@ public class ThemeService : IThemeService
     public double CustomBackgroundOpacity => _customBackgroundOpacity;
     /// <summary>获取是否存在有效的自定义背景图片</summary>
     public bool HasCustomBackground => !string.IsNullOrEmpty(_customBackgroundPath) && File.Exists(_customBackgroundPath);
+
+    /// <summary>获取是否启用雾面动态背景（播放页/歌词页）</summary>
+    public bool FrostedBackgroundEnabled => _frostedBackgroundEnabled;
 
     /// <summary>获取所有可选主题列表</summary>
     public List<CoreAppTheme> AvailableThemes => Enum.GetValues<CoreAppTheme>().ToList();
@@ -103,6 +108,15 @@ public class ThemeService : IThemeService
         SetCustomBackground(null);
     }
 
+    /// <summary>设置雾面动态背景开关并持久化</summary>
+    /// <param name="enabled">是否启用雾面背景</param>
+    public void SetFrostedBackgroundEnabled(bool enabled)
+    {
+        _frostedBackgroundEnabled = enabled;
+        Preferences.Default.Set(KeyFrostedBg, enabled);
+        ApplyTheme();
+    }
+
     /// <summary>切换主题色并持久化</summary>
     /// <param name="theme">目标主题色枚举</param>
     public void SetTheme(CoreAppTheme theme)
@@ -144,6 +158,8 @@ public class ThemeService : IThemeService
             app.Resources["PrimaryLightColor"] = Color.FromArgb(colors.Light);
             app.Resources["PrimaryDarkColor"] = Color.FromArgb(colors.Dark);
             app.Resources["AccentColor"] = Color.FromArgb(GetAccentColor(_currentTheme));
+            // 雾面动态背景开关（供播放页/歌词页 DynamicResource 绑定）
+            app.Resources["FrostedBackgroundEnabled"] = _frostedBackgroundEnabled;
 
             if (isDark)
             {
@@ -206,6 +222,7 @@ public class ThemeService : IThemeService
             _darkModeSetting = (DarkModeSetting)Preferences.Default.Get(KeyDarkMode, 2);
             _customBackgroundPath = Preferences.Default.Get<string?>(KeyCustomBgPath, null);
             _customBackgroundOpacity = Preferences.Default.Get(KeyCustomBgOpacity, 0.5);
+            _frostedBackgroundEnabled = Preferences.Default.Get(KeyFrostedBg, true);
             if (_customBackgroundPath != null && !File.Exists(_customBackgroundPath))
                 _customBackgroundPath = null;
 

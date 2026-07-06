@@ -47,6 +47,10 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _customBackgroundName = string.Empty;
 
+    /// <summary>是否启用雾面动态背景（播放页/歌词页）</summary>
+    [ObservableProperty]
+    private bool _frostedBackgroundEnabled = true;
+
     /// <summary>可选主题色列表（名称 + 十六进制颜色）</summary>
     public static readonly (string Name, string Color)[] ThemeColors = new[]
     {
@@ -124,6 +128,12 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         }
     }
 
+    partial void OnFrostedBackgroundEnabledChanged(bool value)
+    {
+        if (_isLoadingTheme) return;
+        _themeService?.SetFrostedBackgroundEnabled(value);
+    }
+
     /// <summary>选择自定义背景图：通过文件选择器选取图片并应用为应用背景</summary>
     [RelayCommand]
     public async Task SelectBackgroundAsync()
@@ -167,6 +177,14 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         LoadCurrentTheme();
     }
 
+    /// <summary>使用默认背景：清除自定义图片并恢复主题渐变背景</summary>
+    [RelayCommand]
+    public void UseDefaultBackground()
+    {
+        _themeService?.ClearCustomBackground();
+        LoadCurrentTheme();
+    }
+
     /// <summary>从主题服务加载当前外观配置，同步到各绑定属性</summary>
     public void LoadCurrentTheme()
     {
@@ -192,6 +210,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
 
         HasCustomBackground = _themeService.HasCustomBackground;
         BackgroundOpacity = _themeService.CustomBackgroundOpacity;
+        FrostedBackgroundEnabled = _themeService.FrostedBackgroundEnabled;
         if (HasCustomBackground && _themeService.CustomBackgroundPath != null)
         {
             try

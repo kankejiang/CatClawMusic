@@ -83,15 +83,28 @@ public partial class PlaylistViewModel : ObservableObject
             });
 
             var userPlaylists = await _musicLibrary.GetAllPlaylistsAsync();
-            foreach (var p in userPlaylists)
+
+            // 并行查询每个歌单的第一首歌（避免串行 N 次 DB 往返）
+            if (userPlaylists.Count > 0)
             {
-                try
+                var coverTasks = userPlaylists.Select(async p =>
                 {
-                    var firstSong = await _db.GetFirstSongInPlaylistAsync(p.Id);
-                    p.CoverSongId = firstSong?.Id ?? 0;
+                    try
+                    {
+                        var firstSong = await _db.GetFirstSongInPlaylistAsync(p.Id);
+                        return (Playlist: p, CoverSongId: firstSong?.Id ?? 0);
+                    }
+                    catch
+                    {
+                        return (Playlist: p, CoverSongId: 0);
+                    }
+                }).ToList();
+                var coverResults = await Task.WhenAll(coverTasks);
+                foreach (var (p, coverId) in coverResults)
+                {
+                    p.CoverSongId = coverId;
+                    Playlists.Add(p);
                 }
-                catch { p.CoverSongId = 0; }
-                Playlists.Add(p);
             }
 
             _isDirty = false;

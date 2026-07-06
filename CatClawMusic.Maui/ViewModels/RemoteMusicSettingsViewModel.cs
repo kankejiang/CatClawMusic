@@ -41,6 +41,14 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _cachedSongCount;
 
+    /// <summary>是否有已缓存的歌曲（控制清空按钮可用性）</summary>
+    public bool HasCachedSongs => CachedSongCount > 0;
+
+    partial void OnCachedSongCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasCachedSongs));
+    }
+
     /// <summary>是否正在刷新列表</summary>
     [ObservableProperty]
     private bool _isRefreshing;
