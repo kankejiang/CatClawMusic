@@ -119,14 +119,14 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
     {
         try
         {
-            var hasPermission = await _permissionService.RequestStoragePermissionAsync();
+            var hasPermission = await _permissionService.RequestAudioPermissionAsync();
             if (!hasPermission)
             {
                 UseMediaStore = false;
                 await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
                     if (Application.Current?.Windows[0]?.Page is Page page)
-                        await page.DisplayAlertAsync("提示", "需要音乐读取权限才能使用Android媒体库扫描功能", "确定");
+                        await page.DisplayAlertAsync("提示", "需要「音乐和音频」权限才能使用Android媒体库扫描功能", "确定");
                 });
             }
         }
@@ -193,13 +193,13 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
 
         if (UseMediaStore)
         {
-            var hasPermission = await _permissionService.RequestStoragePermissionAsync();
+            var hasPermission = await _permissionService.RequestAudioPermissionAsync();
             if (!hasPermission)
             {
                 await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
                     if (Application.Current?.Windows[0]?.Page is Page page)
-                        await page.DisplayAlertAsync("提示", "需要音乐读取权限才能扫描，请先授予权限", "确定");
+                        await page.DisplayAlertAsync("提示", "需要「音乐和音频」权限才能扫描，请先授予权限", "确定");
                 });
                 return;
             }

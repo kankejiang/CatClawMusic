@@ -65,14 +65,25 @@
                       IsVisible="{Binding HasLyrics}"
                       HeightRequest="280"
                       IsClippedToBounds="True">
-                    <ScrollView x:Name="LyricScrollView"
-                                Orientation="Vertical"
-                                VerticalScrollBarVisibility="Never">
-                        <VerticalStackLayout x:Name="LyricStack"
-                                             Padding="0,120,0,120"
-                                             Spacing="6"
-                                             HorizontalOptions="Center" />
-                    </ScrollView>
+                    <CollectionView x:Name="LyricCollectionView"
+                                    ItemsSource="{Binding LyricPlaceholderItems}"
+                                    SelectionMode="None"
+                                    VerticalScrollBarVisibility="Never">
+                        <CollectionView.ItemsLayout>
+                            <LinearItemsLayout Orientation="Vertical" />
+                        </CollectionView.ItemsLayout>
+                        <CollectionView.Header>
+                            <VerticalStackLayout x:Name="LyricStack"
+                                                 Padding="0,120,0,120"
+                                                 Spacing="6"
+                                                 HorizontalOptions="Center" />
+                        </CollectionView.Header>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <BoxView HeightRequest="0" />
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
                 </Grid>
                 <Label x:Name="NoLyricsLabel"
                        Text="{Binding NoLyricsText}"

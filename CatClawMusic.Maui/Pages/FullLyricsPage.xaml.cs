@@ -248,12 +248,41 @@ public partial class FullLyricsPage : ContentPage
         try
         {
             var label = _lyricLabels[index];
-            // 累加父容器 Y 坐标，处理带翻译歌词被包装在 VerticalStackLayout 中的情况
-            var y = GetRelativeY(label);
-            var scrollY = y - LyricScrollView.Height / 2;
-            scrollY = Math.Max(0, scrollY);
 
-            await LyricScrollView.ScrollToAsync(0, scrollY, true);
+#if ANDROID
+            if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView
+                && label.Handler?.PlatformView is global::Android.Views.View nativeLabel)
+            {
+                int[] labelLocation = new int[2];
+                nativeLabel.GetLocationOnScreen(labelLocation);
+                int[] recyclerLocation = new int[2];
+                recyclerView.GetLocationOnScreen(recyclerLocation);
+
+                int labelCenterY = labelLocation[1] + nativeLabel.Height / 2;
+                int recyclerCenterY = recyclerLocation[1] + recyclerView.Height / 2;
+                int dy = labelCenterY - recyclerCenterY;
+
+                if (Math.Abs(dy) > 2)
+                {
+                    recyclerView.SmoothScrollBy(0, dy);
+                }
+            }
+            else if (LyricCollectionView.Handler?.PlatformView is global::Android.Views.View nativeView)
+            {
+                var y = GetRelativeY(label);
+                var targetScrollY = y - LyricCollectionView.Height / 2;
+                targetScrollY = Math.Max(0, targetScrollY);
+                nativeView.ScrollY = (int)targetScrollY;
+            }
+#else
+            var y = GetRelativeY(label);
+            var targetScrollY = y - LyricCollectionView.Height / 2;
+            targetScrollY = Math.Max(0, targetScrollY);
+            if (LyricCollectionView.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().Any())
+            {
+                LyricCollectionView.ScrollTo(items.Cast<object>().First(), position: ScrollToPosition.Start, animate: true);
+            }
+#endif
         }
         catch { }
     }
@@ -271,10 +300,8 @@ public partial class FullLyricsPage : ContentPage
         return y;
     }
 
-    /// <summary>当用户手动滚动歌词视图时触发，标记用户正在滚动以暂停自动滚动定位。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">滚动事件参数。</param>
-    private void OnLyricScrolled(object? sender, ScrolledEventArgs e)
+    /// <summary>用户手动滚动歌词时标记用户滚动状态（通过平台事件监听）</summary>
+    private void OnUserScrolled()
     {
         _userScrolling = true;
         _ = ResetUserScrollingAsync();

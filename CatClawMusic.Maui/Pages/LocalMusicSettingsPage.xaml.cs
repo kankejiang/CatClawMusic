@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
@@ -6,13 +7,16 @@ namespace CatClawMusic.Maui.Pages;
 public partial class LocalMusicSettingsPage : ContentPage
 {
     private readonly LocalMusicSettingsViewModel _viewModel;
+    private readonly IPermissionService _permissionService;
 
     /// <summary>初始化 <see cref="LocalMusicSettingsPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="viewModel">本地音乐设置页面对应的视图模型。</param>
-    public LocalMusicSettingsPage(LocalMusicSettingsViewModel viewModel)
+    /// <param name="permissionService">权限服务，用于自研文件管理器索要所有文件访问权限。</param>
+    public LocalMusicSettingsPage(LocalMusicSettingsViewModel viewModel, IPermissionService permissionService)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _permissionService = permissionService;
         BindingContext = viewModel;
     }
 
@@ -27,6 +31,21 @@ public partial class LocalMusicSettingsPage : ContentPage
         }
         else
         {
+            // 自研文件管理器基于真实文件系统路径读取目录，Android 11+ 需要「所有文件访问」权限（MANAGE_EXTERNAL_STORAGE）
+            var granted = await _permissionService.CheckManageStoragePermissionAsync();
+            if (!granted)
+            {
+                var goToSettings = await DisplayAlert(
+                    "需要所有文件访问权限",
+                    "使用文件管理器选择文件夹需要授予「所有文件访问」权限（管理所有文件），请在系统设置中开启。",
+                    "去设置", "仍要进入");
+                if (goToSettings)
+                {
+                    _permissionService.RequestManageStoragePermissionAsync();
+                    return;
+                }
+            }
+
             await Shell.Current.GoToAsync("folderbrowser?mode=music&title=选择音乐文件夹");
         }
     }

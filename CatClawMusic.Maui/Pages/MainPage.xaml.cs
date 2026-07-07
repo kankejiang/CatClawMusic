@@ -5,6 +5,13 @@ using CatClawMusic.Maui.ViewModels;
 using System.ComponentModel;
 using Microsoft.Maui.Storage;
 
+#if ANDROID
+// 类型别名，避免与 MAUI 的 Microsoft.Maui.Controls.View 命名冲突
+using AView = Android.Views.View;
+// 引入 Android 平台扩展（SetHardwareLayer），仅 Android 编译单元可用
+using CatClawMusic.Maui.Platforms.Android;
+#endif
+
 namespace CatClawMusic.Maui.Pages;
 
 /// <summary>
@@ -77,10 +84,7 @@ public partial class MainPage : ContentPage
             content.BindingContext = page.BindingContext;
 
             ForceVerticalScroll(content);
-
-            var panGesture = new PanGestureRecognizer();
-            panGesture.PanUpdated += OnPanUpdated;
-            AddPanToLayouts(content, panGesture);
+            AddPanToLayouts(content, OnPanUpdated);
 
             ViewPagerGrid.Children.Add(content);
         }
@@ -104,43 +108,52 @@ public partial class MainPage : ContentPage
     }
 
     /// <summary>
-    /// 递归给所有 Layout 子元素（包括 ScrollView）添加 PanGestureRecognizer，
+    /// 递归给所有 Layout 子元素添加 PanGestureRecognizer，
     /// 确保页面任意区域都能响应左右滑动切换。
-    /// ScrollView 也需要添加手势，否则在 Android 上会消费所有触摸事件，
-    /// 导致父 Layout 的 PanGestureRecognizer 收不到水平滑动。
+    /// 每个元素创建独立的 PanGestureRecognizer 实例，避免同一实例附加到多个视图导致部分机型闪退。
+    /// 横向滚动的 CollectionView 不添加手势，让其自行处理水平滑动。
     /// 方向锁定逻辑（OnPanUpdated 中）会区分水平/垂直滑动，不影响 ScrollView 的垂直滚动。
-    /// 注意：ScrollView/Border/ContentView 不是 Layout，但其内部内容也需要能响应手势，
-    /// 因此递归需要穿过这些容器到达其 Content。
     /// </summary>
-    private static void AddPanToLayouts(VisualElement element, PanGestureRecognizer panGesture)
+    private static void AddPanToLayouts(VisualElement element, EventHandler<PanUpdatedEventArgs> handler)
     {
         if (element is Slider) return;
 
         // Layout（Grid/StackLayout等）：添加手势并递归子元素
         if (element is Layout layout)
         {
-            layout.GestureRecognizers.Add(panGesture);
+            var pan = new PanGestureRecognizer();
+            pan.PanUpdated += handler;
+            layout.GestureRecognizers.Add(pan);
             foreach (var child in layout.Children.OfType<VisualElement>())
             {
-                AddPanToLayouts(child, panGesture);
+                AddPanToLayouts(child, handler);
             }
             return;
         }
 
-        // ScrollView：递归到其 Content（ScrollView 本身的手势会与内置滚动冲突，不添加）
-        if (element is ScrollView scrollView)
+        // ScrollView：不给 ScrollView 加 Pan 手势（会与内置滚动严重冲突，上下滑动阻力大）
+        // 也不递归到内容里加（会被 ScrollView 的触摸拦截打断）
+        // 解决方案：页面主容器请用 CollectionView 而非 ScrollView，与音乐库/歌单页保持一致
+        if (element is ScrollView)
         {
-            if (scrollView.Content is VisualElement scrollContent)
-                AddPanToLayouts(scrollContent, panGesture);
             return;
         }
 
-        // ItemsView (CollectionView/ListView 等)：直接添加手势，
-        // 避免滚动控件消费水平触摸事件导致滑动切换中断。
-        // 方向锁定逻辑会区分水平/垂直，垂直滚动不受影响。
+        // ItemsView (CollectionView/ListView 等)
         if (element is ItemsView itemsView)
         {
-            itemsView.GestureRecognizers.Add(panGesture);
+            // 横向滚动的 CollectionView 不添加 Pan 手势，避免拦截内部水平滑动
+            if (element is StructuredItemsView structuredView
+                && structuredView.ItemsLayout is LinearItemsLayout linearLayout
+                && linearLayout.Orientation == ItemsLayoutOrientation.Horizontal)
+            {
+                return;
+            }
+
+            // 垂直滚动的列表：添加独立手势实例，方向锁定逻辑保证垂直滚动不受影响
+            var pan = new PanGestureRecognizer();
+            pan.PanUpdated += handler;
+            itemsView.GestureRecognizers.Add(pan);
             return;
         }
 
@@ -148,7 +161,7 @@ public partial class MainPage : ContentPage
         if (element is ContentView contentView)
         {
             if (contentView.Content is VisualElement content)
-                AddPanToLayouts(content, panGesture);
+                AddPanToLayouts(content, handler);
             return;
         }
 
@@ -156,7 +169,7 @@ public partial class MainPage : ContentPage
         if (element is ContentPage page)
         {
             if (page.Content is VisualElement content)
-                AddPanToLayouts(content, panGesture);
+                AddPanToLayouts(content, handler);
             return;
         }
     }
@@ -268,6 +281,26 @@ public partial class MainPage : ContentPage
         }
     }
 
+    /// <summary>
+    /// 给 ViewPager 内的所有 Tab 页面开启/关闭 GPU 硬件层。
+    /// Tab 平移与切页动画本质是对整页做 TranslationX 位移。若不上硬件层，
+    /// MAUI 的 TranslateTo/TranslationX 每帧会触发子树重绘（CollectionView/Border/Image 等），
+    /// 主线程繁忙导致滑动卡顿；上硬件层后整页被栅格化为独立纹理，位移由 GPU 合成，帧率显著提升。
+    /// 仅在滑动/动画期间开启，结束后立即关闭以释放 GPU 显存（避免 6 个全屏页面常驻纹理）。
+    /// 非 Android 平台为空实现。
+    /// </summary>
+    /// <param name="enabled">true=开启硬件层，false=恢复默认（关闭硬件层）。</param>
+    private void SetHardwareLayersEnabled(bool enabled)
+    {
+#if ANDROID
+        foreach (var child in ViewPagerGrid.Children)
+        {
+            if (child.Handler?.PlatformView is AView nativeView)
+                nativeView.SetHardwareLayer(enabled);
+        }
+#endif
+    }
+
     /// <summary>PanGestureRecognizer 跟手滑动处理</summary>
     private async void OnPanUpdated(object? sender, PanUpdatedEventArgs e)
     {
@@ -279,6 +312,8 @@ public partial class MainPage : ContentPage
                 _directionLocked = false;
                 _lastPanRunningTime = DateTime.Now;
                 StartPanWatchdog();
+                // 开始滑动：开启各 Tab 页 GPU 硬件层，平移期间由 GPU 合成，避免主线程重绘卡顿
+                SetHardwareLayersEnabled(true);
                 break;
 
             case GestureStatus.Running:
@@ -295,6 +330,8 @@ public partial class MainPage : ContentPage
                         {
                             _isPanning = false;
                             StopPanWatchdog();
+                            // 判定为垂直滚动，放弃平移：关闭硬件层，避免长期占用 GPU 显存
+                            SetHardwareLayersEnabled(false);
                             return;
                         }
                     }
@@ -393,6 +430,9 @@ public partial class MainPage : ContentPage
         var width = ViewPagerGrid.Width;
         if (width <= 0) return;
 
+        // 切页动画前开启硬件层，整页平移由 GPU 合成
+        SetHardwareLayersEnabled(true);
+
         var animations = new List<Task>();
         for (int i = 0; i < _tabPages.Count; i++)
         {
@@ -401,6 +441,9 @@ public partial class MainPage : ContentPage
             animations.Add(view.TranslateTo(targetX, 0, AnimDuration, Easing.SinOut));
         }
         await Task.WhenAll(animations);
+
+        // 动画结束：关闭硬件层，释放 GPU 显存，恢复正常渲染
+        SetHardwareLayersEnabled(false);
 
         if (targetIndex != _currentIndex)
         {
@@ -418,6 +461,9 @@ public partial class MainPage : ContentPage
         var width = ViewPagerGrid.Width;
         if (width <= 0) return;
 
+        // 弹回动画前开启硬件层
+        SetHardwareLayersEnabled(true);
+
         var animations = new List<Task>();
         for (int i = 0; i < _tabPages.Count; i++)
         {
@@ -426,6 +472,9 @@ public partial class MainPage : ContentPage
             animations.Add(view.TranslateTo(targetX, 0, 200, Easing.SinOut));
         }
         await Task.WhenAll(animations);
+
+        // 动画结束：关闭硬件层
+        SetHardwareLayersEnabled(false);
     }
 
     /// <summary>程序化切换 tab（tab 索引 0-4，内部映射到 ViewPager index 1-5）</summary>

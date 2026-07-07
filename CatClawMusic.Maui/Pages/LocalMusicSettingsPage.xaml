@@ -39,7 +39,7 @@
                                 <Label Text="使用 Android 媒体库扫描"
                                        FontSize="14"
                                        TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="扫描系统媒体库中的所有音乐文件（需要读取权限）"
+                                <Label Text="扫描系统媒体库中的所有音乐文件（需要「音乐和音频」权限）"
                                        FontSize="11"
                                        TextColor="{DynamicResource TextHintColor}" />
                             </VerticalStackLayout>

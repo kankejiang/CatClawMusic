@@ -11,6 +11,12 @@ public interface IPermissionService
     /// <summary>请求存储/媒体权限</summary>
     Task<bool> RequestStoragePermissionAsync();
 
+    /// <summary>检查媒体音频（音乐和音频）权限是否已授予</summary>
+    Task<bool> CheckAudioPermissionAsync();
+
+    /// <summary>请求媒体音频（音乐和音频）权限：Android 13+ 为 READ_MEDIA_AUDIO，低版本为 READ_EXTERNAL_STORAGE</summary>
+    Task<bool> RequestAudioPermissionAsync();
+
     /// <summary>检查全文件管理权限 MANAGE_EXTERNAL_STORAGE（Android 11+ 绕过 Scoped Storage）</summary>
     Task<bool> CheckManageStoragePermissionAsync();
 

@@ -35,6 +35,36 @@ public class PermissionService : IPermissionService
 #endif
     }
 
+    /// <summary>检查媒体音频（音乐和音频）权限是否已授予</summary>
+    /// <returns>已授予返回 true；Windows 平台始终返回 true</returns>
+    public async Task<bool> CheckAudioPermissionAsync()
+    {
+#if ANDROID
+        var status = await Permissions.CheckStatusAsync<Platforms.Android.AudioPermission>();
+        return status == PermissionStatus.Granted;
+#else
+        return true;
+#endif
+    }
+
+    /// <summary>
+    /// 请求媒体音频（音乐和音频）权限。
+    /// Android 13+ 请求 READ_MEDIA_AUDIO；低版本请求 READ_EXTERNAL_STORAGE。
+    /// </summary>
+    /// <returns>授权成功返回 true；已授权或 Windows 平台返回 true</returns>
+    public async Task<bool> RequestAudioPermissionAsync()
+    {
+#if ANDROID
+        var status = await Permissions.CheckStatusAsync<Platforms.Android.AudioPermission>();
+        if (status == PermissionStatus.Granted) return true;
+
+        status = await Permissions.RequestAsync<Platforms.Android.AudioPermission>();
+        return status == PermissionStatus.Granted;
+#else
+        return true;
+#endif
+    }
+
     /// <summary>检查"管理所有文件"权限（Android 11+ 的 IsExternalStorageManager）</summary>
     /// <returns>已授予或不需要返回 true；否则返回 false</returns>
     public async Task<bool> CheckManageStoragePermissionAsync()

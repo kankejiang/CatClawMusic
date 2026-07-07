@@ -2,10 +2,14 @@
 
 ## 构建
 - **构建入口**: `CatClawMusic.Maui/CatClawMusic.Maui.csproj`（v1.5.3, UseMaui=true, 单项目）。注意：旧的 `CatClawMusic.UI.csproj`（v1.5.1, Xamarin.Android 原生）已不是主线。
-- **Debug 验证命令**: `dotnet build CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Debug -f net10.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8"`
-- **Release 签名命令**: `dotnet publish CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8" -p:CatClawStorePass=catclaw123 -p:CatClawKeyPass=catclaw123`
+- **TargetFramework**: 当前为 `net11.0-android`（旧记录 net10.0-android 已过时）。
+- **Debug 验证命令**: `dotnet build CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Debug -f net11.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8"`
+- **Release 签名命令**: `dotnet publish CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net11.0-android -p:AndroidSdkDirectory="C:/Users/lvjin/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Android/openjdk/jdk-21.0.8" -p:CatClawStorePass=catclaw123 -p:CatClawKeyPass=catclaw123`
+- **Android SDK 平台要求**: `net11.0-android` 需要 API 37（本机已通过 `dotnet build -t:InstallAndroidDependencies -f net11.0-android "-p:AcceptAndroidSDKLicenses=true"` 安装；本机还装有 35/36）。
+- **自定义权限元组命名坑**: 当前 MAUI（microsoft.maui.controls 11.0.0-preview.5.26304.4）的 `Permissions.BasePlatformPermission.RequiredPermissions` 元组元素名为 `(string androidPermission, bool isRuntime)`，重写时必须用 `isRuntime`（不是旧文档的 `showRationale`），否则 CS8139。
+- **Android `LayerType` 命名遮蔽坑**: `Android.Views.View` 上 `LayerType` 既有**嵌套枚举类型**又有**同名实例属性**，成员访问 `T.LayerType` 与 `using X = T.LayerType` 别名都会优先选中实例属性（报 CS0120/CS0176/CS0426），无法取得枚举值。唯一正确方式是在 `Android.Views.View` 的**子类体内**用简单名 `LayerType` 命中嵌套枚举（如 `SetLayerType(LayerType.Hardware, null)`）。封装见 `Platforms/Android/HardwareLayerExtensions.cs`（用 `LayerTypeProbe : View` 探针类暴露枚举值）。`Platforms/Android` 下的 .cs 必须 `using View = Android.Views.View;` 消解与 MAUI `Microsoft.Maui.Controls.View` 的歧义（同 `FrostedBackgroundHandler.cs` 做法）。
 - **签名密码**: storepass=keypass=catclaw123，alias=catclaw，keystore=../catclaw.keystore
-- **产出路径**: `CatClawMusic.Maui/bin/Release/net10.0-android/publish/*-Signed.apk`（Maui csproj 无自动复制 target，与 UI csproj 不同）
+- **产出路径**: `CatClawMusic.Maui/bin/Release/net11.0-android/publish/*-Signed.apk`（Maui csproj 无自动复制 target，与 UI csproj 不同）
 - **规则**: 每次有较大代码改动后，自动构建 APK
 - **版本**: v1.5.3
 

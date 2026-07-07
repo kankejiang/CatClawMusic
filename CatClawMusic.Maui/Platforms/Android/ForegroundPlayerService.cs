@@ -47,6 +47,10 @@ public class ForegroundPlayerService : Service
     private bool _isFavorite = false;
     /// <summary>专辑封面 Bitmap</summary>
     private Bitmap? _albumArt;
+    /// <summary>当前播放位置（毫秒），用于通知栏进度条</summary>
+    private long _positionMs;
+    /// <summary>歌曲总时长（毫秒），用于通知栏进度条</summary>
+    private long _durationMs;
 
     /// <summary>等待服务创建完成后写入的标题（在 Start 调用但服务尚未创建时使用）</summary>
     private static string? _pendingTitle;
@@ -156,18 +160,30 @@ public class ForegroundPlayerService : Service
     /// <param name="isPlaying">是否正在播放</param>
     /// <param name="isFavorite">是否已收藏</param>
     /// <param name="albumArt">专辑封面，可为 null</param>
-    public void UpdateNotification(string title, string artist, bool isPlaying, bool isFavorite = false, Bitmap? albumArt = null)
+    /// <param name="positionMs">当前播放位置（毫秒）</param>
+    /// <param name="durationMs">歌曲总时长（毫秒）</param>
+    public void UpdateNotification(string title, string artist, bool isPlaying, bool isFavorite = false, Bitmap? albumArt = null, long positionMs = 0, long durationMs = 0)
     {
         _title = title;
         _artist = artist;
         _isPlaying = isPlaying;
         _isFavorite = isFavorite;
-        if (albumArt != null)
+        _positionMs = positionMs;
+        _durationMs = durationMs;
+
+        // 仅在传入的专辑封面是「新的、与当前持有的 _albumArt 不同的 Bitmap」时才替换并回收旧封面。
+        // 播放/暂停、收藏、MediaSession 回调等场景会把 _albumArt 自身回传，此时若仍回收再对其解码，
+        // 会导致正在显示的封面被回收，后续 SetMetadata 在 parcel 时抛出 "Can't parcel a recycled bitmap"。
+        if (albumArt != null && !ReferenceEquals(albumArt, _albumArt))
         {
-            _albumArt?.Recycle();
-            _albumArt = albumArt;
+            var decoded = DecodeBitmapDownsampled(albumArt, 512);
+            if (decoded != null && !ReferenceEquals(decoded, albumArt))
+            {
+                _albumArt?.Recycle();
+                _albumArt = decoded;
+            }
         }
-        
+
         UpdateMediaSessionPlaybackState();
         var notification = BuildNotification();
         try
@@ -176,6 +192,49 @@ public class ForegroundPlayerService : Service
             notifManager?.Notify(NotificationId, notification);
         }
         catch { }
+    }
+
+    /// <summary>仅更新播放位置（进度条），避免频繁重建整个通知</summary>
+    /// <param name="positionMs">当前播放位置（毫秒）</param>
+    public void UpdatePosition(long positionMs)
+    {
+        _positionMs = positionMs;
+        if (_mediaSession == null) return;
+        try
+        {
+            var state = _isPlaying ? PlaybackStateCode.Playing : PlaybackStateCode.Paused;
+            var actions = PlaybackState.ActionPlay
+                | PlaybackState.ActionPause
+                | PlaybackState.ActionSkipToNext
+                | PlaybackState.ActionSkipToPrevious
+                | PlaybackState.ActionPlayPause
+                | PlaybackState.ActionSeekTo;
+            var playbackState = new PlaybackState.Builder()
+                .SetActions(actions)
+                .SetState(state, positionMs, 1.0f)
+                .Build();
+            _mediaSession.SetPlaybackState(playbackState);
+        }
+        catch { }
+    }
+
+    /// <summary>将大尺寸 Bitmap 降采样到指定最大尺寸，避免 Binder 事务超限闪退</summary>
+    private static Bitmap? DecodeBitmapDownsampled(Bitmap source, int maxSize)
+    {
+        try
+        {
+            int width = source.Width;
+            int height = source.Height;
+            if (width <= 0 || height <= 0) return null;
+            float scale = Math.Min((float)maxSize / width, (float)maxSize / height);
+            if (scale >= 1.0f) return source.Copy(source.GetConfig() ?? Bitmap.Config.Argb8888, false);
+            return Bitmap.CreateScaledBitmap(source, (int)(width * scale), (int)(height * scale), true);
+        }
+        catch
+        {
+            // 解码失败（如源 Bitmap 已被回收）时返回 null，由调用方保留原封面，避免接住已回收的 Bitmap。
+            return null;
+        }
     }
 
     /// <summary>更新 MediaSession 的播放状态与元数据，使锁屏/蓝牙等设备同步显示当前歌曲</summary>
@@ -191,18 +250,20 @@ public class ForegroundPlayerService : Service
             | PlaybackState.ActionPause
             | PlaybackState.ActionSkipToNext
             | PlaybackState.ActionSkipToPrevious
-            | PlaybackState.ActionPlayPause;
+            | PlaybackState.ActionPlayPause
+            | PlaybackState.ActionSeekTo;
 
         var playbackState = new PlaybackState.Builder()
             .SetActions(actions)
-            .SetState(state, PlaybackState.PlaybackPositionUnknown, 1.0f)
+            .SetState(state, _positionMs, 1.0f)
             .Build();
 
         _mediaSession.SetPlaybackState(playbackState);
 
         var metadataBuilder = new MediaMetadata.Builder()
             .PutString(MediaMetadata.MetadataKeyTitle, _title)
-            .PutString(MediaMetadata.MetadataKeyArtist, _artist);
+            .PutString(MediaMetadata.MetadataKeyArtist, _artist)
+            .PutLong(MediaMetadata.MetadataKeyDuration, _durationMs);
         if (_albumArt != null)
         {
             metadataBuilder.PutBitmap(MediaMetadata.MetadataKeyAlbumArt, _albumArt);
@@ -260,9 +321,18 @@ public class ForegroundPlayerService : Service
     /// <param name="isPlaying">是否正在播放</param>
     /// <param name="isFavorite">是否已收藏</param>
     /// <param name="albumArt">专辑封面，可为 null</param>
-    public static void UpdatePlayState(string title, string artist, bool isPlaying, bool isFavorite = false, Bitmap? albumArt = null)
+    /// <param name="positionMs">当前播放位置（毫秒）</param>
+    /// <param name="durationMs">歌曲总时长（毫秒）</param>
+    public static void UpdatePlayState(string title, string artist, bool isPlaying, bool isFavorite = false, Bitmap? albumArt = null, long positionMs = 0, long durationMs = 0)
     {
-        Instance?.UpdateNotification(title, artist, isPlaying, isFavorite, albumArt);
+        Instance?.UpdateNotification(title, artist, isPlaying, isFavorite, albumArt, positionMs, durationMs);
+    }
+
+    /// <summary>静态更新播放位置（仅更新进度条，不重建通知）</summary>
+    /// <param name="positionMs">当前播放位置（毫秒）</param>
+    public static void UpdatePlayPosition(long positionMs)
+    {
+        Instance?.UpdatePosition(positionMs);
     }
 
     /// <summary>停止播放：移除前台状态、停止自身、释放 MediaSession 与封面资源，并清空静态实例引用</summary>
@@ -349,12 +419,12 @@ public class ForegroundPlayerService : Service
         return builder.Build();
     }
 
-    /// <summary>创建通知渠道（Android 8.0+ 必需），渠道为低优先级、锁屏可见、不显示角标</summary>
+    /// <summary>创建通知渠道（Android 8.0+ 必需），渠道为默认优先级、锁屏可见、不显示角标</summary>
     private void CreateNotificationChannel()
     {
         if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
         {
-            var channel = new NotificationChannel(ChannelId, ChannelName, NotificationImportance.Low)
+            var channel = new NotificationChannel(ChannelId, ChannelName, NotificationImportance.Default)
             {
                 Description = "猫爪音乐播放控制",
                 LockscreenVisibility = NotificationVisibility.Public

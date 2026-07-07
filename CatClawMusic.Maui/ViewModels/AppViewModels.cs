@@ -89,6 +89,8 @@ public partial class NowPlayingViewModel : ObservableObject
     // === Lyrics ===
     /// <summary>是否存在可用歌词</summary>
     [ObservableProperty] private bool _hasLyrics;
+    /// <summary>歌词 CollectionView 占位数据源（歌词内容放在 Header 中，使用 CollectionView 获得更好的手势处理）</summary>
+    public ObservableCollection<int> LyricPlaceholderItems { get; } = new() { 0 };
     /// <summary>歌词显示行：当前行前第 4 行</summary>
     [ObservableProperty] private string _lyricLine0 = "";  // 4 lines before
     /// <summary>歌词显示行：当前行前第 3 行</summary>
@@ -320,6 +322,11 @@ public partial class NowPlayingViewModel : ObservableObject
         IsLiked = newFav;
         LikeIcon = newFav ? "\u2665" : "\u2661"; // ♥ or ♡
         LikeIconSource = newFav ? "ic_favorite" : "ic_favorite_border";
+
+#if ANDROID
+        try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(newFav); }
+        catch { }
+#endif
     }
 
     // === Seek ===
@@ -435,6 +442,8 @@ public partial class NowPlayingViewModel : ObservableObject
 #if ANDROID
         // 更新前台播放通知
         try { (_audioService as Services.AudioPlayerService)?.UpdateSongInfo(Title, Artist); }
+        catch { }
+        try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(IsLiked); }
         catch { }
 #endif
 
@@ -724,6 +733,11 @@ public partial class NowPlayingViewModel : ObservableObject
                 CoverImage = ImageSource.FromFile(path);
                 HasCover = true;
             });
+
+#if ANDROID
+            try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(path); }
+            catch { }
+#endif
         }
         else
         {
@@ -733,6 +747,11 @@ public partial class NowPlayingViewModel : ObservableObject
                 CoverImage = null;
                 HasCover = false;
             });
+
+#if ANDROID
+            try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(null); }
+            catch { }
+#endif
         }
     }
 
