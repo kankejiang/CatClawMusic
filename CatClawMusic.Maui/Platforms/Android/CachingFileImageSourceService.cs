@@ -81,7 +81,7 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
         return null;
     }
 
-    /// <summary>降采样解码 Bitmap：长边限制 256px，足够覆盖 130x130 卡片显示</summary>
+    /// <summary>降采样解码 Bitmap：长边限制 1024px，兼顾播放页大封面与列表卡片显示质量</summary>
     private static Bitmap? DecodeBitmapDownsampled(string path)
     {
         try
@@ -90,15 +90,15 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
             var options = new BitmapFactory.Options { InJustDecodeBounds = true };
             BitmapFactory.DecodeFile(path, options);
 
-            // 计算降采样倍数（长边目标 256px）
+            // 计算降采样倍数（长边目标 1024px）
             var maxDim = Math.Max(options.OutWidth, options.OutHeight);
             var sampleSize = 1;
-            while (maxDim / sampleSize > 256) sampleSize *= 2;
+            while (maxDim / sampleSize > 1024) sampleSize *= 2;
 
             // 第二遍真正解码
             options.InJustDecodeBounds = false;
             options.InSampleSize = sampleSize;
-            options.InPreferredConfig = Bitmap.Config.Rgb565; // 每像素 2 字节，节省内存
+            options.InPreferredConfig = Bitmap.Config.Argb8888;
             return BitmapFactory.DecodeFile(path, options);
         }
         catch (Exception ex)

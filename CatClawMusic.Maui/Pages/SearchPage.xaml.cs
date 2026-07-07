@@ -156,7 +156,7 @@ public partial class SearchPage : ContentPage
     /// <param name="e">点击事件参数。</param>
     private async void OnQuickDailyTapped(object? sender, TappedEventArgs e)
     {
-        await DiscoverScroll.ScrollToAsync(DailySectionAnchor, ScrollToPosition.Start, true);
+        await ScrollToElementAsync(DailySectionAnchor);
     }
 
     /// <summary>点击“最热播放”快捷入口时触发，滚动到最热播放区块。</summary>
@@ -164,7 +164,7 @@ public partial class SearchPage : ContentPage
     /// <param name="e">点击事件参数。</param>
     private async void OnQuickTopPlayedTapped(object? sender, TappedEventArgs e)
     {
-        await DiscoverScroll.ScrollToAsync(TopPlayedSection, ScrollToPosition.Start, true);
+        await ScrollToElementAsync(TopPlayedSection);
     }
 
     /// <summary>点击“最近添加”快捷入口时触发，滚动到最近添加区块。</summary>
@@ -172,7 +172,32 @@ public partial class SearchPage : ContentPage
     /// <param name="e">点击事件参数。</param>
     private async void OnQuickRecentTapped(object? sender, TappedEventArgs e)
     {
-        await DiscoverScroll.ScrollToAsync(RecentSection, ScrollToPosition.Start, true);
+        await ScrollToElementAsync(RecentSection);
+    }
+
+    /// <summary>滚动到指定元素位置（适配 CollectionView 的实现）。</summary>
+    private async Task ScrollToElementAsync(VisualElement element)
+    {
+        try
+        {
+            if (DiscoverCollection.Handler?.PlatformView is global::Android.Views.View nativeView
+                && element.Handler?.PlatformView is global::Android.Views.View targetView)
+            {
+                int[] location = new int[2];
+                targetView.GetLocationInWindow(location);
+                int[] collectionLocation = new int[2];
+                nativeView.GetLocationInWindow(collectionLocation);
+                int top = location[1] - collectionLocation[1];
+                nativeView.ScrollY = top;
+            }
+        }
+        catch
+        {
+            if (DiscoverCollection.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().Any())
+            {
+                DiscoverCollection.ScrollTo(items.Cast<object>().First(), position: ScrollToPosition.Start, animate: true);
+            }
+        }
     }
 
     /// <summary>点击“前往音乐库”按钮时触发，切换到主界面的音乐库标签页。</summary>

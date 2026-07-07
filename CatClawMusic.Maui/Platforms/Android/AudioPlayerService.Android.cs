@@ -57,6 +57,22 @@ public partial class AudioPlayerService
         ForegroundPlayerService.OnPreviousRequested += OnNotifPreviousRequested;
         ForegroundPlayerService.OnLyricsRequested += OnNotifLyricsRequested;
         ForegroundPlayerService.OnFavoriteToggled += OnNotifFavoriteToggled;
+
+        PositionChanged += OnPositionChangedForNotification;
+        PlaybackStateChanged += OnPlaybackStateChangedForNotification;
+    }
+
+    /// <summary>播放位置变化时更新通知栏进度条</summary>
+    private void OnPositionChangedForNotification(object? sender, TimeSpan e)
+    {
+        if (!IsPlaying) return;
+        try { UpdateNotificationProgress(); } catch { }
+    }
+
+    /// <summary>播放状态变化时刷新前台通知</summary>
+    private void OnPlaybackStateChangedForNotification(object? sender, bool isPlaying)
+    {
+        try { UpdateForegroundNotification(); } catch { }
     }
 
     /// <summary>注入 Android 上下文，用于启动前台服务及获取系统服务</summary>
@@ -596,6 +612,10 @@ public partial class AudioPlayerService
     private string _currentTitle = "";
     /// <summary>当前歌曲艺术家（用于前台通知）</summary>
     private string _currentArtist = "";
+    /// <summary>当前歌曲是否已收藏（用于前台通知）</summary>
+    private bool _currentIsFavorite;
+    /// <summary>当前歌曲封面本地路径（用于前台通知）</summary>
+    private string? _currentCoverPath;
 
     /// <summary>更新当前歌曲信息并刷新前台通知显示</summary>
     /// <param name="title">歌曲标题</param>
@@ -604,6 +624,22 @@ public partial class AudioPlayerService
     {
         _currentTitle = title;
         _currentArtist = artist;
+        UpdateForegroundNotification();
+    }
+
+    /// <summary>更新当前歌曲收藏状态并刷新前台通知</summary>
+    /// <param name="isFavorite">是否已收藏</param>
+    public void UpdateFavoriteState(bool isFavorite)
+    {
+        _currentIsFavorite = isFavorite;
+        UpdateForegroundNotification();
+    }
+
+    /// <summary>更新当前歌曲封面路径并刷新前台通知</summary>
+    /// <param name="coverPath">封面本地文件路径，为 null 表示无封面</param>
+    public void UpdateCoverPath(string? coverPath)
+    {
+        _currentCoverPath = coverPath;
         UpdateForegroundNotification();
     }
 
@@ -627,10 +663,35 @@ public partial class AudioPlayerService
     {
         try
         {
-            var isFavorite = false;
-            try { isFavorite = false; } catch { }
             Android.Graphics.Bitmap? albumArt = null;
-            ForegroundPlayerService.UpdatePlayState(_currentTitle, _currentArtist, IsPlaying, isFavorite, albumArt);
+            if (!string.IsNullOrEmpty(_currentCoverPath))
+            {
+                try
+                {
+                    albumArt = global::Android.Graphics.BitmapFactory.DecodeFile(_currentCoverPath);
+                }
+                catch { }
+            }
+            long positionMs = 0;
+            long durationMs = 0;
+            try
+            {
+                positionMs = (long)(CurrentPosition * 1000);
+                durationMs = (long)(Duration * 1000);
+            }
+            catch { }
+            ForegroundPlayerService.UpdatePlayState(_currentTitle, _currentArtist, IsPlaying, _currentIsFavorite, albumArt, positionMs, durationMs);
+        }
+        catch { }
+    }
+
+    /// <summary>仅更新通知栏进度条位置，避免频繁重建通知</summary>
+    private void UpdateNotificationProgress()
+    {
+        try
+        {
+            long positionMs = (long)(CurrentPosition * 1000);
+            ForegroundPlayerService.UpdatePlayPosition(positionMs);
         }
         catch { }
     }

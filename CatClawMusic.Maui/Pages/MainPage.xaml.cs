@@ -77,10 +77,7 @@ public partial class MainPage : ContentPage
             content.BindingContext = page.BindingContext;
 
             ForceVerticalScroll(content);
-
-            var panGesture = new PanGestureRecognizer();
-            panGesture.PanUpdated += OnPanUpdated;
-            AddPanToLayouts(content, panGesture);
+            AddPanToLayouts(content, OnPanUpdated);
 
             ViewPagerGrid.Children.Add(content);
         }
@@ -104,43 +101,52 @@ public partial class MainPage : ContentPage
     }
 
     /// <summary>
-    /// 递归给所有 Layout 子元素（包括 ScrollView）添加 PanGestureRecognizer，
+    /// 递归给所有 Layout 子元素添加 PanGestureRecognizer，
     /// 确保页面任意区域都能响应左右滑动切换。
-    /// ScrollView 也需要添加手势，否则在 Android 上会消费所有触摸事件，
-    /// 导致父 Layout 的 PanGestureRecognizer 收不到水平滑动。
+    /// 每个元素创建独立的 PanGestureRecognizer 实例，避免同一实例附加到多个视图导致部分机型闪退。
+    /// 横向滚动的 CollectionView 不添加手势，让其自行处理水平滑动。
     /// 方向锁定逻辑（OnPanUpdated 中）会区分水平/垂直滑动，不影响 ScrollView 的垂直滚动。
-    /// 注意：ScrollView/Border/ContentView 不是 Layout，但其内部内容也需要能响应手势，
-    /// 因此递归需要穿过这些容器到达其 Content。
     /// </summary>
-    private static void AddPanToLayouts(VisualElement element, PanGestureRecognizer panGesture)
+    private static void AddPanToLayouts(VisualElement element, EventHandler<PanUpdatedEventArgs> handler)
     {
         if (element is Slider) return;
 
         // Layout（Grid/StackLayout等）：添加手势并递归子元素
         if (element is Layout layout)
         {
-            layout.GestureRecognizers.Add(panGesture);
+            var pan = new PanGestureRecognizer();
+            pan.PanUpdated += handler;
+            layout.GestureRecognizers.Add(pan);
             foreach (var child in layout.Children.OfType<VisualElement>())
             {
-                AddPanToLayouts(child, panGesture);
+                AddPanToLayouts(child, handler);
             }
             return;
         }
 
-        // ScrollView：递归到其 Content（ScrollView 本身的手势会与内置滚动冲突，不添加）
-        if (element is ScrollView scrollView)
+        // ScrollView：不给 ScrollView 加 Pan 手势（会与内置滚动严重冲突，上下滑动阻力大）
+        // 也不递归到内容里加（会被 ScrollView 的触摸拦截打断）
+        // 解决方案：页面主容器请用 CollectionView 而非 ScrollView，与音乐库/歌单页保持一致
+        if (element is ScrollView)
         {
-            if (scrollView.Content is VisualElement scrollContent)
-                AddPanToLayouts(scrollContent, panGesture);
             return;
         }
 
-        // ItemsView (CollectionView/ListView 等)：直接添加手势，
-        // 避免滚动控件消费水平触摸事件导致滑动切换中断。
-        // 方向锁定逻辑会区分水平/垂直，垂直滚动不受影响。
+        // ItemsView (CollectionView/ListView 等)
         if (element is ItemsView itemsView)
         {
-            itemsView.GestureRecognizers.Add(panGesture);
+            // 横向滚动的 CollectionView 不添加 Pan 手势，避免拦截内部水平滑动
+            if (element is StructuredItemsView structuredView
+                && structuredView.ItemsLayout is LinearItemsLayout linearLayout
+                && linearLayout.Orientation == ItemsLayoutOrientation.Horizontal)
+            {
+                return;
+            }
+
+            // 垂直滚动的列表：添加独立手势实例，方向锁定逻辑保证垂直滚动不受影响
+            var pan = new PanGestureRecognizer();
+            pan.PanUpdated += handler;
+            itemsView.GestureRecognizers.Add(pan);
             return;
         }
 
@@ -148,7 +154,7 @@ public partial class MainPage : ContentPage
         if (element is ContentView contentView)
         {
             if (contentView.Content is VisualElement content)
-                AddPanToLayouts(content, panGesture);
+                AddPanToLayouts(content, handler);
             return;
         }
 
@@ -156,7 +162,7 @@ public partial class MainPage : ContentPage
         if (element is ContentPage page)
         {
             if (page.Content is VisualElement content)
-                AddPanToLayouts(content, panGesture);
+                AddPanToLayouts(content, handler);
             return;
         }
     }

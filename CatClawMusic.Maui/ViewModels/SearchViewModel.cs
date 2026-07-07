@@ -121,6 +121,9 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _showSearchResults;
 
+    /// <summary>发现页 CollectionView 的占位数据源（内容全部放在 Header 中，使用 CollectionView 获得更好的手势处理）</summary>
+    public ObservableCollection<int> DiscoverPageItems { get; } = new() { 0 };
+
     /// <summary>切换 Tab 命令（参数为 Tab 索引）</summary>
     public IRelayCommand<int> SwitchTabCommand { get; }
     /// <summary>加载探索数据命令</summary>

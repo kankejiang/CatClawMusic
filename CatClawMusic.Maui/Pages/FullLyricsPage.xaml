@@ -62,13 +62,25 @@
             </Grid>
         </Border>
 
-        <ScrollView Grid.Row="1"
-                    x:Name="LyricScrollView"
-                    Scrolled="OnLyricScrolled">
-            <VerticalStackLayout x:Name="LyricStack"
-                                 Padding="24,100,24,300"
-                                 Spacing="14" />
-        </ScrollView>
+        <CollectionView Grid.Row="1"
+                        x:Name="LyricCollectionView"
+                        ItemsSource="{Binding LyricPlaceholderItems}"
+                        SelectionMode="None"
+                        VerticalScrollBarVisibility="Never">
+            <CollectionView.ItemsLayout>
+                <LinearItemsLayout Orientation="Vertical" />
+            </CollectionView.ItemsLayout>
+            <CollectionView.Header>
+                <VerticalStackLayout x:Name="LyricStack"
+                                     Padding="24,100,24,300"
+                                     Spacing="14" />
+            </CollectionView.Header>
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <BoxView HeightRequest="0" />
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
 
         <Border Grid.Row="1"
                 Margin="20,0"
