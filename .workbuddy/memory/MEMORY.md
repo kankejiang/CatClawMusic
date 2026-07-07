@@ -50,3 +50,20 @@
 - 效果：所有 Tab 页和二级页面均不再显示顶部导航栏标题区域，页面内容延伸到状态栏下方
 - 底部 TabBar 不受影响
 - 二级页面返回仍通过系统返回键/手势正常工作
+
+## Windows 端平台特性（MAUI net11.0-windows）
+- **添加音乐文件夹**：Windows 用 `Platforms/Windows/WindowsFolderPicker.cs`（WinUI `Windows.Storage.Pickers.FolderPicker`
+  + `InitializeWithWindow.Initialize` 绑定 HWND），选中真实路径后写入 `Preferences["custom_music_folders"]`。
+  扫描服务 `LocalScanService` 读 `custom_music_folders` 全平台通用，所以 Windows 添加即生效。
+- **命名空间坑**：`Platforms/Windows` 下文件命名空间含 `...Platforms.Windows`，`Windows.Storage.*` 必须加 `global::` 前缀，
+  否则被解析成嵌套命名空间报 CS0234；类名勿用 `FolderPicker`（与 MAUI 内置冲突）。详见 2026-07-07 日志。
+- Android-only 的扫描开关（MediaStore / SAF）在 Windows 的 `LocalMusicSettingsPage.xaml` 已用
+  `IsVisible="{OnPlatform Default=false, Android=true}"` 隐藏。
+- **键盘快捷键坑（net11.0-preview）**：`ContentPage` 没有 `KeyDown` 事件；WinUI `Microsoft.UI.Xaml.Window.KeyDown` 在此版本也拿不到。
+  正确做法：在页面 `OnAppearing`（此时 `this.Handler` 已就绪）对底层 WinUI 可视元素订阅路由事件
+  `if (this.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement rootUi) rootUi.KeyDown += Handler;`，
+  handler 签名 `(object?, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)`，按键用 `Windows.System.VirtualKey`（**不是** `Microsoft.UI.Xaml.Input`）。
+  **不可** `using Microsoft.UI.Xaml;`（与 MAUI `Window`/`GridLength`/`Thickness` 冲突 CS0104），必须用完全限定名。
+  非 Windows 用 `#else` 提供空 `AttachKeyboard()`。详见 2026-07-07 日志。
+- **桌面根页**：`App.xaml.cs` `CreateWindow` 在 `#if WINDOWS` 下用 `DesktopMainPage` 作为 ShellContent（窗口 1200×800，Min 900×600），
+  替代手机端 `MainPage` + TabBar。PC 化改造都集中在 `DesktopMainPage.xaml/.xaml.cs`。

@@ -25,7 +25,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
 
     /// <summary>启动页可选项列表</summary>
     [ObservableProperty]
-    private List<string> _startupPageOptions = new() { "音乐库", "探索", "播放", "设置" };
+    private List<string> _startupPageOptions = new() { "音乐库", "探索", "播放" };
 
     /// <summary>当前选中的启动页索引</summary>
     [ObservableProperty]
@@ -234,7 +234,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     }
 
     /// <summary>将启动页索引映射为应用主 Tab 的索引</summary>
-    /// <param name="startupIndex">启动页索引（0=音乐库, 1=探索, 2=播放, 3=设置）</param>
+    /// <param name="startupIndex">启动页索引（0=音乐库, 1=探索, 2=播放）</param>
     /// <returns>主 Tab 索引</returns>
     public static int MapStartupIndexToTabIndex(int startupIndex)
     {
@@ -243,7 +243,6 @@ public partial class AppearanceSettingsViewModel : ObservableObject
             0 => 3,
             1 => 1,
             2 => 0,
-            3 => 4,
             _ => 0
         };
     }

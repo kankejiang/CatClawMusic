@@ -4,6 +4,7 @@ using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using Microsoft.Maui.Controls;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -227,8 +228,8 @@ public partial class SearchViewModel : ObservableObject
                 var albumsTask = _exploreDataService.GetAlbumsWithSongCountAsync();
                 await Task.WhenAll(artistsTask, albumsTask);
 
-                _allArtists = artistsTask.Result.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = FirstNonEmpty(a.SampleCoverPath, a.Cover) }).ToList();
-                _allAlbums = albumsTask.Result.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover) }).ToList();
+                _allArtists = artistsTask.Result.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover)) }).ToList();
+                _allAlbums = albumsTask.Result.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover)) }).ToList();
 
                 // 批量解析新加载歌曲的封面
                 var newSongs = _allTopPlayedSongs.Concat(_allRecentAddedSongs).ToList();
@@ -265,7 +266,7 @@ public partial class SearchViewModel : ObservableObject
                     Id = a.Id,
                     Name = a.Name,
                     Subtitle = $"{a.SongCount} 首歌曲",
-                    CoverSource = FirstNonEmpty(a.SampleCoverPath, a.Cover)
+                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover))
                 })
                 .ToList();
             _allAlbums = albumsTask.Result
@@ -275,7 +276,7 @@ public partial class SearchViewModel : ObservableObject
                     Title = a.Title,
                     ArtistName = a.ArtistName,
                     Subtitle = $"{a.SongCount} 首歌曲",
-                    CoverSource = FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover)
+                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover))
                 })
                 .ToList();
             _allTopPlayedSongs = topPlayedTask.Result;
@@ -291,11 +292,11 @@ public partial class SearchViewModel : ObservableObject
             // 为专辑卡片补充封面（从专辑内歌曲封面获取）
             foreach (var album in _allAlbums)
             {
-                if (!string.IsNullOrEmpty(album.CoverSource)) continue;
+                if (album.CoverSource != null) continue;
                 var sampleSong = allSongs.FirstOrDefault(s =>
                     s.Album?.Equals(album.Title, StringComparison.OrdinalIgnoreCase) == true);
-                if (sampleSong != null)
-                    album.CoverSource = sampleSong.CoverArtPath;
+                if (sampleSong != null && !string.IsNullOrWhiteSpace(sampleSong.CoverArtPath))
+                    album.CoverSource = ImageSource.FromFile(sampleSong.CoverArtPath);
             }
 
             // 设置今日推荐英雄卡片（取每日推荐的第一首歌）
@@ -487,7 +488,8 @@ public partial class SearchViewModel : ObservableObject
         }
     }
 
-    private void ApplyFilters()
+    /// <summary>根据当前 SearchQuery 重新过滤各分区集合（供 PC 端顶栏搜索调用）</summary>
+    public void ApplyFilters()
     {
         var query = SearchQuery?.Trim();
         var hasQuery = !string.IsNullOrWhiteSpace(query);
@@ -568,6 +570,12 @@ public partial class SearchViewModel : ObservableObject
     {
         return values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
     }
+
+    /// <summary>将文件路径转换为 ImageSource，路径为空时返回 null</summary>
+    private static ImageSource? PathToImageSource(string? path)
+    {
+        return string.IsNullOrWhiteSpace(path) ? null : ImageSource.FromFile(path);
+    }
 }
 
 /// <summary>搜索页艺术家展示项</summary>
@@ -579,8 +587,8 @@ public class SearchArtistItem
     public string Name { get; set; } = "";
     /// <summary>副标题（如歌曲数量）</summary>
     public string Subtitle { get; set; } = "";
-    /// <summary>封面来源路径</summary>
-    public string? CoverSource { get; set; }
+    /// <summary>封面图源</summary>
+    public ImageSource? CoverSource { get; set; }
 }
 
 /// <summary>搜索页专辑展示项</summary>
@@ -594,6 +602,6 @@ public class SearchAlbumItem
     public string ArtistName { get; set; } = "";
     /// <summary>副标题（如歌曲数量）</summary>
     public string Subtitle { get; set; } = "";
-    /// <summary>封面来源路径</summary>
-    public string? CoverSource { get; set; }
+    /// <summary>封面图源</summary>
+    public ImageSource? CoverSource { get; set; }
 }

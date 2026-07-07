@@ -138,8 +138,9 @@
                        Style="{StaticResource SectionTitleStyle}"
                        Margin="4,12,0,2" />
 
-                <!-- 权限管理 -->
-                <Border Style="{StaticResource GlassCardStyle}">
+                <!-- 权限管理（仅 Android 需要运行时权限；Windows/PC 无意义，隐藏） -->
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{OnPlatform Default=false, Android=true}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
                         <Image Source="ic_lock_locked" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />

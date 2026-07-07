@@ -647,8 +647,35 @@ public partial class AudioPlayerService
     private void StartForegroundService()
     {
         var ctx = _androidContext ?? global::Android.App.Application.Context;
+
+        // Android 13+ 必须在运行时授予 POST_NOTIFICATIONS，否则 StartForeground 会抛 SecurityException，
+        // 导致整个播放通知（含媒体控件）都不显示。在启动前台服务前尽量申请该权限（失败不影响播放流程）。
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
+        {
+            _ = Microsoft.Maui.ApplicationModel.MainThread.InvokeOnMainThreadAsync(RequestNotificationPermissionAsync);
+        }
+
         try { ForegroundPlayerService.Start(ctx, _currentTitle, _currentArtist); }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AudioPlayer] FG start: {ex.Message}"); }
+    }
+
+    /// <summary>Android 13+ 申请通知权限（POST_NOTIFICATIONS），已授权则跳过；异常不影响播放</summary>
+    private async Task RequestNotificationPermissionAsync()
+    {
+        try
+        {
+            var status = await Microsoft.Maui.ApplicationModel.Permissions
+                .CheckStatusAsync<Microsoft.Maui.ApplicationModel.Permissions.PostNotifications>();
+            if (status != Microsoft.Maui.ApplicationModel.PermissionStatus.Granted)
+            {
+                await Microsoft.Maui.ApplicationModel.Permissions
+                    .RequestAsync<Microsoft.Maui.ApplicationModel.Permissions.PostNotifications>();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AudioPlayer] 通知权限申请异常: {ex.Message}");
+        }
     }
 
     /// <summary>停止前台播放服务</summary>
@@ -741,20 +768,15 @@ public partial class AudioPlayerService
         });
     }
 
-    /// <summary>前台通知"歌词"按钮回调：在主线程导航到全屏歌词页</summary>
-    private void OnNotifLyricsRequested()
+    /// <summary>前台通知"歌词"按钮回调：切换桌面歌词开关</summary>
+    /// <param name="isEnabled">桌面歌词目标状态</param>
+    private void OnNotifLyricsRequested(bool isEnabled)
     {
         _mainHandler.Post(() =>
         {
             try
             {
-                MainThread.BeginInvokeOnMainThread(async () =>
-                {
-                    if (Application.Current?.Windows[0]?.Page is Page page)
-                    {
-                        await Shell.Current.GoToAsync("nowplaying/fullyrics");
-                    }
-                });
+                DesktopLyricToggled?.Invoke(isEnabled);
             }
             catch { }
         });

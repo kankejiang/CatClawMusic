@@ -185,6 +185,18 @@ public partial class PlaylistViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 重命名歌单
+    /// </summary>
+    public async Task RenamePlaylistAsync(int playlistId, string newName)
+    {
+        var pl = await _musicLibrary.GetPlaylistByIdAsync(playlistId);
+        if (pl == null) return;
+        pl.Name = newName;
+        await _musicLibrary.UpdatePlaylistAsync(pl);
+        MarkDirty();
+    }
+
+    /// <summary>
     /// 添加歌曲到歌单
     /// </summary>
     public async Task AddSongToPlaylistAsync(int playlistId, int songId)

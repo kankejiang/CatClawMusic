@@ -15,7 +15,7 @@ using CatClawMusic.Maui.Platforms.Android;
 namespace CatClawMusic.Maui.Pages;
 
 /// <summary>
-/// 主页面：包含 5 个 tab 页面的 ViewPager + 自定义底部 TabBar + 迷你播放器。
+/// 主页面：包含 4 个 tab 页面的 ViewPager + 自定义底部 TabBar + 迷你播放器。
 /// 所有 tab 页面水平排列在同一 Grid 中，滑动时同时移动，实现连续平滑切换。
 /// </summary>
 public partial class MainPage : ContentPage
@@ -23,8 +23,8 @@ public partial class MainPage : ContentPage
     private readonly IServiceProvider _services;
     private readonly List<ContentPage> _tabPages = new();
     private readonly NowPlayingViewModel _nowPlayingVm;
-    // ViewPager 布局: [FullLyrics(0), NowPlaying(1), Search(2), Playlist(3), Library(4), Settings(5)]
-    // TabBar 的 5 个按钮对应 index 1-5，index 0 是全屏歌词（无 Tab 按钮）
+    // ViewPager 布局: [FullLyrics(0), NowPlaying(1), Search(2), Playlist(3), Library(4)]
+    // TabBar 的 4 个按钮对应 index 1-4，index 0 是全屏歌词（无 Tab 按钮）
     private int _currentIndex = 1;
     private double _panTotalX;
     private bool _isPanning;
@@ -63,7 +63,7 @@ public partial class MainPage : ContentPage
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
     }
 
-    /// <summary>创建 6 个页面（全屏歌词 + 5 个 tab），提取 Content 放入 ViewPager</summary>
+    /// <summary>创建 5 个页面（全屏歌词 + 4 个 tab），提取 Content 放入 ViewPager</summary>
     private void SetupPages()
     {
         var pages = new ContentPage[]
@@ -73,7 +73,6 @@ public partial class MainPage : ContentPage
             _services.GetRequiredService<SearchPage>(),
             _services.GetRequiredService<PlaylistPage>(),
             _services.GetRequiredService<LibraryPage>(),
-            _services.GetRequiredService<SettingsPage>(),
         };
 
         foreach (var page in pages)
@@ -512,12 +511,11 @@ public partial class MainPage : ContentPage
     /// <param name="e">点击事件参数。</param>
     private void OnTabTapped(object? sender, TappedEventArgs e)
     {
-        // Tab 按钮 0-4 对应 ViewPager index 1-5
+        // Tab 按钮 0-3 对应 ViewPager index 1-4
         if (sender == TabItem0) _ = AnimateToPage(1);
         else if (sender == TabItem1) _ = AnimateToPage(2);
         else if (sender == TabItem2) _ = AnimateToPage(3);
         else if (sender == TabItem3) _ = AnimateToPage(4);
-        else if (sender == TabItem4) _ = AnimateToPage(5);
     }
 
     /// <summary>全屏歌词页和播放页时隐藏 TabBar 和迷你播放器</summary>
@@ -581,32 +579,33 @@ public partial class MainPage : ContentPage
         _ = AnimateToPage(1);
     }
 
-    private static readonly string[] DarkIconSources = { "ic_play", "ic_home", "ic_playlist", "ic_library", "ic_settings" };
+    private static readonly string[] DarkIconSources = { "ic_play", "ic_home", "ic_playlist", "ic_library" };
 
-    /// <summary>更新 TabBar 选中状态（Tab 0-4 对应 ViewPager index 1-5）</summary>
+    /// <summary>更新 TabBar 选中状态（Tab 0-3 对应 ViewPager index 1-4）</summary>
     private void UpdateTabBarSelection()
     {
         var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
         var inactiveColor = (Color)Application.Current!.Resources["TabInactiveColor"];
 
-        var labels = new[] { TabLabel0, TabLabel1, TabLabel2, TabLabel3, TabLabel4 };
-        var icons = new[] { TabIcon0, TabIcon1, TabIcon2, TabIcon3, TabIcon4 };
-        var bgs = new[] { TabBg0, TabBg1, TabBg2, TabBg3, TabBg4 };
+        var labels = new[] { TabLabel0, TabLabel1, TabLabel2, TabLabel3 };
+        var icons = new[] { TabIcon0, TabIcon1, TabIcon2, TabIcon3 };
+        var contents = new[] { TabContent0, TabContent1, TabContent2, TabContent3 };
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 4; i++)
         {
             var isActive = (i + 1) == _currentIndex;
             labels[i].TextColor = isActive ? primaryColor : inactiveColor;
-            bgs[i].Opacity = isActive ? 1.0 : 0.0;
 
             if (isActive)
             {
                 icons[i].Source = DarkIconSources[i];
-                icons[i].Scale = 1.1;
+                icons[i].Scale = 1.15;
+                labels[i].Scale = 1.1;
             }
             else
             {
                 icons[i].Scale = 1.0;
+                labels[i].Scale = 1.0;
                 AppThemeBinding lightDarkBinding = new()
                 {
                     Light = $"{DarkIconSources[i]}_light",

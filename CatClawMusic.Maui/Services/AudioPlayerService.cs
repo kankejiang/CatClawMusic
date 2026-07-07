@@ -37,6 +37,8 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     public event Func<Task>? PlayPreviousRequested;
     /// <summary>收藏状态切换事件（参数为是否收藏）</summary>
     public event Action<bool>? FavoriteToggled;
+    /// <summary>桌面歌词开关切换事件（参数为是否开启）</summary>
+    public event Action<bool>? DesktopLyricToggled;
 
     /// <summary>获取当前是否正在播放</summary>
     public bool IsPlaying => GetPlatformIsPlaying();

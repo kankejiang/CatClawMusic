@@ -11,7 +11,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<LangVersion>preview</LangVersion>
-		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+		<MauiXamlInflator Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">SourceGen</MauiXamlInflator>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
@@ -32,8 +32,8 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 
 		<!-- MAUI 11 Preview 5 默认 CoreCLR 在部分设备（MIUI/HyperOS）会静默退出，
-		     回退到稳定的 Mono 运行时 -->
-		<UseMonoRuntime>true</UseMonoRuntime>
+		     回退到稳定的 Mono 运行时（仅 Android） -->
+		<UseMonoRuntime Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">true</UseMonoRuntime>
 
 		<!-- Android release build settings (Mono AOT) -->
 		<RunAOTCompilation Condition="'$(Configuration)' == 'Release'">true</RunAOTCompilation>

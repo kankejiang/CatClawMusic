@@ -95,7 +95,7 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>添加文件夹：调用 Android SAF 选择器，添加后若开启自动扫描则立即触发扫描</summary>
+    /// <summary>添加文件夹：Android 调用 SAF 选择器，Windows 调用系统文件夹选择器；添加后若开启自动扫描则立即触发扫描</summary>
     [RelayCommand]
     private async Task AddFolderAsync()
     {
@@ -108,6 +108,26 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
                 _folderUris.Add(uri);
                 var displayName = ExtractDisplayName(uri);
                 MusicFolders.Add(displayName);
+
+                // 如果开启了自动扫描，立即触发
+                if (AutoScan)
+                    _ = ScanAllFoldersAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MusicFolder] AddFolder error: {ex.Message}");
+        }
+#elif WINDOWS
+        try
+        {
+            var path = await Platforms.Windows.WindowsFolderPicker.PickFolderAsync();
+            if (!string.IsNullOrEmpty(path) && !_folderUris.Contains(path))
+            {
+                _folderUris.Add(path);
+                // 持久化到自定义文件夹，供本地扫描服务按路径递归扫描
+                LocalMusicSettingsViewModel.AddCustomFolder(path);
+                MusicFolders.Add(ExtractDisplayName(path));
 
                 // 如果开启了自动扫描，立即触发
                 if (AutoScan)
@@ -142,6 +162,9 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
 #if ANDROID
             try { Platforms.Android.FolderPicker.RemoveSavedFolder(uri); }
             catch { }
+#elif WINDOWS
+            try { LocalMusicSettingsViewModel.RemoveCustomFolder(uri); }
+            catch { }
 #endif
         }
     }
@@ -159,6 +182,18 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
             }
         }
         catch { }
+#elif WINDOWS
+        try
+        {
+            var folders = LocalMusicSettingsViewModel.GetCustomFolders();
+            foreach (var path in folders)
+            {
+                if (_folderUris.Contains(path)) continue;
+                _folderUris.Add(path);
+                MusicFolders.Add(ExtractDisplayName(path));
+            }
+        }
+        catch { }
 #endif
     }
 
@@ -166,16 +201,27 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
     {
         try
         {
-            if (uri.Contains(':'))
+            if (string.IsNullOrEmpty(uri)) return uri;
+
+            // Windows 路径：C:\a\b\Music
+            if (uri.Contains('\\'))
             {
-                var lastColon = uri.LastIndexOf(':');
-                var path = uri[(lastColon + 1)..];
-                if (!string.IsNullOrEmpty(path)) return path;
+                var lastBack = uri.LastIndexOf('\\');
+                var name = uri[(lastBack + 1)..];
+                if (!string.IsNullOrEmpty(name)) return name;
             }
+            // SAF / content URI：.../tree/primary:Music 或 .../Music
             if (uri.Contains('/'))
             {
                 var lastSlash = uri.LastIndexOf('/');
-                return uri[(lastSlash + 1)..];
+                var name = uri[(lastSlash + 1)..];
+                if (!string.IsNullOrEmpty(name)) return name;
+            }
+            if (uri.Contains(':'))
+            {
+                var lastColon = uri.LastIndexOf(':');
+                var name = uri[(lastColon + 1)..];
+                if (!string.IsNullOrEmpty(name)) return name;
             }
         }
         catch { }

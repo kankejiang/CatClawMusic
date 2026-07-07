@@ -37,6 +37,7 @@
                                  Aspect="AspectFill"
                                  BackgroundColor="Transparent"
                                  CornerRadius="10"
+                                 HorizontalOptions="Fill" VerticalOptions="Fill"
                                  Clicked="OnBackClicked" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1"

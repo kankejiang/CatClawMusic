@@ -4,10 +4,14 @@ public partial class AppShell : Shell
 {
     public AppShell(IServiceProvider services)
     {
+        StartupLog("AppShell.ctor: InitializeComponent start");
         InitializeComponent();
+        StartupLog("AppShell.ctor: InitializeComponent done");
 
         // 从 DI 容器获取 MainPage 实例（Singleton），设置为 ShellContent 的内容
+        StartupLog("AppShell.ctor: Getting MainPage");
         MainShellContent.Content = services.GetRequiredService<Pages.MainPage>();
+        StartupLog("AppShell.ctor: MainPage set");
 
         Routing.RegisterRoute("search", typeof(Pages.SearchPage));
         Routing.RegisterRoute("discover", typeof(Pages.SearchPage));
@@ -41,6 +45,8 @@ public partial class AppShell : Shell
 
         // ── 播放 Tab 子页面 ──
         Routing.RegisterRoute("nowplaying/fullyrics", typeof(Pages.FullLyricsPage));
+        // 全局别名：DesktopMainPage 顶栏歌词按钮使用 Shell.Current.GoToAsync("//fullyrics") 直接跳转
+        Routing.RegisterRoute("fullyrics", typeof(Pages.FullLyricsPage));
 
         // ── 搜索 Tab 子页面 ──
         Routing.RegisterRoute("search/artistmatch", typeof(Pages.ArtistMatchPage));
@@ -70,5 +76,16 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("albums", typeof(Pages.AlbumsPage));
         Routing.RegisterRoute("artists", typeof(Pages.ArtistsPage));
         Routing.RegisterRoute("playlistdetail", typeof(Pages.PlaylistDetailPage));
+    }
+
+    private static void StartupLog(string msg)
+    {
+        System.Diagnostics.Debug.WriteLine($"[STARTUP] {msg}");
+        try
+        {
+            var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
+            File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] SHELL: {msg}\n");
+        }
+        catch { }
     }
 }

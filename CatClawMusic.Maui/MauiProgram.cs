@@ -15,7 +15,28 @@ public static class MauiProgram
 
     public static MauiApp CreateMauiApp()
     {
+        // 写固定路径，确保能找到日志
+        var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
+        try { File.Delete(logPath); } catch { }
+        void Log(string msg)
+        {
+            System.Diagnostics.Debug.WriteLine($"[STARTUP] {msg}");
+            try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch { }
+        }
+
+        Log("Step 0: CreateMauiApp entry");
+#if WINDOWS
+        Log("Step 0b: WINDOWS symbol IS defined");
+#else
+        Log("Step 0b: WINDOWS symbol is NOT defined");
+#endif
+#if ANDROID
+        Log("Step 0c: ANDROID symbol IS defined");
+#else
+        Log("Step 0c: ANDROID symbol is NOT defined");
+#endif
         var builder = MauiApp.CreateBuilder();
+        Log("Step 2: UseMauiApp");
         builder
             .UseMauiApp<App>()
             .ConfigureFonts(fonts =>
@@ -28,6 +49,10 @@ public static class MauiProgram
 #if ANDROID
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),
                     typeof(CatClawMusic.Maui.Platforms.Android.FrostedBackgroundHandler));
+#endif
+#if WINDOWS
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),
+                    typeof(CatClawMusic.Maui.Platforms.Windows.FrostedBackgroundHandler));
 #endif
             })
             .ConfigureImageSources(images =>
@@ -313,6 +338,7 @@ public static class MauiProgram
         // Pages
         // ═══════════════════════════════════════════════════
         services.AddSingleton<Pages.MainPage>();
+        services.AddSingleton<Pages.DesktopMainPage>();
         services.AddTransient<Pages.NowPlayingPage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();
@@ -349,8 +375,10 @@ public static class MauiProgram
         builder.Logging.AddDebug();
 #endif
 
+        Log("Step 50: Build");
         var app = builder.Build();
         Services = app.Services;
+        Log("Step 51: Services set");
 
         // 初始化 SMB 代理并配置播放器 URL 转换器
         var smbProxy = Services.GetRequiredService<SmbStreamProxy>();
@@ -452,6 +480,7 @@ public static class MauiProgram
             return prevStreamOpener?.Invoke(url);
         };
 
+        Log("Step 99: Build done, returning");
         return app;
     }
 }

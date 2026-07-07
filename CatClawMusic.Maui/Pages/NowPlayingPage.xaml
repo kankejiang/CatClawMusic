@@ -127,10 +127,10 @@
                         WidthRequest="32" HeightRequest="32"
                         HorizontalOptions="Center" VerticalOptions="Center">
                     <ImageButton Source="{Binding PlayModeIconSource}"
-                                 WidthRequest="20" HeightRequest="20"
+                                 Padding="6"
                                  BackgroundColor="Transparent"
                                  Command="{Binding CyclePlayModeCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center" />
+                                 HorizontalOptions="Fill" VerticalOptions="Fill" />
                 </Border>
                 <!-- Previous -->
                 <Border Grid.Column="1"
@@ -140,10 +140,10 @@
                         WidthRequest="40" HeightRequest="40"
                         HorizontalOptions="Center" VerticalOptions="Center">
                     <ImageButton Source="ic_skip_previous"
-                                 WidthRequest="24" HeightRequest="24"
+                                 Padding="8"
                                  BackgroundColor="Transparent"
                                  Command="{Binding PlayPreviousCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center" />
+                                 HorizontalOptions="Fill" VerticalOptions="Fill" />
                 </Border>
                 <!-- Play/Pause -->
                 <Border Grid.Column="2"
@@ -153,10 +153,10 @@
                         WidthRequest="56" HeightRequest="56"
                         HorizontalOptions="Center" VerticalOptions="Center">
                     <ImageButton Source="{Binding PlayPauseIconSource}"
-                                 WidthRequest="36" HeightRequest="36"
+                                 Padding="10"
                                  BackgroundColor="Transparent"
                                  Command="{Binding TogglePlayPauseCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center" />
+                                 HorizontalOptions="Fill" VerticalOptions="Fill" />
                 </Border>
                 <!-- Next -->
                 <Border Grid.Column="3"
@@ -166,10 +166,10 @@
                         WidthRequest="40" HeightRequest="40"
                         HorizontalOptions="Center" VerticalOptions="Center">
                     <ImageButton Source="ic_skip_next"
-                                 WidthRequest="24" HeightRequest="24"
+                                 Padding="8"
                                  BackgroundColor="Transparent"
                                  Command="{Binding PlayNextCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center" />
+                                 HorizontalOptions="Fill" VerticalOptions="Fill" />
                 </Border>
                 <!-- Like -->
                 <Border Grid.Column="4"
@@ -179,10 +179,10 @@
                         WidthRequest="32" HeightRequest="32"
                         HorizontalOptions="Center" VerticalOptions="Center">
                     <ImageButton Source="{Binding LikeIconSource}"
-                                 WidthRequest="20" HeightRequest="20"
+                                 Padding="6"
                                  BackgroundColor="Transparent"
                                  Command="{Binding ToggleLikeCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center" />
+                                 HorizontalOptions="Fill" VerticalOptions="Fill" />
                 </Border>
             </Grid>
 

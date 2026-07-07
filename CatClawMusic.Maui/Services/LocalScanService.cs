@@ -136,10 +136,12 @@ public class LocalScanService
                         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         foreach (var folder in customFolders)
                         {
+                            System.Diagnostics.Debug.WriteLine($"[LocalScan] 自定义文件夹: '{folder}', Directory.Exists={Directory.Exists(folder)}");
                             if (!Directory.Exists(folder)) continue;
                             try
                             {
                                 var filePaths = MusicUtility.ScanFolderRecursive(folder);
+                                System.Diagnostics.Debug.WriteLine($"[LocalScan] 文件夹 '{folder}' 递归发现音频文件数: {filePaths.Count}");
                                 foreach (var path in filePaths)
                                 {
                                     if (!seenPaths.Add(path)) continue;

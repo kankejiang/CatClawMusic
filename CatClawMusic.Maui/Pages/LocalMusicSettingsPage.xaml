@@ -31,7 +31,8 @@
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
                         
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10"
+                              IsVisible="{OnPlatform Default=false, Android=true}">
                             <CheckBox IsChecked="{Binding UseMediaStore}" />
                             <VerticalStackLayout Grid.Column="1"
                                                  VerticalOptions="Center"
@@ -45,7 +46,8 @@
                             </VerticalStackLayout>
                         </Grid>
 
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10"
+                              IsVisible="{OnPlatform Default=false, Android=true}">
                             <CheckBox IsChecked="{Binding UseSafScan}" />
                             <VerticalStackLayout Grid.Column="1"
                                                  VerticalOptions="Center"

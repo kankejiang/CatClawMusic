@@ -17,11 +17,23 @@
             <CollectionView.Header>
                 <VerticalStackLayout Padding="0,0,0,24" Spacing="0">
 
-                    <!-- Header: Search + Avatar -->
+                    <!-- Header: Hamburger + Search + Avatar -->
                     <Grid Margin="16,16,16,10"
-                          ColumnDefinitions="*,Auto"
-                          ColumnSpacing="12">
-                        <Border Style="{StaticResource GlassInputStyle}">
+                          ColumnDefinitions="Auto,*,Auto"
+                          ColumnSpacing="10">
+                        <!-- 汉堡菜单按钮（左上角） -->
+                        <Border Grid.Column="0"
+                                Padding="8"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 20"
+                                Background="{DynamicResource BadgeBackgroundColor}"
+                                VerticalOptions="Center">
+                            <ImageButton Source="ic_menu"
+                                         WidthRequest="28" HeightRequest="28"
+                                         BackgroundColor="Transparent"
+                                         Clicked="OnHamburgerClicked" />
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource GlassInputStyle}">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                                 <Image Source="ic_search"
                                        WidthRequest="18" HeightRequest="18"
@@ -41,7 +53,7 @@
                                              Clicked="OnClearSearchClicked" />
                             </Grid>
                         </Border>
-                        <Border Grid.Column="1"
+                        <Border Grid.Column="2"
                                 Padding="4"
                                 StrokeThickness="0"
                                 StrokeShape="RoundRectangle 20"
@@ -143,7 +155,7 @@
                                                             StrokeShape="RoundRectangle 18"
                                                             StrokeThickness="0"
                                                             BackgroundColor="{DynamicResource SurfaceColor}">
-                                                        <Image Source="{Binding CoverSource, TargetNullValue='ic_person'}"
+                                                        <Image Source="{Binding CoverSource}"
                                                                Aspect="AspectFill"
                                                                WidthRequest="36" HeightRequest="36" />
                                                     </Border>
@@ -189,7 +201,7 @@
                                                             StrokeShape="RoundRectangle 8"
                                                             StrokeThickness="0"
                                                             BackgroundColor="{DynamicResource SurfaceColor}">
-                                                        <Image Source="{Binding CoverSource, TargetNullValue='ic_album'}"
+                                                        <Image Source="{Binding CoverSource}"
                                                                Aspect="AspectFill"
                                                                WidthRequest="36" HeightRequest="36" />
                                                     </Border>
@@ -613,6 +625,59 @@
                     </Border>
                 </Grid>
             </Border>
+        </Grid>
+
+        <!-- 设置侧滑面板覆盖层（从左到右滑出，85%宽度，点击空白收起） -->
+        <Grid x:Name="SettingsPanelOverlay"
+              IsVisible="False"
+              ZIndex="100">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnSettingsBackdropTapped" />
+            </Grid.GestureRecognizers>
+
+            <!-- 半透明背景遮罩 -->
+            <BoxView x:Name="SettingsBackdrop"
+                     Color="Black"
+                     Opacity="0"
+                     InputTransparent="False" />
+
+            <!-- 设置面板容器（85%宽度，从左侧滑入） -->
+            <Grid x:Name="SettingsPanel"
+                  WidthRequest="300"
+                  HorizontalOptions="Start"
+                  TranslationX="-9999"
+                  BackgroundColor="{DynamicResource WindowBackgroundColor}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- 面板顶部标题栏 -->
+                <Grid Grid.Row="0"
+                      ColumnDefinitions="*,Auto"
+                      Padding="20,16,16,12">
+                    <Label Text="设置"
+                           FontSize="22"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           VerticalOptions="Center" />
+                    <Border Grid.Column="1"
+                            Padding="8"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 16"
+                            Background="{DynamicResource BadgeBackgroundColor}">
+                        <ImageButton Source="ic_close"
+                                     WidthRequest="20" HeightRequest="20"
+                                     BackgroundColor="Transparent"
+                                     Clicked="OnSettingsCloseClicked" />
+                    </Border>
+                </Grid>
+
+                <!-- 设置内容容器 -->
+                <ScrollView Grid.Row="1">
+                    <ContentView x:Name="SettingsPanelContent" />
+                </ScrollView>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

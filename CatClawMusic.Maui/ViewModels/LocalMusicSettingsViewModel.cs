@@ -180,6 +180,20 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"[LocalMusic] RemoveFolder error: {ex.Message}");
         }
+#else
+        try
+        {
+            if (!string.IsNullOrEmpty(folder.Path) && folder.Path != "(SAF文件夹)")
+            {
+                RemoveCustomFolder(folder.Path);
+            }
+            _ = LoadSavedFoldersAsync();
+            ScanStatus = "已删除文件夹";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LocalMusic] RemoveFolder error: {ex.Message}");
+        }
 #endif
     }
 
@@ -264,11 +278,12 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
     {
         try
         {
-#if ANDROID
-            var savedUris = Platforms.Android.FolderPicker.GetSavedFolderUris();
-            var customFolders = GetCustomFolders();
             MusicFolders.Clear();
 
+            int safCount = 0;
+#if ANDROID
+            var savedUris = Platforms.Android.FolderPicker.GetSavedFolderUris();
+            safCount = savedUris.Count;
             foreach (var uri in savedUris)
             {
                 MusicFolders.Add(new MusicFolderItem
@@ -278,7 +293,9 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
                     Path = "(SAF文件夹)"
                 });
             }
+#endif
 
+            var customFolders = GetCustomFolders();
             foreach (var folder in customFolders)
             {
                 MusicFolders.Add(new MusicFolderItem
@@ -289,7 +306,7 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
                 });
             }
 
-            var totalCount = savedUris.Count + customFolders.Count;
+            var totalCount = safCount + customFolders.Count;
             if (totalCount > 0)
             {
                 FolderSummaryText = $"已添加 {totalCount} 个文件夹";
@@ -300,23 +317,9 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
             {
                 FolderSummaryText = "未选择文件夹";
             }
-#else
-            await Task.CompletedTask;
-#endif
         }
         catch { }
         await Task.CompletedTask;
-    }
-
-    private static List<string> GetCustomFolders()
-    {
-        try
-        {
-            var json = Preferences.Get("custom_music_folders", "");
-            if (string.IsNullOrEmpty(json)) return new List<string>();
-            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
-        }
-        catch { return new List<string>(); }
     }
 
     /// <summary>添加自定义文件夹路径到偏好（去重）</summary>
@@ -325,7 +328,7 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
     {
         try
         {
-            var folders = GetCustomFoldersStatic();
+            var folders = GetCustomFolders();
             if (!folders.Contains(path))
             {
                 folders.Add(path);
@@ -341,14 +344,14 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
     {
         try
         {
-            var folders = GetCustomFoldersStatic();
+            var folders = GetCustomFolders();
             folders.Remove(path);
             Preferences.Set("custom_music_folders", System.Text.Json.JsonSerializer.Serialize(folders));
         }
         catch { }
     }
 
-    private static List<string> GetCustomFoldersStatic()
+    public static List<string> GetCustomFolders()
     {
         try
         {

@@ -10,15 +10,18 @@ public partial class App : Application
 {
     public App()
     {
+        StartupLog("App.ctor: InitializeComponent start");
         InitializeComponent();
+        StartupLog("App.ctor: InitializeComponent done");
 
         // 应用主题
         try
         {
             var themeService = MauiProgram.Services.GetRequiredService<IThemeService>();
             themeService.ApplyTheme();
+            StartupLog("App.ctor: Theme applied");
         }
-        catch { }
+        catch (Exception ex) { StartupLog($"App.ctor: Theme failed - {ex.Message}"); }
 
         // 设置 LyricsService 的 PluginManager（属性注入，避免循环依赖）
         var lyricsService = MauiProgram.Services.GetService<ILyricsService>() as LyricsService;
@@ -36,6 +39,19 @@ public partial class App : Application
                 System.Diagnostics.Debug.WriteLine($"[CatClaw] PluginManager init failed: {ex.Message}");
             }
         });
+
+        StartupLog("App.ctor: done");
+    }
+
+    private static void StartupLog(string msg)
+    {
+        System.Diagnostics.Debug.WriteLine($"[STARTUP] {msg}");
+        try
+        {
+            var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
+            File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] APP: {msg}\n");
+        }
+        catch { }
     }
 
     /// <summary>
@@ -69,8 +85,30 @@ public partial class App : Application
 
     protected override Window CreateWindow(IActivationState? activationState)
     {
+        StartupLog("CreateWindow: start");
         var shell = MauiProgram.Services.GetRequiredService<AppShell>();
+        StartupLog("CreateWindow: AppShell resolved");
         shell.Navigated += OnShellNavigated;
-        return new Window(shell);
+        StartupLog("CreateWindow: creating Window");
+
+#if WINDOWS
+        // Windows: use desktop layout with sidebar
+        var desktopPage = MauiProgram.Services.GetRequiredService<Pages.DesktopMainPage>();
+        shell.Items.Clear();
+        shell.Items.Add(new ShellContent { Content = desktopPage });
+
+        var window = new Window(shell)
+        {
+            Width = 1200,
+            Height = 800,
+            MinimumWidth = 900,
+            MinimumHeight = 600,
+        };
+#else
+        var window = new Window(shell);
+#endif
+
+        StartupLog("CreateWindow: Window created, returning");
+        return window;
     }
 }

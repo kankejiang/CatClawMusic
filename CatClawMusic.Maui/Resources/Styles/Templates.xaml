@@ -78,7 +78,7 @@
                         StrokeShape="RoundRectangle 24 24 0 0"
                         StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}">
-                    <Image Source="{Binding CoverSource, TargetNullValue='ic_album'}"
+                    <Image Source="{Binding CoverSource}"
                            Aspect="AspectFill"
                            HeightRequest="160" />
                 </Border>
@@ -119,7 +119,7 @@
                         StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}"
                         HorizontalOptions="Center">
-                    <Image Source="{Binding CoverSource, TargetNullValue='ic_person'}"
+                    <Image Source="{Binding CoverSource}"
                            Aspect="AspectFill"
                            WidthRequest="84"
                            HeightRequest="84" />

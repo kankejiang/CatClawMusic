@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.ViewModels;
 
@@ -25,6 +26,7 @@ public partial class LocalMusicSettingsPage : ContentPage
     /// <param name="e">事件参数。</param>
     private async void OnAddFolderClicked(object? sender, EventArgs e)
     {
+#if ANDROID
         if (_viewModel.UseSafScan)
         {
             await _viewModel.SelectFolderAsync();
@@ -48,6 +50,23 @@ public partial class LocalMusicSettingsPage : ContentPage
 
             await Shell.Current.GoToAsync("folderbrowser?mode=music&title=选择音乐文件夹");
         }
+#elif WINDOWS
+        // Windows 使用系统文件夹选择器，所选路径存入自定义文件夹（与扫描服务共用 custom_music_folders）
+        var path = await Platforms.Windows.WindowsFolderPicker.PickFolderAsync();
+        if (!string.IsNullOrEmpty(path))
+        {
+            LocalMusicSettingsViewModel.AddCustomFolder(path);
+            await _viewModel.LoadSavedFoldersAsync();
+            _viewModel.ScanStatus = "已添加文件夹（可开始扫描）";
+        }
+        else
+        {
+            // 选择器未返回路径（用户取消或窗口句柄绑定失败），给出明确提示而非静默无操作
+            await DisplayAlert("提示", "未能获取所选文件夹，请重试。若多次失败，请尝试最小化再还原窗口后重试。", "确定");
+        }
+#else
+        await Task.CompletedTask;
+#endif
     }
 
     /// <summary>当页面显示在屏幕上时触发，加载已保存的音乐文件夹列表。</summary>

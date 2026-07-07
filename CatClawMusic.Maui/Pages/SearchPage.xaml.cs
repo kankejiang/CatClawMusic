@@ -12,19 +12,24 @@ public partial class SearchPage : ContentPage
     private readonly PlayQueue _queue;
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService _audioPlayer;
+    private readonly IServiceProvider _services;
+    private SettingsPage? _settingsPage;
+    private bool _isSettingsPanelOpen;
 
     /// <summary>初始化 <see cref="SearchPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
     /// <param name="db">音乐数据库访问对象。</param>
     /// <param name="queue">播放队列。</param>
     /// <param name="vm">搜索页面对应的视图模型。</param>
     /// <param name="audioPlayer">音频播放服务。</param>
-    public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer)
+    /// <param name="services">服务提供程序，用于解析设置页面。</param>
+    public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer, IServiceProvider services)
     {
         InitializeComponent();
         _db = db;
         _queue = queue;
         _vm = vm;
         _audioPlayer = audioPlayer;
+        _services = services;
         BindingContext = _vm;
     }
 
@@ -180,6 +185,7 @@ public partial class SearchPage : ContentPage
     {
         try
         {
+#if ANDROID
             if (DiscoverCollection.Handler?.PlatformView is global::Android.Views.View nativeView
                 && element.Handler?.PlatformView is global::Android.Views.View targetView)
             {
@@ -190,6 +196,9 @@ public partial class SearchPage : ContentPage
                 int top = location[1] - collectionLocation[1];
                 nativeView.ScrollY = top;
             }
+#else
+            throw new NotSupportedException();
+#endif
         }
         catch
         {
@@ -326,5 +335,66 @@ public partial class SearchPage : ContentPage
         {
             await DisplayAlert("播放失败", ex.Message, "确定");
         }
+    }
+
+    /// <summary>点击汉堡菜单按钮，从左到右滑出设置面板</summary>
+    private async void OnHamburgerClicked(object? sender, EventArgs e)
+    {
+        if (_isSettingsPanelOpen) return;
+
+        // 首次打开时创建设置页面内容
+        if (_settingsPage == null)
+        {
+            _settingsPage = _services.GetRequiredService<SettingsPage>();
+            var settingsContent = _settingsPage.Content;
+            _settingsPage.Content = null;
+            settingsContent.BindingContext = _settingsPage.BindingContext;
+            SettingsPanelContent.Content = settingsContent;
+        }
+
+        // 设置面板宽度为屏幕宽度的 85%
+        var panelWidth = Width > 0 ? Width * 0.85 : 300;
+        SettingsPanel.WidthRequest = panelWidth;
+        SettingsPanel.TranslationX = -panelWidth;
+
+        _isSettingsPanelOpen = true;
+        SettingsPanelOverlay.IsVisible = true;
+
+        // 确保布局已计算完成
+        await Task.Delay(16);
+
+        // 背景渐入 + 面板从左侧滑入
+        await Task.WhenAll(
+            SettingsBackdrop.FadeTo(0.5, 250, Easing.CubicOut),
+            SettingsPanel.TranslateTo(0, 0, 280, Easing.CubicOut)
+        );
+    }
+
+    /// <summary>点击背景遮罩收起设置面板</summary>
+    private async void OnSettingsBackdropTapped(object? sender, TappedEventArgs e)
+    {
+        await CloseSettingsPanel();
+    }
+
+    /// <summary>点击关闭按钮收起设置面板</summary>
+    private async void OnSettingsCloseClicked(object? sender, EventArgs e)
+    {
+        await CloseSettingsPanel();
+    }
+
+    /// <summary>收起设置面板：面板滑出 + 背景淡出</summary>
+    private async Task CloseSettingsPanel()
+    {
+        if (!_isSettingsPanelOpen) return;
+        _isSettingsPanelOpen = false;
+
+        var panelWidth = SettingsPanel.Width > 0 ? SettingsPanel.Width : Width * 0.85;
+
+        await Task.WhenAll(
+            SettingsBackdrop.FadeTo(0, 250, Easing.CubicIn),
+            SettingsPanel.TranslateTo(-panelWidth, 0, 280, Easing.CubicIn)
+        );
+
+        SettingsPanelOverlay.IsVisible = false;
     }
 }

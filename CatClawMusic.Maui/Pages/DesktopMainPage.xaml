@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.DesktopMainPage"
+             Title="猫爪音乐"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <!-- Desktop layout: Sidebar | TopBar / Content, with Player at bottom -->
+    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="52,*,80">
+
+        <!-- ═══ Left Sidebar ═══ -->
+        <Border x:Name="SidebarBorder" Grid.RowSpan="3" Grid.Column="0"
+                StrokeThickness="0,0,1,0"
+                Stroke="{DynamicResource DividerColor}"
+                BackgroundColor="{DynamicResource CardBackgroundColor}">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="0,12,0,0">
+
+                <!-- App Logo -->
+                <Grid Grid.Row="0" Padding="20,8,20,16"
+                      ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <Border WidthRequest="36" HeightRequest="36"
+                            StrokeShape="RoundRectangle 10"
+                            StrokeThickness="0"
+                            Background="{DynamicResource HeroBrush}"
+                            VerticalOptions="Center">
+                        <Label Text="&#x1f43e;" FontSize="18"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <VerticalStackLayout x:Name="LogoText" Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                        <Label Text="猫爪音乐"
+                               FontSize="16" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="CatClaw Music"
+                               FontSize="10"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Navigation -->
+                <VerticalStackLayout Grid.Row="1" Spacing="2" Padding="8,0">
+                    <Label x:Name="NavHeader" Text="导航" FontSize="10"
+                           TextColor="{DynamicResource TextHintColor}"
+                           CharacterSpacing="2" Padding="12,8,12,4" />
+
+                    <Border x:Name="NavDiscover" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="12,10" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavDiscoverTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x1f50d;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="NavDiscoverLabel" Grid.Column="1" Text="发现音乐" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="NavLibrary" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="12,10" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavLibraryTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x1f3b5;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="NavLibraryLabel" Grid.Column="1" Text="我的音乐" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="NavPlaylists" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="12,10" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavPlaylistsTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x1f4cb;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="NavPlaylistsLabel" Grid.Column="1" Text="歌单" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- User Playlists (scrollable) -->
+                <VerticalStackLayout Grid.Row="2" Spacing="2" Padding="8,8,8,0">
+                    <Grid ColumnDefinitions="*,Auto" Padding="12,4,8,4">
+                        <Label x:Name="PlaylistHeader" Grid.Column="0" Text="我的歌单" FontSize="10"
+                               TextColor="{DynamicResource TextHintColor}"
+                               CharacterSpacing="2" VerticalOptions="Center" />
+                        <Label x:Name="AddPlaylistButton" Grid.Column="1" Text="＋"
+                               FontSize="18" TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalOptions="End" VerticalOptions="Center"
+                               WidthRequest="24" HeightRequest="28">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnAddPlaylistTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+                    <ScrollView x:Name="PlaylistScroll">
+                        <VerticalStackLayout x:Name="PlaylistHost" Spacing="2" />
+                    </ScrollView>
+                </VerticalStackLayout>
+
+                <!-- Settings at bottom -->
+                <VerticalStackLayout Grid.Row="3" Spacing="2" Padding="8,0,8,12">
+                    <Border x:Name="NavSettings" StrokeThickness="0" StrokeShape="RoundRectangle 8"
+                            Padding="12,10" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x2699;&#xfe0f;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="SettingsLabel" Grid.Column="1" Text="设置" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <!-- ═══ Top Command Bar ═══ -->
+        <Grid x:Name="TopBar" Grid.Row="0" Grid.Column="1"
+              ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,0,16,0"
+              BackgroundColor="{DynamicResource CardBackgroundColor}">
+            <Entry x:Name="SearchEntry"
+                   Placeholder="搜索歌曲、歌手、专辑…"
+                   VerticalOptions="Center"
+                   HeightRequest="34"
+                   FontSize="13" />
+            <HorizontalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="8">
+                <ImageButton Source="ic_lyrics" WidthRequest="22" HeightRequest="22"
+                             BackgroundColor="Transparent"
+                             Clicked="OnLyricsButtonClicked" />
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- ═══ Main Content Area ═══ -->
+        <Grid x:Name="ContentArea" Grid.Row="1" Grid.Column="1"
+              Background="{DynamicResource PageBackgroundBrush}"
+              IsClippedToBounds="True" />
+
+        <!-- ═══ Bottom Player Bar ═══ -->
+        <Border Grid.Row="2" Grid.Column="1"
+                StrokeThickness="0,1,0,0"
+                Stroke="{DynamicResource DividerColor}"
+                BackgroundColor="{DynamicResource CardBackgroundColor}">
+            <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,0" ColumnSpacing="16">
+
+                <!-- Song Info (left) -->
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12"
+                      VerticalOptions="Center" WidthRequest="240">
+                    <Border WidthRequest="48" HeightRequest="48"
+                            StrokeShape="RoundRectangle 8"
+                            StrokeThickness="0"
+                            BackgroundColor="{DynamicResource SurfaceColor}">
+                        <Image x:Name="PlayerCover"
+                               Source="{Binding CoverImage}"
+                               Aspect="AspectFill"
+                               WidthRequest="48" HeightRequest="48" />
+                    </Border>
+                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                        <Label Text="{Binding Title}"
+                               FontSize="14" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               MaxLines="1" />
+                        <Label Text="{Binding Artist}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               MaxLines="1" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Controls + Progress (center) -->
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="6"
+                                     MaximumWidthRequest="600">
+                    <!-- Control buttons -->
+                    <HorizontalStackLayout Spacing="20" HorizontalOptions="Center">
+                        <ImageButton Source="{Binding PlayModeIconSource}"
+                                     WidthRequest="24" HeightRequest="24"
+                                     BackgroundColor="Transparent"
+                                     Command="{Binding CyclePlayModeCommand}" />
+                        <ImageButton Source="ic_skip_previous"
+                                     WidthRequest="28" HeightRequest="28"
+                                     BackgroundColor="Transparent"
+                                     Command="{Binding PlayPreviousCommand}" />
+                        <Border StrokeThickness="0" StrokeShape="RoundRectangle 18"
+                                Background="{DynamicResource HeroBrush}"
+                                WidthRequest="36" HeightRequest="36">
+                            <ImageButton Source="{Binding PlayPauseIconSource}"
+                                         WidthRequest="22" HeightRequest="22"
+                                         BackgroundColor="Transparent"
+                                         Command="{Binding TogglePlayPauseCommand}"
+                                         HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <ImageButton Source="ic_skip_next"
+                                     WidthRequest="28" HeightRequest="28"
+                                     BackgroundColor="Transparent"
+                                     Command="{Binding PlayNextCommand}" />
+                        <ImageButton Source="{Binding LikeIconSource}"
+                                     WidthRequest="24" HeightRequest="24"
+                                     BackgroundColor="Transparent"
+                                     Command="{Binding ToggleLikeCommand}" />
+                    </HorizontalStackLayout>
+                    <!-- Progress bar -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Label Text="{Binding CurrentTimeDisplay}"
+                               FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                               WidthRequest="36" HorizontalTextAlignment="End" />
+                        <Slider Grid.Column="1" x:Name="DesktopProgressSlider"
+                                Minimum="0"
+                                Maximum="{Binding Duration, Mode=OneWay}"
+                                Value="{Binding Progress, Mode=TwoWay}"
+                                ThumbColor="{DynamicResource PrimaryColor}"
+                                MinimumTrackColor="{DynamicResource PrimaryColor}"
+                                MaximumTrackColor="{DynamicResource DividerColor}"
+                                DragStarted="OnDesktopSliderDragStarted"
+                                DragCompleted="OnDesktopSliderDragCompleted" />
+                        <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}"
+                               FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                               WidthRequest="36" />
+                    </Grid>
+                </VerticalStackLayout>
+
+                <!-- Volume (right) -->
+                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="12"
+                      VerticalOptions="Center" WidthRequest="140">
+                    <Image Source="ic_music_note" WidthRequest="18" HeightRequest="18"
+                           Opacity="0.5" VerticalOptions="Center" />
+                    <Slider Grid.Column="1" x:Name="VolumeSlider"
+                            Minimum="0" Maximum="1"
+                            ThumbColor="{DynamicResource PrimaryColor}"
+                            MinimumTrackColor="{DynamicResource PrimaryColor}"
+                            MaximumTrackColor="{DynamicResource DividerColor}"
+                            WidthRequest="100" VerticalOptions="Center" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>
