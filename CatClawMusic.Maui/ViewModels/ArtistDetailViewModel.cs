@@ -143,7 +143,7 @@ public partial class ArtistDetailViewModel : ObservableObject
     public async Task PlayAllAsync()
     {
         if (_audioPlayer == null || _playQueue == null || Songs.Count == 0) return;
-        _playQueue.SetSongs(Songs);
+        _playQueue.SetSongs([.. Songs]);
         var first = Songs[0];
         _playQueue.SelectSong(first.Id);
         if (!string.IsNullOrEmpty(first.FilePath))
@@ -169,7 +169,7 @@ public partial class ArtistDetailViewModel : ObservableObject
         }
         else
         {
-            _playQueue.SetSongs(Songs);
+            _playQueue.SetSongs([.. Songs]);
             _playQueue.SelectSong(song.Id);
             if (!string.IsNullOrEmpty(song.FilePath))
                 await _audioPlayer.PlayAsync(song.FilePath);

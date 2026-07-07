@@ -359,6 +359,7 @@ public partial class SearchViewModel : ObservableObject
     {
         // 防抖 250ms，避免连续按键重复过滤
         _searchDebounceCts?.Cancel();
+        _searchDebounceCts?.Dispose();
         _searchDebounceCts = new CancellationTokenSource();
         _ = UpdateSearchDropdownAsync(value, _searchDebounceCts.Token);
     }

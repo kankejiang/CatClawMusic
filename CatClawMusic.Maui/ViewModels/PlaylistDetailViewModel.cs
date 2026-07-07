@@ -139,7 +139,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
         }
         else
         {
-            _playQueue.SetSongs(Songs);
+            _playQueue.SetSongs([.. Songs]);
             _playQueue.SelectSong(song.Id);
             if (!string.IsNullOrEmpty(song.FilePath))
                 await _audioPlayer.PlayAsync(song.FilePath);
@@ -153,7 +153,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
     public async Task PlayAllAsync()
     {
         if (_audioPlayer == null || _playQueue == null || Songs.Count == 0) return;
-        _playQueue.SetSongs(Songs);
+        _playQueue.SetSongs([.. Songs]);
         var first = Songs[0];
         _playQueue.SelectSong(first.Id);
         if (!string.IsNullOrEmpty(first.FilePath))
@@ -188,7 +188,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
         var toRemove = Songs.Where(s => ids.Contains(s.Id)).ToList();
         foreach (var s in toRemove) Songs.Remove(s);
-        _allSongsRaw = Songs.ToList();
+        foreach (var s in _allSongsRaw.Where(s => ids.Contains(s.Id)).ToList()) _allSongsRaw.Remove(s);
         StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
         return ids.Count;
     }

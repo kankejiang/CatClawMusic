@@ -27,7 +27,7 @@ public class LogService : ILogService
     public void Info(string tag, string message)
     {
         System.Diagnostics.Debug.WriteLine($"[I][{tag}] {message}");
-        Write("I", tag, message, fileOnly: false);
+        Write("I", tag, message, writeToConsole: true);
     }
 
     /// <summary>记录 Warn 级别日志，同时输出到调试控制台和日志文件</summary>
@@ -36,7 +36,7 @@ public class LogService : ILogService
     public void Warn(string tag, string message)
     {
         System.Diagnostics.Debug.WriteLine($"[W][{tag}] {message}");
-        Write("W", tag, message, fileOnly: true);
+        Write("W", tag, message, writeToConsole: true);
     }
 
     /// <summary>记录 Error 级别日志，同时输出到调试控制台和日志文件</summary>
@@ -45,15 +45,13 @@ public class LogService : ILogService
     public void Error(string tag, string message)
     {
         System.Diagnostics.Debug.WriteLine($"[E][{tag}] {message}");
-        Write("E", tag, message, fileOnly: true);
+        Write("E", tag, message, writeToConsole: true);
     }
 
-    private void Write(string level, string tag, string message, bool fileOnly)
+    private void Write(string level, string tag, string message, bool writeToConsole)
     {
         try
         {
-            if (!fileOnly) return;
-
             var line = $"{DateTime.Now:HH:mm:ss.fff}\t[{level}][{tag}] {message}";
             lock (_lock)
             {

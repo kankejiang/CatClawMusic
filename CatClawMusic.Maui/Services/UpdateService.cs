@@ -13,6 +13,16 @@ public class UpdateService : IUpdateService
     private const string KeyIgnoredVersion = "update_ignored_version";
     private const string KeyPendingVersion = "update_pending_version";
 
+    private static readonly HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(10)
+    };
+
+    static UpdateService()
+    {
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("CatClawMusic");
+    }
+
     /// <summary>
     /// 异步检查 GitHub Release 是否有新版本。
     /// 比较远端最新版本号与本地版本号（仅比较前 3 段）。
@@ -22,11 +32,7 @@ public class UpdateService : IUpdateService
     {
         try
         {
-            using var client = new HttpClient();
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("CatClawMusic");
-            client.Timeout = TimeSpan.FromSeconds(10);
-
-            var response = await client.GetAsync(GithubApiUrl);
+            var response = await _httpClient.GetAsync(GithubApiUrl);
             if (!response.IsSuccessStatusCode) return null;
 
             var json = await response.Content.ReadAsStringAsync();

@@ -4,10 +4,11 @@ namespace CatClawMusic.Maui.Services;
 
 #if ANDROID
 /// <summary>Android FFmpeg 音频转码服务 — 使用 APK 内置 libffmpeg.so</summary>
-public class FFmpegService
+public class FFmpegService : IDisposable
 {
     private string? _ffmpegPath;
     private bool _initAttempted;
+    private bool _disposed;
     private readonly SemaphoreSlim _transcodeLock = new(2, 2);
 
     /// <summary>需要 FFmpeg 软解的扩展名集合</summary>
@@ -198,8 +199,8 @@ public class FFmpegService
     {
         try
         {
-            var stdoutMs = new MemoryStream();
-            var stderrMs = new MemoryStream();
+            using var stdoutMs = new MemoryStream();
+            using var stderrMs = new MemoryStream();
             using (var stdStream = process.InputStream!)
             using (var errStream = process.ErrorStream!)
             {
@@ -269,6 +270,13 @@ public class FFmpegService
     private static void SafeDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _transcodeLock.Dispose();
     }
 }
 #endif

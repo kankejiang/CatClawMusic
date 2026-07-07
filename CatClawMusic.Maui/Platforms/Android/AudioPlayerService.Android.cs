@@ -386,6 +386,11 @@ public partial class AudioPlayerService
         StopForegroundService();
         ReleaseWakeLock();
         AbandonAudioFocus();
+        if (_notificationBitmap != null)
+        {
+            try { _notificationBitmap.Recycle(); } catch { }
+            _notificationBitmap = null;
+        }
         if (_player != null)
         {
             try
@@ -616,6 +621,10 @@ public partial class AudioPlayerService
     private bool _currentIsFavorite;
     /// <summary>当前歌曲封面本地路径（用于前台通知）</summary>
     private string? _currentCoverPath;
+    /// <summary>缓存的通知栏封面Bitmap，避免重复解码造成内存泄漏</summary>
+    private Android.Graphics.Bitmap? _notificationBitmap;
+    /// <summary>上次用于通知栏的封面路径，用于判断是否需要重新解码</summary>
+    private string? _lastNotifCoverPath;
 
     /// <summary>更新当前歌曲信息并刷新前台通知显示</summary>
     /// <param name="title">歌曲标题</param>
@@ -693,11 +702,28 @@ public partial class AudioPlayerService
             Android.Graphics.Bitmap? albumArt = null;
             if (!string.IsNullOrEmpty(_currentCoverPath))
             {
-                try
+                if (_currentCoverPath != _lastNotifCoverPath)
                 {
-                    albumArt = global::Android.Graphics.BitmapFactory.DecodeFile(_currentCoverPath);
+                    try
+                    {
+                        _notificationBitmap?.Recycle();
+                        _notificationBitmap = null;
+                        _notificationBitmap = DecodeBitmapDownsampled(
+                            global::Android.Graphics.BitmapFactory.DecodeFile(_currentCoverPath), 512);
+                    }
+                    catch { }
+                    _lastNotifCoverPath = _currentCoverPath;
                 }
-                catch { }
+                albumArt = _notificationBitmap;
+            }
+            else
+            {
+                if (_notificationBitmap != null)
+                {
+                    _notificationBitmap.Recycle();
+                    _notificationBitmap = null;
+                    _lastNotifCoverPath = null;
+                }
             }
             long positionMs = 0;
             long durationMs = 0;
@@ -794,5 +820,30 @@ public partial class AudioPlayerService
             }
             catch { }
         });
+    }
+
+    /// <summary>将Bitmap降采样到指定最大尺寸，减少通知栏封面内存占用；源Bitmap会被回收</summary>
+    /// <param name="source">原始Bitmap</param>
+    /// <param name="maxSize">目标最大边长（像素）</param>
+    /// <returns>降采样后的新Bitmap</returns>
+    private static Android.Graphics.Bitmap? DecodeBitmapDownsampled(Android.Graphics.Bitmap? source, int maxSize)
+    {
+        if (source == null) return null;
+        try
+        {
+            int width = source.Width;
+            int height = source.Height;
+            if (width <= 0 || height <= 0) { source.Recycle(); return null; }
+            float scale = Math.Min((float)maxSize / width, (float)maxSize / height);
+            if (scale >= 1.0f) return source;
+            var result = Android.Graphics.Bitmap.CreateScaledBitmap(source, (int)(width * scale), (int)(height * scale), true);
+            if (!ReferenceEquals(result, source)) source.Recycle();
+            return result;
+        }
+        catch
+        {
+            source.Recycle();
+            return null;
+        }
     }
 }

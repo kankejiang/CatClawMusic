@@ -306,12 +306,13 @@ public partial class LibraryViewModel : ObservableObject
     {
         // 防抖 250ms 避免每次按键触发过滤
         _filterCts?.Cancel();
+        _filterCts?.Dispose();
         _filterCts = new CancellationTokenSource();
         _ = FilterSongsAsync(_filterCts.Token);
     }
 
-    /// <summary>同步过滤入口（保留给非搜索路径如 LoadLocalAsync 调用）</summary>
-    private void FilterSongs() => FilterSongsAsync(default).GetAwaiter().GetResult();
+    /// <summary>过滤入口（fire-and-forget，避免UI线程死锁）</summary>
+    private void FilterSongs() => _ = FilterSongsAsync(default);
 
     private async Task FilterSongsAsync(CancellationToken ct)
     {

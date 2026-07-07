@@ -334,7 +334,8 @@ public partial class NowPlayingViewModel : ObservableObject
     private async void OnSeek(double positionSeconds)
     {
         _isSeeking = false;
-        await _audioService.SeekAsync(TimeSpan.FromSeconds(positionSeconds));
+        try { await _audioService.SeekAsync(TimeSpan.FromSeconds(positionSeconds)); }
+        catch { }
     }
 
     /// <summary>Called from UI when user starts dragging the slider</summary>
@@ -406,8 +407,8 @@ public partial class NowPlayingViewModel : ObservableObject
         var isSameSong = _loadedSongId == song.Id;
         _loadedSongId = song.Id;
 
-        // Cancel previous load
         _loadCts?.Cancel();
+        _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
         var ct = _loadCts.Token;
 
@@ -487,28 +488,9 @@ public partial class NowPlayingViewModel : ObservableObject
                 }
             }, ct);
         }
-        else if (!isSameSong && !autoPlay)
+        else if (!isSameSong && (!autoPlay || _isStartupRestore))
         {
-            // 首次加载不自动播放，但加载封面和歌词
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.WhenAll(
-                        LoadCoverAsync(song, ct),
-                        LoadLyricsAsync(song, ct)
-                    );
-                }
-                catch (OperationCanceledException) { }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Load cover/lyrics error: {ex.Message}");
-                }
-            }, ct);
-        }
-        else if (!isSameSong && _isStartupRestore)
-        {
-            // 启动恢复：加载封面和歌词，但不播放
+            // 首次加载或启动恢复：加载封面和歌词，但不播放
             _ = Task.Run(async () =>
             {
                 try
@@ -610,10 +592,6 @@ public partial class NowPlayingViewModel : ObservableObject
             return (new List<Song>(), -1);
         }
     }
-
-    /// <summary>同步恢复（仅兼容旧调用，内部已异步化）</summary>
-    private (List<Song> songs, int currentSongId) RestoreQueueState()
-        => RestoreQueueStateAsync().GetAwaiter().GetResult();
 
     private void RefreshUpcomingSongs()
     {

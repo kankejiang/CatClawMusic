@@ -114,4 +114,14 @@ public static class CoverHelper
     {
         return Path.Combine(_coverCacheDir, $"cover_{songId}.jpg");
     }
+
+    /// <summary>
+    /// 清空已解析歌曲ID的内存缓存。
+    /// 当音乐库刷新或需要释放内存时调用，防止 _resolvedSongIds 无限增长。
+    /// 调用后下次访问歌曲时会重新检查磁盘缓存或重新提取封面。
+    /// </summary>
+    public static void ClearCache()
+    {
+        _resolvedSongIds.Clear();
+    }
 }

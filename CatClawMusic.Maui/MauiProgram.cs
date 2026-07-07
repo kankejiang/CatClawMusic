@@ -13,6 +13,11 @@ public static class MauiProgram
 {
     public static IServiceProvider Services { get; private set; } = null!;
 
+    private static readonly HttpClient _sharedHttpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(20)
+    };
+
     public static MauiApp CreateMauiApp()
     {
         // 写固定路径，确保能找到日志
@@ -95,9 +100,7 @@ public static class MauiProgram
         {
             try
             {
-                using var httpClient = new HttpClient();
-                httpClient.Timeout = TimeSpan.FromSeconds(20);
-                // 先请求 HEAD 获取文件大小，超过 50MB 则跳过
+                var httpClient = _sharedHttpClient;
                 try
                 {
                     var headReq = new HttpRequestMessage(HttpMethod.Head, url);
@@ -166,19 +169,6 @@ public static class MauiProgram
         services.AddSingleton<IAudioPlayerService>(sp => sp.GetRequiredService<AudioPlayerService>());
 #if ANDROID
         services.AddSingleton<Services.FFmpegService>();
-
-        // 在启动时初始化 FFmpeg 并注入到 AudioPlayerService
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var ffmpeg = services.BuildServiceProvider().GetRequiredService<Services.FFmpegService>();
-                await ffmpeg.InitializeAsync();
-                var audio = services.BuildServiceProvider().GetRequiredService<AudioPlayerService>();
-                audio.SetFFmpegService(ffmpeg);
-            }
-            catch { }
-        });
 #endif
 
         // ═══════════════════════════════════════════════════
@@ -380,6 +370,20 @@ public static class MauiProgram
         Services = app.Services;
         Log("Step 51: Services set");
 
+#if ANDROID
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var ffmpeg = Services.GetRequiredService<Services.FFmpegService>();
+                await ffmpeg.InitializeAsync();
+                var audio = Services.GetRequiredService<AudioPlayerService>();
+                audio.SetFFmpegService(ffmpeg);
+            }
+            catch { }
+        });
+#endif
+
         // 初始化 SMB 代理并配置播放器 URL 转换器
         var smbProxy = Services.GetRequiredService<SmbStreamProxy>();
         var networkMusic = Services.GetRequiredService<INetworkMusicService>();
@@ -410,6 +414,16 @@ public static class MauiProgram
 
         // 扩展 RemoteUrlStreamOpener 支持 smb:// URL（用于读取内嵌歌词）和 WebDAV URL 修复
         var prevStreamOpener = LyricsService.RemoteUrlStreamOpener;
+        var webDavHttpClient = new HttpClient(new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+            AllowAutoRedirect = true
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(20)
+        };
+        webDavHttpClient.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
+
         LyricsService.RemoteUrlStreamOpener = url =>
         {
             if (url.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
@@ -418,9 +432,7 @@ public static class MauiProgram
                 {
                     var proxyUrl = smbProxy.ToProxyUrl(url);
                     if (proxyUrl == null) return null;
-                    using var httpClient = new HttpClient();
-                    httpClient.Timeout = TimeSpan.FromSeconds(20);
-                    var bytes = httpClient.GetByteArrayAsync(proxyUrl).GetAwaiter().GetResult();
+                    var bytes = _sharedHttpClient.GetByteArrayAsync(proxyUrl).GetAwaiter().GetResult();
                     if (bytes.Length == 0 || bytes.Length > 50 * 1024 * 1024) return null;
                     return new MemoryStream(bytes);
                 }
@@ -431,7 +443,6 @@ public static class MauiProgram
                 }
             }
 
-            // WebDAV HTTP URL：先解析正确的URL（修复/dav前缀或获取raw_url）
             if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
@@ -440,19 +451,10 @@ public static class MauiProgram
                     var resolvedUrl = networkMusic.ResolveWebDavPlaybackUrlAsync(url).GetAwaiter().GetResult();
                     var downloadUrl = string.IsNullOrEmpty(resolvedUrl) ? url : resolvedUrl;
 
-                    var handler = new HttpClientHandler
-                    {
-                        ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
-                        AllowAutoRedirect = true
-                    };
-                    using var httpClient = new HttpClient(handler);
-                    httpClient.Timeout = TimeSpan.FromSeconds(20);
-                    httpClient.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
-
                     try
                     {
                         var headReq = new HttpRequestMessage(HttpMethod.Head, downloadUrl);
-                        var headResp = httpClient.Send(headReq);
+                        var headResp = webDavHttpClient.Send(headReq);
                         if (headResp.IsSuccessStatusCode && headResp.Content.Headers.ContentLength.HasValue)
                         {
                             var size = headResp.Content.Headers.ContentLength.Value;
@@ -465,7 +467,7 @@ public static class MauiProgram
                     }
                     catch { /* HEAD 失败则继续 GET */ }
 
-                    var bytes = httpClient.GetByteArrayAsync(downloadUrl).GetAwaiter().GetResult();
+                    var bytes = webDavHttpClient.GetByteArrayAsync(downloadUrl).GetAwaiter().GetResult();
                     if (bytes.Length == 0) return null;
                     if (bytes.Length > 50 * 1024 * 1024) return null;
                     return new MemoryStream(bytes);

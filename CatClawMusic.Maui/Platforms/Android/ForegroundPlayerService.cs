@@ -33,6 +33,7 @@ public class ForegroundPlayerService : Service
     private bool _isFavorite = false;
     private bool _isLyricsEnabled = false;
     private Bitmap? _albumArt;
+    private Bitmap? _albumArtSource;
     private long _positionMs;
     private long _durationMs;
 
@@ -144,14 +145,20 @@ public class ForegroundPlayerService : Service
         _positionMs = positionMs;
         _durationMs = durationMs;
 
-        if (albumArt != null && !ReferenceEquals(albumArt, _albumArt))
+        if (albumArt != null)
         {
-            var decoded = DecodeBitmapDownsampled(albumArt, 512);
-            if (decoded != null && !ReferenceEquals(decoded, albumArt))
+            if (!ReferenceEquals(albumArt, _albumArtSource))
             {
                 _albumArt?.Recycle();
-                _albumArt = decoded;
+                _albumArt = DecodeBitmapDownsampled(albumArt, 512);
+                _albumArtSource = albumArt;
             }
+        }
+        else if (_albumArt != null)
+        {
+            _albumArt.Recycle();
+            _albumArt = null;
+            _albumArtSource = null;
         }
 
         UpdateMediaSessionPlaybackState();
@@ -419,6 +426,7 @@ public class ForegroundPlayerService : Service
         }
         _albumArt?.Recycle();
         _albumArt = null;
+        _albumArtSource = null;
         _instance = null;
         base.OnDestroy();
     }

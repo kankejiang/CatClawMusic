@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Threading;
 using CatClawMusic.Data;
 using ConnectionProfile = CatClawMusic.Core.Models.ConnectionProfile;
 using ProtocolType = CatClawMusic.Core.Models.ProtocolType;
@@ -19,7 +20,7 @@ public class SmbStreamProxy : IDisposable
     private int _port;
     private bool _disposed;
     private CancellationTokenSource? _cts;
-    private readonly object _smbLock = new();
+    private readonly SemaphoreSlim _smbLock = new(1, 1);
 
     /// <summary>全局静态实例（由 MauiProgram 设置）</summary>
     public static SmbStreamProxy? Current { get; set; }
@@ -152,10 +153,15 @@ public class SmbStreamProxy : IDisposable
 
             // 配置 SMB 连接并获取文件信息
             RemoteFile? fileInfo;
-            lock (_smbLock)
+            await _smbLock.WaitAsync();
+            try
             {
                 _smb.Configure(profile);
-                fileInfo = _smb.GetFileInfoAsync(remotePath).GetAwaiter().GetResult();
+                fileInfo = await _smb.GetFileInfoAsync(remotePath);
+            }
+            finally
+            {
+                _smbLock.Release();
             }
 
             if (fileInfo == null)
@@ -213,10 +219,15 @@ public class SmbStreamProxy : IDisposable
                 {
                     var toRead = (int)Math.Min(chunkSize, bytesRemaining);
                     byte[] chunk;
-                    lock (_smbLock)
+                    await _smbLock.WaitAsync();
+                    try
                     {
                         _smb.Configure(profile);
-                        chunk = _smb.OpenReadRangeAsync(remotePath, currentOffset, toRead).GetAwaiter().GetResult();
+                        chunk = await _smb.OpenReadRangeAsync(remotePath, currentOffset, toRead);
+                    }
+                    finally
+                    {
+                        _smbLock.Release();
                     }
 
                     if (chunk == null || chunk.Length == 0) break;
@@ -304,7 +315,9 @@ public class SmbStreamProxy : IDisposable
         if (_disposed) return;
         _disposed = true;
         try { _cts?.Cancel(); } catch { }
+        try { _cts?.Dispose(); } catch { }
         try { _listener?.Stop(); } catch { }
         try { _listener?.Close(); } catch { }
+        _smbLock.Dispose();
     }
 }
