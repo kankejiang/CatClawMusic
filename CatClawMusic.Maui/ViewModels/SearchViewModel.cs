@@ -228,13 +228,19 @@ public partial class SearchViewModel : ObservableObject
                 var albumsTask = _exploreDataService.GetAlbumsWithSongCountAsync();
                 await Task.WhenAll(artistsTask, albumsTask);
 
-                _allArtists = artistsTask.Result.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover)) }).ToList();
-                _allAlbums = albumsTask.Result.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover)) }).ToList();
+                var artistsResult = artistsTask.Result;
+                var albumsResult = albumsTask.Result;
 
                 // 批量解析新加载歌曲的封面
                 var newSongs = _allTopPlayedSongs.Concat(_allRecentAddedSongs).ToList();
                 if (newSongs.Count > 0)
                     await Task.Run(() => Services.CoverHelper.BatchResolveCovers(newSongs));
+
+                // 为艺人/专辑解析采样封面（SampleCoverPath 在扫描后为空，需从音频文件提取）
+                await Task.Run(() => ResolveSampleCovers(artistsResult, albumsResult, newSongs));
+
+                _allArtists = artistsResult.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover)) }).ToList();
+                _allAlbums = albumsResult.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover)) }).ToList();
 
                 ApplyFilters();
             }
@@ -260,25 +266,8 @@ public partial class SearchViewModel : ObservableObject
             await Task.WhenAll(dailyTask, artistsTask, albumsTask, topPlayedTask, recentTask);
 
             _allDailyRecommendSongs = dailyTask.Result;
-            _allArtists = artistsTask.Result
-                .Select(a => new SearchArtistItem
-                {
-                    Id = a.Id,
-                    Name = a.Name,
-                    Subtitle = $"{a.SongCount} 首歌曲",
-                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover))
-                })
-                .ToList();
-            _allAlbums = albumsTask.Result
-                .Select(a => new SearchAlbumItem
-                {
-                    Id = a.Id,
-                    Title = a.Title,
-                    ArtistName = a.ArtistName,
-                    Subtitle = $"{a.SongCount} 首歌曲",
-                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover))
-                })
-                .ToList();
+            var artistsResult = artistsTask.Result;
+            var albumsResult = albumsTask.Result;
             _allTopPlayedSongs = topPlayedTask.Result;
             _allRecentAddedSongs = recentTask.Result;
 
@@ -289,7 +278,30 @@ public partial class SearchViewModel : ObservableObject
                 .ToList();
             await Task.Run(() => Services.CoverHelper.BatchResolveCovers(allSongs));
 
-            // 为专辑卡片补充封面（从专辑内歌曲封面获取）
+            // 为艺人/专辑解析采样封面（SampleCoverPath 在扫描后为空，需从音频文件提取）
+            await Task.Run(() => ResolveSampleCovers(artistsResult, albumsResult, allSongs));
+
+            _allArtists = artistsResult
+                .Select(a => new SearchArtistItem
+                {
+                    Id = a.Id,
+                    Name = a.Name,
+                    Subtitle = $"{a.SongCount} 首歌曲",
+                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover))
+                })
+                .ToList();
+            _allAlbums = albumsResult
+                .Select(a => new SearchAlbumItem
+                {
+                    Id = a.Id,
+                    Title = a.Title,
+                    ArtistName = a.ArtistName,
+                    Subtitle = $"{a.SongCount} 首歌曲",
+                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover))
+                })
+                .ToList();
+
+            // 为专辑卡片补充封面（从专辑内歌曲封面获取，作为采样封面未命中时的回退）
             foreach (var album in _allAlbums)
             {
                 if (album.CoverSource != null) continue;
@@ -336,6 +348,97 @@ public partial class SearchViewModel : ObservableObject
     public async Task LoadExploreDataAsync()
     {
         await LoadDataAsync();
+    }
+
+    /// <summary>
+    /// 扫描完成后重新加载探索数据：清除所有缓存并强制全量刷新。
+    /// 在 LocalScanService.NeedsReload 标记为 true 时由页面 OnAppearing 调用。
+    /// </summary>
+    public async Task ReloadAfterScanAsync()
+    {
+        try
+        {
+            _exploreDataService.InvalidateDailyRecommendCache();
+            Services.CoverHelper.ClearCache();
+            Preferences.Default.Remove("explore_last_load_date");
+
+            _allDailyRecommendSongs = [];
+            _allTopPlayedSongs = [];
+            _allArtists = [];
+            _allAlbums = [];
+            _allRecentAddedSongs = [];
+            ApplyFilters();
+
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] ReloadAfterScan failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 为艺人/专辑解析采样歌曲的封面。
+    /// ExploreDataService 返回的 SampleCoverPath 在扫描后为 null（DB 中 CoverArtPath 未写入），
+    /// 此方法根据 SampleSongId 和 SampleFilePath 从音频文件提取嵌入封面并回填 SampleCoverPath。
+    /// </summary>
+    /// <param name="artists">艺人列表（会被修改 SampleCoverPath）</param>
+    /// <param name="albums">专辑列表（会被修改 SampleCoverPath）</param>
+    /// <param name="alreadyResolved">已解析封面的歌曲集合，用于跳过重复解析</param>
+    private void ResolveSampleCovers(
+        List<Data.ArtistWithCount> artists,
+        List<Data.AlbumWithCount> albums,
+        List<Song> alreadyResolved)
+    {
+        // 从已解析歌曲中建立 songId → CoverArtPath 映射，避免重复提取
+        var resolvedMap = new Dictionary<int, string?>();
+        foreach (var s in alreadyResolved)
+        {
+            if (s.Id > 0 && !resolvedMap.ContainsKey(s.Id))
+                resolvedMap[s.Id] = s.CoverArtPath;
+        }
+
+        // 收集需要解析封面的采样歌曲（去重）
+        var pending = new Dictionary<int, Song>();
+        foreach (var a in artists)
+        {
+            if (a.SampleSongId > 0 && !string.IsNullOrEmpty(a.SampleFilePath)
+                && !resolvedMap.ContainsKey(a.SampleSongId) && !pending.ContainsKey(a.SampleSongId))
+            {
+                pending[a.SampleSongId] = new Song { Id = a.SampleSongId, FilePath = a.SampleFilePath };
+            }
+        }
+        foreach (var a in albums)
+        {
+            if (a.SampleSongId > 0 && !string.IsNullOrEmpty(a.SampleFilePath)
+                && !resolvedMap.ContainsKey(a.SampleSongId) && !pending.ContainsKey(a.SampleSongId))
+            {
+                pending[a.SampleSongId] = new Song { Id = a.SampleSongId, FilePath = a.SampleFilePath };
+            }
+        }
+
+        if (pending.Count > 0)
+        {
+            Services.CoverHelper.BatchResolveCovers(pending.Values);
+            foreach (var kv in pending)
+                resolvedMap[kv.Key] = kv.Value.CoverArtPath;
+        }
+
+        // 回填 SampleCoverPath
+        foreach (var a in artists)
+        {
+            if (string.IsNullOrEmpty(a.SampleCoverPath)
+                && resolvedMap.TryGetValue(a.SampleSongId, out var path)
+                && !string.IsNullOrEmpty(path))
+                a.SampleCoverPath = path;
+        }
+        foreach (var a in albums)
+        {
+            if (string.IsNullOrEmpty(a.SampleCoverPath)
+                && resolvedMap.TryGetValue(a.SampleSongId, out var path)
+                && !string.IsNullOrEmpty(path))
+                a.SampleCoverPath = path;
+        }
     }
 
     /// <summary>获取指定 Tab 下的歌曲列表（用于列表页播放交互）</summary>

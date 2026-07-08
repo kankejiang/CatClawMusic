@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.MainPage"
-             Title="猫爪音乐"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
@@ -133,7 +134,7 @@
                             <AppThemeBinding Light="ic_play_light" Dark="ic_play" />
                         </Image.Source>
                     </Image>
-                    <Label Text="播放" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaying]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
                 </VerticalStackLayout>
             </Grid>
 
@@ -149,7 +150,7 @@
                             <AppThemeBinding Light="ic_home_light" Dark="ic_home" />
                         </Image.Source>
                     </Image>
-                    <Label Text="发现" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
                 </VerticalStackLayout>
             </Grid>
 
@@ -165,7 +166,7 @@
                             <AppThemeBinding Light="ic_playlist_light" Dark="ic_playlist" />
                         </Image.Source>
                     </Image>
-                    <Label Text="歌单" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
                 </VerticalStackLayout>
             </Grid>
 
@@ -181,7 +182,7 @@
                             <AppThemeBinding Light="ic_library_light" Dark="ic_library" />
                         </Image.Source>
                     </Image>
-                    <Label Text="音乐库" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
                 </VerticalStackLayout>
             </Grid>
         </Grid>
@@ -194,7 +195,7 @@
               InputTransparent="False"
               ZIndex="999">
             <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
-                <Label Text="猫爪音乐"
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
                        FontSize="42"
                        FontFamily="OpenSansSemibold"
                        TextColor="{DynamicResource TextPrimaryColor}"

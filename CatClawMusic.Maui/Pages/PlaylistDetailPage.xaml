@@ -2,8 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.PlaylistDetailPage"
-             Title="播放列表详情"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitlePlaylistDetail]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid RowDefinitions="Auto,Auto,*"
@@ -40,7 +41,7 @@
                         StrokeShape="RoundRectangle 20"
                         StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}">
-                    <Image Source="{Binding Playlist.CoverUrl}"
+                    <Image Source="{Binding PlaylistCover, TargetNullValue='ic_playlist'}"
                            Aspect="AspectFill"
                            WidthRequest="100"
                            HeightRequest="100" />
@@ -53,28 +54,19 @@
                            FontFamily="OpenSansSemibold"
                            TextColor="{DynamicResource TextPrimaryColor}"
                            MaxLines="2" />
-                    <Label Text="{Binding Playlist.Description}"
-                           FontSize="13"
-                           TextColor="{DynamicResource TextSecondaryColor}"
-                           MaxLines="2" />
                     <Label Text="{Binding Playlist.SongCount, StringFormat='共 {0} 首歌曲'}"
+                           FontSize="13"
+                           TextColor="{DynamicResource TextSecondaryColor}" />
+                    <Label Text="{Binding Songs.Count, StringFormat='当前 {0} 首'}"
                            FontSize="12"
                            TextColor="{DynamicResource TextHintColor}" />
-                    <Grid ColumnDefinitions="Auto,Auto"
+                    <Grid ColumnDefinitions="Auto"
                           ColumnSpacing="10"
                           Margin="0,6,0,0">
                         <Button Text="▶ 播放"
                                 Command="{Binding PlayAllCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
-                                CornerRadius="20"
-                                HeightRequest="36"
-                                FontSize="12" />
-                        <Button Grid.Column="1"
-                                Text="✏ 编辑"
-                                Command="{Binding EditCommand}"
-                                BackgroundColor="{DynamicResource ChipInactiveColor}"
-                                TextColor="{DynamicResource ChipInactiveTextColor}"
                                 CornerRadius="20"
                                 HeightRequest="36"
                                 FontSize="12" />

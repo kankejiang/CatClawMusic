@@ -161,6 +161,16 @@ public partial class NowPlayingViewModel : ObservableObject
         _audioService.PositionChanged += OnPositionChanged;
         _audioService.PlaybackCompleted += OnPlaybackCompleted;
 
+#if ANDROID
+        // 订阅通知栏媒体控件回调（下一首/上一首/收藏），由 ForegroundPlayerService 触发
+        if (_audioService is Services.AudioPlayerService androidAudio)
+        {
+            androidAudio.PlayNextRequested += OnNotifPlayNext;
+            androidAudio.PlayPreviousRequested += OnNotifPlayPrevious;
+            androidAudio.FavoriteToggled += OnNotifFavoriteToggled;
+        }
+#endif
+
         // Commands
         TogglePlayPauseCommand = new AsyncRelayCommand(TogglePlayPauseAsync);
         PlayNextCommand = new AsyncRelayCommand(PlayNextAsync);
@@ -169,6 +179,49 @@ public partial class NowPlayingViewModel : ObservableObject
         ToggleLikeCommand = new AsyncRelayCommand(ToggleLikeAsync);
         SeekCommand = new RelayCommand<double>(OnSeek);
     }
+
+#if ANDROID
+    /// <summary>通知栏"下一首"回调：切到下一首并加载（通知栏已自行刷新，这里只管队列与 UI）</summary>
+    private async Task OnNotifPlayNext()
+    {
+        try
+        {
+            _queue.Next();
+            await LoadCurrentSongAsync();
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifNext: {ex.Message}"); }
+    }
+
+    /// <summary>通知栏"上一首"回调：切到上一首并加载</summary>
+    private async Task OnNotifPlayPrevious()
+    {
+        try
+        {
+            _queue.Previous();
+            await LoadCurrentSongAsync();
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifPrev: {ex.Message}"); }
+    }
+
+    /// <summary>通知栏"收藏"回调：将目标收藏状态持久化并同步 UI（不再回传通知栏，避免循环）</summary>
+    /// <param name="isFavorite">目标收藏状态</param>
+    private void OnNotifFavoriteToggled(bool isFavorite)
+    {
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            var song = _queue.CurrentSong;
+            if (song == null) return;
+            try
+            {
+                await _db.SetFavoriteAsync(song.Id, isFavorite);
+                IsLiked = isFavorite;
+                LikeIcon = isFavorite ? "\u2665" : "\u2661";
+                LikeIconSource = isFavorite ? "ic_favorite" : "ic_favorite_border";
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifFav: {ex.Message}"); }
+        });
+    }
+#endif
 
     // === Commands ===
     /// <summary>切换播放/暂停命令</summary>

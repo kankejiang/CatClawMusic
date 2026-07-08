@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.LibraryPage"
-             Title="音乐库"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
@@ -15,10 +16,10 @@
             <Grid ColumnDefinitions="*,Auto"
                   ColumnSpacing="12">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="音乐库"
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
                            Style="{StaticResource PageTitleStyle}"
                            TextColor="White" />
-                    <Label Text="把本地和网络收藏放进一座更好看的玻璃唱片馆。"
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LibrarySubtitle]}"
                            Style="{StaticResource PageSubtitleStyle}"
                            TextColor="#F2F4FF" />
                 </VerticalStackLayout>
@@ -49,7 +50,7 @@
                 <Entry Grid.Column="1"
                        x:Name="SearchBox"
                        Text="{Binding SearchQuery, Mode=TwoWay}"
-                       Placeholder="搜索歌曲、艺术家、专辑"
+                       Placeholder="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SearchPlaceholder]}"
                        ReturnType="Search" />
                 <ImageButton Grid.Column="2"
                              Source="ic_sort"
@@ -86,7 +87,7 @@
                     <TapGestureRecognizer Tapped="OnSongsClicked" />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="6">
-                    <Label Text="歌曲"
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabSongs]}"
                            Style="{StaticResource StatCaptionStyle}" />
                     <Label Text="{Binding SongCount}"
                            Style="{StaticResource StatValueStyle}" />
@@ -98,7 +99,7 @@
                     <TapGestureRecognizer Tapped="OnAlbumsClicked" />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="6">
-                    <Label Text="专辑"
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabAlbums]}"
                            Style="{StaticResource StatCaptionStyle}" />
                     <Label Text="{Binding AlbumCount}"
                            Style="{StaticResource StatValueStyle}" />
@@ -110,7 +111,7 @@
                     <TapGestureRecognizer Tapped="OnArtistsClicked" />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="6">
-                    <Label Text="艺术家"
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
                            Style="{StaticResource StatCaptionStyle}" />
                     <Label Text="{Binding ArtistCount}"
                            Style="{StaticResource StatValueStyle}" />
@@ -126,7 +127,7 @@
                   ColumnSpacing="8">
                 <Button Grid.Column="0"
                         x:Name="LocalTabBtn"
-                        Text="本地音乐"
+                        Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusic]}"
                         HeightRequest="44"
                         CornerRadius="18"
                         FontAttributes="Bold"
@@ -149,7 +150,7 @@
                     </Button.Triggers>
                 </Button>
                 <Button Grid.Column="1"
-                        Text="网络音乐"
+                        Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusicSection]}"
                         HeightRequest="44"
                         CornerRadius="18"
                         FontAttributes="Bold"
@@ -176,7 +177,7 @@
                 IsVisible="{Binding IsNetworkTabVisible}">
             <Grid ColumnDefinitions="Auto,*"
                   ColumnSpacing="12">
-                <Label Text="网络协议"
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[NetworkProtocol]}"
                        FontSize="13"
                        TextColor="{DynamicResource TextSecondaryColor}"
                        VerticalOptions="Center" />

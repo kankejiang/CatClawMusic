@@ -96,11 +96,24 @@ public partial class ArtistDetailViewModel : ObservableObject
 
             // 加载该艺术家的歌曲
             var songs = await _db.GetSongsByArtistAsync(artistName);
+
+            // 批量解析封面：从音频文件提取嵌入封面到磁盘缓存，回写 Song.CoverArtPath
+            if (songs.Count > 0)
+                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
+
+            // 用第一首已解析封面的歌曲回填艺术家封面（Artist.Cover 在 DB 中通常为空）
+            if (string.IsNullOrEmpty(Artist.Cover))
+            {
+                var firstWithCover = songs.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath));
+                if (firstWithCover != null)
+                    Artist.Cover = firstWithCover.CoverArtPath;
+            }
+
             Songs.Clear();
             foreach (var s in songs)
                 Songs.Add(s);
 
-            // 从歌曲中提取专辑列表（去重）
+            // 从歌曲中提取专辑列表（去重），并从歌曲封面回填专辑封面
             var albumDict = new Dictionary<string, Album>();
             foreach (var s in songs)
             {
@@ -110,6 +123,7 @@ public partial class ArtistDetailViewModel : ObservableObject
                     {
                         Title = s.Album,
                         Artist = s.Artist,
+                        CoverArtPath = s.CoverArtPath,
                     };
                 }
             }

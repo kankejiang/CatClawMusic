@@ -4,8 +4,9 @@
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.PluginManagementPage"
-             Title="插件管理"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Plugins]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -18,10 +19,10 @@
                         Background="{DynamicResource HeroBrush}">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <VerticalStackLayout Spacing="6">
-                            <Label Text="🧩 插件管理"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Plugins]}"
                                    Style="{StaticResource PageTitleStyle}"
                                    TextColor="White" />
-                            <Label Text="管理歌词、协议、封面、音效等插件，扩展猫爪音乐的能力。"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PluginsSubtitle]}"
                                    Style="{StaticResource PageSubtitleStyle}"
                                    TextColor="#F3F5FF" />
                             <Label Text="{Binding Summary}"

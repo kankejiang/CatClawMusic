@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.SettingsPage"
-             Title="设置"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}"
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
@@ -16,10 +17,10 @@
                         Background="{DynamicResource HeroBrush}">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="设置"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}"
                                    Style="{StaticResource PageTitleStyle}"
                                    TextColor="White" />
-                            <Label Text="切换主题、管理音乐来源与插件，把猫爪音乐打磨成你喜欢的样子。"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SettingsSubtitle]}"
                                    Style="{StaticResource PageSubtitleStyle}"
                                    TextColor="#F2F4FF" />
                         </VerticalStackLayout>
@@ -39,7 +40,7 @@
                 </Border>
 
                 <!-- Section: 内容与服务 -->
-                <Label Text="内容与服务"
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ContentAndServices]}"
                        Style="{StaticResource SectionTitleStyle}"
                        Margin="4,8,0,2" />
 
@@ -49,8 +50,8 @@
                         <Image Source="ic_edit" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="外观与个性化" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="主题颜色、启动页设置" Style="{StaticResource PageSubtitleStyle}" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Appearance]}" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppearanceDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="ic_arrow_forward"
                                WidthRequest="18" HeightRequest="18"
@@ -67,7 +68,7 @@
                         <Image Source="ic_folder" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="本地音乐" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusic]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding LocalMusicStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="ic_arrow_forward"
@@ -85,7 +86,7 @@
                         <Image Source="ic_search" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="远程音乐服务" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding RemoteMusicStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="ic_arrow_forward"
@@ -103,7 +104,7 @@
                         <Image Source="ic_equalizer" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="插件管理" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Plugins]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding PluginStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="ic_arrow_forward"
@@ -121,7 +122,7 @@
                         <Image Source="ic_play" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="探索设置" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ExploreSettings]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding AiStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="ic_arrow_forward"
@@ -134,7 +135,7 @@
                 </Border>
 
                 <!-- Section: 系统与维护 -->
-                <Label Text="系统与维护"
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SystemAndMaintenance]}"
                        Style="{StaticResource SectionTitleStyle}"
                        Margin="4,12,0,2" />
 
@@ -145,7 +146,7 @@
                         <Image Source="ic_lock_locked" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="权限管理" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding PermissionStatus}" FontSize="12"
                                    TextColor="{Binding PermissionStatusColor}" />
                         </VerticalStackLayout>
@@ -164,8 +165,8 @@
                         <Image Source="ic_settings" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="通用设置" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="通用行为、播放偏好与系统选项" Style="{StaticResource PageSubtitleStyle}" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettings]}" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="ic_arrow_forward"
                                WidthRequest="18" HeightRequest="18"
@@ -182,8 +183,8 @@
                         <Image Source="ic_folder" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="备份与恢复" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="备份、恢复、管理备份文件" Style="{StaticResource PageSubtitleStyle}" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestoreDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <BoxView Grid.Column="2"
                                  x:Name="UpdateRedDot"
@@ -206,8 +207,8 @@
                         <Image Source="ic_check" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="关于" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="版本信息、开源协议、交流群" Style="{StaticResource PageSubtitleStyle}" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[About]}" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AboutDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
                         <BoxView Grid.Column="2"
                                  x:Name="UpdateRedDot2"

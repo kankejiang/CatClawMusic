@@ -25,6 +25,12 @@ public class LocalScanService
     private readonly IMusicLibraryService _musicLibrary;
     private readonly MusicDatabase _db;
 
+    /// <summary>
+    /// 静态标记：上次扫描后库内容已变更，发现页等页面需要重新加载。
+    /// 页面在 OnAppearing 时检查并消费此标记。
+    /// </summary>
+    public static bool NeedsReload { get; set; }
+
     /// <summary>支持的音频文件扩展名集合</summary>
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -235,6 +241,10 @@ public class LocalScanService
             System.Diagnostics.Debug.WriteLine($"[LocalScan] Error: {ex}");
             progress?.Report((0, 100, $"扫描失败: {ex.Message}"));
         }
+
+        // 标记库已变更，通知发现页等需要重新加载
+        if (totalImported > 0)
+            NeedsReload = true;
 
         return totalImported;
     }

@@ -62,6 +62,8 @@ public class ExploreDataService
     public void InvalidateDailyRecommendCache()
     {
         _dailyRecommendCache = null;
+        _dailyArtistsCache = null;
+        _dailyAlbumsCache = null;
         _dailyRecommendDate = null;
         try
         {
@@ -308,6 +310,7 @@ public class ExploreDataService
                 if (artistSampleCover.TryGetValue(a.Id, out var sample))
                 {
                     result.SampleCoverPath = sample.CoverArtPath;
+                    result.SampleSongId = sample.Id;
                     result.SampleMediaStoreId = sample.MediaStoreId;
                     result.SampleFilePath = sample.FilePath;
                 }
@@ -391,6 +394,7 @@ public class ExploreDataService
                 if (albumSampleCover.TryGetValue(a.Id, out var sample))
                 {
                     result.SampleCoverPath = sample.CoverArtPath;
+                    result.SampleSongId = sample.Id;
                     result.SampleMediaStoreId = sample.MediaStoreId;
                     result.SampleFilePath = sample.FilePath;
                 }
@@ -515,6 +519,8 @@ public class ArtistWithCount
     public int SongCount { get; set; }
     /// <summary>从该艺术家第一首歌曲获取的封面路径，用于列表页快速显示</summary>
     public string? SampleCoverPath { get; set; }
+    /// <summary>从该艺术家第一首歌曲获取的歌曲 ID，用于解析封面缓存</summary>
+    public int SampleSongId { get; set; }
     /// <summary>从该艺术家第一首歌曲获取的 MediaStoreId，用于快速加载封面</summary>
     public long SampleMediaStoreId { get; set; }
     /// <summary>从该艺术家第一首歌曲获取的文件路径，用于通过 MediaStore 查询封面</summary>
@@ -538,6 +544,8 @@ public class AlbumWithCount
     public int SongCount { get; set; }
     /// <summary>从该专辑第一首歌曲获取的封面路径，用于列表页快速显示</summary>
     public string? SampleCoverPath { get; set; }
+    /// <summary>从该专辑第一首歌曲获取的歌曲 ID，用于解析封面缓存</summary>
+    public int SampleSongId { get; set; }
     /// <summary>从该专辑第一首歌曲获取的 MediaStoreId，用于快速加载封面</summary>
     public long SampleMediaStoreId { get; set; }
     /// <summary>从该专辑第一首歌曲获取的文件路径，用于通过 MediaStore 查询封面</summary>

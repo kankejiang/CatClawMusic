@@ -2,9 +2,10 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.MusicFolderSettingsPage"
              x:Name="RootPage"
-             Title="音乐文件夹设置"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleMusicFolderSettings]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -16,10 +17,10 @@
                 <Border Style="{StaticResource GlassCardStrongStyle}"
                         Background="{DynamicResource HeroBrush}">
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="音乐文件夹"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MusicFolders]}"
                                Style="{StaticResource PageTitleStyle}"
                                TextColor="White" />
-                        <Label Text="管理本地音乐文件夹，配置扫描选项。"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MusicFolderSettingsDesc]}"
                                Style="{StaticResource PageSubtitleStyle}"
                                TextColor="#F3F5FF" />
                     </VerticalStackLayout>
@@ -27,7 +28,7 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="文件夹列表"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FolderList]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
@@ -45,7 +46,7 @@
                                                VerticalOptions="Center"
                                                LineBreakMode="TailTruncation" />
                                         <Button Grid.Column="1"
-                                                Text="移除"
+                                                Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Remove]}"
                                                 Command="{Binding BindingContext.RemoveFolderCommand, Source={x:Reference RootPage}}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource ErrorColor}"
@@ -59,7 +60,7 @@
                             </CollectionView.ItemTemplate>
                         </CollectionView>
 
-                        <Button Text="添加文件夹"
+                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AddFolder]}"
                                 Command="{Binding AddFolderCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
@@ -68,7 +69,7 @@
                                 FontSize="13"
                                 Margin="0,8,0,0" />
 
-                        <Button Text="扫描全部文件夹"
+                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanAllFolders]}"
                                 Command="{Binding ScanAllFoldersCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
@@ -96,7 +97,7 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="扫描选项"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanOptions]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
@@ -104,7 +105,7 @@
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                             <CheckBox IsChecked="{Binding ScanSubfolders}" />
                             <Label Grid.Column="1"
-                                   Text="扫描子文件夹"
+                                   Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanSubfolders]}"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
                         </Grid>
@@ -112,7 +113,7 @@
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                             <CheckBox IsChecked="{Binding AutoScan}" />
                             <Label Grid.Column="1"
-                                   Text="自动扫描"
+                                   Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AutoScan]}"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
                         </Grid>

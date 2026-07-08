@@ -35,6 +35,10 @@ public partial class MainPage : ContentPage
     private const double SwipeThresholdRatio = 0.25;
     private const int AnimDuration = 280;
     private const int PanWatchdogInterval = 400;
+    /// <summary>方向判定阈值：位移超过此值才判定水平/垂直方向（像素），避免手指微颤误触</summary>
+    private const double DirectionLockThreshold = 14;
+    /// <summary>水平倾斜比：|TotalX| 必须达到 |TotalY| 的此倍数才判定为水平滑动，否则视为垂直滚动</summary>
+    private const double HorizontalRatio = 1.4;
 
     /// <summary>全局实例，供外部调用 SwitchToTab</summary>
     public static MainPage? Instance { get; private set; }
@@ -146,6 +150,14 @@ public partial class MainPage : ContentPage
                 && structuredView.ItemsLayout is LinearItemsLayout linearLayout
                 && linearLayout.Orientation == ItemsLayoutOrientation.Horizontal)
             {
+                // 水平列表自身不挂手势，但仍需递归其 Header/Footer/EmptyView，
+                // 因为这些区域可能包含需要手势的空白区域或嵌套的水平列表
+                if (structuredView is CollectionView cv)
+                {
+                    if (cv.Header is VisualElement header) AddPanToLayouts(header, handler);
+                    if (cv.Footer is VisualElement footer) AddPanToLayouts(footer, handler);
+                    if (cv.EmptyView is VisualElement empty) AddPanToLayouts(empty, handler);
+                }
                 return;
             }
 
@@ -153,6 +165,15 @@ public partial class MainPage : ContentPage
             var pan = new PanGestureRecognizer();
             pan.PanUpdated += handler;
             itemsView.GestureRecognizers.Add(pan);
+
+            // 递归进入 Header/Footer/EmptyView，让其中嵌套的水平 CollectionView 被显式跳过，
+            // 同时给 Header 内的空白 Layout 区域也挂上 Pan 手势，支持在所有区域左右滑动切 tab
+            if (itemsView is CollectionView colView)
+            {
+                if (colView.Header is VisualElement header) AddPanToLayouts(header, handler);
+                if (colView.Footer is VisualElement footer) AddPanToLayouts(footer, handler);
+                if (colView.EmptyView is VisualElement empty) AddPanToLayouts(empty, handler);
+            }
             return;
         }
 
@@ -319,13 +340,17 @@ public partial class MainPage : ContentPage
                 if (!_isPanning) return;
                 _lastPanRunningTime = DateTime.Now;
 
-                // 方向锁定：只响应水平滑动，垂直交给 ScrollView
+                // 方向锁定：只响应明确的水平滑动，垂直或近水平交给滚动控件
+                // 防呆：只有位移超过阈值才判定方向，且要求水平分量明显大于垂直分量
                 if (!_directionLocked)
                 {
-                    if (Math.Abs(e.TotalX) > 10 || Math.Abs(e.TotalY) > 10)
+                    if (Math.Abs(e.TotalX) > DirectionLockThreshold || Math.Abs(e.TotalY) > DirectionLockThreshold)
                     {
                         _directionLocked = true;
-                        if (Math.Abs(e.TotalY) > Math.Abs(e.TotalX))
+                        // 判定为垂直滚动（垂直分量更大，或水平分量未达到垂直分量的 HorizontalRatio 倍）
+                        // 这样在水平 CollectionView 上略微带垂直分量的滑动不会误触发 tab 切换
+                        if (Math.Abs(e.TotalY) > Math.Abs(e.TotalX)
+                            || Math.Abs(e.TotalX) < Math.Abs(e.TotalY) * HorizontalRatio)
                         {
                             _isPanning = false;
                             StopPanWatchdog();

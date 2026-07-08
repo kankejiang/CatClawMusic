@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/Namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppName" xml:space="preserve"><value>CatClaw Music</value></data>
+  <data name="Settings" xml:space="preserve"><value>설정</value></data>
+  <data name="SettingsSubtitle" xml:space="preserve"><value>테마를 전환하고 음악 소스와 플러그인을 관리하여 CatClaw Music을 나만의 것으로 만드세요.</value></data>
+  <data name="ContentAndServices" xml:space="preserve"><value>콘텐츠 &amp; 서비스</value></data>
+  <data name="SystemAndMaintenance" xml:space="preserve"><value>시스템 &amp; 유지보수</value></data>
+  <data name="Appearance" xml:space="preserve"><value>외관</value></data>
+  <data name="AppearanceDesc" xml:space="preserve"><value>테마 색상, 시작 페이지</value></data>
+  <data name="LocalMusic" xml:space="preserve"><value>로컬 음악</value></data>
+  <data name="RemoteMusic" xml:space="preserve"><value>원격 음악 서비스</value></data>
+  <data name="Plugins" xml:space="preserve"><value>플러그인</value></data>
+  <data name="ExploreSettings" xml:space="preserve"><value>탐색 설정</value></data>
+  <data name="Permissions" xml:space="preserve"><value>권한</value></data>
+  <data name="GeneralSettings" xml:space="preserve"><value>일반</value></data>
+  <data name="GeneralSettingsDesc" xml:space="preserve"><value>일반 동작, 재생 &amp; 시스템 옵션</value></data>
+  <data name="BackupRestore" xml:space="preserve"><value>백업 &amp; 복원</value></data>
+  <data name="BackupRestoreDesc" xml:space="preserve"><value>백업, 복원 및 백업 파일 관리</value></data>
+  <data name="About" xml:space="preserve"><value>정보</value></data>
+  <data name="AboutDesc" xml:space="preserve"><value>버전, 라이선스 및 커뮤니티</value></data>
+  <data name="GeneralSettingsTitle" xml:space="preserve"><value>일반</value></data>
+  <data name="GeneralSettingsSubtitle" xml:space="preserve"><value>언어, 캐시 및 재설정 옵션.</value></data>
+  <data name="Language" xml:space="preserve"><value>언어</value></data>
+  <data name="LanguageHint" xml:space="preserve"><value>변경 사항은 현재 페이지에 즉시 적용됩니다</value></data>
+  <data name="CacheSize" xml:space="preserve"><value>캐시 크기</value></data>
+  <data name="ClearCache" xml:space="preserve"><value>캐시 지우기</value></data>
+  <data name="ClearingCache" xml:space="preserve"><value>지우는 중…</value></data>
+  <data name="ResetSettings" xml:space="preserve"><value>설정 재설정</value></data>
+  <data name="ResetSettingsHint" xml:space="preserve"><value>모든 설정을 기본값으로 복원</value></data>
+  <data name="Reset" xml:space="preserve"><value>재설정</value></data>
+  <data name="TabPlaying" xml:space="preserve"><value>재생 중</value></data>
+  <data name="TabDiscover" xml:space="preserve"><value>발견</value></data>
+  <data name="TabPlaylists" xml:space="preserve"><value>플레이리스트</value></data>
+  <data name="TabLibrary" xml:space="preserve"><value>라이브러리</value></data>
+  <data name="TabSearch" xml:space="preserve"><value>검색</value></data>
+  <data name="TabArtists" xml:space="preserve"><value>아티스트</value></data>
+  <data name="TabAlbums" xml:space="preserve"><value>앨범</value></data>
+  <data name="LanguageChangedToast" xml:space="preserve"><value>언어가 변경되었습니다</value></data>
+  <data name="TabSongs" xml:space="preserve"><value>노래</value></data>
+  <data name="PageTitleNowPlaying" xml:space="preserve"><value>지금 재생 중</value></data>
+  <data name="PageTitleFullLyrics" xml:space="preserve"><value>전체 가사</value></data>
+  <data name="PageTitlePlaylist" xml:space="preserve"><value>플레이리스트</value></data>
+  <data name="PageTitlePlaylistDetail" xml:space="preserve"><value>플레이리스트 상세</value></data>
+  <data name="PageTitleLocalMusicSettings" xml:space="preserve"><value>로컬 음악 설정</value></data>
+  <data name="PageTitleSplashSettings" xml:space="preserve"><value>스플래시 설정</value></data>
+  <data name="PageTitleSongDetail" xml:space="preserve"><value>노래 상세</value></data>
+  <data name="PageTitleServerSettings" xml:space="preserve"><value>서버 설정</value></data>
+  <data name="PageTitleMusicFolderSettings" xml:space="preserve"><value>음악 폴더</value></data>
+  <data name="PageTitlePluginManagement" xml:space="preserve"><value>플러그인</value></data>
+  <data name="PageTitlePermissionManagement" xml:space="preserve"><value>권한</value></data>
+  <data name="PageTitleModelManager" xml:space="preserve"><value>모델 관리자</value></data>
+  <data name="PageTitleModelEdit" xml:space="preserve"><value>모델 편집기</value></data>
+  <data name="PageTitleDesktopLyric" xml:space="preserve"><value>데스크톱 가사</value></data>
+  <data name="PageTitleBackupRestore" xml:space="preserve"><value>백업 &amp; 복원</value></data>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>노래, 아티스트, 앨범 검색</value></data>
+  <data name="ChatPlaceholder" xml:space="preserve"><value>Yuki에게 물어보세요: 무언가 재생하고, 무언가 찾고, 플레이리스트를 만드세요...</value></data>
+  <data name="DesktopSearchPlaceholder" xml:space="preserve"><value>노래, 아티스트, 앨범 검색…</value></data>
+  <data name="LibrarySubtitle" xml:space="preserve"><value>아름다운 유리 음악 라이브러리에서 로컬 및 원격 즐겨찾기를 만나보세요.</value></data>
+  <data name="Artists" xml:space="preserve"><value>아티스트</value></data>
+  <data name="LocalMusicSection" xml:space="preserve"><value>로컬 음악</value></data>
+  <data name="RemoteMusicSection" xml:space="preserve"><value>원격 음악</value></data>
+  <data name="NetworkProtocol" xml:space="preserve"><value>네트워크 프로토콜</value></data>
+  <data name="DailyRecommendation" xml:space="preserve"><value>데일리 믹스</value></data>
+  <data name="DailyRecommendationDesc" xml:space="preserve"><value>오늘을 위한 완벽한 노래</value></data>
+  <data name="FrequentSongs" xml:space="preserve"><value>자주 재생된 노래</value></data>
+  <data name="FrequentSongsDesc" xml:space="preserve"><value>최근 즐겨찾기</value></data>
+  <data name="NewArrivals" xml:space="preserve"><value>신곡</value></data>
+  <data name="NewArrivalsDesc" xml:space="preserve"><value>새로 추가된 음악</value></data>
+  <data name="YukiHelpFindSongs" xml:space="preserve"><value>Yuki가 노래 찾기를 도와드립니다</value></data>
+  <data name="TodayRecommendation" xml:space="preserve"><value>오늘의 추천</value></data>
+  <data name="RecommendedArtists" xml:space="preserve"><value>추천 아티스트</value></data>
+  <data name="RecommendedAlbums" xml:space="preserve"><value>추천 앨범</value></data>
+  <data name="NoContent" xml:space="preserve"><value>아직 아무것도 없습니다</value></data>
+  <data name="YukiDesc" xml:space="preserve"><value>노래를 찾고, 재생을 제어하고, 당신과 함께 플레이리스트를 만듭니다</value></data>
+  <data name="SettingsEntry" xml:space="preserve"><value>설정</value></data>
+  <data name="Navigation" xml:space="preserve"><value>내비게이션</value></data>
+  <data name="DiscoverMusic" xml:space="preserve"><value>발견</value></data>
+  <data name="MyMusic" xml:space="preserve"><value>내 음악</value></data>
+  <data name="MyPlaylists" xml:space="preserve"><value>내 플레이리스트</value></data>
+  <data name="FeatureInDev" xml:space="preserve"><value>이 기능은 개발 중입니다. 기대해 주세요</value></data>
+  <data name="ScanMethod" xml:space="preserve"><value>스캔 방법</value></data>
+  <data name="AndroidMediaScan" xml:space="preserve"><value>Android 미디어 스토어 사용</value></data>
+  <data name="AndroidMediaScanDesc" xml:space="preserve"><value>시스템 미디어 라이브러리에서 모든 음악 파일 스캔 (음악 &amp; 오디오 권한 필요)</value></data>
+  <data name="SAFScan" xml:space="preserve"><value>SAF 폴더 스캔 사용</value></data>
+  <data name="SAFScanDesc" xml:space="preserve"><value>시스템 SAF를 통해 폴더 선택 (Android 11+ 호환)</value></data>
+  <data name="ScanTip" xml:space="preserve"><value>팁: 여러 스캔 방법이 활성화된 경우 결과가 병합됩니다. 둘 다 비활성화하면 사용자 지정 폴더만 사용됩니다.</value></data>
+  <data name="MusicFolders" xml:space="preserve"><value>음악 폴더</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>폴더 추가</value></data>
+  <data name="Delete" xml:space="preserve"><value>삭제</value></data>
+  <data name="Remove" xml:space="preserve"><value>제거</value></data>
+  <data name="ScanStatus" xml:space="preserve"><value>스캔 상태</value></data>
+  <data name="ScanMusic" xml:space="preserve"><value>음악 스캔</value></data>
+  <data name="Cancel" xml:space="preserve"><value>취소</value></data>
+  <data name="DecodeSettings" xml:space="preserve"><value>디코드 설정</value></data>
+  <data name="EnableFFmpeg" xml:space="preserve"><value>FFmpeg 소프트웨어 디코딩 활성화</value></data>
+  <data name="EnableFFmpegDesc" xml:space="preserve"><value>약간의 CPU 사용량 증가로 더 많은 오디오 형식 지원</value></data>
+  <data name="RemoteMusicSubtitle" xml:space="preserve"><value>WebDAV / Navidrome / SMB 연결을 구성하여 원격 라이브러리에서 재생하세요.</value></data>
+  <data name="CacheSongs" xml:space="preserve"><value>노래 캐시</value></data>
+  <data name="EmptyCache" xml:space="preserve"><value>캐시 지우기</value></data>
+  <data name="ConfiguredConnections" xml:space="preserve"><value>구성된 연결</value></data>
+  <data name="Test" xml:space="preserve"><value>테스트</value></data>
+  <data name="Sync" xml:space="preserve"><value>동기화</value></data>
+  <data name="Edit" xml:space="preserve"><value>편집</value></data>
+  <data name="NoConnections" xml:space="preserve"><value>아직 구성된 연결이 없습니다</value></data>
+  <data name="NoConnectionsHint" xml:space="preserve"><value>오른쪽 상단의 +를 탭하여 WebDAV / Navidrome / SMB 서비스를 추가하세요</value></data>
+  <data name="Name" xml:space="preserve"><value>이름</value></data>
+  <data name="MyLibraryPlaceholder" xml:space="preserve"><value>내 음악 라이브러리</value></data>
+  <data name="Protocol" xml:space="preserve"><value>프로토콜</value></data>
+  <data name="HostAddress" xml:space="preserve"><value>호스트 주소</value></data>
+  <data name="Port" xml:space="preserve"><value>포트</value></data>
+  <data name="Username" xml:space="preserve"><value>사용자 이름</value></data>
+  <data name="Password" xml:space="preserve"><value>비밀번호</value></data>
+  <data name="BasePath" xml:space="preserve"><value>기본 경로</value></data>
+  <data name="SelectPath" xml:space="preserve"><value>경로 선택</value></data>
+  <data name="UseHTTPS" xml:space="preserve"><value>HTTPS 사용</value></data>
+  <data name="DomainOptional" xml:space="preserve"><value>도메인 (선택 사항)</value></data>
+  <data name="Save" xml:space="preserve"><value>저장</value></data>
+  <data name="SelectRemoteDir" xml:space="preserve"><value>원격 디렉터리 선택</value></data>
+  <data name="SelectThisDir" xml:space="preserve"><value>이 폴더 선택</value></data>
+  <data name="GoBack" xml:space="preserve"><value>뒤로 가기</value></data>
+  <data name="OK" xml:space="preserve"><value>확인</value></data>
+  <data name="PluginsSubtitle" xml:space="preserve"><value>가사, 프로토콜, 커버, 효과 플러그인을 관리하여 CatClaw Music을 확장하세요.</value></data>
+  <data name="NoPlugins" xml:space="preserve"><value>사용 가능한 플러그인이 없습니다</value></data>
+  <data name="NoPluginsHint" xml:space="preserve"><value>플러그인 시스템이 준비되었습니다; 향후 패키지를 통해 기능을 확장할 수 있습니다</value></data>
+  <data name="PluginsHint" xml:space="preserve"><value>플러그인 카드를 탭하여 전환하세요. 플러그인은 가사, 프로토콜, 커버, 효과 등으로 분류됩니다.</value></data>
+  <data name="PermissionsSubtitle" xml:space="preserve"><value>앱에 필요한 저장소, 알림 및 오버레이 권한을 보고 부여하세요.</value></data>
+  <data name="OpenAppSettings" xml:space="preserve"><value>앱 시스템 설정 열기</value></data>
+  <data name="FolderList" xml:space="preserve"><value>폴더 목록</value></data>
+  <data name="ScanAllFolders" xml:space="preserve"><value>모든 폴더 스캔</value></data>
+  <data name="ScanOptions" xml:space="preserve"><value>스캔 옵션</value></data>
+  <data name="ScanSubfolders" xml:space="preserve"><value>하위 폴더 스캔</value></data>
+  <data name="AutoScan" xml:space="preserve"><value>자동 스캔</value></data>
+  <data name="RootDir" xml:space="preserve"><value>루트</value></data>
+  <data name="ParentDir" xml:space="preserve"><value>상위 디렉터리</value></data>
+  <data name="BackupData" xml:space="preserve"><value>데이터 백업</value></data>
+  <data name="BackupDataDesc" xml:space="preserve"><value>앱 데이터를 로컬 파일로 백업</value></data>
+  <data name="CreateBackup" xml:space="preserve"><value>백업 생성</value></data>
+  <data name="RestoreData" xml:space="preserve"><value>데이터 복원</value></data>
+  <data name="RestoreDataDesc" xml:space="preserve"><value>백업 파일에서 앱 데이터 복원</value></data>
+  <data name="SelectBackupFile" xml:space="preserve"><value>백업 파일 선택</value></data>
+  <data name="BackupRestoreSubtitle" xml:space="preserve"><value>앱 데이터를 로컬에 백업하거나 백업에서 복원하세요.</value></data>
+</root>

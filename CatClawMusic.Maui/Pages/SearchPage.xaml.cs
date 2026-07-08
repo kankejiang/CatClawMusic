@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 
@@ -33,10 +34,19 @@ public partial class SearchPage : ContentPage
         BindingContext = _vm;
     }
 
-    /// <summary>当页面显示在屏幕上时触发，仅首次加载数据，避免每次切换 tab 都重载数据导致封面图片重新解码。</summary>
+    /// <summary>当页面显示在屏幕上时触发。若扫描后有 NeedsReload 标记则强制重载，否则仅首次加载以避免重复解码封面。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // 扫描完成后强制重新加载探索数据（清除缓存 + 全量刷新）
+        if (LocalScanService.NeedsReload)
+        {
+            LocalScanService.NeedsReload = false;
+            try { await _vm.ReloadAfterScanAsync(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SearchPage reload after scan: {ex.Message}"); }
+            return;
+        }
 
         // 已有数据则跳过加载，避免每次切换 tab 都重新解码所有封面图片造成 GC 压力
         if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0) return;
@@ -350,6 +360,12 @@ public partial class SearchPage : ContentPage
             _settingsPage.Content = null;
             settingsContent.BindingContext = _settingsPage.BindingContext;
             SettingsPanelContent.Content = settingsContent;
+        }
+
+        // 每次打开面板时刷新设置状态（嵌入面板不会触发 OnAppearing）
+        if (_settingsPage.BindingContext is SettingsViewModel svm)
+        {
+            _ = svm.LoadStatusCommand.ExecuteAsync(null);
         }
 
         // 设置面板宽度为屏幕宽度的 85%

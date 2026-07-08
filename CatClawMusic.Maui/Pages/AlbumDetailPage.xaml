@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.AlbumDetailPage"
              Title="专辑详情"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -40,7 +41,7 @@
                         StrokeShape="RoundRectangle 20"
                         StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}">
-                    <Image Source="{Binding Album.CoverUrl}"
+                    <Image Source="{Binding Album.CoverArtPath, TargetNullValue='ic_album'}"
                            Aspect="AspectFill"
                            WidthRequest="110"
                            HeightRequest="110" />

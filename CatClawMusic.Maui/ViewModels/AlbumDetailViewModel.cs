@@ -80,6 +80,14 @@ public partial class AlbumDetailViewModel : ObservableObject
 
             await Task.Run(() => Services.CoverHelper.BatchResolveCovers(allSongs));
 
+            // 用第一首已解析封面的歌曲回填专辑封面（Album.CoverArtPath 在 DB 中通常为空）
+            if (string.IsNullOrEmpty(Album.CoverArtPath))
+            {
+                var firstWithCover = allSongs.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath));
+                if (firstWithCover != null)
+                    Album.CoverArtPath = firstWithCover.CoverArtPath;
+            }
+
             Songs = new ObservableCollection<Song>(allSongs);
         }
         catch (Exception ex)

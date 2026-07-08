@@ -2,8 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.LocalMusicSettingsPage"
-             Title="本地音乐设置"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleLocalMusicSettings]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -15,10 +16,10 @@
                 <Border Style="{StaticResource GlassCardStrongStyle}"
                         Background="{DynamicResource HeroBrush}">
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="本地音乐"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusic]}"
                                Style="{StaticResource PageTitleStyle}"
                                TextColor="White" />
-                        <Label Text="选择扫描方式、添加音乐文件夹、扫描歌曲。"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusicSettingsDesc]}"
                                Style="{StaticResource PageSubtitleStyle}"
                                TextColor="#F3F5FF" />
                     </VerticalStackLayout>
@@ -26,7 +27,7 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="12">
-                        <Label Text="扫描方式"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanMethod]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
@@ -37,10 +38,10 @@
                             <VerticalStackLayout Grid.Column="1"
                                                  VerticalOptions="Center"
                                                  Spacing="2">
-                                <Label Text="使用 Android 媒体库扫描"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AndroidMediaScan]}"
                                        FontSize="14"
                                        TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="扫描系统媒体库中的所有音乐文件（需要「音乐和音频」权限）"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AndroidMediaScanDesc]}"
                                        FontSize="11"
                                        TextColor="{DynamicResource TextHintColor}" />
                             </VerticalStackLayout>
@@ -52,16 +53,16 @@
                             <VerticalStackLayout Grid.Column="1"
                                                  VerticalOptions="Center"
                                                  Spacing="2">
-                                <Label Text="使用 SAF 文件夹扫描"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SAFScan]}"
                                        FontSize="14"
                                        TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="使用系统 SAF 选择文件夹进行扫描（兼容 Android 11+）"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SAFScanDesc]}"
                                        FontSize="11"
                                        TextColor="{DynamicResource TextHintColor}" />
                             </VerticalStackLayout>
                         </Grid>
 
-                        <Label Text="提示：若同时开启多个扫描方式，最终扫描结果为并集；若仅使用自定义文件夹，请关闭以上两个选项。"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanTip]}"
                                FontSize="11"
                                TextColor="{DynamicResource TextHintColor}"
                                LineBreakMode="WordWrap" />
@@ -70,12 +71,12 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="音乐文件夹"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MusicFolders]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
                         
-                        <Button Text="添加文件夹"
+                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AddFolder]}"
                                 Clicked="OnAddFolderClicked"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
@@ -112,7 +113,7 @@
                                                    LineBreakMode="TailTruncation" />
                                         </VerticalStackLayout>
                                         <Button Grid.Column="2"
-                                                Text="删除"
+                                                Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Delete]}"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RemoveFolderCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource ErrorColor}"
@@ -130,7 +131,7 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="扫描状态"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanStatus]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
@@ -143,7 +144,7 @@
                         <Grid ColumnDefinitions="*,Auto"
                               ColumnSpacing="10"
                               IsVisible="{Binding IsScanning}">
-                            <Button Text="扫描音乐"
+                            <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanMusic]}"
                                     Command="{Binding ScanMusicCommand}"
                                     BackgroundColor="{DynamicResource PrimaryColor}"
                                     TextColor="White"
@@ -152,7 +153,7 @@
                                     FontSize="13"
                                     IsEnabled="False" />
                             <Button Grid.Column="1"
-                                    Text="取消"
+                                    Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Cancel]}"
                                     Command="{Binding CancelScanCommand}"
                                     BackgroundColor="{DynamicResource ErrorColor}"
                                     TextColor="White"
@@ -160,7 +161,7 @@
                                     HeightRequest="40"
                                     FontSize="13" />
                         </Grid>
-                        <Button Text="扫描音乐"
+                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanMusic]}"
                                 Command="{Binding ScanMusicCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
@@ -177,7 +178,7 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="解码设置"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DecodeSettings]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
@@ -186,10 +187,10 @@
                             <VerticalStackLayout Grid.Column="1"
                                                  VerticalOptions="Center"
                                                  Spacing="2">
-                                <Label Text="启用 FFmpeg 软解码"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[EnableFFmpeg]}"
                                        FontSize="14"
                                        TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="支持更多音频格式，会增加少量CPU占用"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[EnableFFmpegDesc]}"
                                        FontSize="11"
                                        TextColor="{DynamicResource TextHintColor}" />
                             </VerticalStackLayout>

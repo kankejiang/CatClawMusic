@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CatClawMusic.Maui.Services;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -8,9 +9,22 @@ namespace CatClawMusic.Maui.ViewModels;
 /// </summary>
 public partial class GeneralSettingsViewModel : ObservableObject
 {
-    /// <summary>可选语言列表</summary>
+    /// <summary>可选语言列表（各语言以自身名称显示，首项为"跟随系统"）</summary>
     [ObservableProperty]
-    private List<string> _languageOptions = new() { "简体中文", "English" };
+    private List<string> _languageOptions = new()
+    {
+        "跟随系统",
+        "简体中文", "繁體中文", "English", "日本語", "한국어",
+        "Français", "Deutsch", "Español", "Русский", "Português", "Italiano",
+        "العربية", "हिन्दी", "বাংলা", "தமிழ்", "తెలుగు", "मराठी", "ગુજરાતી", "ಕನ್ನಡ", "മലയാളം",
+        "Bahasa Indonesia", "Bahasa Melayu", "ไทย", "Tiếng Việt",
+        "Nederlands", "Polski", "Türkçe", "Українська",
+        "Svenska", "Norsk bokmål", "Dansk", "Suomi",
+        "Čeština", "Magyar", "Română", "Ελληνικά", "עברית",
+        "Slovenčina", "Hrvatski", "Српски", "Български",
+        "Filipino", "اردو", "فارسی", "Kiswahili",
+        "Català", "Latviešu", "Lietuvių", "Eesti", "Slovenščina", "Íslenska"
+    };
 
     /// <summary>当前选中的语言索引</summary>
     [ObservableProperty]
@@ -29,7 +43,17 @@ public partial class GeneralSettingsViewModel : ObservableObject
     /// </summary>
     public GeneralSettingsViewModel()
     {
+        // 打开设置页时，Picker 反映当前已保存的语言
+        SelectedLanguageIndex = LocalizationService.GetSavedCultureIndex();
         _ = RefreshCacheSizeAsync();
+    }
+
+    /// <summary>
+    /// 语言选择变化时立即切换应用语言（持久化 + 应用文化 + 通知所有绑定刷新）。
+    /// </summary>
+    partial void OnSelectedLanguageIndexChanged(int value)
+    {
+        LocalizationService.Instance.SetLanguageByIndex(value);
     }
 
     /// <summary>

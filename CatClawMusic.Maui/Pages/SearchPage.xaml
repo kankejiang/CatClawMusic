@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.SearchPage"
-             Title="发现"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -41,7 +42,7 @@
                                 <Entry Grid.Column="1"
                                        x:Name="SearchBox"
                                        Text="{Binding SearchQuery, Mode=TwoWay}"
-                                       Placeholder="搜索歌曲、艺术家、专辑"
+                                       Placeholder="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SearchPlaceholder]}"
                                        ReturnType="Search"
                                        TextChanged="OnSearchTextChanged"
                                        Completed="OnSearchCompleted" />
@@ -79,7 +80,7 @@
 
                                 <!-- Songs Section -->
                                 <VerticalStackLayout IsVisible="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}}">
-                                    <Label Text="歌曲"
+                                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabSongs]}"
                                            FontSize="11"
                                            FontAttributes="Bold"
                                            TextColor="{DynamicResource TextHintColor}"
@@ -136,7 +137,7 @@
                                     <BoxView HeightRequest="1"
                                              BackgroundColor="{DynamicResource DividerColor}"
                                              Margin="16,4" />
-                                    <Label Text="艺人"
+                                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabArtists]}"
                                            FontSize="11"
                                            FontAttributes="Bold"
                                            TextColor="{DynamicResource TextHintColor}"
@@ -182,7 +183,7 @@
                                     <BoxView HeightRequest="1"
                                              BackgroundColor="{DynamicResource DividerColor}"
                                              Margin="16,4" />
-                                    <Label Text="专辑"
+                                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabAlbums]}"
                                            FontSize="11"
                                            FontAttributes="Bold"
                                            TextColor="{DynamicResource TextHintColor}"
@@ -295,9 +296,9 @@
                             </Border.GestureRecognizers>
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="&#x1f3b5;" FontSize="20" />
-                                <Label Text="每日推荐" FontSize="14"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DailyRecommendation]}" FontSize="14"
                                        FontFamily="OpenSansSemibold" />
-                                <Label Text="今天适合播放的歌"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DailyRecommendationDesc]}"
                                        Style="{StaticResource PageSubtitleStyle}" />
                             </VerticalStackLayout>
                         </Border>
@@ -308,9 +309,9 @@
                             </Border.GestureRecognizers>
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="&#x1f525;" FontSize="20" />
-                                <Label Text="常听歌曲" FontSize="14"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FrequentSongs]}" FontSize="14"
                                        FontFamily="OpenSansSemibold" />
-                                <Label Text="最近最常播放"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FrequentSongsDesc]}"
                                        Style="{StaticResource PageSubtitleStyle}" />
                             </VerticalStackLayout>
                         </Border>
@@ -321,9 +322,9 @@
                             </Border.GestureRecognizers>
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="&#x2728;" FontSize="20" />
-                                <Label Text="新入库" FontSize="14"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[NewArrivals]}" FontSize="14"
                                        FontFamily="OpenSansSemibold" />
-                                <Label Text="刚加入的音乐"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[NewArrivalsDesc]}"
                                        Style="{StaticResource PageSubtitleStyle}" />
                             </VerticalStackLayout>
                         </Border>
@@ -334,9 +335,9 @@
                             </Border.GestureRecognizers>
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="&#x1f4ac;" FontSize="20" />
-                                <Label Text="AI 助手" FontSize="14"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[YukiHelpFindSongs]}" FontSize="14"
                                        FontFamily="OpenSansSemibold" />
-                                <Label Text="让 Yuki 帮你找歌"
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[YukiDesc]}"
                                        Style="{StaticResource PageSubtitleStyle}" />
                             </VerticalStackLayout>
                         </Border>
@@ -345,7 +346,7 @@
                     <!-- Daily Recommend: horizontal cover cards -->
                     <Grid x:Name="DailySectionAnchor"
                           Margin="20,0,20,8" ColumnDefinitions="*,Auto">
-                        <Label Text="今日推荐"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TodayRecommendation]}"
                                Style="{StaticResource SectionTitleStyle}" />
                         <ActivityIndicator Grid.Column="1"
                                            IsVisible="{Binding IsLoading}"
@@ -396,10 +397,10 @@
 
                     <!-- Artists Section -->
                     <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
-                        <Label Text="推荐艺人"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RecommendedArtists]}"
                                Style="{StaticResource SectionTitleStyle}" />
                         <Button Grid.Column="1"
-                                Text="音乐库"
+                                Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
                                 FontSize="12" HeightRequest="34"
                                 CornerRadius="16"
                                 BackgroundColor="{DynamicResource ChipInactiveColor}"
@@ -420,7 +421,7 @@
 
                     <!-- Albums Section -->
                     <Label Margin="20,0,20,8"
-                           Text="推荐专辑"
+                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RecommendedAlbums]}"
                            Style="{StaticResource SectionTitleStyle}" />
                     <CollectionView x:Name="AlbumsList"
                                     Margin="16,0,16,18"
@@ -437,7 +438,7 @@
                     <!-- Top Played: horizontal cover cards -->
                     <Label x:Name="TopPlayedSection"
                            Margin="20,8,20,8"
-                           Text="常听歌曲"
+                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FrequentSongs]}"
                            Style="{StaticResource SectionTitleStyle}" />
                     <CollectionView x:Name="TopPlayedList"
                                     Margin="16,0,16,6"
@@ -484,7 +485,7 @@
                     <!-- Recent Added: horizontal cover cards -->
                     <Label x:Name="RecentSection"
                            Margin="20,8,20,8"
-                           Text="新入库"
+                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[NewArrivals]}"
                            Style="{StaticResource SectionTitleStyle}" />
                     <CollectionView x:Name="RecentList"
                                     Margin="16,0,16,6"
@@ -534,7 +535,7 @@
                             Style="{StaticResource GlassCardStyle}"
                             IsVisible="{Binding IsCurrentTabEmpty}">
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="还没有合适的内容"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[NoContent]}"
                                    Style="{StaticResource SectionTitleStyle}"
                                    HorizontalOptions="Center" />
                             <Label Text="{Binding EmptyStateText}"
@@ -572,7 +573,7 @@
                                          Spacing="2" VerticalOptions="Center">
                         <Label Text="{Binding AgentName}"
                                Style="{StaticResource SectionTitleStyle}" />
-                        <Label Text="和你一起找歌、控播放、建歌单"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[YukiDesc]}"
                                Style="{StaticResource PageSubtitleStyle}" />
                     </VerticalStackLayout>
                     <Border Grid.Column="2" Padding="4"
@@ -611,7 +612,7 @@
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <Entry x:Name="ChatInputBox"
                            Text="{Binding ChatInput, Mode=TwoWay}"
-                           Placeholder="问问 Yuki：播放谁、找什么、建什么歌单..."
+                           Placeholder="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ChatPlaceholder]}"
                            ReturnType="Send"
                            Completed="OnChatInputCompleted" />
                     <Border Grid.Column="1"
@@ -656,7 +657,7 @@
                 <Grid Grid.Row="0"
                       ColumnDefinitions="*,Auto"
                       Padding="20,16,16,12">
-                    <Label Text="设置"
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}"
                            FontSize="22"
                            FontFamily="OpenSansSemibold"
                            TextColor="{DynamicResource TextPrimaryColor}"

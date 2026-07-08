@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,7 +35,7 @@ public partial class AlbumsViewModel : ObservableObject
         _exploreData = exploreData;
     }
 
-    /// <summary>异步加载所有专辑：拉取专辑列表并为每个专辑回填示例封面路径</summary>
+    /// <summary>异步加载所有专辑：拉取专辑列表并为每个专辑解析示例封面路径</summary>
     [RelayCommand]
     public async Task LoadAsync()
     {
@@ -45,13 +46,43 @@ public partial class AlbumsViewModel : ObservableObject
 
             var albums = await _exploreData.GetAllAlbumsAsync();
 
+            // 用 SampleSongId + SampleFilePath 构造临时 Song，通过 CoverHelper 从音频文件提取嵌入封面
             await Task.Run(() =>
             {
+                var pending = new Dictionary<int, Song>();
                 foreach (var album in albums)
                 {
-                    if (!string.IsNullOrEmpty(album.SampleCoverPath) && File.Exists(album.SampleCoverPath))
+                    // 先检查磁盘缓存是否已有（之前会话可能已提取过）
+                    if (album.SampleSongId > 0)
                     {
-                        album.CoverArtPath = album.SampleCoverPath;
+                        var cachedPath = Services.CoverHelper.GetCachedPath(album.SampleSongId);
+                        if (File.Exists(cachedPath))
+                        {
+                            album.CoverArtPath = cachedPath;
+                            continue;
+                        }
+                    }
+
+                    // 缓存未命中，收集需要提取封面的采样歌曲
+                    if (album.SampleSongId > 0 && !string.IsNullOrEmpty(album.SampleFilePath)
+                        && !pending.ContainsKey(album.SampleSongId))
+                    {
+                        pending[album.SampleSongId] = new Song { Id = album.SampleSongId, FilePath = album.SampleFilePath };
+                    }
+                }
+
+                if (pending.Count > 0)
+                {
+                    Services.CoverHelper.BatchResolveCovers(pending.Values);
+                    // 回填解析结果到专辑
+                    foreach (var album in albums)
+                    {
+                        if (string.IsNullOrEmpty(album.CoverArtPath) && album.SampleSongId > 0
+                            && pending.TryGetValue(album.SampleSongId, out var s)
+                            && !string.IsNullOrEmpty(s.CoverArtPath))
+                        {
+                            album.CoverArtPath = s.CoverArtPath;
+                        }
                     }
                 }
             });

@@ -37,6 +37,10 @@ public partial class PlaylistDetailViewModel : ObservableObject
     [ObservableProperty]
     private string _statusText = "";
 
+    /// <summary>歌单封面路径（取歌单内第一首已解析封面的歌曲）</summary>
+    [ObservableProperty]
+    private string? _playlistCover;
+
     /// <summary>是否正在加载歌单数据</summary>
     [ObservableProperty]
     private bool _isLoading = false;
@@ -97,6 +101,13 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
             var enabledProtocols = await _db.GetEnabledProtocolsAsync();
             _allSongsRaw = _db.FilterByEnabledProtocols(songs, enabledProtocols);
+
+            // 批量解析封面：从音频文件提取嵌入封面到磁盘缓存，回写 Song.CoverArtPath
+            if (_allSongsRaw.Count > 0)
+                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(_allSongsRaw));
+
+            // 用第一首已解析封面的歌曲作为歌单封面
+            PlaylistCover = _allSongsRaw.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath))?.CoverArtPath;
 
             Songs.Clear();
             foreach (var s in _allSongsRaw)

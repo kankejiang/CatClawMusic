@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,7 +35,7 @@ public partial class ArtistsViewModel : ObservableObject
         _exploreData = exploreData;
     }
 
-    /// <summary>异步加载所有艺术家：拉取艺术家列表并为每位艺术家回填示例封面路径</summary>
+    /// <summary>异步加载所有艺术家：拉取艺术家列表并为每位艺术家解析示例封面路径</summary>
     [RelayCommand]
     public async Task LoadAsync()
     {
@@ -45,13 +46,43 @@ public partial class ArtistsViewModel : ObservableObject
 
             var artists = await _exploreData.GetAllArtistsAsync();
 
+            // 用 SampleSongId + SampleFilePath 构造临时 Song，通过 CoverHelper 从音频文件提取嵌入封面
             await Task.Run(() =>
             {
+                var pending = new Dictionary<int, Song>();
                 foreach (var artist in artists)
                 {
-                    if (!string.IsNullOrEmpty(artist.SampleCoverPath) && File.Exists(artist.SampleCoverPath))
+                    // 先检查磁盘缓存是否已有（之前会话可能已提取过）
+                    if (artist.SampleSongId > 0)
                     {
-                        artist.Cover = artist.SampleCoverPath;
+                        var cachedPath = Services.CoverHelper.GetCachedPath(artist.SampleSongId);
+                        if (File.Exists(cachedPath))
+                        {
+                            artist.Cover = cachedPath;
+                            continue;
+                        }
+                    }
+
+                    // 缓存未命中，收集需要提取封面的采样歌曲
+                    if (artist.SampleSongId > 0 && !string.IsNullOrEmpty(artist.SampleFilePath)
+                        && !pending.ContainsKey(artist.SampleSongId))
+                    {
+                        pending[artist.SampleSongId] = new Song { Id = artist.SampleSongId, FilePath = artist.SampleFilePath };
+                    }
+                }
+
+                if (pending.Count > 0)
+                {
+                    Services.CoverHelper.BatchResolveCovers(pending.Values);
+                    // 回填解析结果到艺术家
+                    foreach (var artist in artists)
+                    {
+                        if (string.IsNullOrEmpty(artist.Cover) && artist.SampleSongId > 0
+                            && pending.TryGetValue(artist.SampleSongId, out var s)
+                            && !string.IsNullOrEmpty(s.CoverArtPath))
+                        {
+                            artist.Cover = s.CoverArtPath;
+                        }
                     }
                 }
             });

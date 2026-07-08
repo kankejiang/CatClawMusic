@@ -808,10 +808,12 @@ public partial class AudioPlayerService
         });
     }
 
-    /// <summary>前台通知"收藏"按钮回调：在主线程触发 FavoriteToggled 事件</summary>
+    /// <summary>前台通知"收藏"按钮回调：同步内部收藏状态并在主线程触发 FavoriteToggled 事件</summary>
     /// <param name="isFavorite">收藏按钮最新状态</param>
     private void OnNotifFavoriteToggled(bool isFavorite)
     {
+        // 同步内部状态，避免后续 UpdateForegroundNotification 用旧值覆盖通知栏收藏状态
+        _currentIsFavorite = isFavorite;
         _mainHandler.Post(async () =>
         {
             try

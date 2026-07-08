@@ -147,7 +147,9 @@ public class ForegroundPlayerService : Service
 
         if (albumArt != null)
         {
-            if (!ReferenceEquals(albumArt, _albumArtSource))
+            // 如果传入的就是当前已解码的副本（如收藏/歌词切换时回传 _albumArt），
+            // 或者是同一个源 Bitmap（如进度更新时复用缓存），则无需重新解码，避免回收已使用的 Bitmap
+            if (!ReferenceEquals(albumArt, _albumArt) && !ReferenceEquals(albumArt, _albumArtSource))
             {
                 _albumArt?.Recycle();
                 _albumArt = DecodeBitmapDownsampled(albumArt, 512);

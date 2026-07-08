@@ -8,28 +8,43 @@ namespace CatClawMusic.Maui.Services;
 /// </summary>
 public class PermissionService : IPermissionService
 {
-    /// <summary>检查存储读取权限是否已授予</summary>
+    /// <summary>检查存储/媒体读取权限是否已授予（Android 13+ 检查 READ_MEDIA_AUDIO）</summary>
     /// <returns>已授予返回 true；Windows 平台始终返回 true</returns>
     public async Task<bool> CheckStoragePermissionAsync()
     {
 #if ANDROID
-        var status = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
-        return status == PermissionStatus.Granted;
+        if (OperatingSystem.IsAndroidVersionAtLeast(33))
+        {
+            // Android 13+：READ_EXTERNAL_STORAGE 已废弃，检查 READ_MEDIA_AUDIO
+            var status = await Permissions.CheckStatusAsync<Platforms.Android.AudioPermission>();
+            return status == PermissionStatus.Granted;
+        }
+        // Android 12 及以下：检查 READ_EXTERNAL_STORAGE
+        var legacy = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
+        return legacy == PermissionStatus.Granted;
 #else
         return true; // Windows 不需要显式存储权限
 #endif
     }
 
-    /// <summary>请求存储读取权限</summary>
+    /// <summary>请求存储/媒体读取权限（Android 13+ 请求 READ_MEDIA_AUDIO）</summary>
     /// <returns>授权成功返回 true；已授权或 Windows 平台返回 true</returns>
     public async Task<bool> RequestStoragePermissionAsync()
     {
 #if ANDROID
-        var status = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
-        if (status == PermissionStatus.Granted) return true;
-
-        status = await Permissions.RequestAsync<Permissions.StorageRead>();
-        return status == PermissionStatus.Granted;
+        if (OperatingSystem.IsAndroidVersionAtLeast(33))
+        {
+            // Android 13+：请求 READ_MEDIA_AUDIO
+            var status = await Permissions.CheckStatusAsync<Platforms.Android.AudioPermission>();
+            if (status == PermissionStatus.Granted) return true;
+            status = await Permissions.RequestAsync<Platforms.Android.AudioPermission>();
+            return status == PermissionStatus.Granted;
+        }
+        // Android 12 及以下：请求 READ_EXTERNAL_STORAGE
+        var legacy = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
+        if (legacy == PermissionStatus.Granted) return true;
+        legacy = await Permissions.RequestAsync<Permissions.StorageRead>();
+        return legacy == PermissionStatus.Granted;
 #else
         return true;
 #endif
