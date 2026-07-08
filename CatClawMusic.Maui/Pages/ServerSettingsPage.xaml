@@ -1,15 +1,16 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.ServerSettingsPage"
-             Title="服务器设置"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleServerSettings]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
     <Grid Background="{DynamicResource PageBackgroundBrush}">
         <Border Margin="16,18,16,22"
                 Style="{StaticResource GlassCardStrongStyle}">
             <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
-                <Label Text="服务器设置" Style="{StaticResource PageTitleStyle}" />
-                <Label Text="该功能正在开发中，敬请期待"
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleServerSettings]}" Style="{StaticResource PageTitleStyle}" />
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FeatureInDev]}"
                        Style="{StaticResource PageSubtitleStyle}"
                        HorizontalTextAlignment="Center" />
             </VerticalStackLayout>

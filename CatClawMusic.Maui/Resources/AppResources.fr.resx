@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/Namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppName" xml:space="preserve"><value>CatClaw Music</value></data>
+  <data name="Settings" xml:space="preserve"><value>Paramètres</value></data>
+  <data name="SettingsSubtitle" xml:space="preserve"><value>Changez de thème, gérez les sources musicales et les plugins pour personnaliser CatClaw Music.</value></data>
+  <data name="ContentAndServices" xml:space="preserve"><value>Contenu &amp; Services</value></data>
+  <data name="SystemAndMaintenance" xml:space="preserve"><value>Système &amp; Maintenance</value></data>
+  <data name="Appearance" xml:space="preserve"><value>Apparence</value></data>
+  <data name="AppearanceDesc" xml:space="preserve"><value>Couleur du thème, page de démarrage</value></data>
+  <data name="LocalMusic" xml:space="preserve"><value>Musique locale</value></data>
+  <data name="RemoteMusic" xml:space="preserve"><value>Service de musique à distance</value></data>
+  <data name="Plugins" xml:space="preserve"><value>Plugins</value></data>
+  <data name="ExploreSettings" xml:space="preserve"><value>Paramètres d'exploration</value></data>
+  <data name="Permissions" xml:space="preserve"><value>Autorisations</value></data>
+  <data name="GeneralSettings" xml:space="preserve"><value>Général</value></data>
+  <data name="GeneralSettingsDesc" xml:space="preserve"><value>Comportement général, lecture &amp; options système</value></data>
+  <data name="BackupRestore" xml:space="preserve"><value>Sauvegarde &amp; Restauration</value></data>
+  <data name="BackupRestoreDesc" xml:space="preserve"><value>Sauvegarder, restaurer et gérer les fichiers de sauvegarde</value></data>
+  <data name="About" xml:space="preserve"><value>À propos</value></data>
+  <data name="AboutDesc" xml:space="preserve"><value>Version, licences et communauté</value></data>
+  <data name="GeneralSettingsTitle" xml:space="preserve"><value>Général</value></data>
+  <data name="GeneralSettingsSubtitle" xml:space="preserve"><value>Langue, cache et options de réinitialisation.</value></data>
+  <data name="Language" xml:space="preserve"><value>Langue</value></data>
+  <data name="LanguageHint" xml:space="preserve"><value>Les changements s'appliquent immédiatement à la page actuelle</value></data>
+  <data name="CacheSize" xml:space="preserve"><value>Taille du cache</value></data>
+  <data name="ClearCache" xml:space="preserve"><value>Vider le cache</value></data>
+  <data name="ClearingCache" xml:space="preserve"><value>Vidage…</value></data>
+  <data name="ResetSettings" xml:space="preserve"><value>Réinitialiser les paramètres</value></data>
+  <data name="ResetSettingsHint" xml:space="preserve"><value>Restaurer tous les paramètres par défaut</value></data>
+  <data name="Reset" xml:space="preserve"><value>Réinitialiser</value></data>
+  <data name="TabPlaying" xml:space="preserve"><value>En lecture</value></data>
+  <data name="TabDiscover" xml:space="preserve"><value>Découvrir</value></data>
+  <data name="TabPlaylists" xml:space="preserve"><value>Playlists</value></data>
+  <data name="TabLibrary" xml:space="preserve"><value>Bibliothèque</value></data>
+  <data name="TabSearch" xml:space="preserve"><value>Rechercher</value></data>
+  <data name="TabArtists" xml:space="preserve"><value>Artistes</value></data>
+  <data name="TabAlbums" xml:space="preserve"><value>Albums</value></data>
+  <data name="LanguageChangedToast" xml:space="preserve"><value>Langue modifiée</value></data>
+  <data name="TabSongs" xml:space="preserve"><value>Morceaux</value></data>
+  <data name="PageTitleNowPlaying" xml:space="preserve"><value>En cours de lecture</value></data>
+  <data name="PageTitleFullLyrics" xml:space="preserve"><value>Paroles complètes</value></data>
+  <data name="PageTitlePlaylist" xml:space="preserve"><value>Playlists</value></data>
+  <data name="PageTitlePlaylistDetail" xml:space="preserve"><value>Détails de la playlist</value></data>
+  <data name="PageTitleLocalMusicSettings" xml:space="preserve"><value>Paramètres de musique locale</value></data>
+  <data name="PageTitleSplashSettings" xml:space="preserve"><value>Paramètres du splash</value></data>
+  <data name="PageTitleSongDetail" xml:space="preserve"><value>Détails du morceau</value></data>
+  <data name="PageTitleServerSettings" xml:space="preserve"><value>Paramètres du serveur</value></data>
+  <data name="PageTitleMusicFolderSettings" xml:space="preserve"><value>Dossiers musicaux</value></data>
+  <data name="PageTitlePluginManagement" xml:space="preserve"><value>Plugins</value></data>
+  <data name="PageTitlePermissionManagement" xml:space="preserve"><value>Autorisations</value></data>
+  <data name="PageTitleModelManager" xml:space="preserve"><value>Gestionnaire de modèles</value></data>
+  <data name="PageTitleModelEdit" xml:space="preserve"><value>Éditeur de modèles</value></data>
+  <data name="PageTitleDesktopLyric" xml:space="preserve"><value>Paroles sur le bureau</value></data>
+  <data name="PageTitleBackupRestore" xml:space="preserve"><value>Sauvegarde &amp; Restauration</value></data>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>Rechercher des morceaux, artistes, albums</value></data>
+  <data name="ChatPlaceholder" xml:space="preserve"><value>Demandez à Yuki : jouez quelque chose, trouvez quelque chose, créez une playlist...</value></data>
+  <data name="DesktopSearchPlaceholder" xml:space="preserve"><value>Rechercher des morceaux, artistes, albums…</value></data>
+  <data name="LibrarySubtitle" xml:space="preserve"><value>Vos favoris locaux et distants dans une belle bibliothèque musicale en verre.</value></data>
+  <data name="Artists" xml:space="preserve"><value>Artistes</value></data>
+  <data name="LocalMusicSection" xml:space="preserve"><value>Musique locale</value></data>
+  <data name="RemoteMusicSection" xml:space="preserve"><value>Musique à distance</value></data>
+  <data name="NetworkProtocol" xml:space="preserve"><value>Protocoles réseau</value></data>
+  <data name="DailyRecommendation" xml:space="preserve"><value>Mix quotidien</value></data>
+  <data name="DailyRecommendationDesc" xml:space="preserve"><value>Des morceaux parfaits pour aujourd'hui</value></data>
+  <data name="FrequentSongs" xml:space="preserve"><value>Fréquemment lus</value></data>
+  <data name="FrequentSongsDesc" xml:space="preserve"><value>Vos favoris récents</value></data>
+  <data name="NewArrivals" xml:space="preserve"><value>Nouveautés</value></data>
+  <data name="NewArrivalsDesc" xml:space="preserve"><value>Musique nouvellement ajoutée</value></data>
+  <data name="YukiHelpFindSongs" xml:space="preserve"><value>Laissez Yuki vous aider à trouver des morceaux</value></data>
+  <data name="TodayRecommendation" xml:space="preserve"><value>Sélections du jour</value></data>
+  <data name="RecommendedArtists" xml:space="preserve"><value>Artistes recommandés</value></data>
+  <data name="RecommendedAlbums" xml:space="preserve"><value>Albums recommandés</value></data>
+  <data name="NoContent" xml:space="preserve"><value>Rien ici pour l'instant</value></data>
+  <data name="YukiDesc" xml:space="preserve"><value>Trouver des morceaux, contrôler la lecture, créer des playlists avec vous</value></data>
+  <data name="SettingsEntry" xml:space="preserve"><value>Paramètres</value></data>
+  <data name="Navigation" xml:space="preserve"><value>Navigation</value></data>
+  <data name="DiscoverMusic" xml:space="preserve"><value>Découvrir</value></data>
+  <data name="MyMusic" xml:space="preserve"><value>Ma musique</value></data>
+  <data name="MyPlaylists" xml:space="preserve"><value>Mes playlists</value></data>
+  <data name="FeatureInDev" xml:space="preserve"><value>Cette fonctionnalité est en développement, restez à l'écoute</value></data>
+  <data name="ScanMethod" xml:space="preserve"><value>Méthode d'analyse</value></data>
+  <data name="AndroidMediaScan" xml:space="preserve"><value>Utiliser le média store Android</value></data>
+  <data name="AndroidMediaScanDesc" xml:space="preserve"><value>Analyser tous les fichiers musicaux de la bibliothèque multimédia système (nécessite l'autorisation Musique &amp; Audio)</value></data>
+  <data name="SAFScan" xml:space="preserve"><value>Utiliser l'analyse de dossier SAF</value></data>
+  <data name="SAFScanDesc" xml:space="preserve"><value>Sélectionner des dossiers via le SAF système (compatible avec Android 11+)</value></data>
+  <data name="ScanTip" xml:space="preserve"><value>Astuce : Si plusieurs méthodes d'analyse sont activées, les résultats sont fusionnés. Désactivez les deux pour utiliser uniquement des dossiers personnalisés.</value></data>
+  <data name="MusicFolders" xml:space="preserve"><value>Dossiers musicaux</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>Ajouter un dossier</value></data>
+  <data name="Delete" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="Remove" xml:space="preserve"><value>Retirer</value></data>
+  <data name="ScanStatus" xml:space="preserve"><value>État de l'analyse</value></data>
+  <data name="ScanMusic" xml:space="preserve"><value>Analyser la musique</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="DecodeSettings" xml:space="preserve"><value>Paramètres de décodage</value></data>
+  <data name="EnableFFmpeg" xml:space="preserve"><value>Activer le décodage logiciel FFmpeg</value></data>
+  <data name="EnableFFmpegDesc" xml:space="preserve"><value>Prend en charge plus de formats audio avec une légère augmentation de l'utilisation du CPU</value></data>
+  <data name="RemoteMusicSubtitle" xml:space="preserve"><value>Configurez des connexions WebDAV / Navidrome / SMB pour lire à partir de bibliothèques distantes.</value></data>
+  <data name="CacheSongs" xml:space="preserve"><value>Mettre en cache les morceaux</value></data>
+  <data name="EmptyCache" xml:space="preserve"><value>Vider le cache</value></data>
+  <data name="ConfiguredConnections" xml:space="preserve"><value>Connexions configurées</value></data>
+  <data name="Test" xml:space="preserve"><value>Tester</value></data>
+  <data name="Sync" xml:space="preserve"><value>Synchroniser</value></data>
+  <data name="Edit" xml:space="preserve"><value>Modifier</value></data>
+  <data name="NoConnections" xml:space="preserve"><value>Aucune connexion configurée pour l'instant</value></data>
+  <data name="NoConnectionsHint" xml:space="preserve"><value>Appuyez sur + en haut à droite pour ajouter des services WebDAV / Navidrome / SMB</value></data>
+  <data name="Name" xml:space="preserve"><value>Nom</value></data>
+  <data name="MyLibraryPlaceholder" xml:space="preserve"><value>Ma bibliothèque musicale</value></data>
+  <data name="Protocol" xml:space="preserve"><value>Protocole</value></data>
+  <data name="HostAddress" xml:space="preserve"><value>Adresse de l'hôte</value></data>
+  <data name="Port" xml:space="preserve"><value>Port</value></data>
+  <data name="Username" xml:space="preserve"><value>Nom d'utilisateur</value></data>
+  <data name="Password" xml:space="preserve"><value>Mot de passe</value></data>
+  <data name="BasePath" xml:space="preserve"><value>Chemin de base</value></data>
+  <data name="SelectPath" xml:space="preserve"><value>Sélectionner le chemin</value></data>
+  <data name="UseHTTPS" xml:space="preserve"><value>Utiliser HTTPS</value></data>
+  <data name="DomainOptional" xml:space="preserve"><value>Domaine (optionnel)</value></data>
+  <data name="Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="SelectRemoteDir" xml:space="preserve"><value>Sélectionner le répertoire distant</value></data>
+  <data name="SelectThisDir" xml:space="preserve"><value>Sélectionner ce dossier</value></data>
+  <data name="GoBack" xml:space="preserve"><value>Retour</value></data>
+  <data name="OK" xml:space="preserve"><value>OK</value></data>
+  <data name="PluginsSubtitle" xml:space="preserve"><value>Gérez les plugins de paroles, protocoles, pochettes et effets pour étendre CatClaw Music.</value></data>
+  <data name="NoPlugins" xml:space="preserve"><value>Aucun plugin disponible</value></data>
+  <data name="NoPluginsHint" xml:space="preserve"><value>Le système de plugins est prêt ; les fonctionnalités pourront être étendues via des paquets à l'avenir</value></data>
+  <data name="PluginsHint" xml:space="preserve"><value>Appuyez sur une carte de plugin pour l'activer/désactiver. Les plugins sont classés comme paroles, protocoles, pochettes, effets, etc.</value></data>
+  <data name="PermissionsSubtitle" xml:space="preserve"><value>Affichez et accordez les autorisations de stockage, de notification et de superposition requises par l'application.</value></data>
+  <data name="OpenAppSettings" xml:space="preserve"><value>Ouvrir les paramètres système de l'application</value></data>
+  <data name="FolderList" xml:space="preserve"><value>Liste des dossiers</value></data>
+  <data name="ScanAllFolders" xml:space="preserve"><value>Analyser tous les dossiers</value></data>
+  <data name="ScanOptions" xml:space="preserve"><value>Options d'analyse</value></data>
+  <data name="ScanSubfolders" xml:space="preserve"><value>Analyser les sous-dossiers</value></data>
+  <data name="AutoScan" xml:space="preserve"><value>Analyse automatique</value></data>
+  <data name="RootDir" xml:space="preserve"><value>Racine</value></data>
+  <data name="ParentDir" xml:space="preserve"><value>Dossier parent</value></data>
+  <data name="BackupData" xml:space="preserve"><value>Sauvegarder les données</value></data>
+  <data name="BackupDataDesc" xml:space="preserve"><value>Sauvegarder les données de l'application dans un fichier local</value></data>
+  <data name="CreateBackup" xml:space="preserve"><value>Créer une sauvegarde</value></data>
+  <data name="RestoreData" xml:space="preserve"><value>Restaurer les données</value></data>
+  <data name="RestoreDataDesc" xml:space="preserve"><value>Restaurer les données de l'application à partir d'un fichier de sauvegarde</value></data>
+  <data name="SelectBackupFile" xml:space="preserve"><value>Sélectionner le fichier de sauvegarde</value></data>
+  <data name="BackupRestoreSubtitle" xml:space="preserve"><value>Sauvegardez les données de l'application localement ou restaurez-les à partir d'une sauvegarde.</value></data>
+</root>

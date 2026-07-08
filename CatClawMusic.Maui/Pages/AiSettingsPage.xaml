@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.AiSettingsPage"
              Title="AI 设置"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">

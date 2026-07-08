@@ -3,8 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.PermissionManagementPage"
-             Title="权限管理"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -17,10 +18,10 @@
                         Background="{DynamicResource HeroBrush}">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <VerticalStackLayout Spacing="6">
-                            <Label Text="🔐 权限管理"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}"
                                    Style="{StaticResource PageTitleStyle}"
                                    TextColor="White" />
-                            <Label Text="查看并授权应用所需的存储、通知与悬浮窗权限。"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PermissionsSubtitle]}"
                                    Style="{StaticResource PageSubtitleStyle}"
                                    TextColor="#F3F5FF" />
                         </VerticalStackLayout>
@@ -82,7 +83,7 @@
                 </VerticalStackLayout>
 
                 <!-- 打开系统设置 -->
-                <Button Text="打开应用系统设置"
+                <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[OpenAppSettings]}"
                         Command="{Binding OpenAppSettingsCommand}"
                         BackgroundColor="Transparent"
                         TextColor="{DynamicResource TextHintColor}"

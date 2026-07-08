@@ -3,8 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:viewmodels="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.BackupRestorePage"
-             Title="备份与恢复"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -16,10 +17,10 @@
                 <Border Style="{StaticResource GlassCardStrongStyle}"
                         Background="{DynamicResource HeroBrush}">
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="备份与恢复"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}"
                                Style="{StaticResource PageTitleStyle}"
                                TextColor="White" />
-                        <Label Text="将应用数据备份到本地，或从备份恢复。"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestoreSubtitle]}"
                                Style="{StaticResource PageSubtitleStyle}"
                                TextColor="#F3F5FF" />
                     </VerticalStackLayout>
@@ -27,14 +28,14 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="备份数据"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupData]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Text="将应用数据备份到本地文件"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupDataDesc]}"
                                FontSize="12"
                                TextColor="{DynamicResource TextHintColor}" />
-                        <Button Text="创建备份"
+                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[CreateBackup]}"
                                 Command="{Binding CreateBackupCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
@@ -46,14 +47,14 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="恢复数据"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RestoreData]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Text="从备份文件恢复应用数据"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RestoreDataDesc]}"
                                FontSize="12"
                                TextColor="{DynamicResource TextHintColor}" />
-                        <Button Text="选择备份文件"
+                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SelectBackupFile]}"
                                 Command="{Binding RestoreBackupCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"

@@ -1,0 +1,200 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/Namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppName" xml:space="preserve"><value>貓爪音樂</value></data>
+  <data name="Settings" xml:space="preserve"><value>設定</value></data>
+  <data name="SettingsSubtitle" xml:space="preserve"><value>切換主題、管理音樂來源和外掛，打造專屬於您的貓爪音樂。</value></data>
+  <data name="ContentAndServices" xml:space="preserve"><value>內容與服務</value></data>
+  <data name="SystemAndMaintenance" xml:space="preserve"><value>系統與維護</value></data>
+  <data name="Appearance" xml:space="preserve"><value>外觀</value></data>
+  <data name="AppearanceDesc" xml:space="preserve"><value>主題色彩、啟動頁面</value></data>
+  <data name="LocalMusic" xml:space="preserve"><value>本機音樂</value></data>
+  <data name="RemoteMusic" xml:space="preserve"><value>遠端音樂服務</value></data>
+  <data name="Plugins" xml:space="preserve"><value>外掛</value></data>
+  <data name="ExploreSettings" xml:space="preserve"><value>探索設定</value></data>
+  <data name="Permissions" xml:space="preserve"><value>權限</value></data>
+  <data name="GeneralSettings" xml:space="preserve"><value>一般</value></data>
+  <data name="GeneralSettingsDesc" xml:space="preserve"><value>一般行為、播放與系統選項</value></data>
+  <data name="BackupRestore" xml:space="preserve"><value>備份與還原</value></data>
+  <data name="BackupRestoreDesc" xml:space="preserve"><value>備份、還原及管理備份檔案</value></data>
+  <data name="About" xml:space="preserve"><value>關於</value></data>
+  <data name="AboutDesc" xml:space="preserve"><value>版本、授權與社群</value></data>
+  <data name="GeneralSettingsTitle" xml:space="preserve"><value>一般</value></data>
+  <data name="GeneralSettingsSubtitle" xml:space="preserve"><value>語言、快取與重設選項。</value></data>
+  <data name="Language" xml:space="preserve"><value>語言</value></data>
+  <data name="LanguageHint" xml:space="preserve"><value>變更會立即套用到目前頁面</value></data>
+  <data name="CacheSize" xml:space="preserve"><value>快取大小</value></data>
+  <data name="ClearCache" xml:space="preserve"><value>清除快取</value></data>
+  <data name="ClearingCache" xml:space="preserve"><value>清除中…</value></data>
+  <data name="ResetSettings" xml:space="preserve"><value>恢復預設</value></data>
+  <data name="ResetSettingsHint" xml:space="preserve"><value>將所有設定恢復成預設值</value></data>
+  <data name="Reset" xml:space="preserve"><value>重設</value></data>
+  <data name="TabPlaying" xml:space="preserve"><value>播放中</value></data>
+  <data name="TabDiscover" xml:space="preserve"><value>探索</value></data>
+  <data name="TabPlaylists" xml:space="preserve"><value>播放清單</value></data>
+  <data name="TabLibrary" xml:space="preserve"><value>音樂庫</value></data>
+  <data name="TabSearch" xml:space="preserve"><value>搜尋</value></data>
+  <data name="TabArtists" xml:space="preserve"><value>藝人</value></data>
+  <data name="TabAlbums" xml:space="preserve"><value>專輯</value></data>
+  <data name="LanguageChangedToast" xml:space="preserve"><value>語言已變更</value></data>
+  <data name="TabSongs" xml:space="preserve"><value>歌曲</value></data>
+  <data name="PageTitleNowPlaying" xml:space="preserve"><value>正在播放</value></data>
+  <data name="PageTitleFullLyrics" xml:space="preserve"><value>完整歌詞</value></data>
+  <data name="PageTitlePlaylist" xml:space="preserve"><value>播放清單</value></data>
+  <data name="PageTitlePlaylistDetail" xml:space="preserve"><value>播放清單詳情</value></data>
+  <data name="PageTitleLocalMusicSettings" xml:space="preserve"><value>本機音樂設定</value></data>
+  <data name="PageTitleSplashSettings" xml:space="preserve"><value>啟動畫面設定</value></data>
+  <data name="PageTitleSongDetail" xml:space="preserve"><value>歌曲詳情</value></data>
+  <data name="PageTitleServerSettings" xml:space="preserve"><value>伺服器設定</value></data>
+  <data name="PageTitleMusicFolderSettings" xml:space="preserve"><value>音樂資料夾</value></data>
+  <data name="PageTitlePluginManagement" xml:space="preserve"><value>外掛</value></data>
+  <data name="PageTitlePermissionManagement" xml:space="preserve"><value>權限</value></data>
+  <data name="PageTitleModelManager" xml:space="preserve"><value>模型管理員</value></data>
+  <data name="PageTitleModelEdit" xml:space="preserve"><value>模型編輯器</value></data>
+  <data name="PageTitleDesktopLyric" xml:space="preserve"><value>桌面歌詞</value></data>
+  <data name="PageTitleBackupRestore" xml:space="preserve"><value>備份與還原</value></data>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>搜尋歌曲、藝人、專輯</value></data>
+  <data name="ChatPlaceholder" xml:space="preserve"><value>問問 Yuki：播放音樂、找尋歌曲、建立播放清單...</value></data>
+  <data name="DesktopSearchPlaceholder" xml:space="preserve"><value>搜尋歌曲、藝人、專輯…</value></data>
+  <data name="LibrarySubtitle" xml:space="preserve"><value>在美麗的玻璃質感音樂庫中收藏您的本機與遠端最愛。</value></data>
+  <data name="Artists" xml:space="preserve"><value>藝人</value></data>
+  <data name="LocalMusicSection" xml:space="preserve"><value>本機音樂</value></data>
+  <data name="RemoteMusicSection" xml:space="preserve"><value>遠端音樂</value></data>
+  <data name="NetworkProtocol" xml:space="preserve"><value>網路通訊協定</value></data>
+  <data name="DailyRecommendation" xml:space="preserve"><value>每日推薦</value></data>
+  <data name="DailyRecommendationDesc" xml:space="preserve"><value>今日精選歌曲</value></data>
+  <data name="FrequentSongs" xml:space="preserve"><value>經常播放</value></data>
+  <data name="FrequentSongsDesc" xml:space="preserve"><value>您近期的最愛</value></data>
+  <data name="NewArrivals" xml:space="preserve"><value>新增項目</value></data>
+  <data name="NewArrivalsDesc" xml:space="preserve"><value>新加入的音樂</value></data>
+  <data name="YukiHelpFindSongs" xml:space="preserve"><value>讓 Yuki 幫您找歌曲</value></data>
+  <data name="TodayRecommendation" xml:space="preserve"><value>今日精選</value></data>
+  <data name="RecommendedArtists" xml:space="preserve"><value>推薦藝人</value></data>
+  <data name="RecommendedAlbums" xml:space="preserve"><value>推薦專輯</value></data>
+  <data name="NoContent" xml:space="preserve"><value>這裡還沒有內容</value></data>
+  <data name="YukiDesc" xml:space="preserve"><value>與您一起找歌曲、控制播放、建立播放清單</value></data>
+  <data name="SettingsEntry" xml:space="preserve"><value>設定</value></data>
+  <data name="Navigation" xml:space="preserve"><value>導覽</value></data>
+  <data name="DiscoverMusic" xml:space="preserve"><value>探索</value></data>
+  <data name="MyMusic" xml:space="preserve"><value>我的音樂</value></data>
+  <data name="MyPlaylists" xml:space="preserve"><value>我的播放清單</value></data>
+  <data name="FeatureInDev" xml:space="preserve"><value>此功能正在開發中，敬請期待</value></data>
+  <data name="ScanMethod" xml:space="preserve"><value>掃描方式</value></data>
+  <data name="AndroidMediaScan" xml:space="preserve"><value>使用 Android 媒體儲存</value></data>
+  <data name="AndroidMediaScanDesc" xml:space="preserve"><value>從系統媒體庫掃描所有音樂檔案（需要音樂與音訊權限）</value></data>
+  <data name="SAFScan" xml:space="preserve"><value>使用 SAF 資料夾掃描</value></data>
+  <data name="SAFScanDesc" xml:space="preserve"><value>透過系統 SAF 選取資料夾（相容於 Android 11+）</value></data>
+  <data name="ScanTip" xml:space="preserve"><value>提示：若啟用多種掃描方式，結果會合併。停用兩者則僅使用自訂資料夾。</value></data>
+  <data name="MusicFolders" xml:space="preserve"><value>音樂資料夾</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>新增資料夾</value></data>
+  <data name="Delete" xml:space="preserve"><value>刪除</value></data>
+  <data name="Remove" xml:space="preserve"><value>移除</value></data>
+  <data name="ScanStatus" xml:space="preserve"><value>掃描狀態</value></data>
+  <data name="ScanMusic" xml:space="preserve"><value>掃描音樂</value></data>
+  <data name="Cancel" xml:space="preserve"><value>取消</value></data>
+  <data name="DecodeSettings" xml:space="preserve"><value>解碼設定</value></data>
+  <data name="EnableFFmpeg" xml:space="preserve"><value>啟用 FFmpeg 軟體解碼</value></data>
+  <data name="EnableFFmpegDesc" xml:space="preserve"><value>支援更多音訊格式，CPU 使用率會略為增加</value></data>
+  <data name="RemoteMusicSubtitle" xml:space="preserve"><value>設定 WebDAV / Navidrome / SMB 連線以播放遠端音樂庫。</value></data>
+  <data name="CacheSongs" xml:space="preserve"><value>快取歌曲</value></data>
+  <data name="EmptyCache" xml:space="preserve"><value>清除快取</value></data>
+  <data name="ConfiguredConnections" xml:space="preserve"><value>已設定的連線</value></data>
+  <data name="Test" xml:space="preserve"><value>測試</value></data>
+  <data name="Sync" xml:space="preserve"><value>同步</value></data>
+  <data name="Edit" xml:space="preserve"><value>編輯</value></data>
+  <data name="NoConnections" xml:space="preserve"><value>尚未設定任何連線</value></data>
+  <data name="NoConnectionsHint" xml:space="preserve"><value>點擊右上角 + 新增 WebDAV / Navidrome / SMB 服務</value></data>
+  <data name="Name" xml:space="preserve"><value>名稱</value></data>
+  <data name="MyLibraryPlaceholder" xml:space="preserve"><value>我的音樂庫</value></data>
+  <data name="Protocol" xml:space="preserve"><value>通訊協定</value></data>
+  <data name="HostAddress" xml:space="preserve"><value>主機位址</value></data>
+  <data name="Port" xml:space="preserve"><value>連接埠</value></data>
+  <data name="Username" xml:space="preserve"><value>使用者名稱</value></data>
+  <data name="Password" xml:space="preserve"><value>密碼</value></data>
+  <data name="BasePath" xml:space="preserve"><value>基底路徑</value></data>
+  <data name="SelectPath" xml:space="preserve"><value>選取路徑</value></data>
+  <data name="UseHTTPS" xml:space="preserve"><value>使用 HTTPS</value></data>
+  <data name="DomainOptional" xml:space="preserve"><value>網域（選擇性）</value></data>
+  <data name="Save" xml:space="preserve"><value>儲存</value></data>
+  <data name="SelectRemoteDir" xml:space="preserve"><value>選取遠端目錄</value></data>
+  <data name="SelectThisDir" xml:space="preserve"><value>選取此資料夾</value></data>
+  <data name="GoBack" xml:space="preserve"><value>返回</value></data>
+  <data name="OK" xml:space="preserve"><value>確定</value></data>
+  <data name="PluginsSubtitle" xml:space="preserve"><value>管理歌詞、通訊協定、封面與效果外掛，擴充貓爪音樂功能。</value></data>
+  <data name="NoPlugins" xml:space="preserve"><value>沒有可用的外掛</value></data>
+  <data name="NoPluginsHint" xml:space="preserve"><value>外掛系統已就緒；未來可透過套件擴充功能</value></data>
+  <data name="PluginsHint" xml:space="preserve"><value>點擊外掛卡片來切換啟用狀態。外掛分為歌詞、通訊協定、封面、效果等類別。</value></data>
+  <data name="PermissionsSubtitle" xml:space="preserve"><value>檢視並授予應用程式所需的儲存空間、通知與覆蓋權限。</value></data>
+  <data name="OpenAppSettings" xml:space="preserve"><value>開啟應用程式系統設定</value></data>
+  <data name="FolderList" xml:space="preserve"><value>資料夾清單</value></data>
+  <data name="ScanAllFolders" xml:space="preserve"><value>掃描所有資料夾</value></data>
+  <data name="ScanOptions" xml:space="preserve"><value>掃描選項</value></data>
+  <data name="ScanSubfolders" xml:space="preserve"><value>掃描子資料夾</value></data>
+  <data name="AutoScan" xml:space="preserve"><value>自動掃描</value></data>
+  <data name="RootDir" xml:space="preserve"><value>根目錄</value></data>
+  <data name="ParentDir" xml:space="preserve"><value>上層目錄</value></data>
+  <data name="BackupData" xml:space="preserve"><value>備份資料</value></data>
+  <data name="BackupDataDesc" xml:space="preserve"><value>將應用程式資料備份至本機檔案</value></data>
+  <data name="CreateBackup" xml:space="preserve"><value>建立備份</value></data>
+  <data name="RestoreData" xml:space="preserve"><value>還原資料</value></data>
+  <data name="RestoreDataDesc" xml:space="preserve"><value>從備份檔案還原應用程式資料</value></data>
+  <data name="SelectBackupFile" xml:space="preserve"><value>選取備份檔案</value></data>
+  <data name="BackupRestoreSubtitle" xml:space="preserve"><value>在本機備份應用程式資料或從備份還原。</value></data>
+</root>

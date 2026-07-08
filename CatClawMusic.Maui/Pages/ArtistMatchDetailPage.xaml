@@ -1,6 +1,8 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.ArtistMatchDetailPage"
              Title="艺术家匹配详情"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -14,7 +16,7 @@
                 Style="{StaticResource GlassCardStrongStyle}">
             <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
                 <Label Text="艺术家匹配详情" Style="{StaticResource PageTitleStyle}" />
-                <Label Text="该功能正在开发中，敬请期待"
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FeatureInDev]}"
                        Style="{StaticResource PageSubtitleStyle}"
                        HorizontalTextAlignment="Center" />
             </VerticalStackLayout>

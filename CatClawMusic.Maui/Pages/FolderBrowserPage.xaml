@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.FolderBrowserPage"
              Title="{Binding Title}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -18,7 +19,7 @@
                 Background="{DynamicResource HeroBrush}"
                 Margin="16,18,16,0">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Text="← 返回"
+                <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Cancel]}"
                         Command="{Binding CancelCommand}"
                         BackgroundColor="Transparent"
                         TextColor="White"
@@ -40,7 +41,7 @@
                            LineBreakMode="TailTruncation" />
                 </VerticalStackLayout>
                 <Button Grid.Column="2"
-                        Text="选择此文件夹"
+                        Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SelectThisDir]}"
                         Command="{Binding SelectCurrentFolderCommand}"
                         BackgroundColor="White"
                         TextColor="{DynamicResource PrimaryColor}"
@@ -100,7 +101,7 @@
                 Style="{StaticResource GlassCardStyle}"
                 Margin="16,0,16,16">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                <Button Text="根目录"
+                <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RootDir]}"
                         Command="{Binding NavigateToRootCommand}"
                         BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                         TextColor="{DynamicResource TextSecondaryColor}"
@@ -108,7 +109,7 @@
                         HeightRequest="38"
                         FontSize="12" />
                 <Button Grid.Column="2"
-                        Text="上级目录"
+                        Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ParentDir]}"
                         Command="{Binding NavigateUpCommand}"
                         BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                         TextColor="{DynamicResource TextSecondaryColor}"

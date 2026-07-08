@@ -2,8 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.GeneralSettingsPage"
-             Title="通用设置"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsTitle]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -15,10 +16,10 @@
                 <Border Style="{StaticResource GlassCardStrongStyle}"
                         Background="{DynamicResource HeroBrush}">
                     <VerticalStackLayout Spacing="8">
-                        <Label Text="通用设置"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsTitle]}"
                                Style="{StaticResource PageTitleStyle}"
                                TextColor="White" />
-                        <Label Text="语言、缓存、恢复默认选项。"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsSubtitle]}"
                                Style="{StaticResource PageSubtitleStyle}"
                                TextColor="#F3F5FF" />
                     </VerticalStackLayout>
@@ -26,7 +27,7 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="语言"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Language]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
@@ -43,9 +44,9 @@
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid ColumnDefinitions="*,Auto">
                         <VerticalStackLayout Grid.Column="0"
-                                             Spacing="4"
-                                             VerticalOptions="Center">
-                            <Label Text="缓存大小"
+                                            Spacing="4"
+                                            VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[CacheSize]}"
                                    FontSize="16"
                                    TextColor="{DynamicResource TextPrimaryColor}" />
                             <Label Text="{Binding CacheSize}"
@@ -53,7 +54,7 @@
                                    TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Button Grid.Column="1"
-                                Text="清除缓存"
+                                Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ClearCache]}"
                                 Command="{Binding ClearCacheCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
@@ -65,14 +66,14 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="恢复默认设置"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ResetSettings]}"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Text="将所有设置恢复为默认值"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ResetSettingsHint]}"
                                FontSize="12"
                                TextColor="{DynamicResource TextHintColor}" />
-                        <Button Text="恢复默认"
+                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Reset]}"
                                 Command="{Binding ResetSettingsCommand}"
                                 BackgroundColor="{DynamicResource ErrorColor}"
                                 TextColor="White"
@@ -88,5 +89,5 @@
                              VerticalOptions="Start"
                              HorizontalOptions="Start"
                              ZIndex="100" />
-</Grid>
+    </Grid>
 </ContentPage>

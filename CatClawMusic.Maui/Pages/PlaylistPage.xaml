@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.PlaylistPage"
-             Title="歌单"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
@@ -12,7 +13,7 @@
             <!-- Header -->
             <Grid Grid.Row="0" Margin="16,16,16,10"
                   ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <Label Text="歌单"
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
                        Style="{StaticResource PageTitleStyle}"
                        VerticalOptions="Center" />
                 <Border Grid.Column="1"

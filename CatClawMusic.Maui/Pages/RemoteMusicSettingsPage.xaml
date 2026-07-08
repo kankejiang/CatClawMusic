@@ -5,8 +5,9 @@
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:coreModels="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.RemoteMusicSettingsPage"
-             Title="远程音乐服务"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <ContentPage.Resources>
@@ -22,10 +23,10 @@
                 <Border Style="{StaticResource GlassCardStrongStyle}"
                         Background="{DynamicResource HeroBrush}">
                     <VerticalStackLayout Spacing="6">
-                        <Label Text="☁️ 远程音乐服务"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}"
                                Style="{StaticResource PageTitleStyle}"
                                TextColor="White" />
-                        <Label Text="配置 WebDAV / Navidrome / SMB 连接，从远程音乐库播放歌曲。"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusicSubtitle]}"
                                Style="{StaticResource PageSubtitleStyle}"
                                TextColor="#F3F5FF" />
                     </VerticalStackLayout>
@@ -35,7 +36,7 @@
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <VerticalStackLayout Spacing="2">
-                            <Label Text="缓存歌曲"
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[CacheSongs]}"
                                    FontSize="15"
                                    FontFamily="OpenSansSemibold"
                                    TextColor="{DynamicResource TextPrimaryColor}" />
@@ -44,7 +45,7 @@
                                    TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Button Grid.Column="1"
-                                Text="清空缓存"
+                                Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[EmptyCache]}"
                                 Command="{Binding ClearCacheCommand}"
                                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                                 TextColor="{DynamicResource TextPrimaryColor}"
@@ -58,7 +59,7 @@
 
                 <!-- 连接列表标题 -->
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                    <Label Text="已配置的连接"
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ConfiguredConnections]}"
                            Style="{StaticResource SectionTitleStyle}"
                            Margin="4,4,0,2" />
                     <Button Grid.Column="1"
@@ -103,7 +104,7 @@
                                     </Grid>
                                     <Grid ColumnDefinitions="*,*,*,Auto" ColumnSpacing="8">
                                         <Button Grid.Column="0"
-                                                Text="测试"
+                                                Text="Test"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.TestProfileCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
@@ -113,7 +114,7 @@
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="1"
-                                                Text="同步"
+                                                Text="Sync"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SyncProfileCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
@@ -122,7 +123,7 @@
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="2"
-                                                Text="编辑"
+                                                Text="Edit"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.StartEditCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
@@ -131,7 +132,7 @@
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="3"
-                                                Text="删除"
+                                                Text="Del"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteProfileCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource ErrorColor}"
@@ -154,10 +155,10 @@
                         <Label Text="📡"
                                FontSize="34"
                                HorizontalOptions="Center" />
-                        <Label Text="尚未配置任何连接"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[NoConnections]}"
                                Style="{StaticResource PageSubtitleStyle}"
                                HorizontalTextAlignment="Center" />
-                        <Label Text="点击右上角「新建」开始添加 WebDAV / Navidrome / SMB 服务"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[NoConnectionsHint]}"
                                FontSize="11"
                                TextColor="{DynamicResource TextHintColor}"
                                HorizontalTextAlignment="Center" />

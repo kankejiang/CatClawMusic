@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.DesktopMainPage"
-             Title="猫爪音乐"
+             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
@@ -28,7 +29,7 @@
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <VerticalStackLayout x:Name="LogoText" Grid.Column="1" VerticalOptions="Center" Spacing="1">
-                        <Label Text="猫爪音乐"
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
                                FontSize="16" FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
                         <Label Text="CatClaw Music"
@@ -39,7 +40,7 @@
 
                 <!-- Navigation -->
                 <VerticalStackLayout Grid.Row="1" Spacing="2" Padding="8,0">
-                    <Label x:Name="NavHeader" Text="导航" FontSize="10"
+                    <Label x:Name="NavHeader" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Navigation]}" FontSize="10"
                            TextColor="{DynamicResource TextHintColor}"
                            CharacterSpacing="2" Padding="12,8,12,4" />
 
@@ -51,7 +52,7 @@
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                             <Label Text="&#x1f50d;" FontSize="16" VerticalOptions="Center" />
-                            <Label x:Name="NavDiscoverLabel" Grid.Column="1" Text="发现音乐" FontSize="14"
+                            <Label x:Name="NavDiscoverLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DiscoverMusic]}" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
                         </Grid>
@@ -65,7 +66,7 @@
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                             <Label Text="&#x1f3b5;" FontSize="16" VerticalOptions="Center" />
-                            <Label x:Name="NavLibraryLabel" Grid.Column="1" Text="我的音乐" FontSize="14"
+                            <Label x:Name="NavLibraryLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MyMusic]}" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
                         </Grid>
@@ -79,7 +80,7 @@
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                             <Label Text="&#x1f4cb;" FontSize="16" VerticalOptions="Center" />
-                            <Label x:Name="NavPlaylistsLabel" Grid.Column="1" Text="歌单" FontSize="14"
+                            <Label x:Name="NavPlaylistsLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
                         </Grid>
@@ -89,7 +90,7 @@
                 <!-- User Playlists (scrollable) -->
                 <VerticalStackLayout Grid.Row="2" Spacing="2" Padding="8,8,8,0">
                     <Grid ColumnDefinitions="*,Auto" Padding="12,4,8,4">
-                        <Label x:Name="PlaylistHeader" Grid.Column="0" Text="我的歌单" FontSize="10"
+                        <Label x:Name="PlaylistHeader" Grid.Column="0" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MyPlaylists]}" FontSize="10"
                                TextColor="{DynamicResource TextHintColor}"
                                CharacterSpacing="2" VerticalOptions="Center" />
                         <Label x:Name="AddPlaylistButton" Grid.Column="1" Text="＋"
@@ -115,7 +116,7 @@
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                             <Label Text="&#x2699;&#xfe0f;" FontSize="16" VerticalOptions="Center" />
-                            <Label x:Name="SettingsLabel" Grid.Column="1" Text="设置" FontSize="14"
+                            <Label x:Name="SettingsLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
                         </Grid>
@@ -129,7 +130,7 @@
               ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,0,16,0"
               BackgroundColor="{DynamicResource CardBackgroundColor}">
             <Entry x:Name="SearchEntry"
-                   Placeholder="搜索歌曲、歌手、专辑…"
+                   Placeholder="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopSearchPlaceholder]}"
                    VerticalOptions="Center"
                    HeightRequest="34"
                    FontSize="13" />
