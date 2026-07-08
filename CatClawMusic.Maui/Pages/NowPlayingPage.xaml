@@ -108,10 +108,12 @@
                         DragCompleted="OnSliderDragCompleted" />
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <Label Text="{Binding CurrentTimeDisplay}"
-                           FontSize="11" TextColor="{DynamicResource TextHintColor}" />
+                           FontSize="12" TextColor="White"
+                           FontAttributes="Bold" Opacity="0.95" />
                     <Label Grid.Column="2"
                            Text="{Binding TotalTimeDisplay}"
-                           FontSize="11" TextColor="{DynamicResource TextHintColor}" />
+                           FontSize="12" TextColor="White"
+                           FontAttributes="Bold" Opacity="0.95" />
                 </Grid>
             </VerticalStackLayout>
 
@@ -188,5 +190,22 @@
             </Grid>
 
         </Grid>
+
+        <!-- Windows 桌面端返回按钮（移动端通过 ViewPager 滑动返回，无需此按钮） -->
+        <Border IsVisible="{OnPlatform Default=false, WinUI=true}"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 20"
+                BackgroundColor="#66000000"
+                WidthRequest="40" HeightRequest="40"
+                HorizontalOptions="Start" VerticalOptions="Start"
+                Margin="16,16,0,0"
+                ZIndex="10">
+            <Border.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnBackButtonTapped" />
+            </Border.GestureRecognizers>
+            <Image Source="ic_arrow_back"
+                   WidthRequest="22" HeightRequest="22"
+                   HorizontalOptions="Center" VerticalOptions="Center" />
+        </Border>
     </Grid>
 </ContentPage>

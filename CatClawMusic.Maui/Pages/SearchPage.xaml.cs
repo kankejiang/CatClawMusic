@@ -224,7 +224,11 @@ public partial class SearchPage : ContentPage
     /// <param name="e">事件参数。</param>
     private void OnGoLibraryClicked(object? sender, EventArgs e)
     {
+#if WINDOWS
+        DesktopMainPage.Instance?.SwitchToNamedTab("library");
+#else
         MainPage.Instance?.SwitchToTab(3);
+#endif
     }
 
     /// <summary>在发现页艺术家列表中选中某个艺术家时触发，清除选中状态并导航到该艺术家详情页。</summary>

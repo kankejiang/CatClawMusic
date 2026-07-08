@@ -27,7 +27,7 @@
                 Margin="16,18,16,10"
                 Style="{StaticResource GlassCardStrongStyle}"
                 Background="{DynamicResource HeroBrush}">
-            <Grid ColumnDefinitions="Auto,*,Auto"
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto"
                   ColumnSpacing="12">
                 <Border Grid.Column="0"
                         StrokeThickness="0"
@@ -61,6 +61,16 @@
                            FontSize="10"
                            TextColor="{DynamicResource TextSecondaryColor}" />
                 </Border>
+                <Button Grid.Column="3"
+                        Text="⚙"
+                        FontSize="18"
+                        BackgroundColor="{DynamicResource ChipInactiveColor}"
+                        TextColor="{DynamicResource TextSecondaryColor}"
+                        CornerRadius="18"
+                        WidthRequest="36" HeightRequest="36"
+                        Padding="0"
+                        VerticalOptions="Center"
+                        Clicked="OnLyricsSettingsClicked" />
             </Grid>
         </Border>
 

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Reflection;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.ViewModels;
@@ -25,6 +26,8 @@ public partial class DesktopMainPage : ContentPage
 
     // Cached page contents
     private readonly Dictionary<DesktopTab, View> _pageCache = new();
+    // 缓存每个 tab 对应的原始 ContentPage，用于调用 OnAppearing/OnDisappearing 生命周期
+    private readonly Dictionary<DesktopTab, ContentPage> _pageHostCache = new();
 
     // 侧边栏歌单名称标签（用于响应式折叠时隐藏）
     private readonly List<Label> _playlistNameLabels = new();
@@ -33,6 +36,9 @@ public partial class DesktopMainPage : ContentPage
     private bool _compact;
     private const double SidebarWidth = 220;
     private const double CompactThreshold = 1000;
+
+    /// <summary>全局实例，供嵌入的子页面（如 SearchPage）请求切换 tab</summary>
+    public static DesktopMainPage? Instance { get; private set; }
 
     public DesktopMainPage(NowPlayingViewModel npVm, IServiceProvider services)
     {
@@ -43,14 +49,27 @@ public partial class DesktopMainPage : ContentPage
         _playlistVm = services.GetRequiredService<PlaylistViewModel>();
         _playlistDetailVm = services.GetRequiredService<PlaylistDetailViewModel>();
         BindingContext = _npVm;
+        Instance = this;
 
         SizeChanged += OnPageSizeChanged;
         InitVolumeSlider();
 
-        // Load default tab
-        SwitchTab(DesktopTab.Discover);
+        // 构造时仅创建默认 tab 内容，不触发生命周期（页面尚未进入可视树）
+        _currentTab = DesktopTab.Discover;
+        UpdateNavHighlight();
+        if (!_pageCache.TryGetValue(_currentTab, out var content))
+        {
+            content = CreatePageContent(_currentTab);
+            if (content != null)
+                _pageCache[_currentTab] = content;
+        }
+        if (content != null)
+            ContentArea.Children.Add(content);
+
         _ = LoadPlaylistsAsync();
     }
+
+    private bool _isFirstAppearing = true;
 
     protected override void OnAppearing()
     {
@@ -60,6 +79,14 @@ public partial class DesktopMainPage : ContentPage
         _ = _playlistVm.RefreshIfChangedAsync()
             .ContinueWith(_ => MainThread.BeginInvokeOnMainThread(BuildPlaylistList));
         AttachKeyboard();
+
+        // 首次显示时触发默认 tab 的 OnAppearing 以加载数据
+        if (_isFirstAppearing)
+        {
+            _isFirstAppearing = false;
+            if (_pageHostCache.TryGetValue(_currentTab, out var host))
+                InvokeLifecycle(host, "OnAppearing");
+        }
     }
 
     // ─── Navigation ───
@@ -69,8 +96,26 @@ public partial class DesktopMainPage : ContentPage
     private void OnNavPlaylistsTapped(object? sender, TappedEventArgs e) => SwitchTab(DesktopTab.Playlists);
     private void OnNavSettingsTapped(object? sender, TappedEventArgs e) => SwitchTab(DesktopTab.Settings);
 
+    /// <summary>切换到指定名称的 tab（供嵌入的子页面跨平台调用，name 不区分大小写）</summary>
+    public void SwitchToNamedTab(string name)
+    {
+        var tab = name?.ToLowerInvariant() switch
+        {
+            "discover" or "search" => DesktopTab.Discover,
+            "library" => DesktopTab.Library,
+            "playlists" => DesktopTab.Playlists,
+            "settings" => DesktopTab.Settings,
+            _ => DesktopTab.Discover
+        };
+        SwitchTab(tab);
+    }
+
     private void SwitchTab(DesktopTab tab)
     {
+        // 通知旧 tab 消失（触发数据加载等生命周期）
+        if (_pageHostCache.TryGetValue(_currentTab, out var oldHost))
+            InvokeLifecycle(oldHost, "OnDisappearing");
+
         _currentTab = tab;
         UpdateNavHighlight();
 
@@ -84,6 +129,10 @@ public partial class DesktopMainPage : ContentPage
         ContentArea.Children.Clear();
         if (content != null)
             ContentArea.Children.Add(content);
+
+        // 通知新 tab 显示（SearchPage/LibraryPage 等在此加载数据）
+        if (_pageHostCache.TryGetValue(tab, out var newHost))
+            InvokeLifecycle(newHost, "OnAppearing");
     }
 
     private View? CreatePageContent(DesktopTab tab)
@@ -98,6 +147,7 @@ public partial class DesktopMainPage : ContentPage
         };
 
         if (page == null) return null;
+        _pageHostCache[tab] = page;
 
         // Extract content from the page and rebind
         var content = page.Content;
@@ -110,6 +160,28 @@ public partial class DesktopMainPage : ContentPage
             return new ScrollView { Content = content };
         }
         return content;
+    }
+
+    /// <summary>通过反射调用 ContentPage 的 OnAppearing/OnDisappearing（嵌入到 ContentArea 的页面不会自动触发生命周期）</summary>
+    private static void InvokeLifecycle(ContentPage page, string methodName)
+    {
+        try
+        {
+            var method = page.GetType().GetMethods(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
+                .FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
+            if (method == null)
+            {
+                method = typeof(ContentPage).GetMethods(
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
+            }
+            method?.Invoke(page, null);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Desktop] InvokeLifecycle {methodName} on {page.GetType().Name} FAILED: {ex.Message}");
+        }
     }
 
     private void UpdateNavHighlight()
@@ -343,6 +415,12 @@ public partial class DesktopMainPage : ContentPage
         _ = Shell.Current.GoToAsync("//fullyrics");
     }
 
+    /// <summary>点击底部播放栏的歌曲信息/封面时，跳转到正在播放页（桌面端通过 Shell 路由推送）</summary>
+    private void OnPlayerSongInfoTapped(object? sender, TappedEventArgs e)
+    {
+        _ = Shell.Current.GoToAsync("//nowplaying");
+    }
+
     private void InitVolumeSlider()
     {
         try
@@ -390,26 +468,83 @@ public partial class DesktopMainPage : ContentPage
 
     private void OnWinUiKeyDown(object? sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        // 在搜索框中输入时不拦截按键（保证正常打字，空格应插入文本）
-        if (SearchEntry.IsFocused) return;
+        // 在搜索框中输入时不拦截普通按键（保证正常打字，空格应插入文本）
+        // 但媒体键即使搜索框聚焦也应被拦截，因为它们不会输入文本
+        // Windows.System.VirtualKey 枚举在 WinUI 3 投影中缺少媒体键命名成员，这里用 Win32 VK 码整数值
+        const int VK_MEDIA_PLAY_PAUSE = 179;
+        const int VK_MEDIA_NEXT_TRACK = 176;
+        const int VK_MEDIA_PREV_TRACK = 177;
+        const int VK_MEDIA_STOP = 178;
+        const int VK_VOLUME_MUTE = 173;
+        const int VK_VOLUME_UP = 175;
+        const int VK_VOLUME_DOWN = 174;
 
-        switch (e.Key)
+        var key = e.Key;
+        int keyVal = (int)key;
+        bool isMediaKey = keyVal == VK_MEDIA_PLAY_PAUSE
+            || keyVal == VK_MEDIA_NEXT_TRACK
+            || keyVal == VK_MEDIA_PREV_TRACK
+            || keyVal == VK_MEDIA_STOP
+            || keyVal == VK_VOLUME_MUTE
+            || keyVal == VK_VOLUME_UP
+            || keyVal == VK_VOLUME_DOWN;
+
+        if (SearchEntry.IsFocused && !isMediaKey) return;
+
+        if (key == Windows.System.VirtualKey.Space || keyVal == VK_MEDIA_PLAY_PAUSE)
         {
-            case Windows.System.VirtualKey.Space:
-                _npVm.TogglePlayPauseCommand.Execute(null);
-                break;
-            case Windows.System.VirtualKey.Left:
-                _npVm.PlayPreviousCommand.Execute(null);
-                break;
-            case Windows.System.VirtualKey.Right:
-                _npVm.PlayNextCommand.Execute(null);
-                break;
-            case Windows.System.VirtualKey.Up:
-                ChangeVolume(+0.05);
-                break;
-            case Windows.System.VirtualKey.Down:
-                ChangeVolume(-0.05);
-                break;
+            _npVm.TogglePlayPauseCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (key == Windows.System.VirtualKey.Left || keyVal == VK_MEDIA_PREV_TRACK)
+        {
+            _npVm.PlayPreviousCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (key == Windows.System.VirtualKey.Right || keyVal == VK_MEDIA_NEXT_TRACK)
+        {
+            _npVm.PlayNextCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (keyVal == VK_MEDIA_STOP)
+        {
+            _ = _audioPlayer.StopAsync();
+            e.Handled = true;
+        }
+        else if (key == Windows.System.VirtualKey.Up || keyVal == VK_VOLUME_UP)
+        {
+            ChangeVolume(+0.05);
+            e.Handled = true;
+        }
+        else if (key == Windows.System.VirtualKey.Down || keyVal == VK_VOLUME_DOWN)
+        {
+            ChangeVolume(-0.05);
+            e.Handled = true;
+        }
+        else if (keyVal == VK_VOLUME_MUTE)
+        {
+            ToggleMute();
+            e.Handled = true;
+        }
+    }
+
+    private bool _muted;
+    private double _preMuteVolume = 1.0;
+
+    private void ToggleMute()
+    {
+        if (_muted)
+        {
+            _audioPlayer.Volume = _preMuteVolume;
+            VolumeSlider.Value = _preMuteVolume;
+            _muted = false;
+        }
+        else
+        {
+            _preMuteVolume = _audioPlayer.Volume;
+            _audioPlayer.Volume = 0;
+            VolumeSlider.Value = 0;
+            _muted = true;
         }
     }
 #else

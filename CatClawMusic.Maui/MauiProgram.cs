@@ -54,10 +54,14 @@ public static class MauiProgram
 #if ANDROID
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),
                     typeof(CatClawMusic.Maui.Platforms.Android.FrostedBackgroundHandler));
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.KaraokeLabel),
+                    typeof(CatClawMusic.Maui.Platforms.Android.KaraokeLabelHandler));
 #endif
 #if WINDOWS
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),
                     typeof(CatClawMusic.Maui.Platforms.Windows.FrostedBackgroundHandler));
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.KaraokeLabel),
+                    typeof(CatClawMusic.Maui.Platforms.Windows.KaraokeLabelHandler));
 #endif
             })
             .ConfigureImageSources(images =>

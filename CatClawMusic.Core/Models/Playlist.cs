@@ -44,4 +44,10 @@ public class Playlist
     /// </summary>
     [Ignore]
     public int CoverSongId { get; set; }
+
+    /// <summary>
+    /// 封面图片路径（不持久化，运行时根据 CoverSongId 解析得到）
+    /// </summary>
+    [Ignore]
+    public string? CoverPath { get; set; }
 }

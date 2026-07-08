@@ -31,7 +31,7 @@
                 TranslationY="160" />
 
         <Border Grid.Row="0"
-                Margin="16,18,16,14"
+                Margin="16,8,16,8"
                 Style="{StaticResource GlassCardStrongStyle}"
                 Background="{DynamicResource HeroBrush}">
             <Grid ColumnDefinitions="*,Auto"

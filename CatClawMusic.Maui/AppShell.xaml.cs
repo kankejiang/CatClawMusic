@@ -47,6 +47,8 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("nowplaying/fullyrics", typeof(Pages.FullLyricsPage));
         // 全局别名：DesktopMainPage 顶栏歌词按钮使用 Shell.Current.GoToAsync("//fullyrics") 直接跳转
         Routing.RegisterRoute("fullyrics", typeof(Pages.FullLyricsPage));
+        // 全局别名：DesktopMainPage 底部播放栏点击歌曲信息跳转正在播放页（Windows 桌面端使用）
+        Routing.RegisterRoute("nowplaying", typeof(Pages.NowPlayingPage));
 
         // ── 搜索 Tab 子页面 ──
         Routing.RegisterRoute("search/artistmatch", typeof(Pages.ArtistMatchPage));

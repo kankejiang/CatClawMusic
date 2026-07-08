@@ -10,7 +10,7 @@
           Background="{DynamicResource PageBackgroundBrush}">
 
         <Border Grid.Row="0"
-                Margin="16,18,16,14"
+                Margin="16,8,16,8"
                 Style="{StaticResource GlassCardStrongStyle}"
                 Background="{DynamicResource HeroBrush}">
             <Grid ColumnDefinitions="*,Auto"
@@ -28,7 +28,11 @@
                         BackgroundColor="#26FFFFFF"
                         Stroke="{DynamicResource GlassStrokeColor}"
                         VerticalOptions="Start">
-                    <Label Text="ANDROID"
+                    <Label Text="{OnPlatform Default='ANDROID',
+                                              Android='ANDROID',
+                                              WinUI='WINDOWS',
+                                              iOS='IOS',
+                                              MacCatalyst='MACOS'}"
                            FontSize="11"
                            FontFamily="OpenSansSemibold"
                            TextColor="White" />

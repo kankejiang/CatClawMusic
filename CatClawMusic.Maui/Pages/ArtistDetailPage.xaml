@@ -31,20 +31,20 @@
                 TranslationY="180" />
 
         <Border Grid.Row="0"
-                Margin="16,18,16,14"
+                Margin="16,8,16,8"
                 Style="{StaticResource GlassCardStrongStyle}">
             <Grid ColumnDefinitions="Auto,*"
                   ColumnSpacing="16">
                 <Border Grid.Column="0"
-                        WidthRequest="100"
-                        HeightRequest="100"
-                        StrokeShape="RoundRectangle 50"
+                        WidthRequest="88"
+                        HeightRequest="88"
+                        StrokeShape="RoundRectangle 44"
                         StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}">
-                    <Image Source="{Binding Artist.Cover, TargetNullValue='ic_artist'}"
+                    <Image Source="{Binding ArtistCoverPath, TargetNullValue='ic_artist'}"
                            Aspect="AspectFill"
-                           WidthRequest="100"
-                           HeightRequest="100" />
+                           WidthRequest="88"
+                           HeightRequest="88" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1"
                                      VerticalOptions="Center"
@@ -54,10 +54,10 @@
                            FontFamily="OpenSansSemibold"
                            TextColor="{DynamicResource TextPrimaryColor}"
                            MaxLines="2" />
-                    <Label Text="{Binding Artist.AlbumCount, StringFormat='{0} 张专辑'}"
+                    <Label Text="{Binding Albums.Count, StringFormat='{0} 张专辑'}"
                            FontSize="13"
                            TextColor="{DynamicResource TextSecondaryColor}" />
-                    <Label Text="{Binding Artist.SongCount, StringFormat='{0} 首歌曲'}"
+                    <Label Text="{Binding Songs.Count, StringFormat='{0} 首歌曲'}"
                            FontSize="13"
                            TextColor="{DynamicResource TextSecondaryColor}" />
                     <Button Text="▶ 播放全部"
@@ -122,7 +122,7 @@
                                     StrokeShape="RoundRectangle 12"
                                     StrokeThickness="0"
                                     BackgroundColor="{DynamicResource SurfaceColor}">
-                                <Image Source="{Binding CoverUrl}"
+                                <Image Source="{Binding CoverArtPath}"
                                        Aspect="AspectFill"
                                        WidthRequest="56"
                                        HeightRequest="56" />

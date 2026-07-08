@@ -22,6 +22,10 @@ public partial class ArtistDetailViewModel : ObservableObject
     [ObservableProperty]
     private Artist _artist = new();
 
+    /// <summary>艺术家封面路径（独立可观察属性，用于在 Artist 模型属性变更后刷新绑定）</summary>
+    [ObservableProperty]
+    private string? _artistCoverPath;
+
     /// <summary>该艺术家的专辑集合（从其歌曲中聚合去重）</summary>
     [ObservableProperty]
     private ObservableCollection<Album> _albums = new();
@@ -108,6 +112,8 @@ public partial class ArtistDetailViewModel : ObservableObject
                 if (firstWithCover != null)
                     Artist.Cover = firstWithCover.CoverArtPath;
             }
+            // 同步到可观察属性以触发 UI 刷新（Artist 模型未实现 INPC）
+            ArtistCoverPath = Artist.Cover;
 
             Songs.Clear();
             foreach (var s in songs)

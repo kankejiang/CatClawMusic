@@ -358,6 +358,11 @@ public class MusicDatabase
         var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
         var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
 
+        // 批量预加载播放次数（来自 PlayHistory 表）
+        var playHistoryDict = (await _database.Table<PlayHistory>().ToListAsync())
+            .GroupBy(h => h.SongId)
+            .ToDictionary(g => g.Key, g => g.Max(h => h.PlayCount));
+
         // 批量加载多艺术家关联
         var songIds = songs.Select(s => s.Id).ToList();
         var allArtistsDict = await GetAllArtistsForSongsAsync(songIds);
@@ -367,6 +372,7 @@ public class MusicDatabase
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
             s.AllArtists = allArtistsDict.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
+            s.PlayCount = playHistoryDict.TryGetValue(s.Id, out var pc) ? pc : 0;
         }
         return songs;
     }

@@ -57,10 +57,17 @@
                                         StrokeShape="RoundRectangle 16"
                                         StrokeThickness="0"
                                         BackgroundColor="{DynamicResource SurfaceColor}">
-                                    <Label Text="{Binding Name, Converter={StaticResource PlaylistIconConverter}}"
-                                           FontSize="24"
-                                           HorizontalOptions="Center"
-                                           VerticalOptions="Center" />
+                                    <Grid>
+                                        <Image Source="{Binding CoverPath}"
+                                               Aspect="AspectFill"
+                                               WidthRequest="60" HeightRequest="60"
+                                               IsVisible="{Binding CoverPath, Converter={StaticResource StringToBoolConverter}}" />
+                                        <Label Text="{Binding Name, Converter={StaticResource PlaylistIconConverter}}"
+                                               FontSize="24"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center"
+                                               IsVisible="{Binding CoverPath, Converter={StaticResource InvertedStringToBoolConverter}}" />
+                                    </Grid>
                                 </Border>
                                 <VerticalStackLayout Grid.Column="1"
                                                      VerticalOptions="Center" Spacing="4">

@@ -133,7 +133,9 @@
                    Placeholder="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopSearchPlaceholder]}"
                    VerticalOptions="Center"
                    HeightRequest="34"
-                   FontSize="13" />
+                   FontSize="13"
+                   ReturnType="Search"
+                   Completed="OnSearchSubmitted" />
             <HorizontalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="8">
                 <ImageButton Source="ic_lyrics" WidthRequest="22" HeightRequest="22"
                              BackgroundColor="Transparent"
@@ -156,6 +158,9 @@
                 <!-- Song Info (left) -->
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12"
                       VerticalOptions="Center" WidthRequest="240">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnPlayerSongInfoTapped" />
+                    </Grid.GestureRecognizers>
                     <Border WidthRequest="48" HeightRequest="48"
                             StrokeShape="RoundRectangle 8"
                             StrokeThickness="0"

@@ -107,6 +107,30 @@ public partial class PlaylistViewModel : ObservableObject
                 }
             }
 
+            // 批量解析每个歌单的封面（用 CoverSongId 查磁盘缓存或从音频文件提取）
+            await Task.Run(() =>
+            {
+                foreach (var pl in Playlists)
+                {
+                    if (pl.CoverSongId <= 0) continue;
+                    pl.CoverPath = Services.CoverHelper.GetCachedPath(pl.CoverSongId);
+                    if (!File.Exists(pl.CoverPath))
+                    {
+                        // 缓存未命中，需要从数据库取歌曲文件路径来提取封面
+                        try
+                        {
+                            var song = _db.GetSongByIdAsync(pl.CoverSongId).GetAwaiter().GetResult();
+                            if (song != null)
+                            {
+                                var resolved = Services.CoverHelper.ResolveSingleCover(song);
+                                pl.CoverPath = resolved;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            });
+
             _isDirty = false;
             StatusText = Playlists.Count == 0 ? "暂无播放列表" : "";
         }
@@ -157,11 +181,30 @@ public partial class PlaylistViewModel : ObservableObject
         var existing = Playlists.FirstOrDefault(p => p.Id == id);
         if (existing == null) return;
         if (existing.SongCount == songCount && existing.CoverSongId == coverSongId) return;
+
+        // 解析新封面歌曲的封面路径
+        string? coverPath = null;
+        if (coverSongId > 0)
+        {
+            coverPath = Services.CoverHelper.GetCachedPath(coverSongId);
+            if (!File.Exists(coverPath))
+            {
+                try
+                {
+                    var song = _db.GetSongByIdAsync(coverSongId).GetAwaiter().GetResult();
+                    if (song != null)
+                        coverPath = Services.CoverHelper.ResolveSingleCover(song);
+                }
+                catch { }
+            }
+        }
+
         var idx = Playlists.IndexOf(existing);
         Playlists[idx] = new Playlist
         {
             Id = id, Name = name, SongCount = songCount,
-            IsSystem = true, CoverSongId = coverSongId, CreatedAt = createdAt
+            IsSystem = true, CoverSongId = coverSongId, CreatedAt = createdAt,
+            CoverPath = coverPath
         };
     }
 

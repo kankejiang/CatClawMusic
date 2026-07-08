@@ -31,20 +31,20 @@
                 TranslationY="200" />
 
         <Border Grid.Row="0"
-                Margin="16,18,16,14"
+                Margin="16,8,16,8"
                 Style="{StaticResource GlassCardStrongStyle}">
             <Grid ColumnDefinitions="Auto,*"
                   ColumnSpacing="16">
                 <Border Grid.Column="0"
-                        WidthRequest="110"
-                        HeightRequest="110"
-                        StrokeShape="RoundRectangle 20"
+                        WidthRequest="88"
+                        HeightRequest="88"
+                        StrokeShape="RoundRectangle 18"
                         StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}">
-                    <Image Source="{Binding Album.CoverArtPath, TargetNullValue='ic_album'}"
+                    <Image Source="{Binding AlbumCoverPath, TargetNullValue='ic_album'}"
                            Aspect="AspectFill"
-                           WidthRequest="110"
-                           HeightRequest="110" />
+                           WidthRequest="88"
+                           HeightRequest="88" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1"
                                      VerticalOptions="Center"

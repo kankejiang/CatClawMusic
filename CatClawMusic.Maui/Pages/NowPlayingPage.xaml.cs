@@ -1,6 +1,8 @@
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -9,7 +11,8 @@ public partial class NowPlayingPage : ContentPage
 {
     private readonly NowPlayingViewModel _viewModel;
     private bool _isDragging;
-    private readonly List<Label> _lyricLabels = new();
+    private readonly List<KaraokeLabel> _lyricLabels = new();
+    private readonly List<Border> _lyricBorders = new();
     private int _lastHighlightIndex = -1;
 
     /// <summary>初始化 <see cref="NowPlayingPage"/> 类的新实例，并绑定对应的视图模型。</summary>
@@ -85,6 +88,7 @@ public partial class NowPlayingPage : ContentPage
             e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
         {
             MainThread.BeginInvokeOnMainThread(BuildLyricViews);
+            return;
         }
 
         if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLyricIndexObservable))
@@ -93,6 +97,23 @@ public partial class NowPlayingPage : ContentPage
             {
                 HighlightLine(_viewModel.CurrentLyricIndexObservable);
             });
+            return;
+        }
+
+        // 逐字填充进度变化：直接更新当前行 KaraokeLabel 的 FillProgress（无需重建视图）
+        if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLineFillProgress))
+        {
+            var idx = _viewModel.CurrentLyricIndexObservable;
+            if (idx >= 0 && idx < _lyricLabels.Count)
+            {
+                var progress = _viewModel.CurrentLineFillProgress;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (idx >= 0 && idx < _lyricLabels.Count)
+                        _lyricLabels[idx].FillProgress = progress;
+                });
+            }
+            return;
         }
 
         // 直接响应 ViewModel 的 Progress/Duration 变化，替代冗余的 500ms UI 定时器
@@ -116,39 +137,56 @@ public partial class NowPlayingPage : ContentPage
     {
         LyricStack.Children.Clear();
         _lyricLabels.Clear();
+        _lyricBorders.Clear();
         _lastHighlightIndex = -1;
 
         var lines = _viewModel.AllLyricLines;
         if (lines == null || lines.Count == 0)
             return;
 
-        var nonCurrentColor = Colors.White;
-        var translationColor = Colors.White.WithAlpha(0.7f);
-
         foreach (var line in lines)
         {
-            var label = new Label
+            var label = new KaraokeLabel
             {
                 Text = line.Text,
-                FontSize = 14,
-                TextColor = nonCurrentColor,
+                FontSize = 12,
+                FontFamily = "OpenSansRegular",
+                FontAttributes = FontAttributes.None,
+                TextColor = Colors.White,
+                OutlineColor = Colors.White,
+                StrokeWidth = 2,
+                FillProgress = 0,
                 HorizontalTextAlignment = TextAlignment.Center,
                 HorizontalOptions = LayoutOptions.Center,
                 LineBreakMode = LineBreakMode.WordWrap,
-                FontAttributes = FontAttributes.None,
-                Padding = new Thickness(16, 2)
+                Padding = new Thickness(16, 4)
             };
+
+            var border = new Border
+            {
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+                StrokeThickness = 0,
+                BackgroundColor = Colors.Transparent,
+                Padding = new Thickness(18, 0),
+                HorizontalOptions = LayoutOptions.Center
+            };
+            border.Content = label;
 
             if (!string.IsNullOrEmpty(line.Translation))
             {
-                var stack = new VerticalStackLayout { Spacing = 1, HorizontalOptions = LayoutOptions.Center };
-                stack.Children.Add(label);
+                var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Center };
+                stack.Children.Add(border);
 
-                var transLabel = new Label
+                var transLabel = new KaraokeLabel
                 {
                     Text = line.Translation,
                     FontSize = 11,
-                    TextColor = translationColor,
+                    FontFamily = "OpenSansRegular",
+                    FontAttributes = FontAttributes.None,
+                    TextColor = Colors.White,
+                    OutlineColor = Colors.White,
+                    StrokeWidth = 1.5,
+                    FillProgress = 0,
                     HorizontalTextAlignment = TextAlignment.Center,
                     HorizontalOptions = LayoutOptions.Center
                 };
@@ -157,10 +195,11 @@ public partial class NowPlayingPage : ContentPage
             }
             else
             {
-                LyricStack.Children.Add(label);
+                LyricStack.Children.Add(border);
             }
 
             _lyricLabels.Add(label);
+            _lyricBorders.Add(border);
         }
 
         if (_lyricLabels.Count > 0)
@@ -174,30 +213,43 @@ public partial class NowPlayingPage : ContentPage
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
-        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
-        var nonCurrentColor = Colors.White;
-
-        var current = _lyricLabels[index];
-        current.FontSize = 16;
-        current.FontAttributes = FontAttributes.Bold;
-        current.TextColor = primaryColor;
-
         for (int i = 0; i < _lyricLabels.Count; i++)
         {
-            if (i == index) continue;
-            var dist = Math.Abs(i - index);
             var lbl = _lyricLabels[i];
-            // 非当前行颜色统一，仅字号递减以保持层次感
-            lbl.FontAttributes = FontAttributes.None;
-            lbl.TextColor = nonCurrentColor;
-            if (dist == 1)
-                lbl.FontSize = 14;
-            else if (dist == 2)
-                lbl.FontSize = 13;
-            else if (dist == 3)
-                lbl.FontSize = 12;
+            var dist = Math.Abs(i - index);
+
+            if (i == index)
+            {
+                // 当前行：实心填充，进度由 ViewModel 逐字计算（逐行模式为 1.0）
+                lbl.FontSize = 18;
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = _viewModel.CurrentLineFillProgress;
+            }
             else
-                lbl.FontSize = 11;
+            {
+                // 非当前行：空心描边，按距离递减透明度
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = 0;
+                switch (dist)
+                {
+                    case 1:
+                        lbl.FontSize = 15;
+                        lbl.Opacity = 0.55;
+                        break;
+                    case 2:
+                        lbl.FontSize = 13;
+                        lbl.Opacity = 0.3;
+                        break;
+                    case 3:
+                        lbl.FontSize = 12;
+                        lbl.Opacity = 0.18;
+                        break;
+                    default:
+                        lbl.FontSize = 12;
+                        lbl.Opacity = 0.12;
+                        break;
+                }
+            }
         }
 
         _lastHighlightIndex = index;
@@ -207,31 +259,45 @@ public partial class NowPlayingPage : ContentPage
     {
         if (index < 0 || index >= _lyricLabels.Count) return;
 
-        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
-        var nonCurrentColor = Colors.White;
-
-        // 仅更新新旧索引附近 ±3 范围内的行（避免全量遍历所有 Label）
-        // 范围之外保持 11px / 白色的默认样式，无需重复设置
-        var affectedMin = Math.Max(0, Math.Min(index, _lastHighlightIndex) - 3);
-        var affectedMax = Math.Min(_lyricLabels.Count - 1, Math.Max(index, _lastHighlightIndex) + 3);
+        var affectedMin = Math.Max(0, Math.Min(index, _lastHighlightIndex) - 4);
+        var affectedMax = Math.Min(_lyricLabels.Count - 1, Math.Max(index, _lastHighlightIndex) + 4);
 
         for (int i = affectedMin; i <= affectedMax; i++)
         {
             var lbl = _lyricLabels[i];
             var dist = Math.Abs(i - index);
-            // 非当前行颜色统一，仅字号递减以保持层次感
-            lbl.FontAttributes = dist == 0 ? FontAttributes.Bold : FontAttributes.None;
-            lbl.TextColor = dist == 0 ? primaryColor : nonCurrentColor;
-            if (dist == 0)
-                lbl.FontSize = 16;
-            else if (dist == 1)
-                lbl.FontSize = 14;
-            else if (dist == 2)
-                lbl.FontSize = 13;
-            else if (dist == 3)
-                lbl.FontSize = 12;
+
+            if (i == index)
+            {
+                lbl.FontSize = 18;
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = _viewModel.CurrentLineFillProgress;
+                lbl.Opacity = 1.0;
+            }
             else
-                lbl.FontSize = 11;
+            {
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = 0;
+                switch (dist)
+                {
+                    case 1:
+                        lbl.FontSize = 15;
+                        lbl.Opacity = 0.55;
+                        break;
+                    case 2:
+                        lbl.FontSize = 13;
+                        lbl.Opacity = 0.3;
+                        break;
+                    case 3:
+                        lbl.FontSize = 12;
+                        lbl.Opacity = 0.18;
+                        break;
+                    default:
+                        lbl.FontSize = 12;
+                        lbl.Opacity = 0.12;
+                        break;
+                }
+            }
         }
 
         _lastHighlightIndex = index;
@@ -332,7 +398,7 @@ public partial class NowPlayingPage : ContentPage
         if (ptCover.HasValue && ptCover.Value.X >= -10 && ptCover.Value.X <= CoverArea.Width + 10
             && ptCover.Value.Y >= -10 && ptCover.Value.Y <= CoverArea.Height + 10)
         {
-            MainPage.Instance?.SwitchToFullLyrics();
+            GoToFullLyrics();
             return;
         }
 
@@ -342,7 +408,7 @@ public partial class NowPlayingPage : ContentPage
             if (pt.HasValue && pt.Value.X >= 0 && pt.Value.X <= LyricsContainer.Width
                 && pt.Value.Y >= 0 && pt.Value.Y <= LyricsContainer.Height)
             {
-                MainPage.Instance?.SwitchToFullLyrics();
+                GoToFullLyrics();
                 return;
             }
         }
@@ -353,8 +419,33 @@ public partial class NowPlayingPage : ContentPage
             if (pt.HasValue && pt.Value.X >= -20 && pt.Value.X <= NoLyricsLabel.Width + 20
                 && pt.Value.Y >= -10 && pt.Value.Y <= NoLyricsLabel.Height + 10)
             {
-                MainPage.Instance?.SwitchToFullLyrics();
+                GoToFullLyrics();
             }
         }
+    }
+
+    /// <summary>跳转到全屏歌词页：移动端走 ViewPager 切换，桌面端走 Shell 路由</summary>
+    private static void GoToFullLyrics()
+    {
+#if WINDOWS
+        _ = Shell.Current.GoToAsync("//fullyrics");
+#else
+        MainPage.Instance?.SwitchToFullLyrics();
+#endif
+    }
+
+    /// <summary>Windows 桌面端返回按钮：通过 Shell 导航返回 DesktopMainPage</summary>
+    private void OnBackButtonTapped(object? sender, TappedEventArgs e)
+    {
+#if WINDOWS
+        if (Shell.Current.Navigation.NavigationStack.Count > 1)
+        {
+            _ = Shell.Current.Navigation.PopAsync();
+        }
+        else
+        {
+            _ = Shell.Current.GoToAsync("//main");
+        }
+#endif
     }
 }

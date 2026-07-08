@@ -71,7 +71,7 @@
         <Setter Property="Stroke" Value="{DynamicResource GlassStrokeStrongColor}" />
         <Setter Property="StrokeThickness" Value="1" />
         <Setter Property="StrokeShape" Value="RoundRectangle 26" />
-        <Setter Property="Padding" Value="18" />
+        <Setter Property="Padding" Value="14" />
     </Style>
 
     <Style x:Key="GlassInputStyle" TargetType="Border">

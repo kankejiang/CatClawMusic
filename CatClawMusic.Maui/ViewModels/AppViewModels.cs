@@ -117,9 +117,27 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private int _currentLyricIndexObservable = -1;
     /// <summary>全部歌词行（供全屏歌词页使用，只读）</summary>
     public IReadOnlyList<LrcLyricLine>? AllLyricLines => _currentLyrics?.Lines;
+    /// <summary>当前行的逐字填充进度（0~1），供 KaraokeLabel 使用以实现 Apple Music 风格逐字渐进填充</summary>
+    [ObservableProperty] private double _currentLineFillProgress = 1.0;
 
     private LrcLyrics? _currentLyrics;
     private int _currentLyricIndex = -1;
+    /// <summary>上次播放位置缓存，用于设置切换时重新计算逐字进度</summary>
+    private TimeSpan _lastPosition = TimeSpan.Zero;
+
+    /// <summary>
+    /// 刷新逐字填充进度（设置切换逐行/逐字模式后调用）。
+    /// 用上次播放位置重新计算当前行填充进度。
+    /// </summary>
+    public void RefreshFillProgress()
+    {
+        if (_currentLyrics == null || _currentLyricIndex < 0)
+        {
+            CurrentLineFillProgress = 1.0;
+            return;
+        }
+        UpdateFillProgress(_currentLyricIndex, _lastPosition);
+    }
 
     // === Upcoming Songs (for playlist drawer) ===
     /// <summary>即将播放的歌曲列表（用于播放队列抽屉展示）</summary>
@@ -376,7 +394,7 @@ public partial class NowPlayingViewModel : ObservableObject
         LikeIcon = newFav ? "\u2665" : "\u2661"; // ♥ or ♡
         LikeIconSource = newFav ? "ic_favorite" : "ic_favorite_border";
 
-#if ANDROID
+#if ANDROID || WINDOWS
         try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(newFav); }
         catch { }
 #endif
@@ -493,8 +511,8 @@ public partial class NowPlayingViewModel : ObservableObject
         LikeIcon = IsLiked ? "\u2665" : "\u2661";
         LikeIconSource = IsLiked ? "ic_favorite" : "ic_favorite_border";
 
-#if ANDROID
-        // 更新前台播放通知
+#if ANDROID || WINDOWS
+        // 更新前台播放通知 / Windows SMTC 显示
         try { (_audioService as Services.AudioPlayerService)?.UpdateSongInfo(Title, Artist); }
         catch { }
         try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(IsLiked); }
@@ -765,7 +783,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 HasCover = true;
             });
 
-#if ANDROID
+#if ANDROID || WINDOWS
             try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(path); }
             catch { }
 #endif
@@ -779,7 +797,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 HasCover = false;
             });
 
-#if ANDROID
+#if ANDROID || WINDOWS
             try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(null); }
             catch { }
 #endif
@@ -879,6 +897,10 @@ public partial class NowPlayingViewModel : ObservableObject
             return;
 
         var newIndex = _lyrics.GetCurrentLyricIndex(_currentLyrics, position);
+
+        // 即使行索引不变，也要更新逐字填充进度（Apple Music 风格逐字渐进填充）
+        UpdateFillProgress(newIndex, position);
+
         if (newIndex == _currentLyricIndex)
             return;
 
@@ -895,6 +917,98 @@ public partial class NowPlayingViewModel : ObservableObject
         LyricLine5 = GetLineText(lines, newIndex + 2);
         LyricLine6 = GetLineText(lines, newIndex + 3);
         LyricLine7 = GetLineText(lines, newIndex + 4);
+    }
+
+    /// <summary>
+    /// 计算并更新当前行的逐字填充进度（Apple Music 风格）。
+    /// 逐行模式：整行实心（1.0）；逐字模式：按音节时间精确映射或线性填充。
+    /// </summary>
+    private void UpdateFillProgress(int lineIndex, TimeSpan position)
+    {
+        _lastPosition = position;
+
+        if (lineIndex < 0 || lineIndex >= _currentLyrics!.Lines.Count)
+        {
+            CurrentLineFillProgress = 1.0;
+            return;
+        }
+
+        var settingsMode = Services.LyricsSettingsService.Instance.LyricsMode;
+        if (settingsMode == Services.LyricsSettingsService.Mode.Line)
+        {
+            // 逐行模式：当前行整行实心
+            CurrentLineFillProgress = 1.0;
+            return;
+        }
+
+        // 逐字模式
+        var line = _currentLyrics.Lines[lineIndex];
+        var lineStart = line.Timestamp;
+        var lineEnd = lineIndex + 1 < _currentLyrics.Lines.Count
+            ? _currentLyrics.Lines[lineIndex + 1].Timestamp
+            : lineStart + TimeSpan.FromSeconds(5);
+
+        if (position <= lineStart)
+        {
+            CurrentLineFillProgress = 0;
+            return;
+        }
+        if (position >= lineEnd)
+        {
+            CurrentLineFillProgress = 1.0;
+            return;
+        }
+
+        // 逐字 LRC：按音节时间精确加权
+        if (line.WordTimestamps != null && line.WordTimestamps.Count > 0)
+        {
+            CurrentLineFillProgress = CalculateSyllableProgress(line.WordTimestamps, position, lineStart, lineEnd);
+        }
+        else
+        {
+            // 标准 LRC：按时间线性填充（Apple Music 对无逐字时间戳的歌词也采用此回退）
+            var totalMs = (lineEnd - lineStart).TotalMilliseconds;
+            var elapsedMs = (position - lineStart).TotalMilliseconds;
+            CurrentLineFillProgress = totalMs > 0 ? Math.Clamp(elapsedMs / totalMs, 0.0, 1.0) : 1.0;
+        }
+    }
+
+    /// <summary>
+    /// 按音节时间戳计算填充进度：已唱完的音节贡献其字符比例，当前音节按时间进度部分贡献。
+    /// 用字符数加权近似字符宽度（变宽字符可能有微小偏差，视觉效果接近 Apple Music）。
+    /// </summary>
+    private static double CalculateSyllableProgress(
+        List<CatClawMusic.Core.Models.WordTimestamp> syllables,
+        TimeSpan position, TimeSpan lineStart, TimeSpan lineEnd)
+    {
+        var totalChars = syllables.Sum(s => s.Word?.Length ?? 0);
+        if (totalChars == 0) return 0;
+
+        double filledChars = 0;
+        foreach (var syl in syllables)
+        {
+            if (string.IsNullOrEmpty(syl.Word)) continue;
+            var sylStart = syl.Start;
+            var sylDur = syl.Duration;
+            if (sylDur <= TimeSpan.Zero)
+                sylDur = TimeSpan.FromMilliseconds(300);
+            var sylEnd = sylStart + sylDur;
+
+            if (position >= sylEnd)
+            {
+                // 已唱完
+                filledChars += syl.Word.Length;
+            }
+            else if (position > sylStart)
+            {
+                // 当前音节：按时间进度部分填充
+                var sylProgress = (position - sylStart).TotalMilliseconds / sylDur.TotalMilliseconds;
+                sylProgress = Math.Clamp(sylProgress, 0.0, 1.0);
+                filledChars += syl.Word.Length * sylProgress;
+            }
+        }
+
+        return Math.Clamp(filledChars / totalChars, 0.0, 1.0);
     }
 
     private static string GetLineText(List<LrcLyricLine> lines, int index)

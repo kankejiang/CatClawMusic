@@ -134,6 +134,7 @@
 
     <!-- Converters -->
     <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
+    <converters:InvertedStringToBoolConverter x:Key="InvertedStringToBoolConverter" />
     <converters:TabTextColorConverter x:Key="TabTextColorConverter" />
     <converters:TabIndexToColorConverter x:Key="TabIndexToColorConverter" />
     <converters:TabIndexToTextColorConverter x:Key="TabIndexToTextColorConverter" />

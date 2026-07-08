@@ -49,6 +49,7 @@ public class LocalScanService
     /// 异步执行本地音乐扫描。
     /// 根据 useMediaStore / useSafScan / 自定义文件夹配置按顺序扫描，
     /// 合并去重后导入数据库，并清理已删除文件夹中的歌曲。
+    /// 进度按阶段分配权重，每个阶段内部报告线性渐进进度，避免进度条卡顿跳跃。
     /// </summary>
     public async Task<int> ScanAsync(
         IProgress<(int done, int total, string status)>? progress = null,
@@ -59,6 +60,8 @@ public class LocalScanService
         var allSongs = new HashSet<Song>(new SongPathComparer());
         int totalImported = 0;
 
+        // 进度权重分配：扫描阶段共占 0-90，导入占 90-95，清理占 95-100
+        // 各扫描阶段在 0-90 范围内按总步骤数均分
         try
         {
             var safUris = new List<string>();
@@ -69,6 +72,7 @@ public class LocalScanService
             var hasCustomFolders = customFolders.Count > 0;
             var hasSafFolders = safUris.Count > 0;
 
+            // 统计扫描阶段总数
             var totalSteps = 0;
             if (useMediaStore) totalSteps++;
             if (useSafScan && hasSafFolders) totalSteps++;
@@ -76,12 +80,21 @@ public class LocalScanService
             if (totalSteps == 0) totalSteps = 1;
 
             var currentStep = 0;
+            // 扫描阶段占 0-90%，每个步骤的宽度
+            var stepWidth = 90.0 / totalSteps;
+
+            // 辅助：报告当前阶段内某进度（0~1）对应的全局进度
+            void ReportStepProgress(int step, double localRatio, string status)
+            {
+                var globalStart = step * stepWidth;
+                var globalPct = (int)(globalStart + stepWidth * localRatio);
+                progress?.Report((globalPct, 100, status));
+            }
 
             // 1. MediaStore 扫描
             if (useMediaStore)
             {
-                currentStep++;
-                progress?.Report((0, 100, $"[{currentStep}/{totalSteps}] 正在通过系统媒体库扫描..."));
+                ReportStepProgress(currentStep, 0, $"[{currentStep + 1}/{totalSteps}] 正在通过系统媒体库扫描...");
 #if ANDROID
                 try
                 {
@@ -89,98 +102,124 @@ public class LocalScanService
                         Platforms.Android.AndroidMediaScanner.ScanFromMediaStore(), cancellationToken);
                     foreach (var s in mediaStoreSongs)
                         allSongs.Add(s);
-                    progress?.Report((currentStep * 100 / totalSteps, 100, $"媒体库扫描完成，发现 {mediaStoreSongs.Count} 首歌曲"));
+                    ReportStepProgress(currentStep, 1, $"[{currentStep + 1}/{totalSteps}] 媒体库扫描完成，发现 {mediaStoreSongs.Count} 首歌曲");
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[LocalScan] MediaStore error: {ex.Message}");
                 }
 #endif
+                currentStep++;
             }
 
             // 2. SAF 文件夹扫描
             if (useSafScan && hasSafFolders)
             {
-                currentStep++;
-                progress?.Report((0, 100, $"[{currentStep}/{totalSteps}] 正在通过 SAF 扫描已选文件夹..."));
+                ReportStepProgress(currentStep, 0, $"[{currentStep + 1}/{totalSteps}] 正在通过 SAF 扫描已选文件夹...");
 #if ANDROID
                 try
                 {
                     var existingModTimes = await GetExistingPathModTimesAsync();
                     var safSongs = new List<Song>();
+                    var safTotal = 0;
                     await Platforms.Android.SafeContentScanner.ScanSavedFoldersAsync(
                         async batch =>
                         {
                             lock (safSongs) { safSongs.AddRange(batch); }
                             await Task.CompletedTask;
                         },
-                        null,
+                        new Progress<(int done, int total, string s)>(p =>
+                        {
+                            // 将 SAF 内部 (done, total) 映射到当前阶段的全局进度
+                            safTotal = p.total;
+                            var localRatio = p.total > 0 ? (double)p.done / p.total : 0;
+                            ReportStepProgress(currentStep, localRatio, $"[{currentStep + 1}/{totalSteps}] {p.s} (已发现 {safSongs.Count} 首)");
+                        }),
                         existingModTimes,
                         null
                     );
                     foreach (var s in safSongs)
                         allSongs.Add(s);
-                    progress?.Report((currentStep * 100 / totalSteps, 100, $"SAF扫描完成，发现 {safSongs.Count} 首歌曲"));
+                    ReportStepProgress(currentStep, 1, $"[{currentStep + 1}/{totalSteps}] SAF 扫描完成，发现 {safSongs.Count} 首歌曲");
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[LocalScan] SAF error: {ex.Message}");
                 }
 #endif
+                currentStep++;
             }
 
-            // 3. 自定义文件夹扫描（直接扫描文件，不经由 ScanLocalAsync 以避免重复入库）
+            // 3. 自定义文件夹扫描（逐文件读取元数据，内部报告渐进进度）
             if (hasCustomFolders)
             {
-                currentStep++;
-                progress?.Report((0, 100, $"[{currentStep}/{totalSteps}] 正在扫描自定义文件夹..."));
+                ReportStepProgress(currentStep, 0, $"[{currentStep + 1}/{totalSteps}] 正在扫描自定义文件夹...");
                 try
                 {
-                    var customSongs = await Task.Run(() =>
+                    // 先收集所有音频文件路径，再逐个读取，以便报告线性进度
+                    var allFilePaths = new List<string>();
+                    var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var folder in customFolders)
                     {
-                        var songs = new List<Song>();
-                        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        foreach (var folder in customFolders)
+                        System.Diagnostics.Debug.WriteLine($"[LocalScan] 自定义文件夹: '{folder}', Directory.Exists={Directory.Exists(folder)}");
+                        if (!Directory.Exists(folder)) continue;
+                        try
                         {
-                            System.Diagnostics.Debug.WriteLine($"[LocalScan] 自定义文件夹: '{folder}', Directory.Exists={Directory.Exists(folder)}");
-                            if (!Directory.Exists(folder)) continue;
+                            var filePaths = MusicUtility.ScanFolderRecursive(folder);
+                            System.Diagnostics.Debug.WriteLine($"[LocalScan] 文件夹 '{folder}' 递归发现音频文件数: {filePaths.Count}");
+                            foreach (var path in filePaths)
+                            {
+                                if (seenPaths.Add(path))
+                                    allFilePaths.Add(path);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[LocalScan] Scan folder error: {folder}, {ex.Message}");
+                        }
+                    }
+
+                    var totalFiles = allFilePaths.Count;
+                    var customSongs = new List<Song>();
+                    var processed = 0;
+
+                    await Task.Run(() =>
+                    {
+                        foreach (var path in allFilePaths)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
                             try
                             {
-                                var filePaths = MusicUtility.ScanFolderRecursive(folder);
-                                System.Diagnostics.Debug.WriteLine($"[LocalScan] 文件夹 '{folder}' 递归发现音频文件数: {filePaths.Count}");
-                                foreach (var path in filePaths)
+                                var song = TagReader.ReadSongInfo(path);
+                                if (song != null)
                                 {
-                                    if (!seenPaths.Add(path)) continue;
-                                    try
-                                    {
-                                        var song = TagReader.ReadSongInfo(path);
-                                        if (song != null)
-                                        {
-                                            song.Source = SongSource.Local;
-                                            songs.Add(song);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        System.Diagnostics.Debug.WriteLine($"[LocalScan] ReadSongInfo error: {path}, {ex.Message}");
-                                    }
+                                    song.Source = SongSource.Local;
+                                    customSongs.Add(song);
                                 }
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"[LocalScan] Scan folder error: {folder}, {ex.Message}");
+                                System.Diagnostics.Debug.WriteLine($"[LocalScan] ReadSongInfo error: {path}, {ex.Message}");
+                            }
+                            processed++;
+                            // 每 5 个文件或最后一个文件报告一次进度，避免过于频繁
+                            if (processed % 5 == 0 || processed == totalFiles)
+                            {
+                                var localRatio = totalFiles > 0 ? (double)processed / totalFiles : 0;
+                                ReportStepProgress(currentStep, localRatio, $"[{currentStep + 1}/{totalSteps}] 读取元数据 {processed}/{totalFiles} (已发现 {customSongs.Count} 首)");
                             }
                         }
-                        return songs;
                     }, cancellationToken);
+
                     foreach (var s in customSongs)
                         allSongs.Add(s);
-                    progress?.Report((currentStep * 100 / totalSteps, 100, $"自定义文件夹扫描完成，发现 {customSongs.Count} 首歌曲"));
+                    ReportStepProgress(currentStep, 1, $"[{currentStep + 1}/{totalSteps}] 自定义文件夹扫描完成，发现 {customSongs.Count} 首歌曲");
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[LocalScan] Custom folders error: {ex.Message}");
                 }
+                currentStep++;
             }
 
             var songList = allSongs.ToList();

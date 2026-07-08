@@ -21,6 +21,10 @@ public partial class AlbumDetailViewModel : ObservableObject
     [ObservableProperty]
     private Album? _album;
 
+    /// <summary>专辑封面路径（独立可观察属性，用于在 Album 模型属性变更后刷新绑定）</summary>
+    [ObservableProperty]
+    private string? _albumCoverPath;
+
     /// <summary>专辑下的歌曲集合（已合并本地与网络缓存，并按曲目序号排序）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _songs = new();
@@ -87,6 +91,8 @@ public partial class AlbumDetailViewModel : ObservableObject
                 if (firstWithCover != null)
                     Album.CoverArtPath = firstWithCover.CoverArtPath;
             }
+            // 同步到可观察属性以触发 UI 刷新（Album 模型未实现 INPC）
+            AlbumCoverPath = Album.CoverArtPath;
 
             Songs = new ObservableCollection<Song>(allSongs);
         }
