@@ -4,33 +4,41 @@
              x:Class="CatClawMusic.Maui.Controls.AppPopup"
              InputTransparent="False"
              HorizontalOptions="Fill"
-             VerticalOptions="Fill">
-    <!-- 遮罩层 -->
-    <Border BackgroundColor="#80000000"
-            InputTransparent="False"
-            Opacity="0">
-        <Border.GestureRecognizers>
-            <TapGestureRecognizer Tapped="OnMaskTapped" />
-        </Border.GestureRecognizers>
-    </Border>
-    <!-- 弹窗卡片容器（居中） -->
-    <Border x:Name="PopupCard"
-            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-            Stroke="{DynamicResource GlassStrokeStrongColor}"
-            StrokeThickness="1"
-            StrokeShape="RoundRectangle 26"
-            Padding="20"
-            WidthRequest="320"
-            HorizontalOptions="Center"
-            VerticalOptions="Center"
-            TranslationY="20"
-            Opacity="0">
-        <Border.Shadow>
-            <Shadow Brush="Black"
-                    Radius="30"
-                    Offset="0,12"
-                    Opacity="0.5" />
-        </Border.Shadow>
-        <VerticalStackLayout x:Name="PopupContent" Spacing="0" />
-    </Border>
+             VerticalOptions="Fill"
+             IsVisible="False"
+             Opacity="0">
+    <Grid x:Name="RootGrid"
+          InputTransparent="False"
+          BackgroundColor="Transparent">
+        <BoxView x:Name="MaskLayer"
+                 Color="#80000000"
+                 InputTransparent="False"
+                 Opacity="0">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnMaskTapped" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
+        <Border x:Name="PopupCard"
+                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                Stroke="{DynamicResource GlassStrokeStrongColor}"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 26"
+                Padding="20"
+                WidthRequest="320"
+                HorizontalOptions="Center"
+                VerticalOptions="Center"
+                TranslationY="20"
+                Opacity="0"
+                Scale="0.9"
+                InputTransparent="False">
+            <Border.Shadow>
+                <Shadow Brush="Black"
+                        Radius="30"
+                        Offset="0,12"
+                        Opacity="0.5" />
+            </Border.Shadow>
+            <VerticalStackLayout x:Name="PopupContent" Spacing="0"
+                                 x:FieldModifier="public" />
+        </Border>
+    </Grid>
 </ContentView>

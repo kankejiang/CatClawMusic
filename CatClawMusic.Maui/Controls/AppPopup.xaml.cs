@@ -3,24 +3,15 @@ using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Controls;
 
-/// <summary>
-/// 全局应用弹窗控件：提供与应用风格一致的居中模态弹窗。
-/// 用法：设置 Title、Content（或直接添加子元素到 PopupContent），
-/// 调用 ShowAsync(page) 显示，点击遮罩或调用 Close() 关闭。
-/// 支持自定义标题栏、关闭按钮和内容区域。
-/// </summary>
 public partial class AppPopup : ContentView
 {
-    /// <summary>弹窗标题文本</summary>
     public static readonly BindableProperty TitleProperty =
         BindableProperty.Create(nameof(Title), typeof(string), typeof(AppPopup), string.Empty,
             propertyChanged: OnTitleChanged);
 
-    /// <summary>是否显示关闭按钮</summary>
     public static readonly BindableProperty ShowCloseButtonProperty =
         BindableProperty.Create(nameof(ShowCloseButton), typeof(bool), typeof(AppPopup), true);
 
-    /// <summary>是否在点击遮罩时关闭</summary>
     public static readonly BindableProperty CloseOnMaskTappedProperty =
         BindableProperty.Create(nameof(CloseOnMaskTapped), typeof(bool), typeof(AppPopup), true);
 
@@ -28,12 +19,10 @@ public partial class AppPopup : ContentView
     public bool ShowCloseButton { get => (bool)GetValue(ShowCloseButtonProperty); set => SetValue(ShowCloseButtonProperty, value); }
     public bool CloseOnMaskTapped { get => (bool)GetValue(CloseOnMaskTappedProperty); set => SetValue(CloseOnMaskTappedProperty, value); }
 
-    /// <summary>弹窗关闭事件</summary>
     public event EventHandler? Closed;
 
-    private Grid? _host;
     private View? _titleBar;
-    private TaskCompletionSource<bool>? _showTcs;
+    private bool _isOpen = false;
 
     public AppPopup()
     {
@@ -52,12 +41,10 @@ public partial class AppPopup : ContentView
         RebuildTitleBar();
     }
 
-    /// <summary>重建标题栏（标题 + 关闭按钮）</summary>
     private void RebuildTitleBar()
     {
         if (PopupContent == null) return;
 
-        // 移除旧的标题栏
         if (_titleBar != null && PopupContent.Children.Contains(_titleBar))
             PopupContent.Children.Remove(_titleBar);
 
@@ -119,77 +106,60 @@ public partial class AppPopup : ContentView
         PopupContent.Children.Insert(0, _titleBar);
     }
 
-    /// <summary>添加内容到弹窗主体</summary>
     public void AddContent(View view)
     {
         PopupContent.Children.Add(view);
     }
 
-    /// <summary>清空弹窗内容（保留标题栏）</summary>
     public void ClearContent()
     {
-        // 保留标题栏（索引0），移除其他
         var toRemove = PopupContent.Children.Skip(1).ToList();
         foreach (var child in toRemove)
             PopupContent.Children.Remove(child);
     }
 
-    /// <summary>显示弹窗到指定页面的顶层 Grid</summary>
-    public Task<bool> ShowAsync(ContentPage page)
+    public void Open()
     {
-        _showTcs = new TaskCompletionSource<bool>();
+        if (_isOpen) return;
+        _isOpen = true;
 
-        var pageContent = page.Content;
-        if (pageContent is Grid grid)
+        this.InputTransparent = false;
+        this.IsVisible = true;
+        this.Opacity = 1;
+
+        MaskLayer.Opacity = 0;
+        PopupCard.Opacity = 0;
+        PopupCard.Scale = 0.9;
+        PopupCard.TranslationY = 20;
+
+        MainThread.BeginInvokeOnMainThread(async () =>
         {
-            _host = grid;
-            grid.Children.Add(this);
-            Grid.SetRowSpan(this, grid.RowDefinitions.Count > 0 ? grid.RowDefinitions.Count : 1);
-            Grid.SetColumnSpan(this, grid.ColumnDefinitions.Count > 0 ? grid.ColumnDefinitions.Count : 1);
-        }
-        else
-        {
-            // 非 Grid 顶层：用 Grid 包裹原内容
-            var wrapper = new Grid();
-            var parent = pageContent?.Parent as Layout;
-            if (parent != null && pageContent != null)
-            {
-                var idx = parent.Children.IndexOf(pageContent);
-                parent.Children.Remove(pageContent);
-                wrapper.Children.Add(pageContent);
-                wrapper.Children.Add(this);
-                parent.Children.Insert(idx, wrapper);
-            }
-            _host = wrapper;
-        }
-
-        // 入场动画
-        this.Opacity = 0;
-        this.Scale = 0.9;
-        this.FadeTo(1, 220, Easing.CubicOut);
-        PopupCard.FadeTo(1, 220, Easing.CubicOut);
-        PopupCard.TranslateTo(0, 0, 280, Easing.CubicOut);
-        this.ScaleTo(1, 220, Easing.CubicOut);
-
-        return _showTcs.Task;
+            await Task.WhenAll(
+                MaskLayer.FadeTo(1, 220, Easing.CubicOut),
+                PopupCard.FadeTo(1, 220, Easing.CubicOut),
+                PopupCard.TranslateTo(0, 0, 280, Easing.CubicOut),
+                PopupCard.ScaleTo(1, 220, Easing.CubicOut)
+            );
+        });
     }
 
-    /// <summary>关闭弹窗</summary>
     public async void Close()
     {
-        if (_host == null) return;
+        if (!_isOpen) return;
+        _isOpen = false;
 
-        // 出场动画
         await Task.WhenAll(
-            this.FadeTo(0, 180, Easing.CubicIn),
+            MaskLayer.FadeTo(0, 180, Easing.CubicIn),
             PopupCard.TranslateTo(0, 20, 180, Easing.CubicIn),
-            PopupCard.FadeTo(0, 180, Easing.CubicIn)
+            PopupCard.FadeTo(0, 180, Easing.CubicIn),
+            PopupCard.ScaleTo(0.9, 180, Easing.CubicIn)
         );
 
-        _host.Children.Remove(this);
-        _host = null;
+        this.Opacity = 0;
+        this.IsVisible = false;
+        this.InputTransparent = true;
+
         Closed?.Invoke(this, EventArgs.Empty);
-        _showTcs?.TrySetResult(true);
     }
 
     private void OnMaskTapped(object sender, EventArgs e)

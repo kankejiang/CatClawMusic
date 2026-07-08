@@ -105,5 +105,10 @@
                    HorizontalTextAlignment="Center" />
         </Border>
         </Grid>
+
+        <!-- 歌词设置弹窗（预定义，默认隐藏） -->
+        <controls:AppPopup x:Name="LyricsSettingsPopup"
+                           Title="歌词设置"
+                           CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

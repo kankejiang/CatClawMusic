@@ -17,7 +17,7 @@ namespace CatClawMusic.Maui.Platforms.Android;
 /// <summary>
 /// Android 平台 KaraokeLabel 渲染器：用 Canvas 绘制空心描边（未唱）与实心填充（已唱）。
 /// FillProgress = 0 时纯空心，= 1 时纯实心，中间值时从左到右渐进填充。
-/// 后期逐字歌词可在 OnDraw 中按字符计算裁剪边界实现逐字填充。
+/// 支持居左/居中/居右对齐，裁剪区域根据实际文字边界计算。
 /// </summary>
 public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, KaraokePlatformView>
 {
@@ -49,7 +49,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, KaraokePla
 
 /// <summary>
 /// Android 原生绘制视图：负责实际的 Canvas 文字绘制。
-/// 用 StaticLayout 测量换行与行位置，用 Canvas.drawText 按行绘制空心+实心两层。
+/// 用 StaticLayout 测量换行与行位置，逐行绘制空心+实心两层。
 /// </summary>
 public class KaraokePlatformView : AView
 {
@@ -114,6 +114,7 @@ public class KaraokePlatformView : AView
         var density = Density;
         var padding = _view.Padding;
         var paddingTop = (float)padding.Top * density;
+        var paddingLeft = (float)padding.Left * density;
         var textColor = ToAndroidColor(_view.TextColor);
         var outlineColor = ToAndroidColor(_view.OutlineColor);
         var strokeWidth = (float)_view.StrokeWidth * density;
@@ -123,44 +124,57 @@ public class KaraokePlatformView : AView
         var text = _view.Text ?? string.Empty;
 
         canvas.Save();
-        canvas.Translate(0, paddingTop);
+        canvas.Translate(paddingLeft, paddingTop);
 
         // 1) 先画空心描边层（整个文字）
         _paint.Color = outlineColor;
         _paint.SetStyle(APaint.Style.Stroke);
         _paint.StrokeWidth = strokeWidth;
-        DrawAllLines(canvas, text, _paint);
+        DrawAllLines(canvas, null);
 
-        // 2) 再画实心填充层，按 FillProgress 裁剪从左到右的进度位置
-        //    progress=0 时实心层完全裁掉，只剩空心；progress=1 时全部填充
-        //    后期逐字歌词：这里可改为按字符索引逐字裁剪实现每字独立进度
-        var fillWidth = _layout.Width * progress;
-        if (fillWidth > 0.5f)
+        // 2) 再画实心填充层：逐行计算裁剪区域，按进度从左到右填充
+        if (progress > 0.01f)
         {
-            canvas.Save();
-            canvas.ClipRect(0, 0, fillWidth, _layout.Height, global::Android.Graphics.Region.Op.Intersect);
             _paint.Color = textColor;
             _paint.SetStyle(APaint.Style.Fill);
-            DrawAllLines(canvas, text, _paint);
-            canvas.Restore();
+            DrawAllLines(canvas, progress);
         }
 
         canvas.Restore();
     }
 
-    private void DrawAllLines(Canvas canvas, string text, APaint paint)
+    /// <summary>
+    /// 绘制所有行。若 fillProgress 为 null，绘制整行（空心层）；
+    /// 若 fillProgress 有值，按进度裁剪每行绘制实心层。
+    /// </summary>
+    private void DrawAllLines(Canvas canvas, float? fillProgress)
     {
         for (int i = 0; i < _layout!.LineCount; i++)
         {
             var lineLeft = _layout.GetLineLeft(i);
-            // baseline = lineTop - paint.ascent()
-            var lineBaseline = _layout.GetLineTop(i) - paint.Ascent();
+            var lineBaseline = _layout.GetLineTop(i) - _paint.Ascent();
             var start = _layout.GetLineStart(i);
             var end = _layout.GetLineEnd(i);
-            if (end > start && start < text.Length)
+            var lineWidth = _layout.GetLineWidth(i);
+            if (end <= start || start >= (_view?.Text?.Length ?? 0)) continue;
+            end = Math.Min(end, _view!.Text?.Length ?? end);
+
+            if (fillProgress.HasValue)
             {
-                end = Math.Min(end, text.Length);
-                canvas.DrawText(text, start, end, lineLeft, lineBaseline, paint);
+                // 实心层：裁剪该行的填充区域
+                var fillEndX = lineLeft + lineWidth * fillProgress.Value;
+                var clipTop = _layout.GetLineTop(i);
+                var clipBottom = i + 1 < _layout.LineCount ? _layout.GetLineTop(i + 1) : _layout.Height;
+
+                canvas.Save();
+                canvas.ClipRect(lineLeft, clipTop, fillEndX, clipBottom, global::Android.Graphics.Region.Op.Intersect);
+                canvas.DrawText(_view.Text!, start, end, lineLeft, lineBaseline, _paint);
+                canvas.Restore();
+            }
+            else
+            {
+                // 空心层：整行绘制
+                canvas.DrawText(_view.Text!, start, end, lineLeft, lineBaseline, _paint);
             }
         }
     }

@@ -408,53 +408,49 @@ public partial class FullLyricsPage : ContentPage
     /// <summary>点击右上角歌词设置按钮，弹出歌词设置面板</summary>
     private void OnLyricsSettingsClicked(object? sender, EventArgs e)
     {
-        var popup = new AppPopup
+        // 第一次点击时构建弹窗内容
+        if (LyricsSettingsPopup.PopupContent.Children.Count <= 1)
         {
-            Title = "歌词设置",
-            CloseOnMaskTapped = true,
-            BindingContext = this
-        };
+            var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+            var inactiveColor = (Color)Application.Current.Resources["ChipInactiveColor"];
+            var textSecondary = (Color)Application.Current.Resources["TextSecondaryColor"];
+            var textHint = (Color)Application.Current.Resources["TextHintColor"];
 
-        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
-        var inactiveColor = (Color)Application.Current.Resources["ChipInactiveColor"];
-        var textPrimary = (Color)Application.Current.Resources["TextPrimaryColor"];
-        var textSecondary = (Color)Application.Current.Resources["TextSecondaryColor"];
-        var textHint = (Color)Application.Current.Resources["TextHintColor"];
+            // ─── 歌词模式 ───
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词模式", textHint));
+            LyricsSettingsPopup.AddContent(BuildSegmentedControl(
+                ("逐行", LyricsSettingsService.Mode.Line),
+                ("逐字", LyricsSettingsService.Mode.Word),
+                _settings.LyricsMode,
+                value =>
+                {
+                    _settings.LyricsMode = value;
+                    RebuildLyricsView();
+                },
+                primaryColor, inactiveColor, Colors.White, textSecondary));
 
-        // ─── 歌词模式 ───
-        popup.AddContent(BuildSectionLabel("歌词模式", textHint));
-        popup.AddContent(BuildSegmentedControl(
-            ("逐行", LyricsSettingsService.Mode.Line),
-            ("逐字", LyricsSettingsService.Mode.Word),
-            _settings.LyricsMode,
-            value =>
-            {
-                _settings.LyricsMode = value;
-                RebuildLyricsView();
-            },
-            primaryColor, inactiveColor, textPrimary, textSecondary));
+            // ─── 歌词位置显示 ───
+            LyricsSettingsPopup.AddContent(BuildSpacer(16));
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词位置显示", textHint));
+            LyricsSettingsPopup.AddContent(BuildSegmentedControl(
+                ("居左", LyricsSettingsService.Alignment.Left),
+                ("居中", LyricsSettingsService.Alignment.Center),
+                ("居右", LyricsSettingsService.Alignment.Right),
+                _settings.LyricsAlignment,
+                value =>
+                {
+                    _settings.LyricsAlignment = value;
+                    RebuildLyricsView();
+                },
+                primaryColor, inactiveColor, Colors.White, textSecondary));
 
-        // ─── 歌词位置显示 ───
-        popup.AddContent(BuildSpacer(16));
-        popup.AddContent(BuildSectionLabel("歌词位置显示", textHint));
-        popup.AddContent(BuildSegmentedControl(
-            ("居左", LyricsSettingsService.Alignment.Left),
-            ("居中", LyricsSettingsService.Alignment.Center),
-            ("居右", LyricsSettingsService.Alignment.Right),
-            _settings.LyricsAlignment,
-            value =>
-            {
-                _settings.LyricsAlignment = value;
-                RebuildLyricsView();
-            },
-            primaryColor, inactiveColor, textPrimary, textSecondary));
+            // ─── 歌词字体大小 ───
+            LyricsSettingsPopup.AddContent(BuildSpacer(16));
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词字体大小", textHint));
+            LyricsSettingsPopup.AddContent(BuildFontSizeSlider(primaryColor, textSecondary, textHint));
+        }
 
-        // ─── 歌词字体大小 ───
-        popup.AddContent(BuildSpacer(16));
-        popup.AddContent(BuildSectionLabel("歌词字体大小", textHint));
-        popup.AddContent(BuildFontSizeSlider(primaryColor, textSecondary, textHint));
-
-        _ = popup.ShowAsync(this);
+        LyricsSettingsPopup.Open();
     }
 
     /// <summary>重建歌词视图以应用新设置</summary>
