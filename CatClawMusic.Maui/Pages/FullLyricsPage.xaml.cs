@@ -523,53 +523,41 @@ public partial class FullLyricsPage : ContentPage
             HeightRequest = 44
         };
 
-        // 持有按钮引用以便切换状态
-        var borders = new List<Border>();
-        var labels = new List<Label>();
+        var buttons = new List<Button>();
 
         for (int i = 0; i < colCount; i++)
         {
             var opt = options[i];
             var isActive = EqualityComparer<T>.Default.Equals(opt.Value, currentValue);
 
-            var label = new Label
+            var btn = new Button
             {
                 Text = opt.Label,
                 FontSize = 13,
                 FontAttributes = FontAttributes.Bold,
                 TextColor = isActive ? activeTextColor : inactiveTextColor,
-                HorizontalTextAlignment = TextAlignment.Center,
-                VerticalTextAlignment = TextAlignment.Center
-            };
-            labels.Add(label);
-
-            var border = new Border
-            {
                 BackgroundColor = isActive ? activeColor : inactiveColor,
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(18) },
-                StrokeThickness = 0,
+                CornerRadius = 22,
+                HeightRequest = 44,
                 Padding = new Thickness(0),
-                Content = label
+                Margin = new Thickness(0),
+                VerticalOptions = LayoutOptions.Fill
             };
-            borders.Add(border);
 
-            // 点击切换
             var captured = opt.Value;
-            var tap = new TapGestureRecognizer();
-            tap.Tapped += (_, _) =>
+            btn.Clicked += (_, _) =>
             {
                 onSelected(captured);
-                // 更新所有按钮状态
                 for (int j = 0; j < options.Length; j++)
                 {
                     var sel = EqualityComparer<T>.Default.Equals(options[j].Value, captured);
-                    borders[j].BackgroundColor = sel ? activeColor : inactiveColor;
-                    labels[j].TextColor = sel ? activeTextColor : inactiveTextColor;
+                    buttons[j].BackgroundColor = sel ? activeColor : inactiveColor;
+                    buttons[j].TextColor = sel ? activeTextColor : inactiveTextColor;
                 }
             };
-            border.GestureRecognizers.Add(tap);
 
-            grid.Add(border, i);
+            buttons.Add(btn);
+            grid.Add(btn, i);
         }
 
         return grid;
