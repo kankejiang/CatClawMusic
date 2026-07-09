@@ -64,33 +64,36 @@
                                      HorizontalOptions="Center"
                                      VerticalOptions="Center"
                                      Padding="16,0">
-                    <!-- 封面辉光（模糊投影） -->
-                    <Border x:Name="CoverGlow"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 24"
-                            BackgroundColor="{DynamicResource PrimaryColor}"
-                            WidthRequest="{OnIdiom Phone=220, Default=320}"
-                            HeightRequest="{OnIdiom Phone=220, Default=320}"
-                            Opacity="0.35"
-                            Scale="1.08"
-                            TranslationY="8"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center" />
-                    <!-- 封面本体 -->
-                    <Border x:Name="CoverArea"
-                            StrokeThickness="0.5"
-                            Stroke="#30FFFFFF"
-                            StrokeShape="RoundRectangle 24"
-                            BackgroundColor="{DynamicResource SurfaceColor}"
-                            WidthRequest="{OnIdiom Phone=220, Default=320}"
-                            HeightRequest="{OnIdiom Phone=220, Default=320}"
-                            HorizontalOptions="Center">
-                        <Image x:Name="ArtworkImage"
-                               Source="{Binding CoverImage}"
-                               Aspect="AspectFill"
-                               WidthRequest="{OnIdiom Phone=220, Default=320}"
-                               HeightRequest="{OnIdiom Phone=220, Default=320}" />
-                    </Border>
+                    <!-- 封面容器：辉光投影层与封面本体层重叠，辉光在下、封面在上 -->
+                    <Grid HorizontalOptions="Center">
+                        <!-- 封面辉光（模糊投影）- 底层 -->
+                        <Border x:Name="CoverGlow"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 24"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                WidthRequest="{OnIdiom Phone=220, Default=380}"
+                                HeightRequest="{OnIdiom Phone=220, Default=380}"
+                                Opacity="0.35"
+                                Scale="1.08"
+                                TranslationY="8"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
+                        <!-- 封面本体 - 上层 -->
+                        <Border x:Name="CoverArea"
+                                StrokeThickness="0.5"
+                                Stroke="#30FFFFFF"
+                                StrokeShape="RoundRectangle 24"
+                                BackgroundColor="{DynamicResource SurfaceColor}"
+                                WidthRequest="{OnIdiom Phone=220, Default=380}"
+                                HeightRequest="{OnIdiom Phone=220, Default=380}"
+                                HorizontalOptions="Center">
+                            <Image x:Name="ArtworkImage"
+                                   Source="{Binding CoverImage}"
+                                   Aspect="AspectFill"
+                                   WidthRequest="{OnIdiom Phone=220, Default=380}"
+                                   HeightRequest="{OnIdiom Phone=220, Default=380}" />
+                        </Border>
+                    </Grid>
                     <!-- 歌曲信息（居中） -->
                     <VerticalStackLayout Spacing="6"
                                          HorizontalOptions="Center">
