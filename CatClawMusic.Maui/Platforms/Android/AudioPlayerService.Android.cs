@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Media;
+using Android.Net.Wifi;
 using Android.OS;
 using AndroidX.Media3.Common;
 using CatClawMusic.Core.Interfaces;
@@ -22,6 +23,8 @@ public partial class AudioPlayerService
     private global::Android.Content.Context? _androidContext;
     /// <summary>播放期间持有的 PARTIAL_WAKE_LOCK，防止 CPU 进入休眠</summary>
     private PowerManager.WakeLock? _wakeLock;
+    /// <summary>播放期间持有的 WIFI_MODE_FULL Lock，防止 Wi-Fi 休眠导致断流</summary>
+    private WifiManager.WifiLock? _wifiLock;
     /// <summary>Android 音频管理器，用于请求/释放音频焦点</summary>
     private AudioManager? _audioManager;
     /// <summary>是否因短暂失去音频焦点而自动暂停，焦点恢复后用于决定是否自动继续播放</summary>
@@ -274,7 +277,7 @@ public partial class AudioPlayerService
         try { _player?.Pause(); ReleaseWakeLock(); } catch { }
     }
 
-    /// <summary>平台特定的恢复播放逻辑：恢复 ExoPlayer 播放、重新获取唤醒锁（音频焦点由 ExoPlayer 自动管理）</summary>
+    /// <summary>平台特定的恢复播放逻辑：恢复 ExoPlayer 播放、重新获取唤醒锁与 Wi-Fi 锁、确保前台服务运行（音频焦点由 ExoPlayer 自动管理）</summary>
     partial void PlatformResume()
     {
         try
@@ -284,6 +287,7 @@ public partial class AudioPlayerService
                 _player.PlayWhenReady = true;
                 _player.Play();
                 AcquireWakeLock();
+                StartForegroundService();
             }
         }
         catch { }
@@ -476,10 +480,18 @@ public partial class AudioPlayerService
             // 同步通知上层 PlaybackStateChanged
             try { _owner.PlaybackStateChanged?.Invoke(_owner, isPlaying); }
             catch { }
-            // 播放开始时确保 timer 在运行
             if (isPlaying)
             {
-                _owner._mainHandler.Post(() => _owner.StartPositionTimer());
+                _owner._mainHandler.Post(() =>
+                {
+                    _owner.StartPositionTimer();
+                    _owner.AcquireWakeLock();
+                    _owner.StartForegroundService();
+                });
+            }
+            else
+            {
+                _owner._mainHandler.Post(() => _owner.StopPositionTimer());
             }
         }
 
@@ -503,7 +515,7 @@ public partial class AudioPlayerService
     // Wake Lock
     // ═══════════════════════════════════════
 
-    /// <summary>获取 PARTIAL_WAKE_LOCK，防止播放期间 CPU 进入休眠。若已存在但未持有则重新 Acquire</summary>
+    /// <summary>获取 PARTIAL_WAKE_LOCK 和 Wi-Fi Lock，防止播放期间 CPU/Wi-Fi 进入休眠。若已存在但未持有则重新 Acquire</summary>
     private void AcquireWakeLock()
     {
         if (_wakeLock == null)
@@ -511,19 +523,38 @@ public partial class AudioPlayerService
             var ctx = _androidContext ?? global::Android.App.Application.Context;
             var pm = (PowerManager?)ctx.GetSystemService(Context.PowerService);
             _wakeLock = pm?.NewWakeLock(WakeLockFlags.Partial, "CatClaw:Playback");
+            if (_wakeLock != null)
+                _wakeLock.SetReferenceCounted(false);
         }
         if (_wakeLock?.IsHeld == false)
         {
             try { _wakeLock.Acquire(); } catch { }
         }
+
+        if (_wifiLock == null)
+        {
+            var ctx = _androidContext ?? global::Android.App.Application.Context;
+            var wm = (WifiManager?)ctx.GetSystemService(Context.WifiService);
+            _wifiLock = wm?.CreateWifiLock("CatClaw:WifiPlayback");
+            if (_wifiLock != null)
+                _wifiLock.SetReferenceCounted(false);
+        }
+        if (_wifiLock?.IsHeld == false)
+        {
+            try { _wifiLock.Acquire(); } catch { }
+        }
     }
 
-    /// <summary>释放持有的唤醒锁（若已持有）</summary>
+    /// <summary>释放持有的唤醒锁和 Wi-Fi 锁（若已持有）</summary>
     private void ReleaseWakeLock()
     {
         if (_wakeLock?.IsHeld == true)
         {
             try { _wakeLock.Release(); } catch { }
+        }
+        if (_wifiLock?.IsHeld == true)
+        {
+            try { _wifiLock.Release(); } catch { }
         }
     }
 

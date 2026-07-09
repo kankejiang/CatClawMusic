@@ -25,7 +25,8 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
             [nameof(Controls.KaraokeLabel.TextColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.OutlineColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.StrokeWidth)] = MapAll,
-            [nameof(Controls.KaraokeLabel.FillProgress)] = MapAll,
+            // FillProgress 单独处理：仅更新颜色/透明度，不触发 InvalidateMeasure
+            [nameof(Controls.KaraokeLabel.FillProgress)] = MapFillProgress,
             [nameof(Controls.KaraokeLabel.HorizontalTextAlignment)] = MapAll,
             [nameof(Controls.KaraokeLabel.LineBreakMode)] = MapAll,
             [nameof(Controls.KaraokeLabel.Padding)] = MapAll,
@@ -58,19 +59,29 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
             _ => WTextAlignment.Center
         };
 
-        var progress = Math.Clamp(view.FillProgress, 0.0, 1.0);
-        var color = progress >= 0.5
-            ? ToWColor(view.TextColor)
-            : ToWColor(view.OutlineColor);
-        tb.Foreground = new WSolidBrush(color);
-
-        // 未唱行降低透明度近似模拟"空心"弱化效果
-        tb.Opacity = progress >= 0.5 ? 1.0 : 0.45;
+        ApplyFillProgress(tb, view.FillProgress, view.TextColor, view.OutlineColor);
 
         tb.Padding = new Microsoft.UI.Xaml.Thickness(
             view.Padding.Left, view.Padding.Top, view.Padding.Right, view.Padding.Bottom);
 
         tb.InvalidateMeasure();
+    }
+
+    /// <summary>FillProgress 变化：仅更新颜色和透明度，不触发重测</summary>
+    private static void MapFillProgress(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
+    {
+        if (handler.PlatformView == null || view == null) return;
+        ApplyFillProgress(handler.PlatformView, view.FillProgress, view.TextColor, view.OutlineColor);
+    }
+
+    private static void ApplyFillProgress(WTextBlock tb, double fillProgress, Color textColor, Color outlineColor)
+    {
+        var progress = Math.Clamp(fillProgress, 0.0, 1.0);
+        var color = progress >= 0.5
+            ? ToWColor(textColor)
+            : ToWColor(outlineColor);
+        tb.Foreground = new WSolidBrush(color);
+        tb.Opacity = progress >= 0.5 ? 1.0 : 0.45;
     }
 
     private static WColor ToWColor(Color color)

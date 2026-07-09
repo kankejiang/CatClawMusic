@@ -60,12 +60,10 @@ public class FrostedBackgroundView : View
     private string? _processedCacheKey;     // _processedBitmap 对应的缓存键（null 表示非缓存）
     private Bitmap? _previousBitmap;        // 过渡期间的旧位图（过渡完成后释放）
     private string? _previousCacheKey;      // _previousBitmap 对应的缓存键（null 表示非缓存）
-    private ValueAnimator? _kenBurnsAnimator;
+    private ValueAnimator? _animator;       // 主动画（驱动所有动态效果）
     private ValueAnimator? _crossFadeAnimator;  // 切换歌曲时的交叉淡入淡出动画
     private float _crossFadeProgress = 1f;      // 0=完全旧位图，1=完全新位图
-    private float _kenBurnsProgress;
-    private RectF _prevSrcRect = new();
-    private RectF _nextSrcRect = new();
+    private float _animTime;                 // 动画累计时间（秒）
     private readonly Random _random = new();
     private bool _isActive = true;  // 兼容旧代码，表示背景是否激活
     private Color _tintColor = Colors.Transparent;
@@ -76,11 +74,23 @@ public class FrostedBackgroundView : View
     private int _loadingVersion = 0;  // 实例级别的加载版本号（避免多实例间互相取消）
     private string? _cacheKey;  // 共享缓存键（如封面路径），用于跨实例共享处理后位图
 
+    // 有机运动参数（每个实例随机化，避免重复感）
+    private readonly float _driftAX;
+    private readonly float _driftAY;
+    private readonly float _driftBX;
+    private readonly float _driftBY;
+    private readonly float _driftSpeed;
+    private readonly float _rotationSpeed;
+    private readonly float _breathSpeed;
+    private readonly float _breathAmount;
+
     // 预创建复用的 Paint（避免 OnDraw 中分配）
     private readonly Paint _bitmapPaint;
     private readonly Paint _tintPaint;
     private readonly Paint _dimPaint;
+    private readonly Rect _srcRect = new();
     private readonly RectF _destRect = new();
+    private long _lastAnimNanos;  // 上一帧的时间戳（用于计算 delta time）
 
     /// <summary>递增加载版本号，并返回递增后的值</summary>
     public int IncrementLoadingVersion() => Interlocked.Increment(ref _loadingVersion);
@@ -92,6 +102,15 @@ public class FrostedBackgroundView : View
     {
         SetLayerType(LayerType.Hardware, null);
         Visibility = ViewStates.Visible;
+
+        _driftAX = 0.12f + (float)_random.NextDouble() * 0.08f;
+        _driftAY = 0.10f + (float)_random.NextDouble() * 0.07f;
+        _driftBX = 0.08f + (float)_random.NextDouble() * 0.06f;
+        _driftBY = 0.10f + (float)_random.NextDouble() * 0.07f;
+        _driftSpeed = 0.12f + (float)_random.NextDouble() * 0.06f;
+        _rotationSpeed = (2.0f + (float)_random.NextDouble() * 1.5f) * ((_random.Next(2) == 0) ? 1f : -1f);
+        _breathSpeed = 0.15f + (float)_random.NextDouble() * 0.1f;
+        _breathAmount = 0.04f + (float)_random.NextDouble() * 0.03f;
 
         _bitmapPaint = new Paint { AntiAlias = true, FilterBitmap = true };
         _tintPaint = new Paint { AntiAlias = true };
@@ -143,9 +162,9 @@ public class FrostedBackgroundView : View
     {
         bool shouldAnimate = _isEnabled && _isPlaying;
         if (shouldAnimate && _processedBitmap != null)
-            StartKenBurnsAnimation();
+            StartAnimation();
         else
-            StopKenBurnsAnimation();
+            StopAnimation();
     }
 
     /// <summary>更新填充模式</summary>
@@ -168,97 +187,55 @@ public class FrostedBackgroundView : View
     {
         base.OnAttachedToWindow();
         if (_isEnabled && _isPlaying && _processedBitmap != null)
-            StartKenBurnsAnimation();
+            StartAnimation();
     }
 
     protected override void OnDetachedFromWindow()
     {
         base.OnDetachedFromWindow();
-        StopKenBurnsAnimation();
+        StopAnimation();
         StopCrossFadeAnimation();
     }
 
     /// <summary>
-    /// 启动 Ken Burns 随机过渡动画（参考 Apple Music 流动效果）。
-    /// 每 4 秒随机选择一个新的缩放平移区域，平滑过渡。
+    /// 启动流体动画（参考 Apple Music 风格）：
+    /// - 多层正弦波叠加的有机漂移运动
+    /// - 缓慢旋转（约 0.4-0.8 度/秒）
+    /// - 呼吸缩放脉动
+    /// - 两层视差叠加（底层更大更慢，半透明）
     /// </summary>
-    private void StartKenBurnsAnimation()
+    private void StartAnimation()
     {
-        StopKenBurnsAnimation();
+        StopAnimation();
         if (Width <= 0 || Height <= 0 || _processedBitmap == null) return;
 
-        _prevSrcRect = GenerateRandomSrcRect();
-        _nextSrcRect = GenerateRandomSrcRect();
-
-        _kenBurnsAnimator = ValueAnimator.OfFloat(0f, 1f);
-        _kenBurnsAnimator.SetDuration(4000);
-        _kenBurnsAnimator.RepeatCount = ValueAnimator.Infinite;
-        _kenBurnsAnimator.RepeatMode = ValueAnimatorRepeatMode.Restart;
-        _kenBurnsAnimator.SetInterpolator(new global::Android.Views.Animations.AccelerateDecelerateInterpolator());
-        _kenBurnsAnimator.Update += (_, e) =>
+        _lastAnimNanos = System.Diagnostics.Stopwatch.GetTimestamp();
+        _animator = ValueAnimator.OfFloat(0f, 1f);
+        _animator.SetDuration(16);
+        _animator.RepeatCount = ValueAnimator.Infinite;
+        _animator.RepeatMode = ValueAnimatorRepeatMode.Restart;
+        _animator.SetInterpolator(new global::Android.Views.Animations.LinearInterpolator());
+        _animator.Update += (_, e) =>
         {
-            _kenBurnsProgress = (float)e.Animation.AnimatedValue;
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            var deltaMs = (now - _lastAnimNanos) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            _lastAnimNanos = now;
+            _animTime += (float)(deltaMs / 1000.0);
             Invalidate();
         };
-        _kenBurnsAnimator.AnimationRepeat += (_, _) =>
-        {
-            _prevSrcRect = new RectF(_nextSrcRect);
-            _nextSrcRect = GenerateRandomSrcRect();
-        };
-        _kenBurnsAnimator.Start();
+        _animator.Start();
     }
 
-    private void StopKenBurnsAnimation()
+    private void StopAnimation()
     {
-        _kenBurnsAnimator?.Cancel();
-        _kenBurnsAnimator?.Dispose();
-        _kenBurnsAnimator = null;
-    }
-
-    /// <summary>生成随机的源矩形（在处理后位图上的区域）。</summary>
-    private RectF GenerateRandomSrcRect()
-    {
-        if (_processedBitmap == null || Width <= 0 || Height <= 0)
-            return new RectF(0, 0, 1, 1);
-
-        int bmpW = _processedBitmap.Width;
-        int bmpH = _processedBitmap.Height;
-        int viewW = Width;
-        int viewH = Height;
-
-        float viewRatio = viewW / (float)viewH;
-        float bmpRatio = bmpW / (float)bmpH;
-
-        float baseScale;
-        if (_aspect == Aspect.AspectFill)
-        {
-            // AspectFill：位图必须完全覆盖视图，取较大的缩放比例
-            baseScale = Math.Max(viewW / (float)bmpW, viewH / (float)bmpH);
-        }
-        else if (_aspect == Aspect.AspectFit)
-        {
-            baseScale = Math.Min(viewW / (float)bmpW, viewH / (float)bmpH);
-        }
-        else
-        {
-            baseScale = 1.0f;
-        }
-
-        // Ken Burns 缩放：1.15-1.4 倍（留出更多平移空间，增强流动感）
-        float scale = baseScale * (1.15f + (float)_random.NextDouble() * 0.25f);
-        float srcW = viewW / scale;
-        float srcH = viewH / scale;
-        float maxX = Math.Max(0, bmpW - srcW);
-        float maxY = Math.Max(0, bmpH - srcH);
-        float x = (float)_random.NextDouble() * maxX;
-        float y = (float)_random.NextDouble() * maxY;
-        return new RectF(x, y, x + srcW, y + srcH);
+        _animator?.Cancel();
+        _animator?.Dispose();
+        _animator = null;
     }
 
     protected override void OnDraw(Canvas? canvas)
     {
         base.OnDraw(canvas);
-        // 即使 IsActive=false 也保留背景显示（仅动画停止）
         if (canvas == null || _processedBitmap == null) return;
 
         var w = Width;
@@ -272,14 +249,17 @@ public class FrostedBackgroundView : View
 
         if (isCrossFading)
         {
-            // 绘制旧位图（alpha 逐渐降到 0）
             var oldAlpha = (int)((1f - _crossFadeProgress) * 255);
-            DrawBitmap(canvas, _previousBitmap, w, h, oldAlpha);
+            DrawFluidLayer(canvas, _previousBitmap, w, h, oldAlpha, 1f, 0f);
         }
 
-        // 绘制新位图（alpha 从 0 升到 255）；非过渡时 alpha=255
         var newAlpha = isCrossFading ? (int)(_crossFadeProgress * 255) : 255;
-        DrawBitmap(canvas, _processedBitmap, w, h, newAlpha);
+
+        // 底层：更大更慢，半透明，增加深度感
+        DrawFluidLayer(canvas, _processedBitmap, w, h, (int)(newAlpha * 0.55f), 1.35f, -2.5f);
+
+        // 顶层：主视觉层
+        DrawFluidLayer(canvas, _processedBitmap, w, h, newAlpha, 1f, 0f);
 
         // 色调叠加层
         if (_tintOpacity > 0 && _tintColor != Colors.Transparent && _tintColor.Alpha > 0)
@@ -300,30 +280,80 @@ public class FrostedBackgroundView : View
         }
     }
 
-    /// <summary>绘制单个位图（带 Ken Burns 插值和 alpha 控制）</summary>
-    private void DrawBitmap(Canvas canvas, Bitmap? bitmap, int w, int h, int alpha)
+    /// <summary>
+    /// 绘制流体动画层。使用多层正弦波叠加计算漂移，模拟 FBM 流体效果。
+    /// </summary>
+    /// <param name="scaleMul">缩放倍率（>1 表示放大更多，用于底层）</param>
+    /// <param name="speedMul">速度倍率（负值反向旋转，用于底层视差）</param>
+    private void DrawFluidLayer(Canvas canvas, Bitmap? bitmap, int w, int h, int alpha, float scaleMul, float speedMul)
     {
         if (bitmap == null) return;
         var bw = bitmap.Width;
         var bh = bitmap.Height;
         if (bw <= 0 || bh <= 0) return;
 
-        // Ken Burns 插值
-        var currentSrcLeft = Lerp(_prevSrcRect.Left, _nextSrcRect.Left, _kenBurnsProgress);
-        var currentSrcTop = Lerp(_prevSrcRect.Top, _nextSrcRect.Top, _kenBurnsProgress);
-        var currentSrcRight = Lerp(_prevSrcRect.Right, _nextSrcRect.Right, _kenBurnsProgress);
-        var currentSrcBottom = Lerp(_prevSrcRect.Bottom, _nextSrcRect.Bottom, _kenBurnsProgress);
+        float viewRatio = w / (float)h;
+        float bmpRatio = bw / (float)bh;
 
-        var currentSrc = new Rect(
-            (int)Math.Clamp(currentSrcLeft, 0, bw - 1),
-            (int)Math.Clamp(currentSrcTop, 0, bh - 1),
-            (int)Math.Clamp(currentSrcRight, 1, bw),
-            (int)Math.Clamp(currentSrcBottom, 1, bh));
+        float baseScale;
+        if (_aspect == Aspect.AspectFill)
+            baseScale = Math.Max(w / (float)bw, h / (float)bh);
+        else if (_aspect == Aspect.AspectFit)
+            baseScale = Math.Min(w / (float)bw, h / (float)bh);
+        else
+            baseScale = 1.0f;
+
+        // 基础缩放 + 呼吸缩放
+        float breath = 1f + _breathAmount * (float)Math.Sin(_animTime * _breathSpeed * 2.0 * Math.PI);
+        float scale = baseScale * 1.25f * scaleMul * breath;
+        float srcW = w / scale;
+        float srcH = h / scale;
+
+        // 流体漂移：双层正弦波叠加（模拟 FBM 低频+中频）
+        float t = _animTime * _driftSpeed;
+        float driftX = (float)(
+            _driftAX * Math.Sin(t * 0.7 + _driftBX) +
+            _driftBX * Math.Sin(t * 1.8 + _driftAX));
+        float driftY = (float)(
+            _driftAY * Math.Cos(t * 0.6 + _driftBY) +
+            _driftBY * Math.Cos(t * 1.6 + _driftAY));
+
+        driftX *= speedMul != 0 ? (speedMul * 0.5f + 0.5f) : 1f;
+        driftY *= speedMul != 0 ? (speedMul * 0.5f + 0.5f) : 1f;
+
+        float maxX = Math.Max(0, bw - srcW);
+        float maxY = Math.Max(0, bh - srcH);
+        float cx = bw * 0.5f + driftX * bw;
+        float cy = bh * 0.5f + driftY * bh;
+        cx = Math.Clamp(cx, srcW * 0.5f, bw - srcW * 0.5f);
+        cy = Math.Clamp(cy, srcH * 0.5f, bh - srcH * 0.5f);
+
+        float srcLeft = cx - srcW * 0.5f;
+        float srcTop = cy - srcH * 0.5f;
+
+        // 旋转角度（度/秒 → 当前角度）
+        float rotation = _rotationSpeed * _animTime * speedMul;
+
+        canvas.Save();
+
+        if (Math.Abs(rotation) > 0.01f)
+        {
+            canvas.Translate(w / 2f, h / 2f);
+            canvas.Rotate(rotation);
+            canvas.Translate(-w / 2f, -h / 2f);
+        }
+
+        _srcRect.Set(
+            (int)Math.Clamp(srcLeft, 0, bw - 1),
+            (int)Math.Clamp(srcTop, 0, bh - 1),
+            (int)Math.Clamp(srcLeft + srcW, 1, bw),
+            (int)Math.Clamp(srcTop + srcH, 1, bh));
 
         _bitmapPaint.Alpha = Math.Clamp(alpha, 0, 255);
-        canvas.DrawBitmap(bitmap, currentSrc, _destRect, _bitmapPaint);
-        _bitmapPaint.Alpha = 255;  // 恢复默认
-        currentSrc.Dispose();
+        canvas.DrawBitmap(bitmap, _srcRect, _destRect, _bitmapPaint);
+        _bitmapPaint.Alpha = 255;
+
+        canvas.Restore();
     }
 
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
@@ -412,8 +442,8 @@ public class FrostedBackgroundView : View
             // 释放旧位图引用
             ReleaseProcessedBitmap(oldBitmap, oldCacheKey);
             PostInvalidate();
-            if (newBitmap != null && _isEnabled && _isPlaying && _kenBurnsAnimator == null)
-                StartKenBurnsAnimation();
+            if (newBitmap != null && _isEnabled && _isPlaying && _animator == null)
+                StartAnimation();
             return;
         }
 
@@ -425,12 +455,9 @@ public class FrostedBackgroundView : View
         _crossFadeProgress = 0f;
         StartCrossFadeAnimation();
 
-        // 过渡期间重启 Ken Burns 动画（使用新位图）
-        if (_isEnabled && _isPlaying)
-        {
-            StopKenBurnsAnimation();
-            StartKenBurnsAnimation();
-        }
+        // 过渡期间确保动画运行（使用新位图）
+        if (_isEnabled && _isPlaying && _animator == null)
+            StartAnimation();
     }
 
     /// <summary>释放已处理的位图（cacheKey 非空则缓存 Release，否则直接回收）</summary>
@@ -773,7 +800,7 @@ public class FrostedBackgroundView : View
     {
         if (disposing)
         {
-            StopKenBurnsAnimation();
+            StopAnimation();
             StopCrossFadeAnimation();
             _bitmapPaint?.Dispose();
             _tintPaint?.Dispose();

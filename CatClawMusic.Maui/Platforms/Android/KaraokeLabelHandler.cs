@@ -31,7 +31,8 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, KaraokePla
             [nameof(Controls.KaraokeLabel.TextColor)] = MapSync,
             [nameof(Controls.KaraokeLabel.OutlineColor)] = MapSync,
             [nameof(Controls.KaraokeLabel.StrokeWidth)] = MapSync,
-            [nameof(Controls.KaraokeLabel.FillProgress)] = MapSync,
+            // FillProgress 只触发重绘，不触发重测布局（避免频繁分配 StaticLayout 导致内存崩溃）
+            [nameof(Controls.KaraokeLabel.FillProgress)] = MapFillProgress,
             [nameof(Controls.KaraokeLabel.HorizontalTextAlignment)] = MapSync,
             [nameof(Controls.KaraokeLabel.LineBreakMode)] = MapSync,
             [nameof(Controls.KaraokeLabel.Padding)] = MapSync,
@@ -44,6 +45,12 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, KaraokePla
     private static void MapSync(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
     {
         handler.PlatformView?.SyncFromVirtual(view);
+    }
+
+    /// <summary>FillProgress 变化：仅重绘，不重测布局</summary>
+    private static void MapFillProgress(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
+    {
+        handler.PlatformView?.UpdateFillProgress(view);
     }
 }
 
@@ -68,6 +75,13 @@ public class KaraokePlatformView : AView
     {
         _view = view;
         RequestLayout();
+        Invalidate();
+    }
+
+    /// <summary>仅更新填充进度并重绘（不重测布局，避免频繁分配 StaticLayout）</summary>
+    public void UpdateFillProgress(Controls.KaraokeLabel view)
+    {
+        _view = view;
         Invalidate();
     }
 
@@ -116,8 +130,7 @@ public class KaraokePlatformView : AView
         var paddingTop = (float)padding.Top * density;
         var paddingLeft = (float)padding.Left * density;
         var textColor = ToAndroidColor(_view.TextColor);
-        var outlineColor = ToAndroidColor(_view.OutlineColor);
-        var strokeWidth = (float)_view.StrokeWidth * density;
+        var dimColor = ToAndroidColor(_view.OutlineColor);
         var progress = (float)Math.Clamp(_view.FillProgress, 0.0, 1.0);
 
         ConfigurePaint(_paint);
@@ -126,17 +139,15 @@ public class KaraokePlatformView : AView
         canvas.Save();
         canvas.Translate(paddingLeft, paddingTop);
 
-        // 1) 先画空心描边层（整个文字）
-        _paint.Color = outlineColor;
-        _paint.SetStyle(APaint.Style.Stroke);
-        _paint.StrokeWidth = strokeWidth;
+        // 1) 先画未唱部分：浅灰色实心文字（整行）
+        _paint.Color = dimColor;
+        _paint.SetStyle(APaint.Style.Fill);
         DrawAllLines(canvas, null);
 
-        // 2) 再画实心填充层：逐行计算裁剪区域，按进度从左到右填充
+        // 2) 再画已唱部分：亮白色实心文字，按进度从左到右裁剪填充
         if (progress > 0.01f)
         {
             _paint.Color = textColor;
-            _paint.SetStyle(APaint.Style.Fill);
             DrawAllLines(canvas, progress);
         }
 
@@ -144,12 +155,42 @@ public class KaraokePlatformView : AView
     }
 
     /// <summary>
-    /// 绘制所有行。若 fillProgress 为 null，绘制整行（空心层）；
-    /// 若 fillProgress 有值，按进度裁剪每行绘制实心层。
+    /// 绘制所有行。若 fillProgress 为 null，绘制整行（未唱浅色层）；
+    /// 若 fillProgress 有值，按总字符进度逐行填充已唱亮色层（Apple Music 风格：先唱完一行再唱下一行）。
     /// </summary>
     private void DrawAllLines(Canvas canvas, float? fillProgress)
     {
+        if (!fillProgress.HasValue)
+        {
+            for (int i = 0; i < _layout!.LineCount; i++)
+            {
+                var lineLeft = _layout.GetLineLeft(i);
+                var lineBaseline = _layout.GetLineTop(i) - _paint.Ascent();
+                var start = _layout.GetLineStart(i);
+                var end = _layout.GetLineEnd(i);
+                var lineWidth = _layout.GetLineWidth(i);
+                if (end <= start || start >= (_view?.Text?.Length ?? 0)) continue;
+                end = Math.Min(end, _view!.Text?.Length ?? end);
+                canvas.DrawText(_view.Text!, start, end, lineLeft, lineBaseline, _paint);
+            }
+            return;
+        }
+
+        var progress = Math.Clamp(fillProgress.Value, 0f, 1f);
+        var totalChars = 0;
         for (int i = 0; i < _layout!.LineCount; i++)
+        {
+            var start = _layout.GetLineStart(i);
+            var end = _layout.GetLineEnd(i);
+            if (end > start) totalChars += end - start;
+        }
+
+        if (totalChars <= 0) return;
+
+        var filledCharsF = totalChars * progress;
+        var charCounter = 0f;
+
+        for (int i = 0; i < _layout.LineCount; i++)
         {
             var lineLeft = _layout.GetLineLeft(i);
             var lineBaseline = _layout.GetLineTop(i) - _paint.Ascent();
@@ -158,11 +199,20 @@ public class KaraokePlatformView : AView
             var lineWidth = _layout.GetLineWidth(i);
             if (end <= start || start >= (_view?.Text?.Length ?? 0)) continue;
             end = Math.Min(end, _view!.Text?.Length ?? end);
+            var lineCharCount = end - start;
 
-            if (fillProgress.HasValue)
+            var lineStartChar = charCounter;
+            var lineEndChar = charCounter + lineCharCount;
+            charCounter = lineEndChar;
+
+            if (filledCharsF >= lineEndChar)
             {
-                // 实心层：裁剪该行的填充区域
-                var fillEndX = lineLeft + lineWidth * fillProgress.Value;
+                canvas.DrawText(_view.Text!, start, end, lineLeft, lineBaseline, _paint);
+            }
+            else if (filledCharsF > lineStartChar)
+            {
+                var fillCharOffset = filledCharsF - lineStartChar;
+                var fillEndX = lineLeft + lineWidth * (fillCharOffset / lineCharCount);
                 var clipTop = _layout.GetLineTop(i);
                 var clipBottom = i + 1 < _layout.LineCount ? _layout.GetLineTop(i + 1) : _layout.Height;
 
@@ -170,11 +220,6 @@ public class KaraokePlatformView : AView
                 canvas.ClipRect(lineLeft, clipTop, fillEndX, clipBottom, global::Android.Graphics.Region.Op.Intersect);
                 canvas.DrawText(_view.Text!, start, end, lineLeft, lineBaseline, _paint);
                 canvas.Restore();
-            }
-            else
-            {
-                // 空心层：整行绘制
-                canvas.DrawText(_view.Text!, start, end, lineLeft, lineBaseline, _paint);
             }
         }
     }
@@ -206,10 +251,10 @@ public class KaraokePlatformView : AView
     private static AColor ToAndroidColor(MColor color)
     {
         return new AColor(
-            (byte)(color.Alpha * 255),
             (byte)(color.Red * 255),
             (byte)(color.Green * 255),
-            (byte)(color.Blue * 255));
+            (byte)(color.Blue * 255),
+            (byte)(color.Alpha * 255));
     }
 
     protected override void Dispose(bool disposing)

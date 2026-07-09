@@ -136,7 +136,7 @@ public partial class FullLyricsPage : ContentPage
                 FontSize = 16,
                 FontFamily = "OpenSansSemibold",
                 TextColor = (Color)Application.Current!.Resources["TextHintColor"],
-                OutlineColor = (Color)Application.Current!.Resources["TextHintColor"],
+                OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                 StrokeWidth = 1,
                 FillProgress = 1,
                 HorizontalTextAlignment = TextAlignment.Center,
@@ -155,7 +155,7 @@ public partial class FullLyricsPage : ContentPage
                 FontFamily = "OpenSansRegular",
                 FontAttributes = FontAttributes.None,
                 TextColor = Colors.White,
-                OutlineColor = Colors.White,
+                OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                 StrokeWidth = 2,
                 FillProgress = 0,
                 HorizontalTextAlignment = _settings.ToTextAlignment(),
@@ -187,7 +187,7 @@ public partial class FullLyricsPage : ContentPage
                     FontFamily = "OpenSansRegular",
                     FontAttributes = FontAttributes.None,
                     TextColor = Colors.White,
-                    OutlineColor = Colors.White,
+                    OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                     StrokeWidth = 1.5,
                     FillProgress = 0,
                     HorizontalTextAlignment = _settings.ToTextAlignment(),
@@ -231,28 +231,11 @@ public partial class FullLyricsPage : ContentPage
             }
             else
             {
-                // 非当前行：空心描边，按距离递减透明度
+                // 非当前行：浅色实心，统一字号和不透明度
                 lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                switch (dist)
-                {
-                    case 1:
-                        lbl.FontSize = baseSize - 6;
-                        lbl.Opacity = 0.5;
-                        break;
-                    case 2:
-                        lbl.FontSize = baseSize - 9;
-                        lbl.Opacity = 0.28;
-                        break;
-                    case 3:
-                        lbl.FontSize = baseSize - 11;
-                        lbl.Opacity = 0.16;
-                        break;
-                    default:
-                        lbl.FontSize = baseSize - 11;
-                        lbl.Opacity = 0.1;
-                        break;
-                }
+                lbl.FontSize = baseSize - 3;
+                lbl.Opacity = 0.35;
             }
         }
 
@@ -282,27 +265,11 @@ public partial class FullLyricsPage : ContentPage
             }
             else
             {
+                // 非当前行：浅色实心，统一字号和不透明度
                 lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                switch (dist)
-                {
-                    case 1:
-                        lbl.FontSize = baseSize - 6;
-                        lbl.Opacity = 0.5;
-                        break;
-                    case 2:
-                        lbl.FontSize = baseSize - 9;
-                        lbl.Opacity = 0.28;
-                        break;
-                    case 3:
-                        lbl.FontSize = baseSize - 11;
-                        lbl.Opacity = 0.16;
-                        break;
-                    default:
-                        lbl.FontSize = baseSize - 11;
-                        lbl.Opacity = 0.1;
-                        break;
-                }
+                lbl.FontSize = baseSize - 3;
+                lbl.Opacity = 0.35;
             }
         }
 
@@ -330,8 +297,8 @@ public partial class FullLyricsPage : ContentPage
                 recyclerView.GetLocationOnScreen(recyclerLocation);
 
                 int labelCenterY = labelLocation[1] + nativeLabel.Height / 2;
-                int recyclerCenterY = recyclerLocation[1] + recyclerView.Height / 2;
-                int dy = labelCenterY - recyclerCenterY;
+                int targetY = recyclerLocation[1] + (int)(recyclerView.Height * 0.25);
+                int dy = labelCenterY - targetY;
 
                 if (Math.Abs(dy) > 2)
                 {
@@ -341,13 +308,13 @@ public partial class FullLyricsPage : ContentPage
             else if (LyricCollectionView.Handler?.PlatformView is global::Android.Views.View nativeView)
             {
                 var y = GetRelativeY(label);
-                var targetScrollY = y - LyricCollectionView.Height / 2;
+                var targetScrollY = y - LyricCollectionView.Height * 0.25;
                 targetScrollY = Math.Max(0, targetScrollY);
                 nativeView.ScrollY = (int)targetScrollY;
             }
 #else
             var y = GetRelativeY(label);
-            var targetScrollY = y - LyricCollectionView.Height / 2;
+            var targetScrollY = y - LyricCollectionView.Height * 0.25;
             targetScrollY = Math.Max(0, targetScrollY);
             if (LyricCollectionView.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().Any())
             {

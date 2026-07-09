@@ -153,7 +153,7 @@ public partial class NowPlayingPage : ContentPage
                 FontFamily = "OpenSansRegular",
                 FontAttributes = FontAttributes.None,
                 TextColor = Colors.White,
-                OutlineColor = Colors.White,
+                OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                 StrokeWidth = 2,
                 FillProgress = 0,
                 HorizontalTextAlignment = TextAlignment.Center,
@@ -184,7 +184,7 @@ public partial class NowPlayingPage : ContentPage
                     FontFamily = "OpenSansRegular",
                     FontAttributes = FontAttributes.None,
                     TextColor = Colors.White,
-                    OutlineColor = Colors.White,
+                    OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                     StrokeWidth = 1.5,
                     FillProgress = 0,
                     HorizontalTextAlignment = TextAlignment.Center,
@@ -227,28 +227,11 @@ public partial class NowPlayingPage : ContentPage
             }
             else
             {
-                // 非当前行：空心描边，按距离递减透明度
+                // 非当前行：浅色实心，统一字号和不透明度
                 lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                switch (dist)
-                {
-                    case 1:
-                        lbl.FontSize = 15;
-                        lbl.Opacity = 0.55;
-                        break;
-                    case 2:
-                        lbl.FontSize = 13;
-                        lbl.Opacity = 0.3;
-                        break;
-                    case 3:
-                        lbl.FontSize = 12;
-                        lbl.Opacity = 0.18;
-                        break;
-                    default:
-                        lbl.FontSize = 12;
-                        lbl.Opacity = 0.12;
-                        break;
-                }
+                lbl.FontSize = 15;
+                lbl.Opacity = 0.35;
             }
         }
 
@@ -276,27 +259,11 @@ public partial class NowPlayingPage : ContentPage
             }
             else
             {
+                // 非当前行：浅色实心，统一字号和不透明度
                 lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                switch (dist)
-                {
-                    case 1:
-                        lbl.FontSize = 15;
-                        lbl.Opacity = 0.55;
-                        break;
-                    case 2:
-                        lbl.FontSize = 13;
-                        lbl.Opacity = 0.3;
-                        break;
-                    case 3:
-                        lbl.FontSize = 12;
-                        lbl.Opacity = 0.18;
-                        break;
-                    default:
-                        lbl.FontSize = 12;
-                        lbl.Opacity = 0.12;
-                        break;
-                }
+                lbl.FontSize = 15;
+                lbl.Opacity = 0.35;
             }
         }
 
@@ -323,8 +290,8 @@ public partial class NowPlayingPage : ContentPage
                 recyclerView.GetLocationOnScreen(recyclerLocation);
 
                 int labelCenterY = labelLocation[1] + nativeLabel.Height / 2;
-                int recyclerCenterY = recyclerLocation[1] + recyclerView.Height / 2;
-                int dy = labelCenterY - recyclerCenterY;
+                int targetY = recyclerLocation[1] + (int)(recyclerView.Height * 0.25);
+                int dy = labelCenterY - targetY;
 
                 if (Math.Abs(dy) > 2)
                 {
@@ -334,13 +301,13 @@ public partial class NowPlayingPage : ContentPage
             else if (LyricCollectionView.Handler?.PlatformView is global::Android.Views.View nativeView)
             {
                 var y = GetRelativeY(label);
-                var targetScrollY = y - LyricCollectionView.Height / 2;
+                var targetScrollY = y - LyricCollectionView.Height * 0.25;
                 targetScrollY = Math.Max(0, targetScrollY);
                 nativeView.ScrollY = (int)targetScrollY;
             }
 #else
             var y = GetRelativeY(label);
-            var targetScrollY = y - LyricCollectionView.Height / 2;
+            var targetScrollY = y - LyricCollectionView.Height * 0.25;
             targetScrollY = Math.Max(0, targetScrollY);
             if (LyricCollectionView.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().Any())
             {

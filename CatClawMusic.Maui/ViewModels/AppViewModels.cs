@@ -118,7 +118,7 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>全部歌词行（供全屏歌词页使用，只读）</summary>
     public IReadOnlyList<LrcLyricLine>? AllLyricLines => _currentLyrics?.Lines;
     /// <summary>当前行的逐字填充进度（0~1），供 KaraokeLabel 使用以实现 Apple Music 风格逐字渐进填充</summary>
-    [ObservableProperty] private double _currentLineFillProgress = 1.0;
+    [ObservableProperty] private double _currentLineFillProgress = 0.0;
 
     private LrcLyrics? _currentLyrics;
     private int _currentLyricIndex = -1;
@@ -133,7 +133,7 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         if (_currentLyrics == null || _currentLyricIndex < 0)
         {
-            CurrentLineFillProgress = 1.0;
+            CurrentLineFillProgress = 0.0;
             return;
         }
         UpdateFillProgress(_currentLyricIndex, _lastPosition);
@@ -929,7 +929,7 @@ public partial class NowPlayingViewModel : ObservableObject
 
         if (lineIndex < 0 || lineIndex >= _currentLyrics!.Lines.Count)
         {
-            CurrentLineFillProgress = 1.0;
+            CurrentLineFillProgress = 0.0;
             return;
         }
 

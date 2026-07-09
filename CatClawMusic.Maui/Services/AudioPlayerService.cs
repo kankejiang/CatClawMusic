@@ -154,7 +154,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>上次通知的位置（秒），用于过滤无意义的位置更新</summary>
     private double _lastNotifiedPosition = -1;
 
-    /// <summary>启动进度定时器，每 500ms 触发一次位置更新</summary>
+    /// <summary>启动进度定时器，每 40ms 触发一次位置更新（25fps，保证逐字歌词流畅度）</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
@@ -166,8 +166,8 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
                 try
                 {
                     var pos = CurrentPosition;
-                    // 仅当位置实际变化超过 0.3 秒时才通知，避免暂停时无意义的 PropertyChanged
-                    if (Math.Abs(pos - _lastNotifiedPosition) < 0.3 && pos > 0)
+                    // 仅当位置实际变化超过 0.02 秒时才通知，避免暂停时无意义的 PropertyChanged
+                    if (Math.Abs(pos - _lastNotifiedPosition) < 0.02 && pos > 0)
                         return;
                     _lastNotifiedPosition = pos;
                     PositionChanged?.Invoke(this, TimeSpan.FromSeconds(pos));
@@ -180,7 +180,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 #endif
                 }
             });
-        }, null, 500, 500);
+        }, null, 40, 40);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>

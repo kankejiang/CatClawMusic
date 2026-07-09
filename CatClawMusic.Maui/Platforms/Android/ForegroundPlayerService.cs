@@ -407,7 +407,7 @@ public class ForegroundPlayerService : Service
     {
         if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
         {
-            var channel = new NotificationChannel(ChannelId, ChannelName, NotificationImportance.Default)
+            var channel = new NotificationChannel(ChannelId, ChannelName, NotificationImportance.Low)
             {
                 Description = "猫爪音乐播放控制",
                 LockscreenVisibility = NotificationVisibility.Public

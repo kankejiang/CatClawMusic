@@ -4,7 +4,7 @@ namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
 /// 卡拉OK式歌词标签：支持空心描边（未唱）与实心填充（已唱）切换，
-/// 并为后期逐字渐进填充预留 FillProgress（0~1）属性。
+/// 并为逐字渐进填充提供 FillProgress（0~1）属性。
 /// Android 平台用 Canvas + Paint.Style.Stroke/Fill 绘制；
 /// 其他平台回退为普通 Label 行为。
 /// </summary>
@@ -47,11 +47,12 @@ public class KaraokeLabel : View
 
     /// <summary>
     /// 填充进度：0=全空心（未唱），1=全实心（已唱）。
-    /// 后期逐字歌词时，每行可按字符进度平滑过渡 0→1。
+    /// 逐字歌词时，每行按字符进度平滑过渡 0→1。
+    /// 使用独立的 propertyChanged 回调，仅触发重绘而非重测布局。
     /// </summary>
     public static readonly BindableProperty FillProgressProperty =
         BindableProperty.Create(nameof(FillProgress), typeof(double), typeof(KaraokeLabel), 1.0,
-            propertyChanged: OnVisualPropChanged);
+            propertyChanged: OnFillProgressChanged);
 
     /// <summary>水平对齐</summary>
     public static readonly BindableProperty HorizontalTextAlignmentProperty =
@@ -80,9 +81,17 @@ public class KaraokeLabel : View
     public LineBreakMode LineBreakMode { get => (LineBreakMode)GetValue(LineBreakModeProperty); set => SetValue(LineBreakModeProperty, value); }
     public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
 
+    /// <summary>文本/字体等属性变化：触发完整重测+重绘</summary>
     private static void OnVisualPropChanged(BindableObject bindable, object oldValue, object newValue)
     {
         if (bindable is KaraokeLabel label)
-            label.Handler?.UpdateValue(nameof(KaraokeLabel));
+            label.Handler?.UpdateValue(nameof(Text));
+    }
+
+    /// <summary>填充进度变化：仅触发重绘（不重测布局，避免频繁分配 StaticLayout）</summary>
+    private static void OnFillProgressChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        if (bindable is KaraokeLabel label)
+            label.Handler?.UpdateValue(nameof(FillProgress));
     }
 }
