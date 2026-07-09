@@ -260,6 +260,7 @@ public static class MauiProgram
         // ═══════════════════════════════════════════════════
         services.AddSingleton<IPermissionService, PermissionService>();
         services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<LocalizationService>();
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
         services.AddSingleton<ILogService, LogService>();
 

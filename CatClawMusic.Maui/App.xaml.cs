@@ -14,6 +14,14 @@ public partial class App : Application
         InitializeComponent();
         StartupLog("App.ctor: InitializeComponent done");
 
+        // 应用已保存的语言偏好（在 UI 构建前生效，确保首屏即正确语言）
+        try
+        {
+            LocalizationService.Initialize();
+            StartupLog("App.ctor: Localization initialized");
+        }
+        catch (Exception ex) { StartupLog($"App.ctor: Localization failed - {ex.Message}"); }
+
         // 应用主题
         try
         {
