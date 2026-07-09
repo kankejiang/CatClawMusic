@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Reflection;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
@@ -31,6 +32,9 @@ public partial class DesktopMainPage : ContentPage
 
     // 侧边栏歌单名称标签（用于响应式折叠时隐藏）
     private readonly List<Label> _playlistNameLabels = new();
+
+    // 防止 BuildPlaylistList 并发执行导致歌单重复渲染
+    private readonly object _playlistListLock = new();
 
     // 响应式：窄窗折叠为图标栏
     private bool _compact;
@@ -204,12 +208,15 @@ public partial class DesktopMainPage : ContentPage
 
     private void BuildPlaylistList()
     {
-        PlaylistHost.Children.Clear();
-        _playlistNameLabels.Clear();
-
-        foreach (var pl in _playlistVm.Playlists)
+        lock (_playlistListLock)
         {
-            PlaylistHost.Children.Add(CreatePlaylistRow(pl));
+            PlaylistHost.Children.Clear();
+            _playlistNameLabels.Clear();
+
+            foreach (var pl in _playlistVm.Playlists)
+            {
+                PlaylistHost.Children.Add(CreatePlaylistRow(pl));
+            }
         }
     }
 
@@ -310,8 +317,47 @@ public partial class DesktopMainPage : ContentPage
 
     private void OpenPlaylist(Playlist pl)
     {
+#if WINDOWS
+        OpenPlaylistEmbedded(pl);
+#else
         _ = Shell.Current.GoToAsync(
             $"playlistdetail?playlistId={pl.Id}&name={Uri.EscapeDataString(pl.Name)}");
+#endif
+    }
+
+    /// <summary>Windows 桌面端：将歌单详情页嵌入右侧 ContentArea，保留左侧导航栏。</summary>
+    private void OpenPlaylistEmbedded(Playlist pl)
+    {
+        try
+        {
+            var page = _services.GetRequiredService<PlaylistDetailPage>();
+            page.PlaylistId = pl.Id;
+            page.PlaylistName = pl.Name;
+
+            // 桌面嵌入模式下，隐藏左上角返回按钮（左侧导航栏已提供全局导航）
+            if (page.Content is Grid root)
+            {
+                var backButton = root.Children
+                    .OfType<CatClawMusic.Maui.Controls.BackButton>()
+                    .FirstOrDefault();
+                if (backButton != null)
+                    backButton.IsVisible = false;
+            }
+
+            var content = page.Content;
+            if (content == null) return;
+            page.Content = null;
+            content.BindingContext = page.BindingContext;
+
+            ContentArea.Children.Clear();
+            ContentArea.Children.Add(content);
+
+            InvokeLifecycle(page, "OnAppearing");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Desktop] OpenPlaylistEmbedded failed: {ex}");
+        }
     }
 
     private async Task PlayPlaylistAsync(Playlist pl)

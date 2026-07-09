@@ -218,8 +218,7 @@ public class DesktopLyricService : IDesktopLyricService
         var frame = new FrameLayout(ctx);
         frame.LayoutParameters = new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WrapContent,
-            ViewGroup.LayoutParams.WrapContent,
-            GravityFlags.CenterHorizontal);
+            ViewGroup.LayoutParams.WrapContent);
 
         // 未唱层
         _textViewBase = new TextView(ctx)
@@ -329,8 +328,9 @@ public class DesktopLyricService : IDesktopLyricService
         _textViewBase.Text = _currentText;
         _textViewFill.Text = _currentText;
         _hasScrolled = false;
-        // 重置到最左侧（需在 layout 完成后执行，否则 ScrollView 会保持旧的滚动位置）
-        _scrollView.Post(() => _scrollView?.ScrollTo(0, 0));
+        // 使用 OnPreDrawListener 在 layout 完成后重置滚动位置和居中/左对齐
+        var vto = _scrollView.ViewTreeObserver;
+        vto.AddOnPreDrawListener(new ResetScrollPreDraw(this));
         // 重置填充
         UpdateFillInternal();
     }
@@ -496,6 +496,44 @@ public class DesktopLyricService : IDesktopLyricService
                     return true;
             }
             return false;
+        }
+    }
+
+    /// <summary>OnPreDraw 监听器：在 layout 完成后重置滚动位置和居中/左对齐，仅触发一次</summary>
+    private class ResetScrollPreDraw : Java.Lang.Object, ViewTreeObserver.IOnPreDrawListener
+    {
+        private readonly DesktopLyricService _service;
+
+        public ResetScrollPreDraw(DesktopLyricService service) => _service = service;
+
+        public bool OnPreDraw()
+        {
+            var scrollView = _service._scrollView;
+            if (scrollView == null) return true;
+
+            // 移除自身（仅触发一次）
+            try { scrollView.ViewTreeObserver.RemoveOnPreDrawListener(this); }
+            catch { }
+
+            var child = scrollView.GetChildAt(0);
+            if (child != null)
+            {
+                var contentWidth = child.Width;
+                var visibleWidth = scrollView.Width;
+                // 短歌词居中，长歌词左对齐（确保开头可见）
+                var gravity = contentWidth <= visibleWidth
+                    ? GravityFlags.CenterHorizontal
+                    : GravityFlags.Left;
+                var lp = (FrameLayout.LayoutParams)child.LayoutParameters;
+                if (lp.Gravity != gravity)
+                {
+                    lp.Gravity = gravity;
+                    child.LayoutParameters = lp;
+                }
+            }
+            // 重置到最左侧
+            scrollView.ScrollTo(0, 0);
+            return true;
         }
     }
 }

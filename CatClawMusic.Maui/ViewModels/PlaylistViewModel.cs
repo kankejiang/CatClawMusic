@@ -17,6 +17,9 @@ public partial class PlaylistViewModel : ObservableObject
     private readonly MusicDatabase _db;
     private bool _isDirty = true;
 
+    // 防止多个调用方并发加载导致 Playlists 被重复添加
+    private readonly System.Threading.SemaphoreSlim _loadLock = new(1, 1);
+
     private static readonly long _epoch = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
 
     /// <summary>歌单集合（含系统歌单与用户歌单）</summary>
@@ -50,6 +53,7 @@ public partial class PlaylistViewModel : ObservableObject
     [RelayCommand]
     public async Task LoadPlaylistsAsync()
     {
+        await _loadLock.WaitAsync();
         IsLoading = true;
         StatusText = "加载中...";
         try
@@ -139,7 +143,11 @@ public partial class PlaylistViewModel : ObservableObject
             System.Diagnostics.Debug.WriteLine($"[PlaylistVM] LoadPlaylists failed: {ex}");
             StatusText = "加载失败";
         }
-        finally { IsLoading = false; }
+        finally
+        {
+            IsLoading = false;
+            _loadLock.Release();
+        }
     }
 
     /// <summary>
