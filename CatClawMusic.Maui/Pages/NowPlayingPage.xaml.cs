@@ -156,7 +156,7 @@ public partial class NowPlayingPage : ContentPage
                 StrokeWidth = 2,
                 FillProgress = 0,
                 HorizontalTextAlignment = TextAlignment.Center,
-                HorizontalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.Fill,
                 LineBreakMode = LineBreakMode.WordWrap,
                 Padding = new Thickness(16, 4)
             };
@@ -167,13 +167,13 @@ public partial class NowPlayingPage : ContentPage
                 StrokeThickness = 0,
                 BackgroundColor = Colors.Transparent,
                 Padding = new Thickness(18, 0),
-                HorizontalOptions = LayoutOptions.Center
+                HorizontalOptions = LayoutOptions.Fill
             };
             border.Content = label;
 
             if (!string.IsNullOrEmpty(line.Translation))
             {
-                var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Center };
+                var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Fill };
                 stack.Children.Add(border);
 
                 var transLabel = new KaraokeLabel
@@ -186,8 +186,8 @@ public partial class NowPlayingPage : ContentPage
                     OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                     StrokeWidth = 1.5,
                     FillProgress = 0,
-                    HorizontalTextAlignment = TextAlignment.Center,
-                    HorizontalOptions = LayoutOptions.Center
+                    HorizontalTextAlignment = TextAlignment.Start,
+                    HorizontalOptions = LayoutOptions.Start
                 };
                 stack.Children.Add(transLabel);
                 LyricStack.Children.Add(stack);

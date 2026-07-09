@@ -23,9 +23,9 @@
         <!-- 暗色遮罩层：在雾面背景上叠加一层半透明暗色，确保文字可读 -->
         <BoxView Color="#70000000" InputTransparent="True" />
 
-        <!-- 内容层：4行Grid - 返回按钮/Auto, 封面+信息/Auto, 歌词/Star, 进度+控件/Auto -->
+        <!-- 内容层：3行Grid - 返回按钮/Auto, 主体(封面左+信息歌词右)/Star, 进度+控件/Auto -->
         <Grid x:Name="RootGrid"
-              RowDefinitions="Auto,Auto,*,Auto"
+              RowDefinitions="Auto,*,Auto"
               Padding="24,16,24,20">
             <Grid.GestureRecognizers>
                 <TapGestureRecognizer Tapped="OnPageTapped" />
@@ -52,21 +52,25 @@
                 </Border>
             </Grid>
 
-            <!-- Row 1: 封面 + 歌曲信息 -->
-            <VerticalStackLayout Grid.Row="1"
-                                 x:Name="SongArea"
-                                 VerticalOptions="Start"
-                                 HorizontalOptions="Center"
-                                 Spacing="14"
-                                 Padding="0,16,0,8">
-                <!-- 封面：自适应大小，最大260px，圆角20px，阴影 -->
-                <Grid HorizontalOptions="Center">
+            <!-- Row 1: 主体（左半：封面+信息居中 / 右半：歌词居中，中间竖直分割线） -->
+            <Grid Grid.Row="1"
+                  x:Name="MainContent"
+                  ColumnDefinitions="1*,Auto,1*"
+                  Padding="0,8,0,4">
+                <!-- 左半部分：封面 + 歌曲信息，整体垂直+水平居中 -->
+                <VerticalStackLayout Grid.Column="0"
+                                     x:Name="LeftHalf"
+                                     Spacing="22"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Padding="16,0">
                     <!-- 封面辉光（模糊投影） -->
                     <Border x:Name="CoverGlow"
                             StrokeThickness="0"
-                            StrokeShape="RoundRectangle 20"
+                            StrokeShape="RoundRectangle 24"
                             BackgroundColor="{DynamicResource PrimaryColor}"
-                            WidthRequest="240" HeightRequest="240"
+                            WidthRequest="{OnIdiom Phone=220, Default=320}"
+                            HeightRequest="{OnIdiom Phone=220, Default=320}"
                             Opacity="0.35"
                             Scale="1.08"
                             TranslationY="8"
@@ -76,75 +80,98 @@
                     <Border x:Name="CoverArea"
                             StrokeThickness="0.5"
                             Stroke="#30FFFFFF"
-                            StrokeShape="RoundRectangle 20"
+                            StrokeShape="RoundRectangle 24"
                             BackgroundColor="{DynamicResource SurfaceColor}"
-                            WidthRequest="240" HeightRequest="240"
+                            WidthRequest="{OnIdiom Phone=220, Default=320}"
+                            HeightRequest="{OnIdiom Phone=220, Default=320}"
                             HorizontalOptions="Center">
                         <Image x:Name="ArtworkImage"
                                Source="{Binding CoverImage}"
                                Aspect="AspectFill"
-                               WidthRequest="240" HeightRequest="240" />
+                               WidthRequest="{OnIdiom Phone=220, Default=320}"
+                               HeightRequest="{OnIdiom Phone=220, Default=320}" />
                     </Border>
-                </Grid>
-
-                <!-- 歌曲标题 + 艺术家 -->
-                <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
-                    <Label Text="{Binding Title}"
-                           FontSize="20"
-                           FontFamily="OpenSansSemibold"
-                           TextColor="White"
-                           HorizontalTextAlignment="Center"
-                           MaxLines="1"
-                           LineBreakMode="TailTruncation" />
-                    <Label Text="{Binding Artist}"
-                           FontSize="14"
-                           TextColor="{DynamicResource TextSecondaryColor}"
-                           HorizontalTextAlignment="Center"
-                           MaxLines="1"
-                           Opacity="0.85" />
+                    <!-- 歌曲信息（居中） -->
+                    <VerticalStackLayout Spacing="6"
+                                         HorizontalOptions="Center">
+                        <Label Text="{Binding Title}"
+                               FontSize="22"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="White"
+                               MaxLines="2"
+                               LineBreakMode="TailTruncation"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="{Binding Artist}"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               Opacity="0.9"
+                               MaxLines="1"
+                               LineBreakMode="TailTruncation"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="{Binding Album}"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextHintColor}"
+                               Opacity="0.8"
+                               MaxLines="1"
+                               LineBreakMode="TailTruncation"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
-            </VerticalStackLayout>
 
-            <!-- Row 2: 歌词区域（占据剩余空间） -->
-            <Grid Grid.Row="2"
-                  x:Name="LyricsContainer"
-                  IsVisible="{Binding HasLyrics}"
-                  IsClippedToBounds="True"
-                  Margin="0,4">
-                <CollectionView x:Name="LyricCollectionView"
-                                ItemsSource="{Binding LyricPlaceholderItems}"
-                                SelectionMode="None"
-                                VerticalScrollBarVisibility="Never">
-                    <CollectionView.ItemsLayout>
-                        <LinearItemsLayout Orientation="Vertical" />
-                    </CollectionView.ItemsLayout>
-                    <CollectionView.Header>
-                        <VerticalStackLayout x:Name="LyricStack"
-                                             Padding="0,80,0,80"
-                                             Spacing="8"
-                                             HorizontalOptions="Center" />
-                    </CollectionView.Header>
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <BoxView HeightRequest="0" />
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
+                <!-- 中间竖直分割线 -->
+                <BoxView Grid.Column="1"
+                         WidthRequest="1"
+                         Color="#30FFFFFF"
+                         HorizontalOptions="Center"
+                         VerticalOptions="Fill"
+                         Margin="0,24,0,24" />
+
+                <!-- 右半部分：歌词（居中滚动） -->
+                <Grid Grid.Column="2"
+                      x:Name="RightHalf"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill"
+                      Padding="16,0">
+                    <Grid x:Name="LyricsContainer"
+                          IsVisible="{Binding HasLyrics}"
+                          IsClippedToBounds="True"
+                          VerticalOptions="Fill"
+                          HorizontalOptions="Fill">
+                        <CollectionView x:Name="LyricCollectionView"
+                                        ItemsSource="{Binding LyricPlaceholderItems}"
+                                        SelectionMode="None"
+                                        VerticalScrollBarVisibility="Never">
+                            <CollectionView.ItemsLayout>
+                                <LinearItemsLayout Orientation="Vertical" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.Header>
+                                <VerticalStackLayout x:Name="LyricStack"
+                                                     Padding="0,40,0,40"
+                                                     Spacing="8"
+                                                     HorizontalOptions="Center" />
+                            </CollectionView.Header>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <BoxView HeightRequest="0" />
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </Grid>
+                    <!-- 无歌词提示（当没有歌词时显示） -->
+                    <Label x:Name="NoLyricsLabel"
+                           Text="{Binding NoLyricsText}"
+                           FontSize="13"
+                           TextColor="{DynamicResource TextHintColor}"
+                           HorizontalTextAlignment="Center"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Center"
+                           Opacity="0.6"
+                           IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}" />
+                </Grid>
             </Grid>
-            <!-- 无歌词提示（当没有歌词时显示） -->
-            <Label Grid.Row="2"
-                   x:Name="NoLyricsLabel"
-                   Text="{Binding NoLyricsText}"
-                   FontSize="13"
-                   TextColor="{DynamicResource TextHintColor}"
-                   HorizontalTextAlignment="Center"
-                   VerticalOptions="Center"
-                   HorizontalOptions="Center"
-                   Opacity="0.6"
-                   IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}" />
 
-            <!-- Row 3: 进度条 + 播放控件 -->
-            <VerticalStackLayout Grid.Row="3" Spacing="10" Margin="0,4,0,0">
+            <!-- Row 2: 进度条 + 播放控件 -->
+            <VerticalStackLayout Grid.Row="2" Spacing="10" Margin="0,4,0,0">
                 <!-- 进度条 -->
                 <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
                     <Slider x:Name="ProgressSlider"

@@ -30,10 +30,17 @@ public static class ImageSourceHelper
     public static ImageSource? FromName(string? name)
     {
         if (string.IsNullOrEmpty(name)) return null;
-        // Windows 上 MauiImage 生成的是 .png，需要带扩展名才能被 FromFile 解析；
-        // Android/iOS 上扩展名不影响 drawable 资源查找。
-        var fileName = name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? name : name + ".png";
-        return ImageSource.FromFile(fileName);
+        try
+        {
+            // 显式走 ImageSourceConverter 解析 MauiImage 资源名（与 XAML 字面量 Source="ic_xxx" 同一路径）。
+            // 注意：ImageSource.FromFile 会把资源名当成本地文件路径，在 Windows 未找到时会触发 E_NETWORK_ERROR。
+            return (ImageSource?)_converter.ConvertFromInvariantString(name);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ImageSourceHelper] FromName({name}) failed: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>
