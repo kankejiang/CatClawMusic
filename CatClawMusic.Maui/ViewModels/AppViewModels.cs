@@ -20,6 +20,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService _audioService;
     private readonly IMusicLibraryService _musicLibrary;
+    private readonly Services.DesktopLyricManager? _desktopLyricManager;
 
     private string _coverCacheDir = "";
     private bool _isSeeking;
@@ -70,13 +71,13 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>播放模式显示文本</summary>
     [ObservableProperty] private string _playModeLabel = "列表循环";
     /// <summary>播放模式图标资源名称</summary>
-    [ObservableProperty] private string _playModeIconSource = "ic_repeat_all";
+    [ObservableProperty] private ImageSource? _playModeIconSource = ImageSource.FromFile("ic_repeat_all");
 
     // === Play/Pause ===
     /// <summary>播放/暂停按钮图标字符（▶ 或 ⏸）</summary>
     [ObservableProperty] private string _playPauseIcon = "\u25b6"; // ▶
     /// <summary>播放/暂停按钮图标资源名称</summary>
-    [ObservableProperty] private string _playPauseIconSource = "ic_play";
+    [ObservableProperty] private ImageSource? _playPauseIconSource = ImageSource.FromFile("ic_play");
 
     // === Like ===
     /// <summary>当前歌曲是否已收藏</summary>
@@ -84,7 +85,7 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>收藏按钮图标字符（♡ 或 ♥）</summary>
     [ObservableProperty] private string _likeIcon = "\u2661"; // ♡
     /// <summary>收藏按钮图标资源名称</summary>
-    [ObservableProperty] private string _likeIconSource = "ic_favorite_border";
+    [ObservableProperty] private ImageSource? _likeIconSource = ImageSource.FromFile("ic_favorite_border");
 
     // === Lyrics ===
     /// <summary>是否存在可用歌词</summary>
@@ -162,13 +163,15 @@ public partial class NowPlayingViewModel : ObservableObject
         ILyricsService lyrics,
         MusicDatabase db,
         IAudioPlayerService audioService,
-        IMusicLibraryService musicLibrary)
+        IMusicLibraryService musicLibrary,
+        Services.DesktopLyricManager? desktopLyricManager = null)
     {
         _queue = queue;
         _lyrics = lyrics;
         _db = db;
         _audioService = audioService;
         _musicLibrary = musicLibrary;
+        _desktopLyricManager = desktopLyricManager;
 
         // Initialize cover cache directory
         _coverCacheDir = Path.Combine(FileSystem.CacheDirectory, "covers");
@@ -186,7 +189,12 @@ public partial class NowPlayingViewModel : ObservableObject
             androidAudio.PlayNextRequested += OnNotifPlayNext;
             androidAudio.PlayPreviousRequested += OnNotifPlayPrevious;
             androidAudio.FavoriteToggled += OnNotifFavoriteToggled;
+            // 通知栏桌面歌词按钮切换
+            androidAudio.DesktopLyricToggled += OnNotifDesktopLyricToggled;
         }
+        // 桌面歌词开启失败时，回退通知栏按钮状态
+        if (_desktopLyricManager != null)
+            _desktopLyricManager.EnableFailed += OnDesktopLyricEnableFailed;
 #endif
 
         // Commands
@@ -234,9 +242,31 @@ public partial class NowPlayingViewModel : ObservableObject
                 await _db.SetFavoriteAsync(song.Id, isFavorite);
                 IsLiked = isFavorite;
                 LikeIcon = isFavorite ? "\u2665" : "\u2661";
-                LikeIconSource = isFavorite ? "ic_favorite" : "ic_favorite_border";
+                LikeIconSource = ImageSource.FromFile(isFavorite ? "ic_favorite" : "ic_favorite_border");
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifFav: {ex.Message}"); }
+        });
+    }
+
+    /// <summary>通知栏"桌面歌词"按钮回调：切换桌面歌词开关</summary>
+    private async void OnNotifDesktopLyricToggled(bool isEnabled)
+    {
+        if (_desktopLyricManager == null) return;
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            if (isEnabled)
+                await _desktopLyricManager.EnableAsync();
+            else
+                _desktopLyricManager.Disable();
+        });
+    }
+
+    /// <summary>桌面歌词开启失败（权限不足等）：回退通知栏按钮状态</summary>
+    private void OnDesktopLyricEnableFailed()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            Platforms.Android.ForegroundPlayerService.SyncLyricsEnabled(false);
         });
     }
 #endif
@@ -261,7 +291,7 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             IsPlaying = isPlaying;
             PlayPauseIcon = isPlaying ? "\u23f8" : "\u25b6"; // ⏸ or ▶
-            PlayPauseIconSource = isPlaying ? "ic_pause" : "ic_play";
+            PlayPauseIconSource = ImageSource.FromFile(isPlaying ? "ic_pause" : "ic_play");
 
             // 检测队列当前歌曲是否变化（外部页面播放时触发）
             // 此时 _loadedSongId 还是旧值，需要加载新歌信息更新迷你播放器
@@ -275,33 +305,38 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
+        // 位置定时器已经在主线程上调用 PositionChanged，无需再次 dispatch
+        // Duration 小于 1 秒视为无效，从 audio service 重新拉取
+        if (Duration < 1 && _audioService.Duration > 1)
         {
-            // Duration 小于 1 秒视为无效，从 audio service 重新拉取
-            // (某些歌曲数据库存储的 Duration 不正确，需要依赖 ExoPlayer 的真实时长)
-            if (Duration < 1 && _audioService.Duration > 1)
-            {
-                Duration = _audioService.Duration;
-                TotalTimeDisplay = FormatTime(Duration);
-                System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] Duration updated from audio service: {Duration}s");
-            }
+            Duration = _audioService.Duration;
+            TotalTimeDisplay = FormatTime(Duration);
+        }
 
-            // Auto-release _isSeeking after 10s in case DragCompleted never fires
-            if (!_isSeeking)
-            {
-                Progress = position.TotalSeconds;
-            }
-            else if ((DateTime.UtcNow - _seekStartTime).TotalSeconds >= 10)
-            {
-                _isSeeking = false;
-                Progress = position.TotalSeconds;
-            }
-            CurrentTimeDisplay = FormatTime(position.TotalSeconds);
-            UpdateLyricPosition(position);
-            // Also refresh TotalTimeDisplay when Duration becomes known
-            if (Duration > 0)
-                TotalTimeDisplay = FormatTime(Duration);
-        });
+        // Auto-release _isSeeking after 10s in case DragCompleted never fires
+        if (!_isSeeking)
+        {
+            Progress = position.TotalSeconds;
+        }
+        else if ((DateTime.UtcNow - _seekStartTime).TotalSeconds >= 10)
+        {
+            _isSeeking = false;
+            Progress = position.TotalSeconds;
+        }
+
+        // 仅当显示文本变化时才更新，避免无意义的 PropertyChanged 和字符串分配
+        var newTimeDisplay = FormatTime(position.TotalSeconds);
+        if (CurrentTimeDisplay != newTimeDisplay)
+            CurrentTimeDisplay = newTimeDisplay;
+
+        UpdateLyricPosition(position);
+
+        if (Duration > 0)
+        {
+            var newTotalDisplay = FormatTime(Duration);
+            if (TotalTimeDisplay != newTotalDisplay)
+                TotalTimeDisplay = newTotalDisplay;
+        }
     }
 
     private void OnPlaybackCompleted(object? sender, EventArgs e)
@@ -373,11 +408,11 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         (PlayModeIcon, PlayModeLabel, PlayModeIconSource) = _queue.PlayMode switch
         {
-            PlayMode.ListRepeat => ("\U0001f501", "列表循环", "ic_repeat_all"),
-            PlayMode.SingleRepeat => ("\U0001f502", "单曲循环", "ic_repeat_one"),
-            PlayMode.Shuffle => ("\U0001f500", "随机播放", "ic_shuffle"),
-            PlayMode.Sequential => ("\u27a1", "顺序播放", "ic_repeat_all"),
-            _ => ("\U0001f501", "列表循环", "ic_repeat_all")
+            PlayMode.ListRepeat => ("\U0001f501", "列表循环", ImageSource.FromFile("ic_repeat_all")),
+            PlayMode.SingleRepeat => ("\U0001f502", "单曲循环", ImageSource.FromFile("ic_repeat_one")),
+            PlayMode.Shuffle => ("\U0001f500", "随机播放", ImageSource.FromFile("ic_shuffle")),
+            PlayMode.Sequential => ("\u27a1", "顺序播放", ImageSource.FromFile("ic_repeat_all")),
+            _ => ("\U0001f501", "列表循环", ImageSource.FromFile("ic_repeat_all"))
         };
     }
 
@@ -392,7 +427,7 @@ public partial class NowPlayingViewModel : ObservableObject
         await _db.SetFavoriteAsync(song.Id, newFav);
         IsLiked = newFav;
         LikeIcon = newFav ? "\u2665" : "\u2661"; // ♥ or ♡
-        LikeIconSource = newFav ? "ic_favorite" : "ic_favorite_border";
+        LikeIconSource = ImageSource.FromFile(newFav ? "ic_favorite" : "ic_favorite_border");
 
 #if ANDROID || WINDOWS
         try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(newFav); }
@@ -463,7 +498,7 @@ public partial class NowPlayingViewModel : ObservableObject
             Artist = "";
             Album = "";
             HasAlbum = false;
-            CoverImage = null;
+            CoverImage = ImageSource.FromFile("cover_default.png");
             HasCover = false;
             HasLyrics = false;
             ClearLyrics();
@@ -509,7 +544,7 @@ public partial class NowPlayingViewModel : ObservableObject
         try { IsLiked = await _db.IsFavoriteAsync(song.Id); }
         catch { IsLiked = false; }
         LikeIcon = IsLiked ? "\u2665" : "\u2661";
-        LikeIconSource = IsLiked ? "ic_favorite" : "ic_favorite_border";
+        LikeIconSource = ImageSource.FromFile(IsLiked ? "ic_favorite" : "ic_favorite_border");
 
 #if ANDROID || WINDOWS
         // 更新前台播放通知 / Windows SMTC 显示
@@ -582,7 +617,7 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             // 同一首歌回到播放页：恢复正确的播放/暂停状态图标
             PlayPauseIcon = _audioService.IsPlaying ? "\u23f8" : "\u25b6";
-            PlayPauseIconSource = _audioService.IsPlaying ? "ic_pause" : "ic_play";
+            PlayPauseIconSource = ImageSource.FromFile(_audioService.IsPlaying ? "ic_pause" : "ic_play");
         }
 
         // 重置启动恢复标志
@@ -793,7 +828,7 @@ public partial class NowPlayingViewModel : ObservableObject
             CurrentCoverPath = null;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                CoverImage = null;
+                CoverImage = ImageSource.FromFile("cover_default.png");
                 HasCover = false;
             });
 
@@ -874,6 +909,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 CurrentLyricIndexObservable = -1;
                 OnPropertyChanged(nameof(AllLyricLines));
             });
+            _desktopLyricManager?.SetLyrics(lyrics);
             System.Diagnostics.Debug.WriteLine($"[Lyrics] 歌词已加载，首行: {lyrics.Lines[0].Text}");
         }
         else
@@ -887,6 +923,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 ClearLyrics();
                 OnPropertyChanged(nameof(AllLyricLines));
             });
+            _desktopLyricManager?.SetLyrics(null);
             System.Diagnostics.Debug.WriteLine("[Lyrics] 未找到歌词");
         }
     }

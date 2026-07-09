@@ -641,25 +641,31 @@ public partial class MainPage : ContentPage
         }
     }
 
+    /// <summary>缓存反射查找结果，避免每次切页都 GetMethods 遍历</summary>
+    private static readonly Dictionary<(Type, string), MethodInfo?> _lifecycleCache = new();
+
     /// <summary>通过反射调用 ContentPage 的 OnAppearing/OnDisappearing</summary>
     private static void InvokeLifecycle(ContentPage page, string methodName)
     {
         try
         {
-            // 用 GetMethods 替代 GetMethod，避免 .NET 10 中基类新增重载导致 AmbiguousMatchException
-            var method = page.GetType().GetMethods(
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
-                .FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
-
-            // 如果派生类没有 override，回退到基类方法
-            if (method == null)
+            var type = page.GetType();
+            var key = (type, methodName);
+            if (!_lifecycleCache.TryGetValue(key, out var method))
             {
-                method = typeof(ContentPage).GetMethods(
-                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                method = type.GetMethods(
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
                     .FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
+
+                if (method == null)
+                {
+                    method = typeof(ContentPage).GetMethods(
+                            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                        .FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
+                }
+                _lifecycleCache[key] = method;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[MainPage] InvokeLifecycle {methodName} on {page.GetType().Name}, method found={method != null}");
             method?.Invoke(page, null);
         }
         catch (Exception ex)

@@ -53,7 +53,8 @@
 
 ## Windows 端平台特性（MAUI net11.0-windows）
 - **添加音乐文件夹**：Windows 用 `Platforms/Windows/WindowsFolderPicker.cs`（WinUI `Windows.Storage.Pickers.FolderPicker`
-  + `InitializeWithWindow.Initialize` 绑定 HWND），选中真实路径后写入 `Preferences["custom_music_folders"]`。
+  + `InitializeWithWindow.Initialize` 绑定 HWND），选中真实路径后通过 `CustomFolderStore`（见下）写入
+  `FileSystem.AppDataDirectory/custom_music_folders.json` 文件。**切勿再用 `Preferences` 存自定义文件夹**（未打包 Windows 上静默失效，见下）。
   扫描服务 `LocalScanService` 读 `custom_music_folders` 全平台通用，所以 Windows 添加即生效。
 - **命名空间坑**：`Platforms/Windows` 下文件命名空间含 `...Platforms.Windows`，`Windows.Storage.*` 必须加 `global::` 前缀，
   否则被解析成嵌套命名空间报 CS0234；类名勿用 `FolderPicker`（与 MAUI 内置冲突）。详见 2026-07-07 日志。
@@ -67,3 +68,10 @@
   非 Windows 用 `#else` 提供空 `AttachKeyboard()`。详见 2026-07-07 日志。
 - **桌面根页**：`App.xaml.cs` `CreateWindow` 在 `#if WINDOWS` 下用 `DesktopMainPage` 作为 ShellContent（窗口 1200×800，Min 900×600），
   替代手机端 `MainPage` + TabBar。PC 化改造都集中在 `DesktopMainPage.xaml/.xaml.cs`。
+- **未打包 Windows 上 MAUI `Preferences` 静默失效（重要坑）**：本应用为 `WindowsPackageType=None` 的未打包 WinUI 程序，
+  `Windows.Storage.ApplicationData.Current` 为 null，MAUI 的 `Preferences` 在 Windows 上被内部空值守卫**静默失效**
+  （`Set` 无操作、`Get` 返回默认值，且不抛异常）。任何用 `Preferences` 持久化的数据在未打包 Windows 上都「看似成功、实则没存」。
+  **已踩雷**：自定义音乐文件夹 `custom_music_folders` 用 `Preferences` 存储 → Windows 上添加文件夹后扫描永远 0 首（报「本地音乐库已清空」）。
+  **修复**：改为 `FileSystem.AppDataDirectory` 下的 JSON 文件存储（见 `Services/CustomFolderStore.cs`，首次读取会从 `Preferences` 迁移旧数据，兼容 Android）。
+  **仍受影响**：`LocalMusicSettingsViewModel` 里的 `ffmpeg_enabled` / `use_media_store` / `use_saf_scan` 及主题等 `Preferences` 读取在未打包 Windows 上同样可能不持久；
+  若用户反馈这些设置不保存，需同样迁移到文件存储。详见 2026-07-09 日志。

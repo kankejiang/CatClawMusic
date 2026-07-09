@@ -39,15 +39,18 @@ public partial class LibraryPage : ContentPage
     {
         base.OnAppearing();
 
-        // 每次显示时刷新协议列表（从设置页返回后可能新增/删除了协议）
-        await _vm.RefreshProtocolsAsync();
-
         if (_isFirstAppearing)
         {
             _isFirstAppearing = false;
-            if (_vm.Songs.Count > 0) return;
+            await _vm.RefreshProtocolsAsync();
+            await LoadInitialDataAsync();
         }
-        
+        // 非首次切回：不重新加载数据，避免切页时全量重建 CollectionView 导致大量 GC
+    }
+
+    /// <summary>首次加载时根据当前 Tab 加载对应数据</summary>
+    private async Task LoadInitialDataAsync()
+    {
         try
         {
             if (_vm.CurrentTab == "Local")

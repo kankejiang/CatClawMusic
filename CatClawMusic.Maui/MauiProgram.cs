@@ -264,6 +264,14 @@ public static class MauiProgram
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
         services.AddSingleton<ILogService, LogService>();
 
+        // 桌面歌词服务（Android 使用 WindowManager 悬浮窗，其他平台空实现）
+#if ANDROID
+        services.AddSingleton<Core.Interfaces.IDesktopLyricService, Platforms.Android.DesktopLyricService>();
+#else
+        services.AddSingleton<Core.Interfaces.IDesktopLyricService, Services.EmptyDesktopLyricService>();
+#endif
+        services.AddSingleton<Services.DesktopLyricManager>();
+
         // ═══════════════════════════════════════════════════
         // Infrastructure services
         // ═══════════════════════════════════════════════════
@@ -359,6 +367,7 @@ public static class MauiProgram
         services.AddTransient<Pages.ArtistMatchPage>();
         services.AddTransient<Pages.ArtistMatchDetailPage>();
         services.AddTransient<Pages.DesktopLyricPage>();
+        services.AddTransient<ViewModels.DesktopLyricViewModel>();
         services.AddTransient<Pages.ModelManagerPage>();
         services.AddTransient<Pages.ModelEditPage>();
         services.AddTransient<Pages.SplashSettingsPage>();

@@ -62,6 +62,25 @@
                     </Border.GestureRecognizers>
                 </Border>
 
+                <!-- 桌面歌词 -->
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{OnPlatform Default=false, Android=true}">
+                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                        <Image Source="ic_lyrics" WidthRequest="22" HeightRequest="22"
+                               VerticalOptions="Center" Opacity="0.8" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}" FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricDesc]}" Style="{StaticResource PageSubtitleStyle}" />
+                        </VerticalStackLayout>
+                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                               WidthRequest="18" HeightRequest="18"
+                               VerticalOptions="Center" Opacity="0.5" />
+                    </Grid>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnDesktopLyricClicked" />
+                    </Border.GestureRecognizers>
+                </Border>
+
                 <!-- 本地音乐 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">

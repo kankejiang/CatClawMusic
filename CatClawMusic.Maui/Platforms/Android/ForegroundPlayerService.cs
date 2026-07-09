@@ -48,6 +48,15 @@ public class ForegroundPlayerService : Service
     public static event Action<bool>? OnLyricsRequested;
     public static event Action<bool>? OnFavoriteToggled;
 
+    /// <summary>同步桌面歌词按钮状态（当实际开启/关闭与通知栏按钮状态不一致时调用）</summary>
+    public static void SyncLyricsEnabled(bool enabled)
+    {
+        if (_instance == null) return;
+        if (_instance._isLyricsEnabled == enabled) return;
+        _instance._isLyricsEnabled = enabled;
+        _instance.UpdateNotification(_instance._title, _instance._artist, _instance._isPlaying, _instance._isFavorite, _instance._albumArt);
+    }
+
     public override void OnCreate()
     {
         base.OnCreate();

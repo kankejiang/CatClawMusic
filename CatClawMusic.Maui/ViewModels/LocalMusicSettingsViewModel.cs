@@ -322,45 +322,16 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
         await Task.CompletedTask;
     }
 
-    /// <summary>添加自定义文件夹路径到偏好（去重）</summary>
+    /// <summary>添加自定义文件夹路径（去重），持久化到 AppData 文件存储。</summary>
     /// <param name="path">文件夹路径</param>
-    public static void AddCustomFolder(string path)
-    {
-        try
-        {
-            var folders = GetCustomFolders();
-            if (!folders.Contains(path))
-            {
-                folders.Add(path);
-                Preferences.Set("custom_music_folders", System.Text.Json.JsonSerializer.Serialize(folders));
-            }
-        }
-        catch { }
-    }
+    public static void AddCustomFolder(string path) => CustomFolderStore.AddFolder(path);
 
-    /// <summary>从偏好中移除指定的自定义文件夹路径</summary>
+    /// <summary>从持久化存储中移除指定的自定义文件夹路径。</summary>
     /// <param name="path">文件夹路径</param>
-    public static void RemoveCustomFolder(string path)
-    {
-        try
-        {
-            var folders = GetCustomFolders();
-            folders.Remove(path);
-            Preferences.Set("custom_music_folders", System.Text.Json.JsonSerializer.Serialize(folders));
-        }
-        catch { }
-    }
+    public static void RemoveCustomFolder(string path) => CustomFolderStore.RemoveFolder(path);
 
-    public static List<string> GetCustomFolders()
-    {
-        try
-        {
-            var json = Preferences.Get("custom_music_folders", "");
-            if (string.IsNullOrEmpty(json)) return new List<string>();
-            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
-        }
-        catch { return new List<string>(); }
-    }
+    /// <summary>读取全部自定义文件夹路径（文件存储，兼容 Android / 未打包 Windows）。</summary>
+    public static List<string> GetCustomFolders() => CustomFolderStore.GetFolders();
 
 #if ANDROID
     private static string ExtractDisplayName(string uri)

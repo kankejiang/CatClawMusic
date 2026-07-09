@@ -53,7 +53,12 @@ public partial class NowPlayingPage : ContentPage
 
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
 
-        BuildLyricViews();
+        // 仅在歌词行数变化时重建视图，避免切页时大量控件销毁/重建
+        var allLines = _viewModel.AllLyricLines;
+        if (allLines == null || _lyricLabels.Count != allLines.Count)
+            BuildLyricViews();
+        else if (_viewModel.CurrentLyricIndexObservable >= 0 && _lyricLabels.Count > 0)
+            HighlightLine(_viewModel.CurrentLyricIndexObservable);
 
         // 延迟滚动到当前歌词行，确保布局完成后再定位
         if (_lyricLabels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)

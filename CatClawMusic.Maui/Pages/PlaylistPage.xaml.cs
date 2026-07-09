@@ -26,10 +26,13 @@ public partial class PlaylistPage : ContentPage
         if (_isFirstAppearing)
         {
             _isFirstAppearing = false;
-            if (_viewModel.Playlists.Count > 0) return;
+            await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
         }
-
-        await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
+        // 非首次切回：仅在数据为空时重新加载，避免切页时全量重建 CollectionView
+        else if (_viewModel.Playlists.Count == 0)
+        {
+            await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
+        }
     }
 
     /// <summary>在歌单列表中选中某个歌单时触发，导航到该歌单的详情页。</summary>

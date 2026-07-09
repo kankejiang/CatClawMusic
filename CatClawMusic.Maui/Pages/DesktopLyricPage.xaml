@@ -3,27 +3,273 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:viewmodels="clr-namespace:CatClawMusic.Maui.ViewModels"
              x:Class="CatClawMusic.Maui.Pages.DesktopLyricPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
     <Grid Background="{DynamicResource PageBackgroundBrush}">
-        <Border WidthRequest="220" HeightRequest="220"
-                StrokeThickness="0" StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Center" VerticalOptions="Start"
-                TranslationY="-60" />
-        <Border Margin="16,18,16,22"
-                Style="{StaticResource GlassCardStrongStyle}">
-            <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}" Style="{StaticResource PageTitleStyle}" />
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FeatureInDev]}"
-                       Style="{StaticResource PageSubtitleStyle}"
-                       HorizontalTextAlignment="Center" />
+
+        <ScrollView>
+            <VerticalStackLayout Padding="16,18,16,22" Spacing="14">
+
+                <!-- Hero Header -->
+                <Border Style="{StaticResource GlassCardStrongStyle}"
+                        Background="{DynamicResource HeroBrush}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricSubtitle]}"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F3F5FF" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 权限状态（仅 Android） -->
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{OnPlatform Default=false, Android=true}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="4" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[OverlayPermission]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding PermissionStatus}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RequestPermission]}"
+                                Command="{Binding RequestPermissionCommand}"
+                                IsVisible="{Binding HasPermission, Converter={StaticResource InvertedBoolConverter}}"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="36"
+                                FontSize="12" />
+                    </Grid>
+                </Border>
+
+                <!-- 桌面歌词开关 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="4" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricEnable]}"
+                                   FontSize="16" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricEnableDesc]}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding IsDesktopLyricEnabled, Mode=TwoWay}"
+                                OnColor="{DynamicResource PrimaryColor}"
+                                ThumbColor="White"
+                                VerticalOptions="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- 预览区域 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricPreview]}"
+                               FontSize="14" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Frame BackgroundColor="#33000000"
+                               CornerRadius="12"
+                               Padding="16,10"
+                               HasShadow="False">
+                            <Label Text="{Binding PreviewText}"
+                                   FontSize="{Binding DesktopFontSize}"
+                                   TextColor="{Binding TextColor}"
+                                   HorizontalTextAlignment="Center"
+                                   LineBreakMode="TailTruncation" />
+                        </Frame>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 字号设置 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricFontSize]}"
+                                   FontSize="16" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding DesktopFontSize, StringFormat='{0:F0}'}"
+                                   FontSize="13" TextColor="{DynamicResource TextHintColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                        <Slider Minimum="14"
+                                Maximum="32"
+                                Value="{Binding DesktopFontSize, Mode=TwoWay}"
+                                MinimumTrackColor="{DynamicResource PrimaryColor}"
+                                MaximumTrackColor="{DynamicResource InputBorderColor}"
+                                ThumbColor="{DynamicResource PrimaryColor}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 背景透明度 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricBgOpacity]}"
+                                   FontSize="16" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding BgOpacity, StringFormat='{0:P0}'}"
+                                   FontSize="13" TextColor="{DynamicResource TextHintColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                        <Slider Minimum="0"
+                                Maximum="1"
+                                Value="{Binding BgOpacity, Mode=TwoWay}"
+                                MinimumTrackColor="{DynamicResource PrimaryColor}"
+                                MaximumTrackColor="{DynamicResource InputBorderColor}"
+                                ThumbColor="{DynamicResource PrimaryColor}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 文字颜色 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricTextColor]}"
+                               FontSize="16" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <HorizontalStackLayout Spacing="8">
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#B3FFFFFF">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectTextColorCommand}" CommandParameter="#B3FFFFFF" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FFFFFFFF">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectTextColorCommand}" CommandParameter="#FFFFFFFF" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#B3000000">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectTextColorCommand}" CommandParameter="#B3000000" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FF64B5F6">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectTextColorCommand}" CommandParameter="#FF64B5F6" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FFAB47BC">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectTextColorCommand}" CommandParameter="#FFAB47BC" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FF66BB6A">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectTextColorCommand}" CommandParameter="#FF66BB6A" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 高亮颜色 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricHighlightColor]}"
+                               FontSize="16" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <HorizontalStackLayout Spacing="8">
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FFFFE082">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectHighlightColorCommand}" CommandParameter="#FFFFE082" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FFFF7043">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectHighlightColorCommand}" CommandParameter="#FFFF7043" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FFEC407A">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectHighlightColorCommand}" CommandParameter="#FFEC407A" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FFEF5350">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectHighlightColorCommand}" CommandParameter="#FFEF5350" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FF26C6DA">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectHighlightColorCommand}" CommandParameter="#FF26C6DA" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                            <Border WidthRequest="36" HeightRequest="36" Margin="2"
+                                    StrokeShape="RoundRectangle 18" StrokeThickness="2"
+                                    Stroke="#52FFFFFF" BackgroundColor="#FFFFCA28">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectHighlightColorCommand}" CommandParameter="#FFFFCA28" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 锁定位置 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="4" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricLockPosition]}"
+                                   FontSize="16" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricLockPositionDesc]}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding IsLocked, Mode=TwoWay}"
+                                OnColor="{DynamicResource PrimaryColor}"
+                                ThumbColor="White"
+                                VerticalOptions="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- 使用提示 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricTips]}"
+                               FontSize="14" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricTipsContent]}"
+                               FontSize="12" TextColor="{DynamicResource TextHintColor}"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
             </VerticalStackLayout>
-        </Border>
-            <controls:BackButton Margin="16,16,0,0"
+        </ScrollView>
+
+        <controls:BackButton Margin="16,16,0,0"
                              VerticalOptions="Start"
                              HorizontalOptions="Start"
                              ZIndex="100" />
-</Grid>
+    </Grid>
 </ContentPage>

@@ -65,10 +65,17 @@ public partial class AudioPlayerService
         PlaybackStateChanged += OnPlaybackStateChangedForNotification;
     }
 
+    /// <summary>上次通知栏进度更新时间，用于限流（每秒最多更新一次）</summary>
+    private long _lastNotifProgressMs;
+
     /// <summary>播放位置变化时更新通知栏进度条</summary>
     private void OnPositionChangedForNotification(object? sender, TimeSpan e)
     {
         if (!IsPlaying) return;
+        // 限流：每秒最多更新一次通知栏进度，避免频繁创建 PlaybackState.Builder 等对象
+        var nowMs = System.Environment.TickCount64;
+        if (nowMs - _lastNotifProgressMs < 1000) return;
+        _lastNotifProgressMs = nowMs;
         try { UpdateNotificationProgress(); } catch { }
     }
 
@@ -835,7 +842,10 @@ public partial class AudioPlayerService
             {
                 DesktopLyricToggled?.Invoke(isEnabled);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Error("AudioPlayerSvc", $"OnNotifLyricsRequested failed: {ex.GetType().Name}: {ex.Message}");
+            }
         });
     }
 

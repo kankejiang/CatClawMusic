@@ -300,16 +300,7 @@ public class LocalScanService
         }
     }
 
-    private static List<string> GetCustomFolders()
-    {
-        try
-        {
-            var json = Preferences.Get("custom_music_folders", "");
-            if (string.IsNullOrEmpty(json)) return new List<string>();
-            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
-        }
-        catch { return new List<string>(); }
-    }
+    private static List<string> GetCustomFolders() => CustomFolderStore.GetFolders();
 
     private class SongPathComparer : IEqualityComparer<Song>
     {

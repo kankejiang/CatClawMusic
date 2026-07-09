@@ -346,10 +346,20 @@ public partial class LibraryViewModel : ObservableObject
             ct.ThrowIfCancellationRequested();
 
             // 回到主线程更新 ObservableCollection
+            // 复用现有实例用 Clear+Add 方式更新，避免替换实例导致 CollectionView 全量重建
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (ct.IsCancellationRequested) return;
-                FilteredSongs = new ObservableCollection<Song>(filtered);
+                if (FilteredSongs == null)
+                {
+                    FilteredSongs = new ObservableCollection<Song>(filtered);
+                }
+                else
+                {
+                    FilteredSongs.Clear();
+                    foreach (var s in filtered)
+                        FilteredSongs.Add(s);
+                }
                 SongCount = FilteredSongs.Count;
                 SectionTitle = string.IsNullOrWhiteSpace(SearchQuery)
                     ? "全部歌曲"

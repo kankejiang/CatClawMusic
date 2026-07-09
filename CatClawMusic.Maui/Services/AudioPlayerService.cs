@@ -12,6 +12,9 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private string? _currentFilePath;
     private bool _disposed;
     private System.Threading.Timer? _positionTimer;
+    private double _lastNotifiedPosition = -1;
+    // 缓存定时器回调委托，避免每次 tick 创建新闭包
+    private static readonly TimerCallback _positionCallback = PositionTimerCallback;
 
     /// <summary>
     /// 平台可注入的 URL 转换器，用于将 smb:// 等 ExoPlayer 不支持的协议 URL 转换为可播放的 URL（如本地 HTTP 代理地址）。
@@ -46,6 +49,36 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     public double CurrentPosition => GetPlatformCurrentPositionSeconds();
     /// <summary>获取媒体总时长（秒）</summary>
     public double Duration => GetPlatformDurationSeconds();
+
+    /// <summary>
+    /// 位置定时器静态回调，避免每次 tick 创建 lambda 闭包。
+    /// state 是 AudioPlayerService 实例的弱引用包装。
+    /// </summary>
+    private static void PositionTimerCallback(object? state)
+    {
+        if (state is not AudioPlayerService svc || svc._disposed) return;
+        var pos = svc.CurrentPosition;
+        // 在定时器线程上先判断位置是否变化，避免无意义的主线程通知
+        if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.02 && pos > 0)
+            return;
+        svc._lastNotifiedPosition = pos;
+        // 仅在位置确实变化时才 dispatch 到主线程
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                if (svc._disposed) return;
+                svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
+                svc.CheckPlatformCompletion();
+            }
+            catch (Exception ex)
+            {
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine($"[PositionTimer] Error: {ex.Message}");
+#endif
+            }
+        });
+    }
 
     /// <summary>
     /// 获取或设置音量（0.0 ~ 1.0），超出范围会被自动钳制。
@@ -118,6 +151,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     public Task PauseAsync()
     {
         PlatformPause();
+        StopPositionTimer();
         PlaybackStateChanged?.Invoke(this, false);
         return Task.CompletedTask;
     }
@@ -145,42 +179,18 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     public Task SeekAsync(TimeSpan position)
     {
         PlatformSeek(position);
+        _lastNotifiedPosition = position.TotalSeconds;
         PositionChanged?.Invoke(this, position);
         return Task.CompletedTask;
     }
 
     #region 进度定时器
 
-    /// <summary>上次通知的位置（秒），用于过滤无意义的位置更新</summary>
-    private double _lastNotifiedPosition = -1;
-
-    /// <summary>启动进度定时器，每 40ms 触发一次位置更新（25fps，保证逐字歌词流畅度）</summary>
+    /// <summary>启动进度定时器，每 200ms 触发一次位置更新（5fps，足以驱动进度条和逐字歌词）</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_ =>
-        {
-            // ExoPlayer 必须在主线程访问，MAUI 11 严格检查线程
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                try
-                {
-                    var pos = CurrentPosition;
-                    // 仅当位置实际变化超过 0.02 秒时才通知，避免暂停时无意义的 PropertyChanged
-                    if (Math.Abs(pos - _lastNotifiedPosition) < 0.02 && pos > 0)
-                        return;
-                    _lastNotifiedPosition = pos;
-                    PositionChanged?.Invoke(this, TimeSpan.FromSeconds(pos));
-                    CheckPlatformCompletion();
-                }
-                catch (Exception ex)
-                {
-#if DEBUG
-                    System.Diagnostics.Debug.WriteLine($"[PositionTimer] Error: {ex.Message}");
-#endif
-                }
-            });
-        }, null, 40, 40);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 200, 200);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>
