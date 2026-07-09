@@ -52,22 +52,22 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     /// <summary>
     /// 位置定时器静态回调，避免每次 tick 创建 lambda 闭包。
-    /// state 是 AudioPlayerService 实例的弱引用包装。
+    /// 整个回调在主线程执行，因为 ExoPlayer 要求同线程访问。
     /// </summary>
     private static void PositionTimerCallback(object? state)
     {
         if (state is not AudioPlayerService svc || svc._disposed) return;
-        var pos = svc.CurrentPosition;
-        // 在定时器线程上先判断位置是否变化，避免无意义的主线程通知
-        if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.02 && pos > 0)
-            return;
-        svc._lastNotifiedPosition = pos;
-        // 仅在位置确实变化时才 dispatch 到主线程
+        // ExoPlayer 要求在创建线程（主线程）访问，必须切到主线程
         MainThread.BeginInvokeOnMainThread(() =>
         {
             try
             {
                 if (svc._disposed) return;
+                var pos = svc.CurrentPosition;
+                // 25fps 下每 tick 约 0.04s 变化，阈值 0.03 确保不跳过有效更新但过滤抖动
+                if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.03 && pos > 0)
+                    return;
+                svc._lastNotifiedPosition = pos;
                 svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
                 svc.CheckPlatformCompletion();
             }
@@ -138,7 +138,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
                 resolvedPath = syncResolved;
 
             PlatformPlay(BuildSourceUri(resolvedPath));
-            StartPositionTimer();
+            // 不在此处启动 PositionTimer — ExoPlayer 的 OnIsPlayingChanged 回调会负责启动/停止
             PlaybackStateChanged?.Invoke(this, true);
         }
         catch (Exception ex)
@@ -160,7 +160,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     public Task ResumeAsync()
     {
         PlatformResume();
-        StartPositionTimer();
+        // 不在此处启动 PositionTimer — ExoPlayer 的 OnIsPlayingChanged 回调会负责启动/停止
         PlaybackStateChanged?.Invoke(this, true);
         return Task.CompletedTask;
     }
@@ -186,11 +186,11 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 200ms 触发一次位置更新（5fps，足以驱动进度条和逐字歌词）</summary>
+    /// <summary>启动进度定时器，每 40ms 触发一次位置更新（25fps，驱动进度条和逐字歌词）</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 200, 200);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 40, 40);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>

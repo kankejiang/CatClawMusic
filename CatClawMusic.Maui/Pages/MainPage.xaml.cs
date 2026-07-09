@@ -599,7 +599,7 @@ public partial class MainPage : ContentPage
     }
 
     /// <summary>点击迷你播放器非按钮区域（封面/标题）跳转到播放页</summary>
-    private void OnMiniPlayerTapped(object? sender, TappedEventArgs e)
+    private void OnMiniPlayerTapped(object? sender, EventArgs e)
     {
         _ = AnimateToPage(1);
     }

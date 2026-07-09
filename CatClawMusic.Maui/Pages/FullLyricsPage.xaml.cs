@@ -63,19 +63,12 @@ public partial class FullLyricsPage : ContentPage
             return;
         }
 
-        // 逐字填充进度变化：直接更新当前行 KaraokeLabel 的 FillProgress（无需重建视图）
+        // 逐字填充进度变化：PropertyChanged 已在主线程触发，无需额外 dispatch
         if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLineFillProgress))
         {
             var idx = _viewModel.CurrentLyricIndexObservable;
             if (idx >= 0 && idx < _lyricLabels.Count)
-            {
-                var progress = _viewModel.CurrentLineFillProgress;
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    if (idx >= 0 && idx < _lyricLabels.Count)
-                        _lyricLabels[idx].FillProgress = progress;
-                });
-            }
+                _lyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
         }
     }
 

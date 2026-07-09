@@ -28,6 +28,8 @@ public class DesktopLyricService : IDesktopLyricService
     private TextView? _textViewBase;   // 未唱层
     private TextView? _textViewFill;   // 已唱层（裁剪）
     private LinearLayout? _container;
+    private HorizontalScrollView? _scrollView;
+    private TextView? _lockButton;
     private WindowManagerLayoutParams? _layoutParams;
     private float _density;
     private string _currentText = "";
@@ -38,6 +40,7 @@ public class DesktopLyricService : IDesktopLyricService
     private double _bgOpacity = 0.3;
     private bool _locked;
     private float _posYRatio = 0.75f;
+    private bool _hasScrolled;
 
     /// <summary>桌面歌词是否正在显示</summary>
     public bool IsShowing { get; private set; }
@@ -81,6 +84,8 @@ public class DesktopLyricService : IDesktopLyricService
         {
             _windowManager!.AddView(_overlayView, _layoutParams);
             IsShowing = true;
+            // 如果设置中已锁定，立即应用锁定状态（隐藏按钮 + 触摸穿透）
+            if (_locked) ApplyLockState();
             Log.Info(Tag, "Show() success: overlay view added to WindowManager");
         }
         catch (Exception ex)
@@ -117,6 +122,8 @@ public class DesktopLyricService : IDesktopLyricService
         _textViewBase = null;
         _textViewFill = null;
         _container = null;
+        _scrollView = null;
+        _lockButton = null;
         IsShowing = false;
     }
 
@@ -143,6 +150,7 @@ public class DesktopLyricService : IDesktopLyricService
         if (!IsShowing) return;
 
         UpdateTextStyle();
+        ApplyLockState();
         UpdateFillInternal();
     }
 
@@ -185,60 +193,83 @@ public class DesktopLyricService : IDesktopLyricService
 
     private void CreateOverlayView(Context ctx)
     {
-        // 容器：圆角半透明背景
+        // 容器：垂直布局，歌词在上，锁定按钮在下
         _container = new LinearLayout(ctx)
         {
-            Orientation = global::Android.Widget.Orientation.Horizontal,
+            Orientation = global::Android.Widget.Orientation.Vertical,
             LayoutParameters = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.WrapContent)
         };
-        _container.SetGravity(GravityFlags.Center);
+        _container.SetGravity(GravityFlags.CenterHorizontal);
         int padH = (int)(16 * _density);
         int padV = (int)(8 * _density);
         _container.SetPadding(padH, padV, padH, padV);
 
-        // 使用 FrameLayout 叠加两层 TextView
+        // 使用 HorizontalScrollView 实现长歌词水平滚动，FrameLayout 叠加两层 TextView
+        _scrollView = new HorizontalScrollView(ctx)
+        {
+            HorizontalScrollBarEnabled = false,
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent,
+                ViewGroup.LayoutParams.WrapContent)
+        };
+
         var frame = new FrameLayout(ctx);
-        frame.LayoutParameters = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MatchParent,
-            ViewGroup.LayoutParams.WrapContent);
+        frame.LayoutParameters = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WrapContent,
+            ViewGroup.LayoutParams.WrapContent,
+            GravityFlags.CenterHorizontal);
 
         // 未唱层
         _textViewBase = new TextView(ctx)
         {
             LayoutParameters = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.WrapContent,
-                GravityFlags.Center)
+                ViewGroup.LayoutParams.WrapContent)
         };
-        _textViewBase.Gravity = GravityFlags.Center;
         _textViewBase.SetTextColor(_textColor);
         _textViewBase.SetTextSize(ComplexUnitType.Sp, _fontSize);
         _textViewBase.SetShadowLayer(3f * _density, 0, 1f * _density, Color.Black);
-        _textViewBase.SetSingleLine(false);
-        _textViewBase.SetMaxLines(2);
-        _textViewBase.Ellipsize = global::Android.Text.TextUtils.TruncateAt.End;
+        _textViewBase.SetSingleLine(true);
+        _textViewBase.Ellipsize = null;
 
         // 已唱层（裁剪）
         _textViewFill = new LyricFillTextView(ctx)
         {
             LayoutParameters = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.WrapContent,
-                GravityFlags.Center)
+                ViewGroup.LayoutParams.WrapContent)
         };
-        _textViewFill.Gravity = GravityFlags.Center;
         _textViewFill.SetTextColor(ColorStateList.ValueOf(_highlightColor));
         _textViewFill.SetTextSize(ComplexUnitType.Sp, _fontSize);
         _textViewFill.SetShadowLayer(3f * _density, 0, 1f * _density, Color.Black);
-        _textViewFill.SetSingleLine(false);
-        _textViewFill.SetMaxLines(2);
-        _textViewFill.Ellipsize = global::Android.Text.TextUtils.TruncateAt.End;
+        _textViewFill.SetSingleLine(true);
+        _textViewFill.Ellipsize = null;
 
         frame.AddView(_textViewBase);
         frame.AddView(_textViewFill);
-        _container.AddView(frame);
+        _scrollView.AddView(frame);
+
+        _container.AddView(_scrollView);
+
+        // 锁定按钮：文字"🔒"，居中放在歌词下方
+        _lockButton = new TextView(ctx)
+        {
+            Text = "🔒",
+            LayoutParameters = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WrapContent,
+                ViewGroup.LayoutParams.WrapContent)
+            {
+                TopMargin = (int)(4 * _density),
+                Gravity = GravityFlags.CenterHorizontal
+            }
+        };
+        _lockButton.SetTextSize(ComplexUnitType.Sp, 14f);
+        _lockButton.SetPadding(0, 0, 0, 0);
+        _lockButton.Click += (s, e) => ToggleLock();
+
+        _container.AddView(_lockButton);
 
         // 设置背景
         UpdateContainerBackground();
@@ -294,17 +325,41 @@ public class DesktopLyricService : IDesktopLyricService
 
     private void UpdateTextInternal()
     {
-        if (_textViewBase == null || _textViewFill == null) return;
+        if (_textViewBase == null || _textViewFill == null || _scrollView == null) return;
         _textViewBase.Text = _currentText;
         _textViewFill.Text = _currentText;
+        _hasScrolled = false;
+        // 重置到最左侧（需在 layout 完成后执行，否则 ScrollView 会保持旧的滚动位置）
+        _scrollView.Post(() => _scrollView?.ScrollTo(0, 0));
         // 重置填充
         UpdateFillInternal();
+    }
+
+    /// <summary>检查是否需要开始滚动（填充进度达到 50% 时触发）</summary>
+    private void CheckScrollTrigger()
+    {
+        if (_hasScrolled || _scrollView == null) return;
+        if (_fillProgress < 0.5) return;
+
+        _scrollView.Post(() =>
+        {
+            if (_scrollView == null || _hasScrolled) return;
+            var scrollRange = _scrollView.GetChildAt(0)?.Width ?? 0;
+            var visibleWidth = _scrollView.Width;
+            if (scrollRange <= visibleWidth) return; // 文本不超长，无需滚动
+
+            _hasScrolled = true;
+            // 平滑滚动到最右侧，显示完整歌词
+            _scrollView.SmoothScrollTo(scrollRange - visibleWidth, 0);
+        });
     }
 
     private void UpdateFillInternal()
     {
         if (_textViewFill is not LyricFillTextView fillView) return;
         fillView.SetFillProgress(_fillProgress);
+        // 检查是否需要触发滚动
+        CheckScrollTrigger();
     }
 
     /// <summary>更新悬浮窗 Y 位置并持久化</summary>
@@ -319,6 +374,42 @@ public class DesktopLyricService : IDesktopLyricService
         var displayMetrics = Application.Context.Resources.DisplayMetrics;
         var ratio = (double)y / displayMetrics.HeightPixels;
         Services.LyricsSettingsService.Instance.DesktopPosY = ratio;
+    }
+
+    /// <summary>切换锁定状态</summary>
+    private void ToggleLock()
+    {
+        _locked = !_locked;
+        Services.LyricsSettingsService.Instance.DesktopLocked = _locked;
+        ApplyLockState();
+    }
+
+    /// <summary>应用锁定状态：更新按钮可见性和 WindowManager flags</summary>
+    private void ApplyLockState()
+    {
+        if (_lockButton != null)
+        {
+            // 锁定后隐藏锁定按钮（需通过通知栏关闭再开启解锁）
+            _lockButton.Visibility = _locked ? ViewStates.Gone : ViewStates.Visible;
+        }
+
+        if (_layoutParams == null || _windowManager == null || _overlayView == null) return;
+
+        // 锁定时添加 NotTouchable 让触摸穿透到下方控件
+        if (_locked)
+            _layoutParams.Flags |= WindowManagerFlags.NotTouchable;
+        else
+            _layoutParams.Flags &= ~WindowManagerFlags.NotTouchable;
+
+        try
+        {
+            _windowManager.UpdateViewLayout(_overlayView, _layoutParams);
+            Log.Info(Tag, $"ApplyLockState: locked={_locked}, flags={_layoutParams.Flags}");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn(Tag, $"ApplyLockState UpdateViewLayout failed: {ex.Message}");
+        }
     }
 
     /// <summary>带裁剪的 TextView，通过 Canvas.clipRect 实现逐字填充</summary>

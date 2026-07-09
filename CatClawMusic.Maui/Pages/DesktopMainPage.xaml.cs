@@ -411,14 +411,17 @@ public partial class DesktopMainPage : ContentPage
 
     private void OnLyricsButtonClicked(object? sender, EventArgs e)
     {
-        // 跳转到全屏歌词页（已注册全局路由 fullyrics）
-        _ = Shell.Current.GoToAsync("//fullyrics");
+        // Windows 桌面端：Shell 绝对路由 //fullyrics 在单一 ShellContent 下无效，
+        // 使用 Navigation.PushAsync 推入全屏歌词页。
+        var page = _services.GetRequiredService<FullLyricsPage>();
+        _ = Shell.Current.Navigation.PushAsync(page);
     }
 
-    /// <summary>点击底部播放栏的歌曲信息/封面时，跳转到正在播放页（桌面端通过 Shell 路由推送）</summary>
-    private void OnPlayerSongInfoTapped(object? sender, TappedEventArgs e)
+    /// <summary>点击底部播放栏的歌曲信息/封面时，跳转到正在播放页（桌面端使用 Navigation.PushAsync）</summary>
+    private void OnPlayerSongInfoTapped(object? sender, EventArgs e)
     {
-        _ = Shell.Current.GoToAsync("//nowplaying");
+        var page = _services.GetRequiredService<NowPlayingPage>();
+        _ = Shell.Current.Navigation.PushAsync(page);
     }
 
     private void InitVolumeSlider()

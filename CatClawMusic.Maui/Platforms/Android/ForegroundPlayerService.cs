@@ -225,7 +225,7 @@ public class ForegroundPlayerService : Service
             int height = source.Height;
             if (width <= 0 || height <= 0) return null;
             float scale = Math.Min((float)maxSize / width, (float)maxSize / height);
-            if (scale >= 1.0f) return source.Copy(source.GetConfig() ?? Bitmap.Config.Argb8888, false);
+            if (scale >= 1.0f) return source;  // 无需缩小，直接返回原图避免 Copy 分配
             return Bitmap.CreateScaledBitmap(source, (int)(width * scale), (int)(height * scale), true);
         }
         catch

@@ -41,9 +41,6 @@
               HeightRequest="52"
               BackgroundColor="{DynamicResource CardBackgroundColor}"
               IsVisible="False">
-            <Grid.GestureRecognizers>
-                <TapGestureRecognizer Tapped="OnMiniPlayerTapped" />
-            </Grid.GestureRecognizers>
 
             <!-- 封面 -->
             <Border Grid.Column="0"
@@ -71,6 +68,16 @@
                        MaxLines="1"
                        LineBreakMode="TailTruncation" />
             </VerticalStackLayout>
+
+            <!-- 透明按钮覆盖封面+歌曲信息区域，避免 Grid 级 TapGestureRecognizer 在嵌套布局中失效 -->
+            <Button Grid.Column="0" Grid.ColumnSpan="2"
+                    BackgroundColor="Transparent"
+                    Text=""
+                    BorderWidth="0"
+                    CornerRadius="0"
+                    Padding="0"
+                    Clicked="OnMiniPlayerTapped"
+                    HorizontalOptions="Fill" VerticalOptions="Fill" />
 
             <!-- 上一曲 -->
             <Border Grid.Column="2"

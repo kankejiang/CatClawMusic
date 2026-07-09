@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using System.Collections.Concurrent;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -10,7 +11,7 @@ namespace CatClawMusic.Maui.Services;
 public static class CoverHelper
 {
     private static readonly string _coverCacheDir;
-    private static readonly HashSet<int> _resolvedSongIds = new();
+    private static readonly ConcurrentDictionary<int, byte> _resolvedSongIds = new();
 
     static CoverHelper()
     {
@@ -33,7 +34,7 @@ public static class CoverHelper
             if (song.Id <= 0) continue;
 
             // 跳过已解析过的（同一会话内）
-            if (_resolvedSongIds.Contains(song.Id))
+            if (_resolvedSongIds.ContainsKey(song.Id))
             {
                 // 确保路径还在
                 var cachedPath = GetCachedPath(song.Id);
@@ -50,7 +51,7 @@ public static class CoverHelper
                 song.CoverArtPath = path;
             }
 
-            _resolvedSongIds.Add(song.Id);
+            _resolvedSongIds.TryAdd(song.Id, 0);
         }
     }
 

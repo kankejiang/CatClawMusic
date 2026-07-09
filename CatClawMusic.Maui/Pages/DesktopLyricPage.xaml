@@ -77,11 +77,18 @@
                                CornerRadius="12"
                                Padding="16,10"
                                HasShadow="False">
-                            <Label Text="{Binding PreviewText}"
-                                   FontSize="{Binding DesktopFontSize}"
-                                   TextColor="{Binding TextColor}"
-                                   HorizontalTextAlignment="Center"
-                                   LineBreakMode="TailTruncation" />
+                            <HorizontalStackLayout Spacing="0" HorizontalOptions="Center">
+                                <Label Text="猫爪音乐"
+                                       FontSize="{Binding DesktopFontSize}"
+                                       TextColor="{Binding HighlightColor}"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalOptions="Center" />
+                                <Label Text=" · 桌面歌词预览"
+                                       FontSize="{Binding DesktopFontSize}"
+                                       TextColor="{Binding TextColor}"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
                         </Frame>
                     </VerticalStackLayout>
                 </Border>

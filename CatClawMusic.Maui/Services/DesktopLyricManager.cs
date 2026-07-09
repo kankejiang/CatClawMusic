@@ -95,11 +95,13 @@ public class DesktopLyricManager
         return true;
     }
 
-    /// <summary>关闭桌面歌词</summary>
+    /// <summary>关闭桌面歌词（通知栏关闭时调用，同时解锁）</summary>
     public void Disable()
     {
         MainThread.BeginInvokeOnMainThread(() => _desktopLyricService.Hide());
         LyricsSettingsService.Instance.DesktopLyricEnabled = false;
+        // 关闭时解锁，下次开启时为解锁状态
+        LyricsSettingsService.Instance.DesktopLocked = false;
         StateChanged?.Invoke(false);
     }
 
@@ -156,66 +158,10 @@ public class DesktopLyricManager
             text = line.Text;
         }
 
-        double progress;
-        var settingsMode = LyricsSettingsService.Instance.LyricsMode;
-        if (settingsMode == LyricsSettingsService.Mode.Line)
-        {
-            progress = 1.0;
-        }
-        else
-        {
-            // 逐字模式
-            var lineStart = line.Timestamp;
-            var lineEnd = newIndex + 1 < _currentLyrics.Lines.Count
-                ? _currentLyrics.Lines[newIndex + 1].Timestamp
-                : lineStart + TimeSpan.FromSeconds(5);
+        var lineMode = LyricsSettingsService.Instance.LyricsMode == LyricsSettingsService.Mode.Line;
+        var progress = LyricFillCalculator.ComputeFillProgress(
+            line, newIndex, _currentLyrics.Lines, position, lineMode);
 
-            if (position <= lineStart)
-                progress = 0;
-            else if (position >= lineEnd)
-                progress = 1.0;
-            else if (line.WordTimestamps != null && line.WordTimestamps.Count > 0)
-                progress = CalculateSyllableProgress(line.WordTimestamps, position, lineStart, lineEnd);
-            else
-            {
-                var totalMs = (lineEnd - lineStart).TotalMilliseconds;
-                var elapsedMs = (position - lineStart).TotalMilliseconds;
-                progress = totalMs > 0 ? Math.Clamp(elapsedMs / totalMs, 0.0, 1.0) : 1.0;
-            }
-        }
         return (text, progress);
-    }
-
-    /// <summary>按音节时间戳计算填充进度</summary>
-    private static double CalculateSyllableProgress(
-        List<WordTimestamp> words, TimeSpan position, TimeSpan lineStart, TimeSpan lineEnd)
-    {
-        double totalChars = 0;
-        foreach (var w in words) totalChars += w.Word.Length;
-        if (totalChars <= 0) return 0;
-
-        double filledChars = 0;
-        for (int i = 0; i < words.Count; i++)
-        {
-            var w = words[i];
-            var wordStart = lineStart + w.Start;
-            var wordDur = w.Duration;
-            var wordEnd = wordStart + wordDur;
-
-            if (position >= wordEnd)
-            {
-                filledChars += w.Word.Length;
-            }
-            else if (position >= wordStart)
-            {
-                // 当前音节内按时间比例
-                var wordProgress = wordDur.TotalMilliseconds > 0
-                    ? (position - wordStart).TotalMilliseconds / wordDur.TotalMilliseconds
-                    : 1.0;
-                filledChars += w.Word.Length * Math.Clamp(wordProgress, 0.0, 1.0);
-            }
-        }
-
-        return Math.Clamp(filledChars / totalChars, 0.0, 1.0);
     }
 }

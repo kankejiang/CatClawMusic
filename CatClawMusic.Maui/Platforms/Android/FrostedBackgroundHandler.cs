@@ -92,6 +92,12 @@ public class FrostedBackgroundView : View
     private readonly RectF _destRect = new();
     private long _lastAnimNanos;  // 上一帧的时间戳（用于计算 delta time）
 
+    // 复用的像素缓冲区（避免 BoxBlur 中每次分配 int[w*h] 大数组导致 LOS GC 风暴）
+    private int[]? _blurBufA;
+    private int[]? _blurBufB;
+    private int _blurBufW;
+    private int _blurBufH;
+
     /// <summary>递增加载版本号，并返回递增后的值</summary>
     public int IncrementLoadingVersion() => Interlocked.Increment(ref _loadingVersion);
 
@@ -211,7 +217,7 @@ public class FrostedBackgroundView : View
 
         _lastAnimNanos = System.Diagnostics.Stopwatch.GetTimestamp();
         _animator = ValueAnimator.OfFloat(0f, 1f);
-        _animator.SetDuration(16);
+        _animator.SetDuration(40);  // 25fps，雾面背景不需要高帧率
         _animator.RepeatCount = ValueAnimator.Infinite;
         _animator.RepeatMode = ValueAnimatorRepeatMode.Restart;
         _animator.SetInterpolator(new global::Android.Views.Animations.LinearInterpolator());
@@ -663,6 +669,15 @@ public class FrostedBackgroundView : View
         return current;
     }
 
+    /// <summary>获取复用的像素缓冲区，尺寸不匹配时重新分配</summary>
+    private int[] GetBlurBuffer(ref int[]? buf, int w, int h)
+    {
+        int len = w * h;
+        if (buf == null || buf.Length < len)
+            buf = new int[len];
+        return buf;
+    }
+
     /// <summary>水平方向箱式模糊</summary>
     private unsafe Bitmap BoxBlurHorizontal(Bitmap src, int radius)
     {
@@ -671,9 +686,9 @@ public class FrostedBackgroundView : View
         var config = src.GetConfig() ?? Bitmap.Config.Argb8888;
         var output = Bitmap.CreateBitmap(w, h, config)!;
 
-        int[] pixels = new int[w * h];
+        int[] pixels = GetBlurBuffer(ref _blurBufA, w, h);
         src.GetPixels(pixels, 0, w, 0, 0, w, h);
-        int[] result = new int[w * h];
+        int[] result = GetBlurBuffer(ref _blurBufB, w, h);
 
         int windowSize = radius * 2 + 1;
 
@@ -725,9 +740,9 @@ public class FrostedBackgroundView : View
         var config = src.GetConfig() ?? Bitmap.Config.Argb8888;
         var output = Bitmap.CreateBitmap(w, h, config)!;
 
-        int[] pixels = new int[w * h];
+        int[] pixels = GetBlurBuffer(ref _blurBufA, w, h);
         src.GetPixels(pixels, 0, w, 0, 0, w, h);
-        int[] result = new int[w * h];
+        int[] result = GetBlurBuffer(ref _blurBufB, w, h);
 
         int windowSize = radius * 2 + 1;
 
@@ -815,6 +830,8 @@ public class FrostedBackgroundView : View
             // 源位图由 UpdateSourceFromImageSource 管理（每个实例独立加载）
             // 不在这里回收，仅置空引用
             _sourceBitmap = null;
+            _blurBufA = null;
+            _blurBufB = null;
         }
         base.Dispose(disposing);
     }

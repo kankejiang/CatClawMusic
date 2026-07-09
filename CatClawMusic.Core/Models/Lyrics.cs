@@ -121,9 +121,88 @@ public class WordTimestamp
     /// <summary>该字词的文本</summary>
     public string Word { get; set; } = string.Empty;
 
-    /// <summary>该字词的开始时间</summary>
+    /// <summary>该字词的开始时间（绝对时间戳）</summary>
     public TimeSpan Start { get; set; }
 
     /// <summary>该字词的持续时长</summary>
     public TimeSpan Duration { get; set; }
+}
+
+/// <summary>
+/// 逐字歌词填充进度计算工具（播放页面、全屏歌词、桌面歌词共用）。
+/// </summary>
+public static class LyricFillCalculator
+{
+    /// <summary>
+    /// 计算指定歌词行在给定播放位置的逐字填充进度（0~1）。
+    /// 逐行模式返回 1.0；逐字模式按音节时间戳精确加权或线性填充。
+    /// </summary>
+    /// <param name="line">当前歌词行</param>
+    /// <param name="lineIndex">当前行索引</param>
+    /// <param name="allLines">全部歌词行</param>
+    /// <param name="position">当前播放位置</param>
+    /// <param name="lineMode">是否逐行模式</param>
+    public static double ComputeFillProgress(
+        LrcLyricLine line, int lineIndex, IReadOnlyList<LrcLyricLine> allLines,
+        TimeSpan position, bool lineMode)
+    {
+        if (lineMode)
+            return 1.0;
+
+        var lineStart = line.Timestamp;
+        var lineEnd = lineIndex + 1 < allLines.Count
+            ? allLines[lineIndex + 1].Timestamp
+            : lineStart + TimeSpan.FromSeconds(5);
+
+        if (position <= lineStart)
+            return 0;
+        if (position >= lineEnd)
+            return 1.0;
+
+        if (line.WordTimestamps != null && line.WordTimestamps.Count > 0)
+            return CalculateSyllableProgress(line.WordTimestamps, position);
+
+        // 标准 LRC：按时间线性填充
+        var totalMs = (lineEnd - lineStart).TotalMilliseconds;
+        var elapsedMs = (position - lineStart).TotalMilliseconds;
+        return totalMs > 0 ? Math.Clamp(elapsedMs / totalMs, 0.0, 1.0) : 1.0;
+    }
+
+    /// <summary>
+    /// 按音节时间戳计算填充进度：已唱完的音节贡献其字符比例，当前音节按时间进度部分贡献。
+    /// WordTimestamp.Start 为绝对时间戳。
+    /// </summary>
+    public static double CalculateSyllableProgress(
+        IReadOnlyList<WordTimestamp> syllables, TimeSpan position)
+    {
+        var totalChars = 0;
+        foreach (var syl in syllables)
+            totalChars += syl.Word?.Length ?? 0;
+        if (totalChars == 0) return 0;
+
+        double filledChars = 0;
+        foreach (var syl in syllables)
+        {
+            if (string.IsNullOrEmpty(syl.Word)) continue;
+
+            var sylStart = syl.Start;
+            var sylDur = syl.Duration;
+            if (sylDur <= TimeSpan.Zero)
+                sylDur = TimeSpan.FromMilliseconds(300);
+            var sylEnd = sylStart + sylDur;
+
+            if (position >= sylEnd)
+            {
+                filledChars += syl.Word.Length;
+            }
+            else if (position > sylStart)
+            {
+                var sylProgress = (position - sylStart).TotalMilliseconds / sylDur.TotalMilliseconds;
+                sylProgress = Math.Clamp(sylProgress, 0.0, 1.0);
+                filledChars += syl.Word.Length * sylProgress;
+            }
+        }
+
+        return Math.Clamp(filledChars / totalChars, 0.0, 1.0);
+    }
 }

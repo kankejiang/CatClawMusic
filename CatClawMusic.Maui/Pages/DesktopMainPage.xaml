@@ -149,18 +149,21 @@
               IsClippedToBounds="True" />
 
         <!-- ═══ Bottom Player Bar ═══ -->
-        <Border Grid.Row="2" Grid.Column="1"
-                StrokeThickness="0,1,0,0"
-                Stroke="{DynamicResource DividerColor}"
-                BackgroundColor="{DynamicResource CardBackgroundColor}">
-            <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,0" ColumnSpacing="16">
+        <!-- 注意：Windows 平台 Border 不会把测量尺寸传递给其内容，导致内部 Grid 高度为 0。
+             因此这里直接使用 Grid（与 TopBar 一致），并在顶部放一条 1px 的分隔线代替 Border 的 Stroke。 -->
+        <Grid x:Name="PlayerBarBorder" Grid.Row="2" Grid.Column="1"
+              RowDefinitions="1,*"
+              BackgroundColor="{DynamicResource CardBackgroundColor}">
+            <BoxView Grid.Row="0" HeightRequest="1"
+                     Color="{DynamicResource DividerColor}"
+                     VerticalOptions="Start" />
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="16,0" ColumnSpacing="16">
 
                 <!-- Song Info (left) -->
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12"
+                <!-- Windows 上嵌套布局的 TapGestureRecognizer 不可靠，
+                     这里用一个透明 Border 覆盖整个歌曲信息区来接收点击。 -->
+                <Grid Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="12"
                       VerticalOptions="Center" WidthRequest="240">
-                    <Grid.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnPlayerSongInfoTapped" />
-                    </Grid.GestureRecognizers>
                     <Border WidthRequest="48" HeightRequest="48"
                             StrokeShape="RoundRectangle 8"
                             StrokeThickness="0"
@@ -180,18 +183,30 @@
                                TextColor="{DynamicResource TextSecondaryColor}"
                                MaxLines="1" />
                     </VerticalStackLayout>
+                    <!-- 透明按钮覆盖整个歌曲信息区，负责捕获点击 -->
+                    <Button Grid.ColumnSpan="2"
+                            BackgroundColor="Transparent"
+                            Text=""
+                            BorderWidth="0"
+                            CornerRadius="0"
+                            Padding="0"
+                            Clicked="OnPlayerSongInfoTapped"
+                            HorizontalOptions="Fill" VerticalOptions="Fill" />
                 </Grid>
 
                 <!-- Controls + Progress (center) -->
-                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="6"
-                                     MaximumWidthRequest="600">
+                <!-- 注意：Windows 平台对 VerticalStackLayout 的 MaximumWidthRequest 处理有缺陷，
+                     会导致整个布局测量失败、内容完全不渲染。这里改用 Grid + HorizontalOptions=Center
+                     实现居中并显式限定宽度，以避免该问题。 -->
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto" HorizontalOptions="Center"
+                      VerticalOptions="Center" RowSpacing="6" WidthRequest="600">
                     <!-- Control buttons -->
-                    <HorizontalStackLayout Spacing="20" HorizontalOptions="Center">
+                    <HorizontalStackLayout Grid.Row="0" Spacing="20" HorizontalOptions="Center">
                         <ImageButton Source="{Binding PlayModeIconSource}"
                                      WidthRequest="24" HeightRequest="24"
                                      BackgroundColor="Transparent"
                                      Command="{Binding CyclePlayModeCommand}" />
-                        <ImageButton Source="ic_skip_previous"
+                        <ImageButton Source="{Binding PlayPreviousIconSource}"
                                      WidthRequest="28" HeightRequest="28"
                                      BackgroundColor="Transparent"
                                      Command="{Binding PlayPreviousCommand}" />
@@ -204,7 +219,7 @@
                                          Command="{Binding TogglePlayPauseCommand}"
                                          HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
-                        <ImageButton Source="ic_skip_next"
+                        <ImageButton Source="{Binding PlayNextIconSource}"
                                      WidthRequest="28" HeightRequest="28"
                                      BackgroundColor="Transparent"
                                      Command="{Binding PlayNextCommand}" />
@@ -214,7 +229,7 @@
                                      Command="{Binding ToggleLikeCommand}" />
                     </HorizontalStackLayout>
                     <!-- Progress bar -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <Label Text="{Binding CurrentTimeDisplay}"
                                FontSize="11" TextColor="{DynamicResource TextHintColor}"
                                WidthRequest="36" HorizontalTextAlignment="End" />
@@ -231,7 +246,7 @@
                                FontSize="11" TextColor="{DynamicResource TextHintColor}"
                                WidthRequest="36" />
                     </Grid>
-                </VerticalStackLayout>
+                </Grid>
 
                 <!-- Volume (right) -->
                 <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="12"
@@ -246,6 +261,6 @@
                             WidthRequest="100" VerticalOptions="Center" />
                 </Grid>
             </Grid>
-        </Border>
+        </Grid>
     </Grid>
 </ContentPage>

@@ -2,9 +2,11 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Maui.ApplicationModel;
 using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
@@ -70,22 +72,28 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private string _playModeIcon = "\U0001f501"; // 🔁 list repeat
     /// <summary>播放模式显示文本</summary>
     [ObservableProperty] private string _playModeLabel = "列表循环";
-    /// <summary>播放模式图标资源名称</summary>
-    [ObservableProperty] private ImageSource? _playModeIconSource = ImageSource.FromFile("ic_repeat_all");
+    /// <summary>播放模式图标 ImageSource（由资源名转换）</summary>
+    [ObservableProperty] private ImageSource? _playModeIconSource = ImageSourceHelper.FromNameThemed("ic_repeat_all");
 
     // === Play/Pause ===
     /// <summary>播放/暂停按钮图标字符（▶ 或 ⏸）</summary>
     [ObservableProperty] private string _playPauseIcon = "\u25b6"; // ▶
-    /// <summary>播放/暂停按钮图标资源名称</summary>
-    [ObservableProperty] private ImageSource? _playPauseIconSource = ImageSource.FromFile("ic_play");
+    /// <summary>播放/暂停按钮图标 ImageSource（由资源名转换）</summary>
+    [ObservableProperty] private ImageSource? _playPauseIconSource = ImageSourceHelper.FromNameThemed("ic_play");
 
     // === Like ===
     /// <summary>当前歌曲是否已收藏</summary>
     [ObservableProperty] private bool _isLiked;
     /// <summary>收藏按钮图标字符（♡ 或 ♥）</summary>
     [ObservableProperty] private string _likeIcon = "\u2661"; // ♡
-    /// <summary>收藏按钮图标资源名称</summary>
-    [ObservableProperty] private ImageSource? _likeIconSource = ImageSource.FromFile("ic_favorite_border");
+    /// <summary>收藏按钮图标 ImageSource（由资源名转换）</summary>
+    [ObservableProperty] private ImageSource? _likeIconSource = ImageSourceHelper.FromNameThemed("ic_favorite_border");
+
+    // === Previous / Next ===
+    /// <summary>上一首按钮图标 ImageSource</summary>
+    [ObservableProperty] private ImageSource? _playPreviousIconSource = ImageSourceHelper.FromNameThemed("ic_skip_previous");
+    /// <summary>下一首按钮图标 ImageSource</summary>
+    [ObservableProperty] private ImageSource? _playNextIconSource = ImageSourceHelper.FromNameThemed("ic_skip_next");
 
     // === Lyrics ===
     /// <summary>是否存在可用歌词</summary>
@@ -119,7 +127,19 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>全部歌词行（供全屏歌词页使用，只读）</summary>
     public IReadOnlyList<LrcLyricLine>? AllLyricLines => _currentLyrics?.Lines;
     /// <summary>当前行的逐字填充进度（0~1），供 KaraokeLabel 使用以实现 Apple Music 风格逐字渐进填充</summary>
-    [ObservableProperty] private double _currentLineFillProgress = 0.0;
+    private double _currentLineFillProgress = 0.0;
+    /// <summary>当前行的逐字填充进度（0~1）。仅在变化超过 0.003 时触发 PropertyChanged，避免无意义重绘</summary>
+    public double CurrentLineFillProgress
+    {
+        get => _currentLineFillProgress;
+        set
+        {
+            if (Math.Abs(_currentLineFillProgress - value) < 0.003)
+                return;
+            _currentLineFillProgress = value;
+            OnPropertyChanged();
+        }
+    }
 
     private LrcLyrics? _currentLyrics;
     private int _currentLyricIndex = -1;
@@ -204,6 +224,23 @@ public partial class NowPlayingViewModel : ObservableObject
         CyclePlayModeCommand = new RelayCommand(CyclePlayMode);
         ToggleLikeCommand = new AsyncRelayCommand(ToggleLikeAsync);
         SeekCommand = new RelayCommand<double>(OnSeek);
+
+        // 订阅主题切换事件，刷新主题感知图标（浅色/深色变体）
+        if (Application.Current != null)
+            Application.Current.RequestedThemeChanged += OnRequestedThemeChanged;
+    }
+
+    /// <summary>主题切换时刷新播放控制图标，使其使用对应深浅色变体</summary>
+    private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            PlayPauseIconSource = ImageSourceHelper.FromNameThemed(_audioService.IsPlaying ? "ic_pause" : "ic_play");
+            PlayPreviousIconSource = ImageSourceHelper.FromNameThemed("ic_skip_previous");
+            PlayNextIconSource = ImageSourceHelper.FromNameThemed("ic_skip_next");
+            RefreshPlayModeDisplay();
+            LikeIconSource = ImageSourceHelper.FromNameThemed(IsLiked ? "ic_favorite" : "ic_favorite_border");
+        });
     }
 
 #if ANDROID
@@ -242,7 +279,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 await _db.SetFavoriteAsync(song.Id, isFavorite);
                 IsLiked = isFavorite;
                 LikeIcon = isFavorite ? "\u2665" : "\u2661";
-                LikeIconSource = ImageSource.FromFile(isFavorite ? "ic_favorite" : "ic_favorite_border");
+                LikeIconSource = ImageSourceHelper.FromNameThemed(isFavorite ? "ic_favorite" : "ic_favorite_border");
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifFav: {ex.Message}"); }
         });
@@ -291,7 +328,7 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             IsPlaying = isPlaying;
             PlayPauseIcon = isPlaying ? "\u23f8" : "\u25b6"; // ⏸ or ▶
-            PlayPauseIconSource = ImageSource.FromFile(isPlaying ? "ic_pause" : "ic_play");
+            PlayPauseIconSource = ImageSourceHelper.FromNameThemed(isPlaying ? "ic_pause" : "ic_play");
 
             // 检测队列当前歌曲是否变化（外部页面播放时触发）
             // 此时 _loadedSongId 还是旧值，需要加载新歌信息更新迷你播放器
@@ -408,11 +445,11 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         (PlayModeIcon, PlayModeLabel, PlayModeIconSource) = _queue.PlayMode switch
         {
-            PlayMode.ListRepeat => ("\U0001f501", "列表循环", ImageSource.FromFile("ic_repeat_all")),
-            PlayMode.SingleRepeat => ("\U0001f502", "单曲循环", ImageSource.FromFile("ic_repeat_one")),
-            PlayMode.Shuffle => ("\U0001f500", "随机播放", ImageSource.FromFile("ic_shuffle")),
-            PlayMode.Sequential => ("\u27a1", "顺序播放", ImageSource.FromFile("ic_repeat_all")),
-            _ => ("\U0001f501", "列表循环", ImageSource.FromFile("ic_repeat_all"))
+            PlayMode.ListRepeat => ("\U0001f501", "列表循环", ImageSourceHelper.FromNameThemed("ic_repeat_all")),
+            PlayMode.SingleRepeat => ("\U0001f502", "单曲循环", ImageSourceHelper.FromNameThemed("ic_repeat_one")),
+            PlayMode.Shuffle => ("\U0001f500", "随机播放", ImageSourceHelper.FromNameThemed("ic_shuffle")),
+            PlayMode.Sequential => ("\u27a1", "顺序播放", ImageSourceHelper.FromNameThemed("ic_repeat_all")),
+            _ => ("\U0001f501", "列表循环", ImageSourceHelper.FromNameThemed("ic_repeat_all"))
         };
     }
 
@@ -427,7 +464,7 @@ public partial class NowPlayingViewModel : ObservableObject
         await _db.SetFavoriteAsync(song.Id, newFav);
         IsLiked = newFav;
         LikeIcon = newFav ? "\u2665" : "\u2661"; // ♥ or ♡
-        LikeIconSource = ImageSource.FromFile(newFav ? "ic_favorite" : "ic_favorite_border");
+        LikeIconSource = ImageSourceHelper.FromNameThemed(newFav ? "ic_favorite" : "ic_favorite_border");
 
 #if ANDROID || WINDOWS
         try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(newFav); }
@@ -544,7 +581,7 @@ public partial class NowPlayingViewModel : ObservableObject
         try { IsLiked = await _db.IsFavoriteAsync(song.Id); }
         catch { IsLiked = false; }
         LikeIcon = IsLiked ? "\u2665" : "\u2661";
-        LikeIconSource = ImageSource.FromFile(IsLiked ? "ic_favorite" : "ic_favorite_border");
+        LikeIconSource = ImageSourceHelper.FromNameThemed(IsLiked ? "ic_favorite" : "ic_favorite_border");
 
 #if ANDROID || WINDOWS
         // 更新前台播放通知 / Windows SMTC 显示
@@ -617,7 +654,7 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             // 同一首歌回到播放页：恢复正确的播放/暂停状态图标
             PlayPauseIcon = _audioService.IsPlaying ? "\u23f8" : "\u25b6";
-            PlayPauseIconSource = ImageSource.FromFile(_audioService.IsPlaying ? "ic_pause" : "ic_play");
+            PlayPauseIconSource = ImageSourceHelper.FromNameThemed(_audioService.IsPlaying ? "ic_pause" : "ic_play");
         }
 
         // 重置启动恢复标志
@@ -970,82 +1007,9 @@ public partial class NowPlayingViewModel : ObservableObject
             return;
         }
 
-        var settingsMode = Services.LyricsSettingsService.Instance.LyricsMode;
-        if (settingsMode == Services.LyricsSettingsService.Mode.Line)
-        {
-            // 逐行模式：当前行整行实心
-            CurrentLineFillProgress = 1.0;
-            return;
-        }
-
-        // 逐字模式
-        var line = _currentLyrics.Lines[lineIndex];
-        var lineStart = line.Timestamp;
-        var lineEnd = lineIndex + 1 < _currentLyrics.Lines.Count
-            ? _currentLyrics.Lines[lineIndex + 1].Timestamp
-            : lineStart + TimeSpan.FromSeconds(5);
-
-        if (position <= lineStart)
-        {
-            CurrentLineFillProgress = 0;
-            return;
-        }
-        if (position >= lineEnd)
-        {
-            CurrentLineFillProgress = 1.0;
-            return;
-        }
-
-        // 逐字 LRC：按音节时间精确加权
-        if (line.WordTimestamps != null && line.WordTimestamps.Count > 0)
-        {
-            CurrentLineFillProgress = CalculateSyllableProgress(line.WordTimestamps, position, lineStart, lineEnd);
-        }
-        else
-        {
-            // 标准 LRC：按时间线性填充（Apple Music 对无逐字时间戳的歌词也采用此回退）
-            var totalMs = (lineEnd - lineStart).TotalMilliseconds;
-            var elapsedMs = (position - lineStart).TotalMilliseconds;
-            CurrentLineFillProgress = totalMs > 0 ? Math.Clamp(elapsedMs / totalMs, 0.0, 1.0) : 1.0;
-        }
-    }
-
-    /// <summary>
-    /// 按音节时间戳计算填充进度：已唱完的音节贡献其字符比例，当前音节按时间进度部分贡献。
-    /// 用字符数加权近似字符宽度（变宽字符可能有微小偏差，视觉效果接近 Apple Music）。
-    /// </summary>
-    private static double CalculateSyllableProgress(
-        List<CatClawMusic.Core.Models.WordTimestamp> syllables,
-        TimeSpan position, TimeSpan lineStart, TimeSpan lineEnd)
-    {
-        var totalChars = syllables.Sum(s => s.Word?.Length ?? 0);
-        if (totalChars == 0) return 0;
-
-        double filledChars = 0;
-        foreach (var syl in syllables)
-        {
-            if (string.IsNullOrEmpty(syl.Word)) continue;
-            var sylStart = syl.Start;
-            var sylDur = syl.Duration;
-            if (sylDur <= TimeSpan.Zero)
-                sylDur = TimeSpan.FromMilliseconds(300);
-            var sylEnd = sylStart + sylDur;
-
-            if (position >= sylEnd)
-            {
-                // 已唱完
-                filledChars += syl.Word.Length;
-            }
-            else if (position > sylStart)
-            {
-                // 当前音节：按时间进度部分填充
-                var sylProgress = (position - sylStart).TotalMilliseconds / sylDur.TotalMilliseconds;
-                sylProgress = Math.Clamp(sylProgress, 0.0, 1.0);
-                filledChars += syl.Word.Length * sylProgress;
-            }
-        }
-
-        return Math.Clamp(filledChars / totalChars, 0.0, 1.0);
+        var lineMode = Services.LyricsSettingsService.Instance.LyricsMode == Services.LyricsSettingsService.Mode.Line;
+        CurrentLineFillProgress = LyricFillCalculator.ComputeFillProgress(
+            _currentLyrics.Lines[lineIndex], lineIndex, _currentLyrics.Lines, position, lineMode);
     }
 
     private static string GetLineText(List<LrcLyricLine> lines, int index)

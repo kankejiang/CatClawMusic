@@ -87,6 +87,7 @@ public partial class AudioPlayerService
         {
             _winPlayer!.Source = MediaSource.CreateFromUri(source);
             _winPlayer.Play();
+            StartPositionTimer();
             UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Playing);
         }
         catch (Exception ex)
@@ -98,18 +99,21 @@ public partial class AudioPlayerService
     partial void PlatformPause()
     {
         try { _winPlayer?.Pause(); } catch { }
+        StopPositionTimer();
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Paused);
     }
 
     partial void PlatformResume()
     {
         try { _winPlayer?.Play(); } catch { }
+        StartPositionTimer();
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Playing);
     }
 
     partial void PlatformStop()
     {
         try { _winPlayer?.Pause(); _winPlayer!.Source = null; } catch { }
+        StopPositionTimer();
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Stopped);
     }
 
