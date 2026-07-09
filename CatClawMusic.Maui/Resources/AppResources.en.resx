@@ -109,6 +109,21 @@
   <data name="PageTitleModelManager" xml:space="preserve"><value>Model Manager</value></data>
   <data name="PageTitleModelEdit" xml:space="preserve"><value>Model Editor</value></data>
   <data name="PageTitleDesktopLyric" xml:space="preserve"><value>Desktop Lyrics</value></data>
+  <data name="DesktopLyricSubtitle" xml:space="preserve"><value>Display lyrics over other apps with karaoke-style fill and drag positioning.</value></data>
+  <data name="DesktopLyricDesc" xml:space="preserve"><value>Floating lyrics, karaoke highlight, drag to reposition</value></data>
+  <data name="DesktopLyricEnable" xml:space="preserve"><value>Enable Desktop Lyrics</value></data>
+  <data name="DesktopLyricEnableDesc" xml:space="preserve"><value>Show floating lyrics over other apps</value></data>
+  <data name="DesktopLyricPreview" xml:space="preserve"><value>Preview</value></data>
+  <data name="DesktopLyricFontSize" xml:space="preserve"><value>Font Size</value></data>
+  <data name="DesktopLyricBgOpacity" xml:space="preserve"><value>Background Opacity</value></data>
+  <data name="DesktopLyricTextColor" xml:space="preserve"><value>Text Color</value></data>
+  <data name="DesktopLyricHighlightColor" xml:space="preserve"><value>Highlight Color</value></data>
+  <data name="DesktopLyricLockPosition" xml:space="preserve"><value>Lock Position</value></data>
+  <data name="DesktopLyricLockPositionDesc" xml:space="preserve"><value>Disable dragging when locked</value></data>
+  <data name="DesktopLyricTips" xml:space="preserve"><value>Tips</value></data>
+  <data name="DesktopLyricTipsContent" xml:space="preserve"><value>Drag lyrics to any position. Toggle desktop lyrics from notification bar. Overlay permission required.</value></data>
+  <data name="OverlayPermission" xml:space="preserve"><value>Overlay Permission</value></data>
+  <data name="RequestPermission" xml:space="preserve"><value>Request Permission</value></data>
   <data name="PageTitleBackupRestore" xml:space="preserve"><value>Backup &amp; Restore</value></data>
   <data name="SearchPlaceholder" xml:space="preserve"><value>Search songs, artists, albums</value></data>
   <data name="ChatPlaceholder" xml:space="preserve"><value>Ask Yuki: play something, find something, make a playlist...</value></data>

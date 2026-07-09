@@ -20,6 +20,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService _audioService;
     private readonly IMusicLibraryService _musicLibrary;
+    private readonly Services.DesktopLyricManager? _desktopLyricManager;
 
     private string _coverCacheDir = "";
     private bool _isSeeking;
@@ -162,13 +163,15 @@ public partial class NowPlayingViewModel : ObservableObject
         ILyricsService lyrics,
         MusicDatabase db,
         IAudioPlayerService audioService,
-        IMusicLibraryService musicLibrary)
+        IMusicLibraryService musicLibrary,
+        Services.DesktopLyricManager? desktopLyricManager = null)
     {
         _queue = queue;
         _lyrics = lyrics;
         _db = db;
         _audioService = audioService;
         _musicLibrary = musicLibrary;
+        _desktopLyricManager = desktopLyricManager;
 
         // Initialize cover cache directory
         _coverCacheDir = Path.Combine(FileSystem.CacheDirectory, "covers");
@@ -186,6 +189,8 @@ public partial class NowPlayingViewModel : ObservableObject
             androidAudio.PlayNextRequested += OnNotifPlayNext;
             androidAudio.PlayPreviousRequested += OnNotifPlayPrevious;
             androidAudio.FavoriteToggled += OnNotifFavoriteToggled;
+            // 通知栏桌面歌词按钮切换
+            androidAudio.DesktopLyricToggled += OnNotifDesktopLyricToggled;
         }
 #endif
 
@@ -237,6 +242,19 @@ public partial class NowPlayingViewModel : ObservableObject
                 LikeIconSource = isFavorite ? "ic_favorite" : "ic_favorite_border";
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifFav: {ex.Message}"); }
+        });
+    }
+
+    /// <summary>通知栏"桌面歌词"按钮回调：切换桌面歌词开关</summary>
+    private async void OnNotifDesktopLyricToggled(bool isEnabled)
+    {
+        if (_desktopLyricManager == null) return;
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            if (isEnabled)
+                await _desktopLyricManager.EnableAsync();
+            else
+                _desktopLyricManager.Disable();
         });
     }
 #endif
@@ -874,6 +892,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 CurrentLyricIndexObservable = -1;
                 OnPropertyChanged(nameof(AllLyricLines));
             });
+            _desktopLyricManager?.SetLyrics(lyrics);
             System.Diagnostics.Debug.WriteLine($"[Lyrics] 歌词已加载，首行: {lyrics.Lines[0].Text}");
         }
         else
@@ -887,6 +906,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 ClearLyrics();
                 OnPropertyChanged(nameof(AllLyricLines));
             });
+            _desktopLyricManager?.SetLyrics(null);
             System.Diagnostics.Debug.WriteLine("[Lyrics] 未找到歌词");
         }
     }

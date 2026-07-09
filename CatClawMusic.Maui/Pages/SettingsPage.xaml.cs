@@ -48,6 +48,10 @@ public partial class SettingsPage : ContentPage
     private async void OnAppearanceSettingsClicked(object? sender, EventArgs e)
         => await NavigateToSettingsAsync("appearancesettings");
 
+    /// <summary>点击桌面歌词设置项时触发，导航到桌面歌词设置页面。</summary>
+    private async void OnDesktopLyricClicked(object? sender, EventArgs e)
+        => await Shell.Current.GoToAsync("desktoplyric");
+
     /// <summary>点击本地音乐设置项时触发，导航到本地音乐设置页面。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>

@@ -109,6 +109,21 @@
   <data name="PageTitleModelManager" xml:space="preserve"><value>模型管理</value></data>
   <data name="PageTitleModelEdit" xml:space="preserve"><value>模型编辑</value></data>
   <data name="PageTitleDesktopLyric" xml:space="preserve"><value>桌面歌词设置</value></data>
+  <data name="DesktopLyricSubtitle" xml:space="preserve"><value>在其他应用上方显示歌词，支持逐字填充和拖动定位。</value></data>
+  <data name="DesktopLyricDesc" xml:space="preserve"><value>悬浮显示歌词、逐字高亮、拖动定位</value></data>
+  <data name="DesktopLyricEnable" xml:space="preserve"><value>开启桌面歌词</value></data>
+  <data name="DesktopLyricEnableDesc" xml:space="preserve"><value>在其他应用上方悬浮显示歌词</value></data>
+  <data name="DesktopLyricPreview" xml:space="preserve"><value>预览</value></data>
+  <data name="DesktopLyricFontSize" xml:space="preserve"><value>字号</value></data>
+  <data name="DesktopLyricBgOpacity" xml:space="preserve"><value>背景透明度</value></data>
+  <data name="DesktopLyricTextColor" xml:space="preserve"><value>文字颜色</value></data>
+  <data name="DesktopLyricHighlightColor" xml:space="preserve"><value>高亮颜色</value></data>
+  <data name="DesktopLyricLockPosition" xml:space="preserve"><value>锁定位置</value></data>
+  <data name="DesktopLyricLockPositionDesc" xml:space="preserve"><value>锁定后不可拖动</value></data>
+  <data name="DesktopLyricTips" xml:space="preserve"><value>使用提示</value></data>
+  <data name="DesktopLyricTipsContent" xml:space="preserve"><value>长按歌词可拖动到任意位置。在通知栏也可快速开关桌面歌词。需先授予悬浮窗权限。</value></data>
+  <data name="OverlayPermission" xml:space="preserve"><value>悬浮窗权限</value></data>
+  <data name="RequestPermission" xml:space="preserve"><value>请求权限</value></data>
   <data name="PageTitleBackupRestore" xml:space="preserve"><value>备份与恢复</value></data>
   <data name="SearchPlaceholder" xml:space="preserve"><value>搜索歌曲、艺术家、专辑</value></data>
   <data name="ChatPlaceholder" xml:space="preserve"><value>问问 Yuki：播放谁、找什么、建什么歌单...</value></data>
