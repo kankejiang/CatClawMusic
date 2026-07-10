@@ -39,7 +39,7 @@
               ColumnSpacing="10"
               Padding="10,6"
               HeightRequest="52"
-              BackgroundColor="{DynamicResource CardBackgroundColor}"
+              Background="{DynamicResource HeroBrush}"
               IsVisible="False">
 
             <!-- 封面 -->
@@ -59,12 +59,12 @@
                 <Label Text="{Binding Title}"
                        FontSize="13"
                        FontFamily="OpenSansSemibold"
-                       TextColor="{DynamicResource TextPrimaryColor}"
+                       TextColor="White"
                        MaxLines="1"
                        LineBreakMode="TailTruncation" />
                 <Label Text="{Binding Artist}"
                        FontSize="11"
-                       TextColor="{DynamicResource TextSecondaryColor}"
+                       TextColor="#CCFFFFFF"
                        MaxLines="1"
                        LineBreakMode="TailTruncation" />
             </VerticalStackLayout>
@@ -80,46 +80,31 @@
                     HorizontalOptions="Fill" VerticalOptions="Fill" />
 
             <!-- 上一曲 -->
-            <Border Grid.Column="2"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 14"
-                    Background="{DynamicResource PrimaryGlowBrush}"
+            <Button Grid.Column="2"
                     WidthRequest="28" HeightRequest="28"
-                    VerticalOptions="Center">
-                <ImageButton Source="ic_skip_previous"
-                             Padding="5"
-                             BackgroundColor="Transparent"
-                             Command="{Binding PlayPreviousCommand}"
-                             HorizontalOptions="Fill" VerticalOptions="Fill" />
-            </Border>
+                    CornerRadius="14" Padding="0"
+                    BackgroundColor="Transparent"
+                    ImageSource="{Binding PlayPreviousIconSourceWhite}"
+                    Command="{Binding PlayPreviousCommand}"
+                    VerticalOptions="Center" HorizontalOptions="Center" />
 
-            <!-- 播放/暂停：主题色圆形背景 + 白色图标 -->
-            <Border Grid.Column="3"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 18"
-                    Background="{DynamicResource HeroBrush}"
+            <!-- 播放/暂停：透明背景 + 白色图标 -->
+            <Button Grid.Column="3"
                     WidthRequest="36" HeightRequest="36"
-                    VerticalOptions="Center">
-                <ImageButton Source="{Binding PlayPauseIconSource}"
-                             Padding="7"
-                             BackgroundColor="Transparent"
-                             Command="{Binding TogglePlayPauseCommand}"
-                             HorizontalOptions="Fill" VerticalOptions="Fill" />
-            </Border>
+                    CornerRadius="18" Padding="0"
+                    BackgroundColor="Transparent"
+                    ImageSource="{Binding PlayPauseIconSourceWhite}"
+                    Command="{Binding TogglePlayPauseCommand}"
+                    VerticalOptions="Center" HorizontalOptions="Center" />
 
             <!-- 下一曲 -->
-            <Border Grid.Column="4"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 14"
-                    Background="{DynamicResource PrimaryGlowBrush}"
+            <Button Grid.Column="4"
                     WidthRequest="28" HeightRequest="28"
-                    VerticalOptions="Center">
-                <ImageButton Source="ic_skip_next"
-                             Padding="5"
-                             BackgroundColor="Transparent"
-                             Command="{Binding PlayNextCommand}"
-                             HorizontalOptions="Fill" VerticalOptions="Fill" />
-            </Border>
+                    CornerRadius="14" Padding="0"
+                    BackgroundColor="Transparent"
+                    ImageSource="{Binding PlayNextIconSourceWhite}"
+                    Command="{Binding PlayNextCommand}"
+                    VerticalOptions="Center" HorizontalOptions="Center" />
         </Grid>
 
         <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库） -->

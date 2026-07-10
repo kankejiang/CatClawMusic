@@ -32,6 +32,8 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     public event EventHandler<bool>? PlaybackStateChanged;
     /// <summary>播放位置变化事件（参数为当前播放位置）</summary>
     public event EventHandler<TimeSpan>? PositionChanged;
+    /// <summary>媒体总时长变化事件（参数为当前媒体总时长，单位秒）</summary>
+    public event EventHandler<double>? DurationChanged;
     /// <summary>播放完成事件</summary>
     public event EventHandler? PlaybackCompleted;
     /// <summary>请求播放下一首事件</summary>

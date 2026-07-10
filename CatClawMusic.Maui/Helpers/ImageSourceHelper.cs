@@ -34,7 +34,22 @@ public static class ImageSourceHelper
         {
             // 显式走 ImageSourceConverter 解析 MauiImage 资源名（与 XAML 字面量 Source="ic_xxx" 同一路径）。
             // 注意：ImageSource.FromFile 会把资源名当成本地文件路径，在 Windows 未找到时会触发 E_NETWORK_ERROR。
-            return (ImageSource?)_converter.ConvertFromInvariantString(name);
+            // MAUI 11 Preview Windows: 运行时 Converter 经常解析不到生成的 scale PNG，
+            // 对未打包 WinUI 3 应用直接指向输出目录中的 scale-100 PNG 更可靠。
+            var resolvedName = name;
+            if (OperatingSystem.IsWindows())
+            {
+                if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    resolvedName = name + ".png";
+
+                var baseName = name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                    ? name.Substring(0, name.Length - 4)
+                    : name;
+                var scaleFile = Path.Combine(AppContext.BaseDirectory, $"{baseName}.scale-100.png");
+                if (File.Exists(scaleFile))
+                    return ImageSource.FromFile(scaleFile);
+            }
+            return (ImageSource?)_converter.ConvertFromInvariantString(resolvedName);
         }
         catch (Exception ex)
         {
@@ -54,6 +69,15 @@ public static class ImageSourceHelper
         {
             return FromName(name + "_light");
         }
+        return FromName(name);
+    }
+
+    /// <summary>
+    /// 始终返回原始版本（深色主题填充色），用于深色/主题色背景上需要白色图标的场景。
+    /// </summary>
+    public static ImageSource? FromNameOriginal(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
         return FromName(name);
     }
 }

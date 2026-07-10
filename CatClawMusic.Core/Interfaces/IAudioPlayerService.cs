@@ -42,7 +42,12 @@ public interface IAudioPlayerService
     /// 播放进度变化事件
     /// </summary>
     event EventHandler<TimeSpan>? PositionChanged;
-    
+
+    /// <summary>
+    /// 媒体总时长变化事件（参数为当前媒体总时长，单位秒）
+    /// </summary>
+    event EventHandler<double>? DurationChanged;
+
     /// <summary>
     /// 播放完成事件
     /// </summary>

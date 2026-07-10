@@ -23,7 +23,7 @@
         <!-- 暗色遮罩层：在雾面背景上叠加一层半透明暗色，确保文字可读 -->
         <BoxView Color="#70000000" InputTransparent="True" />
 
-        <!-- 内容层：3行Grid - 返回按钮/Auto, 主体(封面左+信息歌词右)/Star, 进度+控件/Auto -->
+        <!-- 内容层：3行Grid - 返回按钮/Auto, 主体/Star, 进度+控件/Auto -->
         <Grid x:Name="RootGrid"
               RowDefinitions="Auto,*,Auto"
               Padding="24,16,24,20">
@@ -46,33 +46,41 @@
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnBackButtonTapped" />
                     </Border.GestureRecognizers>
-                    <Image Source="ic_arrow_back"
+                    <Image x:Name="BackButtonIcon"
+                           Source="ic_arrow_back"
                            WidthRequest="20" HeightRequest="20"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
             </Grid>
 
-            <!-- Row 1: 主体（左半：封面+信息居中 / 右半：歌词居中，中间竖直分割线） -->
+            <!-- Row 1: 主体内容 -->
+            <!-- 2行3列 Grid：手机用上下布局(跨列)，桌面用左右布局(跨行) -->
             <Grid Grid.Row="1"
                   x:Name="MainContent"
+                  RowDefinitions="Auto,*"
                   ColumnDefinitions="1*,Auto,1*"
                   Padding="0,8,0,4">
-                <!-- 左半部分：封面 + 歌曲信息，整体垂直+水平居中 -->
-                <VerticalStackLayout Grid.Column="0"
-                                     x:Name="LeftHalf"
-                                     Spacing="22"
-                                     HorizontalOptions="Center"
-                                     VerticalOptions="Center"
-                                     Padding="16,0">
+
+                <!-- 封面 + 歌曲信息（位置由代码后台根据屏幕方向动态设置） -->
+                <Grid Grid.Row="0"
+                      Grid.Column="0"
+                      Grid.RowSpan="1"
+                      Grid.ColumnSpan="3"
+                      x:Name="LeftHalf"
+                      RowDefinitions="Auto,Auto"
+                      RowSpacing="16"
+                      HorizontalOptions="Center"
+                      VerticalOptions="Center"
+                      Padding="16,0">
                     <!-- 封面容器：辉光投影层与封面本体层重叠，辉光在下、封面在上 -->
-                    <Grid HorizontalOptions="Center">
+                    <Grid Grid.Row="0" HorizontalOptions="Center">
                         <!-- 封面辉光（模糊投影）- 底层 -->
                         <Border x:Name="CoverGlow"
                                 StrokeThickness="0"
                                 StrokeShape="RoundRectangle 24"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
-                                WidthRequest="{OnIdiom Phone=220, Default=380}"
-                                HeightRequest="{OnIdiom Phone=220, Default=380}"
+                                BackgroundColor="Transparent"
+                                WidthRequest="220"
+                                HeightRequest="220"
                                 Opacity="0.35"
                                 Scale="1.08"
                                 TranslationY="8"
@@ -83,54 +91,52 @@
                                 StrokeThickness="0.5"
                                 Stroke="#30FFFFFF"
                                 StrokeShape="RoundRectangle 24"
-                                BackgroundColor="{DynamicResource SurfaceColor}"
-                                WidthRequest="{OnIdiom Phone=220, Default=380}"
-                                HeightRequest="{OnIdiom Phone=220, Default=380}"
+                                BackgroundColor="Transparent"
+                                WidthRequest="220"
+                                HeightRequest="220"
                                 HorizontalOptions="Center">
                             <Image x:Name="ArtworkImage"
                                    Source="{Binding CoverImage}"
                                    Aspect="AspectFill"
-                                   WidthRequest="{OnIdiom Phone=220, Default=380}"
-                                   HeightRequest="{OnIdiom Phone=220, Default=380}" />
+                                   WidthRequest="220"
+                                   HeightRequest="220" />
                         </Border>
                     </Grid>
                     <!-- 歌曲信息（居中） -->
-                    <VerticalStackLayout Spacing="6"
-                                         HorizontalOptions="Center">
-                        <Label Text="{Binding Title}"
+                    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="6"
+                          HorizontalOptions="Center">
+                        <Label Grid.Row="0"
+                               Text="{Binding Title}"
                                FontSize="22"
                                FontFamily="OpenSansSemibold"
                                TextColor="White"
                                MaxLines="2"
                                LineBreakMode="TailTruncation"
                                HorizontalTextAlignment="Center" />
-                        <Label Text="{Binding Artist}"
+                        <Label Grid.Row="1"
+                               Text="{Binding Artist}"
                                FontSize="15"
                                TextColor="{DynamicResource TextSecondaryColor}"
                                Opacity="0.9"
                                MaxLines="1"
                                LineBreakMode="TailTruncation"
                                HorizontalTextAlignment="Center" />
-                        <Label Text="{Binding Album}"
+                        <Label Grid.Row="2"
+                               Text="{Binding Album}"
                                FontSize="13"
                                TextColor="{DynamicResource TextHintColor}"
                                Opacity="0.8"
                                MaxLines="1"
                                LineBreakMode="TailTruncation"
                                HorizontalTextAlignment="Center" />
-                    </VerticalStackLayout>
-                </VerticalStackLayout>
+                    </Grid>
+                </Grid>
 
-                <!-- 中间竖直分割线 -->
-                <BoxView Grid.Column="1"
-                         WidthRequest="1"
-                         Color="#30FFFFFF"
-                         HorizontalOptions="Center"
-                         VerticalOptions="Fill"
-                         Margin="0,24,0,24" />
 
-                <!-- 右半部分：歌词（居中滚动） -->
-                <Grid Grid.Column="2"
+                <Grid Grid.Row="1"
+                      Grid.Column="0"
+                      Grid.RowSpan="1"
+                      Grid.ColumnSpan="3"
                       x:Name="RightHalf"
                       HorizontalOptions="Fill"
                       VerticalOptions="Fill"
@@ -174,9 +180,9 @@
             </Grid>
 
             <!-- Row 2: 进度条 + 播放控件 -->
-            <VerticalStackLayout Grid.Row="2" Spacing="10" Margin="0,4,0,0">
+            <Grid Grid.Row="2" RowDefinitions="Auto,Auto" RowSpacing="10" Margin="0,4,0,0">
                 <!-- 进度条 -->
-                <Grid RowDefinitions="Auto,Auto" RowSpacing="2">
+                <Grid Grid.Row="0" RowDefinitions="Auto,Auto" RowSpacing="2">
                     <Slider x:Name="ProgressSlider"
                             Minimum="0"
                             Maximum="1"
@@ -200,57 +206,129 @@
                     </Grid>
                 </Grid>
 
-                <!-- 播放控件行 -->
-                <Grid ColumnDefinitions="*,*,*,*,*"
+                <!-- ═══ 竖屏播放控件：5个按钮等分居中 ═══ -->
+                <Grid Grid.Row="1"
+                      x:Name="PhoneControls"
+                      IsVisible="True"
+                      ColumnDefinitions="*,*,*,*,*"
                       HeightRequest="56"
                       VerticalOptions="End">
                     <!-- 播放模式 -->
-                    <ImageButton Grid.Column="0"
-                                 Source="{Binding PlayModeIconSource}"
-                                 WidthRequest="22" HeightRequest="22"
-                                 BackgroundColor="Transparent"
-                                 Command="{Binding CyclePlayModeCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center"
-                                 Opacity="0.85" />
+                    <Button Grid.Column="0" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="0"
+                            BackgroundColor="Transparent"
+                            ImageSource="{Binding PlayModeIconSourceWhite}"
+                            Command="{Binding CyclePlayModeCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 上一首 -->
-                    <ImageButton Grid.Column="1"
-                                 Source="ic_skip_previous"
-                                 WidthRequest="28" HeightRequest="28"
-                                 BackgroundColor="Transparent"
-                                 Command="{Binding PlayPreviousCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center"
-                                 Opacity="0.9" />
-                    <!-- 播放/暂停：主题色圆形背景 + 白色图标 -->
-                    <Border Grid.Column="2"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 28"
-                            Background="{DynamicResource HeroBrush}"
-                            WidthRequest="56" HeightRequest="56"
-                            HorizontalOptions="Center" VerticalOptions="Center">
-                        <ImageButton Source="{Binding PlayPauseIconSource}"
-                                     Padding="14"
-                                     BackgroundColor="Transparent"
-                                     Command="{Binding TogglePlayPauseCommand}"
-                                     HorizontalOptions="Fill" VerticalOptions="Fill" />
-                    </Border>
+                    <Button Grid.Column="1" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="0"
+                            BackgroundColor="Transparent"
+                            ImageSource="{Binding PlayPreviousIconSourceWhite}"
+                            Command="{Binding PlayPreviousCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
+                    <!-- 播放/暂停 -->
+                    <Button Grid.Column="2" WidthRequest="56" HeightRequest="56"
+                            CornerRadius="28" Padding="0"
+                            BackgroundColor="Transparent"
+                            ImageSource="{Binding PlayPauseIconSourceWhite}"
+                            Command="{Binding TogglePlayPauseCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 下一首 -->
-                    <ImageButton Grid.Column="3"
-                                 Source="ic_skip_next"
-                                 WidthRequest="28" HeightRequest="28"
-                                 BackgroundColor="Transparent"
-                                 Command="{Binding PlayNextCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center"
-                                 Opacity="0.9" />
+                    <Button Grid.Column="3" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="0"
+                            BackgroundColor="Transparent"
+                            ImageSource="{Binding PlayNextIconSourceWhite}"
+                            Command="{Binding PlayNextCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 收藏 -->
-                    <ImageButton Grid.Column="4"
-                                 Source="{Binding LikeIconSource}"
-                                 WidthRequest="22" HeightRequest="22"
-                                 BackgroundColor="Transparent"
-                                 Command="{Binding ToggleLikeCommand}"
-                                 HorizontalOptions="Center" VerticalOptions="Center"
-                                 Opacity="0.85" />
+                    <Button Grid.Column="4" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="0"
+                            BackgroundColor="Transparent"
+                            ImageSource="{Binding LikeIconSourceWhite}"
+                            Command="{Binding ToggleLikeCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Grid>
-            </VerticalStackLayout>
+
+                <!-- ═══ 横屏播放控件：左/中/右三栏 ═══ -->
+                <Grid Grid.Row="1"
+                      x:Name="DesktopControls"
+                      IsVisible="False"
+                      ColumnDefinitions="*,Auto,*"
+                      HeightRequest="56"
+                      VerticalOptions="End">
+
+                    <!-- 左侧：歌曲信息 + 收藏 -->
+                    <Grid Grid.Column="0" ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                          HorizontalOptions="Start" VerticalOptions="Center">
+                        <VerticalStackLayout Grid.Column="0" VerticalOptions="Center" Spacing="1">
+                            <Label Text="{Binding Title}"
+                                   FontSize="13" FontFamily="OpenSansSemibold"
+                                   TextColor="White" MaxLines="1"
+                                   LineBreakMode="TailTruncation" />
+                            <Label Text="{Binding Artist}"
+                                   FontSize="11" TextColor="#CCFFFFFF" MaxLines="1"
+                                   LineBreakMode="TailTruncation" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                                CornerRadius="16" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding LikeIconSourceWhite}"
+                                Command="{Binding ToggleLikeCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- 中间：播放控制按钮紧凑排列 -->
+                    <Grid Grid.Column="1"
+                          ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
+                          ColumnSpacing="16"
+                          HorizontalOptions="Center" VerticalOptions="Center">
+                        <!-- 播放模式 -->
+                        <Button Grid.Column="0" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayModeIconSourceWhite}"
+                                Command="{Binding CyclePlayModeCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <!-- 上一首 -->
+                        <Button Grid.Column="1" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayPreviousIconSourceWhite}"
+                                Command="{Binding PlayPreviousCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <!-- 播放/暂停 -->
+                        <Button Grid.Column="2" WidthRequest="56" HeightRequest="56"
+                                CornerRadius="28" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayPauseIconSourceWhite}"
+                                Command="{Binding TogglePlayPauseCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <!-- 下一首 -->
+                        <Button Grid.Column="3" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayNextIconSourceWhite}"
+                                Command="{Binding PlayNextCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <!-- 播放列表 -->
+                        <Button Grid.Column="4" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlaylistIconSource}"
+                                Clicked="OnOpenPlaylistClicked"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- 右侧：歌词 -->
+                    <Button Grid.Column="2" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="0"
+                            BackgroundColor="Transparent"
+                            ImageSource="{Binding LyricsIconSource}"
+                            Clicked="OnOpenLyricsClicked"
+                            HorizontalOptions="End" VerticalOptions="Center" />
+                </Grid>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

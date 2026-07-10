@@ -470,7 +470,10 @@ public partial class AudioPlayerService
                         var pos = _owner._player?.CurrentPosition ?? 0;
                         System.Diagnostics.Debug.WriteLine($"[ExoPlayer] STATE_READY: Duration={dur}ms, Position={pos}ms");
                         if (dur > 0)
+                        {
+                            _owner.DurationChanged?.Invoke(_owner, dur / 1000.0);
                             _owner.PositionChanged?.Invoke(_owner, TimeSpan.FromSeconds(pos / 1000.0));
+                        }
                     }
                     catch { }
                 });

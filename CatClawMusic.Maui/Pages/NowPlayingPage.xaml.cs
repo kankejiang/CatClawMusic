@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
@@ -14,6 +15,8 @@ public partial class NowPlayingPage : ContentPage
     private readonly List<KaraokeLabel> _lyricLabels = new();
     private readonly List<Border> _lyricBorders = new();
     private int _lastHighlightIndex = -1;
+    private bool _isLandscape;
+    private int _lastCoverSize;
 
     /// <summary>初始化 <see cref="NowPlayingPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="viewModel">当前播放视图模型，提供歌曲、进度与歌词数据。</param>
@@ -25,6 +28,10 @@ public partial class NowPlayingPage : ContentPage
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+
+#if WINDOWS
+        BackButtonIcon.Source = ImageSourceHelper.FromNameOriginal("ic_arrow_back");
+#endif
     }
 
     /// <summary>系统栏高度变化时触发，更新内容区域的顶部 padding 以避开状态栏</summary>
@@ -39,6 +46,82 @@ public partial class NowPlayingPage : ContentPage
         // RootGrid 原始 Padding 为 (20,12,20,16)，顶部加上状态栏高度
         var top = SafeAreaHelper.TopInset;
         RootGrid.Padding = new Thickness(20, top + 12, 20, 16);
+    }
+
+    /// <summary>页面尺寸分配时触发，根据宽高比切换横屏/竖屏布局。</summary>
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        ApplyLayoutForOrientation(width, height);
+    }
+
+    /// <summary>根据屏幕方向动态切换主体内容与底部控件的布局。
+    /// 横屏（宽>高）：封面在左、歌词在右，底部使用三栏控件（等同 PC 布局）。
+    /// 竖屏（高>=宽）：封面在上、歌词在下，底部使用 5 列等分控件。</summary>
+    private void ApplyLayoutForOrientation(double width, double height)
+    {
+        if (width <= 0 || height <= 0) return;
+
+        var isLandscape = width > height;
+        // 封面尺寸：横屏根据高度计算（避免超出窗口），竖屏根据较短边计算
+        var coverSize = isLandscape
+            ? Math.Clamp((int)(height * 0.55), 200, 380)
+            : Math.Clamp((int)(Math.Min(width, height) * 0.45), 180, 260);
+
+        if (_isLandscape == isLandscape && _lastCoverSize == coverSize)
+            return;
+
+        var orientationChanged = _isLandscape != isLandscape;
+        _isLandscape = isLandscape;
+
+        if (orientationChanged)
+        {
+            if (isLandscape)
+            {
+                // 横屏：封面左、歌词右
+                Grid.SetRow(LeftHalf, 0);
+                Grid.SetColumn(LeftHalf, 0);
+                Grid.SetRowSpan(LeftHalf, 2);
+                Grid.SetColumnSpan(LeftHalf, 1);
+                LeftHalf.RowSpacing = 22;
+
+                Grid.SetRow(RightHalf, 0);
+                Grid.SetColumn(RightHalf, 2);
+                Grid.SetRowSpan(RightHalf, 2);
+                Grid.SetColumnSpan(RightHalf, 1);
+
+                PhoneControls.IsVisible = false;
+                DesktopControls.IsVisible = true;
+            }
+            else
+            {
+                // 竖屏：封面上、歌词下
+                Grid.SetRow(LeftHalf, 0);
+                Grid.SetColumn(LeftHalf, 0);
+                Grid.SetRowSpan(LeftHalf, 1);
+                Grid.SetColumnSpan(LeftHalf, 3);
+                LeftHalf.RowSpacing = 16;
+
+                Grid.SetRow(RightHalf, 1);
+                Grid.SetColumn(RightHalf, 0);
+                Grid.SetRowSpan(RightHalf, 1);
+                Grid.SetColumnSpan(RightHalf, 3);
+
+                PhoneControls.IsVisible = true;
+                DesktopControls.IsVisible = false;
+            }
+        }
+
+        if (_lastCoverSize != coverSize)
+        {
+            _lastCoverSize = coverSize;
+            CoverGlow.WidthRequest = coverSize;
+            CoverGlow.HeightRequest = coverSize;
+            CoverArea.WidthRequest = coverSize;
+            CoverArea.HeightRequest = coverSize;
+            ArtworkImage.WidthRequest = coverSize;
+            ArtworkImage.HeightRequest = coverSize;
+        }
     }
 
     /// <summary>当页面显示在屏幕上时触发，加载当前歌曲、构建歌词视图并启动进度定时器。</summary>
@@ -186,8 +269,8 @@ public partial class NowPlayingPage : ContentPage
                     OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                     StrokeWidth = 1.5,
                     FillProgress = 0,
-                    HorizontalTextAlignment = TextAlignment.Start,
-                    HorizontalOptions = LayoutOptions.Start
+                    HorizontalTextAlignment = TextAlignment.Center,
+                    HorizontalOptions = LayoutOptions.Fill
                 };
                 stack.Children.Add(transLabel);
                 LyricStack.Children.Add(stack);
@@ -304,6 +387,27 @@ public partial class NowPlayingPage : ContentPage
                 targetScrollY = Math.Max(0, targetScrollY);
                 nativeView.ScrollY = (int)targetScrollY;
             }
+#elif WINDOWS
+            if (LyricCollectionView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView
+                && label.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement nativeLabel)
+            {
+                var scrollViewer = FindScrollViewer(listView);
+                if (scrollViewer != null && scrollViewer.Content is Microsoft.UI.Xaml.UIElement content)
+                {
+                    // 相对于 ScrollViewer 内容原点计算标签绝对位置（更精确，避免增量误差）
+                    var transform = nativeLabel.TransformToVisual(content);
+                    var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+                    var labelCenter = point.Y + nativeLabel.ActualHeight / 2;
+                    // 目标：让标签中心位于视口 25% 处
+                    var targetOffset = labelCenter - scrollViewer.ViewportHeight * 0.25;
+                    targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ScrollableHeight));
+                    // 仅当偏差较大时才滚动，避免逐字更新时频繁打断动画
+                    if (Math.Abs(scrollViewer.VerticalOffset - targetOffset) > 4)
+                    {
+                        scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
+                    }
+                }
+            }
 #else
             var y = GetRelativeY(label);
             var targetScrollY = y - LyricCollectionView.Height * 0.25;
@@ -329,6 +433,23 @@ public partial class NowPlayingPage : ContentPage
         }
         return y;
     }
+
+#if WINDOWS
+    /// <summary>在 WinUI 可视树中查找 ScrollViewer（用于 CollectionView 手动定位歌词行）</summary>
+    private static Microsoft.UI.Xaml.Controls.ScrollViewer? FindScrollViewer(Microsoft.UI.Xaml.DependencyObject obj)
+    {
+        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(obj); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(obj, i);
+            if (child is Microsoft.UI.Xaml.Controls.ScrollViewer sv)
+                return sv;
+            var result = FindScrollViewer(child);
+            if (result != null)
+                return result;
+        }
+        return null;
+    }
+#endif
 
     /// <summary>当用户开始拖动进度条时触发，标记拖动状态并通知视图模型开始定位。</summary>
     /// <param name="sender">事件源。</param>
@@ -412,6 +533,22 @@ public partial class NowPlayingPage : ContentPage
         {
             _ = Shell.Current.GoToAsync("//main");
         }
+#endif
+    }
+
+    /// <summary>点击歌词按钮：打开全屏歌词页</summary>
+    private void OnOpenLyricsClicked(object? sender, EventArgs e)
+    {
+        GoToFullLyrics();
+    }
+
+    /// <summary>点击播放列表按钮：打开歌单列表页</summary>
+    private void OnOpenPlaylistClicked(object? sender, EventArgs e)
+    {
+#if WINDOWS
+        _ = Shell.Current.GoToAsync("//library/playlist");
+#else
+        MainPage.Instance?.SwitchToTab(2);
 #endif
     }
 }

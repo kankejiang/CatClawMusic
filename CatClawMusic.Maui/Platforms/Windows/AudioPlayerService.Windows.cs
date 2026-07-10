@@ -73,6 +73,7 @@ public partial class AudioPlayerService
             {
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
+                    DurationChanged?.Invoke(this, dur);
                     PositionChanged?.Invoke(this, TimeSpan.FromSeconds(pos));
                 });
             }

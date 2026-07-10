@@ -8,11 +8,11 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <!-- Desktop layout: Sidebar | TopBar / Content, with Player at bottom -->
-    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="52,*,80">
+    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="52,*,100">
 
         <!-- ═══ Left Sidebar ═══ -->
         <Border x:Name="SidebarBorder" Grid.RowSpan="3" Grid.Column="0"
-                StrokeThickness="0,0,1,0"
+                StrokeThickness="1"
                 Stroke="{DynamicResource DividerColor}"
                 BackgroundColor="{DynamicResource CardBackgroundColor}">
             <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="0,12,0,0">
@@ -137,9 +137,14 @@
                    ReturnType="Search"
                    Completed="OnSearchSubmitted" />
             <HorizontalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="8">
-                <ImageButton Source="ic_lyrics" WidthRequest="22" HeightRequest="22"
-                             BackgroundColor="Transparent"
-                             Clicked="OnLyricsButtonClicked" />
+                <Grid WidthRequest="36" HeightRequest="36" VerticalOptions="Center">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnLyricsButtonClicked" />
+                    </Grid.GestureRecognizers>
+                    <Image Source="ic_lyrics"
+                           WidthRequest="22" HeightRequest="22"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Grid>
             </HorizontalStackLayout>
         </Grid>
 
@@ -153,11 +158,11 @@
              因此这里直接使用 Grid（与 TopBar 一致），并在顶部放一条 1px 的分隔线代替 Border 的 Stroke。 -->
         <Grid x:Name="PlayerBarBorder" Grid.Row="2" Grid.Column="1"
               RowDefinitions="1,*"
-              BackgroundColor="{DynamicResource CardBackgroundColor}">
+              Background="{DynamicResource HeroBrush}">
             <BoxView Grid.Row="0" HeightRequest="1"
-                     Color="{DynamicResource DividerColor}"
+                     Color="#30FFFFFF"
                      VerticalOptions="Start" />
-            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="16,0" ColumnSpacing="16">
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="24,0" ColumnSpacing="24">
 
                 <!-- Song Info (left) -->
                 <!-- Windows 上嵌套布局的 TapGestureRecognizer 不可靠，
@@ -173,16 +178,16 @@
                                Aspect="AspectFill"
                                WidthRequest="48" HeightRequest="48" />
                     </Border>
-                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
-                        <Label Text="{Binding Title}"
+                    <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="2" VerticalOptions="Center">
+                        <Label Grid.Row="0" Text="{Binding Title}"
                                FontSize="14" FontFamily="OpenSansSemibold"
-                               TextColor="{DynamicResource TextPrimaryColor}"
+                               TextColor="White"
                                MaxLines="1" />
-                        <Label Text="{Binding Artist}"
+                        <Label Grid.Row="1" Text="{Binding Artist}"
                                FontSize="12"
-                               TextColor="{DynamicResource TextSecondaryColor}"
+                               TextColor="#CCFFFFFF"
                                MaxLines="1" />
-                    </VerticalStackLayout>
+                    </Grid>
                     <!-- 透明按钮覆盖整个歌曲信息区，负责捕获点击 -->
                     <Button Grid.ColumnSpan="2"
                             BackgroundColor="Transparent"
@@ -195,55 +200,58 @@
                 </Grid>
 
                 <!-- Controls + Progress (center) -->
-                <!-- 注意：Windows 平台对 VerticalStackLayout 的 MaximumWidthRequest 处理有缺陷，
-                     会导致整个布局测量失败、内容完全不渲染。这里改用 Grid + HorizontalOptions=Center
-                     实现居中并显式限定宽度，以避免该问题。 -->
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto" HorizontalOptions="Center"
-                      VerticalOptions="Center" RowSpacing="6" WidthRequest="600">
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto"
+                      VerticalOptions="Center" RowSpacing="6" Padding="32,0">
                     <!-- Control buttons -->
-                    <HorizontalStackLayout Grid.Row="0" Spacing="20" HorizontalOptions="Center">
-                        <ImageButton Source="{Binding PlayModeIconSource}"
-                                     WidthRequest="24" HeightRequest="24"
-                                     BackgroundColor="Transparent"
-                                     Command="{Binding CyclePlayModeCommand}" />
-                        <ImageButton Source="{Binding PlayPreviousIconSource}"
-                                     WidthRequest="28" HeightRequest="28"
-                                     BackgroundColor="Transparent"
-                                     Command="{Binding PlayPreviousCommand}" />
-                        <Border StrokeThickness="0" StrokeShape="RoundRectangle 18"
-                                Background="{DynamicResource HeroBrush}"
-                                WidthRequest="36" HeightRequest="36">
-                            <ImageButton Source="{Binding PlayPauseIconSource}"
-                                         WidthRequest="22" HeightRequest="22"
-                                         BackgroundColor="Transparent"
-                                         Command="{Binding TogglePlayPauseCommand}"
-                                         HorizontalOptions="Center" VerticalOptions="Center" />
-                        </Border>
-                        <ImageButton Source="{Binding PlayNextIconSource}"
-                                     WidthRequest="28" HeightRequest="28"
-                                     BackgroundColor="Transparent"
-                                     Command="{Binding PlayNextCommand}" />
-                        <ImageButton Source="{Binding LikeIconSource}"
-                                     WidthRequest="24" HeightRequest="24"
-                                     BackgroundColor="Transparent"
-                                     Command="{Binding ToggleLikeCommand}" />
-                    </HorizontalStackLayout>
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
+                          ColumnSpacing="16" HorizontalOptions="Center">
+                        <Button Grid.Column="0" WidthRequest="32" HeightRequest="32"
+                                CornerRadius="16" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayModeIconSourceWhite}"
+                                Command="{Binding CyclePlayModeCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Button Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                                CornerRadius="16" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayPreviousIconSourceWhite}"
+                                Command="{Binding PlayPreviousCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Button Grid.Column="2" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayPauseIconSourceWhite}"
+                                Command="{Binding TogglePlayPauseCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Button Grid.Column="3" WidthRequest="32" HeightRequest="32"
+                                CornerRadius="16" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding PlayNextIconSourceWhite}"
+                                Command="{Binding PlayNextCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Button Grid.Column="4" WidthRequest="32" HeightRequest="32"
+                                CornerRadius="16" Padding="0"
+                                BackgroundColor="Transparent"
+                                ImageSource="{Binding LikeIconSourceWhite}"
+                                Command="{Binding ToggleLikeCommand}"
+                                HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Grid>
                     <!-- Progress bar -->
                     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <Label Text="{Binding CurrentTimeDisplay}"
-                               FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                               FontSize="11" TextColor="#CCFFFFFF"
                                WidthRequest="36" HorizontalTextAlignment="End" />
                         <Slider Grid.Column="1" x:Name="DesktopProgressSlider"
                                 Minimum="0"
                                 Maximum="{Binding Duration, Mode=OneWay}"
                                 Value="{Binding Progress, Mode=TwoWay}"
-                                ThumbColor="{DynamicResource PrimaryColor}"
-                                MinimumTrackColor="{DynamicResource PrimaryColor}"
-                                MaximumTrackColor="{DynamicResource DividerColor}"
+                                ThumbColor="White"
+                                MinimumTrackColor="White"
+                                MaximumTrackColor="#40FFFFFF"
                                 DragStarted="OnDesktopSliderDragStarted"
                                 DragCompleted="OnDesktopSliderDragCompleted" />
                         <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}"
-                               FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                               FontSize="11" TextColor="#CCFFFFFF"
                                WidthRequest="36" />
                     </Grid>
                 </Grid>
@@ -255,9 +263,9 @@
                            Opacity="0.5" VerticalOptions="Center" />
                     <Slider Grid.Column="1" x:Name="VolumeSlider"
                             Minimum="0" Maximum="1"
-                            ThumbColor="{DynamicResource PrimaryColor}"
-                            MinimumTrackColor="{DynamicResource PrimaryColor}"
-                            MaximumTrackColor="{DynamicResource DividerColor}"
+                            ThumbColor="White"
+                            MinimumTrackColor="White"
+                            MaximumTrackColor="#40FFFFFF"
                             WidthRequest="100" VerticalOptions="Center" />
                 </Grid>
             </Grid>

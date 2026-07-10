@@ -74,12 +74,16 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private string _playModeLabel = "列表循环";
     /// <summary>播放模式图标 ImageSource（由资源名转换）</summary>
     [ObservableProperty] private ImageSource? _playModeIconSource = ImageSourceHelper.FromNameThemed("ic_repeat_all");
+    /// <summary>播放模式白色图标 ImageSource（用于主题色/透明背景）</summary>
+    [ObservableProperty] private ImageSource? _playModeIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_repeat_all");
 
     // === Play/Pause ===
     /// <summary>播放/暂停按钮图标字符（▶ 或 ⏸）</summary>
     [ObservableProperty] private string _playPauseIcon = "\u25b6"; // ▶
     /// <summary>播放/暂停按钮图标 ImageSource（由资源名转换）</summary>
     [ObservableProperty] private ImageSource? _playPauseIconSource = ImageSourceHelper.FromNameThemed("ic_play");
+    /// <summary>播放/暂停按钮白色图标 ImageSource（用于主题色/透明背景）</summary>
+    [ObservableProperty] private ImageSource? _playPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_play");
 
     // === Like ===
     /// <summary>当前歌曲是否已收藏</summary>
@@ -88,12 +92,22 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private string _likeIcon = "\u2661"; // ♡
     /// <summary>收藏按钮图标 ImageSource（由资源名转换）</summary>
     [ObservableProperty] private ImageSource? _likeIconSource = ImageSourceHelper.FromNameThemed("ic_favorite_border");
+    /// <summary>收藏按钮白色图标 ImageSource（用于主题色/透明背景）</summary>
+    [ObservableProperty] private ImageSource? _likeIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_favorite_border_white");
 
     // === Previous / Next ===
     /// <summary>上一首按钮图标 ImageSource</summary>
     [ObservableProperty] private ImageSource? _playPreviousIconSource = ImageSourceHelper.FromNameThemed("ic_skip_previous");
+    /// <summary>上一首按钮白色图标 ImageSource（用于主题色/透明背景）</summary>
+    [ObservableProperty] private ImageSource? _playPreviousIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_previous");
     /// <summary>下一首按钮图标 ImageSource</summary>
     [ObservableProperty] private ImageSource? _playNextIconSource = ImageSourceHelper.FromNameThemed("ic_skip_next");
+    /// <summary>下一首按钮白色图标 ImageSource（用于主题色/透明背景）</summary>
+    [ObservableProperty] private ImageSource? _playNextIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_next");
+    /// <summary>播放列表按钮图标 ImageSource</summary>
+    [ObservableProperty] private ImageSource? _playlistIconSource = ImageSourceHelper.FromNameOriginal("ic_playlist");
+    /// <summary>歌词按钮白色图标 ImageSource</summary>
+    [ObservableProperty] private ImageSource? _lyricsIconSource = ImageSourceHelper.FromNameOriginal("ic_lyrics_white");
 
     // === Lyrics ===
     /// <summary>是否存在可用歌词</summary>
@@ -200,6 +214,7 @@ public partial class NowPlayingViewModel : ObservableObject
         // Subscribe to audio events
         _audioService.PlaybackStateChanged += OnPlaybackStateChanged;
         _audioService.PositionChanged += OnPositionChanged;
+        _audioService.DurationChanged += OnDurationChanged;
         _audioService.PlaybackCompleted += OnPlaybackCompleted;
 
 #if ANDROID
@@ -236,10 +251,14 @@ public partial class NowPlayingViewModel : ObservableObject
         MainThread.BeginInvokeOnMainThread(() =>
         {
             PlayPauseIconSource = ImageSourceHelper.FromNameThemed(_audioService.IsPlaying ? "ic_pause" : "ic_play");
+            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(_audioService.IsPlaying ? "ic_pause" : "ic_play");
             PlayPreviousIconSource = ImageSourceHelper.FromNameThemed("ic_skip_previous");
+            PlayPreviousIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_previous");
             PlayNextIconSource = ImageSourceHelper.FromNameThemed("ic_skip_next");
+            PlayNextIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_next");
             RefreshPlayModeDisplay();
             LikeIconSource = ImageSourceHelper.FromNameThemed(IsLiked ? "ic_favorite" : "ic_favorite_border");
+            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
         });
     }
 
@@ -280,6 +299,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 IsLiked = isFavorite;
                 LikeIcon = isFavorite ? "\u2665" : "\u2661";
                 LikeIconSource = ImageSourceHelper.FromNameThemed(isFavorite ? "ic_favorite" : "ic_favorite_border");
+                LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(isFavorite ? "ic_favorite_white" : "ic_favorite_border_white");
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifFav: {ex.Message}"); }
         });
@@ -329,6 +349,7 @@ public partial class NowPlayingViewModel : ObservableObject
             IsPlaying = isPlaying;
             PlayPauseIcon = isPlaying ? "\u23f8" : "\u25b6"; // ⏸ or ▶
             PlayPauseIconSource = ImageSourceHelper.FromNameThemed(isPlaying ? "ic_pause" : "ic_play");
+            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(isPlaying ? "ic_pause" : "ic_play");
 
             // 检测队列当前歌曲是否变化（外部页面播放时触发）
             // 此时 _loadedSongId 还是旧值，需要加载新歌信息更新迷你播放器
@@ -338,6 +359,16 @@ public partial class NowPlayingViewModel : ObservableObject
                 await LoadCurrentSongAsync(autoPlay: false);
             }
         });
+    }
+
+    private void OnDurationChanged(object? sender, double duration)
+    {
+        // 媒体打开后由平台播放器推送准确总时长
+        if (duration > 1 && Math.Abs(Duration - duration) > 0.5)
+        {
+            Duration = duration;
+            TotalTimeDisplay = FormatTime(Duration);
+        }
     }
 
     private void OnPositionChanged(object? sender, TimeSpan position)
@@ -451,6 +482,14 @@ public partial class NowPlayingViewModel : ObservableObject
             PlayMode.Sequential => ("\u27a1", "顺序播放", ImageSourceHelper.FromNameThemed("ic_repeat_all")),
             _ => ("\U0001f501", "列表循环", ImageSourceHelper.FromNameThemed("ic_repeat_all"))
         };
+        PlayModeIconSourceWhite = _queue.PlayMode switch
+        {
+            PlayMode.ListRepeat => ImageSourceHelper.FromNameOriginal("ic_repeat_all"),
+            PlayMode.SingleRepeat => ImageSourceHelper.FromNameOriginal("ic_repeat_one"),
+            PlayMode.Shuffle => ImageSourceHelper.FromNameOriginal("ic_shuffle"),
+            PlayMode.Sequential => ImageSourceHelper.FromNameOriginal("ic_repeat_all"),
+            _ => ImageSourceHelper.FromNameOriginal("ic_repeat_all")
+        };
     }
 
     // === Like / Favorite ===
@@ -465,6 +504,7 @@ public partial class NowPlayingViewModel : ObservableObject
         IsLiked = newFav;
         LikeIcon = newFav ? "\u2665" : "\u2661"; // ♥ or ♡
         LikeIconSource = ImageSourceHelper.FromNameThemed(newFav ? "ic_favorite" : "ic_favorite_border");
+        LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(newFav ? "ic_favorite_white" : "ic_favorite_border_white");
 
 #if ANDROID || WINDOWS
         try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(newFav); }
@@ -565,9 +605,10 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             // 切歌：重置进度和歌词
             // Song.Duration 单位是毫秒，Slider 需要秒
-            // 部分歌曲 Duration 可能存储不正确（过小），使用 _audioService.Duration 作为回退
+            // 新歌曲还没加载完成，_audioService.Duration 可能是旧值或 0，
+            // 因此只使用数据库中的时长；若无效则等待 DurationChanged 事件修正。
             var songDurationSec = song.Duration > 1000 ? song.Duration / 1000.0 : 0;
-            Duration = songDurationSec > 0 ? songDurationSec : _audioService.Duration;
+            Duration = songDurationSec;
             TotalTimeDisplay = Duration > 0 ? FormatTime(Duration) : "--:--";
             Progress = 0;
             CurrentTimeDisplay = "0:00";
@@ -582,6 +623,7 @@ public partial class NowPlayingViewModel : ObservableObject
         catch { IsLiked = false; }
         LikeIcon = IsLiked ? "\u2665" : "\u2661";
         LikeIconSource = ImageSourceHelper.FromNameThemed(IsLiked ? "ic_favorite" : "ic_favorite_border");
+        LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
 
 #if ANDROID || WINDOWS
         // 更新前台播放通知 / Windows SMTC 显示
@@ -655,6 +697,7 @@ public partial class NowPlayingViewModel : ObservableObject
             // 同一首歌回到播放页：恢复正确的播放/暂停状态图标
             PlayPauseIcon = _audioService.IsPlaying ? "\u23f8" : "\u25b6";
             PlayPauseIconSource = ImageSourceHelper.FromNameThemed(_audioService.IsPlaying ? "ic_pause" : "ic_play");
+            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(_audioService.IsPlaying ? "ic_pause" : "ic_play");
         }
 
         // 重置启动恢复标志
