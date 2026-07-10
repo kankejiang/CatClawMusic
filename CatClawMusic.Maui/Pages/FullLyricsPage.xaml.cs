@@ -76,6 +76,9 @@ public partial class FullLyricsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+#if WINDOWS
+        Shell.SetNavBarIsVisible(this, false);
+#endif
         ApplySafeArea();
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
         if (_viewModel.AllLyricLines != null && _viewModel.AllLyricLines.Count > 0)

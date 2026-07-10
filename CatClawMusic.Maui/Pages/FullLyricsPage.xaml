@@ -5,7 +5,8 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.FullLyricsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleFullLyrics]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             Shell.NavBarIsVisible="False">
 
     <Grid>
         <!-- 雾面动态背景层（铺满整个页面，参数与播放页保持一致） -->

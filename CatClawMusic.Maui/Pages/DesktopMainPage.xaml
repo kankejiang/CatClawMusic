@@ -2,16 +2,20 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.DesktopMainPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <!-- Desktop layout: Sidebar | TopBar / Content, with Player at bottom -->
-    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="52,*,100">
+    <!-- Desktop layout: TitleBar / Sidebar | TopBar / Content, with Player at bottom -->
+    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="Auto,52,*,100">
+
+        <!-- ═══ Custom Title Bar ═══ -->
+        <controls:TitleBar Grid.Row="0" Grid.ColumnSpan="2" />
 
         <!-- ═══ Left Sidebar ═══ -->
-        <Border x:Name="SidebarBorder" Grid.RowSpan="3" Grid.Column="0"
+        <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="3" Grid.Column="0"
                 StrokeThickness="1"
                 Stroke="{DynamicResource DividerColor}"
                 BackgroundColor="{DynamicResource CardBackgroundColor}">
@@ -126,7 +130,7 @@
         </Border>
 
         <!-- ═══ Top Command Bar ═══ -->
-        <Grid x:Name="TopBar" Grid.Row="0" Grid.Column="1"
+        <Grid x:Name="TopBar" Grid.Row="1" Grid.Column="1"
               ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,0,16,0"
               BackgroundColor="{DynamicResource CardBackgroundColor}">
             <Entry x:Name="SearchEntry"
@@ -149,14 +153,14 @@
         </Grid>
 
         <!-- ═══ Main Content Area ═══ -->
-        <Grid x:Name="ContentArea" Grid.Row="1" Grid.Column="1"
+        <Grid x:Name="ContentArea" Grid.Row="2" Grid.Column="1"
               Background="{DynamicResource PageBackgroundBrush}"
               IsClippedToBounds="True" />
 
         <!-- ═══ Bottom Player Bar ═══ -->
         <!-- 注意：Windows 平台 Border 不会把测量尺寸传递给其内容，导致内部 Grid 高度为 0。
              因此这里直接使用 Grid（与 TopBar 一致），并在顶部放一条 1px 的分隔线代替 Border 的 Stroke。 -->
-        <Grid x:Name="PlayerBarBorder" Grid.Row="2" Grid.Column="1"
+        <Grid x:Name="PlayerBarBorder" Grid.Row="3" Grid.Column="1"
               RowDefinitions="1,*"
               Background="{DynamicResource HeroBrush}">
             <BoxView Grid.Row="0" HeightRequest="1"

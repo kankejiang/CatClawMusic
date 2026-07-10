@@ -128,6 +128,9 @@ public partial class NowPlayingPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+#if WINDOWS
+        Shell.SetNavBarIsVisible(this, false);
+#endif
         ApplySafeArea();
         await _viewModel.LoadCurrentSongAsync();
 

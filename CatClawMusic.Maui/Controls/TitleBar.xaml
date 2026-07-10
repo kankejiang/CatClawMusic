@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.TitleBar"
+             HeightRequest="32"
+             BackgroundColor="Transparent">
+
+    <Grid x:Name="RootGrid" ColumnDefinitions="*,Auto">
+        <!-- 拖动区域：按住此处可拖拽窗口 -->
+        <Grid x:Name="DragArea"
+              Grid.Column="0"
+              BackgroundColor="#01000000" />
+
+        <!-- 窗口控制按钮 -->
+        <Grid Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto">
+            <Border x:Name="MinimizeButton"
+                    WidthRequest="46" HeightRequest="32"
+                    BackgroundColor="#01000000"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnMinimizeTapped" />
+                </Border.GestureRecognizers>
+                <Path WidthRequest="20" HeightRequest="20"
+                      Data="M 4,10 L 16,10"
+                      Stroke="{AppThemeBinding Light=#FF1B2140, Dark=#CCFFFFFF}"
+                      StrokeThickness="1.5"
+                      HorizontalOptions="Center"
+                      VerticalOptions="Center" />
+            </Border>
+
+            <Border x:Name="MaximizeButton"
+                    Grid.Column="1"
+                    WidthRequest="46" HeightRequest="32"
+                    BackgroundColor="#01000000"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnMaximizeTapped" />
+                </Border.GestureRecognizers>
+                <Grid>
+                    <Path x:Name="MaximizeIcon"
+                          WidthRequest="20" HeightRequest="20"
+                          Data="M 3,3 L 17,3 L 17,17 L 3,17 Z"
+                          Stroke="{AppThemeBinding Light=#FF1B2140, Dark=#CCFFFFFF}"
+                          StrokeThickness="1.5"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center"
+                          IsVisible="true" />
+                    <Path x:Name="RestoreIcon"
+                          WidthRequest="20" HeightRequest="20"
+                          Data="M 3,6 L 14,6 L 14,17 L 3,17 Z M 6,3 L 17,3 L 17,14 L 14,14 L 14,6 L 6,6 Z"
+                          Stroke="{AppThemeBinding Light=#FF1B2140, Dark=#CCFFFFFF}"
+                          StrokeThickness="1.5"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center"
+                          IsVisible="false" />
+                </Grid>
+            </Border>
+
+            <Border x:Name="CloseButton"
+                    Grid.Column="2"
+                    WidthRequest="46" HeightRequest="32"
+                    BackgroundColor="#01000000"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCloseTapped" />
+                </Border.GestureRecognizers>
+                <Path WidthRequest="20" HeightRequest="20"
+                      Data="M 4,4 L 16,16 M 4,16 L 16,4"
+                      Stroke="{AppThemeBinding Light=#FF1B2140, Dark=#CCFFFFFF}"
+                      StrokeThickness="1.5"
+                      HorizontalOptions="Center"
+                      VerticalOptions="Center" />
+            </Border>
+        </Grid>
+    </Grid>
+</ContentView>

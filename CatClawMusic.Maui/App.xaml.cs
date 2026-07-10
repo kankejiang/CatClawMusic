@@ -8,6 +8,10 @@ namespace CatClawMusic.Maui;
 
 public partial class App : Application
 {
+#if WINDOWS
+    public static Microsoft.UI.Windowing.AppWindow? CurrentAppWindow { get; set; }
+#endif
+
     public App()
     {
         StartupLog("App.ctor: InitializeComponent start");
@@ -112,6 +116,33 @@ public partial class App : Application
             MinimumWidth = 900,
             MinimumHeight = 600,
         };
+
+        window.HandlerChanged += (s, e) =>
+        {
+            if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window nativeWindow)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
+                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+                var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+                CurrentAppWindow = appWindow;
+
+                if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+                {
+                    presenter.SetBorderAndTitleBar(true, false);
+                }
+
+                // 通过 P/Invoke 移除 WS_CAPTION，彻底隐藏系统标题栏
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(500);
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        RemoveSystemTitleBar(hwnd);
+                        nativeWindow.SizeChanged += (_, _) => RemoveSystemTitleBar(hwnd);
+                    });
+                });
+            }
+        };
 #else
         var window = new Window(shell);
 #endif
@@ -119,4 +150,40 @@ public partial class App : Application
         StartupLog("CreateWindow: Window created, returning");
         return window;
     }
+
+#if WINDOWS
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    private const int GWL_STYLE = -16;
+    private const int WS_BORDER = 0x00800000;
+    private const int WS_CAPTION = 0x00C00000;
+    private const int WS_DLGFRAME = 0x00400000;
+    private const int WS_THICKFRAME = 0x00040000;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_FRAMECHANGED = 0x0020;
+
+    private static void RemoveSystemTitleBar(IntPtr hwnd)
+    {
+        try
+        {
+            int style = GetWindowLong(hwnd, GWL_STYLE);
+            // 移除标题栏相关样式，保留可调整大小的边框
+            style &= ~(WS_CAPTION | WS_BORDER | WS_DLGFRAME);
+            SetWindowLong(hwnd, GWL_STYLE, style);
+            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        }
+        catch { }
+    }
+#endif
 }
