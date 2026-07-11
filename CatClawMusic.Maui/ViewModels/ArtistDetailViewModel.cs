@@ -119,22 +119,68 @@ public partial class ArtistDetailViewModel : ObservableObject
             foreach (var s in songs)
                 Songs.Add(s);
 
-            // 从歌曲中提取专辑列表（去重），并从歌曲封面回填专辑封面
-            var albumDict = new Dictionary<string, Album>();
+            // 从数据库直接查询该艺术家的所有专辑（比从歌曲聚合更可靠，包含所有专辑记录）
+            var albums = await _db.GetAlbumsByArtistAsync(artistName);
+
+            // 用歌曲封面回填专辑封面（Album.CoverArtPath 在 DB 中通常为空）
+            // 优先按 AlbumId 匹配，其次按专辑名称匹配（处理 AlbumId=0 的情况）
+            var coverById = new Dictionary<int, string>();
+            var coverByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in songs)
             {
-                if (!string.IsNullOrEmpty(s.Album) && !albumDict.ContainsKey(s.Album))
+                if (string.IsNullOrEmpty(s.CoverArtPath)) continue;
+                if (s.AlbumId > 0 && !coverById.ContainsKey(s.AlbumId))
+                    coverById[s.AlbumId] = s.CoverArtPath;
+                if (!string.IsNullOrEmpty(s.Album) && !coverByName.ContainsKey(s.Album))
+                    coverByName[s.Album] = s.CoverArtPath;
+            }
+
+            // 第一轮：从已加载歌曲的封面中按 ID/名称匹配回填
+            var pendingExtractions = new Dictionary<int, Song>();
+            foreach (var a in albums)
+            {
+                if (!string.IsNullOrEmpty(a.CoverArtPath)) continue;
+                if (a.Id > 0 && coverById.TryGetValue(a.Id, out var coverByIdVal))
                 {
-                    albumDict[s.Album] = new Album
-                    {
-                        Title = s.Album,
-                        Artist = s.Artist,
-                        CoverArtPath = s.CoverArtPath,
-                    };
+                    a.CoverArtPath = coverByIdVal;
+                    continue;
+                }
+                if (!string.IsNullOrEmpty(a.Title) && coverByName.TryGetValue(a.Title, out var coverByNameVal))
+                {
+                    a.CoverArtPath = coverByNameVal;
+                    continue;
                 }
             }
+
+            // 第二轮：仍无封面的专辑，从数据库查询采样歌曲来提取封面
+            var albumsNeedingCover = albums.Where(a => string.IsNullOrEmpty(a.CoverArtPath) && a.Id > 0).ToList();
+            if (albumsNeedingCover.Count > 0)
+            {
+                var sampleSongs = await _db.GetSampleSongsForAlbumsAsync(albumsNeedingCover.Select(a => a.Id));
+                foreach (var s in sampleSongs)
+                {
+                    if (!string.IsNullOrEmpty(s.FilePath) && !pendingExtractions.ContainsKey(s.AlbumId))
+                        pendingExtractions[s.AlbumId] = s;
+                }
+            }
+
+            // 批量提取采样歌曲封面并回填
+            if (pendingExtractions.Count > 0)
+            {
+                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(pendingExtractions.Values));
+                foreach (var a in albums)
+                {
+                    if (!string.IsNullOrEmpty(a.CoverArtPath)) continue;
+                    if (a.Id > 0 && pendingExtractions.TryGetValue(a.Id, out var s)
+                        && !string.IsNullOrEmpty(s.CoverArtPath))
+                    {
+                        a.CoverArtPath = s.CoverArtPath;
+                    }
+                }
+            }
+
             Albums.Clear();
-            foreach (var a in albumDict.Values)
+            foreach (var a in albums)
                 Albums.Add(a);
 
             StatusText = $"共 {Albums.Count} 张专辑 · {Songs.Count} 首歌曲";

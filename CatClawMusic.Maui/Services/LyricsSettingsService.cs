@@ -28,6 +28,7 @@ public class LyricsSettingsService
     private const string KeyMode = "lyrics_mode";
     private const string KeyAlignment = "lyrics_alignment";
     private const string KeyFontSize = "lyrics_font_size";
+    private const string KeyRemoveEmptyLines = "lyrics_remove_empty_lines";
 
     // 桌面歌词设置键
     private const string KeyDesktopEnabled = "desktop_lyric_enabled";
@@ -68,6 +69,13 @@ public class LyricsSettingsService
     {
         get => Preferences.Get(KeyFontSize, DefaultFontSize);
         set => Preferences.Set(KeyFontSize, Math.Clamp(value, MinFontSize, MaxFontSize));
+    }
+
+    /// <summary>是否智能删除空行（让歌词更紧凑）</summary>
+    public bool RemoveEmptyLines
+    {
+        get => Preferences.Get(KeyRemoveEmptyLines, true);
+        set => Preferences.Set(KeyRemoveEmptyLines, value);
     }
 
     // ═══════════════════════════════════════

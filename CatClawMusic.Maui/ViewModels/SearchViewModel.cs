@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Graphics;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -16,6 +17,7 @@ public partial class SearchViewModel : ObservableObject
 {
     private readonly ExploreDataService _exploreDataService;
     private readonly IAgentService _agentService;
+    private readonly IMusicLibraryService _libraryService;
 
     private List<Song> _allDailyRecommendSongs = [];
     private List<SearchArtistItem> _allArtists = [];
@@ -122,6 +124,26 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _showSearchResults;
 
+    /// <summary>当前分类索引（0=推荐, 1=排行榜, 2=歌手, 3=推荐专辑）</summary>
+    [ObservableProperty]
+    private int _currentCategory;
+
+    /// <summary>问候语文本</summary>
+    [ObservableProperty]
+    private string _greetingText = "";
+
+    /// <summary>英雄卡片集合</summary>
+    [ObservableProperty]
+    private ObservableCollection<HeroCardItem> _heroCards = new();
+
+    /// <summary>收藏歌曲集合</summary>
+    [ObservableProperty]
+    private ObservableCollection<Song> _favoriteSongs = new();
+
+    /// <summary>搜索框是否展开</summary>
+    [ObservableProperty]
+    private bool _isSearchOpen;
+
     /// <summary>发现页 CollectionView 的占位数据源（内容全部放在 Header 中，使用 CollectionView 获得更好的手势处理）</summary>
     public ObservableCollection<int> DiscoverPageItems { get; } = new() { 0 };
 
@@ -137,6 +159,10 @@ public partial class SearchViewModel : ObservableObject
     public IRelayCommand ExitChatModeCommand { get; }
     /// <summary>发送聊天消息命令</summary>
     public IAsyncRelayCommand SendMessageCommand { get; }
+    /// <summary>刷新命令</summary>
+    public IAsyncRelayCommand RefreshCommand { get; }
+    /// <summary>随机每日推荐命令</summary>
+    public IRelayCommand ShuffleDailyCommand { get; }
 
     /// <summary>请求进入聊天模式时触发，供页面订阅</summary>
     public event EventHandler? EnterChatModeRequested;
@@ -148,10 +174,12 @@ public partial class SearchViewModel : ObservableObject
     /// </summary>
     /// <param name="exploreDataService">探索页数据服务</param>
     /// <param name="agentService">Agent 服务，用于 AI 聊天</param>
-    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService)
+    /// <param name="libraryService">音乐库服务</param>
+    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService)
     {
         _exploreDataService = exploreDataService;
         _agentService = agentService;
+        _libraryService = libraryService;
         AgentName = _agentService.GetCurrentAgent().Name;
 
         SwitchTabCommand = new RelayCommand<int>(SwitchTab);
@@ -160,6 +188,10 @@ public partial class SearchViewModel : ObservableObject
         SendMessageCommand = new AsyncRelayCommand(SendMessageAsync);
         EnterChatModeCommand = new RelayCommand(EnterChatMode);
         ExitChatModeCommand = new RelayCommand(ExitChatMode);
+        RefreshCommand = new AsyncRelayCommand(RefreshAsync);
+        ShuffleDailyCommand = new RelayCommand(ShuffleDaily);
+
+        GreetingText = CalculateGreeting();
 
         _ = LoadDataAsync();
     }
@@ -243,6 +275,7 @@ public partial class SearchViewModel : ObservableObject
                 _allAlbums = albumsResult.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover)) }).ToList();
 
                 ApplyFilters();
+                await LoadFavoritesAndGenerateHeroCards();
             }
             catch (Exception ex)
             {
@@ -331,6 +364,7 @@ public partial class SearchViewModel : ObservableObject
             Preferences.Default.Set("explore_last_load_date", today);
 
             ApplyFilters();
+            await LoadFavoritesAndGenerateHeroCards();
         }
         catch (Exception ex)
         {
@@ -680,6 +714,149 @@ public partial class SearchViewModel : ObservableObject
     {
         return string.IsNullOrWhiteSpace(path) ? null : ImageSource.FromFile(path);
     }
+
+    /// <summary>根据当前时间计算问候语</summary>
+    private string CalculateGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        return hour switch
+        {
+            >= 0 and < 6 => "凌晨好，为你精选深夜好歌",
+            >= 6 and < 12 => "早上好，为你精选晨间好歌",
+            >= 12 and < 18 => "下午好，为你精选午后好歌",
+            _ => "晚上好，为你精选今日好歌"
+        };
+    }
+
+    /// <summary>生成英雄卡片</summary>
+    private void GenerateHeroCards()
+    {
+        var cards = new List<HeroCardItem>();
+        var gradients = new (Color Start, Color End)[]
+        {
+            (Color.FromArgb("#667eea"), Color.FromArgb("#764ba2")),
+            (Color.FromArgb("#f093fb"), Color.FromArgb("#f5576c")),
+            (Color.FromArgb("#4facfe"), Color.FromArgb("#00f2fe")),
+            (Color.FromArgb("#43e97b"), Color.FromArgb("#38f9d7"))
+        };
+        var tags = new[] { "每日推荐", "热门歌曲", "我的最爱", "随机播放" };
+
+        if (_allDailyRecommendSongs.Count > 0)
+        {
+            var song = _allDailyRecommendSongs[0];
+            cards.Add(new HeroCardItem
+            {
+                Tag = tags[0],
+                Title = song.Title ?? "未知歌曲",
+                Description = $"{song.Artist ?? "未知艺术家"} · {song.Album ?? "未知专辑"}",
+                Song = song,
+                GradientStart = gradients[0].Start,
+                GradientEnd = gradients[0].End
+            });
+        }
+
+        if (_allTopPlayedSongs.Count > 0)
+        {
+            var song = _allTopPlayedSongs[0];
+            cards.Add(new HeroCardItem
+            {
+                Tag = tags[1],
+                Title = song.Title ?? "未知歌曲",
+                Description = $"{song.Artist ?? "未知艺术家"} · {song.Album ?? "未知专辑"}",
+                Song = song,
+                GradientStart = gradients[1].Start,
+                GradientEnd = gradients[1].End
+            });
+        }
+
+        if (FavoriteSongs.Count > 0)
+        {
+            var song = FavoriteSongs[0];
+            cards.Add(new HeroCardItem
+            {
+                Tag = tags[2],
+                Title = song.Title ?? "未知歌曲",
+                Description = $"{song.Artist ?? "未知艺术家"} · {song.Album ?? "未知专辑"}",
+                Song = song,
+                GradientStart = gradients[2].Start,
+                GradientEnd = gradients[2].End
+            });
+        }
+
+        if (_allDailyRecommendSongs.Count > 0)
+        {
+            var random = new Random();
+            var index = random.Next(_allDailyRecommendSongs.Count);
+            var song = _allDailyRecommendSongs[index];
+            cards.Add(new HeroCardItem
+            {
+                Tag = tags[3],
+                Title = song.Title ?? "未知歌曲",
+                Description = $"{song.Artist ?? "未知艺术家"} · {song.Album ?? "未知专辑"}",
+                Song = song,
+                GradientStart = gradients[3].Start,
+                GradientEnd = gradients[3].End
+            });
+        }
+
+        HeroCards = new ObservableCollection<HeroCardItem>(cards.Take(4));
+    }
+
+    /// <summary>刷新数据</summary>
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _exploreDataService.InvalidateDailyRecommendCache();
+            Services.CoverHelper.ClearCache();
+            Preferences.Default.Remove("explore_last_load_date");
+
+            _allDailyRecommendSongs = [];
+            _allTopPlayedSongs = [];
+            _allArtists = [];
+            _allAlbums = [];
+            _allRecentAddedSongs = [];
+            ApplyFilters();
+
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] RefreshAsync failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>随机重新排序每日推荐</summary>
+    private void ShuffleDaily()
+    {
+        if (_allDailyRecommendSongs.Count == 0) return;
+
+        var random = new Random();
+        _allDailyRecommendSongs = _allDailyRecommendSongs.OrderBy(_ => random.Next()).ToList();
+        var shuffled = _allDailyRecommendSongs.Take(20).ToList();
+        DailyRecommendSongs = new ObservableCollection<Song>(shuffled);
+        GenerateHeroCards();
+    }
+
+    /// <summary>加载收藏歌曲并生成英雄卡片</summary>
+    private async Task LoadFavoritesAndGenerateHeroCards()
+    {
+        try
+        {
+            var favoriteSongs = await _libraryService.GetFavoriteSongsAsync();
+            if (favoriteSongs.Count > 0)
+            {
+                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(favoriteSongs));
+            }
+            FavoriteSongs = new ObservableCollection<Song>(favoriteSongs);
+            GenerateHeroCards();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadFavorites failed: {ex.Message}");
+            GenerateHeroCards();
+        }
+    }
 }
 
 /// <summary>搜索页艺术家展示项</summary>
@@ -708,4 +885,21 @@ public class SearchAlbumItem
     public string Subtitle { get; set; } = "";
     /// <summary>封面图源</summary>
     public ImageSource? CoverSource { get; set; }
+}
+
+/// <summary>首页英雄卡片项</summary>
+public class HeroCardItem
+{
+    /// <summary>标签</summary>
+    public string Tag { get; set; } = "";
+    /// <summary>标题</summary>
+    public string Title { get; set; } = "";
+    /// <summary>描述</summary>
+    public string Description { get; set; } = "";
+    /// <summary>关联歌曲</summary>
+    public Song? Song { get; set; }
+    /// <summary>渐变起始色</summary>
+    public Color GradientStart { get; set; } = Colors.Blue;
+    /// <summary>渐变结束色</summary>
+    public Color GradientEnd { get; set; } = Colors.Purple;
 }

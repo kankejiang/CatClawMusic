@@ -14,25 +14,25 @@
         <converters:ProtocolToTextConverter x:Key="ProtocolToText" />
     </ContentPage.Resources>
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
 
-        <ScrollView>
-            <VerticalStackLayout Padding="16,18,16,22" Spacing="14">
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <VerticalStackLayout Padding="44,0,0,0" Spacing="6">
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}"
+                           Style="{StaticResource PageTitleStyle}"
+                           TextColor="White" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusicSubtitle]}"
+                           Style="{StaticResource PageSubtitleStyle}"
+                           TextColor="#F3F5FF" />
+                </VerticalStackLayout>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
 
-                <!-- Hero Header -->
-                <Border Style="{StaticResource GlassCardStrongStyle}"
-                        Background="{DynamicResource HeroBrush}">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}"
-                               Style="{StaticResource PageTitleStyle}"
-                               TextColor="White" />
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusicSubtitle]}"
-                               Style="{StaticResource PageSubtitleStyle}"
-                               TextColor="#F3F5FF" />
-                    </VerticalStackLayout>
-                </Border>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
 
-                <!-- 缓存统计卡片 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <VerticalStackLayout Spacing="2">
@@ -57,7 +57,6 @@
                     </Grid>
                 </Border>
 
-                <!-- 连接列表标题 -->
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ConfiguredConnections]}"
                            Style="{StaticResource SectionTitleStyle}"
@@ -73,7 +72,6 @@
                             FontSize="12" />
                 </Grid>
 
-                <!-- 连接列表 -->
                 <VerticalStackLayout Spacing="10"
                                      BindableLayout.ItemsSource="{Binding Profiles}">
                     <BindableLayout.ItemTemplate>
@@ -148,7 +146,6 @@
                     </BindableLayout.ItemTemplate>
                 </VerticalStackLayout>
 
-                <!-- 空状态 -->
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{Binding Profiles.Count, Converter={StaticResource InvertedBoolConverter}}">
                     <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
@@ -165,7 +162,6 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- 编辑/新建表单 -->
                 <Border Style="{StaticResource GlassCardStrongStyle}"
                         IsVisible="{Binding IsEditing}">
                     <VerticalStackLayout Spacing="12">
@@ -265,7 +261,6 @@
                                     VerticalOptions="Center" />
                         </Grid>
 
-                        <!-- SMB 专用字段 -->
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="10"
                               IsVisible="{Binding IsSmbForm}">
                             <VerticalStackLayout Spacing="4">
@@ -307,13 +302,9 @@
 
             </VerticalStackLayout>
         </ScrollView>
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
 
-        <!-- 远程目录浏览弹窗 -->
-        <Grid BackgroundColor="#80000000"
+        <Grid Grid.RowSpan="2"
+              BackgroundColor="#80000000"
               IsVisible="{Binding IsBrowsing}"
               ZIndex="200">
             <Border Style="{StaticResource GlassCardStrongStyle}"
@@ -325,7 +316,6 @@
                     Padding="0">
                 <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="0">
 
-                    <!-- 标题栏 -->
                     <Grid Grid.Row="0"
                           ColumnDefinitions="*,Auto"
                           Background="{DynamicResource HeroBrush}"
@@ -347,7 +337,6 @@
                                 VerticalOptions="Center" />
                     </Grid>
 
-                    <!-- 当前路径 + 选择此目录按钮 -->
                     <Grid Grid.Row="1"
                           ColumnDefinitions="*,Auto"
                           Padding="12,10"
@@ -368,7 +357,6 @@
                                 Padding="10,0" />
                     </Grid>
 
-                    <!-- 目录列表 -->
                     <Grid Grid.Row="2" BackgroundColor="{DynamicResource CardBackgroundColor}">
                         <CollectionView ItemsSource="{Binding DirectoryItems}"
                                         SelectionMode="None"
@@ -405,7 +393,6 @@
                                            Color="{DynamicResource PrimaryColor}" />
                     </Grid>
 
-                    <!-- 底部操作栏 -->
                     <Grid Grid.Row="3"
                           ColumnDefinitions="*,*"
                           Padding="12,10"

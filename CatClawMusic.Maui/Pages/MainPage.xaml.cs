@@ -516,6 +516,57 @@ public partial class MainPage : ContentPage
         _ = AnimateToPage(0);
     }
 
+    /// <summary>
+    /// 收起播放页：播放页面向下平移，露出下层的发现页。
+    /// 动画结束后内部切换到发现页（ViewPager index 2），并重置播放页位置。
+    /// </summary>
+    public async void CollapseNowPlaying()
+    {
+        const int nowPlayingIndex = 1;
+        const int discoverIndex = 2;
+
+        if (_currentIndex != nowPlayingIndex) return;
+
+        var height = ViewPagerGrid.Height;
+        var width = ViewPagerGrid.Width;
+        if (height <= 0 || width <= 0) return;
+
+        if (ViewPagerGrid.Children[nowPlayingIndex] is not VisualElement nowPlaying) return;
+        if (ViewPagerGrid.Children[discoverIndex] is not VisualElement discover) return;
+
+        SetHardwareLayersEnabled(true);
+
+        // 动画期间关闭裁剪，让播放页能向下滑出 ViewPagerGrid 边界
+        ViewPagerGrid.IsClippedToBounds = false;
+
+        // 动画期间让播放页位于上层，发现页在下层作为收起后露出的底
+        nowPlaying.ZIndex = 10;
+        // 将发现页移到播放页正下方（重叠位置）
+        discover.TranslationX = 0;
+
+        // 播放页向下平移收起（抽屉效果）
+        await nowPlaying.TranslateTo(0, height, 320, Easing.SinOut);
+
+        // 更新生命周期和状态：切换到发现页
+        InvokeLifecycle(_tabPages[_currentIndex], "OnDisappearing");
+        _currentIndex = discoverIndex;
+        InvokeLifecycle(_tabPages[_currentIndex], "OnAppearing");
+        UpdateTabBarVisibility();
+        UpdateTabBarSelection();
+        UpdateSafeAreaPadding();
+        UpdateMiniPlayerVisibility();
+
+        // 重置播放页位置和 ZIndex：移到屏幕右侧（对应 ViewPager index 1 相对 index 2 的偏移）
+        nowPlaying.TranslationX = (nowPlayingIndex - discoverIndex) * width;
+        nowPlaying.TranslationY = 0;
+        nowPlaying.ZIndex = 0;
+
+        // 恢复裁剪
+        ViewPagerGrid.IsClippedToBounds = true;
+
+        SetHardwareLayersEnabled(false);
+    }
+
     /// <summary>导航到指定 tab（静态方法，供外部调用。tab 索引 0-4）</summary>
     public static async Task GoToTabAsync(int tabIndex)
     {

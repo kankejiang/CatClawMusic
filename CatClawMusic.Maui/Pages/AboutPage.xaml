@@ -7,45 +7,48 @@
              Title="关于"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
 
-        <ScrollView>
-            <VerticalStackLayout Padding="16,18,16,22"
-                                 Spacing="16"
-                                 VerticalOptions="Center">
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <VerticalStackLayout Padding="44,0,0,0"
+                                     Spacing="14"
+                                     HorizontalOptions="Center">
+                    <Image Source="cover_default"
+                           WidthRequest="100"
+                           HeightRequest="100"
+                           HorizontalOptions="Center" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
+                           Style="{StaticResource PageTitleStyle}"
+                           HorizontalOptions="Center"
+                           TextColor="White" />
+                    <Label Text="{Binding Version}"
+                           FontSize="13"
+                           TextColor="#F3F5FF"
+                           HorizontalOptions="Center" />
+                    <Label Text="一个简洁优雅的音乐播放器"
+                           FontSize="14"
+                           TextColor="#F3F5FF"
+                           HorizontalOptions="Center" />
+                    <Border StrokeThickness="0"
+                            StrokeShape="RoundRectangle 14"
+                            BackgroundColor="#24FFFFFF"
+                            Padding="14,5"
+                            HorizontalOptions="Center">
+                        <Label Text=".NET MAUI Edition"
+                               FontSize="11"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="White"
+                               HorizontalOptions="Center" />
+                    </Border>
+                </VerticalStackLayout>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
 
-                <Border Style="{StaticResource GlassCardStrongStyle}">
-                    <VerticalStackLayout Spacing="14"
-                                         HorizontalOptions="Center">
-                        <Image Source="cover_default"
-                               WidthRequest="100"
-                               HeightRequest="100"
-                               HorizontalOptions="Center" />
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
-                               Style="{StaticResource PageTitleStyle}"
-                               HorizontalOptions="Center" />
-                        <Label Text="{Binding Version}"
-                               FontSize="13"
-                               TextColor="{DynamicResource TextHintColor}"
-                               HorizontalOptions="Center" />
-                        <Label Text="一个简洁优雅的音乐播放器"
-                               FontSize="14"
-                               TextColor="{DynamicResource TextSecondaryColor}"
-                               HorizontalOptions="Center" />
-                        <!-- 技术栈徽章：突出 .NET MAUI 重构 -->
-                        <Border StrokeThickness="0"
-                                StrokeShape="RoundRectangle 14"
-                                Background="{DynamicResource HeroBrush}"
-                                Padding="14,5"
-                                HorizontalOptions="Center">
-                            <Label Text=".NET MAUI Edition"
-                                   FontSize="11"
-                                   FontFamily="OpenSansSemibold"
-                                   TextColor="White"
-                                   HorizontalOptions="Center" />
-                        </Border>
-                    </VerticalStackLayout>
-                </Border>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,22"
+                                 Spacing="16">
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
@@ -88,9 +91,5 @@
                        Margin="0,8,0,0" />
             </VerticalStackLayout>
         </ScrollView>
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
 </Grid>
 </ContentPage>

@@ -8,6 +8,10 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
              Shell.NavBarIsVisible="False">
 
+    <Shell.BackButtonBehavior>
+        <BackButtonBehavior IsVisible="False" />
+    </Shell.BackButtonBehavior>
+
     <Grid>
         <!-- 雾面动态背景层（铺满整个页面，覆盖状态栏和导航栏区域） -->
         <controls:FrostedBackground x:Name="FrostedBg"
@@ -32,25 +36,89 @@
                 <TapGestureRecognizer Tapped="OnPageTapped" />
             </Grid.GestureRecognizers>
 
-            <!-- Row 0: 顶部导航栏（返回按钮） -->
-            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" HeightRequest="40">
-                <!-- Windows桌面端返回按钮（移动端通过ViewPager滑动返回，不显示此按钮） -->
+            <!-- Row 0: 顶部导航栏（左上角收起按钮 + 右上角窗口控件） -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" HeightRequest="40">
+                <!-- 左上角收起按钮（向下箭头，点击收起播放页；Windows端同时承担返回功能） -->
                 <Border Grid.Column="0"
-                        x:Name="BackButton"
-                        IsVisible="{OnPlatform Default=false, WinUI=true}"
+                        x:Name="CollapseButton"
                         StrokeThickness="0"
-                        StrokeShape="RoundRectangle 20"
-                        BackgroundColor="#40FFFFFF"
-                        WidthRequest="40" HeightRequest="40"
+                        BackgroundColor="Transparent"
+                        WidthRequest="44" HeightRequest="44"
                         HorizontalOptions="Start" VerticalOptions="Center"
                         ZIndex="10">
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnBackButtonTapped" />
+                        <TapGestureRecognizer Tapped="OnCollapseButtonTapped" />
                     </Border.GestureRecognizers>
-                    <Image x:Name="BackButtonIcon"
-                           Source="ic_arrow_back"
-                           WidthRequest="20" HeightRequest="20"
+                    <Image x:Name="CollapseIcon"
+                           WidthRequest="22" HeightRequest="22"
                            HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+
+                <!-- 右上角窗口控制按钮（仅 Windows 端显示） -->
+                <!-- 最小化按钮 -->
+                <Border Grid.Column="2"
+                        IsVisible="{OnPlatform Default=false, WinUI=true}"
+                        WidthRequest="46" HeightRequest="40"
+                        BackgroundColor="Transparent"
+                        StrokeThickness="0"
+                        HorizontalOptions="End" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnMinimizeTapped" />
+                    </Border.GestureRecognizers>
+                    <Path WidthRequest="20" HeightRequest="20"
+                          Data="M 4,10 L 16,10"
+                          Stroke="White"
+                          StrokeThickness="1.5"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center" />
+                </Border>
+
+                <!-- 最大化/还原按钮 -->
+                <Border Grid.Column="3"
+                        IsVisible="{OnPlatform Default=false, WinUI=true}"
+                        WidthRequest="46" HeightRequest="40"
+                        BackgroundColor="Transparent"
+                        StrokeThickness="0"
+                        HorizontalOptions="End" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnMaximizeTapped" />
+                    </Border.GestureRecognizers>
+                    <Grid>
+                        <Path x:Name="MaximizeIcon"
+                              WidthRequest="20" HeightRequest="20"
+                              Data="M 3,3 L 17,3 L 17,17 L 3,17 Z"
+                              Stroke="White"
+                              StrokeThickness="1.5"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              IsVisible="true" />
+                        <Path x:Name="RestoreIcon"
+                              WidthRequest="20" HeightRequest="20"
+                              Data="M 3,6 L 14,6 L 14,17 L 3,17 Z M 6,3 L 17,3 L 17,14 L 14,14 L 14,6 L 6,6 Z"
+                              Stroke="White"
+                              StrokeThickness="1.5"
+                              HorizontalOptions="Center"
+                              VerticalOptions="Center"
+                              IsVisible="false" />
+                    </Grid>
+                </Border>
+
+                <!-- 关闭按钮 -->
+                <Border Grid.Column="4"
+                        IsVisible="{OnPlatform Default=false, WinUI=true}"
+                        WidthRequest="46" HeightRequest="40"
+                        BackgroundColor="Transparent"
+                        StrokeThickness="0"
+                        HorizontalOptions="End" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloseTapped" />
+                    </Border.GestureRecognizers>
+                    <Path WidthRequest="20" HeightRequest="20"
+                          Data="M 4,4 L 16,16 M 4,16 L 16,4"
+                          Stroke="White"
+                          StrokeThickness="1.5"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center" />
                 </Border>
             </Grid>
 
@@ -78,29 +146,29 @@
                         <!-- 封面辉光（模糊投影）- 底层 -->
                         <Border x:Name="CoverGlow"
                                 StrokeThickness="0"
-                                StrokeShape="RoundRectangle 24"
+                                StrokeShape="RoundRectangle 28"
                                 BackgroundColor="Transparent"
-                                WidthRequest="220"
-                                HeightRequest="220"
+                                WidthRequest="286"
+                                HeightRequest="286"
                                 Opacity="0.35"
                                 Scale="1.08"
-                                TranslationY="8"
+                                TranslationY="10"
                                 HorizontalOptions="Center"
                                 VerticalOptions="Center" />
                         <!-- 封面本体 - 上层 -->
                         <Border x:Name="CoverArea"
                                 StrokeThickness="0.5"
                                 Stroke="#30FFFFFF"
-                                StrokeShape="RoundRectangle 24"
+                                StrokeShape="RoundRectangle 28"
                                 BackgroundColor="Transparent"
-                                WidthRequest="220"
-                                HeightRequest="220"
+                                WidthRequest="286"
+                                HeightRequest="286"
                                 HorizontalOptions="Center">
                             <Image x:Name="ArtworkImage"
                                    Source="{Binding CoverImage}"
                                    Aspect="AspectFill"
-                                   WidthRequest="220"
-                                   HeightRequest="220" />
+                                   WidthRequest="286"
+                                   HeightRequest="286" />
                         </Border>
                     </Grid>
                     <!-- 歌曲信息（居中） -->
@@ -215,38 +283,43 @@
                       HeightRequest="56"
                       VerticalOptions="End">
                     <!-- 播放模式 -->
-                    <Button Grid.Column="0" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="0"
+                    <ImageButton Grid.Column="0" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="8"
+                            Aspect="AspectFit"
                             BackgroundColor="Transparent"
-                            ImageSource="{Binding PlayModeIconSourceWhite}"
+                            Source="{Binding PlayModeIconSourceWhite}"
                             Command="{Binding CyclePlayModeCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 上一首 -->
-                    <Button Grid.Column="1" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="0"
+                    <ImageButton Grid.Column="1" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="8"
+                            Aspect="AspectFit"
                             BackgroundColor="Transparent"
-                            ImageSource="{Binding PlayPreviousIconSourceWhite}"
+                            Source="{Binding PlayPreviousIconSourceWhite}"
                             Command="{Binding PlayPreviousCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 播放/暂停 -->
-                    <Button Grid.Column="2" WidthRequest="56" HeightRequest="56"
-                            CornerRadius="28" Padding="0"
+                    <ImageButton Grid.Column="2" WidthRequest="56" HeightRequest="56"
+                            CornerRadius="28" Padding="12"
+                            Aspect="AspectFit"
                             BackgroundColor="Transparent"
-                            ImageSource="{Binding PlayPauseIconSourceWhite}"
+                            Source="{Binding PlayPauseIconSourceWhite}"
                             Command="{Binding TogglePlayPauseCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 下一首 -->
-                    <Button Grid.Column="3" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="0"
+                    <ImageButton Grid.Column="3" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="8"
+                            Aspect="AspectFit"
                             BackgroundColor="Transparent"
-                            ImageSource="{Binding PlayNextIconSourceWhite}"
+                            Source="{Binding PlayNextIconSourceWhite}"
                             Command="{Binding PlayNextCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 收藏 -->
-                    <Button Grid.Column="4" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="0"
+                    <ImageButton Grid.Column="4" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="8"
+                            Aspect="AspectFit"
                             BackgroundColor="Transparent"
-                            ImageSource="{Binding LikeIconSourceWhite}"
+                            Source="{Binding LikeIconSourceWhite}"
                             Command="{Binding ToggleLikeCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                 </Grid>
@@ -271,10 +344,11 @@
                                    FontSize="11" TextColor="#CCFFFFFF" MaxLines="1"
                                    LineBreakMode="TailTruncation" />
                         </VerticalStackLayout>
-                        <Button Grid.Column="1" WidthRequest="32" HeightRequest="32"
-                                CornerRadius="16" Padding="0"
+                        <ImageButton Grid.Column="1" WidthRequest="32" HeightRequest="32"
+                                CornerRadius="16" Padding="6"
+                                Aspect="AspectFit"
                                 BackgroundColor="Transparent"
-                                ImageSource="{Binding LikeIconSourceWhite}"
+                                Source="{Binding LikeIconSourceWhite}"
                                 Command="{Binding ToggleLikeCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                     </Grid>
@@ -285,47 +359,53 @@
                           ColumnSpacing="16"
                           HorizontalOptions="Center" VerticalOptions="Center">
                         <!-- 播放模式 -->
-                        <Button Grid.Column="0" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="0"
+                        <ImageButton Grid.Column="0" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="8"
+                                Aspect="AspectFit"
                                 BackgroundColor="Transparent"
-                                ImageSource="{Binding PlayModeIconSourceWhite}"
+                                Source="{Binding PlayModeIconSourceWhite}"
                                 Command="{Binding CyclePlayModeCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 上一首 -->
-                        <Button Grid.Column="1" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="0"
+                        <ImageButton Grid.Column="1" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="8"
+                                Aspect="AspectFit"
                                 BackgroundColor="Transparent"
-                                ImageSource="{Binding PlayPreviousIconSourceWhite}"
+                                Source="{Binding PlayPreviousIconSourceWhite}"
                                 Command="{Binding PlayPreviousCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 播放/暂停 -->
-                        <Button Grid.Column="2" WidthRequest="56" HeightRequest="56"
-                                CornerRadius="28" Padding="0"
+                        <ImageButton Grid.Column="2" WidthRequest="56" HeightRequest="56"
+                                CornerRadius="28" Padding="12"
+                                Aspect="AspectFit"
                                 BackgroundColor="Transparent"
-                                ImageSource="{Binding PlayPauseIconSourceWhite}"
+                                Source="{Binding PlayPauseIconSourceWhite}"
                                 Command="{Binding TogglePlayPauseCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 下一首 -->
-                        <Button Grid.Column="3" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="0"
+                        <ImageButton Grid.Column="3" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="8"
+                                Aspect="AspectFit"
                                 BackgroundColor="Transparent"
-                                ImageSource="{Binding PlayNextIconSourceWhite}"
+                                Source="{Binding PlayNextIconSourceWhite}"
                                 Command="{Binding PlayNextCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 播放列表 -->
-                        <Button Grid.Column="4" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="0"
+                        <ImageButton Grid.Column="4" WidthRequest="40" HeightRequest="40"
+                                CornerRadius="20" Padding="8"
+                                Aspect="AspectFit"
                                 BackgroundColor="Transparent"
-                                ImageSource="{Binding PlaylistIconSource}"
+                                Source="{Binding PlaylistIconSource}"
                                 Clicked="OnOpenPlaylistClicked"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                     </Grid>
 
                     <!-- 右侧：歌词 -->
-                    <Button Grid.Column="2" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="0"
+                    <ImageButton Grid.Column="2" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="8"
+                            Aspect="AspectFit"
                             BackgroundColor="Transparent"
-                            ImageSource="{Binding LyricsIconSource}"
+                            Source="{Binding LyricsIconSource}"
                             Clicked="OnOpenLyricsClicked"
                             HorizontalOptions="End" VerticalOptions="Center" />
                 </Grid>

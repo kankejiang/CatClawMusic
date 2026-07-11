@@ -10,78 +10,59 @@
     <Grid RowDefinitions="Auto,Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <Border WidthRequest="240"
-                HeightRequest="240"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource PrimaryGlowBrush}"
-                HorizontalOptions="Start"
-                VerticalOptions="Start"
-                TranslationX="-130"
-                TranslationY="-70" />
-
-        <Border WidthRequest="180"
-                HeightRequest="180"
-                StrokeThickness="0"
-                StrokeShape="Ellipse"
-                Background="{DynamicResource AccentGlowBrush}"
-                HorizontalOptions="End"
-                VerticalOptions="Start"
-                TranslationX="80"
-                TranslationY="200" />
-
-        <Border Grid.Row="0"
-                Margin="16,8,16,8"
-                Style="{StaticResource GlassCardStrongStyle}">
-            <Grid ColumnDefinitions="Auto,*"
-                  ColumnSpacing="16">
-                <Border Grid.Column="0"
-                        WidthRequest="88"
-                        HeightRequest="88"
-                        StrokeShape="RoundRectangle 18"
-                        StrokeThickness="0"
-                        BackgroundColor="{DynamicResource SurfaceColor}">
-                    <Image Source="{Binding AlbumCoverPath, TargetNullValue='ic_album'}"
-                           Aspect="AspectFill"
-                           WidthRequest="88"
-                           HeightRequest="88" />
-                </Border>
-                <VerticalStackLayout Grid.Column="1"
-                                     VerticalOptions="Center"
-                                     Spacing="6">
-                    <Label Text="{Binding Album.Title}"
-                           FontSize="20"
-                           FontFamily="OpenSansSemibold"
-                           TextColor="{DynamicResource TextPrimaryColor}"
-                           MaxLines="2" />
-                    <Label Text="{Binding Album.Artist}"
-                           FontSize="14"
-                           TextColor="{DynamicResource TextSecondaryColor}" />
-                    <Label Text="{Binding Album.Year}"
-                           FontSize="12"
-                           TextColor="{DynamicResource TextHintColor}" />
-                    <Grid ColumnDefinitions="Auto,Auto"
-                          ColumnSpacing="10"
-                          Margin="0,6,0,0">
-                        <Button Text="▶ 播放"
-                                Command="{Binding PlayAllCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
-                                TextColor="White"
-                                CornerRadius="20"
-                                HeightRequest="36"
-                                FontSize="12" />
-                        <Button Grid.Column="1"
-                                Text="＋ 添加到"
-                                Command="{Binding AddToPlaylistCommand}"
-                                BackgroundColor="{DynamicResource ChipInactiveColor}"
-                                TextColor="{DynamicResource ChipInactiveTextColor}"
-                                CornerRadius="20"
-                                HeightRequest="36"
-                                FontSize="12" />
-                    </Grid>
-                </VerticalStackLayout>
-            </Grid>
-        </Border>
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <Grid ColumnDefinitions="Auto,*"
+                      ColumnSpacing="12"
+                      Padding="44,0,0,0">
+                    <Border Grid.Column="0"
+                            WidthRequest="72"
+                            HeightRequest="72"
+                            StrokeShape="RoundRectangle 14"
+                            StrokeThickness="0"
+                            BackgroundColor="{DynamicResource SurfaceColor}">
+                        <Image Source="{Binding AlbumCoverPath, TargetNullValue='ic_album'}"
+                               Aspect="AspectFill"
+                               WidthRequest="72"
+                               HeightRequest="72" />
+                    </Border>
+                    <VerticalStackLayout Grid.Column="1"
+                                         VerticalOptions="Center"
+                                         Spacing="2">
+                        <Label Text="{Binding Album.Title}"
+                               FontSize="20"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               MaxLines="2" />
+                        <Label Text="{Binding Album.Artist}"
+                               FontSize="14"
+                               TextColor="{DynamicResource TextSecondaryColor}" />
+                        <Label Text="{Binding Album.Year}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}" />
+                        <Grid ColumnDefinitions="Auto,Auto"
+                              ColumnSpacing="8"
+                              Margin="0,2,0,0">
+                            <Button Text="▶ 播放"
+                                    Command="{Binding PlayAllCommand}"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    TextColor="White"
+                                    CornerRadius="18"
+                                    HeightRequest="32"
+                                    FontSize="11" />
+                            <Button Grid.Column="1"
+                                    Text="＋ 添加到"
+                                    Command="{Binding AddToPlaylistCommand}"
+                                    BackgroundColor="{DynamicResource ChipInactiveColor}"
+                                    TextColor="{DynamicResource ChipInactiveTextColor}"
+                                    CornerRadius="18"
+                                    HeightRequest="32"
+                                    FontSize="11" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Grid>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
 
         <Label Grid.Row="1"
                Text="{Binding Songs.Count, StringFormat='共 {0} 首歌曲'}"
@@ -93,10 +74,11 @@
                         ItemsSource="{Binding Songs}"
                         SelectionMode="Single"
                         SelectionChanged="OnSongSelected"
-                        ItemTemplate="{StaticResource SongItemTemplate}" />
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
+                        ItemsUpdatingScrollMode="KeepItemsInView"
+                        ItemTemplate="{StaticResource SongItemTemplate}">
+            <CollectionView.Behaviors>
+                <controls:ScrollPerformanceBehavior />
+            </CollectionView.Behaviors>
+        </CollectionView>
 </Grid>
 </ContentPage>

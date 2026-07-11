@@ -51,6 +51,13 @@
 - 底部 TabBar 不受影响
 - 二级页面返回仍通过系统返回键/手势正常工作
 
+## MAUI WinUI 图标按钮坑（重要）
+- **`Button.ImageSource` 在 WinUI 上对纯图标按钮不渲染图标**。凡是「只显示图标、无文字」的按钮，一律用 `<ImageButton Source="{Binding ...}">`，**不要**用 `<Button ImageSource="{Binding ...}">`（后者 Windows 上图标始终空白，Android 正常，极具迷惑性）。
+  - ImageButton 保留 `Command`/`Clicked`/`WidthRequest`/`HeightRequest`/`CornerRadius`/`BackgroundColor`/对齐；建议加 `Aspect="AspectFit"` + 适当 `Padding` 防止图标贴边。
+  - 只捕获点击的透明按钮（`Text=""`、无图标）可继续用 `<Button>`。
+  - 已修复文件：`NowPlayingPage.xaml`（PhoneControls/DesktopControls）、`DesktopMainPage.xaml`（底部迷你播放栏）。详见 2026-07-09 日志。
+- 同源现象：XAML 字面量 `Image Source="ic_xxx"` 在 Windows 上也可能不渲染，需在代码后台用 `ImageSourceHelper.FromNameOriginal(...)` 显式赋 `Image.Source`（如 NowPlayingPage 的 BackButtonIcon）。
+
 ## Windows 端平台特性（MAUI net11.0-windows）
 - **添加音乐文件夹**：Windows 用 `Platforms/Windows/WindowsFolderPicker.cs`（WinUI `Windows.Storage.Pickers.FolderPicker`
   + `InitializeWithWindow.Initialize` 绑定 HWND），选中真实路径后通过 `CustomFolderStore`（见下）写入

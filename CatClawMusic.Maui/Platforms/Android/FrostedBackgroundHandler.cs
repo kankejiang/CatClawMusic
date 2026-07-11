@@ -134,7 +134,10 @@ public class FrostedBackgroundView : View
         _cacheKey = cacheKey;
         // 递增处理版本号，让正在进行的旧任务完成后丢弃结果
         Interlocked.Increment(ref _processingVersion);
-        _ = Task.Run(() => RegenerateProcessedBitmap());
+        // 捕获当前 bitmap 引用到闭包，防止后续 SetSource 回收后后台线程访问已回收位图
+        var capturedSource = bitmap;
+        var capturedCacheKey = cacheKey;
+        _ = Task.Run(() => RegenerateProcessedBitmap(capturedSource, capturedCacheKey));
 
         // 回收旧源位图（每个实例独立加载，不共享）
         if (oldSource != null && !oldSource.IsRecycled)
@@ -217,7 +220,7 @@ public class FrostedBackgroundView : View
 
         _lastAnimNanos = System.Diagnostics.Stopwatch.GetTimestamp();
         _animator = ValueAnimator.OfFloat(0f, 1f);
-        _animator.SetDuration(40);  // 25fps，雾面背景不需要高帧率
+        _animator.SetDuration(125);  // ~8fps，雾面背景不需要高帧率，省电优先
         _animator.RepeatCount = ValueAnimator.Infinite;
         _animator.RepeatMode = ValueAnimatorRepeatMode.Restart;
         _animator.SetInterpolator(new global::Android.Views.Animations.LinearInterpolator());
@@ -242,7 +245,7 @@ public class FrostedBackgroundView : View
     protected override void OnDraw(Canvas? canvas)
     {
         base.OnDraw(canvas);
-        if (canvas == null || _processedBitmap == null) return;
+        if (canvas == null || _processedBitmap == null || _processedBitmap.IsRecycled) return;
 
         var w = Width;
         var h = Height;
@@ -251,7 +254,7 @@ public class FrostedBackgroundView : View
         _destRect.Set(0, 0, w, h);
 
         // 交叉淡入淡出过渡：progress=0 完全旧位图，progress=1 完全新位图
-        var isCrossFading = _crossFadeProgress < 1f && _previousBitmap != null;
+        var isCrossFading = _crossFadeProgress < 1f && _previousBitmap != null && !_previousBitmap.IsRecycled;
 
         if (isCrossFading)
         {
@@ -261,10 +264,7 @@ public class FrostedBackgroundView : View
 
         var newAlpha = isCrossFading ? (int)(_crossFadeProgress * 255) : 255;
 
-        // 底层：更大更慢，半透明，增加深度感
-        DrawFluidLayer(canvas, _processedBitmap, w, h, (int)(newAlpha * 0.55f), 1.35f, -2.5f);
-
-        // 顶层：主视觉层
+        // 主视觉层（移除底层视差层以减少 GPU 开销，视觉效果变化很小）
         DrawFluidLayer(canvas, _processedBitmap, w, h, newAlpha, 1f, 0f);
 
         // 色调叠加层
@@ -293,7 +293,7 @@ public class FrostedBackgroundView : View
     /// <param name="speedMul">速度倍率（负值反向旋转，用于底层视差）</param>
     private void DrawFluidLayer(Canvas canvas, Bitmap? bitmap, int w, int h, int alpha, float scaleMul, float speedMul)
     {
-        if (bitmap == null) return;
+        if (bitmap == null || bitmap.IsRecycled) return;
         var bw = bitmap.Width;
         var bh = bitmap.Height;
         if (bw <= 0 || bh <= 0) return;
@@ -372,7 +372,7 @@ public class FrostedBackgroundView : View
     /// 避免 NowPlayingPage 和 FullLyricsPage 重复进行 CPU 密集的 mesh+模糊处理。
     /// 处理成功完成后启动交叉淡入淡出过渡动画。
     /// </summary>
-    private void RegenerateProcessedBitmap()
+    private void RegenerateProcessedBitmap(Bitmap? source, string? cacheKey)
     {
         var myVersion = Interlocked.Increment(ref _processingVersion);
 
@@ -384,18 +384,19 @@ public class FrostedBackgroundView : View
 
         try
         {
-            if (_sourceBitmap != null && _sourceBitmap.Width > 0 && _sourceBitmap.Height > 0)
+            // 使用捕获的本地引用而非 _sourceBitmap 字段，避免竞态访问已被回收的位图
+            if (source != null && !source.IsRecycled && source.Width > 0 && source.Height > 0)
             {
-                if (!string.IsNullOrEmpty(_cacheKey))
+                if (!string.IsNullOrEmpty(cacheKey))
                 {
                     // 通过缓存获取：若另一个实例已处理过同一封面，直接复用
-                    result = ProcessedBitmapCache.GetOrCreate(_cacheKey, _sourceBitmap, ProcessFlowingLightBitmap);
-                    resultCacheKey = _cacheKey;
+                    result = ProcessedBitmapCache.GetOrCreate(cacheKey, source, ProcessFlowingLightBitmap);
+                    resultCacheKey = cacheKey;
                 }
                 else
                 {
                     // 无 cacheKey：直接处理（不缓存）
-                    result = ProcessFlowingLightBitmap(_sourceBitmap);
+                    result = ProcessFlowingLightBitmap(source);
                 }
             }
         }

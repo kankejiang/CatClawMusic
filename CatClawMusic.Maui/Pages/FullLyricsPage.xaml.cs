@@ -188,9 +188,21 @@ public partial class FullLyricsPage : ContentPage
                     FillProgress = 0,
                     HorizontalTextAlignment = _settings.ToTextAlignment(),
                     HorizontalOptions = _settings.ToLayoutOptions(),
-                    Opacity = 0.2
+                    LineBreakMode = LineBreakMode.WordWrap,
+                    Opacity = 0.2,
+                    Padding = new Thickness(16, 6)
                 };
-                stack.Children.Add(transLabel);
+                // 用与主歌词相同结构的 Border 包裹，确保翻译文本与主歌词居中对齐
+                var transBorder = new Border
+                {
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
+                    StrokeThickness = 0,
+                    BackgroundColor = Colors.Transparent,
+                    Padding = new Thickness(22, 0),
+                    HorizontalOptions = _settings.ToLayoutOptions()
+                };
+                transBorder.Content = transLabel;
+                stack.Children.Add(transBorder);
                 LyricStack.Children.Add(stack);
             }
             else
@@ -411,6 +423,20 @@ public partial class FullLyricsPage : ContentPage
             LyricsSettingsPopup.AddContent(BuildSpacer(16));
             LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词字体大小", textHint));
             LyricsSettingsPopup.AddContent(BuildFontSizeSlider(primaryColor, textSecondary, textHint));
+
+            // ─── 智能删除空行 ───
+            LyricsSettingsPopup.AddContent(BuildSpacer(16));
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("智能删除空行", textHint));
+            LyricsSettingsPopup.AddContent(BuildToggleSwitch(
+                "紧凑显示，移除歌词中的空行",
+                _settings.RemoveEmptyLines,
+                value =>
+                {
+                    _settings.RemoveEmptyLines = value;
+                    _viewModel.RefreshFilteredLines();
+                    RebuildLyricsView();
+                },
+                primaryColor, textSecondary, textHint));
         }
 
         LyricsSettingsPopup.Open();
@@ -582,6 +608,43 @@ public partial class FullLyricsPage : ContentPage
                 slider,
                 rangeGrid
             }
+        };
+    }
+
+    /// <summary>构建开关控件（带描述文本）</summary>
+    private View BuildToggleSwitch(
+        string description, bool currentValue,
+        Action<bool> onToggled,
+        Color primaryColor, Color textSecondary, Color textHint)
+    {
+        var descLabel = new Label
+        {
+            Text = description,
+            FontSize = 13,
+            TextColor = textSecondary,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.Start
+        };
+
+        var toggle = new Switch
+        {
+            IsToggled = currentValue,
+            OnColor = primaryColor,
+            ThumbColor = Colors.White,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.End
+        };
+        toggle.Toggled += (_, e) => onToggled(e.Value);
+
+        return new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new() { Width = new GridLength(1, GridUnitType.Star) },
+                new() { Width = GridLength.Auto }
+            },
+            HeightRequest = 44,
+            Children = { descLabel, toggle }
         };
     }
 }

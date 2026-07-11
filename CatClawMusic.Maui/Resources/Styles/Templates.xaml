@@ -68,18 +68,21 @@
     <!-- 专辑卡片模板                            -->
     <!-- ═══════════════════════════════════════ -->
     <DataTemplate x:Key="AlbumCardTemplate">
-        <Border Padding="0"
+        <Border WidthRequest="160"
+                Padding="0"
                 StrokeShape="RoundRectangle 24"
                 StrokeThickness="1"
                 Stroke="{DynamicResource GlassStrokeColor}"
                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
             <VerticalStackLayout Spacing="8" Padding="0,0,0,12">
-                <Border HeightRequest="160"
+                <Border WidthRequest="160"
+                        HeightRequest="160"
                         StrokeShape="RoundRectangle 24 24 0 0"
                         StrokeThickness="0"
                         BackgroundColor="{DynamicResource SurfaceColor}">
                     <Image Source="{Binding CoverSource}"
                            Aspect="AspectFill"
+                           WidthRequest="160"
                            HeightRequest="160" />
                 </Border>
                 <Label Text="{Binding Title}"

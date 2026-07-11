@@ -16,6 +16,8 @@ public partial class SearchPage : ContentPage
     private readonly IServiceProvider _services;
     private SettingsPage? _settingsPage;
     private bool _isSettingsPanelOpen;
+    private IDispatcherTimer? _heroAutoScrollTimer;
+    private int _heroCurrentPosition;
 
     /// <summary>初始化 <see cref="SearchPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
     /// <param name="db">音乐数据库访问对象。</param>
@@ -32,23 +34,68 @@ public partial class SearchPage : ContentPage
         _audioPlayer = audioPlayer;
         _services = services;
         BindingContext = _vm;
+        UpdateTabVisualState(0);
+        SetupHeroAutoScroll();
+    }
+
+    private void SetupHeroAutoScroll()
+    {
+        _heroAutoScrollTimer = Dispatcher.CreateTimer();
+        _heroAutoScrollTimer.Interval = TimeSpan.FromSeconds(4);
+        _heroAutoScrollTimer.Tick += OnHeroAutoScrollTick;
+
+        HeroCarousel.PositionChanged += (s, e) =>
+        {
+            _heroCurrentPosition = e.CurrentPosition;
+            RestartHeroTimer();
+        };
+    }
+
+    private void OnHeroAutoScrollTick(object? sender, EventArgs e)
+    {
+        if (_vm.HeroCards.Count == 0) return;
+        if (!IsVisible) return;
+        _heroCurrentPosition = (_heroCurrentPosition + 1) % _vm.HeroCards.Count;
+        HeroCarousel.ScrollTo(_heroCurrentPosition, position: ScrollToPosition.Center, animate: true);
+    }
+
+    private void RestartHeroTimer()
+    {
+        if (_heroAutoScrollTimer == null) return;
+        _heroAutoScrollTimer.Stop();
+        _heroAutoScrollTimer.Start();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _heroAutoScrollTimer?.Stop();
     }
 
     /// <summary>当页面显示在屏幕上时触发。若扫描后有 NeedsReload 标记则强制重载，否则仅首次加载以避免重复解码封面。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        _vm.GreetingText = CalculateGreeting();
 
-        // 扫描完成后强制重新加载探索数据（清除缓存 + 全量刷新）
+        if (_vm.HeroCards.Count > 0)
+        {
+            RestartHeroTimer();
+        }
+
         if (LocalScanService.NeedsReload)
         {
             LocalScanService.NeedsReload = false;
             try { await _vm.ReloadAfterScanAsync(); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SearchPage reload after scan: {ex.Message}"); }
+            if (_vm.HeroCards.Count > 0)
+            {
+                _heroCurrentPosition = 0;
+                RestartHeroTimer();
+            }
             return;
         }
 
-        // 已有数据则跳过加载，避免每次切换 tab 都重新解码所有封面图片造成 GC 压力
         if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0) return;
 
         try
@@ -58,6 +105,12 @@ public partial class SearchPage : ContentPage
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"SearchPage OnAppearing error: {ex.Message}");
+        }
+
+        if (_vm.HeroCards.Count > 0)
+        {
+            _heroCurrentPosition = 0;
+            RestartHeroTimer();
         }
     }
 
@@ -166,28 +219,22 @@ public partial class SearchPage : ContentPage
         _ = _vm.SendMessageCommand.ExecuteAsync(null);
     }
 
-    /// <summary>点击“每日推荐”快捷入口时触发，滚动到每日推荐区块。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">点击事件参数。</param>
-    private async void OnQuickDailyTapped(object? sender, TappedEventArgs e)
+    /// <summary>点击“每日推荐”快捷入口时触发，切换到推荐Tab。</summary>
+    private void OnQuickDailyTapped(object? sender, TappedEventArgs e)
     {
-        await ScrollToElementAsync(DailySectionAnchor);
+        _vm.CurrentCategory = 0;
     }
 
-    /// <summary>点击“最热播放”快捷入口时触发，滚动到最热播放区块。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">点击事件参数。</param>
-    private async void OnQuickTopPlayedTapped(object? sender, TappedEventArgs e)
+    /// <summary>点击“最热播放”快捷入口时触发，切换到排行榜Tab。</summary>
+    private void OnQuickTopPlayedTapped(object? sender, TappedEventArgs e)
     {
-        await ScrollToElementAsync(TopPlayedSection);
+        _vm.CurrentCategory = 1;
     }
 
-    /// <summary>点击“最近添加”快捷入口时触发，滚动到最近添加区块。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">点击事件参数。</param>
-    private async void OnQuickRecentTapped(object? sender, TappedEventArgs e)
+    /// <summary>点击“最近添加”快捷入口时触发，切换到推荐Tab。</summary>
+    private void OnQuickRecentTapped(object? sender, TappedEventArgs e)
     {
-        await ScrollToElementAsync(RecentSection);
+        _vm.CurrentCategory = 0;
     }
 
     /// <summary>滚动到指定元素位置（适配 CollectionView 的实现）。</summary>
@@ -293,9 +340,10 @@ public partial class SearchPage : ContentPage
     /// <param name="e">点击事件参数。</param>
     private async void OnHeroCardTapped(object? sender, TappedEventArgs e)
     {
-        var featured = _vm.FeaturedSong;
-        if (featured == null) return;
-        await PlaySongAsync(featured, _vm.DailyRecommendSongs.ToList());
+        if (sender is Border border && border.BindingContext is HeroCardItem heroItem && heroItem.Song != null)
+        {
+            await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
+        }
     }
 
     /// <summary>在每日推荐列表中选中某首歌曲时触发，清除选中状态并播放该歌曲。</summary>
@@ -416,5 +464,143 @@ public partial class SearchPage : ContentPage
         );
 
         SettingsPanelOverlay.IsVisible = false;
+    }
+
+    private void OnSearchToggleClicked(object? sender, EventArgs e)
+    {
+        _vm.IsSearchOpen = !_vm.IsSearchOpen;
+        if (_vm.IsSearchOpen)
+        {
+            SearchBox.Focus();
+        }
+        else
+        {
+            SearchBox.Unfocus();
+            SearchBox.Text = "";
+            _vm.ClearSearchDropdown();
+        }
+    }
+
+    private async void OnRefreshClicked(object? sender, EventArgs e)
+    {
+        if (_vm.IsLoading) return;
+        _ = _vm.RefreshCommand.ExecuteAsync(null);
+    }
+
+    private void OnSettingsClicked(object? sender, EventArgs e)
+    {
+        OnHamburgerClicked(sender, e);
+    }
+
+    private void OnCategoryTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is string paramStr && int.TryParse(paramStr, out int index))
+        {
+            _vm.CurrentCategory = index;
+            UpdateTabVisualState(index);
+        }
+    }
+
+    private void UpdateTabVisualState(int selectedIndex)
+    {
+        var primaryColor = (Color)Application.Current?.Resources["PrimaryColor"]!;
+        var cardBg = (Color)Application.Current?.Resources["CardBackgroundColor"]!;
+        var white = Colors.White;
+        var textSecondary = (Color)Application.Current?.Resources["TextSecondaryColor"]!;
+
+        TabRec.BackgroundColor = selectedIndex == 0 ? primaryColor : cardBg;
+        TabRecLabel.TextColor = selectedIndex == 0 ? white : textSecondary;
+
+        TabRank.BackgroundColor = selectedIndex == 1 ? primaryColor : cardBg;
+        TabRankLabel.TextColor = selectedIndex == 1 ? white : textSecondary;
+
+        TabArtist.BackgroundColor = selectedIndex == 2 ? primaryColor : cardBg;
+        TabArtistLabel.TextColor = selectedIndex == 2 ? white : textSecondary;
+
+        TabAlbum.BackgroundColor = selectedIndex == 3 ? primaryColor : cardBg;
+        TabAlbumLabel.TextColor = selectedIndex == 3 ? white : textSecondary;
+    }
+
+    private async void OnHeroPlayTapped(object? sender, EventArgs e)
+    {
+        if (sender is ImageButton btn && btn.BindingContext is HeroCardItem heroItem && heroItem.Song != null)
+        {
+            await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
+        }
+    }
+
+    private void OnShuffleDailyClicked(object? sender, EventArgs e)
+    {
+        _vm.ShuffleDailyCommand.Execute(null);
+    }
+
+    private async void OnRankPlayTapped(object? sender, EventArgs e)
+    {
+        if (sender is ImageButton btn && btn.BindingContext is Song song)
+        {
+            await PlaySongAsync(song, _vm.TopPlayedSongs.ToList());
+        }
+    }
+
+    private async void OnFavPlayTapped(object? sender, EventArgs e)
+    {
+        if (sender is ImageButton btn && btn.BindingContext is Song song)
+        {
+            await PlaySongAsync(song, _vm.FavoriteSongs.ToList());
+        }
+    }
+
+    private void OnRankItemBindingContextChanged(object? sender, EventArgs e)
+    {
+        if (sender is not Border border) return;
+        if (border.BindingContext is not Song song) return;
+
+        var list = _vm.TopPlayedSongs;
+        var index = list.IndexOf(song);
+        if (index < 0) return;
+
+        var rank = index + 1;
+        if (border.Content is Grid grid && grid.Children.Count > 0 && grid.Children[0] is Label rankLabel)
+        {
+            rankLabel.Text = rank.ToString();
+            rankLabel.TextColor = rank <= 3
+                ? (Color)Application.Current?.Resources["PrimaryColor"]!
+                : (Color)Application.Current?.Resources["TextHintColor"]!;
+        }
+    }
+
+    private static string CalculateGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        return hour switch
+        {
+            >= 0 and < 6 => "凌晨好，为你精选深夜好歌",
+            >= 6 and < 12 => "早上好，为你精选晨间好歌",
+            >= 12 and < 18 => "下午好，为你精选午后好歌",
+            _ => "晚上好，为你精选今日好歌"
+        };
+    }
+
+    private async void OnRankItemTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Border border && border.BindingContext is Song song)
+        {
+            await PlaySongAsync(song, _vm.TopPlayedSongs.ToList());
+        }
+    }
+
+    private async void OnFavItemTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Border border && border.BindingContext is Song song)
+        {
+            await PlaySongAsync(song, _vm.FavoriteSongs.ToList());
+        }
+    }
+
+    private async void OnFavoriteSongSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is not Song song) return;
+        if (sender is CollectionView cv) cv.SelectedItem = null;
+        await PlaySongAsync(song, _vm.FavoriteSongs.ToList());
     }
 }

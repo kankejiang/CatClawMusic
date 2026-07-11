@@ -5,19 +5,14 @@
              x:Class="CatClawMusic.Maui.Pages.SplashSettingsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleSplashSettings]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
-        <Border Margin="16,18,16,22"
-                Style="{StaticResource GlassCardStrongStyle}">
-            <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleSplashSettings]}" Style="{StaticResource PageTitleStyle}" />
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FeatureInDev]}"
-                       Style="{StaticResource PageSubtitleStyle}"
-                       HorizontalTextAlignment="Center" />
-            </VerticalStackLayout>
-        </Border>
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
-</Grid>
+    <Grid RowDefinitions="Auto,*" Background="{DynamicResource PageBackgroundBrush}">
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <VerticalStackLayout Spacing="12" HorizontalOptions="Center" Padding="44,0,0,0">
+                    <Label Text="启动页设置" Style="{StaticResource PageTitleStyle}" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FeatureInDev]}" Style="{StaticResource PageSubtitleStyle}" HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
+    </Grid>
 </ContentPage>

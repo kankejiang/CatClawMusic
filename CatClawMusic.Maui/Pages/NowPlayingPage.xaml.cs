@@ -28,9 +28,16 @@ public partial class NowPlayingPage : ContentPage
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+        Loaded += OnPageLoaded;
 
+        // 设置收起图标（使用 ImageSourceHelper 确保 Windows 端正确加载）
+        CollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
+    }
+
+    private void OnPageLoaded(object? sender, EventArgs e)
+    {
 #if WINDOWS
-        BackButtonIcon.Source = ImageSourceHelper.FromNameOriginal("ic_arrow_back");
+        UpdateMaximizeIcon();
 #endif
     }
 
@@ -65,8 +72,8 @@ public partial class NowPlayingPage : ContentPage
         var isLandscape = width > height;
         // 封面尺寸：横屏根据高度计算（避免超出窗口），竖屏根据较短边计算
         var coverSize = isLandscape
-            ? Math.Clamp((int)(height * 0.55), 200, 380)
-            : Math.Clamp((int)(Math.Min(width, height) * 0.45), 180, 260);
+            ? Math.Clamp((int)(height * 0.6), 260, 480)
+            : Math.Clamp((int)(Math.Min(width, height) * 0.55), 240, 360);
 
         if (_isLandscape == isLandscape && _lastCoverSize == coverSize)
             return;
@@ -273,9 +280,21 @@ public partial class NowPlayingPage : ContentPage
                     StrokeWidth = 1.5,
                     FillProgress = 0,
                     HorizontalTextAlignment = TextAlignment.Center,
+                    HorizontalOptions = LayoutOptions.Fill,
+                    LineBreakMode = LineBreakMode.WordWrap,
+                    Padding = new Thickness(16, 4)
+                };
+                // 用与主歌词相同结构的 Border 包裹，确保翻译文本与主歌词居中对齐
+                var transBorder = new Border
+                {
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+                    StrokeThickness = 0,
+                    BackgroundColor = Colors.Transparent,
+                    Padding = new Thickness(18, 0),
                     HorizontalOptions = LayoutOptions.Fill
                 };
-                stack.Children.Add(transLabel);
+                transBorder.Content = transLabel;
+                stack.Children.Add(transBorder);
                 LyricStack.Children.Add(stack);
             }
             else
@@ -524,18 +543,16 @@ public partial class NowPlayingPage : ContentPage
 #endif
     }
 
-    /// <summary>Windows 桌面端返回按钮：通过 Shell 导航返回 DesktopMainPage</summary>
-    private void OnBackButtonTapped(object? sender, TappedEventArgs e)
+    /// <summary>点击左上角收起按钮：播放页向下平移收起，露出发现页</summary>
+    private void OnCollapseButtonTapped(object? sender, TappedEventArgs e)
     {
 #if WINDOWS
         if (Shell.Current.Navigation.NavigationStack.Count > 1)
-        {
             _ = Shell.Current.Navigation.PopAsync();
-        }
         else
-        {
             _ = Shell.Current.GoToAsync("//main");
-        }
+#else
+        MainPage.Instance?.CollapseNowPlaying();
 #endif
     }
 
@@ -554,4 +571,67 @@ public partial class NowPlayingPage : ContentPage
         MainPage.Instance?.SwitchToTab(2);
 #endif
     }
+
+    // ─── 窗口控制按钮 ──
+
+    private void OnMinimizeTapped(object? sender, TappedEventArgs e)
+    {
+#if WINDOWS
+        if (App.CurrentAppWindow == null) return;
+        var hwnd = Microsoft.UI.Win32Interop.GetWindowFromWindowId(App.CurrentAppWindow.Id);
+        _ = ShowWindow(hwnd, SW_MINIMIZE);
+#endif
+    }
+
+    private void OnMaximizeTapped(object? sender, TappedEventArgs e)
+    {
+        ToggleMaximize();
+    }
+
+    private void OnCloseTapped(object? sender, TappedEventArgs e)
+    {
+#if WINDOWS
+        if (App.CurrentAppWindow == null) return;
+        var hwnd = Microsoft.UI.Win32Interop.GetWindowFromWindowId(App.CurrentAppWindow.Id);
+        _ = PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+#endif
+    }
+
+    private void ToggleMaximize()
+    {
+#if WINDOWS
+        if (App.CurrentAppWindow?.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+        {
+            if (presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized)
+                presenter.Restore();
+            else
+                presenter.Maximize();
+
+            UpdateMaximizeIcon();
+        }
+#endif
+    }
+
+    private void UpdateMaximizeIcon()
+    {
+#if WINDOWS
+        if (App.CurrentAppWindow?.Presenter is not Microsoft.UI.Windowing.OverlappedPresenter presenter)
+            return;
+
+        var isMaximized = presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
+        MaximizeIcon.IsVisible = !isMaximized;
+        RestoreIcon.IsVisible = isMaximized;
+#endif
+    }
+
+#if WINDOWS
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    private const int SW_MINIMIZE = 6;
+    private const uint WM_CLOSE = 0x0010;
+#endif
 }

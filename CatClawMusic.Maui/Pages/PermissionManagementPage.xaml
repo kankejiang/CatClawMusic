@@ -8,36 +8,36 @@
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
 
-        <ScrollView>
-            <VerticalStackLayout Padding="16,18,16,22" Spacing="14">
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <Grid Padding="44,0,0,0" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PermissionsSubtitle]}"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F3F5FF" />
+                    </VerticalStackLayout>
+                    <Border Grid.Column="1"
+                            Style="{StaticResource GlassIconContainerStyle}"
+                            BackgroundColor="#24FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding RefreshCommand}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="🔄" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
 
-                <!-- Hero Header -->
-                <Border Style="{StaticResource GlassCardStrongStyle}"
-                        Background="{DynamicResource HeroBrush}">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                        <VerticalStackLayout Spacing="6">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}"
-                                   Style="{StaticResource PageTitleStyle}"
-                                   TextColor="White" />
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PermissionsSubtitle]}"
-                                   Style="{StaticResource PageSubtitleStyle}"
-                                   TextColor="#F3F5FF" />
-                        </VerticalStackLayout>
-                        <Border Grid.Column="1"
-                                Style="{StaticResource GlassIconContainerStyle}"
-                                BackgroundColor="#24FFFFFF"
-                                Stroke="{DynamicResource GlassStrokeColor}">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding RefreshCommand}" />
-                            </Border.GestureRecognizers>
-                            <Label Text="🔄" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
-                        </Border>
-                    </Grid>
-                </Border>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
 
-                <!-- 权限列表 -->
                 <VerticalStackLayout Spacing="10"
                                      BindableLayout.ItemsSource="{Binding Permissions}">
                     <BindableLayout.ItemTemplate>
@@ -82,7 +82,6 @@
                     </BindableLayout.ItemTemplate>
                 </VerticalStackLayout>
 
-                <!-- 打开系统设置 -->
                 <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[OpenAppSettings]}"
                         Command="{Binding OpenAppSettingsCommand}"
                         BackgroundColor="Transparent"
@@ -95,9 +94,5 @@
 
             </VerticalStackLayout>
         </ScrollView>
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
 </Grid>
 </ContentPage>

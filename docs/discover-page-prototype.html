@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>CatClawMusic · 发现页 UI 高保真原型</title>
+<style>
+  /* ════════════════════════════════════════════════════
+     设计 Token —— 与 CatClawMusic.Maui/Resources/Styles/Colors.xaml 对齐
+     玻璃态(Glassmorphism) 视觉语言（参考 IMA《什么是玻璃态设计风格》）
+     ════════════════════════════════════════════════════ */
+  :root {
+    --window-bg: #080B1A;
+    --bg-grad: linear-gradient(180deg, #0B0D20 0%, #15132E 30%, #0A0C1C 70%, #080914 100%);
+    --surface: #1A2040;
+    --card: #182244;
+    --card-strong: #1E2A52;
+    --input-bg: #141C3A;
+    --input-border: #2E3A6A;
+    --divider: #1E2A50;
+    --glass-stroke: #2A3870;
+    --glass-stroke-strong: #3A4A8C;
+    --chip-inactive: #1C2850;
+    --chip-active: #6C5CE7;
+    --chip-inactive-text: #B8C0E0;
+    --chip-active-text: #FFFFFF;
+    --badge-bg: #1A2650;
+    --text-primary: #F7F8FF;
+    --text-secondary: #C2C6E4;
+    --text-hint: #8D93B7;
+    --primary: #8C7BFF;
+    --primary-light: #B7AEFF;
+    --primary-dark: #6250F6;
+    --accent: #55D6FF;
+    --like: #FF7AAE;
+
+    /* 玻璃卡片：半透明 + 模糊 + 描边（GlassCardStyle / GlassCardStrongStyle） */
+    --card-glass: rgba(30, 42, 82, 0.55);
+    --card-glass-strong: rgba(36, 50, 92, 0.62);
+    --card-blur: 22px;
+    --card-border: rgba(58, 74, 140, 0.55);
+    --card-highlight: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.02) 55%);
+    --shadow-card: 0 18px 40px -18px rgba(0,0,0,0.65);
+    --shadow-float: 0 12px 30px -10px rgba(10,14,40,0.8);
+
+    /* 一致的圆角半径体系（参考 IMA《构建一致的圆角半径体系》） */
+    --r-xs: 12px;
+    --r-sm: 16px;
+    --r-md: 20px;
+    --r-lg: 24px;
+    --r-xl: 26px;
+    --r-pill: 999px;
+
+    --gap: 14px;
+    --pad: 16px;
+    --font: "PingFang SC", "Microsoft YaHei", "Open Sans", -apple-system, system-ui, sans-serif;
+  }
+
+  [data-theme="light"] {
+    --window-bg: #E9ECF7;
+    --bg-grad: linear-gradient(180deg, #F5F6FC 0%, #ECEEFB 35%, #F2F3FA 70%, #E5E8F6 100%);
+    --surface: #FFFFFF;
+    --card: #FFFFFF;
+    --card-strong: #FFFFFF;
+    --input-bg: #F1F2FA;
+    --input-border: #D8DCEF;
+    --divider: #E4E7F4;
+    --glass-stroke: #D9DEF2;
+    --glass-stroke-strong: #C9D0EC;
+    --chip-inactive: #EDEFFA;
+    --chip-active: #6C5CE7;
+    --chip-inactive-text: #5A6088;
+    --chip-active-text: #FFFFFF;
+    --badge-bg: #EAEDFB;
+    --text-primary: #171B36;
+    --text-secondary: #4E5478;
+    --text-hint: #9AA0C0;
+    --primary: #6C5CE7;
+    --primary-light: #9D92FF;
+    --primary-dark: #4F40D8;
+    --accent: #1FA9D6;
+    --like: #F2568F;
+
+    --card-glass: rgba(255, 255, 255, 0.72);
+    --card-glass-strong: rgba(255, 255, 255, 0.82);
+    --card-blur: 20px;
+    --card-border: rgba(255, 255, 255, 0.85);
+    --card-highlight: linear-gradient(135deg, rgba(255,255,255,0.7), rgba(255,255,255,0.1) 55%);
+    --shadow-card: 0 16px 36px -20px rgba(40, 50, 110, 0.35);
+    --shadow-float: 0 10px 26px -12px rgba(40, 50, 110, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    background:
+      radial-gradient(900px 600px at 12% -8%, rgba(140,123,255,0.20), transparent 60%),
+      radial-gradient(800px 600px at 105% 110%, rgba(85,214,255,0.14), transparent 60%),
+      var(--window-bg);
+    color: var(--text-primary);
+    display: flex; justify-content: center; align-items: flex-start;
+    min-height: 100vh; padding: 24px 12px;
+    transition: background .4s ease, color .3s ease;
+  }
+
+  /* ════════ 设备外框 ════════ */
+  .phone {
+    width: 100%; max-width: 430px;
+    height: min(920px, calc(100vh - 40px));
+    background: var(--bg-grad);
+    border-radius: 38px;
+    border: 1px solid var(--glass-stroke);
+    box-shadow: 0 40px 90px -30px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.03);
+    display: flex; flex-direction: column; overflow: hidden; position: relative;
+  }
+  [data-theme="light"] .phone { border-color: rgba(120,130,180,0.25); box-shadow: 0 40px 90px -34px rgba(60,70,130,0.4); }
+
+  .ambient { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .ambient::before, .ambient::after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(60px); opacity: .55;
+  }
+  .ambient::before { width: 320px; height: 320px; background: radial-gradient(circle, var(--primary), transparent 70%); top: -90px; left: -80px; }
+  .ambient::after  { width: 300px; height: 300px; background: radial-gradient(circle, var(--accent), transparent 70%); bottom: 120px; right: -100px; opacity:.4; }
+
+  /* ════════ 顶部状态栏 + 标题栏 ════════ */
+  .topbar { position: relative; z-index: 5; padding: 14px 18px 6px; }
+  .statusbar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary); padding: 2px 4px 10px; font-variant-numeric: tabular-nums; }
+  .statusbar .icons { display: flex; gap: 6px; align-items: center; }
+  .title-row { display: flex; align-items: center; justify-content: space-between; }
+  .page-title { font-size: 30px; font-weight: 800; letter-spacing: .5px; }
+  .page-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+  .title-actions { display: flex; gap: 10px; }
+  .icon-btn {
+    width: 44px; height: 44px; border-radius: var(--r-sm);
+    background: var(--card-glass); backdrop-filter: blur(var(--card-blur)); -webkit-backdrop-filter: blur(var(--card-blur));
+    border: 1px solid var(--card-border);
+    display: grid; place-items: center; cursor: pointer; color: var(--text-primary);
+    transition: transform .15s ease, background .2s ease;
+  }
+  .icon-btn:hover { transform: translateY(-1px); }
+  .icon-btn:active { transform: scale(.93); }
+  .icon-btn svg { width: 21px; height: 21px; }
+
+  /* ════════ 滚动主体 ════════ */
+  .feed { position: relative; z-index: 4; flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0 18px; scroll-behavior: smooth; }
+  .feed::-webkit-scrollbar { width: 0; }
+
+  section { padding: 14px 0 4px; }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 18px 12px; }
+  .sec-title { font-size: 18px; font-weight: 700; }
+  .sec-link { font-size: 12.5px; color: var(--primary-light); cursor: pointer; display: flex; align-items: center; gap: 2px; }
+  [data-theme="light"] .sec-link { color: var(--primary); }
+  .sec-link:hover { text-decoration: underline; }
+
+  /* ── Hero 轮播（参考 IMA 卡片「多层次空间感」公式：背景层/中间层/内容层）── */
+  .hero-wrap { padding: 4px 18px 6px; }
+  .hero {
+    position: relative; border-radius: var(--r-lg); overflow: hidden;
+    height: 188px; box-shadow: var(--shadow-card);
+    border: 1px solid var(--card-border);
+  }
+  .hero-track { display: flex; height: 100%; transition: transform .55s cubic-bezier(.4,.1,.2,1); }
+  .slide {
+    min-width: 100%; height: 100%; position: relative; padding: 22px;
+    display: flex; flex-direction: column; justify-content: flex-end; color: #fff; overflow: hidden;
+  }
+  .slide.b0 { background: linear-gradient(120deg, #7A8CFF 0%, #4D55D6 100%); }
+  .slide.b1 { background: linear-gradient(120deg, #56C6FF 0%, #6C5CE7 100%); }
+  .slide.b2 { background: linear-gradient(120deg, #FF7AAE 0%, #8C5CFF 100%); }
+  .slide.b3 { background: linear-gradient(120deg, #9B6BFF 0%, #4D2BD6 55%, #1F1366 100%); }
+  .slide.b3 .tag::before { content: "✦ "; opacity: .9; }
+  .slide::before { content:""; position:absolute; inset:0; background: var(--card-highlight); mix-blend-mode: overlay; }
+  .slide::after { content:""; position:absolute; right:-30px; top:-30px; width:170px; height:170px; border-radius:50%; background: rgba(255,255,255,.18); filter: blur(8px); }
+  .slide .tag { font-size: 11px; letter-spacing: 1px; opacity: .92; text-transform: uppercase; margin-bottom: 6px; }
+  .slide .h-title { font-size: 23px; font-weight: 800; line-height: 1.2; text-shadow: 0 2px 12px rgba(0,0,0,.25); }
+  .slide .h-desc { font-size: 12.5px; opacity: .9; margin-top: 6px; max-width: 78%; }
+  .slide .play-fab {
+    position: absolute; right: 20px; bottom: 20px; width: 54px; height: 54px; border-radius: 50%;
+    background: rgba(255,255,255,.22); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.5);
+    display: grid; place-items: center; cursor: pointer; transition: transform .15s ease;
+  }
+  .slide .play-fab:hover { transform: scale(1.06); }
+  .slide .play-fab svg { width: 24px; height: 24px; fill: #fff; margin-left: 3px; }
+  .dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--glass-stroke-strong); cursor: pointer; transition: all .25s ease; }
+  .dot.active { width: 20px; border-radius: 4px; background: var(--primary); }
+
+  /* ── 横向滚动容器（scroll-snap）── */
+  .hscroll { display: flex; gap: 12px; overflow-x: auto; padding: 0 18px; scroll-snap-type: x mandatory; }
+  .hscroll::-webkit-scrollbar { height: 0; }
+
+  /* 每日推荐：方形卡片 */
+  .song-card { flex: 0 0 132px; scroll-snap-align: start; cursor: pointer; }
+  .song-cover {
+    width: 132px; height: 132px; border-radius: var(--r-md); position: relative; overflow: hidden;
+    background: var(--surface); border: 1px solid var(--card-border);
+    display: grid; place-items: center;
+  }
+  .song-cover .glyph { font-size: 40px; font-weight: 800; color: rgba(255,255,255,.92); text-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .song-cover::after { content:""; position:absolute; inset:0; background: var(--card-highlight); mix-blend-mode: overlay; }
+  .song-card .t { font-size: 13.5px; font-weight: 600; margin-top: 8px; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .song-card .s { font-size: 11.5px; color: var(--text-hint); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 艺人：圆形卡片 */
+  .artist-card { flex: 0 0 92px; scroll-snap-align: start; text-align: center; cursor: pointer; }
+  .artist-avatar {
+    width: 84px; height: 84px; border-radius: 42px; margin: 0 auto; position: relative; overflow: hidden;
+    border: 1px solid var(--card-border); display: grid; place-items: center;
+    background: var(--surface);
+  }
+  .artist-avatar .glyph { font-size: 30px; font-weight: 800; color: rgba(255,255,255,.92); }
+  .artist-card .n { font-size: 13px; font-weight: 600; margin-top: 8px; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .artist-card .c { font-size: 11px; color: var(--text-hint); margin-top: 1px; }
+
+  /* 新专辑：竖卡 */
+  .album-card { flex: 0 0 150px; scroll-snap-align: start; cursor: pointer; }
+  .album-cover { width: 150px; height: 150px; border-radius: var(--r-lg); overflow: hidden; position: relative;
+    background: var(--surface); border: 1px solid var(--card-border); display: grid; place-items: center; }
+  .album-cover .glyph { font-size: 44px; font-weight: 800; color: rgba(255,255,255,.92); }
+  .album-cover::after, .album-cover::before { content:""; position:absolute; inset:0; background: var(--card-highlight); mix-blend-mode: overlay; }
+  .album-card .t { font-size: 13.5px; font-weight: 600; margin-top: 8px; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .album-card .a { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub-note { font-size: 11.5px; color: var(--text-secondary); padding: 2px 18px 10px; }
+
+  /* ── 纵向列表（排行榜 / 我的最爱）── */
+  .list { padding: 0 12px; }
+  .row .rank.fav { color: #ffcf3f; font-style: normal; font-size: 18px; text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  [data-theme="light"] .row .rank.fav { color: #f5a623; text-shadow: none; }
+  .row .right .fav-tag { color: #ffcf3f; font-weight: 600; }
+  [data-theme="light"] .row .right .fav-tag { color: #f5a623; }
+  .row {
+    display: flex; align-items: center; gap: 14px; padding: 9px 12px; border-radius: var(--r-md);
+    background: var(--card-glass); backdrop-filter: blur(var(--card-blur)); -webkit-backdrop-filter: blur(var(--card-blur));
+    border: 1px solid var(--card-border); margin-bottom: 10px; cursor: pointer;
+    transition: transform .12s ease, background .2s ease;
+  }
+  .row:hover { transform: translateY(-1px); }
+  .row:active { transform: scale(.99); }
+  .row .rank { width: 26px; text-align: center; font-size: 17px; font-weight: 800; font-style: italic; color: var(--text-hint); flex: 0 0 26px; }
+  .row .rank.top { color: var(--primary-light); }
+  [data-theme="light"] .row .rank.top { color: var(--primary); }
+  .row .mini-cover { width: 50px; height: 50px; border-radius: 14px; flex: 0 0 50px; overflow: hidden; position: relative;
+    display: grid; place-items: center; border: 1px solid var(--card-border); background: var(--surface); }
+  .row .mini-cover .glyph { font-size: 20px; font-weight: 800; color: rgba(255,255,255,.92); }
+  .row .meta { flex: 1; min-width: 0; }
+  .row .meta .t { font-size: 14.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .meta .s { font-size: 12px; color: var(--text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .right { text-align: right; flex: 0 0 auto; color: var(--text-hint); font-size: 11.5px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  .row .right .play { width: 34px; height: 34px; border-radius: 50%; background: var(--chip-inactive); display: grid; place-items: center; color: var(--text-primary); }
+  .row .right .play svg { width: 15px; height: 15px; fill: currentColor; }
+
+  /* ════════ 底部迷你播放器 + TabBar ════════ */
+  .footer { position: relative; z-index: 6; border-top: 1px solid var(--divider);
+    background: var(--card-glass-strong); backdrop-filter: blur(var(--card-blur)); -webkit-backdrop-filter: blur(var(--card-blur)); }
+  .mini { display: flex; align-items: center; gap: 12px; padding: 8px 14px; }
+  .mini .cover { width: 46px; height: 46px; border-radius: 12px; flex: 0 0 46px; overflow: hidden; position: relative;
+    display: grid; place-items: center; border: 1px solid var(--card-border); background: var(--surface); }
+  .mini .cover .glyph { font-size: 19px; font-weight: 800; color: rgba(255,255,255,.92); }
+  .mini .info { flex: 1; min-width: 0; }
+  .mini .info .t { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mini .info .a { font-size: 11.5px; color: var(--text-hint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mini .ctrl { display: flex; gap: 8px; }
+  .mini .ctrl .b { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--text-primary); }
+  .mini .ctrl .b svg { width: 20px; height: 20px; fill: currentColor; }
+  .mini .ctrl .b.play { background: var(--primary); color: #fff; }
+
+  .tabbar { display: flex; border-top: 1px solid var(--divider); }
+  .tab { flex: 1; padding: 7px 0 9px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer;
+    color: var(--text-hint); transition: color .2s ease; }
+  .tab svg { width: 23px; height: 23px; fill: currentColor; }
+  .tab .lab { font-size: 10.5px; }
+  .tab.active { color: var(--text-primary); }
+  .tab.active svg { fill: var(--primary); }
+  .tab.active .lab { color: var(--primary-light); font-weight: 600; }
+  [data-theme="light"] .tab.active .lab { color: var(--primary); }
+
+  /* ── 顶部分类 Tab（分段控件）── */
+  .segment { position: sticky; top: 0; z-index: 6; display: flex; gap: 6px; margin: 8px 18px 2px; padding: 5px;
+    border-radius: var(--r-pill); background: var(--card-glass); backdrop-filter: blur(var(--card-blur)); -webkit-backdrop-filter: blur(var(--card-blur));
+    border: 1px solid var(--card-border); }
+  .seg { flex: 1; text-align: center; padding: 9px 0; border-radius: var(--r-pill); font-size: 13.5px; font-weight: 600;
+    color: var(--chip-inactive-text); cursor: pointer; transition: all .2s ease; user-select: none; }
+  .seg.active { background: var(--chip-active); color: var(--chip-active-text); box-shadow: 0 6px 16px -8px var(--chip-active); }
+  .panel[hidden] { display: none; }
+
+  /* ── 网格（歌手 / 新碟）── */
+  .artist-grid, .album-grid { display: grid; gap: 16px 12px; padding: 4px 18px 8px; }
+  .artist-grid { grid-template-columns: repeat(3, 1fr); }
+  .album-grid { grid-template-columns: repeat(2, 1fr); }
+  .album-grid .album-cover { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+  .album-grid .album-card, .artist-grid .artist-card { flex: initial; }
+
+  /* ── 智能推荐开关 + 上下文 chips ── */
+  .ai-toggle { display: flex; align-items: center; justify-content: flex-end; gap: 9px; padding: 4px 18px 0; }
+  .ai-toggle .lbl { font-size: 12.5px; color: var(--text-secondary); }
+  .ai-toggle .lbl b { color: var(--primary-light); font-weight: 700; }
+  [data-theme="light"] .ai-toggle .lbl b { color: var(--primary); }
+  .switch { width: 44px; height: 25px; border-radius: var(--r-pill); background: var(--chip-inactive);
+    position: relative; cursor: pointer; transition: background .2s ease; border: 1px solid var(--card-border); flex: 0 0 auto; }
+  .switch.on { background: var(--chip-active); }
+  .switch .knob { position: absolute; top: 2px; left: 2px; width: 19px; height: 19px; border-radius: 50%;
+    background: #fff; transition: transform .22s cubic-bezier(.3,.8,.3,1); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  .switch.on .knob { transform: translateX(19px); }
+  .ctx-chips { display: flex; gap: 7px; flex-wrap: wrap; padding: 10px 18px 2px; }
+  .ctx-chip { font-size: 11.5px; padding: 5px 11px; border-radius: var(--r-pill);
+    background: var(--badge-bg); color: var(--text-secondary); border: 1px solid var(--card-border); }
+  .ctx-chip b { color: var(--accent); font-weight: 600; }
+
+  /* ── 设计说明 浮窗 ── */
+  .info-fab { position: absolute; top: 64px; right: 14px; z-index: 30; width: 36px; height: 36px; border-radius: 50%;
+    background: var(--card-glass); border: 1px solid var(--card-border); color: var(--text-primary); display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(10px); }
+  .info-fab svg { width: 18px; height: 18px; fill: currentColor; }
+  .sheet-mask { position: absolute; inset: 0; z-index: 40; background: rgba(0,0,0,.5); display: none; }
+  .sheet-mask.open { display: block; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 86%; overflow-y: auto;
+    background: var(--card-strong); border-top-left-radius: 26px; border-top-right-radius: 26px; border: 1px solid var(--card-border);
+    padding: 20px 20px 28px; transform: translateY(100%); transition: transform .35s cubic-bezier(.3,.8,.3,1); }
+  .sheet.open { transform: translateY(0); }
+  .sheet h3 { font-size: 17px; margin-bottom: 4px; }
+  .sheet .close { position: absolute; top: 16px; right: 18px; cursor: pointer; color: var(--text-hint); font-size: 22px; line-height: 1; }
+  .sheet p.lead { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px; }
+  .swatch-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .swatch { width: 56px; }
+  .swatch .box { height: 38px; border-radius: 10px; border: 1px solid var(--card-border); }
+  .swatch .name { font-size: 9.5px; color: var(--text-hint); margin-top: 4px; text-align: center; }
+  .spec-block { margin-bottom: 16px; }
+  .spec-block h4 { font-size: 13.5px; margin-bottom: 8px; color: var(--primary-light); }
+  [data-theme="light"] .spec-block h4 { color: var(--primary); }
+  .radius-demo { display: flex; gap: 10px; align-items: flex-end; }
+  .radius-demo .r { background: var(--primary); opacity: .85; }
+  .ref { font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+  .ref b { color: var(--text-primary); }
+  .chipdemo { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 6px 14px; border-radius: var(--r-pill); }
+  .chip.on { background: var(--chip-active); color: var(--chip-active-text); }
+  .chip.off { background: var(--chip-inactive); color: var(--chip-inactive-text); }
+
+  .fade-up { opacity: 0; transform: translateY(14px); animation: fadeUp .5s ease forwards; }
+  @keyframes fadeUp { to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="ambient"></div>
+
+    <!-- 顶部 -->
+    <div class="topbar">
+      <div class="statusbar">
+        <span id="clock">23:30</span>
+        <span class="icons">
+          <svg width="15" height="11" viewBox="0 0 15 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="8" y="2" width="3" height="9" rx="1" fill="currentColor"/><rect x="12" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 0 4.2C2.6 1.6 5.4 0.4 8 0.4s5.4 1.2 8 3.8L8 11.5z" fill="currentColor"/></svg>
+          <svg width="22" height="12" viewBox="0 0 22 12"><rect x="0.5" y="0.5" width="18" height="11" rx="3" stroke="currentColor" fill="none"/><rect x="2" y="2" width="13" height="8" rx="1.5" fill="currentColor"/><rect x="19.5" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>
+        </span>
+      </div>
+      <div class="title-row">
+        <div>
+          <div class="page-title">发现</div>
+          <div class="page-sub" id="greet">晚上好，为你精选今日好歌</div>
+        </div>
+        <div class="title-actions">
+          <div class="icon-btn" id="searchBtn" title="搜索">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          </div>
+          <div class="icon-btn" id="themeBtn" title="切换主题">
+            <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主体 Feed -->
+    <div class="feed" id="feed">
+      <!-- 顶部分类 Tab（分段控件） -->
+      <div class="segment" id="segment">
+        <div class="seg active" data-cat="rec">推荐</div>
+        <div class="seg" data-cat="rank">排行榜</div>
+        <div class="seg" data-cat="artist">歌手</div>
+        <div class="seg" data-cat="album">推荐专辑</div>
+      </div>
+
+      <!-- 推荐 -->
+      <div class="panel" data-panel="rec">
+        <div class="ai-toggle"><span class="lbl">智能推荐 <b>AI</b></span><div class="switch" id="aiSwitch"><div class="knob"></div></div></div>
+        <div class="hero-wrap">
+          <div class="hero">
+            <div class="hero-track" id="heroTrack"></div>
+          </div>
+          <div class="dots" id="heroDots"></div>
+        </div>
+
+        <section class="fade-up" style="animation-delay:.05s">
+          <div class="sec-head"><div class="sec-title" id="dailyTitle">每日推荐</div><div class="sec-link" id="shuffle">换一批 ↻</div></div>
+          <div class="ctx-chips" id="ctxChips" hidden></div>
+          <div class="hscroll" id="dailyScroll"></div>
+        </section>
+
+        <section class="fade-up" style="animation-delay:.1s">
+          <div class="sec-head"><div class="sec-title">推荐艺人</div><div class="sec-link">查看全部 ›</div></div>
+          <div class="hscroll" id="artistScroll"></div>
+        </section>
+      </div>
+
+      <!-- 排行榜 -->
+      <div class="panel" data-panel="rank" hidden>
+        <section style="padding-top:14px">
+          <div class="sec-head"><div class="sec-title">最多播放</div><div class="sec-link">查看全部 ›</div></div>
+          <div class="list" id="topList"></div>
+        </section>
+        <section style="padding-top:6px">
+          <div class="sec-head"><div class="sec-title">我的最爱 ★</div><div class="sec-link">查看全部 ›</div></div>
+          <div class="list" id="favList"></div>
+        </section>
+        <div style="height:10px"></div>
+      </div>
+
+      <!-- 歌手 -->
+      <div class="panel" data-panel="artist" hidden>
+        <section style="padding-top:14px">
+          <div class="sec-head"><div class="sec-title">推荐歌手</div><div class="sec-link">查看全部 ›</div></div>
+          <div class="artist-grid" id="artistGrid"></div>
+        </section>
+        <div style="height:10px"></div>
+      </div>
+
+      <!-- 推荐专辑 -->
+      <div class="panel" data-panel="album" hidden>
+        <section style="padding-top:14px">
+          <div class="sec-head"><div class="sec-title">推荐专辑</div><div class="sec-link">查看全部 ›</div></div>
+          <div class="sub-note">从你的曲库里随机挑出的专辑 · 帮你重新发现</div>
+          <div class="album-grid" id="albumGrid"></div>
+        </section>
+        <div style="height:10px"></div>
+      </div>
+    </div>
+
+    <!-- 底部 -->
+    <div class="footer">
+      <div class="mini">
+        <div class="cover" id="miniCover"><span class="glyph">星</span></div>
+        <div class="info"><div class="t" id="miniTitle">夜的第七章</div><div class="a" id="miniArtist">周杰伦</div></div>
+        <div class="ctrl">
+          <div class="b" id="miniPrev"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5 9 12l11 7z"/></svg></div>
+          <div class="b play" id="miniPlay"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          <div class="b" id="miniNext"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg></div>
+        </div>
+      </div>
+      <div class="tabbar" id="tabbar">
+        <div class="tab" data-tab="now"><svg viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z"/></svg><span class="lab">播放</span></div>
+        <div class="tab active" data-tab="discover"><svg viewBox="0 0 24 24"><path d="M12 2 9.2 9.2 2 12l7.2 2.8L12 22l2.8-7.2L22 12l-7.2-2.8z"/></svg><span class="lab">发现</span></div>
+        <div class="tab" data-tab="playlist"><svg viewBox="0 0 24 24"><path d="M4 5h12v2H4zM4 11h12v2H4zM4 17h8v2H4zM18 11l4 3-4 3z"/></svg><span class="lab">歌单</span></div>
+        <div class="tab" data-tab="library"><svg viewBox="0 0 24 24"><path d="M5 3h2v18H5zM9 3h2v18H9zM14 3l7 2-1 16-6-2z"/></svg><span class="lab">音乐库</span></div>
+      </div>
+    </div>
+
+    <!-- 设计说明 -->
+    <div class="info-fab" id="infoFab" title="设计说明">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zM12 9a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 9z"/></svg>
+    </div>
+    <div class="sheet-mask" id="sheetMask"></div>
+    <div class="sheet" id="sheet">
+      <span class="close" id="sheetClose">×</span>
+      <h3>发现页 · 设计系统</h3>
+      <p class="lead">与 CatClawMusic 现有 GlassCard 风格一致；Token 直接取自 Colors.xaml，可 1:1 落地为 MAUI XAML。</p>
+
+      <div class="spec-block">
+        <h4>主题色板（DynamicResource）</h4>
+        <div class="swatch-row" id="swatches"></div>
+      </div>
+
+      <div class="spec-block">
+        <h4>一致的圆角半径体系</h4>
+        <div class="radius-demo" id="radiusDemo"></div>
+      </div>
+
+      <div class="spec-block">
+        <h4>芯片 / 状态</h4>
+        <div class="chipdemo"><span class="chip on">已选中</span><span class="chip off">未选中</span></div>
+      </div>
+
+      <div class="spec-block">
+        <h4>参考的设计原则（来自 IMA 知识库）</h4>
+        <div class="ref">
+          <b>① 玻璃态风格</b>：卡片用半透明 + backdrop-blur + 1px 描边，叠加 13% 白色高光层，营造层次而不抢内容。<br/>
+          <b>② 多层次空间感</b>（菜心设计铺《卡片设计成这样能落地吗》）：Hero 分背景层（渐变）/中间层（光晕）/内容层（文字+按钮）三层，避免"平"。<br/>
+          <b>③ 一致圆角半径</b>（三分设《构建一致的圆角半径体系》）：xs12 / sm16 / md20 / lg24 / xl26 / pill，全页统一节奏。<br/>
+          <b>④ 信息节奏</b>：每屏一个主行动（Hero 播放），横向 scroll-snap 浏览，纵向列表收敛详情，符合"发现→浏览→播放"心智。
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ════ 工具：由字符串生成确定性渐变封面（离线、无需图片资源） ════
+  function hashHue(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))%360; return h; }
+  function coverBg(s){
+    const h = hashHue(s); const h2=(h+38)%360;
+    return `linear-gradient(135deg, hsl(${h} 68% 56%), hsl(${h2} 64% 44%))`;
+  }
+  const glyph = s => (s||'?').trim().charAt(0);
+
+  // ════ Mock 数据（字段对齐 ExploreDataService 输出） ════
+  const dailyPool = [
+    ["夜的第七章","周杰伦","依然范特西"],["孤勇者","陈奕迅","孤勇者"],["模特","李荣浩","模特"],
+    ["光年之外","邓紫棋","新的心跳"],["演员","薛之谦","绅士"],["晴天","周杰伦","叶惠美"],
+    ["修炼爱情","林俊杰","因你而在"],["起风了","买辣椒也用券","起风了"],["海阔天空","Beyond","海阔天空"],
+    ["平凡之路","朴树","猎户星座"],["理想三旬","陈鸿宇","浓烟下的诗歌电台"],["错位时空","艾辰","错位时空"]
+  ];
+  const artists = [
+    ["周杰伦",42],["陈奕迅",38],["林俊杰",35],["邓紫棋",29],["薛之谦",31],
+    ["李荣浩",27],["Beyond",18],["朴树",15],["毛不易",22],["张靓颖",24]
+  ];
+  const albums = [
+    ["叶惠美","周杰伦"],["新的心跳","邓紫棋"],["绅士","薛之谦"],["因你而在","林俊杰"],
+    ["模特","李荣浩"],["猎户星座","朴树"],["伟大作品","周杰伦"],["毒蘑菇","毛不易"]
+  ];
+  const topPlayed = [
+    ["孤勇者","陈奕迅",12840],["夜的第七章","周杰伦",11205],["光年之外","邓紫棋",9870],
+    ["演员","薛之谦",8520],["晴天","周杰伦",7990],["修炼爱情","林俊杰",7210]
+  ];
+  const favs = [
+    ["错位时空","艾辰","错位时空"],["理想三旬","陈鸿宇","浓烟下的诗歌电台"],["伟大作品","周杰伦","伟大作品"],
+    ["毒蘑菇","毛不易","毒蘑菇"],["起风了","买辣椒也用券","起风了"],["海阔天空","Beyond","海阔天空"]
+  ];
+
+  const fmtPlays = n => n>=10000 ? (n/10000).toFixed(1)+'万' : n;
+
+  // ════ 渲染 ════
+  function renderDaily(){
+    const wrap = document.getElementById('dailyScroll'); wrap.innerHTML='';
+    const pick = [...dailyPool].sort(()=>Math.random()-0.5).slice(0,8);
+    pick.forEach(([t,a,al])=>{
+      const el=document.createElement('div'); el.className='song-card';
+      el.innerHTML=`<div class="song-cover" style="background:${coverBg(t)}"><span class="glyph">${glyph(t)}</span></div>
+        <div class="t">${t}</div><div class="s">${a}</div>`;
+      el.onclick=()=>play(t,a);
+      wrap.appendChild(el);
+    });
+  }
+  function renderArtists(){
+    const h=document.getElementById('artistScroll'); h.innerHTML='';
+    const g=document.getElementById('artistGrid'); g.innerHTML='';
+    artists.forEach(([n,c])=>{
+      const inner=`<div class="artist-avatar" style="background:${coverBg(n)}"><span class="glyph">${glyph(n)}</span></div>
+        <div class="n">${n}</div><div class="c">${c} 首</div>`;
+      const hc=document.createElement('div'); hc.className='artist-card'; hc.innerHTML=inner; h.appendChild(hc);
+      const gc=document.createElement('div'); gc.className='artist-card'; gc.innerHTML=inner; g.appendChild(gc);
+    });
+  }
+  function renderAlbums(){
+    const g=document.getElementById('albumGrid'); g.innerHTML='';
+    albums.forEach(([t,a])=>{
+      const el=document.createElement('div'); el.className='album-card';
+      el.innerHTML=`<div class="album-cover" style="background:${coverBg(t)}"><span class="glyph">${glyph(t)}</span></div>
+        <div class="t">${t}</div><div class="a">${a}</div>`;
+      el.onclick=()=>play(t,a);
+      g.appendChild(el);
+    });
+  }
+  function renderTop(){
+    const wrap=document.getElementById('topList'); wrap.innerHTML='';
+    topPlayed.forEach(([t,a,p],i)=>{
+      const el=document.createElement('div'); el.className='row';
+      el.innerHTML=`<div class="rank ${i<3?'top':''}">${i+1}</div>
+        <div class="mini-cover" style="background:${coverBg(t)}"><span class="glyph">${glyph(t)}</span></div>
+        <div class="meta"><div class="t">${t}</div><div class="s">${a}</div></div>
+        <div class="right"><span>${fmtPlays(p)} 次播放</span>
+          <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>`;
+      el.querySelector('.play').onclick=e=>{e.stopPropagation();play(t,a);};
+      el.onclick=()=>play(t,a);
+      wrap.appendChild(el);
+    });
+  }
+  function renderFav(){
+    const wrap=document.getElementById('favList'); wrap.innerHTML='';
+    favs.forEach(([t,a,al])=>{
+      const el=document.createElement('div'); el.className='row';
+      el.innerHTML=`<div class="rank fav">★</div>
+        <div class="mini-cover" style="background:${coverBg(t)}"><span class="glyph">${glyph(t)}</span></div>
+        <div class="meta"><div class="t">${t}</div><div class="s">${a} · ${al}</div></div>
+        <div class="right"><span class="fav-tag">已收藏</span>
+          <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>`;
+      el.querySelector('.play').onclick=e=>{e.stopPropagation();play(t,a);};
+      el.onclick=()=>play(t,a);
+      wrap.appendChild(el);
+    });
+  }
+
+  function play(t,a){
+    document.getElementById('miniTitle').textContent=t;
+    document.getElementById('miniArtist').textContent=a;
+    document.getElementById('miniCover').style.background=coverBg(t);
+    document.getElementById('miniCover').querySelector('.glyph').textContent=glyph(t);
+  }
+
+  // ════ Hero 轮播（动态 3/4 张） ════
+  const heroTrack=document.getElementById('heroTrack'); const heroDots=document.getElementById('heroDots');
+  const HERO_BASE=[
+    {cls:'b0', tag:'每日歌单 · 每天 0 点更新', title:'今日随机歌单', desc:'从你的 1280 首曲库随机精选 20 首', play:'今日随机歌单'},
+    {cls:'b1', tag:'我的最爱 · 你标星的歌', title:'收藏夹精选', desc:'你手动标星收藏的歌曲合集', play:'我的最爱'},
+    {cls:'b2', tag:'最常播放 · 你的循环', title:'循环最多次的歌', desc:'依据本地播放记录生成的榜单', play:'最常播放'}
+  ];
+  const HERO_AI={cls:'b3', tag:'AI 为你推荐 · 情境生成', title:'雨天 · 周六深夜', desc:'结合你的听歌习惯与当前天气、时段，从曲库精选 20 首', play:'AI为你推荐'};
+  let heroSlides=[], heroIdx=0, heroTimer=null;
+  function buildHero(){
+    heroSlides = aiMode ? [HERO_AI, ...HERO_BASE] : [...HERO_BASE];
+    heroTrack.innerHTML = heroSlides.map(s=>`
+      <div class="slide ${s.cls}">
+        <div class="tag">${s.tag}</div>
+        <div class="h-title">${s.title}</div>
+        <div class="h-desc">${s.desc}</div>
+        <div class="play-fab" data-play="${s.play}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+      </div>`).join('');
+    heroDots.innerHTML = heroSlides.map((_,i)=>`<div class="dot ${i===0?'active':''}" data-i="${i}"></div>`).join('');
+    heroDots.querySelectorAll('.dot').forEach(d=>d.onclick=()=>goHero(+d.dataset.i));
+    heroTrack.querySelectorAll('.play-fab').forEach(f=>f.onclick=()=>play(f.dataset.play,'精选歌单'));
+    heroIdx=0; heroTrack.style.transform='translateX(0)';
+    startHeroTimer();
+  }
+  function goHero(i){ heroIdx=(i+heroSlides.length)%heroSlides.length; heroTrack.style.transform=`translateX(-${heroIdx*100}%)`;
+    heroDots.querySelectorAll('.dot').forEach((d,k)=>d.classList.toggle('active',k===heroIdx)); }
+  function startHeroTimer(){ stopHeroTimer(); heroTimer=setInterval(()=>goHero(heroIdx+1),4500); }
+  function stopHeroTimer(){ if(heroTimer) clearInterval(heroTimer); }
+  heroTrack.addEventListener('mouseenter',stopHeroTimer);
+  heroTrack.addEventListener('mouseleave',startHeroTimer);
+
+  // ════ 主题切换 ════
+  const themeBtn=document.getElementById('themeBtn'); const themeIcon=document.getElementById('themeIcon');
+  const sun='<circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+  const moon='<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" fill="currentColor"/>';
+  themeBtn.onclick=()=>{ const cur=document.documentElement.getAttribute('data-theme');
+    const next=cur==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme',next);
+    themeIcon.innerHTML = next==='dark'?moon:sun; };
+
+  // ════ TabBar 切换（视觉，底部一级导航） ════
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+  });
+
+  // ════ 发现页内部分类 Tab（分段控件） ════
+  const segs=[...document.querySelectorAll('.seg')];
+  segs.forEach(s=>s.onclick=()=>{
+    segs.forEach(x=>x.classList.remove('active')); s.classList.add('active');
+    const cat=s.dataset.cat;
+    document.querySelectorAll('.panel').forEach(p=>p.hidden = p.dataset.panel!==cat);
+    document.getElementById('feed').scrollTop=0;
+  });
+
+  // ════ 智能推荐（AI 情境化）演示态 ════
+  const CTX=[['天气','雨天'],['日期','周六'],['时段','深夜'],['节日','万圣节前夜']];
+  let aiMode=false;
+  const aiSwitch=document.getElementById('aiSwitch');
+  function applyAiMode(){
+    buildHero();
+    document.getElementById('dailyTitle').textContent = aiMode ? 'AI 为你推荐' : '每日推荐';
+    document.getElementById('shuffle').textContent = aiMode ? '重新生成 ↻' : '换一批 ↻';
+    const cc=document.getElementById('ctxChips');
+    if(aiMode){
+      cc.hidden=false;
+      cc.innerHTML=CTX.map(([k,v])=>`<span class="ctx-chip">${k} <b>${v}</b></span>`).join('');
+    } else { cc.hidden=true; cc.innerHTML=''; }
+  }
+  aiSwitch.onclick=()=>{ aiMode=!aiMode; aiSwitch.classList.toggle('on',aiMode); applyAiMode(); };
+  applyAiMode();
+
+  // ════ 设计说明浮窗 ════
+  const sheet=document.getElementById('sheet'); const mask=document.getElementById('sheetMask');
+  document.getElementById('infoFab').onclick=()=>{sheet.classList.add('open');mask.classList.add('open');};
+  document.getElementById('sheetClose').onclick=()=>{sheet.classList.remove('open');mask.classList.remove('open');};
+  mask.onclick=()=>{sheet.classList.remove('open');mask.classList.remove('open');};
+  (function fillSwatches(){
+    const defs=[['Primary','--primary'],['Accent','--accent'],['Like','--like'],['Card','--card-strong'],
+      ['Surface','--surface'],['Chip','--chip-active'],['Text1','--text-primary'],['Hint','--text-hint']];
+    const w=document.getElementById('swatches');
+    defs.forEach(([n,k])=>{ const d=document.createElement('div'); d.className='swatch';
+      d.innerHTML=`<div class="box" style="background:var(${k})"></div><div class="name">${n}</div>`; w.appendChild(d); });
+  })();
+  (function fillRadius(){
+    const w=document.getElementById('radiusDemo');
+    [['xs',12],['sm',16],['md',20],['lg',24],['xl',26]].forEach(([n,v],i)=>{
+      const d=document.createElement('div'); d.className='r';
+      d.style.width='40px'; d.style.height=(28+i*4)+'px'; d.style.borderRadius=v+'px';
+      d.title=n+' · '+v; w.appendChild(d);
+    });
+  })();
+
+  // ════ 时钟 & 问候 ════
+  function tick(){ const d=new Date(); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0');
+    document.getElementById('clock').textContent=hh+':'+mm;
+    const g = d.getHours()<6?'凌晨好':d.getHours()<12?'早上好':d.getHours()<18?'下午好':'晚上好';
+    document.getElementById('greet').textContent=`${g}，为你精选今日好歌`; }
+  tick(); setInterval(tick,30000);
+
+  // ════ 初始化 ════
+  renderDaily(); renderArtists(); renderAlbums(); renderTop(); renderFav();
+  document.getElementById('shuffle').onclick=renderDaily;
+</script>
+</body>
+</html>

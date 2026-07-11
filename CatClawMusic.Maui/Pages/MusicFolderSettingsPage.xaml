@@ -8,23 +8,25 @@
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleMusicFolderSettings]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
 
-        <ScrollView>
-            <VerticalStackLayout Padding="16,18,16,22"
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <VerticalStackLayout Padding="44,0,0,0" Spacing="8">
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MusicFolders]}"
+                           Style="{StaticResource PageTitleStyle}"
+                           TextColor="White" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MusicFolderSettingsDesc]}"
+                           Style="{StaticResource PageSubtitleStyle}"
+                           TextColor="#F3F5FF" />
+                </VerticalStackLayout>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,22"
                                  Spacing="14">
-
-                <Border Style="{StaticResource GlassCardStrongStyle}"
-                        Background="{DynamicResource HeroBrush}">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MusicFolders]}"
-                               Style="{StaticResource PageTitleStyle}"
-                               TextColor="White" />
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MusicFolderSettingsDesc]}"
-                               Style="{StaticResource PageSubtitleStyle}"
-                               TextColor="#F3F5FF" />
-                    </VerticalStackLayout>
-                </Border>
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
@@ -122,9 +124,5 @@
 
             </VerticalStackLayout>
         </ScrollView>
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
 </Grid>
 </ContentPage>

@@ -23,6 +23,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IAudioPlayerService _audioService;
     private readonly IMusicLibraryService _musicLibrary;
     private readonly Services.DesktopLyricManager? _desktopLyricManager;
+    private readonly IInteractionStateService? _interactionState;
 
     private string _coverCacheDir = "";
     private bool _isSeeking;
@@ -136,10 +137,10 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private string _noLyricsText = "暂无歌词";
 
     // Full lyrics (for FullLyricsPage)
-    /// <summary>当前高亮的歌词行索引（供全屏歌词页使用）</summary>
+    /// <summary>当前高亮的歌词行索引（供全屏歌词页使用，基于过滤后列表）</summary>
     [ObservableProperty] private int _currentLyricIndexObservable = -1;
-    /// <summary>全部歌词行（供全屏歌词页使用，只读）</summary>
-    public IReadOnlyList<LrcLyricLine>? AllLyricLines => _currentLyrics?.Lines;
+    /// <summary>全部歌词行（供全屏歌词页使用，只读，已按设置过滤空行）</summary>
+    public IReadOnlyList<LrcLyricLine>? AllLyricLines => _filteredLines ?? _currentLyrics?.Lines;
     /// <summary>当前行的逐字填充进度（0~1），供 KaraokeLabel 使用以实现 Apple Music 风格逐字渐进填充</summary>
     private double _currentLineFillProgress = 0.0;
     /// <summary>当前行的逐字填充进度（0~1）。仅在变化超过 0.003 时触发 PropertyChanged，避免无意义重绘</summary>
@@ -159,6 +160,10 @@ public partial class NowPlayingViewModel : ObservableObject
     private int _currentLyricIndex = -1;
     /// <summary>上次播放位置缓存，用于设置切换时重新计算逐字进度</summary>
     private TimeSpan _lastPosition = TimeSpan.Zero;
+
+    // 空行过滤相关：_filteredLines 为过滤后的列表，_originalToFilteredMap 映射原始索引→过滤后索引（-1 表示被过滤）
+    private List<LrcLyricLine>? _filteredLines;
+    private int[]? _originalToFilteredMap;
 
     /// <summary>
     /// 刷新逐字填充进度（设置切换逐行/逐字模式后调用）。
@@ -198,7 +203,8 @@ public partial class NowPlayingViewModel : ObservableObject
         MusicDatabase db,
         IAudioPlayerService audioService,
         IMusicLibraryService musicLibrary,
-        Services.DesktopLyricManager? desktopLyricManager = null)
+        Services.DesktopLyricManager? desktopLyricManager = null,
+        IInteractionStateService? interactionState = null)
     {
         _queue = queue;
         _lyrics = lyrics;
@@ -206,6 +212,7 @@ public partial class NowPlayingViewModel : ObservableObject
         _audioService = audioService;
         _musicLibrary = musicLibrary;
         _desktopLyricManager = desktopLyricManager;
+        _interactionState = interactionState;
 
         // Initialize cover cache directory
         _coverCacheDir = Path.Combine(FileSystem.CacheDirectory, "covers");
@@ -240,9 +247,24 @@ public partial class NowPlayingViewModel : ObservableObject
         ToggleLikeCommand = new AsyncRelayCommand(ToggleLikeAsync);
         SeekCommand = new RelayCommand<double>(OnSeek);
 
-        // 订阅主题切换事件，刷新主题感知图标（浅色/深色变体）
+        if (_interactionState != null)
+        {
+            _interactionState.InteractionStateChanged += OnInteractionStateChanged;
+        }
+
         if (Application.Current != null)
             Application.Current.RequestedThemeChanged += OnRequestedThemeChanged;
+    }
+
+    private void OnInteractionStateChanged(object? sender, bool isInteracting)
+    {
+        if (!isInteracting && _audioService.IsPlaying && !_isSeeking)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                UpdateLyricPosition(TimeSpan.FromSeconds(Progress));
+            });
+        }
     }
 
     /// <summary>主题切换时刷新播放控制图标，使其使用对应深浅色变体</summary>
@@ -373,15 +395,12 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
-        // 位置定时器已经在主线程上调用 PositionChanged，无需再次 dispatch
-        // Duration 小于 1 秒视为无效，从 audio service 重新拉取
         if (Duration < 1 && _audioService.Duration > 1)
         {
             Duration = _audioService.Duration;
             TotalTimeDisplay = FormatTime(Duration);
         }
 
-        // Auto-release _isSeeking after 10s in case DragCompleted never fires
         if (!_isSeeking)
         {
             Progress = position.TotalSeconds;
@@ -392,12 +411,15 @@ public partial class NowPlayingViewModel : ObservableObject
             Progress = position.TotalSeconds;
         }
 
-        // 仅当显示文本变化时才更新，避免无意义的 PropertyChanged 和字符串分配
         var newTimeDisplay = FormatTime(position.TotalSeconds);
         if (CurrentTimeDisplay != newTimeDisplay)
             CurrentTimeDisplay = newTimeDisplay;
 
-        UpdateLyricPosition(position);
+        bool isUserInteracting = _interactionState?.IsUserInteracting ?? false;
+        if (!isUserInteracting)
+        {
+            UpdateLyricPosition(position);
+        }
 
         if (Duration > 0)
         {
@@ -981,6 +1003,7 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             _currentLyrics = lyrics;
             _currentLyricIndex = -1;
+            BuildFilteredLines();
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
@@ -996,6 +1019,8 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             _currentLyrics = null;
             _currentLyricIndex = -1;
+            _filteredLines = null;
+            _originalToFilteredMap = null;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 HasLyrics = false;
@@ -1022,18 +1047,22 @@ public partial class NowPlayingViewModel : ObservableObject
             return;
 
         _currentLyricIndex = newIndex;
-        CurrentLyricIndexObservable = newIndex;
-        var lines = _currentLyrics.Lines;
 
-        LyricCurrent = GetLineText(lines, newIndex);
-        LyricLine0 = GetLineText(lines, newIndex - 4);
-        LyricLine1 = GetLineText(lines, newIndex - 3);
-        LyricLine2 = GetLineText(lines, newIndex - 2);
-        LyricLine3 = GetLineText(lines, newIndex - 1);
-        LyricLine4 = GetLineText(lines, newIndex + 1);
-        LyricLine5 = GetLineText(lines, newIndex + 2);
-        LyricLine6 = GetLineText(lines, newIndex + 3);
-        LyricLine7 = GetLineText(lines, newIndex + 4);
+        // UI 显示使用过滤后列表和索引；预览行也基于过滤后列表，跳过空行
+        var displayLines = _filteredLines ?? _currentLyrics.Lines;
+        var displayIndex = MapOriginalToFiltered(newIndex);
+
+        CurrentLyricIndexObservable = displayIndex;
+
+        LyricCurrent = GetLineText(displayLines, displayIndex);
+        LyricLine0 = GetLineText(displayLines, displayIndex - 4);
+        LyricLine1 = GetLineText(displayLines, displayIndex - 3);
+        LyricLine2 = GetLineText(displayLines, displayIndex - 2);
+        LyricLine3 = GetLineText(displayLines, displayIndex - 1);
+        LyricLine4 = GetLineText(displayLines, displayIndex + 1);
+        LyricLine5 = GetLineText(displayLines, displayIndex + 2);
+        LyricLine6 = GetLineText(displayLines, displayIndex + 3);
+        LyricLine7 = GetLineText(displayLines, displayIndex + 4);
     }
 
     /// <summary>
@@ -1059,6 +1088,72 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         if (index < 0 || index >= lines.Count) return "";
         return lines[index].Text;
+    }
+
+    /// <summary>
+    /// 根据设置构建过滤后的歌词列表（移除空行）。
+    /// 同时建立原始索引→过滤后索引的映射，供 UI 显示使用。
+    /// </summary>
+    private void BuildFilteredLines()
+    {
+        if (_currentLyrics == null || _currentLyrics.Lines.Count == 0)
+        {
+            _filteredLines = null;
+            _originalToFilteredMap = null;
+            return;
+        }
+
+        var removeEmpty = Services.LyricsSettingsService.Instance.RemoveEmptyLines;
+        if (!removeEmpty)
+        {
+            _filteredLines = null;
+            _originalToFilteredMap = null;
+            return;
+        }
+
+        var original = _currentLyrics.Lines;
+        _filteredLines = new List<LrcLyricLine>(original.Count);
+        _originalToFilteredMap = new int[original.Count];
+        for (int i = 0; i < original.Count; i++)
+        {
+            var line = original[i];
+            // 空行：文本为空或仅空白，且无翻译内容
+            var isEmpty = string.IsNullOrWhiteSpace(line.Text)
+                          && string.IsNullOrWhiteSpace(line.Translation);
+            if (isEmpty)
+            {
+                _originalToFilteredMap[i] = -1;
+            }
+            else
+            {
+                _originalToFilteredMap[i] = _filteredLines.Count;
+                _filteredLines.Add(line);
+            }
+        }
+    }
+
+    /// <summary>将原始歌词行索引映射为过滤后列表中的索引（-1 表示该行被过滤）</summary>
+    private int MapOriginalToFiltered(int originalIndex)
+    {
+        if (_originalToFilteredMap == null || originalIndex < 0 || originalIndex >= _originalToFilteredMap.Length)
+            return originalIndex;
+        var mapped = _originalToFilteredMap[originalIndex];
+        return mapped < 0 ? originalIndex : mapped;
+    }
+
+    /// <summary>
+    /// 重新构建过滤列表并刷新 UI（设置变更后调用）。
+    /// 重新映射当前行索引并触发 AllLyricLines 属性变更通知。
+    /// </summary>
+    public void RefreshFilteredLines()
+    {
+        BuildFilteredLines();
+        // 重新映射当前行索引
+        if (_currentLyricIndex >= 0)
+        {
+            CurrentLyricIndexObservable = MapOriginalToFiltered(_currentLyricIndex);
+        }
+        OnPropertyChanged(nameof(AllLyricLines));
     }
 
     private void ClearLyrics()

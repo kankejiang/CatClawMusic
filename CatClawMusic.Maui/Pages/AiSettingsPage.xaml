@@ -8,28 +8,28 @@
              Title="AI 设置"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
 
-        <ScrollView>
-            <VerticalStackLayout Padding="16,18,16,22" Spacing="14">
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <VerticalStackLayout Padding="44,0,0,0" Spacing="6">
+                    <Label Text="🤖 AI 设置"
+                           Style="{StaticResource PageTitleStyle}"
+                           TextColor="White" />
+                    <Label Text="配置 OpenAI 兼容的大语言模型，让 Yuki 帮你管理音乐库。"
+                           Style="{StaticResource PageSubtitleStyle}"
+                           TextColor="#F3F5FF" />
+                    <Label Text="{Binding ConfiguredStatus}"
+                           FontSize="12"
+                           TextColor="#B8C7FF" />
+                </VerticalStackLayout>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
 
-                <!-- Hero Header -->
-                <Border Style="{StaticResource GlassCardStrongStyle}"
-                        Background="{DynamicResource HeroBrush}">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="🤖 AI 设置"
-                               Style="{StaticResource PageTitleStyle}"
-                               TextColor="White" />
-                        <Label Text="配置 OpenAI 兼容的大语言模型，让 Yuki 帮你管理音乐库。"
-                               Style="{StaticResource PageSubtitleStyle}"
-                               TextColor="#F3F5FF" />
-                        <Label Text="{Binding ConfiguredStatus}"
-                               FontSize="12"
-                               TextColor="#B8C7FF" />
-                    </VerticalStackLayout>
-                </Border>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
 
-                <!-- 启用开关 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <VerticalStackLayout Spacing="2">
@@ -48,7 +48,6 @@
                     </Grid>
                 </Border>
 
-                <!-- 提供商选择 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
                         <Label Text="提供商"
@@ -65,7 +64,6 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- API 配置 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
                         <Label Text="API 配置"
@@ -136,7 +134,6 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- 高级参数 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
                         <Label Text="高级参数"
@@ -178,7 +175,6 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- 测试结果 -->
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{Binding TestResult, Converter={StaticResource StringToBoolConverter}}">
                     <VerticalStackLayout Spacing="4">
@@ -192,7 +188,6 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- 操作按钮 -->
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                     <Button Grid.Column="0"
                             Text="{Binding IsTesting, StringFormat='测试连接'}"
@@ -222,7 +217,6 @@
                         HeightRequest="38"
                         FontSize="12" />
 
-                <!-- 当前 Agent 信息 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="6">
                         <Label Text="当前助手"
@@ -246,9 +240,5 @@
 
             </VerticalStackLayout>
         </ScrollView>
-            <controls:BackButton Margin="16,16,0,0"
-                             VerticalOptions="Start"
-                             HorizontalOptions="Start"
-                             ZIndex="100" />
 </Grid>
 </ContentPage>

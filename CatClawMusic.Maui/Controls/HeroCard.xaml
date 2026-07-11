@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             x:Class="CatClawMusic.Maui.Controls.HeroCard"
+             x:Name="HeroCardRoot">
+    <Grid x:Name="RootGrid">
+        <Border WidthRequest="200"
+                HeightRequest="200"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource PrimaryGlowBrush}"
+                HorizontalOptions="Start"
+                VerticalOptions="Start"
+                TranslationX="-110"
+                TranslationY="-80" />
+        <Border WidthRequest="150"
+                HeightRequest="150"
+                StrokeThickness="0"
+                StrokeShape="Ellipse"
+                Background="{DynamicResource AccentGlowBrush}"
+                HorizontalOptions="End"
+                VerticalOptions="Start"
+                TranslationX="60"
+                TranslationY="100" />
+        <controls:BackButton x:Name="HeroBackButton"
+                             Margin="16,8"
+                             ZIndex="100"
+                             IsVisible="{Binding ShowBackButton, Source={x:Reference HeroCardRoot}}" />
+        <Border x:Name="CardBorder"
+                Margin="16,4,16,4"
+                Padding="14,6"
+                Style="{StaticResource GlassCardStrongStyle}"
+                Background="{DynamicResource HeroBrush}">
+            <ContentView x:Name="InnerContent" />
+        </Border>
+    </Grid>
+</ContentView>

@@ -19,37 +19,38 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     /// <summary>无显式尺寸时（GetDrawableAsync）的默认解码上限</summary>
     private const int DefaultTargetPx = 512;
 
-    /// <summary>将 FileImageSource 加载到指定 ImageView，优先命中内存缓存</summary>
-    public Task<IImageSourceServiceResult?> LoadDrawableAsync(IImageSource imageSource, ImageView imageView, CancellationToken cancellationToken = default)
+    /// <summary>将 FileImageSource 加载到指定 ImageView，优先命中内存缓存。
+    /// 缓存命中时同步返回（零开销），缓存未命中时将解码移至后台线程避免阻塞 UI。</summary>
+    public async Task<IImageSourceServiceResult?> LoadDrawableAsync(IImageSource imageSource, ImageView imageView, CancellationToken cancellationToken = default)
     {
-        if (imageView == null) return Task.FromResult<IImageSourceServiceResult?>(default);
+        if (imageView == null) return default;
         if (imageSource is FileImageSource fileSource && !string.IsNullOrEmpty(fileSource.File))
         {
             var targetPx = GetTargetPx(imageView);
-            var bitmap = ResolveBitmap(fileSource.File, imageView.Context, targetPx);
+            var bitmap = await ResolveBitmapAsync(fileSource.File, imageView.Context, targetPx).ConfigureAwait(true);
             if (bitmap != null)
             {
                 var drawable = new BitmapDrawable(imageView.Resources ?? imageView.Context?.Resources, bitmap);
                 imageView.SetImageDrawable(drawable);
-                return Task.FromResult<IImageSourceServiceResult?>(new CachingImageSourceResult(drawable));
+                return new CachingImageSourceResult(drawable);
             }
         }
-        return Task.FromResult<IImageSourceServiceResult?>(default);
+        return default;
     }
 
     /// <summary>获取 FileImageSource 对应的 Drawable，优先命中内存缓存</summary>
-    public Task<IImageSourceServiceResult<Drawable>?> GetDrawableAsync(IImageSource imageSource, Context context, CancellationToken cancellationToken = default)
+    public async Task<IImageSourceServiceResult<Drawable>?> GetDrawableAsync(IImageSource imageSource, Context context, CancellationToken cancellationToken = default)
     {
         if (imageSource is FileImageSource fileSource && !string.IsNullOrEmpty(fileSource.File))
         {
-            var bitmap = ResolveBitmap(fileSource.File, context, DefaultTargetPx);
+            var bitmap = await ResolveBitmapAsync(fileSource.File, context, DefaultTargetPx).ConfigureAwait(true);
             if (bitmap != null)
             {
                 var drawable = new BitmapDrawable(context?.Resources, bitmap);
-                return Task.FromResult<IImageSourceServiceResult<Drawable>?>(new CachingDrawableResult(drawable));
+                return new CachingDrawableResult(drawable);
             }
         }
-        return Task.FromResult<IImageSourceServiceResult<Drawable>?>(default);
+        return default;
     }
 
     /// <summary>
@@ -78,10 +79,11 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
 
     /// <summary>
     /// 解析 FileImageSource.File 为 Bitmap：
-    /// - 文件路径：按尺寸桶命中内存缓存，未命中则降采样解码后入缓存
-    /// - 资源名：从 Android Resource 加载（资源已打包在 APK 中，无需缓存）
+    /// - 缓存命中：同步返回（零开销快速路径）
+    /// - 缓存未命中：将 BitmapFactory 解码移至后台线程，避免阻塞 UI
+    /// - 资源名：从 Android Resource 加载
     /// </summary>
-    private static Bitmap? ResolveBitmap(string path, Context? context, int targetPx)
+    private static async Task<Bitmap?> ResolveBitmapAsync(string path, Context? context, int targetPx)
     {
         if (string.IsNullOrEmpty(path)) return null;
 
@@ -93,7 +95,8 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
             var cached = BitmapMemoryCache.Get(cacheKey);
             if (cached != null) return cached;
 
-            var decoded = DecodeBitmapDownsampled(path, bucket);
+            // 缓存未命中：在后台线程解码，避免阻塞 UI 线程
+            var decoded = await Task.Run(() => DecodeBitmapDownsampled(path, bucket)).ConfigureAwait(true);
             if (decoded != null)
                 BitmapMemoryCache.Put(cacheKey, decoded);
             return decoded;

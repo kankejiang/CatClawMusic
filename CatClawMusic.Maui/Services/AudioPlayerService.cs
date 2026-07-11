@@ -188,11 +188,11 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 40ms 触发一次位置更新（25fps，驱动进度条和逐字歌词）</summary>
+    /// <summary>启动进度定时器，每 100ms 触发一次位置更新（10fps，平衡精度与主线程开销）</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 40, 40);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 100, 100);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>

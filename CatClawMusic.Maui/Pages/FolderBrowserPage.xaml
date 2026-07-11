@@ -7,117 +7,106 @@
              x:Class="CatClawMusic.Maui.Pages.FolderBrowserPage"
              Title="{Binding Title}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
 
-        <Border Grid.Row="0"
-                Style="{StaticResource GlassCardStrongStyle}"
-                Background="{DynamicResource HeroBrush}"
-                Margin="16,18,16,0">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Cancel]}"
-                        Command="{Binding CancelCommand}"
-                        BackgroundColor="Transparent"
-                        TextColor="White"
-                        FontSize="14"
-                        Padding="0"
-                        Margin="0"
-                        VerticalOptions="Center" />
-                <VerticalStackLayout Grid.Column="1"
-                                     VerticalOptions="Center"
-                                     Spacing="2"
-                                     Padding="8,0">
-                    <Label Text="{Binding Title}"
-                           FontSize="18"
-                           FontFamily="OpenSansSemibold"
-                           TextColor="White" />
-                    <Label Text="{Binding CurrentPath}"
-                           FontSize="11"
-                           TextColor="#F3F5FF"
-                           LineBreakMode="TailTruncation" />
-                </VerticalStackLayout>
-                <Button Grid.Column="2"
-                        Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SelectThisDir]}"
-                        Command="{Binding SelectCurrentFolderCommand}"
-                        BackgroundColor="White"
-                        TextColor="{DynamicResource PrimaryColor}"
-                        CornerRadius="14"
-                        HeightRequest="36"
-                        FontSize="12" />
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <Grid Padding="44,0,0,0" ColumnDefinitions="*,Auto">
+                    <VerticalStackLayout Grid.Column="0"
+                                         VerticalOptions="Center"
+                                         Spacing="2"
+                                         Padding="8,0">
+                        <Label Text="{Binding Title}"
+                               FontSize="18"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="White" />
+                        <Label Text="{Binding CurrentPath}"
+                               FontSize="11"
+                               TextColor="#F3F5FF"
+                               LineBreakMode="TailTruncation" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1"
+                            Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SelectThisDir]}"
+                            Command="{Binding SelectCurrentFolderCommand}"
+                            BackgroundColor="White"
+                            TextColor="{DynamicResource PrimaryColor}"
+                            CornerRadius="14"
+                            HeightRequest="36"
+                            FontSize="12" />
+                </Grid>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
+
+        <Grid Grid.Row="1" RowDefinitions="*,Auto">
+            <Grid Grid.Row="0" Margin="16,8,16,0">
+                <CollectionView ItemsSource="{Binding Items}"
+                                SelectionMode="Single"
+                                SelectionChanged="OnItemSelected">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="10"
+                                  Padding="4,12">
+                                <Image Source="{Binding Icon}"
+                                       WidthRequest="22"
+                                       HeightRequest="22"
+                                       VerticalOptions="Center"
+                                       Opacity="0.85" />
+                                <VerticalStackLayout Grid.Column="1"
+                                                     VerticalOptions="Center"
+                                                     Spacing="2">
+                                    <Label Text="{Binding Name}"
+                                           FontSize="14"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           LineBreakMode="TailTruncation" />
+                                    <Label Text="{Binding FullPath}"
+                                           FontSize="10"
+                                           TextColor="{DynamicResource TextHintColor}"
+                                           LineBreakMode="TailTruncation"
+                                           IsVisible="{Binding IsParent, Converter={StaticResource InvertedBoolConverter}}" />
+                                </VerticalStackLayout>
+                                <Image Grid.Column="2"
+                                       Source="ic_chevron_right"
+                                       WidthRequest="16"
+                                       HeightRequest="16"
+                                       VerticalOptions="Center"
+                                       Opacity="0.5"
+                                       IsVisible="{Binding IsDirectory}" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <ActivityIndicator IsRunning="{Binding IsLoading}"
+                                   IsVisible="{Binding IsLoading}"
+                                   VerticalOptions="Center"
+                                   HorizontalOptions="Center"
+                                   Color="{DynamicResource PrimaryColor}" />
             </Grid>
-        </Border>
 
-        <Grid Grid.Row="1" Margin="16,10,16,0">
-            <CollectionView ItemsSource="{Binding Items}"
-                            SelectionMode="Single"
-                            SelectionChanged="OnItemSelected">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="Auto,*,Auto"
-                              ColumnSpacing="10"
-                              Padding="4,12">
-                            <Image Source="{Binding Icon}"
-                                   WidthRequest="22"
-                                   HeightRequest="22"
-                                   VerticalOptions="Center"
-                                   Opacity="0.85" />
-                            <VerticalStackLayout Grid.Column="1"
-                                                 VerticalOptions="Center"
-                                                 Spacing="2">
-                                <Label Text="{Binding Name}"
-                                       FontSize="14"
-                                       TextColor="{DynamicResource TextPrimaryColor}"
-                                       LineBreakMode="TailTruncation" />
-                                <Label Text="{Binding FullPath}"
-                                       FontSize="10"
-                                       TextColor="{DynamicResource TextHintColor}"
-                                       LineBreakMode="TailTruncation"
-                                       IsVisible="{Binding IsParent, Converter={StaticResource InvertedBoolConverter}}" />
-                            </VerticalStackLayout>
-                            <Image Grid.Column="2"
-                                   Source="ic_chevron_right"
-                                   WidthRequest="16"
-                                   HeightRequest="16"
-                                   VerticalOptions="Center"
-                                   Opacity="0.5"
-                                   IsVisible="{Binding IsDirectory}" />
-                        </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-
-            <ActivityIndicator IsRunning="{Binding IsLoading}"
-                               IsVisible="{Binding IsLoading}"
-                               VerticalOptions="Center"
-                               HorizontalOptions="Center"
-                               Color="{DynamicResource PrimaryColor}" />
+            <Border Grid.Row="1"
+                    Style="{StaticResource GlassCardStyle}"
+                    Margin="16,8,16,16">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RootDir]}"
+                            Command="{Binding NavigateToRootCommand}"
+                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                            TextColor="{DynamicResource TextSecondaryColor}"
+                            CornerRadius="14"
+                            HeightRequest="38"
+                            FontSize="12" />
+                    <Button Grid.Column="2"
+                            Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ParentDir]}"
+                            Command="{Binding NavigateUpCommand}"
+                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                            TextColor="{DynamicResource TextSecondaryColor}"
+                            CornerRadius="14"
+                            HeightRequest="38"
+                            FontSize="12"
+                            IsEnabled="{Binding CanGoBack}" />
+                </Grid>
+            </Border>
         </Grid>
-
-        <Border Grid.Row="2"
-                Style="{StaticResource GlassCardStyle}"
-                Margin="16,0,16,16">
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RootDir]}"
-                        Command="{Binding NavigateToRootCommand}"
-                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                        TextColor="{DynamicResource TextSecondaryColor}"
-                        CornerRadius="14"
-                        HeightRequest="38"
-                        FontSize="12" />
-                <Button Grid.Column="2"
-                        Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ParentDir]}"
-                        Command="{Binding NavigateUpCommand}"
-                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                        TextColor="{DynamicResource TextSecondaryColor}"
-                        CornerRadius="14"
-                        HeightRequest="38"
-                        FontSize="12"
-                        IsEnabled="{Binding CanGoBack}" />
-            </Grid>
-        </Border>
     </Grid>
 </ContentPage>

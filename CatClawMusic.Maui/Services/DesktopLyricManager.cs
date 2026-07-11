@@ -79,6 +79,11 @@ public class DesktopLyricManager
         LyricsSettingsService.Instance.DesktopLyricEnabled = true;
         StateChanged?.Invoke(true);
 
+#if ANDROID
+        // 同步通知栏桌面歌词按钮状态（从设置页开启时通知栏状态可能不一致）
+        Platforms.Android.ForegroundPlayerService.SyncLyricsEnabled(true);
+#endif
+
         // 立即更新一次当前歌词
         if (_currentLyrics != null)
         {
@@ -102,6 +107,10 @@ public class DesktopLyricManager
         LyricsSettingsService.Instance.DesktopLyricEnabled = false;
         // 关闭时解锁，下次开启时为解锁状态
         LyricsSettingsService.Instance.DesktopLocked = false;
+#if ANDROID
+        // 同步通知栏桌面歌词按钮状态
+        Platforms.Android.ForegroundPlayerService.SyncLyricsEnabled(false);
+#endif
         StateChanged?.Invoke(false);
     }
 

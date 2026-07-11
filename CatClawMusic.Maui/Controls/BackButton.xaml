@@ -5,22 +5,10 @@
              HorizontalOptions="Start"
              VerticalOptions="Start">
 
-    <Border WidthRequest="44"
-            HeightRequest="44"
-            StrokeThickness="1"
-            StrokeShape="RoundRectangle 16"
-            BackgroundColor="#33FFFFFF"
-            Stroke="#40FFFFFF"
-            Padding="0">
-        <Border.GestureRecognizers>
-            <TapGestureRecognizer Tapped="OnBackTapped" />
-        </Border.GestureRecognizers>
-        <Label Text="&#x2190;"
-               FontSize="22"
-               FontFamily="OpenSansSemibold"
-               TextColor="White"
-               HorizontalOptions="Center"
-               VerticalOptions="Center"
-               TranslationY="-2" />
-    </Border>
+    <ImageButton Source="ic_back.svg"
+                 WidthRequest="44"
+                 HeightRequest="44"
+                 Padding="10"
+                 BackgroundColor="Transparent"
+                 Clicked="OnBackTapped" />
 </ContentView>

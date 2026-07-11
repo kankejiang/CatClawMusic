@@ -16,6 +16,12 @@ public static class ImageSourceHelper
     private static readonly ImageSourceConverter _converter = new();
 
     /// <summary>
+    /// ImageSource 实例缓存。图标集很小（~15 个名称），缓存后避免每次状态切换都创建新对象，减少 GC 压力。
+    /// ImageSource 是不可变描述符（只含 File 路径等属性），跨控件共享安全。
+    /// </summary>
+    private static readonly Dictionary<string, ImageSource?> _cache = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// 已有 _light 变体的图标白名单。这些图标在浅色模式下使用深色填充 (#1B2140)，
     /// 在深色模式下使用白色填充 (#FFFFFF/#C8C8C8)。
     /// 不在此列表中的图标（如 ic_favorite 使用彩色）在两种模式下都使用原始版本。
@@ -30,6 +36,10 @@ public static class ImageSourceHelper
     public static ImageSource? FromName(string? name)
     {
         if (string.IsNullOrEmpty(name)) return null;
+
+        // 命中缓存直接返回，避免重复创建 ImageSource 实例
+        if (_cache.TryGetValue(name, out var cached)) return cached;
+
         try
         {
             // 显式走 ImageSourceConverter 解析 MauiImage 资源名（与 XAML 字面量 Source="ic_xxx" 同一路径）。
@@ -37,6 +47,7 @@ public static class ImageSourceHelper
             // MAUI 11 Preview Windows: 运行时 Converter 经常解析不到生成的 scale PNG，
             // 对未打包 WinUI 3 应用直接指向输出目录中的 scale-100 PNG 更可靠。
             var resolvedName = name;
+            ImageSource? result;
             if (OperatingSystem.IsWindows())
             {
                 if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
@@ -47,13 +58,20 @@ public static class ImageSourceHelper
                     : name;
                 var scaleFile = Path.Combine(AppContext.BaseDirectory, $"{baseName}.scale-100.png");
                 if (File.Exists(scaleFile))
-                    return ImageSource.FromFile(scaleFile);
+                {
+                    result = ImageSource.FromFile(scaleFile);
+                    _cache[name] = result;
+                    return result;
+                }
             }
-            return (ImageSource?)_converter.ConvertFromInvariantString(resolvedName);
+            result = (ImageSource?)_converter.ConvertFromInvariantString(resolvedName);
+            _cache[name] = result;
+            return result;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[ImageSourceHelper] FromName({name}) failed: {ex.Message}");
+            _cache[name] = null;
             return null;
         }
     }

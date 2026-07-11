@@ -282,6 +282,7 @@ public static class MauiProgram
         // Local scan service
         // ═══════════════════════════════════════════════════
         services.AddSingleton<Services.LocalScanService>();
+        services.AddSingleton<Services.IInteractionStateService, Services.InteractionStateService>();
 
         // SMB 本地 HTTP 代理（将 smb:// URL 桥接为 http://127.0.0.1:port 供 ExoPlayer 播放）
         services.AddSingleton<SmbStreamProxy>(sp =>

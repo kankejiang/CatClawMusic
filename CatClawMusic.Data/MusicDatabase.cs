@@ -723,6 +723,42 @@ public class MusicDatabase
         return await _database.Table<Album>().ToListAsync();
     }
 
+    /// <summary>获取指定艺术家的所有专辑（包括主艺术家专辑和参与专辑）</summary>
+    /// <param name="artistName">艺术家名称</param>
+    /// <returns>专辑列表</returns>
+    public async Task<List<Album>> GetAlbumsByArtistAsync(string artistName)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var sql = @"
+            SELECT DISTINCT al.*
+            FROM Albums al
+            LEFT JOIN Artists a ON al.ArtistId = a.Id
+            LEFT JOIN Songs s ON s.AlbumId = al.Id
+            LEFT JOIN SongArtists sa ON s.Id = sa.SongId
+            LEFT JOIN Artists a2 ON sa.ArtistId = a2.Id
+            WHERE a.Name = ? OR a2.Name = ?
+            ORDER BY al.Year DESC, al.Title
+        ";
+        return await _database.QueryAsync<Album>(sql, artistName, artistName);
+    }
+
+    /// <summary>批量获取指定专辑ID列表的采样歌曲（每个专辑一首，有文件路径的）</summary>
+    public async Task<List<Song>> GetSampleSongsForAlbumsAsync(IEnumerable<int> albumIds)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var ids = albumIds.ToList();
+        if (ids.Count == 0) return new List<Song>();
+        var placeholders = string.Join(",", ids.Select(_ => "?"));
+        var sql = $@"
+            SELECT s.*
+            FROM Songs s
+            WHERE s.AlbumId IN ({placeholders})
+              AND s.FilePath IS NOT NULL AND s.FilePath != ''
+            GROUP BY s.AlbumId
+        ";
+        return await _database.QueryAsync<Song>(sql, ids.Cast<object>().ToArray());
+    }
+
     /// <summary>
     /// 修复歌曲的 AlbumId 关联：根据歌曲的 Album 名称和 Artist 名称重新匹配正确的专辑 ID。
     /// 解决早期版本中 ArtistId=0 导致 AlbumId 关联错误的问题。
