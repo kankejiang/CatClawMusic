@@ -66,6 +66,21 @@ public partial class AiSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSaving;
 
+    /// <summary>是否正在获取模型列表</summary>
+    [ObservableProperty]
+    private bool _isFetchingModels;
+
+    /// <summary>从 API 获取到的可用模型列表</summary>
+    public ObservableCollection<string> FetchedModels { get; } = new();
+
+    /// <summary>获取模型列表的结果提示</summary>
+    [ObservableProperty]
+    private string _fetchModelsResult = "";
+
+    /// <summary>模型选择弹窗是否可见</summary>
+    [ObservableProperty]
+    private bool _isModelPickerVisible;
+
     /// <summary>测试结果文本</summary>
     [ObservableProperty]
     private string _testResult = "";
@@ -283,6 +298,79 @@ public partial class AiSettingsViewModel : ObservableObject
     {
         if (!string.IsNullOrWhiteSpace(modelName))
             Model = modelName;
+    }
+
+    /// <summary>从 API 获取可用模型列表</summary>
+    [RelayCommand]
+    public async Task FetchModelsAsync()
+    {
+        if (IsFetchingModels) return;
+
+        if (string.IsNullOrWhiteSpace(ApiUrl) || string.IsNullOrWhiteSpace(ApiKey))
+        {
+            FetchModelsResult = "请先填写 Base URL 和 API Key";
+            return;
+        }
+
+        IsFetchingModels = true;
+        FetchModelsResult = "正在获取模型列表…";
+        IsModelPickerVisible = false;
+        FetchedModels.Clear();
+
+        try
+        {
+            var tempConfig = new LlmConfig
+            {
+                Name = ConfigName,
+                Provider = SelectedProvider?.Id ?? "custom",
+                ApiUrl = ApiUrl.Trim(),
+                ApiKey = ApiKey.Trim(),
+                Model = Model?.Trim() ?? "",
+                Temperature = Temperature,
+                MaxTokens = MaxTokens,
+                Enabled = true
+            };
+            AgentService.SaveConfig(tempConfig);
+
+            var models = await _llmClient.GetModelsAsync();
+            if (models.Count == 0)
+            {
+                FetchModelsResult = "未获取到可用模型，请检查 API 权限";
+                return;
+            }
+
+            foreach (var m in models)
+                FetchedModels.Add(m);
+
+            FetchModelsResult = $"共获取到 {models.Count} 个模型，请选择";
+            IsModelPickerVisible = true;
+        }
+        catch (Exception ex)
+        {
+            FetchModelsResult = $"获取失败：{ex.Message}";
+        }
+        finally
+        {
+            IsFetchingModels = false;
+        }
+    }
+
+    /// <summary>选择从 API 获取到的模型</summary>
+    [RelayCommand]
+    public void SelectFetchedModel(string modelName)
+    {
+        if (!string.IsNullOrWhiteSpace(modelName))
+        {
+            Model = modelName;
+            IsModelPickerVisible = false;
+        }
+    }
+
+    /// <summary>关闭模型选择弹窗</summary>
+    [RelayCommand]
+    public void CloseModelPicker()
+    {
+        IsModelPickerVisible = false;
     }
 
     private static async Task ToastAsync(string message)

@@ -36,6 +36,12 @@ public class AgentService : IAgentService
     /// <summary>静态配置存储实例，在 DI 初始化时设置</summary>
     private static IAgentConfigStorage? _staticConfigStorage;
 
+    /// <summary>音乐库快照内容提供者（由 MAUI 层在启动时赋值）</summary>
+    public static Func<string>? LibrarySnapshotProvider { get; set; }
+
+    /// <summary>长期记忆内容提供者（由 MAUI 层在启动时赋值）</summary>
+    public static Func<string>? MemoryProvider { get; set; }
+
     /// <summary>初始化静态配置存储（由 DI 容器在启动时调用）</summary>
     /// <param name="configStorage">配置存储实现</param>
     public static void Initialize(IAgentConfigStorage configStorage)
@@ -195,13 +201,47 @@ public class AgentService : IAgentService
     {
         if (_conversationHistory.Count == 0)
         {
-            _conversationHistory.Add(new ChatMessage { Role = "system", Content = CurrentSystemPrompt });
+            var systemPrompt = CurrentSystemPrompt;
+
+            try
+            {
+                var libraryContent = LibrarySnapshotProvider?.Invoke() ?? string.Empty;
+                var memoryContent = MemoryProvider?.Invoke() ?? string.Empty;
+
+                var extraParts = new List<string>();
+
+                if (!string.IsNullOrEmpty(libraryContent))
+                {
+                    if (libraryContent.Length > 600)
+                        libraryContent = libraryContent[..600] + "..";
+                    extraParts.Add($"[音乐库]\n{libraryContent}");
+                }
+
+                if (!string.IsNullOrEmpty(memoryContent))
+                {
+                    var memoryLines = memoryContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                    var recentMemory = string.Join('\n', memoryLines.TakeLast(15));
+                    if (recentMemory.Length > 300)
+                        recentMemory = recentMemory[^300..];
+                    extraParts.Add($"[记忆]\n{recentMemory}");
+                }
+
+                if (extraParts.Count > 0)
+                {
+                    systemPrompt += "\n\n" + string.Join("\n\n", extraParts);
+                }
+            }
+            catch { }
+
+            _conversationHistory.Add(new ChatMessage { Role = "system", Content = systemPrompt });
         }
 
         _conversationHistory.Add(new ChatMessage { Role = "user", Content = userMessage });
 
         var toolDefs = _tools.Select(t => t.GetDefinition()).ToList();
         var toolMap = _tools.ToDictionary(t => t.Name);
+
+        TrimConversationHistory();
 
         const int maxToolRounds = 5;
 
@@ -210,7 +250,8 @@ public class AgentService : IAgentService
             LlmResponse response;
             try
             {
-                response = await _llmClient.ChatAsync(_conversationHistory, toolDefs, ct);
+                var requestMessages = BuildRequestMessages();
+                response = await Task.Run(() => _llmClient.ChatAsync(requestMessages, toolDefs, ct), ct);
                 _logService.Info("Agent", $"Agent LLM 响应: content='{Truncate(response.Content, 200)}', toolCalls={response.ToolCalls.Count}, finishReason={response.FinishReason}");
             }
             catch (Exception ex)
@@ -270,6 +311,9 @@ public class AgentService : IAgentService
                     toolResult = JsonSerializer.Serialize(new { error = $"未知工具: {toolCall.Function.Name}" });
                 }
 
+                if (toolResult.Length > 1000)
+                    toolResult = toolResult[..1000] + "..(截断)";
+
                 var toolResultMsg = new ChatMessage
                 {
                     Role = "tool",
@@ -288,10 +332,97 @@ public class AgentService : IAgentService
         return finalMsg;
     }
 
+    private List<ChatMessage> BuildRequestMessages()
+    {
+        var messages = new List<ChatMessage>(_conversationHistory);
+
+        int CalculateEstimatedTokens()
+        {
+            int total = 0;
+            foreach (var m in messages)
+            {
+                total += 6;
+                if (!string.IsNullOrEmpty(m.Content))
+                    total += m.Content.Length / 2;
+                if (m.ToolCalls != null)
+                {
+                    foreach (var tc in m.ToolCalls)
+                    {
+                        total += 80;
+                        if (!string.IsNullOrEmpty(tc.Function.Arguments))
+                            total += tc.Function.Arguments.Length / 2;
+                    }
+                }
+            }
+            total += 1200;
+            return total;
+        }
+
+        while (messages.Count > 3 && CalculateEstimatedTokens() > 4500)
+        {
+            int removeIdx = -1;
+            for (int i = 1; i < messages.Count; i++)
+            {
+                if (messages[i].Role != "system")
+                {
+                    removeIdx = i;
+                    break;
+                }
+            }
+            if (removeIdx < 0) break;
+            messages.RemoveAt(removeIdx);
+        }
+
+        return messages;
+    }
+
     /// <summary>清空当前对话历史</summary>
     public void ClearConversation()
     {
         _conversationHistory.Clear();
+    }
+
+    /// <summary>
+    /// 裁剪对话历史：保留 system 消息 + 最近 N 轮对话，防止 token 超限。
+    /// 每轮包含 user+assistant（及中间的 tool 消息），保留约 8 轮 ≈ 16-24 条消息。
+    /// </summary>
+    private void TrimConversationHistory()
+    {
+        if (_conversationHistory.Count <= 12) return;
+
+        var systemMsg = _conversationHistory.FirstOrDefault(m => m.Role == "system");
+        var recent = _conversationHistory
+            .Where(m => m.Role != "system")
+            .TakeLast(10)
+            .ToList();
+
+        _conversationHistory.Clear();
+        if (systemMsg != null) _conversationHistory.Add(systemMsg);
+        _conversationHistory.AddRange(recent);
+    }
+
+    /// <summary>
+    /// 一次性快速问答：使用独立临时对话，不污染主对话历史，也不注入音乐库/记忆上下文。
+    /// 用于 AI 推荐理由等后台自动生成场景。
+    /// </summary>
+    public async Task<string> QuickAskAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+    {
+        var tempMessages = new List<ChatMessage>
+        {
+            new() { Role = "system", Content = systemPrompt },
+            new() { Role = "user", Content = userPrompt }
+        };
+
+        try
+        {
+            var response = await Task.Run(() => _llmClient.ChatAsync(tempMessages, null, ct), ct);
+            return (response.Content ?? string.Empty).Trim();
+        }
+        catch (Exception ex)
+        {
+            _logService.Warn("Agent", $"QuickAsk 失败: {ex.Message}");
+            return string.Empty;
+        }
     }
 
     /// <summary>获取当前对话历史消息列表的副本</summary>

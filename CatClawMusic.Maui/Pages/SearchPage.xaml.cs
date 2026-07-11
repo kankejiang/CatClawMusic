@@ -36,6 +36,25 @@ public partial class SearchPage : ContentPage
         BindingContext = _vm;
         UpdateTabVisualState(0);
         SetupHeroAutoScroll();
+
+        ChatBackButton.Clicked += OnChatBackClicked;
+
+        _vm.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
+            {
+                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(200), () =>
+                {
+                    if (_vm.ChatMessages.Count > 0)
+                        ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1);
+                    ChatInputBox?.Focus();
+                });
+            }
+            if (e.PropertyName == nameof(_vm.IsSearchOpen) || e.PropertyName == nameof(_vm.SearchQuery) || e.PropertyName == nameof(_vm.ShowSearchResults))
+            {
+                UpdateAiEntryVisibility();
+            }
+        };
     }
 
     private void SetupHeroAutoScroll()
@@ -481,6 +500,24 @@ public partial class SearchPage : ContentPage
         }
     }
 
+    /// <summary>更新 AI 助手入口卡片可见性：搜索框打开且未输入内容时显示。</summary>
+    private void UpdateAiEntryVisibility()
+    {
+        AiEntryCard.IsVisible = _vm.IsSearchOpen
+                              && string.IsNullOrWhiteSpace(_vm.SearchQuery)
+                              && !_vm.ShowSearchResults;
+    }
+
+    /// <summary>点击 AI 助手入口卡：进入聊天模式，关闭搜索下拉。</summary>
+    private void OnAiEntryTapped(object? sender, TappedEventArgs e)
+    {
+        _vm.IsSearchOpen = false;
+        SearchBox.Unfocus();
+        SearchBox.Text = "";
+        _vm.ClearSearchDropdown();
+        _vm.EnterChatModeCommand.Execute(null);
+    }
+
     private async void OnRefreshClicked(object? sender, EventArgs e)
     {
         if (_vm.IsLoading) return;
@@ -602,5 +639,19 @@ public partial class SearchPage : ContentPage
         if (e.CurrentSelection.FirstOrDefault() is not Song song) return;
         if (sender is CollectionView cv) cv.SelectedItem = null;
         await PlaySongAsync(song, _vm.FavoriteSongs.ToList());
+    }
+
+    /// <summary>点击搜索结果底部的"问问 Yuki"入口时触发，将当前搜索词作为消息发送给 AI</summary>
+    private async void OnAskYukiTapped(object? sender, TappedEventArgs e)
+    {
+        var searchQuery = _vm.SearchQuery?.Trim();
+        SearchBox.Text = "";
+        _vm.ClearSearchDropdown();
+
+        var message = string.IsNullOrWhiteSpace(searchQuery)
+            ? "你好"
+            : $"帮我找一下关于「{searchQuery}」的歌曲";
+
+        await _vm.SendMessageFromSearchAsync(message);
     }
 }

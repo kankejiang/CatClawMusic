@@ -44,6 +44,34 @@
                         </Grid>
                     </Border>
 
+                    <!-- AI 助手入口卡：搜索框打开且未输入内容时显示 -->
+                    <Border x:Name="AiEntryCard"
+                            Margin="18,0,18,10"
+                            Padding="16,14"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 16"
+                            IsVisible="False">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnAiEntryTapped" />
+                        </Border.GestureRecognizers>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#667eea" Offset="0" />
+                                <GradientStop Color="#764ba2" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                            <Border WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" StrokeThickness="0" Padding="0">
+                                <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="42" HeightRequest="42" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                <Label Text="🐾 和 Yuki 聊聊" FontSize="15" FontAttributes="Bold" TextColor="White" />
+                                <Label Text="帮你找歌、推荐、聊天都可以" FontSize="11" TextColor="#CCFFFFFF" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="2" Text="›" FontSize="22" TextColor="#CCFFFFFF" VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
                     <Border Margin="18,0,18,10" Padding="0" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding ShowSearchResults}">
                         <ScrollView MaximumHeightRequest="380">
                             <VerticalStackLayout Spacing="0">
@@ -111,6 +139,22 @@
                                         </CollectionView.ItemTemplate>
                                     </CollectionView>
                                 </VerticalStackLayout>
+                                <Border Margin="12,8,12,12" Padding="14,12" StrokeThickness="0" StrokeShape="RoundRectangle 16">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnAskYukiTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#667eea" Offset="0" />
+                                            <GradientStop Color="#764ba2" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                        <Label Text="🐾" FontSize="20" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="没找到想要的？问问 Yuki 吧" FontSize="14" FontFamily="OpenSansSemibold" TextColor="White" VerticalOptions="Center" />
+                                        <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#CCFFFFFF" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
                             </VerticalStackLayout>
                         </ScrollView>
                     </Border>
@@ -140,7 +184,7 @@
                                 <Label Text="✨" FontSize="16" VerticalOptions="Center" />
                                 <Label Text="智能推荐 AI" FontSize="14" FontFamily="OpenSansSemibold" VerticalOptions="Center" />
                             </HorizontalStackLayout>
-                            <Switch Grid.Column="1" IsToggled="False" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
+                            <Switch Grid.Column="1" IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
                         </Grid>
 
                         <CarouselView x:Name="HeroCarousel" Margin="18,0,18,16" ItemsSource="{Binding HeroCards}" HeightRequest="188" IndicatorView="HeroIndicator" IsBounceEnabled="False">
@@ -354,49 +398,69 @@
               Background="{DynamicResource PageBackgroundBrush}"
               RowDefinitions="Auto,*,Auto">
 
-            <Border Grid.Row="0" Margin="16,18,16,10"
-                    Style="{StaticResource GlassCardStrongStyle}">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                    <Border Style="{StaticResource GlassIconContainerStyle}"
-                            VerticalOptions="Center">
-                        <ImageButton Source="ic_arrow_back"
-                                     WidthRequest="40" HeightRequest="40"
-                                     BackgroundColor="Transparent"
-                                     Clicked="OnChatBackClicked" />
-                    </Border>
-                    <VerticalStackLayout Grid.Column="1"
-                                         Spacing="2" VerticalOptions="Center">
-                        <Label Text="{Binding AgentName}"
-                               Style="{StaticResource SectionTitleStyle}" />
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[YukiDesc]}"
-                               Style="{StaticResource PageSubtitleStyle}" />
-                    </VerticalStackLayout>
-                    <Border Grid.Column="2" Padding="4"
-                            StrokeThickness="0" StrokeShape="RoundRectangle 20"
-                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                            VerticalOptions="Center">
-                        <Image Source="avatar_yuki.png"
-                               WidthRequest="34" HeightRequest="34" />
-                    </Border>
-                </Grid>
-            </Border>
+            <Grid Grid.Row="0" Margin="16,10,16,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <controls:BackButton x:Name="ChatBackButton"
+                                     VerticalOptions="Center" />
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="2" VerticalOptions="Center">
+                    <Label Text="{Binding AgentName}"
+                           Style="{StaticResource SectionTitleStyle}" />
+                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[YukiDesc]}"
+                           Style="{StaticResource PageSubtitleStyle}" />
+                </VerticalStackLayout>
+                <Border Grid.Column="2" Padding="4"
+                        StrokeThickness="0" StrokeShape="RoundRectangle 20"
+                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                        VerticalOptions="Center">
+                    <Image Source="avatar_yuki.png"
+                           WidthRequest="34" HeightRequest="34" />
+                </Border>
+            </Grid>
 
             <CollectionView x:Name="ChatMessagesList"
                             Grid.Row="1" Margin="12,0,12,0"
-                            ItemsSource="{Binding ChatMessages}">
+                            ItemsSource="{Binding ChatMessages}"
+                            ItemsUpdatingScrollMode="KeepLastItemInView">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Padding="4,6">
-                            <Border Padding="14,12"
-                                    StrokeShape="RoundRectangle 22"
-                                    StrokeThickness="1"
-                                    Stroke="{DynamicResource GlassStrokeColor}"
-                                    BackgroundColor="{Binding Role, Converter={StaticResource RoleToColorConverter}}">
+                        <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <!-- Yuki 头像（左）：assistant 消息显示 -->
+                            <Border Grid.Column="0"
+                                    WidthRequest="36" HeightRequest="36"
+                                    StrokeThickness="0" StrokeShape="RoundRectangle 18"
+                                    IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}"
+                                    VerticalOptions="End">
+                                <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
+                            </Border>
+                            <BoxView Grid.Column="0" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}" />
+
+                            <!-- 消息气泡 -->
+                            <Border Grid.Column="1"
+                                    Padding="14,10"
+                                    StrokeThickness="0"
+                                    MaximumWidthRequest="280"
+                                    StrokeShape="RoundRectangle 18"
+                                    BackgroundColor="{Binding Role, Converter={StaticResource ChatBubbleColorConverter}}"
+                                    HorizontalOptions="{Binding Role, Converter={StaticResource ChatBubbleAlignmentConverter}}">
                                 <Label Text="{Binding Content}"
                                        FontSize="14"
-                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       TextColor="White"
                                        LineBreakMode="WordWrap" />
                             </Border>
+
+                            <!-- 用户头像（右）：user 消息显示 -->
+                            <Border Grid.Column="2"
+                                    WidthRequest="36" HeightRequest="36"
+                                    StrokeThickness="0" StrokeShape="RoundRectangle 18"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}"
+                                    VerticalOptions="End">
+                                <Label Text="👤"
+                                       FontSize="18"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <BoxView Grid.Column="2" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

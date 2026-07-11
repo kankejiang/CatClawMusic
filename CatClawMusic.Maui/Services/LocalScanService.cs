@@ -24,6 +24,7 @@ public class LocalScanService
 {
     private readonly IMusicLibraryService _musicLibrary;
     private readonly MusicDatabase _db;
+    private readonly MusicLibrarySnapshotService _snapshotService;
 
     /// <summary>
     /// 静态标记：上次扫描后库内容已变更，发现页等页面需要重新加载。
@@ -39,10 +40,11 @@ public class LocalScanService
     };
 
     /// <summary>构造函数</summary>
-    public LocalScanService(IMusicLibraryService musicLibrary, MusicDatabase db)
+    public LocalScanService(IMusicLibraryService musicLibrary, MusicDatabase db, MusicLibrarySnapshotService snapshotService)
     {
         _musicLibrary = musicLibrary;
         _db = db;
+        _snapshotService = snapshotService;
     }
 
     /// <summary>
@@ -283,7 +285,10 @@ public class LocalScanService
 
         // 标记库已变更，通知发现页等需要重新加载
         if (totalImported > 0)
+        {
             NeedsReload = true;
+            _ = _snapshotService.GenerateSnapshotAsync(_db);
+        }
 
         return totalImported;
     }

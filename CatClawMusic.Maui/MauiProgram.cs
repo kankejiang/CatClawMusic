@@ -284,6 +284,12 @@ public static class MauiProgram
         services.AddSingleton<Services.LocalScanService>();
         services.AddSingleton<Services.IInteractionStateService, Services.InteractionStateService>();
 
+        // ═══════════════════════════════════════════════════
+        // Music library snapshot & chat memory
+        // ═══════════════════════════════════════════════════
+        services.AddSingleton<Services.MusicLibrarySnapshotService>();
+        services.AddSingleton<Services.ChatMemoryService>();
+
         // SMB 本地 HTTP 代理（将 smb:// URL 桥接为 http://127.0.0.1:port 供 ExoPlayer 播放）
         services.AddSingleton<SmbStreamProxy>(sp =>
         {
@@ -346,6 +352,7 @@ public static class MauiProgram
         services.AddTransient<Pages.NowPlayingPage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();
+        services.AddTransient<Pages.DesktopDiscoverPage>();
         services.AddTransient<Pages.SettingsPage>();
         services.AddTransient<Pages.AlbumDetailPage>();
         services.AddTransient<Pages.ArtistDetailPage>();
@@ -384,6 +391,27 @@ public static class MauiProgram
         var app = builder.Build();
         Services = app.Services;
         Log("Step 51: Services set");
+
+        AgentService.LibrarySnapshotProvider = () => MusicLibrarySnapshotService.LoadSnapshot();
+        AgentService.MemoryProvider = () => ChatMemoryService.LoadMemory();
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (!File.Exists(MusicLibrarySnapshotService.SnapshotPath))
+                {
+                    var db = Services.GetRequiredService<MusicDatabase>();
+                    await db.EnsureInitializedAsync();
+                    var snapshotService = Services.GetRequiredService<Services.MusicLibrarySnapshotService>();
+                    await snapshotService.GenerateSnapshotAsync(db);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[STARTUP] 初始快照生成失败: {ex.Message}");
+            }
+        });
 
 #if ANDROID
         _ = Task.Run(async () =>

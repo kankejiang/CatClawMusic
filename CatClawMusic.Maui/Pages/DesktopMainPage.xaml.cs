@@ -143,7 +143,7 @@ public partial class DesktopMainPage : ContentPage
     {
         ContentPage? page = tab switch
         {
-            DesktopTab.Discover => _services.GetRequiredService<SearchPage>(),
+            DesktopTab.Discover => _services.GetRequiredService<DesktopDiscoverPage>(),
             DesktopTab.Library => _services.GetRequiredService<LibraryPage>(),
             DesktopTab.Playlists => _services.GetRequiredService<PlaylistPage>(),
             DesktopTab.Settings => _services.GetRequiredService<SettingsPage>(),

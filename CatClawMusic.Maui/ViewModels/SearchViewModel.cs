@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
@@ -18,6 +19,7 @@ public partial class SearchViewModel : ObservableObject
     private readonly ExploreDataService _exploreDataService;
     private readonly IAgentService _agentService;
     private readonly IMusicLibraryService _libraryService;
+    private readonly ChatMemoryService _chatMemoryService;
 
     private List<Song> _allDailyRecommendSongs = [];
     private List<SearchArtistItem> _allArtists = [];
@@ -144,6 +146,21 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSearchOpen;
 
+    /// <summary>是否启用 AI 智能推荐 Hero 卡</summary>
+    [ObservableProperty]
+    private bool _isAiRecommendationEnabled;
+
+    /// <summary>AI 推荐的歌曲</summary>
+    private Song? _aiRecommendedSong;
+
+    /// <summary>AI 推荐理由文字</summary>
+    [ObservableProperty]
+    private string _aiRecommendReason = "AI 根据你的听歌口味为你精选";
+
+    /// <summary>AI 是否正在生成推荐</summary>
+    [ObservableProperty]
+    private bool _isAiRecommending;
+
     /// <summary>发现页 CollectionView 的占位数据源（内容全部放在 Header 中，使用 CollectionView 获得更好的手势处理）</summary>
     public ObservableCollection<int> DiscoverPageItems { get; } = new() { 0 };
 
@@ -175,11 +192,13 @@ public partial class SearchViewModel : ObservableObject
     /// <param name="exploreDataService">探索页数据服务</param>
     /// <param name="agentService">Agent 服务，用于 AI 聊天</param>
     /// <param name="libraryService">音乐库服务</param>
-    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService)
+    /// <param name="chatMemoryService">聊天记忆服务</param>
+    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService, ChatMemoryService chatMemoryService)
     {
         _exploreDataService = exploreDataService;
         _agentService = agentService;
         _libraryService = libraryService;
+        _chatMemoryService = chatMemoryService;
         AgentName = _agentService.GetCurrentAgent().Name;
 
         SwitchTabCommand = new RelayCommand<int>(SwitchTab);
@@ -190,6 +209,9 @@ public partial class SearchViewModel : ObservableObject
         ExitChatModeCommand = new RelayCommand(ExitChatMode);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ShuffleDailyCommand = new RelayCommand(ShuffleDaily);
+
+        // 读取 AI 推荐开关持久化状态
+        IsAiRecommendationEnabled = Preferences.Default.Get("ai_recommendation_enabled", false);
 
         GreetingText = CalculateGreeting();
 
@@ -580,6 +602,15 @@ public partial class SearchViewModel : ObservableObject
         SearchAlbumResults.Clear();
     }
 
+    /// <summary>从搜索入口直接发送消息（自动进入聊天模式）</summary>
+    /// <param name="message">要发送的消息</param>
+    public async Task SendMessageFromSearchAsync(string message)
+    {
+        EnterChatMode();
+        ChatInput = message;
+        await SendMessageAsync();
+    }
+
     /// <summary>发送聊天消息：将用户输入发送给 Agent 并追加回复</summary>
     public async Task SendMessageAsync()
     {
@@ -590,39 +621,47 @@ public partial class SearchViewModel : ObservableObject
         }
 
         ChatInput = "";
-        ChatMessages.Add(new ChatMessage
+        var userMsg = new ChatMessage
         {
             Role = "user",
             Content = userMessage
-        });
+        };
+        ChatMessages.Add(userMsg);
+        _ = _chatMemoryService.AppendMessageAsync(userMsg);
 
         if (!_agentService.IsConfigured)
         {
-            ChatMessages.Add(new ChatMessage
+            var notConfiguredMsg = new ChatMessage
             {
                 Role = "assistant",
                 Content = "AI 还没有配置好喵，先到“设置 > 探索设置”里填一下模型信息吧。"
-            });
+            };
+            ChatMessages.Add(notConfiguredMsg);
+            _ = _chatMemoryService.AppendMessageAsync(notConfiguredMsg);
             return;
         }
 
         try
         {
             var response = await _agentService.SendMessageAsync(userMessage);
-            ChatMessages.Add(new ChatMessage
+            var assistantMsg = new ChatMessage
             {
                 Role = "assistant",
                 Content = BuildAssistantMessage(response),
                 Songs = response.Songs
-            });
+            };
+            ChatMessages.Add(assistantMsg);
+            _ = _chatMemoryService.AppendMessageAsync(assistantMsg);
         }
         catch (Exception ex)
         {
-            ChatMessages.Add(new ChatMessage
+            var errorMsg = new ChatMessage
             {
                 Role = "assistant",
                 Content = $"出错了喵：{ex.Message}"
-            });
+            };
+            ChatMessages.Add(errorMsg);
+            _ = _chatMemoryService.AppendMessageAsync(errorMsg);
         }
     }
 
@@ -737,8 +776,35 @@ public partial class SearchViewModel : ObservableObject
             (Color.FromArgb("#667eea"), Color.FromArgb("#764ba2")),
             (Color.FromArgb("#f093fb"), Color.FromArgb("#f5576c")),
             (Color.FromArgb("#4facfe"), Color.FromArgb("#00f2fe")),
-            (Color.FromArgb("#43e97b"), Color.FromArgb("#38f9d7"))
+            (Color.FromArgb("#43e97b"), Color.FromArgb("#38f9d7")),
+            (Color.FromArgb("#fa709a"), Color.FromArgb("#fee140"))
         };
+
+        // AI 智能推荐卡（首位）
+        if (IsAiRecommendationEnabled)
+        {
+            var aiSong = PickAiRecommendedSong();
+            _aiRecommendedSong = aiSong;
+            if (aiSong != null)
+            {
+                cards.Add(new HeroCardItem
+                {
+                    Tag = "✨ AI 智能推荐",
+                    Title = aiSong.Title ?? "未知歌曲",
+                    Description = IsAiRecommending ? "AI 正在分析你的口味…" : AiRecommendReason,
+                    Song = aiSong,
+                    GradientStart = gradients[4].Start,
+                    GradientEnd = gradients[4].End
+                });
+
+                // 若 AI 已配置，后台请求生成推荐理由
+                if (_agentService.IsConfigured && !IsAiRecommending)
+                {
+                    _ = FetchAiRecommendationReasonAsync(aiSong);
+                }
+            }
+        }
+
         var tags = new[] { "每日推荐", "热门歌曲", "我的最爱", "随机播放" };
 
         if (_allDailyRecommendSongs.Count > 0)
@@ -800,6 +866,92 @@ public partial class SearchViewModel : ObservableObject
         }
 
         HeroCards = new ObservableCollection<HeroCardItem>(cards.Take(4));
+    }
+
+    /// <summary>
+    /// 基于听歌数据智能挑选一首 AI 推荐歌曲。
+    /// 策略：优先从「常听但非榜首」中随机选择，避免永远推荐同一首。
+    /// </summary>
+    private Song? PickAiRecommendedSong()
+    {
+        var candidates = new List<Song>();
+
+        // 常听歌曲第2-10首（排除榜首，避免和"热门歌曲"重复）
+        if (_allTopPlayedSongs.Count > 1)
+            candidates.AddRange(_allTopPlayedSongs.Skip(1).Take(9));
+
+        // 收藏中随机
+        if (FavoriteSongs.Count > 0)
+            candidates.AddRange(FavoriteSongs);
+
+        // 每日推荐随机3首
+        if (_allDailyRecommendSongs.Count > 0)
+        {
+            var random = new Random();
+            candidates.AddRange(_allDailyRecommendSongs.OrderBy(_ => random.Next()).Take(3));
+        }
+
+        if (candidates.Count == 0)
+        {
+            // 回退：取每日推荐第一首
+            return _allDailyRecommendSongs.FirstOrDefault();
+        }
+
+        // 去重并随机选一首
+        var unique = candidates.GroupBy(s => s.Id).Select(g => g.First()).ToList();
+        var rng = new Random();
+        return unique[rng.Next(unique.Count)];
+    }
+
+    /// <summary>后台调用 AI 为推荐歌曲生成一句简短推荐理由</summary>
+    private async Task FetchAiRecommendationReasonAsync(Song song)
+    {
+        try
+        {
+            IsAiRecommending = true;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var idx = HeroCards.TakeWhile(c => c.Tag != "✨ AI 智能推荐").Count();
+                if (idx < HeroCards.Count)
+                    HeroCards[idx].Description = "AI 正在分析你的口味…";
+            });
+
+            var artist = song.Artist ?? "未知艺术家";
+            var title = song.Title ?? "未知歌曲";
+            var systemPrompt = "你是Yuki，猫爪音乐的AI助手，说话温柔可爱带点喵口癖。回答必须简短，不超过20字，不要加引号。";
+            var userPrompt = $"请用一句话温柔推荐歌曲《{title}》- {artist}，说明为什么适合现在听。";
+
+            var reason = await _agentService.QuickAskAsync(systemPrompt, userPrompt);
+            reason = reason?.Trim()?.Trim('"', '「', '」', '\n', '\r');
+            if (!string.IsNullOrWhiteSpace(reason) && reason.Length < 60)
+            {
+                AiRecommendReason = reason;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    var idx = HeroCards.TakeWhile(c => c.Tag != "✨ AI 智能推荐").Count();
+                    if (idx < HeroCards.Count)
+                        HeroCards[idx].Description = reason;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 推荐理由生成失败: {ex.Message}");
+        }
+        finally
+        {
+            IsAiRecommending = false;
+        }
+    }
+
+    /// <summary>AI 推荐开关切换时：持久化并重新生成 Hero 卡</summary>
+    partial void OnIsAiRecommendationEnabledChanged(bool value)
+    {
+        Preferences.Default.Set("ai_recommendation_enabled", value);
+        if (HeroCards.Count > 0 || _allDailyRecommendSongs.Count > 0)
+        {
+            GenerateHeroCards();
+        }
     }
 
     /// <summary>刷新数据</summary>

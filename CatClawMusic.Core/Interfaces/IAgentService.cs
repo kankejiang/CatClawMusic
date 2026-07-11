@@ -65,6 +65,12 @@ public interface IAgentService
     /// <summary>切换当前智能体</summary>
     /// <param name="agentId">智能体唯一标识</param>
     void SetCurrentAgent(string agentId);
+
+    /// <summary>一次性快速问答：使用独立临时对话，不污染主对话历史</summary>
+    /// <param name="systemPrompt">系统提示词</param>
+    /// <param name="userPrompt">用户提示词</param>
+    /// <param name="ct">取消令牌</param>
+    Task<string> QuickAskAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
 }
 
 /// <summary>

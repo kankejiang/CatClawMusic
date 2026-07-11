@@ -96,14 +96,30 @@
                         </VerticalStackLayout>
 
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="模型名"
-                                   FontSize="12"
-                                   TextColor="{DynamicResource TextSecondaryColor}" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Label Text="模型名"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextSecondaryColor}" />
+                                <Button Grid.Column="1"
+                                        Text="获取模型"
+                                        Command="{Binding FetchModelsCommand}"
+                                        FontSize="11"
+                                        HeightRequest="28"
+                                        CornerRadius="14"
+                                        Padding="10,0"
+                                        BackgroundColor="#33FFFFFF"
+                                        TextColor="{DynamicResource TextSecondaryColor}"
+                                        IsEnabled="{Binding IsFetchingModels, Converter={StaticResource InvertedBoolConverter}}" />
+                            </Grid>
                             <Entry Text="{Binding Model}"
                                    Placeholder="deepseek-chat"
                                    BackgroundColor="#22FFFFFF"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    PlaceholderColor="{DynamicResource TextHintColor}" />
+                            <Label Text="{Binding FetchModelsResult}"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   IsVisible="{Binding FetchModelsResult, Converter={StaticResource StringToBoolConverter}}" />
                             <Label Text="可选预设模型（点击填入）"
                                    FontSize="11"
                                    TextColor="{DynamicResource TextHintColor}"
@@ -126,6 +142,34 @@
                                             <Label Text="{Binding .}"
                                                    FontSize="11"
                                                    TextColor="{DynamicResource TextSecondaryColor}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </FlexLayout>
+                            <Label Text="从 API 获取的模型（点击填入）"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource PrimaryColor}"
+                                   IsVisible="{Binding IsModelPickerVisible}"
+                                   Margin="0,6,0,2" />
+                            <FlexLayout Direction="Row" Wrap="Wrap" AlignItems="Start" JustifyContent="Start"
+                                        IsVisible="{Binding IsModelPickerVisible}">
+                                <BindableLayout.ItemsSource>
+                                    <Binding Path="FetchedModels" />
+                                </BindableLayout.ItemsSource>
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,6,6"
+                                                Padding="10,4"
+                                                StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 12"
+                                                BackgroundColor="{DynamicResource PrimaryColor}">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectFetchedModelCommand}"
+                                                                      CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding .}"
+                                                   FontSize="11"
+                                                   TextColor="White" />
                                         </Border>
                                     </DataTemplate>
                                 </BindableLayout.ItemTemplate>

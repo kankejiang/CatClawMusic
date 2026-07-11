@@ -147,4 +147,8 @@
     <converters:SearchSectionHeightConverter x:Key="SearchSectionHeightConverter" />
     <converters:CountToBoolConverter x:Key="CountToBoolConverter" />
     <converters:PlaylistIconConverter x:Key="PlaylistIconConverter" />
+    <converters:IsAssistantConverter x:Key="IsAssistantConverter" />
+    <converters:IsUserConverter x:Key="IsUserConverter" />
+    <converters:ChatBubbleColorConverter x:Key="ChatBubbleColorConverter" />
+    <converters:ChatBubbleAlignmentConverter x:Key="ChatBubbleAlignmentConverter" />
 </ResourceDictionary>

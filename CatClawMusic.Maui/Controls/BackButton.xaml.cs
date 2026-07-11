@@ -2,6 +2,17 @@ namespace CatClawMusic.Maui.Controls;
 
 public partial class BackButton : ContentView
 {
+    public event EventHandler? Clicked;
+
+    public static readonly BindableProperty CommandProperty =
+        BindableProperty.Create(nameof(Command), typeof(System.Windows.Input.ICommand), typeof(BackButton));
+
+    public System.Windows.Input.ICommand? Command
+    {
+        get => (System.Windows.Input.ICommand?)GetValue(CommandProperty);
+        set => SetValue(CommandProperty, value);
+    }
+
     public BackButton()
     {
         InitializeComponent();
@@ -22,6 +33,17 @@ public partial class BackButton : ContentView
             }
             catch { }
 #endif
+            if (Command?.CanExecute(null) == true)
+            {
+                Command.Execute(null);
+                return;
+            }
+
+            if (Clicked is not null)
+            {
+                Clicked.Invoke(this, EventArgs.Empty);
+                return;
+            }
 
             if (Shell.Current != null && Shell.Current.CurrentState?.Location != null)
             {
