@@ -76,6 +76,10 @@ public partial class SettingsPage : ContentPage
     private async void OnAiSettingsClicked(object? sender, EventArgs e)
         => await NavigateToSettingsAsync("aisettings");
 
+    /// <summary>点击猫爪圈设置项时触发，导航到猫爪圈设置页面。</summary>
+    private async void OnClawCircleClicked(object? sender, EventArgs e)
+        => await NavigateToSettingsAsync("clawcirclesettings");
+
     /// <summary>点击权限管理项时触发，导航到权限管理页面。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>

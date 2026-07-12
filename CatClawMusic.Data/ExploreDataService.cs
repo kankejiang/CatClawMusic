@@ -479,7 +479,10 @@ public class ExploreDataService
         {
             await _db.EnsureInitializedAsync();
             var history = await _db.GetRecentPlaysAsync(10000);
-            var dict = history.ToDictionary(h => h.SongId, h => h.PlayCount);
+            // 同一歌曲可能存在多条历史记录，按 SongId 聚合求和（用 GroupBy 避免重复键抛异常）
+            var dict = history
+                .GroupBy(h => h.SongId)
+                .ToDictionary(g => g.Key, g => g.Sum(h => h.PlayCount));
             foreach (var s in songs)
             {
                 if (dict.TryGetValue(s.Id, out var count))

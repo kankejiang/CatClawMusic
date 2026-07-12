@@ -82,3 +82,12 @@
   **修复**：改为 `FileSystem.AppDataDirectory` 下的 JSON 文件存储（见 `Services/CustomFolderStore.cs`，首次读取会从 `Preferences` 迁移旧数据，兼容 Android）。
   **仍受影响**：`LocalMusicSettingsViewModel` 里的 `ffmpeg_enabled` / `use_media_store` / `use_saf_scan` 及主题等 `Preferences` 读取在未打包 Windows 上同样可能不持久；
   若用户反馈这些设置不保存，需同样迁移到文件存储。详见 2026-07-09 日志。
+
+## 猫爪圈跨网 P2P（三阶段，服务端在 D:\Code\CatClawMusicServer）
+- **端口族**：UDP 发现 37821 / TCP 直传(LAN) 37822 / 媒体中心 HTTP 37823 / STUN UDP 37824(=37823+1)。
+- **阶段1**：CatClawMusicServer = NAS 媒体中心（扫描/流式/Subsonic 兼容/鉴权），自包含 EXE 发布到 `D:\catclaw-server-publish`。客户端走 Navidrome 协议直连。
+- **阶段2**：服务端 WebSocket tracker/信令 `/ws/clawcircle`（自带 token 鉴权）。**必须 `app.UseWebSockets()` 在中间件前**，否则 IsWebSocketRequest=false→426。
+- **阶段3**（客户端，CatClawMusic.Core/ClawCircle/）：UDP NAT 打洞 + 分块直传/做种。**关键：打洞需 UDP 反射端点，由服务端 STUN(37824) 观察**（WS 的 TCP 端点不能用）。引擎 `Start()` 用同一 UdpDirectChannel 向 STUN 打 `{deviceId}` 包；`EnsureSelfEndpointAsync` 用 query_peer(self) 重试拿自身 UDP 端点。
+- **Stage3 坑**：① relay `data.Deserialize<P2PRelayMessage>()` 默认大小写敏感，但信令以 camelCase 发送→须 `PropertyNameCaseInsensitive=true`，否则 Kind 空、对端不回打。② **UDP 片大小必须 < 65507**（默认改 16KB；256KB 会 SendAsync 静默失败）。③ `SemaphoreSlim(0,1)` 多次 Release 会 SemaphoreFullException，用 `new SemaphoreSlim(0)`。
+- **无头验证**：`CatClawMusic.P2P.Harness`（控制台，引用 Core，内存数据提供者）双节点经真实服务端跑通 STUN→打洞→96 片分块→整体 SHA256 校验。Python WS 回归测试 `D:\catclaw-test\clawcircle_ws_test.py`。
+- **MAUI 集成**：`ClawCircleP2PService`(Data 门面) + `ClawCircleP2PDataProvider`(按 songKey 索引/按片读流/.part 落盘校验) 已注册；`ClawCircleSettings` 加 TrackerUrl/TrackerToken。真实跨 NAT 需双网络真机联调（对称型 NAT 可能仍需中继回退，已留 RelayOnly）。

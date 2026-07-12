@@ -255,6 +255,16 @@ public static class MauiProgram
             new CatClawServerClient(sp.GetRequiredService<MusicDatabase>()));
         services.AddSingleton<IP2PService, P2PClientService>();
 
+        // ═══════════════════════════════════════
+        // 猫爪圈（局域网 P2P 直传）
+        // ═════════════════════════════════════
+        services.AddSingleton<IClawCircleService, ClawCircleService>();
+        // 猫爪圈跨网 P2P（Stage 3：tracker 信令 + NAT 打洞 + 分块直传/做种）
+        services.AddSingleton<CatClawMusic.Data.ClawCircleP2PService>(_ =>
+            new CatClawMusic.Data.ClawCircleP2PService(
+                _.GetRequiredService<CatClawMusic.Data.MusicDatabase>(),
+                Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, "clawcircle", "downloads")));
+
         // ═══════════════════════════════════════════════════
         // Platform services
         // ═══════════════════════════════════════════════════
@@ -334,6 +344,7 @@ public static class MauiProgram
         services.AddTransient<LocalMusicSettingsViewModel>();
         services.AddTransient<MusicFolderSettingsViewModel>();
         services.AddTransient<AiSettingsViewModel>();
+        services.AddTransient<ClawCircleSettingsViewModel>();
         services.AddTransient<PermissionManagementViewModel>();
         services.AddTransient<RemoteMusicSettingsViewModel>();
         services.AddTransient<PluginManagementViewModel>();
@@ -369,6 +380,7 @@ public static class MauiProgram
         services.AddTransient<Pages.RemoteMusicSettingsPage>();
         services.AddTransient<Pages.PluginManagementPage>();
         services.AddTransient<Pages.AiSettingsPage>();
+        services.AddTransient<Pages.ClawCircleSettingsPage>();
         services.AddTransient<Pages.PermissionManagementPage>();
         services.AddTransient<Pages.FullLyricsPage>();
         services.AddTransient<Pages.FolderBrowserPage>();
@@ -436,6 +448,95 @@ public static class MauiProgram
                 return smbProxy.ToProxyUrl(url);
             return null;
         };
+
+        // 配置猫爪圈服务的平台回调：打开本地歌曲流、统计可共享歌曲数
+        var clawCircle = Services.GetRequiredService<IClawCircleService>() as ClawCircleService;
+        if (clawCircle != null)
+        {
+            int cachedCount = -1;
+            long lastCountTick = 0;
+            clawCircle.SongCountProvider = () =>
+            {
+                var now = DateTime.UtcNow.Ticks;
+                if (cachedCount < 0 || now - lastCountTick > TimeSpan.TicksPerSecond * 30)
+                {
+                    try { cachedCount = db.GetSongsWithDetailsAsync().GetAwaiter().GetResult().Count; }
+                    catch { cachedCount = 0; }
+                    lastCountTick = now;
+                }
+                return cachedCount;
+            };
+            clawCircle.NowPlayingProvider = () => "";
+
+#if ANDROID
+            clawCircle.SongStreamOpener = id =>
+            {
+                try
+                {
+                    var song = db.GetSongByIdAsync(id).GetAwaiter().GetResult();
+                    if (song == null) return null;
+                    if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var ctx = global::Android.App.Application.Context;
+                        return ctx.ContentResolver?.OpenInputStream(global::Android.Net.Uri.Parse(song.FilePath));
+                    }
+                    return File.OpenRead(song.FilePath);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ClawCircle] Android 打开歌曲流失败: {ex.Message}");
+                    return null;
+                }
+            };
+#else
+            clawCircle.SongStreamOpener = id =>
+            {
+                try
+                {
+                    var song = db.GetSongByIdAsync(id).GetAwaiter().GetResult();
+                    if (song == null) return null;
+                    return File.OpenRead(song.FilePath);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ClawCircle] 打开歌曲流失败: {ex.Message}");
+                    return null;
+                }
+            };
+#endif
+        }
+
+        // 配置猫爪圈跨网 P2P 服务的平台回调：按 FilePath 打开本地歌曲流（做种用）
+        var p2pService = Services.GetRequiredService<CatClawMusic.Data.ClawCircleP2PService>();
+#if ANDROID
+        p2pService.SongStreamOpener = filePath =>
+        {
+            try
+            {
+                if (filePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var ctx = global::Android.App.Application.Context;
+                    return ctx.ContentResolver?.OpenInputStream(global::Android.Net.Uri.Parse(filePath));
+                }
+                return File.OpenRead(filePath);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ClawCircle-P2P] Android 打开歌曲流失败: {ex.Message}");
+                return null;
+            }
+        };
+#else
+        p2pService.SongStreamOpener = filePath =>
+        {
+            try { return File.OpenRead(filePath); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ClawCircle-P2P] 打开歌曲流失败: {ex.Message}");
+                return null;
+            }
+        };
+#endif
 
         // 异步 URL 解析器：修复 WebDAV/OpenList URL（添加 /dav 前缀或获取签名 raw_url）
         AudioPlayerService.AsyncUrlResolver = async url =>

@@ -52,6 +52,10 @@
     <!-- SMB 局域网设备发现（Android 13+ 需要） -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:minSdkVersion="33" />
 
+    <!-- 猫爪圈局域网发现：获取 Wi-Fi 状态与多播锁 -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
     <!-- 悬浮窗权限（桌面歌词） -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 

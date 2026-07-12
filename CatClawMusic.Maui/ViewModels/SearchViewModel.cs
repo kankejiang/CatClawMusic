@@ -5,6 +5,7 @@ using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using System.Text;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 
@@ -160,6 +161,19 @@ public partial class SearchViewModel : ObservableObject
     /// <summary>AI 是否正在生成推荐</summary>
     [ObservableProperty]
     private bool _isAiRecommending;
+
+    /// <summary>当天 AI 推荐批次（歌曲 ID + 理由），每天仅向 AI 获取一次并整批缓存</summary>
+    private List<AiRecItem> _aiRecommendBatch = new();
+    /// <summary>AI 推荐批次对应的日期（"yyyy-MM-dd"），用于判定是否需要重新获取</summary>
+    private string? _aiRecommendBatchDate;
+    /// <summary>当天是否已尝试向 AI 请求（无论成功失败），避免失败后在同一天反复调用浪费 token</summary>
+    private string? _aiAttemptDate;
+    /// <summary>是否正在向 AI 请求推荐批次，防止并发重复请求</summary>
+    private bool _aiFetchInProgress;
+    /// <summary>Hero 卡当前展示的 AI 推荐索引，换批时轮换（仅读缓存，不消耗 token）</summary>
+    private int _aiHeroIndex;
+    /// <summary>AI 每日推荐磁盘缓存文件路径（复用探索缓存目录）</summary>
+    private readonly string _aiCacheFilePath = Path.Combine(FileSystem.AppDataDirectory, "cache", "ai_recommend.json");
 
     /// <summary>发现页 CollectionView 的占位数据源（内容全部放在 Header 中，使用 CollectionView 获得更好的手势处理）</summary>
     public ObservableCollection<int> DiscoverPageItems { get; } = new() { 0 };
@@ -415,6 +429,7 @@ public partial class SearchViewModel : ObservableObject
         try
         {
             _exploreDataService.InvalidateDailyRecommendCache();
+            InvalidateAiCache();
             Services.CoverHelper.ClearCache();
             Preferences.Default.Remove("explore_last_load_date");
 
@@ -783,29 +798,59 @@ public partial class SearchViewModel : ObservableObject
         // AI 智能推荐卡（首位）
         if (IsAiRecommendationEnabled)
         {
-            var aiSong = PickAiRecommendedSong();
-            _aiRecommendedSong = aiSong;
-            if (aiSong != null)
+            var today = DateTime.Today.ToString("yyyy-MM-dd");
+            if (_aiRecommendBatchDate == today && _aiRecommendBatch.Count > 0)
             {
-                cards.Add(new HeroCardItem
+                // 命中当天缓存：直接从批次中轮换取一首展示，不再调用 AI（零 token 消耗）
+                AiRecItem? item = null;
+                Song? aiSong = null;
+                var start = _aiHeroIndex % _aiRecommendBatch.Count;
+                for (int i = 0; i < _aiRecommendBatch.Count; i++)
                 {
-                    Tag = "✨ AI 智能推荐",
-                    Title = aiSong.Title ?? "未知歌曲",
-                    Description = IsAiRecommending ? "AI 正在分析你的口味…" : AiRecommendReason,
-                    Song = aiSong,
-                    GradientStart = gradients[4].Start,
-                    GradientEnd = gradients[4].End
-                });
+                    var cand = _aiRecommendBatch[(start + i) % _aiRecommendBatch.Count];
+                    var s = ResolveSongById(cand.SongId);
+                    if (s != null) { item = cand; aiSong = s; break; }
+                }
+                if (aiSong != null)
+                {
+                    _aiRecommendedSong = aiSong;
+                    cards.Add(new HeroCardItem
+                    {
+                        Tag = "✨ AI 智能推荐",
+                        Title = aiSong.Title ?? "未知歌曲",
+                        Description = string.IsNullOrWhiteSpace(item?.Reason) ? AiRecommendReason : item!.Reason,
+                        Song = aiSong,
+                        GradientStart = gradients[4].Start,
+                        GradientEnd = gradients[4].End
+                    });
+                }
+            }
+            else
+            {
+                // 当天尚无缓存：先用本地挑一首占位，并在后台向 AI 获取「当天全部推荐」（每天仅一次）
+                var aiSong = PickAiRecommendedSong();
+                _aiRecommendedSong = aiSong;
+                if (aiSong != null)
+                {
+                    cards.Add(new HeroCardItem
+                    {
+                        Tag = "✨ AI 智能推荐",
+                        Title = aiSong.Title ?? "未知歌曲",
+                        Description = IsAiRecommending ? "AI 正在分析你的口味…" : AiRecommendReason,
+                        Song = aiSong,
+                        GradientStart = gradients[4].Start,
+                        GradientEnd = gradients[4].End
+                    });
+                }
 
-                // 若 AI 已配置，后台请求生成推荐理由
-                if (_agentService.IsConfigured && !IsAiRecommending)
+                if (_agentService.IsConfigured && !_aiFetchInProgress && _aiAttemptDate != today)
                 {
-                    _ = FetchAiRecommendationReasonAsync(aiSong);
+                    _ = EnsureDailyAiRecommendationsAsync(regenerateAfter: true);
                 }
             }
         }
 
-        var tags = new[] { "每日推荐", "热门歌曲", "我的最爱", "随机播放" };
+        var tags = new[] { "每日推荐", "最多播放", "我的最爱", "随机播放" };
 
         if (_allDailyRecommendSongs.Count > 0)
         {
@@ -865,6 +910,12 @@ public partial class SearchViewModel : ObservableObject
             });
         }
 
+        // 统一设播放图标（WinUI 上 XAML 字面量 Source="ic_xxx" 不渲染，必须代码赋 ImageSource）
+        // 用深色图标：播放按钮背景是半透明白底 (#50FFFFFF)，浅色图标会看不见
+        // 必须在赋值 HeroCards 之前设好——HeroCardItem 无属性变更通知，赋值后再改绑定不会刷新
+        var playIcon = Helpers.ImageSourceHelper.FromNameOriginal("ic_play_dark");
+        foreach (var c in cards) c.PlayIcon = playIcon;
+
         HeroCards = new ObservableCollection<HeroCardItem>(cards.Take(4));
     }
 
@@ -903,45 +954,179 @@ public partial class SearchViewModel : ObservableObject
         return unique[rng.Next(unique.Count)];
     }
 
-    /// <summary>后台调用 AI 为推荐歌曲生成一句简短推荐理由</summary>
-    private async Task FetchAiRecommendationReasonAsync(Song song)
+    /// <summary>
+    /// 确保当天的 AI 推荐批次已就绪：内存缓存 → 磁盘缓存 → 调用 AI（每天仅一次）。
+    /// 命中缓存则不消耗 token；调用完成后可选地重新生成 Hero 卡以刷新展示。
+    /// </summary>
+    private async Task EnsureDailyAiRecommendationsAsync(bool regenerateAfter = false)
     {
+        if (!IsAiRecommendationEnabled || !_agentService.IsConfigured) return;
+        var today = DateTime.Today.ToString("yyyy-MM-dd");
+
+        // 内存命中
+        if (_aiRecommendBatchDate == today && _aiRecommendBatch.Count > 0) return;
+        if (_aiFetchInProgress) return;
+
+        _aiFetchInProgress = true;
+        var calledAi = false;
         try
         {
+            // 磁盘命中（跨重启复用当天结果）
+            var disk = await LoadAiCacheFromDiskAsync(today);
+            if (disk != null && disk.Count > 0)
+            {
+                _aiRecommendBatch = disk;
+                _aiRecommendBatchDate = today;
+                _aiAttemptDate = today;
+                return;
+            }
+
+            // 今天已尝试过且无缓存，避免失败后反复调用
+            if (_aiAttemptDate == today) return;
+
+            // 调用 AI 获取当天全部推荐（每天仅一次）
+            calledAi = true;
             IsAiRecommending = true;
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                var idx = HeroCards.TakeWhile(c => c.Tag != "✨ AI 智能推荐").Count();
-                if (idx < HeroCards.Count)
-                    HeroCards[idx].Description = "AI 正在分析你的口味…";
-            });
+            if (regenerateAfter) MainThread.BeginInvokeOnMainThread(GenerateHeroCards);
 
-            var artist = song.Artist ?? "未知艺术家";
-            var title = song.Title ?? "未知歌曲";
-            var systemPrompt = "你是Yuki，猫爪音乐的AI助手，说话温柔可爱带点喵口癖。回答必须简短，不超过20字，不要加引号。";
-            var userPrompt = $"请用一句话温柔推荐歌曲《{title}》- {artist}，说明为什么适合现在听。";
-
-            var reason = await _agentService.QuickAskAsync(systemPrompt, userPrompt);
-            reason = reason?.Trim()?.Trim('"', '「', '」', '\n', '\r');
-            if (!string.IsNullOrWhiteSpace(reason) && reason.Length < 60)
+            var batch = await FetchAiRecommendationBatchAsync();
+            _aiAttemptDate = today;
+            if (batch.Count > 0)
             {
-                AiRecommendReason = reason;
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    var idx = HeroCards.TakeWhile(c => c.Tag != "✨ AI 智能推荐").Count();
-                    if (idx < HeroCards.Count)
-                        HeroCards[idx].Description = reason;
-                });
+                _aiRecommendBatch = batch;
+                _aiRecommendBatchDate = today;
+                // 用第一条推荐理由更新默认文案（占位卡也能显示合理文字）
+                var firstReason = batch[0].Reason;
+                if (!string.IsNullOrWhiteSpace(firstReason)) AiRecommendReason = firstReason;
+                SaveAiCacheToDisk(today, batch);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 推荐理由生成失败: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 每日推荐获取失败: {ex.Message}");
+            _aiAttemptDate = today;
         }
         finally
         {
-            IsAiRecommending = false;
+            if (calledAi) IsAiRecommending = false;
+            _aiFetchInProgress = false;
+            if (regenerateAfter) MainThread.BeginInvokeOnMainThread(GenerateHeroCards);
         }
+    }
+
+    /// <summary>
+    /// 向 AI 请求当天推荐批次：把用户曲库中的候选歌（含 ID）交给 AI，让它挑选若干首并给出理由，
+    /// 返回严格 JSON，随后按 ID 匹配回本地曲库，避免 AI 编造不存在的歌曲。
+    /// </summary>
+    private async Task<List<AiRecItem>> FetchAiRecommendationBatchAsync()
+    {
+        var pool = BuildAiCandidatePool();
+        if (pool.Count == 0) return new();
+
+        var sb = new StringBuilder();
+        foreach (var s in pool)
+            sb.AppendLine($"{s.Id}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}");
+
+        var count = Math.Min(8, pool.Count);
+        var systemPrompt = "你是Yuki，猫爪音乐的AI音乐推荐助手，说话温柔可爱带点喵口癖。";
+        var userPrompt =
+            $"下面是用户曲库里的候选歌曲（每行格式：ID. 歌名 - 艺术家）：\n{sb}\n" +
+            $"请从这些候选里挑选 {count} 首你最想推荐给用户的歌，为每首写一句温柔的推荐理由（不超过18字，不要加引号）。\n" +
+            "只返回严格的 JSON 数组，不要任何多余文字或代码块标记，格式：[{\"id\":数字,\"reason\":\"理由\"}]";
+
+        var raw = await _agentService.QuickAskAsync(systemPrompt, userPrompt);
+        return ParseAiBatch(raw, pool);
+    }
+
+    /// <summary>构建 AI 推荐候选池：合并常听、收藏、每日推荐并去重</summary>
+    private List<Song> BuildAiCandidatePool()
+    {
+        var candidates = new List<Song>();
+        if (_allTopPlayedSongs.Count > 0) candidates.AddRange(_allTopPlayedSongs.Take(15));
+        if (FavoriteSongs.Count > 0) candidates.AddRange(FavoriteSongs.Take(15));
+        if (_allDailyRecommendSongs.Count > 0) candidates.AddRange(_allDailyRecommendSongs.Take(20));
+        return candidates.GroupBy(s => s.Id).Select(g => g.First()).ToList();
+    }
+
+    /// <summary>解析 AI 返回的 JSON 推荐数组，仅保留候选池中真实存在的歌曲 ID</summary>
+    private static List<AiRecItem> ParseAiBatch(string raw, List<Song> pool)
+    {
+        var result = new List<AiRecItem>();
+        if (string.IsNullOrWhiteSpace(raw)) return result;
+        try
+        {
+            var start = raw.IndexOf('[');
+            var end = raw.LastIndexOf(']');
+            if (start < 0 || end <= start) return result;
+            var json = raw.Substring(start, end - start + 1);
+
+            var items = System.Text.Json.JsonSerializer.Deserialize<List<AiRecItem>>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (items == null) return result;
+
+            var validIds = pool.Select(s => s.Id).ToHashSet();
+            foreach (var it in items)
+            {
+                if (!validIds.Contains(it.SongId)) continue;
+                var reason = it.Reason?.Trim()?.Trim('"', '「', '」', '\n', '\r') ?? "";
+                if (reason.Length > 40) reason = reason.Substring(0, 40);
+                result.Add(new AiRecItem { SongId = it.SongId, Reason = reason });
+                validIds.Remove(it.SongId); // 去重
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 推荐解析失败: {ex.Message}");
+        }
+        return result;
+    }
+
+    /// <summary>按歌曲 ID 从已加载的内存池（常听/收藏/每日推荐）解析出 Song 对象</summary>
+    private Song? ResolveSongById(int id)
+    {
+        return _allTopPlayedSongs.FirstOrDefault(s => s.Id == id)
+            ?? FavoriteSongs.FirstOrDefault(s => s.Id == id)
+            ?? _allDailyRecommendSongs.FirstOrDefault(s => s.Id == id);
+    }
+
+    /// <summary>从磁盘读取当天的 AI 推荐缓存；日期不匹配或为空时返回 null</summary>
+    private async Task<List<AiRecItem>?> LoadAiCacheFromDiskAsync(string date)
+    {
+        try
+        {
+            if (!File.Exists(_aiCacheFilePath)) return null;
+            var json = await File.ReadAllTextAsync(_aiCacheFilePath);
+            var cache = System.Text.Json.JsonSerializer.Deserialize<AiRecCache>(json);
+            if (cache?.Date != date || cache.Items == null || cache.Items.Count == 0) return null;
+            return cache.Items;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>将当天的 AI 推荐批次整批写入磁盘缓存</summary>
+    private void SaveAiCacheToDisk(string date, List<AiRecItem> items)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(_aiCacheFilePath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            var cache = new AiRecCache { Date = date, Items = items };
+            File.WriteAllText(_aiCacheFilePath, System.Text.Json.JsonSerializer.Serialize(cache));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 推荐缓存写入失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>使 AI 每日推荐缓存失效（内存 + 磁盘 + 尝试标记），用于手动刷新或重新扫描</summary>
+    private void InvalidateAiCache()
+    {
+        _aiRecommendBatch = new();
+        _aiRecommendBatchDate = null;
+        _aiAttemptDate = null;
+        _aiHeroIndex = 0;
+        try { if (File.Exists(_aiCacheFilePath)) File.Delete(_aiCacheFilePath); } catch { }
     }
 
     /// <summary>AI 推荐开关切换时：持久化并重新生成 Hero 卡</summary>
@@ -960,6 +1145,7 @@ public partial class SearchViewModel : ObservableObject
         try
         {
             _exploreDataService.InvalidateDailyRecommendCache();
+            InvalidateAiCache();
             Services.CoverHelper.ClearCache();
             Preferences.Default.Remove("explore_last_load_date");
 
@@ -987,6 +1173,7 @@ public partial class SearchViewModel : ObservableObject
         _allDailyRecommendSongs = _allDailyRecommendSongs.OrderBy(_ => random.Next()).ToList();
         var shuffled = _allDailyRecommendSongs.Take(20).ToList();
         DailyRecommendSongs = new ObservableCollection<Song>(shuffled);
+        _aiHeroIndex++; // 轮换到当天缓存里的下一首 AI 推荐（不重新调用 AI）
         GenerateHeroCards();
     }
 
@@ -1040,6 +1227,26 @@ public class SearchAlbumItem
 }
 
 /// <summary>首页英雄卡片项</summary>
+/// <summary>AI 单条推荐项：歌曲 ID + 推荐理由（用于 JSON 缓存与解析 AI 返回）</summary>
+public class AiRecItem
+{
+    /// <summary>歌曲 ID（对应本地曲库）</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("id")]
+    public int SongId { get; set; }
+    /// <summary>推荐理由文案</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("reason")]
+    public string Reason { get; set; } = "";
+}
+
+/// <summary>AI 每日推荐磁盘缓存结构：日期 + 当天全部推荐项</summary>
+public class AiRecCache
+{
+    /// <summary>缓存日期 "yyyy-MM-dd"</summary>
+    public string Date { get; set; } = "";
+    /// <summary>当天推荐项列表</summary>
+    public List<AiRecItem> Items { get; set; } = new();
+}
+
 public class HeroCardItem
 {
     /// <summary>标签</summary>
@@ -1054,4 +1261,6 @@ public class HeroCardItem
     public Color GradientStart { get; set; } = Colors.Blue;
     /// <summary>渐变结束色</summary>
     public Color GradientEnd { get; set; } = Colors.Purple;
+    /// <summary>播放按钮图标（WinUI 需代码赋值，XAML 字面量不渲染）</summary>
+    public ImageSource? PlayIcon { get; set; }
 }

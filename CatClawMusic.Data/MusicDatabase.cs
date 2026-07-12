@@ -62,6 +62,11 @@ public class MusicDatabase
     private readonly SemaphoreSlim _maintenanceSemaphore = new(1, 1);
 
     /// <summary>
+    /// 播放记录信号量，确保并发的 RecordPlayAsync 串行执行，避免竞态下同一 SongId 被插入多条记录
+    /// </summary>
+    private readonly SemaphoreSlim _playHistoryLock = new(1, 1);
+
+    /// <summary>
     /// 后台维护任务（拆分合并艺术家、修复专辑关联），在基础初始化完成后启动
     /// </summary>
     private Task? _maintenanceTask;
@@ -164,6 +169,13 @@ public class MusicDatabase
             {
                 await RepairAlbumAssociationsAsync();
                 await MarkMigrationDoneAsync("repair_album_associations");
+            }
+
+            // 合并 PlayHistory 中同一 SongId 的多条重复记录（历史竞态写入导致），只执行一次
+            if (!await IsMigrationDoneAsync("consolidate_play_history"))
+            {
+                await ConsolidatePlayHistoryAsync();
+                await MarkMigrationDoneAsync("consolidate_play_history");
             }
 
             _maintenanceCompleted = true;
@@ -358,10 +370,10 @@ public class MusicDatabase
         var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
         var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
 
-        // 批量预加载播放次数（来自 PlayHistory 表）
+        // 批量预加载播放次数（来自 PlayHistory 表），按 SongId 聚合求和（同一歌曲可能存在多条历史记录）
         var playHistoryDict = (await _database.Table<PlayHistory>().ToListAsync())
             .GroupBy(h => h.SongId)
-            .ToDictionary(g => g.Key, g => g.Max(h => h.PlayCount));
+            .ToDictionary(g => g.Key, g => g.Sum(h => h.PlayCount));
 
         // 批量加载多艺术家关联
         var songIds = songs.Select(s => s.Id).ToList();
@@ -999,24 +1011,34 @@ public class MusicDatabase
     /// <param name="songId">歌曲 ID</param>
     public async Task RecordPlayAsync(int songId)
     {
+        if (songId <= 0) return;
         try
         {
             await EnsureMaintenanceCompletedAsync();
-            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var existing = await _database.Table<PlayHistory>()
-                .Where(h => h.SongId == songId)
-                .FirstOrDefaultAsync();
-            if (existing != null)
+            // 串行化，避免多处并发 fire-and-forget 调用导致同一 SongId 被插入多条记录
+            await _playHistoryLock.WaitAsync();
+            try
             {
-                existing.PlayedAt = now;
-                existing.PlayCount++;
-                await _database.UpdateAsync(existing);
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var existing = await _database.Table<PlayHistory>()
+                    .Where(h => h.SongId == songId)
+                    .FirstOrDefaultAsync();
+                if (existing != null)
+                {
+                    existing.PlayedAt = now;
+                    existing.PlayCount++;
+                    await _database.UpdateAsync(existing);
+                }
+                else
+                {
+                    await _database.InsertAsync(new PlayHistory { SongId = songId, PlayedAt = now });
+                }
+                await TrimHistoryAsync(200);
             }
-            else
+            finally
             {
-                await _database.InsertAsync(new PlayHistory { SongId = songId, PlayedAt = now });
+                _playHistoryLock.Release();
             }
-            await TrimHistoryAsync(200);
         }
         catch (Exception ex)
         {
@@ -1037,6 +1059,31 @@ public class MusicDatabase
             await _database.ExecuteAsync(
                 "DELETE FROM PlayHistory WHERE Id IN (SELECT Id FROM PlayHistory ORDER BY PlayedAt ASC LIMIT ?)",
                 count - keepCount);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 合并 PlayHistory 中同一 SongId 的多条重复记录：保留 PlayedAt 最新的一条，
+    /// 将其 PlayCount 累加为总和，其余重复行删除。用于修复历史竞态写入产生的重复数据。
+    /// </summary>
+    private async Task ConsolidatePlayHistoryAsync()
+    {
+        try
+        {
+            var rows = await _database.Table<PlayHistory>().ToListAsync();
+            var dupGroups = rows.GroupBy(h => h.SongId).Where(g => g.Count() > 1).ToList();
+            foreach (var g in dupGroups)
+            {
+                var keep = g.OrderByDescending(h => h.PlayedAt).First();
+                var total = g.Sum(h => h.PlayCount);
+                var latest = g.Max(h => h.PlayedAt);
+                foreach (var h in g.Where(h => h.Id != keep.Id))
+                    await _database.DeleteAsync(h);
+                keep.PlayCount = total;
+                keep.PlayedAt = latest;
+                await _database.UpdateAsync(keep);
+            }
         }
         catch { }
     }
@@ -1075,7 +1122,7 @@ public class MusicDatabase
         {
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
-            s.PlayCount = validHistory.FirstOrDefault(h => h.SongId == s.Id)?.PlayCount ?? 0;
+            s.PlayCount = validHistory.Where(h => h.SongId == s.Id).Sum(h => h.PlayCount);
         }
 
         var playTimeDict = validHistory.GroupBy(h => h.SongId).ToDictionary(g => g.Key, g => g.Max(h => h.PlayedAt));
@@ -1094,7 +1141,13 @@ public class MusicDatabase
     public async Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50)
     {
         await EnsureMaintenanceCompletedAsync();
-        var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayCount).Take(limit).ToListAsync();
+        // 先按 SongId 聚合求和（同一歌曲可能有多条历史记录），再按总播放次数降序取前 limit
+        var history = (await _database.Table<PlayHistory>().ToListAsync())
+            .GroupBy(h => h.SongId)
+            .Select(g => new PlayHistory { SongId = g.Key, PlayCount = g.Sum(h => h.PlayCount), PlayedAt = g.Max(h => h.PlayedAt) })
+            .OrderByDescending(h => h.PlayCount)
+            .Take(limit)
+            .ToList();
         if (history.Count == 0) return new List<Song>();
 
         var songIds = history.Select(h => h.SongId).ToHashSet();
@@ -1115,10 +1168,10 @@ public class MusicDatabase
         {
             s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
             s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
-            s.PlayCount = validHistory.FirstOrDefault(h => h.SongId == s.Id)?.PlayCount ?? 0;
+            s.PlayCount = validHistory.Where(h => h.SongId == s.Id).Sum(h => h.PlayCount);
         }
 
-        var playCountDict = validHistory.GroupBy(h => h.SongId).ToDictionary(g => g.Key, g => g.Max(h => h.PlayCount));
+        var playCountDict = validHistory.GroupBy(h => h.SongId).ToDictionary(g => g.Key, g => g.Sum(h => h.PlayCount));
 
         // 填充多艺术家
         var allArtistsDict3 = await GetAllArtistsForSongsAsync(songs.Select(s => s.Id));

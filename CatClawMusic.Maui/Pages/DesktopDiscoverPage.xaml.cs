@@ -40,6 +40,14 @@ public partial class DesktopDiscoverPage : ContentPage
         _themeService = themeService;
         BindingContext = _vm;
 
+        // 用 ImageSourceHelper 在代码后台设图标源（WinUI 上 XAML 字面量 Source="ic_xxx" 不渲染）
+        HeroPrev.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_left");
+        HeroNext.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_right");
+        DailyPrev.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_left");
+        DailyNext.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_right");
+        ArtistPrev.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_left");
+        ArtistNext.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_right");
+
         UpdateTabVisualState(0);
         UpdateThemeIcon();
         SetupHeroTimer();
@@ -86,6 +94,7 @@ public partial class DesktopDiscoverPage : ContentPage
     /// <summary>根据可见宽度计算每张 Hero 卡宽度，使一屏显示约 2 张；并刷新圆点数量。</summary>
     private void LayoutHeroCards()
     {
+        HeroDots.Count = _vm.HeroCards.Count;
         if (HeroScroll.Width <= 0) return;
         var cardW = (HeroScroll.Width - HeroSpacing) / 2;
         if (cardW < 280) cardW = 280;
@@ -106,7 +115,7 @@ public partial class DesktopDiscoverPage : ContentPage
 
         var step = _heroCardWidth > 0 ? _heroCardWidth + HeroSpacing : HeroScroll.Width / 2;
         await HeroScroll.ScrollToAsync(index * step, 0, true);
-        HeroDots.SelectedIndex = index;
+        HeroDots.Position = index;
     }
 
     private void OnHeroScrolled(object? sender, ScrolledEventArgs e)
@@ -119,12 +128,98 @@ public partial class DesktopDiscoverPage : ContentPage
         if (idx != _heroIndex)
         {
             _heroIndex = idx;
-            HeroDots.SelectedIndex = idx;
+            HeroDots.Position = idx;
         }
     }
 
     private void OnHeroPrevClicked(object? sender, EventArgs e) => _ = ScrollHeroTo(_heroIndex - 1);
     private void OnHeroNextClicked(object? sender, EventArgs e) => _ = ScrollHeroTo(_heroIndex + 1);
+
+    // ─── 每日推荐左右箭头 ───
+
+    /// <summary>每次翻页的卡片数（根据可见宽度动态计算）。</summary>
+    private int DailyPageSize => DailyList.Width > 0 ? Math.Max(1, (int)((DailyList.Width + 12) / (150 + 12))) : 4;
+
+    private void OnDailyPrevClicked(object? sender, EventArgs e)
+    {
+        var items = _vm.DailyRecommendSongs;
+        if (items.Count == 0) return;
+        var page = DailyPageSize;
+        var targetIdx = Math.Max(0, _dailyVisibleStart - page);
+        ScrollDailyTo(targetIdx);
+    }
+
+    private void OnDailyNextClicked(object? sender, EventArgs e)
+    {
+        var items = _vm.DailyRecommendSongs;
+        if (items.Count == 0) return;
+        var page = DailyPageSize;
+        var targetIdx = Math.Min(items.Count - 1, _dailyVisibleStart + page);
+        ScrollDailyTo(targetIdx);
+    }
+
+    private int _dailyVisibleStart;
+
+    private void ScrollDailyTo(int index)
+    {
+        var items = _vm.DailyRecommendSongs;
+        if (items.Count == 0 || index < 0 || index >= items.Count) return;
+        _dailyVisibleStart = index;
+        DailyList.ScrollTo(items[index], null, ScrollToPosition.Start);
+        UpdateDailyArrowVisibility();
+    }
+
+    /// <summary>根据滚动位置更新每日推荐箭头的显示/隐藏。</summary>
+    private void UpdateDailyArrowVisibility()
+    {
+        var items = _vm.DailyRecommendSongs;
+        if (items.Count == 0) return;
+        var page = DailyPageSize;
+        DailyPrev.IsVisible = _dailyVisibleStart > 0;
+        DailyNext.IsVisible = (_dailyVisibleStart + page) < items.Count;
+    }
+
+    // ─── 推荐艺人左右箭头 ───
+
+    private int ArtistPageSize => ArtistsRow.Width > 0 ? Math.Max(1, (int)((ArtistsRow.Width + 14) / (92 + 14))) : 5;
+
+    private void OnArtistPrevClicked(object? sender, EventArgs e)
+    {
+        var items = _vm.Artists;
+        if (items.Count == 0) return;
+        var page = ArtistPageSize;
+        var targetIdx = Math.Max(0, _artistVisibleStart - page);
+        ScrollArtistTo(targetIdx);
+    }
+
+    private void OnArtistNextClicked(object? sender, EventArgs e)
+    {
+        var items = _vm.Artists;
+        if (items.Count == 0) return;
+        var page = ArtistPageSize;
+        var targetIdx = Math.Min(items.Count - 1, _artistVisibleStart + page);
+        ScrollArtistTo(targetIdx);
+    }
+
+    private int _artistVisibleStart;
+
+    private void ScrollArtistTo(int index)
+    {
+        var items = _vm.Artists;
+        if (items.Count == 0 || index < 0 || index >= items.Count) return;
+        _artistVisibleStart = index;
+        ArtistsRow.ScrollTo(items[index], null, ScrollToPosition.Start);
+        UpdateArtistArrowVisibility();
+    }
+
+    private void UpdateArtistArrowVisibility()
+    {
+        var items = _vm.Artists;
+        if (items.Count == 0) return;
+        var page = ArtistPageSize;
+        ArtistPrev.IsVisible = _artistVisibleStart > 0;
+        ArtistNext.IsVisible = (_artistVisibleStart + page) < items.Count;
+    }
 
     // ─── Lifecycle ───
 
@@ -145,6 +240,12 @@ public partial class DesktopDiscoverPage : ContentPage
             _heroTimer?.Start();
         }
 
+#if WINDOWS
+        // PC 端：将横向 CollectionView 的纵向滚轮事件转发给父级 ScrollView，
+        // 解决"鼠标滚轮被横向内容截获、无法翻页"的问题
+        FixHorizontalMouseWheelCapture();
+#endif
+
         if (LocalScanService.NeedsReload)
         {
             LocalScanService.NeedsReload = false;
@@ -155,10 +256,15 @@ public partial class DesktopDiscoverPage : ContentPage
                 _heroIndex = 0;
                 _heroTimer?.Start();
             }
+            RefreshArrowVisibility();
             return;
         }
 
-        if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0) return;
+        if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0)
+        {
+            RefreshArrowVisibility();
+            return;
+        }
 
         try { await _vm.LoadExploreDataAsync(); }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopDiscover OnAppearing: {ex.Message}"); }
@@ -168,7 +274,80 @@ public partial class DesktopDiscoverPage : ContentPage
             _heroIndex = 0;
             _heroTimer?.Start();
         }
+        RefreshArrowVisibility();
     }
+
+    // ─── Arrow visibility helpers ───
+
+    private void RefreshArrowVisibility()
+    {
+        UpdateDailyArrowVisibility();
+        UpdateArtistArrowVisibility();
+    }
+
+#if WINDOWS
+    // ─── PC 鼠标滚轮修复：横向区域不再截获纵向滚动 ───
+
+    /// <summary>
+    /// 在 WinUI 层找到每日推荐/推荐艺人的 CollectionView 内部 ScrollViewer，
+    /// 将纵向鼠标滚轮事件转发给父级 ScrollView，让用户可以正常上下翻页。
+    /// </summary>
+    private void FixHorizontalMouseWheelCapture()
+    {
+        if (this.Handler?.PlatformView is not Microsoft.UI.Xaml.FrameworkElement pageEl) return;
+
+        var horizontalTargets = new[] { DailyList, ArtistsRow };
+        foreach (var cv in horizontalTargets)
+        {
+            if (cv?.Handler?.PlatformView is not Microsoft.UI.Xaml.FrameworkElement cvEl) continue;
+            var sv = FindWinUIChild<Microsoft.UI.Xaml.Controls.ScrollViewer>(cvEl);
+            if (sv == null) continue;
+            sv.PointerWheelChanged += OnHorizontalAreaWheelChanged;
+        }
+    }
+
+    private void OnHorizontalAreaWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(sender as Microsoft.UI.Xaml.UIElement);
+        var delta = point.Properties.MouseWheelDelta;
+        if (Math.Abs(delta) > 0.1)
+        {
+            e.Handled = true;
+            if (this.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement pageEl)
+            {
+                var parentSv = FindWinUIParent<Microsoft.UI.Xaml.Controls.ScrollViewer>(pageEl);
+                if (parentSv != null)
+                {
+                    var offset = parentSv.VerticalOffset - delta;
+                    parentSv.ChangeView(null, Math.Max(0, offset), null);
+                }
+            }
+        }
+    }
+
+    private static T? FindWinUIChild<T>(Microsoft.UI.Xaml.DependencyObject parent) where T : Microsoft.UI.Xaml.DependencyObject
+    {
+        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T found) return found;
+            var result = FindWinUIChild<T>(child);
+            if (result != null) return result;
+        }
+        return null;
+    }
+
+    private static T? FindWinUIParent<T>(Microsoft.UI.Xaml.DependencyObject child) where T : Microsoft.UI.Xaml.DependencyObject
+    {
+        var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(child);
+        while (parent != null)
+        {
+            if (parent is T found) return found;
+            parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
+        }
+        return null;
+    }
+#endif
 
     // ─── Category tabs ───
 
@@ -229,6 +408,9 @@ public partial class DesktopDiscoverPage : ContentPage
     private void OnShuffleDailyClicked(object? sender, EventArgs e)
     {
         _vm.ShuffleDailyCommand.Execute(null);
+        // 换批后回到开头并刷新箭头
+        _dailyVisibleStart = 0;
+        ScrollDailyTo(0);
     }
 
     // ─── Song selection handlers ───
@@ -256,20 +438,37 @@ public partial class DesktopDiscoverPage : ContentPage
 
     // ─── Hero play ───
 
+    /// <summary>从手势/按钮的 sender 中解析出绑定的 HeroCardItem。
+    /// 注意：PC 端 Hero 用 ScrollView+BindableLayout，TapGestureRecognizer.Tapped 的 sender 是识别器本身（非 Border），
+    /// 但二者都会从可视化树继承 BindingContext，故统一用 BindableObject.BindingContext 取值。</summary>
+    private static HeroCardItem? ResolveHeroItem(object? sender)
+        => (sender as BindableObject)?.BindingContext as HeroCardItem;
+
     private async void OnHeroCardTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is Border border && border.BindingContext is HeroCardItem heroItem && heroItem.Song != null)
+        var heroItem = ResolveHeroItem(sender);
+        if (heroItem?.Song != null)
         {
-            await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
+            await PlayHeroSongAsync(heroItem.Song);
         }
     }
 
     private async void OnHeroPlayTapped(object? sender, EventArgs e)
     {
-        if (sender is ImageButton btn && btn.BindingContext is HeroCardItem heroItem && heroItem.Song != null)
+        var heroItem = ResolveHeroItem(sender);
+        if (heroItem?.Song != null)
         {
-            await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
+            await PlayHeroSongAsync(heroItem.Song);
         }
+    }
+
+    /// <summary>播放 Hero 卡歌曲：以每日推荐为播放队列，但确保被点击的歌曲（如 AI 推荐歌）也在队列中。</summary>
+    private async Task PlayHeroSongAsync(Song song)
+    {
+        var list = _vm.DailyRecommendSongs.ToList();
+        if (!list.Any(s => s.Id == song.Id))
+            list.Insert(0, song);
+        await PlaySongAsync(song, list);
     }
 
     // ─── Rank list ───

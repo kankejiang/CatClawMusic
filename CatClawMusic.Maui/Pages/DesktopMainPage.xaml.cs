@@ -157,13 +157,19 @@ public partial class DesktopMainPage : ContentPage
         var content = page.Content;
         page.Content = null;
         content.BindingContext = page.BindingContext;
+        content.VerticalOptions = LayoutOptions.Fill;
+        content.HorizontalOptions = LayoutOptions.Fill;
 
-        // Wrap in ScrollView if not already scrollable
-        if (content is not ScrollView)
+        // 自带纵向滚动区域的页面（固定页头 + 占满剩余高度的 CollectionView/ListView）绝对不能
+        // 再包一层 ScrollView：外层 ScrollView 会把内层 CollectionView 的高度撑成无限，导致虚拟化
+        // 失效、一次性创建全部歌曲行并加载全部封面，大曲库下「我的音乐 / 歌单」会卡好几秒。
+        // 这类页面直接放进有界高度的 ContentArea，让内部 CollectionView 自行滚动即可。
+        // （DesktopDiscoverPage 是整页纵向滚动的 VerticalStackLayout，仍需要外层 ScrollView。）
+        if (content is ScrollView || page is LibraryPage or PlaylistPage or PlaylistDetailPage)
         {
-            return new ScrollView { Content = content };
+            return content;
         }
-        return content;
+        return new ScrollView { Content = content };
     }
 
     /// <summary>通过反射调用 ContentPage 的 OnAppearing/OnDisappearing（嵌入到 ContentArea 的页面不会自动触发生命周期）</summary>

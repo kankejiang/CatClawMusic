@@ -211,7 +211,6 @@ public partial class LibraryViewModel : ObservableObject
         {
             Songs = new ObservableCollection<Song>();
             FilterSongs();
-            UpdateStats();
             return;
         }
 
@@ -229,7 +228,6 @@ public partial class LibraryViewModel : ObservableObject
 
         Songs = new ObservableCollection<Song>(filtered);
         FilterSongs();
-        UpdateStats();
     }
 
     /// <summary>异步加载本地音乐：从数据库读取歌曲并批量解析封面</summary>
@@ -247,7 +245,6 @@ public partial class LibraryViewModel : ObservableObject
             _allNetworkSongs = new List<Song>();
             Songs = new ObservableCollection<Song>(songs);
             FilterSongs();
-            UpdateStats();
             StatusText = $"已加载 {Songs.Count} 首歌曲";
         }
         catch (Exception ex)
@@ -352,7 +349,7 @@ public partial class LibraryViewModel : ObservableObject
             {
                 if (ct.IsCancellationRequested) return;
                 FilteredSongs = new ObservableCollection<Song>(filtered);
-                SongCount = FilteredSongs.Count;
+                UpdateStats(); // 统一在此处更新歌曲/专辑/艺术家数量，避免竞态条件
                 SectionTitle = string.IsNullOrWhiteSpace(SearchQuery)
                     ? "全部歌曲"
                     : $"搜索结果 ({FilteredSongs.Count})";

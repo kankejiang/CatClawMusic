@@ -399,9 +399,18 @@ public partial class SearchPage : ContentPage
     {
         try
         {
-            if (songs.Count > 0)
+            // 确保被点击的歌曲（如 AI 推荐歌）一定在播放队列里，
+            // 否则 PlayQueue.SelectSong 找不到该 Id 会把 CurrentSong 置空，
+            // 导致声音在播但歌词/封面无法刷新（Hero 卡片点击 Bug）。
+            var queueSongs = songs.ToList();
+            if (queueSongs.All(s => s.Id != song.Id))
             {
-                _queue.SetSongs(songs);
+                queueSongs.Insert(0, song);
+            }
+
+            if (queueSongs.Count > 0)
+            {
+                _queue.SetSongs(queueSongs);
             }
 
             _queue.SelectSong(song.Id);
