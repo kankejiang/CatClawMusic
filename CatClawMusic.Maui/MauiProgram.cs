@@ -69,6 +69,9 @@ public static class MauiProgram
 #if ANDROID
                 // 注册自定义 FileImageSource 服务：使用内存缓存避免 CollectionView 滑动时反复解码封面图片
                 images.AddService<Microsoft.Maui.Controls.FileImageSource, CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService>();
+                // 注册自定义 UriImageSource 服务：为 Navidrome 等 http 封面 URL 提供 Bitmap 内存缓存 + 磁盘缓存，
+                // 避免滑动列表时每次都下载图片造成 LOS 堆 GC 风暴
+                images.AddService<Microsoft.Maui.Controls.UriImageSource, CatClawMusic.Maui.Platforms.Android.CachingUriImageSourceService>();
 #endif
             });
 
@@ -100,10 +103,13 @@ public static class MauiProgram
         };
 
         // 远程 URL 流打开器：下载 http(s):// 文件到 MemoryStream（供内嵌歌词读取），限制大小避免下载超大文件
+        // 注意：Navidrome 歌曲在 LyricsService 中已跳过此路径（走 API），此处仅 WebDAV/SMB 直链会触发。
+        // 上限 10MB：平衡 LOS 压力与内嵌歌词命中率（绝大多数有内嵌歌词的文件 < 10MB）。
         LyricsService.RemoteUrlStreamOpener = url =>
         {
             try
             {
+                const long maxSize = 10 * 1024 * 1024;
                 var httpClient = _sharedHttpClient;
                 try
                 {
@@ -112,7 +118,7 @@ public static class MauiProgram
                     if (headResp.IsSuccessStatusCode && headResp.Content.Headers.ContentLength.HasValue)
                     {
                         var size = headResp.Content.Headers.ContentLength.Value;
-                        if (size > 50 * 1024 * 1024)
+                        if (size > maxSize)
                         {
                             System.Diagnostics.Debug.WriteLine($"[Lyrics] 远程文件过大 ({size / 1024 / 1024}MB)，跳过内嵌歌词读取");
                             return null;
@@ -123,7 +129,7 @@ public static class MauiProgram
 
                 var bytes = httpClient.GetByteArrayAsync(url).GetAwaiter().GetResult();
                 if (bytes.Length == 0) return null;
-                if (bytes.Length > 50 * 1024 * 1024) return null;
+                if (bytes.Length > maxSize) return null;
                 return new MemoryStream(bytes);
             }
             catch (Exception ex)

@@ -35,11 +35,12 @@ public partial class App : Application
         }
         catch (Exception ex) { StartupLog($"App.ctor: Theme failed - {ex.Message}"); }
 
-        // 设置 LyricsService 的 PluginManager（属性注入，避免循环依赖）
+        // 设置 LyricsService 的 PluginManager 和 NetworkMusicServiceFactory（属性注入，避免循环依赖）
         var lyricsService = MauiProgram.Services.GetService<ILyricsService>() as LyricsService;
         if (lyricsService != null)
         {
             lyricsService.PluginManager = MauiProgram.Services.GetRequiredService<IPluginManager>();
+            lyricsService.NetworkMusicServiceFactory = () => MauiProgram.Services.GetService<INetworkMusicService>();
         }
 
         // 初始化所有已启用的插件（fire-and-forget）

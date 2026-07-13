@@ -201,6 +201,7 @@ public class SubsonicService : ISubsonicService
                                 var songArtist = GetString(item, "artist").Trim();
                                 var songAlbum = GetString(item, "album").Trim();
                                 var songCoverId = GetString(item, "coverArt").Trim();
+                                if (songCoverId.Length == 0) songCoverId = coverArt;
 
                                 var song = new Song
                                 {
@@ -211,7 +212,7 @@ public class SubsonicService : ISubsonicService
                                     Bitrate = GetInt(item, "bitRate"),
                                     FileSize = GetLong(item, "size"),
                                     FilePath = songId,
-                                    CoverArtPath = songCoverId.Length > 0 ? songCoverId : coverArt,
+                                    CoverArtPath = songCoverId.Length > 0 ? GetCoverArtUrl(songCoverId, profile) : "",
                                     Source = SongSource.WebDAV,
                                     Protocol = ProtocolType.Navidrome,
                                     RemoteId = songId,

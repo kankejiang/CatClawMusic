@@ -461,6 +461,12 @@ public class NetworkMusicService : INetworkMusicService
     /// <returns>歌词文本，失败时返回 null</returns>
     public async Task<string?> GetLyricsAsync(string remotePath, ConnectionProfile profile)
     {
+        if (profile.Protocol == ProtocolType.Navidrome)
+        {
+            // Navidrome: 通过 Subsonic API getLyricsBySongId 获取歌词
+            // remotePath 对于 Navidrome 歌曲实际上是 stream URL，使用 RemoteId 作为 songId
+            return await _subsonic.GetLyricsAsync(remotePath, profile);
+        }
         if (profile.Protocol == ProtocolType.WebDAV)
         {
             _webDav.Configure(profile);

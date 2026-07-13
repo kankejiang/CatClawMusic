@@ -48,6 +48,14 @@ public class FrostedBackground : View
         BindableProperty.Create(nameof(CacheKey), typeof(string), typeof(FrostedBackground), null,
             propertyChanged: OnCacheKeyChanged);
 
+    /// <summary>
+    /// 用户是否正在滑动列表。滑动时暂停流体动画以释放主线程/GPU 资源，提升滑动流畅度。
+    /// 通常绑定到 IInteractionStateService.IsUserScrolling。
+    /// </summary>
+    public static readonly BindableProperty IsScrollingProperty =
+        BindableProperty.Create(nameof(IsScrolling), typeof(bool), typeof(FrostedBackground), false,
+            propertyChanged: OnIsScrollingChanged);
+
     /// <summary>封面图片源</summary>
     public ImageSource? Source
     {
@@ -97,6 +105,13 @@ public class FrostedBackground : View
         set => SetValue(CacheKeyProperty, value);
     }
 
+    /// <summary>用户是否正在滑动列表（滑动时暂停动画）</summary>
+    public bool IsScrolling
+    {
+        get => (bool)GetValue(IsScrollingProperty);
+        set => SetValue(IsScrollingProperty, value);
+    }
+
     private static void OnSourceChanged(BindableObject bindable, object oldValue, object newValue)
     {
         if (bindable is FrostedBackground fb)
@@ -130,5 +145,11 @@ public class FrostedBackground : View
         // CacheKey 变化时触发 Source 重新映射（让 Handler 使用新的 cache key）
         if (bindable is FrostedBackground fb)
             fb.Handler?.UpdateValue(nameof(Source));
+    }
+
+    private static void OnIsScrollingChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        if (bindable is FrostedBackground fb)
+            fb.Handler?.UpdateValue(nameof(IsScrolling));
     }
 }

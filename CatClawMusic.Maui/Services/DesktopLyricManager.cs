@@ -13,6 +13,7 @@ public class DesktopLyricManager
     private readonly IAudioPlayerService _audioService;
     private readonly ILyricsService _lyricsService;
     private readonly IDesktopLyricService _desktopLyricService;
+    private readonly IInteractionStateService? _interactionState;
     private LrcLyrics? _currentLyrics;
     private int _currentLineIndex = -1;
 
@@ -25,11 +26,13 @@ public class DesktopLyricManager
     public DesktopLyricManager(
         IAudioPlayerService audioService,
         ILyricsService lyricsService,
-        IDesktopLyricService desktopLyricService)
+        IDesktopLyricService desktopLyricService,
+        IInteractionStateService? interactionState = null)
     {
         _audioService = audioService;
         _lyricsService = lyricsService;
         _desktopLyricService = desktopLyricService;
+        _interactionState = interactionState;
 
         _audioService.PositionChanged += OnPositionChanged;
     }
@@ -133,21 +136,31 @@ public class DesktopLyricManager
     /// <summary>请求悬浮窗权限</summary>
     public Task<bool> RequestPermissionAsync() => _desktopLyricService.RequestPermissionAsync();
 
+    // 缓存主线程调度委托，避免每次 tick 创建新 Action 闭包
+    private string? _pendingLyricText;
+    private double _pendingLyricProgress = -1;
+    private Action? _cachedLyricUpdate;
+
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
         if (!_desktopLyricService.IsShowing) return;
+        // 滑动列表时暂停桌面歌词更新，避免主线程消息队列堆积影响滑动流畅度。
+        // 滑动停止后会自动恢复（下一个 tick 即同步到当前位置）。
+        if (_interactionState?.IsUserScrolling == true) return;
         // PositionChanged 可能在后台线程触发，UI 操作需切回主线程
-        var snapshotLine = _currentLineIndex;
         var (text, progress) = ComputeLyricUpdate(position);
         if (text == null && progress < 0) return;
 
-        MainThread.BeginInvokeOnMainThread(() =>
+        _pendingLyricText = text;
+        _pendingLyricProgress = progress;
+        _cachedLyricUpdate ??= () =>
         {
-            if (text != null)
-                _desktopLyricService.UpdateLyric(text);
-            if (progress >= 0)
-                _desktopLyricService.UpdateFillProgress(progress);
-        });
+            if (_pendingLyricText != null)
+                _desktopLyricService.UpdateLyric(_pendingLyricText);
+            if (_pendingLyricProgress >= 0)
+                _desktopLyricService.UpdateFillProgress(_pendingLyricProgress);
+        };
+        MainThread.BeginInvokeOnMainThread(_cachedLyricUpdate);
     }
 
     /// <summary>计算当前应显示的歌词文本和填充进度（可在任意线程调用）</summary>

@@ -29,6 +29,8 @@ public partial class NowPlayingViewModel : ObservableObject
     private bool _isSeeking;
     private DateTime _seekStartTime = DateTime.MinValue;
     private int _lastRecordedSongId = -1;
+    /// <summary>上次格式化的播放秒数（整数），用于跳过未变秒数的 FormatTime 调用</summary>
+    private int _lastDisplayedSecond = -1;
     /// <summary>上次 LoadCurrentSongAsync 加载的歌曲ID，用于判断切页时是否需要重新播放</summary>
     private int _loadedSongId = -1;
     private CancellationTokenSource? _loadCts;
@@ -57,6 +59,8 @@ public partial class NowPlayingViewModel : ObservableObject
     // === Playback State ===
     /// <summary>是否正在播放</summary>
     [ObservableProperty] private bool _isPlaying;
+    /// <summary>用户是否正在滑动列表（绑定到 FrostedBackground.IsScrolling，滑动时暂停背景动画）</summary>
+    [ObservableProperty] private bool _isUserScrolling;
     /// <summary>当前播放进度（秒）</summary>
     [ObservableProperty] private double _progress;
     /// <summary>歌曲总时长（秒）</summary>
@@ -250,6 +254,8 @@ public partial class NowPlayingViewModel : ObservableObject
         if (_interactionState != null)
         {
             _interactionState.InteractionStateChanged += OnInteractionStateChanged;
+            // 订阅滚动状态变化：滑动时暂停雾面背景动画，释放主线程/GPU 给列表渲染
+            _interactionState.ScrollStateChanged += OnScrollStateChanged;
         }
 
         if (Application.Current != null)
@@ -265,6 +271,12 @@ public partial class NowPlayingViewModel : ObservableObject
                 UpdateLyricPosition(TimeSpan.FromSeconds(Progress));
             });
         }
+    }
+
+    /// <summary>滚动状态变化：更新 IsUserScrolling，FrostedBackground 绑定此属性以暂停/恢复动画</summary>
+    private void OnScrollStateChanged(object? sender, bool isScrolling)
+    {
+        MainThread.BeginInvokeOnMainThread(() => IsUserScrolling = isScrolling);
     }
 
     /// <summary>主题切换时刷新播放控制图标，使其使用对应深浅色变体</summary>
@@ -401,6 +413,16 @@ public partial class NowPlayingViewModel : ObservableObject
             TotalTimeDisplay = FormatTime(Duration);
         }
 
+        // 滑动列表时跳过非必要 UI 更新（Progress、CurrentTimeDisplay、歌词），
+        // 减少 PropertyChanged 绑定开销，让主线程专注处理列表渲染。
+        // 滑动停止后由 OnInteractionStateChanged 补一次 UpdateLyricPosition 同步歌词，
+        // Progress/CurrentTimeDisplay 会在下一个 tick 自动恢复。
+        bool isUserInteracting = _interactionState?.IsUserInteracting ?? false;
+        if (isUserInteracting)
+        {
+            return;
+        }
+
         if (!_isSeeking)
         {
             Progress = position.TotalSeconds;
@@ -411,22 +433,15 @@ public partial class NowPlayingViewModel : ObservableObject
             Progress = position.TotalSeconds;
         }
 
-        var newTimeDisplay = FormatTime(position.TotalSeconds);
-        if (CurrentTimeDisplay != newTimeDisplay)
-            CurrentTimeDisplay = newTimeDisplay;
-
-        bool isUserInteracting = _interactionState?.IsUserInteracting ?? false;
-        if (!isUserInteracting)
+        // 仅在整数秒变化时才格式化时间显示，避免每 tick 分配新字符串
+        var currentSecond = (int)position.TotalSeconds;
+        if (currentSecond != _lastDisplayedSecond)
         {
-            UpdateLyricPosition(position);
+            _lastDisplayedSecond = currentSecond;
+            CurrentTimeDisplay = FormatTime(currentSecond);
         }
 
-        if (Duration > 0)
-        {
-            var newTotalDisplay = FormatTime(Duration);
-            if (TotalTimeDisplay != newTotalDisplay)
-                TotalTimeDisplay = newTotalDisplay;
-        }
+        UpdateLyricPosition(position);
     }
 
     private void OnPlaybackCompleted(object? sender, EventArgs e)
@@ -634,6 +649,7 @@ public partial class NowPlayingViewModel : ObservableObject
             TotalTimeDisplay = Duration > 0 ? FormatTime(Duration) : "--:--";
             Progress = 0;
             CurrentTimeDisplay = "0:00";
+            _lastDisplayedSecond = 0;
             ClearLyrics();
 
             // 持久化当前歌曲 ID，下次启动可恢复
@@ -820,6 +836,36 @@ public partial class NowPlayingViewModel : ObservableObject
             coverPath = song.CoverArtPath;
         }
 
+        // 1b. Navidrome/Subsonic: CoverArtPath 是 getCoverArt URL，下载并缓存
+        if (coverPath == null
+            && !string.IsNullOrEmpty(song.CoverArtPath)
+            && (song.CoverArtPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || song.CoverArtPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+        {
+            var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+            if (!File.Exists(cachedPath))
+            {
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+                    using var httpClient = new HttpClient();
+                    var bytes = await httpClient.GetByteArrayAsync(song.CoverArtPath, ct);
+                    if (bytes != null && bytes.Length > 0)
+                    {
+                        Directory.CreateDirectory(_coverCacheDir);
+                        await File.WriteAllBytesAsync(cachedPath, bytes, ct);
+                    }
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CoverArt] URL下载失败: {ex.Message}");
+                }
+            }
+            if (File.Exists(cachedPath))
+                coverPath = cachedPath;
+        }
+
         // 2. Check cached cover
         if (coverPath == null)
         {
@@ -903,6 +949,42 @@ public partial class NowPlayingViewModel : ObservableObject
             }
             catch (OperationCanceledException) { throw; }
             catch { /* ignore */ }
+        }
+
+        // 5. Navidrome 旧数据兼容: CoverArtPath 是 coverArt ID（非URL），通过 INetworkMusicService 下载封面
+        if (coverPath == null
+            && song.Protocol == ProtocolType.Navidrome
+            && !string.IsNullOrEmpty(song.CoverArtPath)
+            && !song.CoverArtPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !song.CoverArtPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                var networkSvc = MauiProgram.Services.GetService<INetworkMusicService>();
+                if (networkSvc != null)
+                {
+                    var profiles = await networkSvc.GetProfilesAsync();
+                    var profile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome);
+                    if (profile != null)
+                    {
+                        var stream = await networkSvc.GetCoverAsync(song.CoverArtPath, profile);
+                        if (stream != null)
+                        {
+                            var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+                            using (var fs = File.Create(cachedPath))
+                                await stream.CopyToAsync(fs, ct);
+                            stream.Dispose();
+                            coverPath = cachedPath;
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CoverArt] Navidrome旧数据封面获取失败: {ex.Message}");
+            }
         }
 
         ct.ThrowIfCancellationRequested();

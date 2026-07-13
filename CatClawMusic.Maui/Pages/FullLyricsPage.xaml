@@ -14,6 +14,7 @@
                                     Source="{Binding CoverImage}"
                                     CacheKey="{Binding CurrentCoverPath}"
                                     IsActive="{Binding IsPlaying}"
+                                    IsScrolling="{Binding IsUserScrolling}"
                                     IsVisible="{DynamicResource FrostedBackgroundEnabled}"
                                     TintColor="{DynamicResource PrimaryColor}"
                                     TintOpacity="0.25"

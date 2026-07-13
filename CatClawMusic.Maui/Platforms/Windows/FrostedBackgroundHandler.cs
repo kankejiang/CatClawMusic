@@ -36,6 +36,7 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
             [nameof(Controls.FrostedBackground.TintOpacity)] = MapTint,
             [nameof(Controls.FrostedBackground.DimAmount)] = MapTint,
             [nameof(Controls.FrostedBackground.Aspect)] = MapAspect,
+            [nameof(Controls.FrostedBackground.IsScrolling)] = MapIsScrolling,
         };
 
     private WImage? _image;
@@ -45,6 +46,7 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private double _animTime;
     private bool _isActive = true;
     private bool _hasSource;
+    private volatile bool _isScrolling;  // 用户正在滑动列表（暂停动画）
 
     private readonly Random _random = new();
     private readonly float _driftAX;
@@ -109,6 +111,12 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private static void MapIsActive(FrostedBackgroundHandler handler, Controls.FrostedBackground view)
     {
         handler._isActive = view.IsActive;
+        handler.UpdateAnimationState();
+    }
+
+    private static void MapIsScrolling(FrostedBackgroundHandler handler, Controls.FrostedBackground view)
+    {
+        handler._isScrolling = view.IsScrolling;
         handler.UpdateAnimationState();
     }
 
@@ -323,7 +331,8 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private void UpdateAnimationState()
     {
-        if (_isActive && _hasSource)
+        // 滑动时暂停动画，释放 UI 线程给列表渲染
+        if (_isActive && _hasSource && !_isScrolling)
             StartAnimation();
         else
             StopAnimation();

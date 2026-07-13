@@ -70,7 +70,8 @@
         android:enableOnBackInvokedCallback="true"
         android:resizeableActivity="true"
         android:requestLegacyExternalStorage="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:largeHeap="true">
 
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 

@@ -142,9 +142,16 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        // ItemsView (CollectionView/ListView 等)
+        // ItemsView (CollectionView/CarouselView/ListView 等)
         if (element is ItemsView itemsView)
         {
+            // CarouselView（如发现页 Hero 轮播）：不添加 Pan 手势，
+            // 让其内置的水平滑动切换自行处理，避免与 tab 切换手势冲突。
+            if (element is CarouselView)
+            {
+                return;
+            }
+
             // 横向滚动的 CollectionView 不添加 Pan 手势，避免拦截内部水平滑动
             if (element is StructuredItemsView structuredView
                 && structuredView.ItemsLayout is LinearItemsLayout linearLayout

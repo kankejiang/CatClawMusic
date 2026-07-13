@@ -30,6 +30,18 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _syncStatus = "";
 
+    /// <summary>同步进度 (0-1)</summary>
+    [ObservableProperty]
+    private double _syncProgress;
+
+    /// <summary>是否有确定的同步进度（-1表示不确定）</summary>
+    [ObservableProperty]
+    private bool _hasSyncProgress;
+
+    /// <summary>正在同步的连接名</summary>
+    [ObservableProperty]
+    private string _syncingProfileName = "";
+
     /// <summary>已配置的连接列表</summary>
     public ObservableCollection<ConnectionProfile> Profiles { get; } = new();
 
@@ -398,19 +410,33 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
         if (!confirm) return;
 
         IsSyncing = true;
+        SyncingProfileName = profile.Name;
         SyncStatus = "正在连接...";
+        SyncProgress = 0;
+        HasSyncProgress = false;
         try
         {
             var progress = new Progress<(int done, int total, string status)>(p =>
             {
                 SyncStatus = p.status;
+                if (p.total > 0)
+                {
+                    SyncProgress = (double)p.done / p.total;
+                    HasSyncProgress = true;
+                }
+                else
+                {
+                    HasSyncProgress = false;
+                }
             });
 
             var songs = await _networkMusicService.ScanAsync(profile, progress);
             
             SyncStatus = $"发现 {songs.Count} 首歌曲，正在导入...";
+            HasSyncProgress = false;
             var imported = await _musicLibrary.ImportSongsAsync(songs);
             
+            SyncProgress = 1;
             await RefreshAsync();
             await ToastAsync($"同步完成！共导入 {imported.Count} 首歌曲");
         }
@@ -422,6 +448,9 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
         {
             IsSyncing = false;
             SyncStatus = "";
+            SyncProgress = 0;
+            HasSyncProgress = false;
+            SyncingProfileName = "";
         }
     }
 
@@ -434,10 +463,20 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
         _ => protocol.ToString()
     };
 
-    /// <summary>FormProtocolIndex 变化时同步 IsSmbForm</summary>
+    /// <summary>FormProtocolIndex 变化时同步 IsSmbForm 并自动设置默认端口</summary>
     partial void OnFormProtocolIndexChanged(int value)
     {
         IsSmbForm = value == (int)ProtocolType.SMB;
+
+        // 仅在新建（未填过端口）或端口为默认值时自动切换
+        var defaultPort = value switch
+        {
+            (int)ProtocolType.Navidrome => 4533,
+            (int)ProtocolType.SMB => 445,
+            _ => 5005
+        };
+        if (FormPort == 0 || FormPort == 4533 || FormPort == 445 || FormPort == 5005)
+            FormPort = defaultPort;
     }
 
     private static async Task ToastAsync(string message)

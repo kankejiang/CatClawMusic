@@ -95,8 +95,6 @@ public class FrostedBackgroundView : View
     // 复用的像素缓冲区（避免 BoxBlur 中每次分配 int[w*h] 大数组导致 LOS GC 风暴）
     private int[]? _blurBufA;
     private int[]? _blurBufB;
-    private int _blurBufW;
-    private int _blurBufH;
 
     /// <summary>递增加载版本号，并返回递增后的值</summary>
     public int IncrementLoadingVersion() => Interlocked.Increment(ref _loadingVersion);
@@ -149,6 +147,7 @@ public class FrostedBackgroundView : View
 
     private bool _isEnabled = true;  // 用户开关（控制背景是否显示）
     private bool _isPlaying = false; // 播放状态（控制动画是否运行）
+    private volatile bool _isScrolling = false;  // 用户正在滑动列表（暂停动画以释放主线程）
 
     /// <summary>更新激活状态（仅控制动画，不隐藏背景）</summary>
     public void SetActive(bool active)
@@ -166,10 +165,19 @@ public class FrostedBackgroundView : View
         Invalidate();
     }
 
-    /// <summary>根据启用状态和播放状态更新动画运行状态</summary>
+    /// <summary>更新滑动状态：滑动时暂停流体动画以释放主线程/GPU 资源</summary>
+    public void SetScrolling(bool scrolling)
+    {
+        if (_isScrolling == scrolling) return;
+        _isScrolling = scrolling;
+        UpdateAnimationState();
+    }
+
+    /// <summary>根据启用状态、播放状态、滑动状态更新动画运行状态</summary>
     private void UpdateAnimationState()
     {
-        bool shouldAnimate = _isEnabled && _isPlaying;
+        // 滑动时暂停动画（背景静态显示，不重绘），释放主线程给列表渲染
+        bool shouldAnimate = _isEnabled && _isPlaying && !_isScrolling;
         if (shouldAnimate && _processedBitmap != null)
             StartAnimation();
         else
@@ -933,6 +941,7 @@ public class FrostedBackgroundHandler : ViewHandler<FrostedBackground, FrostedBa
             [nameof(FrostedBackground.TintOpacity)] = MapTint,
             [nameof(FrostedBackground.DimAmount)] = MapTint,
             [nameof(FrostedBackground.Aspect)] = MapAspect,
+            [nameof(FrostedBackground.IsScrolling)] = MapIsScrolling,
         };
 
     public FrostedBackgroundHandler() : base(PropertyMapper) { }
@@ -957,6 +966,11 @@ public class FrostedBackgroundHandler : ViewHandler<FrostedBackground, FrostedBa
     private static void MapAspect(FrostedBackgroundHandler handler, FrostedBackground view)
     {
         handler.PlatformView.SetAspect(view.Aspect);
+    }
+
+    private static void MapIsScrolling(FrostedBackgroundHandler handler, FrostedBackground view)
+    {
+        handler.PlatformView.SetScrolling(view.IsScrolling);
     }
 }
 

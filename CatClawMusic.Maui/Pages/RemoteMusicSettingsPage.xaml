@@ -72,6 +72,37 @@
                             FontSize="12" />
                 </Grid>
 
+                <!-- 同步进度面板 -->
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{Binding IsSyncing}">
+                    <VerticalStackLayout Spacing="8" Padding="4">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <ActivityIndicator IsRunning="True"
+                                               Color="{DynamicResource PrimaryColor}"
+                                               WidthRequest="20"
+                                               HeightRequest="20"
+                                               VerticalOptions="Center" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding SyncingProfileName, StringFormat='正在同步「{0}」'}"
+                                   FontSize="13"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                            <Label Grid.Column="2"
+                                   Text="{Binding SyncStatus}"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   VerticalOptions="Center"
+                                   LineBreakMode="TailTruncation"
+                                   MaxLines="1" />
+                        </Grid>
+                        <ProgressBar Progress="{Binding SyncProgress}"
+                                     ProgressColor="{DynamicResource PrimaryColor}"
+                                     HeightRequest="4"
+                                     IsVisible="{Binding HasSyncProgress}" />
+                    </VerticalStackLayout>
+                </Border>
+
                 <VerticalStackLayout Spacing="10"
                                      BindableLayout.ItemsSource="{Binding Profiles}">
                     <BindableLayout.ItemTemplate>
@@ -102,7 +133,7 @@
                                     </Grid>
                                     <Grid ColumnDefinitions="*,*,*,Auto" ColumnSpacing="8">
                                         <Button Grid.Column="0"
-                                                Text="Test"
+                                                Text="测试"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.TestProfileCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
@@ -112,7 +143,7 @@
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="1"
-                                                Text="Sync"
+                                                Text="同步"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SyncProfileCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
@@ -121,7 +152,7 @@
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="2"
-                                                Text="Edit"
+                                                Text="编辑"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.StartEditCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
@@ -130,7 +161,7 @@
                                                 HeightRequest="34"
                                                 FontSize="11" />
                                         <Button Grid.Column="3"
-                                                Text="Del"
+                                                Text="删除"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteProfileCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource ErrorColor}"
@@ -225,7 +256,8 @@
                             </VerticalStackLayout>
                         </Grid>
 
-                        <VerticalStackLayout Spacing="4">
+                        <VerticalStackLayout Spacing="4"
+                                              IsVisible="{Binding IsNavidromeForm, Converter={StaticResource InvertedBoolConverter}}">
                             <Label Text="基础路径" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <Border BackgroundColor="#22FFFFFF"

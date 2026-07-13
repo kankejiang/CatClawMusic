@@ -16,6 +16,9 @@ public class LyricsService : ILyricsService
     /// <summary>插件管理器（可选，由 UI 层设置）</summary>
     public IPluginManager? PluginManager { get; set; }
 
+    /// <summary>网络音乐服务工厂（可选，由 UI 层设置，用于 Navidrome 等远程歌词获取）</summary>
+    public Func<INetworkMusicService?>? NetworkMusicServiceFactory { get; set; }
+
     /// <summary>时间戳正则 [mm:ss.xx]</summary>
     private static readonly Regex TimeRegex = new(@"\[(\d+):(\d+)(?:\.(\d+))?\]", RegexOptions.Compiled);
     /// <summary>逐字时间戳正则 &lt;mm:ss.xx&gt;</summary>
@@ -32,10 +35,39 @@ public class LyricsService : ILyricsService
     private const int MaxLyricsParseSize = 1 * 1024 * 1024;
 
     /// <summary>
-    /// 获取歌词（优先级：同名 .lrc > 嵌入歌词 > 插件）
+    /// 获取歌词（优先级：Navidrome API > 同名 .lrc > 嵌入歌词 > 插件）
+    /// 注意：Navidrome API 必须先于内嵌歌词，否则会触发 RemoteUrlStreamOpener
+    /// 下载整个音频文件（最大 50MB）到 LOS 堆，导致大量 GC。
     /// </summary>
     public async Task<LrcLyrics?> GetLyricsAsync(Song song)
     {
+        // Navidrome/Subsonic: 优先通过 API 获取歌词（避免下载整个音频文件读内嵌歌词）
+        if (song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
+        {
+            try
+            {
+                var networkSvc = NetworkMusicServiceFactory?.Invoke();
+                if (networkSvc != null)
+                {
+                    var profiles = await networkSvc.GetProfilesAsync();
+                    var profile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome);
+                    if (profile != null)
+                    {
+                        var lrcText = await networkSvc.GetLyricsAsync(song.RemoteId, profile);
+                        if (!string.IsNullOrWhiteSpace(lrcText))
+                        {
+                            var parsed = await Task.Run(() => TryParseLyrics(lrcText));
+                            if (parsed != null) return parsed;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] Navidrome API 获取失败: {ex.Message}");
+            }
+        }
+
         var lyrics = await GetLocalLyricsAsync(song);
         if (lyrics != null) return lyrics;
 
@@ -78,6 +110,9 @@ public class LyricsService : ILyricsService
         if (isRemoteUrl)
         {
             if (skipEmbedded) return null;
+            // Navidrome: 内嵌歌词需要下载整个音频文件（最大 10MB）到 LOS 堆，
+            // 代价过高且 API 已是规范来源，跳过。WebDAV/SMB 的直链 stream URL 仍尝试。
+            if (song.Protocol == ProtocolType.Navidrome) return null;
             var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri: false, isRemoteUrl: true));
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {

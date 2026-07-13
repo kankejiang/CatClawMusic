@@ -15,6 +15,10 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private double _lastNotifiedPosition = -1;
     // 缓存定时器回调委托，避免每次 tick 创建新闭包
     private static readonly TimerCallback _positionCallback = PositionTimerCallback;
+    // 缓存主线程调度委托，避免每次 tick 创建新 Action 闭包
+    // 注意: 不能用 [ThreadStatic]，因为 Timer 线程写、主线程读需要看到同一个值
+    private static volatile AudioPlayerService? _tickSvc;
+    private static readonly Action _tickAction = TickOnMainThread;
 
     /// <summary>
     /// 平台可注入的 URL 转换器，用于将 smb:// 等 ExoPlayer 不支持的协议 URL 转换为可播放的 URL（如本地 HTTP 代理地址）。
@@ -60,26 +64,30 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     {
         if (state is not AudioPlayerService svc || svc._disposed) return;
         // ExoPlayer 要求在创建线程（主线程）访问，必须切到主线程
-        MainThread.BeginInvokeOnMainThread(() =>
+        _tickSvc = svc;
+        MainThread.BeginInvokeOnMainThread(_tickAction);
+    }
+
+    private static void TickOnMainThread()
+    {
+        var svc = _tickSvc;
+        if (svc == null || svc._disposed) return;
+        try
         {
-            try
-            {
-                if (svc._disposed) return;
-                var pos = svc.CurrentPosition;
-                // 25fps 下每 tick 约 0.04s 变化，阈值 0.03 确保不跳过有效更新但过滤抖动
-                if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.03 && pos > 0)
-                    return;
-                svc._lastNotifiedPosition = pos;
-                svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
-                svc.CheckPlatformCompletion();
-            }
-            catch (Exception ex)
-            {
+            var pos = svc.CurrentPosition;
+            // 25fps 下每 tick 约 0.04s 变化，阈值 0.03 确保不跳过有效更新但过滤抖动
+            if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.03 && pos > 0)
+                return;
+            svc._lastNotifiedPosition = pos;
+            svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
+            svc.CheckPlatformCompletion();
+        }
+        catch (Exception ex)
+        {
 #if DEBUG
-                System.Diagnostics.Debug.WriteLine($"[PositionTimer] Error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[PositionTimer] Error: {ex.Message}");
 #endif
-            }
-        });
+        }
     }
 
     /// <summary>
@@ -188,11 +196,11 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 100ms 触发一次位置更新（10fps，平衡精度与主线程开销）</summary>
+    /// <summary>启动进度定时器，每 200ms 触发一次位置更新（5fps，平衡精度与 GC 压力）</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 100, 100);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 200, 200);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>
