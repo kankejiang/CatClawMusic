@@ -461,10 +461,6 @@
                                        TextColor="White"
                                        LineBreakMode="WordWrap" />
                             </Border>
-                        </VerticalStackLayout>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
 
                             <!-- 用户头像（右）：user 消息显示 -->
                             <Border Grid.Column="2"
