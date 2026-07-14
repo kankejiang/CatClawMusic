@@ -442,14 +442,12 @@
                                     WidthRequest="36" HeightRequest="36"
                                     StrokeThickness="0" StrokeShape="RoundRectangle 18"
                                     IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}"
-                                    VerticalOptions="Start" Margin="0,2,0,0">
+                                    VerticalOptions="End">
                                 <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
                             </Border>
+                            <BoxView Grid.Column="0" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}" />
 
-                            <!-- 占位（对方消息时空，自己消息时让气泡靠右） -->
-                            <BoxView Grid.Column="0" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}" Color="Transparent" />
-
-                            <!-- 消息气泡：位于中间列，根据角色左/右对齐 -->
+                            <!-- 消息气泡 -->
                             <Border Grid.Column="1"
                                     Padding="14,10"
                                     StrokeThickness="0"
@@ -463,9 +461,10 @@
                                        TextColor="White"
                                        LineBreakMode="WordWrap" />
                             </Border>
-
-                            <!-- 占位（自己消息时空，对方消息时让气泡靠左） -->
-                            <BoxView Grid.Column="2" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}" Color="Transparent" />
+                        </VerticalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
 
                             <!-- 用户头像（右）：user 消息显示 -->
                             <Border Grid.Column="2"
@@ -473,77 +472,14 @@
                                     StrokeThickness="0" StrokeShape="RoundRectangle 18"
                                     BackgroundColor="{DynamicResource PrimaryColor}"
                                     IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}"
-                                    VerticalOptions="Start" Margin="0,2,0,0">
+                                    VerticalOptions="End">
                                 <Label Text="👤"
                                        FontSize="18"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center" />
                             </Border>
+                            <BoxView Grid.Column="2" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}" />
                         </Grid>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-
-            <!-- 思考过程小窗口：思考中或有步骤时显示，点击展开/折叠 -->
-            <Border Grid.Row="2" Margin="12,4,12,0"
-                    Padding="14,10"
-                    StrokeThickness="1"
-                    Stroke="{DynamicResource GlassStrokeColor}"
-                    StrokeShape="RoundRectangle 14"
-                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                    IsVisible="{Binding HasThinkingSteps}"
-                    InputTransparent="False">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding ToggleThinkingCommand}" />
-                </Border.GestureRecognizers>
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                    <!-- 思考中动画指示器 -->
-                    <ActivityIndicator Grid.Column="0"
-                                       IsRunning="{Binding IsAgentThinking}"
-                                       IsVisible="{Binding IsAgentThinking}"
-                                       Color="{DynamicResource PrimaryColor}"
-                                       WidthRequest="16" HeightRequest="16" />
-                    <Label Grid.Column="0"
-                           Text="✓"
-                           FontSize="14"
-                           TextColor="{DynamicResource PrimaryColor}"
-                           IsVisible="{Binding IsAgentThinking, Converter={StaticResource InvertedBoolConverter}}"
-                           VerticalOptions="Center"
-                           WidthRequest="16"
-                           HorizontalTextAlignment="Center" />
-                    <Label Grid.Column="1"
-                           Text="{Binding ThinkingSummary}"
-                           FontSize="12"
-                           TextColor="{DynamicResource TextSecondaryColor}"
-                           VerticalOptions="Center"
-                           LineBreakMode="TailTruncation" />
-                    <Label Grid.Column="2"
-                           Text="▲"
-                           FontSize="10"
-                           TextColor="{DynamicResource TextHintColor}"
-                           VerticalOptions="Center"
-                           IsVisible="{Binding IsThinkingExpanded}" />
-                    <Label Grid.Column="2"
-                           Text="▼"
-                           FontSize="10"
-                           TextColor="{DynamicResource TextHintColor}"
-                           VerticalOptions="Center"
-                           IsVisible="{Binding IsThinkingExpanded, Converter={StaticResource InvertedBoolConverter}}" />
-                </Grid>
-            </Border>
-
-            <!-- 思考过程展开详情 -->
-            <CollectionView Grid.Row="2"
-                            Margin="12,56,12,0"
-                            MaximumHeightRequest="200"
-                            IsVisible="{Binding IsThinkingExpanded}"
-                            ItemsSource="{Binding ThinkingSteps}">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Label Text="{Binding}"
-                               FontSize="11"
-                               TextColor="{DynamicResource TextHintColor}"
-                               Padding="14,4" />
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
