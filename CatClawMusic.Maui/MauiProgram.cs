@@ -110,6 +110,8 @@ public static class MauiProgram
         {
             try
             {
+                var urlPreview = url?[..Math.Min(60, url?.Length ?? 0)] ?? "";
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 入口: {urlPreview}...");
                 const int headSize = 2 * 1024 * 1024; // 2MB 足以覆盖绝大多数音频标签头
                 var httpClient = _sharedHttpClient;
 
@@ -135,22 +137,25 @@ public static class MauiProgram
                 }
                 catch { /* URL 解析失败则使用原始 URL */ }
 
+                var cleanPreview = cleanUrl[..Math.Min(60, cleanUrl.Length)];
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener cleanUrl={cleanPreview}..., authToken={(authToken != null ? "有" : "无")}");
                 // 使用 Range 请求仅下载文件头部
                 var reqMsg = new HttpRequestMessage(HttpMethod.Get, cleanUrl);
                 reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, headSize - 1);
                 if (authToken != null)
                     reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+                System.Diagnostics.Debug.WriteLine("[Lyrics] RemoteUrlStreamOpener 发送 HTTP 请求...");
                 var resp = httpClient.Send(reqMsg);
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                 if (!resp.IsSuccessStatusCode)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener HTTP {(int)resp.StatusCode}: {resp.ReasonPhrase}");
                     return null;
                 }
                 using var ms = new MemoryStream();
                 resp.Content.ReadAsStream().CopyTo(ms);
                 var bytes = ms.ToArray();
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
                 if (bytes.Length == 0) return null;
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 下载 {bytes.Length / 1024}KB");
                 return new MemoryStream(bytes);
             }
             catch (Exception ex)
@@ -619,28 +624,48 @@ public static class MauiProgram
             {
                 try
                 {
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener 入口: {url[..Math.Min(60, url.Length)]}...");
                     var resolvedUrl = networkMusic.ResolveWebDavPlaybackUrlAsync(url).GetAwaiter().GetResult();
                     var downloadUrl = string.IsNullOrEmpty(resolvedUrl) ? url : resolvedUrl;
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener downloadUrl: {downloadUrl[..Math.Min(60, downloadUrl.Length)]}...");
 
+                    // 从 URL userinfo 提取 Basic Auth 凭证（WebDAV 播放 URL 带 user:pass@）
+                    string? authToken = null;
+                    string cleanUrl = downloadUrl;
                     try
                     {
-                        var headReq = new HttpRequestMessage(HttpMethod.Head, downloadUrl);
-                        var headResp = webDavHttpClient.Send(headReq);
-                        if (headResp.IsSuccessStatusCode && headResp.Content.Headers.ContentLength.HasValue)
+                        var uri = new Uri(downloadUrl);
+                        if (!string.IsNullOrEmpty(uri.UserInfo))
                         {
-                            var size = headResp.Content.Headers.ContentLength.Value;
-                            if (size > 50 * 1024 * 1024)
+                            var userInfo = uri.UserInfo;
+                            var colonIdx = userInfo.IndexOf(':');
+                            if (colonIdx >= 0 && colonIdx < userInfo.Length - 1)
                             {
-                                System.Diagnostics.Debug.WriteLine($"[Lyrics] 远程文件过大 ({size / 1024 / 1024}MB)，跳过内嵌歌词读取");
-                                return null;
+                                var user = Uri.UnescapeDataString(userInfo[..colonIdx]);
+                                var pass = Uri.UnescapeDataString(userInfo[(colonIdx + 1)..]);
+                                authToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{user}:{pass}"));
                             }
+                            cleanUrl = new UriBuilder(uri.Scheme, uri.Host, uri.Port, uri.AbsolutePath, uri.Query).ToString();
                         }
                     }
-                    catch { /* HEAD 失败则继续 GET */ }
+                    catch { /* URL 解析失败则使用原始 URL */ }
 
-                    var bytes = webDavHttpClient.GetByteArrayAsync(downloadUrl).GetAwaiter().GetResult();
+                    // 使用 Range 请求仅下载文件前 2MB（FLAC/MP3/M4A 标签均在头部）
+                    const int headSize = 2 * 1024 * 1024;
+                    var reqMsg = new HttpRequestMessage(HttpMethod.Get, cleanUrl);
+                    reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, headSize - 1);
+                    if (authToken != null)
+                        reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+                    System.Diagnostics.Debug.WriteLine("[Lyrics] Android RemoteUrlStreamOpener 发送 Range 请求...");
+                    var resp = webDavHttpClient.Send(reqMsg);
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                    if (!resp.IsSuccessStatusCode)
+                        return null;
+                    using var ms = new MemoryStream();
+                    resp.Content.ReadAsStream().CopyTo(ms);
+                    var bytes = ms.ToArray();
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
                     if (bytes.Length == 0) return null;
-                    if (bytes.Length > 50 * 1024 * 1024) return null;
                     return new MemoryStream(bytes);
                 }
                 catch (Exception ex)

@@ -154,18 +154,19 @@ public class ForegroundPlayerService : Service
         _positionMs = positionMs;
         _durationMs = durationMs;
 
-        if (albumArt != null)
+        if (albumArt != null && !albumArt.IsRecycled)
         {
             // 如果传入的就是当前已解码的副本（如收藏/歌词切换时回传 _albumArt），
             // 或者是同一个源 Bitmap（如进度更新时复用缓存），则无需重新解码，避免回收已使用的 Bitmap
             if (!ReferenceEquals(albumArt, _albumArt) && !ReferenceEquals(albumArt, _albumArtSource))
             {
-                _albumArt?.Recycle();
+                if (_albumArt != null && !_albumArt.IsRecycled)
+                    _albumArt.Recycle();
                 _albumArt = DecodeBitmapDownsampled(albumArt, 512);
                 _albumArtSource = albumArt;
             }
         }
-        else if (_albumArt != null)
+        else if (_albumArt != null && !_albumArt.IsRecycled)
         {
             _albumArt.Recycle();
             _albumArt = null;
@@ -221,6 +222,7 @@ public class ForegroundPlayerService : Service
     {
         try
         {
+            if (source.IsRecycled) return null;
             int width = source.Width;
             int height = source.Height;
             if (width <= 0 || height <= 0) return null;
@@ -304,7 +306,8 @@ public class ForegroundPlayerService : Service
         }
         if (_instance != null)
         {
-            _instance._albumArt?.Recycle();
+            if (_instance._albumArt != null && !_instance._albumArt.IsRecycled)
+                _instance._albumArt.Recycle();
             _instance._albumArt = null;
         }
         _instance = null;
@@ -330,7 +333,8 @@ public class ForegroundPlayerService : Service
             _mediaSession.Release();
             _mediaSession = null;
         }
-        _albumArt?.Recycle();
+        if (_albumArt != null && !_albumArt.IsRecycled)
+            _albumArt.Recycle();
         _albumArt = null;
         _instance = null;
     }
@@ -376,7 +380,7 @@ public class ForegroundPlayerService : Service
             .SetPriority((int)NotificationPriority.High)
             .SetShowWhen(false);
 
-        if (_albumArt != null)
+        if (_albumArt != null && !_albumArt.IsRecycled)
         {
             builder.SetLargeIcon(_albumArt);
         }
@@ -425,7 +429,8 @@ public class ForegroundPlayerService : Service
             _mediaSession.Release();
             _mediaSession = null;
         }
-        _albumArt?.Recycle();
+        if (_albumArt != null && !_albumArt.IsRecycled)
+            _albumArt.Recycle();
         _albumArt = null;
         _albumArtSource = null;
         _instance = null;

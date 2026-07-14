@@ -224,7 +224,7 @@ public class NetworkMusicService : INetworkMusicService
         }
         else if (profile.Protocol == ProtocolType.WebDAV)
         {
-            var (newSongs, allFoundIds) = await ScanWebDavAsync(profile, songBatchCallback);
+            var (newSongs, allFoundIds) = await ScanWebDavAsync(profile, songBatchCallback, progress);
             allSongs = newSongs;
             foreach (var id in allFoundIds)
             {
@@ -233,7 +233,7 @@ public class NetworkMusicService : INetworkMusicService
         }
         else if (profile.Protocol == ProtocolType.SMB)
         {
-            var (newSongs, allFoundIds) = await ScanSmbAsync(profile, songBatchCallback);
+            var (newSongs, allFoundIds) = await ScanSmbAsync(profile, songBatchCallback, progress);
             allSongs = newSongs;
             foreach (var id in allFoundIds)
             {
@@ -754,12 +754,14 @@ public class NetworkMusicService : INetworkMusicService
     /// 递归扫描 WebDAV 目录，批量入库发现的音频文件
     /// </summary>
     private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanWebDavAsync(
-        ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
+        ConnectionProfile profile, Action<List<Song>>? songBatchCallback,
+        IProgress<(int done, int total, string status)>? progress = null)
     {
         var songs = new List<Song>();
         var basePath = profile.BasePath?.TrimEnd('/') ?? "/";
         if (string.IsNullOrEmpty(basePath)) basePath = "/";
 
+        progress?.Report((0, 0, "正在连接服务器..."));
         var connResult = await _webDav.TestConnectionAsync(profile);
         if (!connResult.Success)
         {
@@ -822,13 +824,15 @@ public class NetworkMusicService : INetworkMusicService
         if (allFiles.Count > 0)
         {
             System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 成功，找到 {allFiles.Count} 个文件，并发处理中...");
-            await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner, quickScan, metadataRefreshMap);
+            progress?.Report((0, allFiles.Count, $"发现 {allFiles.Count} 个文件，正在扫描..."));
+            await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner, quickScan, metadataRefreshMap, progress);
         }
         else
         {
             System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 不支持，回退到递归扫描 (quickScan={quickScan})");
+            progress?.Report((0, 0, "正在递归扫描目录..."));
             var visitedDirs = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
-            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap);
+            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap, 0, progress);
         }
 
         await scanner.FlushAsync();
@@ -837,7 +841,12 @@ public class NetworkMusicService : INetworkMusicService
         if (quickScan && songs.Count > 0)
         {
             System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 快速扫描完成，{songs.Count} 首歌曲已入库，后台补齐元数据...");
+            progress?.Report((songs.Count, songs.Count, $"快速扫描完成，发现 {songs.Count} 首歌曲，后台补齐元数据..."));
             _ = Task.Run(async () => await FetchMetadataInBackgroundAsync(songs, profile));
+        }
+        else
+        {
+            progress?.Report((songs.Count, songs.Count, $"扫描完成，发现 {songs.Count} 首歌曲"));
         }
 
         return (songs, new HashSet<string>(foundIds.Keys, StringComparer.OrdinalIgnoreCase));
@@ -866,7 +875,8 @@ public class NetworkMusicService : INetworkMusicService
     /// </summary>
     private async Task ProcessFileListAsync(List<RemoteFile> allFiles, ConnectionProfile profile,
         List<Song> songs, System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, bool quickScan = false,
-        System.Collections.Concurrent.ConcurrentDictionary<string, Song>? metadataRefreshMap = null)
+        System.Collections.Concurrent.ConcurrentDictionary<string, Song>? metadataRefreshMap = null,
+        IProgress<(int done, int total, string status)>? progress = null)
     {
         var audioFiles = allFiles
             .Where(f =>
@@ -879,6 +889,11 @@ public class NetworkMusicService : INetworkMusicService
             .ToList();
 
         System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 过滤后音频文件: {audioFiles.Count}");
+        progress?.Report((0, audioFiles.Count, $"发现 {audioFiles.Count} 个音频文件，正在提取元数据..."));
+
+        var processedCount = 0;
+        var progressLock = new object();
+        var totalAudio = audioFiles.Count;
 
         var metadataTasks = audioFiles.Select(file => Task.Run(async () =>
         {
@@ -961,6 +976,16 @@ public class NetworkMusicService : INetworkMusicService
             finally
             {
                 ScanSemaphore.Release();
+                int done;
+                lock (progressLock)
+                {
+                    processedCount++;
+                    done = processedCount;
+                }
+                if (progress != null && (done % 5 == 0 || done == totalAudio))
+                {
+                    progress.Report((done, totalAudio, $"正在扫描 {done}/{totalAudio}"));
+                }
             }
         }));
 
@@ -972,7 +997,8 @@ public class NetworkMusicService : INetworkMusicService
     /// </summary>
     private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
         System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, System.Collections.Concurrent.ConcurrentDictionary<string, byte> visitedDirs, bool quickScan = false,
-        System.Collections.Concurrent.ConcurrentDictionary<string, Song>? metadataRefreshMap = null, int depth = 0)
+        System.Collections.Concurrent.ConcurrentDictionary<string, Song>? metadataRefreshMap = null, int depth = 0,
+        IProgress<(int done, int total, string status)>? progress = null)
     {
         if (depth > MaxScanDepth)
             return;
@@ -1021,7 +1047,7 @@ public class NetworkMusicService : INetworkMusicService
             await DirScanSemaphore.WaitAsync();
             try
             {
-                await ScanWebDavDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap, depth + 1);
+                await ScanWebDavDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap, depth + 1, progress);
             }
             finally
             {
@@ -1031,6 +1057,12 @@ public class NetworkMusicService : INetworkMusicService
         await Task.WhenAll(subDirTasks);
 
         if (audioFiles.Count == 0) return;
+
+        progress?.Report((songs.Count, 0, $"正在扫描 {Path.GetFileName(path)} ({audioFiles.Count} 个音频文件)"));
+
+        var dirProcessedCount = 0;
+        var dirProgressLock = new object();
+        var dirTotalAudio = audioFiles.Count;
 
         var metadataTasks = audioFiles.Select(file => Task.Run(async () =>
         {
@@ -1113,6 +1145,16 @@ public class NetworkMusicService : INetworkMusicService
             finally
             {
                 ScanSemaphore.Release();
+                int done;
+                lock (dirProgressLock)
+                {
+                    dirProcessedCount++;
+                    done = dirProcessedCount;
+                }
+                if (progress != null && (done % 5 == 0 || done == dirTotalAudio))
+                {
+                    progress.Report((done, dirTotalAudio, $"正在扫描 {Path.GetFileName(path)} {done}/{dirTotalAudio}"));
+                }
             }
         }));
 
@@ -1156,12 +1198,14 @@ public class NetworkMusicService : INetworkMusicService
     /// <param name="songBatchCallback">每批次歌曲扫描完成后的回调。</param>
     /// <returns>(新扫描到的歌曲列表, 所有发现的文件路径 ID 集合)。</returns>
     private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanSmbAsync(
-        ConnectionProfile profile, Action<List<Song>>? songBatchCallback)
+        ConnectionProfile profile, Action<List<Song>>? songBatchCallback,
+        IProgress<(int done, int total, string status)>? progress = null)
     {
         var songs = new List<Song>();
         var basePath = profile.BasePath?.TrimEnd('/', '\\') ?? "\\";
         if (string.IsNullOrEmpty(basePath) || basePath == "/") basePath = "\\";
 
+        progress?.Report((0, 0, "正在连接 SMB 服务器..."));
         var connResult = await _smb.TestConnectionAsync(profile);
         if (!connResult.Success) return (songs, new HashSet<string>());
 
@@ -1181,8 +1225,10 @@ public class NetworkMusicService : INetworkMusicService
 
         var scanner = new MusicScanner(_db, songBatchCallback);
         var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        await ScanSmbDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs);
+        progress?.Report((0, 0, "正在递归扫描 SMB 目录..."));
+        await ScanSmbDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, 0, progress);
         await scanner.FlushAsync();
+        progress?.Report((songs.Count, songs.Count, $"扫描完成，发现 {songs.Count} 首歌曲"));
 
         return (songs, new HashSet<string>(foundIds.Keys, StringComparer.OrdinalIgnoreCase));
     }
@@ -1200,7 +1246,8 @@ public class NetworkMusicService : INetworkMusicService
     /// <param name="visitedDirs">已访问目录集合（防止循环）。</param>
     /// <param name="depth">当前递归深度。</param>
     private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
-        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
+        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0,
+        IProgress<(int done, int total, string status)>? progress = null)
     {
         if (depth > MaxScanDepth) return;
 
@@ -1243,9 +1290,15 @@ public class NetworkMusicService : INetworkMusicService
         }
 
         foreach (var subDir in subDirs)
-            await ScanSmbDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1);
+            await ScanSmbDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1, progress);
 
         if (audioFiles.Count == 0) return;
+
+        progress?.Report((songs.Count, 0, $"正在扫描 {Path.GetFileName(path)} ({audioFiles.Count} 个音频文件)"));
+
+        var smbProcessedCount = 0;
+        var smbProgressLock = new object();
+        var smbTotalAudio = audioFiles.Count;
 
         var metadataTasks = audioFiles.Select(file => Task.Run(async () =>
         {
@@ -1298,6 +1351,16 @@ public class NetworkMusicService : INetworkMusicService
             finally
             {
                 ScanSemaphore.Release();
+                int done;
+                lock (smbProgressLock)
+                {
+                    smbProcessedCount++;
+                    done = smbProcessedCount;
+                }
+                if (progress != null && (done % 5 == 0 || done == smbTotalAudio))
+                {
+                    progress.Report((done, smbTotalAudio, $"正在扫描 {Path.GetFileName(path)} {done}/{smbTotalAudio}"));
+                }
             }
         }));
 

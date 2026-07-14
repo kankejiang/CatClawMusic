@@ -41,6 +41,15 @@ public class LyricsService : ILyricsService
     /// </summary>
     public async Task<LrcLyrics?> GetLyricsAsync(Song song)
     {
+        string fpPreview;
+        if (song.FilePath == null)
+            fpPreview = "null";
+        else if (song.FilePath.StartsWith("http"))
+            fpPreview = "http://...";
+        else
+            fpPreview = song.FilePath.Length <= 40 ? song.FilePath : song.FilePath[..40];
+        System.Diagnostics.Debug.WriteLine($"[Lyrics] GetLyricsAsync: Protocol={song.Protocol}, RemoteId={song.RemoteId ?? "null"}, FilePath={fpPreview}");
+
         // Navidrome/Subsonic: 优先通过 API 获取歌词（避免下载整个音频文件读内嵌歌词）
         if (song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
         {
@@ -109,11 +118,18 @@ public class LyricsService : ILyricsService
         // 远程 URL 不支持本地同名 .lrc 文件查找，直接尝试内嵌歌词（通过网络流）
         if (isRemoteUrl)
         {
+            System.Diagnostics.Debug.WriteLine($"[Lyrics] isRemoteUrl=true, Protocol={song.Protocol}, skipEmbedded={skipEmbedded}");
             if (skipEmbedded) return null;
             // Navidrome: 内嵌歌词需要下载整个音频文件（最大 10MB）到 LOS 堆，
             // 代价过高且 API 已是规范来源，跳过。WebDAV/SMB 的直链 stream URL 仍尝试。
-            if (song.Protocol == ProtocolType.Navidrome) return null;
+            if (song.Protocol == ProtocolType.Navidrome)
+            {
+                System.Diagnostics.Debug.WriteLine("[Lyrics] 跳过 Navidrome 内嵌歌词");
+                return null;
+            }
+            System.Diagnostics.Debug.WriteLine("[Lyrics] 调用 ReadEmbeddedLyrics (isRemoteUrl=true)");
             var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri: false, isRemoteUrl: true));
+            System.Diagnostics.Debug.WriteLine($"[Lyrics] ReadEmbeddedLyrics 返回: {(embeddedLyrics != null ? $"{embeddedLyrics.Length} 字符" : "null")}");
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
                 var parsed = await Task.Run(() => TryParseLyrics(embeddedLyrics));
@@ -308,11 +324,15 @@ public class LyricsService : ILyricsService
 
         if (isRemoteUrl)
         {
+            System.Diagnostics.Debug.WriteLine($"[Lyrics] ReadEmbeddedLyrics isRemoteUrl, RemoteUrlStreamOpener={(RemoteUrlStreamOpener != null ? "已设置" : "null")}");
             if (RemoteUrlStreamOpener != null)
             {
                 try
                 {
+                    var spPreview = songPath?[..Math.Min(60, songPath?.Length ?? 0)] ?? "";
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] 调用 RemoteUrlStreamOpener: {spPreview}...");
                     using var stream = RemoteUrlStreamOpener(songPath);
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 返回: {(stream != null ? $"{stream.Length} bytes" : "null")}");
                     if (stream != null)
                     {
                         var remoteLyrics = TagReader.ReadEmbeddedLyricsFromStream(stream, GetFileNameFromUrl(songPath));
