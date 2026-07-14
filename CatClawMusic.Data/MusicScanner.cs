@@ -77,6 +77,12 @@ public class MusicScanner
     private readonly object _lock = new();
 
     /// <summary>
+    /// 串行化 FlushBatchAsync 的信号量，确保同一时间只有一个批次在写入数据库，
+    /// 避免 SQLite 写锁竞争导致超时和重试。
+    /// </summary>
+    private readonly SemaphoreSlim _flushLock = new(1, 1);
+
+    /// <summary>
     /// 标记内存缓存是否已从数据库加载。首次执行 FlushAsync 时进行懒加载，
     /// 避免在没有任何歌曲需要入库时浪费数据库查询。
     /// </summary>
@@ -230,6 +236,12 @@ public class MusicScanner
     {
         if (toInsert.Length == 0) return;
 
+        // 串行化数据库写入：多个并发 Task.Run 可能同时达到批次大小触发 FlushBatchAsync，
+        // SQLite 写锁竞争会导致超时重试，严重拖慢入库速度。
+        await _flushLock.WaitAsync();
+        try
+        {
+
         var flushSw = System.Diagnostics.Stopwatch.StartNew();
 
         if (!_cacheLoaded)
@@ -352,6 +364,11 @@ public class MusicScanner
 
         flushSw.Stop();
         System.Diagnostics.Debug.WriteLine($"[CatClaw] 批次刷写：{toInsert.Length} 首，插入 {inserted.Count}，累计 {_totalInserted}，耗时 {flushSw.ElapsedMilliseconds}ms");
+        }
+        finally
+        {
+            _flushLock.Release();
+        }
     }
 
     /// <summary>

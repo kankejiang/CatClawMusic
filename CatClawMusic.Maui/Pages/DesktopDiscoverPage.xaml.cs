@@ -89,6 +89,16 @@ public partial class DesktopDiscoverPage : ContentPage
                 _ = ScrollHeroTo(0);
             });
         }
+
+        if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
+        {
+            Dispatcher.Dispatch(async () =>
+            {
+                await Task.Delay(200);
+                if (_vm.ChatMessages.Count > 0)
+                    ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: false);
+            });
+        }
     }
 
     /// <summary>根据可见宽度计算每张 Hero 卡宽度，使一屏显示约 2 张；并刷新圆点数量。</summary>
@@ -560,6 +570,107 @@ public partial class DesktopDiscoverPage : ContentPage
         }
     }
 
+    // ─── Search ───
+
+    private void OnSearchToggleClicked(object? sender, EventArgs e)
+    {
+        _vm.IsSearchOpen = !_vm.IsSearchOpen;
+        if (_vm.IsSearchOpen)
+        {
+            SearchBox.Focus();
+        }
+        else
+        {
+            SearchBox.Unfocus();
+            SearchBox.Text = "";
+            _vm.ClearSearchDropdown();
+        }
+    }
+
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        _vm.SearchQuery = e.NewTextValue ?? "";
+    }
+
+    private void OnSearchCompleted(object? sender, EventArgs e)
+    {
+        var entry = sender as Entry;
+        _vm.SearchQuery = entry?.Text?.Trim() ?? "";
+        entry?.Unfocus();
+    }
+
+    private void OnClearSearchClicked(object? sender, EventArgs e)
+    {
+        SearchBox.Text = "";
+        _vm.ClearSearchDropdown();
+    }
+
+    private async void OnSearchSongSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is not Song song) return;
+        if (sender is CollectionView cv) cv.SelectedItem = null;
+        SearchBox.Text = "";
+        _vm.ClearSearchDropdown();
+        var allSongs = _vm.DailyRecommendSongs.Concat(_vm.TopPlayedSongs).ToList();
+        await PlaySongAsync(song, allSongs);
+    }
+
+    private async void OnSearchSongPlayTapped(object? sender, EventArgs e)
+    {
+        if (sender is ImageButton btn && btn.BindingContext is Song song)
+        {
+            var allSongs = _vm.DailyRecommendSongs.Concat(_vm.TopPlayedSongs).ToList();
+            await PlaySongAsync(song, allSongs);
+        }
+    }
+
+    private async void OnSearchArtistSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is not SearchArtistItem artist) return;
+        if (sender is CollectionView cv) cv.SelectedItem = null;
+        await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name)}");
+    }
+
+    private async void OnSearchAlbumSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.CurrentSelection.FirstOrDefault() is not SearchAlbumItem album) return;
+        if (sender is CollectionView cv) cv.SelectedItem = null;
+        await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title)}");
+    }
+
+    private async void OnRefreshClicked(object? sender, EventArgs e)
+    {
+        if (_vm.IsLoading) return;
+        try { await _vm.LoadExploreDataAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopDiscover refresh: {ex.Message}"); }
+    }
+
+    // ─── AI Chat ───
+
+    private void OnAiEntryTapped(object? sender, TappedEventArgs e)
+    {
+        _vm.IsSearchOpen = false;
+        SearchBox.Unfocus();
+        SearchBox.Text = "";
+        _vm.ClearSearchDropdown();
+        _vm.EnterChatModeCommand.Execute(null);
+    }
+
+    private void OnChatBackClicked(object? sender, EventArgs e)
+    {
+        _vm.ExitChatModeCommand.Execute(null);
+    }
+
+    private void OnChatInputCompleted(object? sender, EventArgs e)
+    {
+        _ = _vm.SendMessageCommand.ExecuteAsync(null);
+    }
+
+    private void OnSendClicked(object? sender, EventArgs e)
+    {
+        _ = _vm.SendMessageCommand.ExecuteAsync(null);
+    }
+
     private static string CalculateGreeting()
     {
         var hour = DateTime.Now.Hour;
@@ -570,5 +681,35 @@ public partial class DesktopDiscoverPage : ContentPage
             >= 12 and < 18 => "下午好，为你精选午后好歌",
             _ => "晚上好，为你精选今日好歌"
         };
+    }
+
+    /// <summary>聊天消息列表滚动时检测是否需要加载更多历史记录</summary>
+    private async void OnChatMessagesScrolled(object? sender, ItemsViewScrolledEventArgs e)
+    {
+        // 当滚动到接近顶部时自动加载更多
+        if (e.VerticalOffset < 50 && _vm.HasMoreChatHistory)
+        {
+            // 记录当前滚动位置和内容高度，加载后恢复位置
+            var previousCount = _vm.ChatMessages.Count;
+            await _vm.LoadMoreChatHistoryAsync();
+            var newCount = _vm.ChatMessages.Count;
+            if (newCount > previousCount)
+            {
+                // 加载了新条目，向下滚动到原来位置（避免跳动）
+                var addedCount = newCount - previousCount;
+                // 估算每条高度约60px，滚动到原位置
+                Dispatcher.Dispatch(async () =>
+                {
+                    await Task.Delay(50);
+                    if (ChatMessagesList.Handler != null)
+                    {
+                        // 滚动到原第一条消息（现在偏移了addedCount条）
+                        var targetIndex = addedCount;
+                        if (targetIndex < _vm.ChatMessages.Count)
+                            ChatMessagesList.ScrollTo(targetIndex, position: ScrollToPosition.Start, animate: false);
+                    }
+                });
+            }
+        }
     }
 }

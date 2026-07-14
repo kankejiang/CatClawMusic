@@ -47,13 +47,13 @@
                 <!-- 外观与个性化 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_edit" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_edit_light, Dark=ic_edit}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Appearance]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppearanceDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -66,13 +66,13 @@
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{OnPlatform Default=false, Android=true}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_lyrics" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_lyrics_light, Dark=ic_lyrics}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -84,13 +84,13 @@
                 <!-- 本地音乐 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_folder" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_folder_light, Dark=ic_folder}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusic]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding LocalMusicStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -102,13 +102,13 @@
                 <!-- 远程音乐服务 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_search" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_search_light, Dark=ic_search}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding RemoteMusicStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -120,13 +120,13 @@
                 <!-- 插件管理 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_equalizer" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_equalizer_light, Dark=ic_equalizer}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Plugins]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding PluginStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -138,13 +138,13 @@
                 <!-- 探索设置 (AI) -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_play" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_play_light, Dark=ic_play}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ExploreSettings]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding AiStatus}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -156,13 +156,13 @@
                 <!-- 猫爪圈 (P2P 局域网直传) -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_shuffle" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_shuffle_light, Dark=ic_shuffle}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ClawCircle]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ClawCircleEntryDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -180,14 +180,14 @@
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{OnPlatform Default=false, Android=true}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_lock_locked" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_lock_locked_light, Dark=ic_lock_locked}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding PermissionStatus}" FontSize="12"
                                    TextColor="{Binding PermissionStatusColor}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -199,13 +199,13 @@
                 <!-- 通用设置 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="ic_settings" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_settings_light, Dark=ic_settings}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettings]}" FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsDesc]}" Style="{StaticResource PageSubtitleStyle}" />
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="ic_arrow_forward"
+                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -217,7 +217,7 @@
                 <!-- 备份与恢复 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto, Auto" ColumnSpacing="16">
-                        <Image Source="ic_folder" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_folder_light, Dark=ic_folder}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}" FontSize="15" FontFamily="OpenSansSemibold" />
@@ -229,7 +229,7 @@
                                  Color="{DynamicResource ErrorColor}"
                                  IsVisible="{Binding IsUpdateAvailable}"
                                  VerticalOptions="Center" />
-                        <Image Grid.Column="3" Source="ic_arrow_forward"
+                        <Image Grid.Column="3" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>
@@ -241,7 +241,7 @@
                 <!-- 关于 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
-                        <Image Source="ic_check" WidthRequest="22" HeightRequest="22"
+                        <Image Source="{AppThemeBinding Light=ic_check_light, Dark=ic_check}" WidthRequest="22" HeightRequest="22"
                                VerticalOptions="Center" Opacity="0.8" />
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[About]}" FontSize="15" FontFamily="OpenSansSemibold" />
@@ -253,7 +253,7 @@
                                  Color="{DynamicResource ErrorColor}"
                                  IsVisible="{Binding IsUpdateAvailable}"
                                  VerticalOptions="Center" />
-                        <Image Grid.Column="3" Source="ic_arrow_forward"
+                        <Image Grid.Column="3" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
                                VerticalOptions="Center" Opacity="0.5" />
                     </Grid>

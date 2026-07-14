@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:models="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.DesktopDiscoverPage"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
@@ -28,6 +29,28 @@
                     </Border>
                     <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSearchToggleClicked" />
+                        </Border.GestureRecognizers>
+                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image.Source>
+                                <AppThemeBinding Light="ic_search_light" Dark="ic_search" />
+                            </Image.Source>
+                        </Image>
+                    </Border>
+                    <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                            BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnRefreshClicked" />
+                        </Border.GestureRecognizers>
+                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image.Source>
+                                <AppThemeBinding Light="ic_refresh_light" Dark="ic_refresh" />
+                            </Image.Source>
+                        </Image>
+                    </Border>
+                    <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                            BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Label x:Name="ThemeIcon" Text="&#x1f319;" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnThemeToggleClicked" />
@@ -35,6 +58,90 @@
                     </Border>
                 </HorizontalStackLayout>
             </Grid>
+
+            <!-- 搜索框 -->
+            <Border x:Name="SearchBoxContainer" Margin="0,0,0,0" Style="{StaticResource GlassInputStyle}" IsVisible="{Binding IsSearchOpen}">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Image Source="ic_search" WidthRequest="18" HeightRequest="18" Opacity="0.9" VerticalOptions="Center" />
+                    <Entry Grid.Column="1" x:Name="SearchBox" Text="{Binding SearchQuery, Mode=TwoWay}" Placeholder="搜索歌曲、歌手、专辑..." ReturnType="Search" TextChanged="OnSearchTextChanged" Completed="OnSearchCompleted" />
+                    <ImageButton Grid.Column="2" Source="ic_close" WidthRequest="24" HeightRequest="24" BackgroundColor="Transparent" IsVisible="{Binding ShowSearchResults}" Clicked="OnClearSearchClicked" />
+                </Grid>
+            </Border>
+
+            <!-- 搜索结果下拉 -->
+            <Border Margin="0,4,0,10" Padding="0" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding ShowSearchResults}">
+                <ScrollView MaximumHeightRequest="380">
+                    <VerticalStackLayout Spacing="0">
+                        <VerticalStackLayout IsVisible="{Binding SearchArtistResults.Count, Converter={StaticResource CountToBoolConverter}}">
+                            <Label Text="歌手" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,12,16,4" />
+                            <CollectionView ItemsSource="{Binding SearchArtistResults}" SelectionMode="Single" SelectionChanged="OnSearchArtistSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchArtistResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                                <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Padding="14,8" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                            <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                                <Image Source="{Binding CoverSource}" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                                                <Label Text="{Binding Name}" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                                <Label Text="{Binding Subtitle}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                                            </VerticalStackLayout>
+                                        </Grid>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout IsVisible="{Binding SearchAlbumResults.Count, Converter={StaticResource CountToBoolConverter}}">
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,4" />
+                            <Label Text="专辑" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,8,16,4" />
+                            <CollectionView ItemsSource="{Binding SearchAlbumResults}" SelectionMode="Single" SelectionChanged="OnSearchAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchAlbumResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                                <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Padding="14,8" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                            <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 8" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                                <Image Source="{Binding CoverSource}" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                                                <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                                <Label Text="{Binding ArtistName}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                                            </VerticalStackLayout>
+                                        </Grid>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout IsVisible="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}}">
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,4" />
+                            <Label Text="歌曲" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,8,16,4" />
+                            <CollectionView ItemsSource="{Binding SearchResults}" SelectionMode="Single" SelectionChanged="OnSearchSongSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                                <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Padding="14,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                            <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 8" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                                <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                                                <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                                <Label Text="{Binding Artist}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                                            </VerticalStackLayout>
+                                            <ImageButton Source="ic_play" WidthRequest="28" HeightRequest="28" BackgroundColor="Transparent" Clicked="OnSearchSongPlayTapped" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout IsVisible="{Binding HasNoSearchResults}">
+                            <Label Text="没找到想要的？问问 Yuki 吧" FontSize="13" TextColor="{DynamicResource TextSecondaryColor}" Padding="16,16" HorizontalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnAiEntryTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Border>
 
             <!-- ═══ Segmented Tabs ═══ -->
             <Grid x:Name="CategoryTabBar" ColumnDefinitions="*,*,*,*" ColumnSpacing="8" Margin="0,16,0,16">
@@ -103,6 +210,33 @@
                 <IndicatorView x:Name="HeroDots" Margin="0,4,0,18"
                               IndicatorColor="{DynamicResource TextHintColor}" SelectedIndicatorColor="{DynamicResource PrimaryColor}"
                               IndicatorsShape="Circle" HorizontalOptions="Center" />
+
+                <!-- AI 助手入口卡：位于轮播卡片下方，点击进入 AI 聊天模式 -->
+                <Border x:Name="AiEntryCard"
+                        Margin="0,0,0,16"
+                        Padding="16,14"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 16">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnAiEntryTapped" />
+                    </Border.GestureRecognizers>
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#667eea" Offset="0" />
+                            <GradientStop Color="#764ba2" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                        <Border WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" StrokeThickness="0" Padding="0">
+                            <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="42" HeightRequest="42" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                            <Label Text="🐾 和 Yuki 聊聊" FontSize="15" FontAttributes="Bold" TextColor="White" />
+                            <Label Text="帮你找歌、推荐、聊天都可以" FontSize="11" TextColor="#CCFFFFFF" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="2" Text="›" FontSize="22" TextColor="#CCFFFFFF" VerticalOptions="Center" />
+                    </Grid>
+                </Border>
 
                 <!-- 每日推荐横滑（左右箭头导航） -->
                 <Grid Margin="0,4,0,8" ColumnDefinitions="*,Auto">
@@ -295,5 +429,94 @@
 
             <ActivityIndicator Margin="0,10" IsVisible="{Binding IsLoading}" IsRunning="{Binding IsLoading}" Color="{DynamicResource PrimaryColor}" HorizontalOptions="Center" />
         </VerticalStackLayout>
+
+        <!-- Chat Overlay: AI 聊天覆盖层 -->
+        <Grid x:Name="ChatOverlay"
+              IsVisible="{Binding IsChatMode}"
+              Background="{DynamicResource PageBackgroundBrush}"
+              RowDefinitions="Auto,*,Auto,Auto">
+
+            <Grid Grid.Row="0" Margin="0,10,0,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <controls:BackButton x:Name="ChatBackButton"
+                                     VerticalOptions="Center"
+                                     Clicked="OnChatBackClicked" />
+                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                    <Label Text="{Binding AgentName}" FontSize="18" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="你的 AI 音乐助手" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
+                </VerticalStackLayout>
+                <Border Grid.Column="2" Padding="4" StrokeThickness="0" StrokeShape="RoundRectangle 20"
+                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}" VerticalOptions="Center">
+                    <Image Source="avatar_yuki.png" WidthRequest="34" HeightRequest="34" />
+                </Border>
+            </Grid>
+
+            <CollectionView x:Name="ChatMessagesList" Grid.Row="1" Margin="0,0,0,0"
+                            ItemsSource="{Binding ChatMessages}"
+                            SelectionMode="None"
+                            ItemsUpdatingScrollMode="KeepLastItemInView"
+                            Scrolled="OnChatMessagesScrolled">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <!-- Yuki 头像（左）：assistant 消息显示 -->
+                            <Border Grid.Column="0" WidthRequest="36" HeightRequest="36" StrokeThickness="0" StrokeShape="RoundRectangle 18"
+                                    IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}"
+                                    VerticalOptions="Start" Margin="0,2,0,0">
+                                <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
+                            </Border>
+
+                            <!-- 占位（对方消息时空，自己消息时让气泡靠右） -->
+                            <BoxView Grid.Column="0" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}" Color="Transparent" />
+
+                            <!-- 消息气泡：位于中间列，根据角色左/右对齐 -->
+                            <Border Grid.Column="1" Padding="14,10" StrokeThickness="0" MaximumWidthRequest="280" StrokeShape="RoundRectangle 18"
+                                    BackgroundColor="{Binding Role, Converter={StaticResource ChatBubbleColorConverter}}"
+                                    HorizontalOptions="{Binding Role, Converter={StaticResource ChatBubbleAlignmentConverter}}"
+                                    VerticalOptions="Start">
+                                <Label Text="{Binding Content}" FontSize="14" TextColor="White" LineBreakMode="WordWrap" />
+                            </Border>
+
+                            <!-- 占位（自己消息时空，对方消息时让气泡靠左） -->
+                            <BoxView Grid.Column="2" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}" Color="Transparent" />
+
+                            <!-- 用户头像（右）：user 消息显示 -->
+                            <Border Grid.Column="2" WidthRequest="36" HeightRequest="36" StrokeThickness="0" StrokeShape="RoundRectangle 18"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}"
+                                    VerticalOptions="Start" Margin="0,2,0,0">
+                                <Label Text="👤" FontSize="18" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Border Grid.Row="2" Margin="0,4,0,0" Padding="14,10" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                    StrokeShape="RoundRectangle 14" BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                    IsVisible="{Binding HasThinkingSteps}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ToggleThinkingCommand}" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <ActivityIndicator Grid.Column="0" IsRunning="{Binding IsAgentThinking}" IsVisible="{Binding IsAgentThinking}"
+                                       Color="{DynamicResource PrimaryColor}" WidthRequest="16" HeightRequest="16" />
+                    <Label Grid.Column="0" Text="✓" FontSize="14" TextColor="{DynamicResource PrimaryColor}"
+                           IsVisible="{Binding IsAgentThinking, Converter={StaticResource InvertedBoolConverter}}"
+                           VerticalOptions="Center" WidthRequest="16" HorizontalTextAlignment="Center" />
+                    <Label Grid.Column="1" Text="{Binding ThinkingSummary}" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}"
+                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="3" Margin="0,10,0,14" Style="{StaticResource GlassInputStyle}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Entry x:Name="ChatInputBox" Text="{Binding ChatInput, Mode=TwoWay}"
+                           Placeholder="输入消息..." ReturnType="Send" Completed="OnChatInputCompleted" />
+                    <Border Grid.Column="1" Style="{StaticResource GlassIconContainerStyle}" BackgroundColor="{DynamicResource ChipActiveColor}">
+                        <ImageButton Source="ic_send" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnSendClicked" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </ContentPage>

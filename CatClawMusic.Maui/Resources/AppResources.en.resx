@@ -68,7 +68,7 @@
   <data name="LocalMusic" xml:space="preserve"><value>Local Music</value></data>
   <data name="RemoteMusic" xml:space="preserve"><value>Remote Music Service</value></data>
   <data name="Plugins" xml:space="preserve"><value>Plugins</value></data>
-  <data name="ExploreSettings" xml:space="preserve"><value>Explore Settings</value></data>
+  <data name="ExploreSettings" xml:space="preserve"><value>AI Settings</value></data>
   <data name="Permissions" xml:space="preserve"><value>Permissions</value></data>
   <data name="GeneralSettings" xml:space="preserve"><value>General</value></data>
   <data name="GeneralSettingsDesc" xml:space="preserve"><value>General behavior, playback &amp; system options</value></data>

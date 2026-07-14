@@ -23,6 +23,7 @@ public partial class MainPage : ContentPage
     private readonly IServiceProvider _services;
     private readonly List<ContentPage> _tabPages = new();
     private readonly NowPlayingViewModel _nowPlayingVm;
+    private readonly Services.IInteractionStateService? _interactionState;
     // ViewPager 布局: [FullLyrics(0), NowPlaying(1), Search(2), Playlist(3), Library(4)]
     // TabBar 的 4 个按钮对应 index 1-4，index 0 是全屏歌词（无 Tab 按钮）
     private int _currentIndex = 1;
@@ -32,6 +33,7 @@ public partial class MainPage : ContentPage
     private bool _isFirstLoad = true;
     private System.Timers.Timer? _panWatchdogTimer;
     private DateTime _lastPanRunningTime;
+    private IDisposable? _panInteractionToken;
     private const double SwipeThresholdRatio = 0.25;
     private const int AnimDuration = 280;
     private const int PanWatchdogInterval = 400;
@@ -54,11 +56,25 @@ public partial class MainPage : ContentPage
         InitializeComponent();
         _services = services;
         _nowPlayingVm = nowPlayingVm;
+        _interactionState = services.GetService<Services.IInteractionStateService>();
         Instance = this;
 
         // 迷你播放器绑定到 NowPlayingViewModel
         MiniPlayer.BindingContext = _nowPlayingVm;
         _nowPlayingVm.PropertyChanged += OnNowPlayingPropertyChanged;
+
+        // 订阅 SearchViewModel 的聊天模式变化：进入聊天时隐藏 TabBar，迷你播放器保留在输入框上方
+        var searchVm = services.GetService<SearchViewModel>();
+        if (searchVm != null)
+        {
+            searchVm.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(SearchViewModel.IsChatMode))
+                {
+                    MainThread.BeginInvokeOnMainThread(UpdateTabBarVisibility);
+                }
+            };
+        }
 
         SetupPages();
         ViewPagerGrid.SizeChanged += OnViewPagerSizeChanged;
@@ -341,6 +357,9 @@ public partial class MainPage : ContentPage
                 StartPanWatchdog();
                 // 开始滑动：开启各 Tab 页 GPU 硬件层，平移期间由 GPU 合成，避免主线程重绘卡顿
                 SetHardwareLayersEnabled(true);
+                // 通知交互状态服务：暂停歌词更新、FrostedBackground 动画等耗时操作，减轻主线程负担
+                _panInteractionToken?.Dispose();
+                _panInteractionToken = _interactionState?.BeginInteraction("TabSwipe");
                 break;
 
             case GestureStatus.Running:
@@ -363,6 +382,9 @@ public partial class MainPage : ContentPage
                             StopPanWatchdog();
                             // 判定为垂直滚动，放弃平移：关闭硬件层，避免长期占用 GPU 显存
                             SetHardwareLayersEnabled(false);
+                            // 释放交互令牌，恢复正常更新
+                            _panInteractionToken?.Dispose();
+                            _panInteractionToken = null;
                             return;
                         }
                     }
@@ -406,12 +428,17 @@ public partial class MainPage : ContentPage
                 {
                     await BounceBack();
                 }
+                // 动画结束后释放交互令牌，恢复正常更新
+                _panInteractionToken?.Dispose();
+                _panInteractionToken = null;
                 break;
 
             case GestureStatus.Canceled:
                 _isPanning = false;
                 StopPanWatchdog();
                 await BounceBack();
+                _panInteractionToken?.Dispose();
+                _panInteractionToken = null;
                 break;
         }
     }
@@ -437,6 +464,8 @@ public partial class MainPage : ContentPage
                     {
                         _isPanning = false;
                         await BounceBack();
+                        _panInteractionToken?.Dispose();
+                        _panInteractionToken = null;
                     }
                 });
             }
@@ -601,14 +630,18 @@ public partial class MainPage : ContentPage
         else if (sender == TabItem3) _ = AnimateToPage(4);
     }
 
-    /// <summary>全屏歌词页和播放页时隐藏 TabBar 和迷你播放器</summary>
+    /// <summary>全屏歌词页和播放页时隐藏 TabBar 和迷你播放器；AI 聊天模式仅隐藏 TabBar</summary>
     private void UpdateTabBarVisibility()
     {
         // index 0 = 全屏歌词, index 1 = 播放页，两者都全屏
         var isFullScreen = _currentIndex <= 1;
+        // AI 聊天模式：隐藏 TabBar，但保留迷你播放器（显示在输入框上方）
+        var searchVm = _services.GetService<SearchViewModel>();
+        var isChatMode = searchVm?.IsChatMode == true;
+        var hideTabBar = isFullScreen || isChatMode;
         // MAUI 11: IsVisible=false 在 Auto 行中可能不收缩行高，需要同时设置 HeightRequest=0
-        TabBar.IsVisible = !isFullScreen;
-        TabBar.HeightRequest = isFullScreen ? 0 : 64;
+        TabBar.IsVisible = !hideTabBar;
+        TabBar.HeightRequest = hideTabBar ? 0 : 64;
         UpdateMiniPlayerVisibility();
         UpdateSafeAreaPadding();
     }
@@ -629,12 +662,15 @@ public partial class MainPage : ContentPage
         var top = SafeAreaHelper.TopInset;
         var bottom = SafeAreaHelper.BottomInset;
         var isFullScreen = _currentIndex <= 1;
+        var searchVm = _services.GetService<SearchViewModel>();
+        var isChatMode = searchVm?.IsChatMode == true;
+        var hideTabBar = isFullScreen || isChatMode;
 
         // 非全屏页面：顶部留出状态栏高度保护内容
         ViewPagerGrid.Padding = isFullScreen ? new Thickness(0) : new Thickness(0, top, 0, 0);
 
-        // TabBar 底部留出导航栏高度（全屏页面 TabBar 已隐藏）
-        TabBar.Padding = new Thickness(0, 6, 0, isFullScreen ? 8 : bottom + 8);
+        // TabBar 底部留出导航栏高度（全屏页面或聊天模式 TabBar 已隐藏）
+        TabBar.Padding = new Thickness(0, 6, 0, hideTabBar ? 8 : bottom + 8);
     }
 
     /// <summary>迷你播放器仅在有当前歌曲且非全屏页时显示</summary>

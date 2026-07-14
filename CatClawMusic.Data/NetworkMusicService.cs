@@ -335,23 +335,6 @@ public class NetworkMusicService : INetworkMusicService
             _webDav.Configure(profile);
             if (_webDav is WebDavService wdsEnsure) await wdsEnsure.EnsureDetectedAsync();
 
-            // OpenList 自动检测回退：确保 CurrentServerType 已正确识别
-            if (_webDav is WebDavService wdsCheck
-                && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList
-                && wdsCheck.CurrentServerType != WebDavServerType.OpenList)
-            {
-                try
-                {
-                    var detected = await wdsCheck.DetectServerTypeAsync(profile);
-                    if (detected == WebDavServerType.OpenList)
-                    {
-                        profile.ServerType = (int)WebDavServerType.OpenList;
-                        try { await _db.SaveConnectionProfileAsync(profile); } catch { }
-                    }
-                }
-                catch { }
-            }
-
             // OpenList: 使用 raw_url (CDN 直链) 下载文件头，WebDAV 端点 302 到 CDN 会拒绝 Basic Auth
             var isOpenList = (WebDavServerType)profile.ServerType == WebDavServerType.OpenList;
             if (!isOpenList && _webDav is WebDavService wdsCheck2 && wdsCheck2.CurrentServerType == WebDavServerType.OpenList)
@@ -472,23 +455,6 @@ public class NetworkMusicService : INetworkMusicService
             _webDav.Configure(profile);
             if (_webDav is WebDavService wdsLyrics) await wdsLyrics.EnsureDetectedAsync();
 
-            // OpenList 自动检测回退：确保 CurrentServerType 已正确识别
-            if (_webDav is WebDavService wdsCheck
-                && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList
-                && wdsCheck.CurrentServerType != WebDavServerType.OpenList)
-            {
-                try
-                {
-                    var detected = await wdsCheck.DetectServerTypeAsync(profile);
-                    if (detected == WebDavServerType.OpenList)
-                    {
-                        profile.ServerType = (int)WebDavServerType.OpenList;
-                        try { await _db.SaveConnectionProfileAsync(profile); } catch { }
-                    }
-                }
-                catch { }
-            }
-
             var lastDot = remotePath.LastIndexOf('.');
             if (lastDot > 0)
             {
@@ -594,23 +560,6 @@ public class NetworkMusicService : INetworkMusicService
 
         _webDav.Configure(profile);
         if (_webDav is WebDavService wdsMeta) await wdsMeta.EnsureDetectedAsync();
-
-        // OpenList 自动检测回退：确保 CurrentServerType 已正确识别
-        if (_webDav is WebDavService wdsCheck
-            && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList
-            && wdsCheck.CurrentServerType != WebDavServerType.OpenList)
-        {
-            try
-            {
-                var detected = await wdsCheck.DetectServerTypeAsync(profile);
-                if (detected == WebDavServerType.OpenList)
-                {
-                    profile.ServerType = (int)WebDavServerType.OpenList;
-                    try { await _db.SaveConnectionProfileAsync(profile); } catch { }
-                }
-            }
-            catch { }
-        }
 
         try
         {
@@ -820,17 +769,8 @@ public class NetworkMusicService : INetworkMusicService
         _webDav.Configure(profile);
         if (_webDav is WebDavService wdsScan) await wdsScan.EnsureDetectedAsync();
 
-        var foundIds = new HashSet<string>();
+        var foundIds = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
         var existingIds = new HashSet<string>();
-        try
-        {
-            var existingSongs = await _db.GetCachedNetworkSongsAsync();
-            existingIds = existingSongs
-                .Where(s => s.Source == SongSource.WebDAV && !string.IsNullOrEmpty(s.RemoteId))
-                .Select(s => s.RemoteId!)
-                .ToHashSet();
-        }
-        catch { }
 
         var scanner = new MusicScanner(_db, songBatchCallback);
         var serverType = (WebDavServerType)profile.ServerType;
@@ -857,18 +797,38 @@ public class NetworkMusicService : INetworkMusicService
             profile.ServerType = (int)WebDavServerType.OpenList;
             try { await _db.SaveConnectionProfileAsync(profile); } catch { }
             serverType = WebDavServerType.OpenList;
+            quickScan = true;
         }
+
+        // 已存在但元数据缺失（艺术家/专辑为"未知"或空）的歌曲，需在完整扫描时补齐
+        var metadataRefreshMap = new System.Collections.Concurrent.ConcurrentDictionary<string, Song>();
+        try
+        {
+            var existingSongs = await _db.GetCachedNetworkSongsAsync();
+            foreach (var s in existingSongs.Where(s => s.Source == SongSource.WebDAV && !string.IsNullOrEmpty(s.RemoteId)))
+            {
+                existingIds.Add(s.RemoteId!);
+                // 完整扫描模式下，对元数据缺失的已存在歌曲进行补齐
+                if (!quickScan &&
+                    (string.IsNullOrEmpty(s.Artist) || s.Artist == "未知艺术家" ||
+                     string.IsNullOrEmpty(s.Album) || s.Album == "未知专辑"))
+                {
+                    metadataRefreshMap.TryAdd(s.RemoteId!, s);
+                }
+            }
+        }
+        catch { }
 
         if (allFiles.Count > 0)
         {
             System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 成功，找到 {allFiles.Count} 个文件，并发处理中...");
-            await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner, quickScan);
+            await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner, quickScan, metadataRefreshMap);
         }
         else
         {
             System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 不支持，回退到递归扫描 (quickScan={quickScan})");
-            var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan);
+            var visitedDirs = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap);
         }
 
         await scanner.FlushAsync();
@@ -880,7 +840,7 @@ public class NetworkMusicService : INetworkMusicService
             _ = Task.Run(async () => await FetchMetadataInBackgroundAsync(songs, profile));
         }
 
-        return (songs, foundIds);
+        return (songs, new HashSet<string>(foundIds.Keys, StringComparer.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -905,7 +865,8 @@ public class NetworkMusicService : INetworkMusicService
     /// 并发处理深度 PROPFIND 返回的扁平文件列表
     /// </summary>
     private async Task ProcessFileListAsync(List<RemoteFile> allFiles, ConnectionProfile profile,
-        List<Song> songs, HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, bool quickScan = false)
+        List<Song> songs, System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, bool quickScan = false,
+        System.Collections.Concurrent.ConcurrentDictionary<string, Song>? metadataRefreshMap = null)
     {
         var audioFiles = allFiles
             .Where(f =>
@@ -924,10 +885,26 @@ public class NetworkMusicService : INetworkMusicService
             await ScanSemaphore.WaitAsync();
             try
             {
-                foundIds.Add(file.Path);
+                foundIds.TryAdd(file.Path, 0);
 
                 if (existingIds.Contains(file.Path))
+                {
+                    // 已存在的歌曲：若元数据缺失（艺术家/专辑为"未知"或空），补齐元数据
+                    if (metadataRefreshMap != null && metadataRefreshMap.TryRemove(file.Path, out var existingSong))
+                    {
+                        try
+                        {
+                            var tagged = await FetchWebDavMetadataAsync(existingSong, profile);
+                            if (tagged != null)
+                            {
+                                await _db.SaveSongAsync(existingSong);
+                                System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 元数据补齐: {existingSong.Title} → {existingSong.Artist}/{existingSong.Album}");
+                            }
+                        }
+                        catch { }
+                    }
                     return;
+                }
 
                 // 使用 WebDavService.BuildStreamUrl 构建正确的 URL（自动包含 /dav 前缀和 Basic Auth）
                 string streamUrl;
@@ -994,14 +971,15 @@ public class NetworkMusicService : INetworkMusicService
     /// 递归扫描 WebDAV 目录（回退方案，当深度 PROPFIND 不支持时使用）
     /// </summary>
     private async Task ScanWebDavDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
-        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, bool quickScan = false, int depth = 0)
+        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, System.Collections.Concurrent.ConcurrentDictionary<string, byte> visitedDirs, bool quickScan = false,
+        System.Collections.Concurrent.ConcurrentDictionary<string, Song>? metadataRefreshMap = null, int depth = 0)
     {
         if (depth > MaxScanDepth)
             return;
 
         var normalizedDir = path.TrimEnd('/').TrimEnd('\\');
         if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "/";
-        if (!visitedDirs.Add(normalizedDir))
+        if (!visitedDirs.TryAdd(normalizedDir, 0))
         {
             System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 跳过已访问目录: {path}");
             return;
@@ -1043,7 +1021,7 @@ public class NetworkMusicService : INetworkMusicService
             await DirScanSemaphore.WaitAsync();
             try
             {
-                await ScanWebDavDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, depth + 1);
+                await ScanWebDavDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap, depth + 1);
             }
             finally
             {
@@ -1059,10 +1037,26 @@ public class NetworkMusicService : INetworkMusicService
             await ScanSemaphore.WaitAsync();
             try
             {
-                foundIds.Add(file.Path);
+                foundIds.TryAdd(file.Path, 0);
 
                 if (existingIds.Contains(file.Path))
+                {
+                    // 已存在的歌曲：若元数据缺失（艺术家/专辑为"未知"或空），补齐元数据
+                    if (metadataRefreshMap != null && metadataRefreshMap.TryRemove(file.Path, out var existingSong))
+                    {
+                        try
+                        {
+                            var tagged = await FetchWebDavMetadataAsync(existingSong, profile);
+                            if (tagged != null)
+                            {
+                                await _db.SaveSongAsync(existingSong);
+                                System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 元数据补齐: {existingSong.Title} → {existingSong.Artist}/{existingSong.Album}");
+                            }
+                        }
+                        catch { }
+                    }
                     return;
+                }
 
                 // 使用 WebDavService.BuildStreamUrl 构建正确的 URL（自动包含 /dav 前缀和 Basic Auth）
                 string streamUrl;
@@ -1173,7 +1167,7 @@ public class NetworkMusicService : INetworkMusicService
 
         _smb.Configure(profile);
 
-        var foundIds = new HashSet<string>();
+        var foundIds = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
         var existingIds = new HashSet<string>();
         try
         {
@@ -1190,7 +1184,7 @@ public class NetworkMusicService : INetworkMusicService
         await ScanSmbDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs);
         await scanner.FlushAsync();
 
-        return (songs, foundIds);
+        return (songs, new HashSet<string>(foundIds.Keys, StringComparer.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -1206,7 +1200,7 @@ public class NetworkMusicService : INetworkMusicService
     /// <param name="visitedDirs">已访问目录集合（防止循环）。</param>
     /// <param name="depth">当前递归深度。</param>
     private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
-        HashSet<string> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
+        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0)
     {
         if (depth > MaxScanDepth) return;
 
@@ -1258,7 +1252,7 @@ public class NetworkMusicService : INetworkMusicService
             await ScanSemaphore.WaitAsync();
             try
             {
-                foundIds.Add(file.Path);
+                foundIds.TryAdd(file.Path, 0);
 
                 if (existingIds.Contains(file.Path))
                     return;

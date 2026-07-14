@@ -88,4 +88,13 @@ public class ChatMemoryService
         }
         return string.Empty;
     }
+
+    /// <summary>清空所有记忆</summary>
+    public async Task ClearMemoryAsync()
+    {
+        var path = Path.Combine(FileSystem.AppDataDirectory, MemoryFileName);
+        if (File.Exists(path))
+            File.Delete(path);
+        await Task.CompletedTask;
+    }
 }

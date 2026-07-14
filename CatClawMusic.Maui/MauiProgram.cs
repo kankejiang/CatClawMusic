@@ -102,34 +102,55 @@ public static class MauiProgram
             try { return await File.ReadAllBytesAsync(filePath); } catch { return null; }
         };
 
-        // 远程 URL 流打开器：下载 http(s):// 文件到 MemoryStream（供内嵌歌词读取），限制大小避免下载超大文件
+        // 远程 URL 流打开器：下载 http(s):// 文件头部到 MemoryStream（供内嵌歌词读取）
         // 注意：Navidrome 歌曲在 LyricsService 中已跳过此路径（走 API），此处仅 WebDAV/SMB 直链会触发。
-        // 上限 10MB：平衡 LOS 压力与内嵌歌词命中率（绝大多数有内嵌歌词的文件 < 10MB）。
+        // 使用 Range 请求仅下载文件前 2MB：FLAC/MP3(ID3v2)/M4A 标签均在文件头部，足以提取内嵌歌词。
+        // WebDAV URL 形如 http://user:pass@host/path，HttpClient 不解析 URL userinfo，需手动提取并添加 Basic Auth 头。
         LyricsService.RemoteUrlStreamOpener = url =>
         {
             try
             {
-                const long maxSize = 10 * 1024 * 1024;
+                const int headSize = 2 * 1024 * 1024; // 2MB 足以覆盖绝大多数音频标签头
                 var httpClient = _sharedHttpClient;
+
+                // 从 URL userinfo 提取 Basic Auth 凭证（WebDAV 播放 URL 带 user:pass@）
+                string? authToken = null;
+                string cleanUrl = url;
                 try
                 {
-                    var headReq = new HttpRequestMessage(HttpMethod.Head, url);
-                    var headResp = httpClient.Send(headReq);
-                    if (headResp.IsSuccessStatusCode && headResp.Content.Headers.ContentLength.HasValue)
+                    var uri = new Uri(url);
+                    if (!string.IsNullOrEmpty(uri.UserInfo))
                     {
-                        var size = headResp.Content.Headers.ContentLength.Value;
-                        if (size > maxSize)
+                        var userInfo = uri.UserInfo;
+                        var colonIdx = userInfo.IndexOf(':');
+                        if (colonIdx >= 0 && colonIdx < userInfo.Length - 1)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[Lyrics] 远程文件过大 ({size / 1024 / 1024}MB)，跳过内嵌歌词读取");
-                            return null;
+                            var user = Uri.UnescapeDataString(userInfo[..colonIdx]);
+                            var pass = Uri.UnescapeDataString(userInfo[(colonIdx + 1)..]);
+                            authToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{user}:{pass}"));
                         }
+                        // 构造不含 userinfo 的 URL，避免某些服务器/代理对 URL userinfo 的异常处理
+                        cleanUrl = new UriBuilder(uri.Scheme, uri.Host, uri.Port, uri.AbsolutePath, uri.Query).ToString();
                     }
                 }
-                catch { /* HEAD 失败则继续 GET */ }
+                catch { /* URL 解析失败则使用原始 URL */ }
 
-                var bytes = httpClient.GetByteArrayAsync(url).GetAwaiter().GetResult();
+                // 使用 Range 请求仅下载文件头部
+                var reqMsg = new HttpRequestMessage(HttpMethod.Get, cleanUrl);
+                reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, headSize - 1);
+                if (authToken != null)
+                    reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
+                var resp = httpClient.Send(reqMsg);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener HTTP {(int)resp.StatusCode}: {resp.ReasonPhrase}");
+                    return null;
+                }
+                using var ms = new MemoryStream();
+                resp.Content.ReadAsStream().CopyTo(ms);
+                var bytes = ms.ToArray();
                 if (bytes.Length == 0) return null;
-                if (bytes.Length > maxSize) return null;
+                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 下载 {bytes.Length / 1024}KB");
                 return new MemoryStream(bytes);
             }
             catch (Exception ex)

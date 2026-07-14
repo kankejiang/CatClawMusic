@@ -214,7 +214,44 @@ public class PlayQueue
             _shuffledList.Add(song);
         RebuildIndex();
     }
-    
+
+    /// <summary>
+    /// 从播放队列中移除指定歌曲。若移除的是当前播放歌曲，自动切换到下一首。
+    /// </summary>
+    /// <param name="songId">要移除的歌曲 ID</param>
+    /// <returns>是否移除成功</returns>
+    public bool RemoveSong(int songId)
+    {
+        var idx = _originalList.FindIndex(s => s.Id == songId);
+        if (idx < 0) return false;
+
+        var wasCurrent = idx == _currentIndex;
+        _originalList.RemoveAt(idx);
+
+        // 同步移除洗牌列表中的歌曲
+        if (_shuffledList.Count > 0)
+        {
+            var sIdx = _shuffledList.FindIndex(s => s.Id == songId);
+            if (sIdx >= 0)
+                _shuffledList.RemoveAt(sIdx);
+        }
+
+        // 调整当前播放索引
+        if (idx < _currentIndex)
+        {
+            _currentIndex--;
+        }
+        else if (wasCurrent)
+        {
+            // 移除的是当前歌曲，索引指向同位置的下一首
+            if (_currentIndex >= _originalList.Count)
+                _currentIndex = _originalList.Count > 0 ? 0 : -1;
+        }
+
+        RebuildIndex();
+        return true;
+    }
+
     /// <summary>
     /// 预览下一首（不改变队列状态）
     /// </summary>

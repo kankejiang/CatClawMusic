@@ -94,6 +94,10 @@ public partial class PlaylistDetailViewModel : ObservableObject
                 case -3:
                     songs = await _musicLibrary.GetRecentSongsAsync();
                     break;
+                case -4:
+                    // 最多播放：按播放次数倒序取前 200 首
+                    songs = await _musicLibrary.GetTopPlayedSongsAsync(200);
+                    break;
                 default:
                     songs = await _musicLibrary.GetPlaylistSongsAsync(playlistId);
                     break;

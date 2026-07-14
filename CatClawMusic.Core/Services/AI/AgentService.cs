@@ -201,39 +201,36 @@ public class AgentService : IAgentService
     {
         if (_conversationHistory.Count == 0)
         {
-            var systemPrompt = CurrentSystemPrompt;
+            // 固定前缀组装顺序：系统提示 → 记忆 → 项目上下文 → 对话历史 → 新消息
+            // 拆分为独立的 system 消息以提高 API 端的缓存命中率，降低 token 消耗
+
+            // 1. 系统提示（最稳定，缓存命中率高）
+            _conversationHistory.Add(new ChatMessage { Role = "system", Content = CurrentSystemPrompt });
 
             try
             {
                 var libraryContent = LibrarySnapshotProvider?.Invoke() ?? string.Empty;
                 var memoryContent = MemoryProvider?.Invoke() ?? string.Empty;
 
-                var extraParts = new List<string>();
-
-                if (!string.IsNullOrEmpty(libraryContent))
-                {
-                    if (libraryContent.Length > 600)
-                        libraryContent = libraryContent[..600] + "..";
-                    extraParts.Add($"[音乐库]\n{libraryContent}");
-                }
-
+                // 2. 记忆（偶尔变化，放在系统提示之后）
                 if (!string.IsNullOrEmpty(memoryContent))
                 {
                     var memoryLines = memoryContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                     var recentMemory = string.Join('\n', memoryLines.TakeLast(15));
                     if (recentMemory.Length > 300)
                         recentMemory = recentMemory[^300..];
-                    extraParts.Add($"[记忆]\n{recentMemory}");
+                    _conversationHistory.Add(new ChatMessage { Role = "system", Content = $"[记忆]\n{recentMemory}" });
                 }
 
-                if (extraParts.Count > 0)
+                // 3. 项目上下文（音乐库，变化频率略高于记忆）
+                if (!string.IsNullOrEmpty(libraryContent))
                 {
-                    systemPrompt += "\n\n" + string.Join("\n\n", extraParts);
+                    if (libraryContent.Length > 600)
+                        libraryContent = libraryContent[..600] + "..";
+                    _conversationHistory.Add(new ChatMessage { Role = "system", Content = $"[音乐库]\n{libraryContent}" });
                 }
             }
             catch { }
-
-            _conversationHistory.Add(new ChatMessage { Role = "system", Content = systemPrompt });
         }
 
         _conversationHistory.Add(new ChatMessage { Role = "user", Content = userMessage });
@@ -243,7 +240,9 @@ public class AgentService : IAgentService
 
         TrimConversationHistory();
 
-        const int maxToolRounds = 5;
+        // 执行轮数上限只认全局设置，0表示不限
+        int maxToolRounds = ConfigStorage.GetInt(AgentRunSettings.KeyMaxToolRounds, AgentRunSettings.DefaultMaxToolRounds);
+        if (maxToolRounds <= 0) maxToolRounds = int.MaxValue;
 
         for (int round = 0; round < maxToolRounds; round++)
         {
@@ -390,14 +389,14 @@ public class AgentService : IAgentService
     {
         if (_conversationHistory.Count <= 12) return;
 
-        var systemMsg = _conversationHistory.FirstOrDefault(m => m.Role == "system");
+        var systemMsgs = _conversationHistory.Where(m => m.Role == "system").ToList();
         var recent = _conversationHistory
             .Where(m => m.Role != "system")
             .TakeLast(10)
             .ToList();
 
         _conversationHistory.Clear();
-        if (systemMsg != null) _conversationHistory.Add(systemMsg);
+        _conversationHistory.AddRange(systemMsgs);
         _conversationHistory.AddRange(recent);
     }
 
@@ -459,6 +458,32 @@ public class AgentService : IAgentService
     {
         ConfigStorage.SetString("current_agent_id", agentId);
     }
+
+    // ─── Agent 全局运行设置 ───
+
+    /// <summary>获取执行轮数上限（0=不限）</summary>
+    public static int GetMaxToolRounds()
+        => ConfigStorage.GetInt(AgentRunSettings.KeyMaxToolRounds, AgentRunSettings.DefaultMaxToolRounds);
+
+    /// <summary>设置执行轮数上限（0=不限）</summary>
+    public static void SetMaxToolRounds(int value)
+        => ConfigStorage.SetInt(AgentRunSettings.KeyMaxToolRounds, value);
+
+    /// <summary>获取规划轮数上限（0=不限）</summary>
+    public static int GetMaxPlanRounds()
+        => ConfigStorage.GetInt(AgentRunSettings.KeyMaxPlanRounds, AgentRunSettings.DefaultMaxPlanRounds);
+
+    /// <summary>设置规划轮数上限（0=不限）</summary>
+    public static void SetMaxPlanRounds(int value)
+        => ConfigStorage.SetInt(AgentRunSettings.KeyMaxPlanRounds, value);
+
+    /// <summary>获取全局推理力度</summary>
+    public static string GetReasoningEffort()
+        => ConfigStorage.GetString(AgentRunSettings.KeyReasoningEffort, AgentRunSettings.DefaultReasoningEffort) ?? AgentRunSettings.DefaultReasoningEffort;
+
+    /// <summary>设置全局推理力度</summary>
+    public static void SetReasoningEffort(string value)
+        => ConfigStorage.SetString(AgentRunSettings.KeyReasoningEffort, value);
 
     /// <summary>截断字符串到指定长度，超出部分以 "..." 结尾（用于日志输出）</summary>
     /// <param name="s">原字符串</param>

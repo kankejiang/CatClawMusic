@@ -1,3 +1,5 @@
+using SQLite;
+
 namespace CatClawMusic.Core.Models;
 
 // ── LLM 对话模型（被 Core/Interfaces 和 Core/Services/AI 共享）──
@@ -22,6 +24,23 @@ public class ChatMessage
 
     /// <summary>上下文关联的歌曲列表（用于将本地歌曲信息附加到消息中）</summary>
     public List<Song>? Songs { get; set; }
+}
+
+/// <summary>聊天记录持久化模型，对应 SQLite 表 ChatMessageRecord</summary>
+public class ChatMessageRecord
+{
+    /// <summary>自增主键</summary>
+    [SQLite.PrimaryKey, SQLite.AutoIncrement]
+    public int Id { get; set; }
+
+    /// <summary>消息角色（user/assistant/system/tool）</summary>
+    public string Role { get; set; } = "user";
+
+    /// <summary>消息文本内容</summary>
+    public string Content { get; set; } = "";
+
+    /// <summary>消息时间戳（UTC）</summary>
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>LLM 发起的一次工具调用</summary>

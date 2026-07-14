@@ -25,13 +25,25 @@
                         </VerticalStackLayout>
                         <HorizontalStackLayout Grid.Column="1" Spacing="10" VerticalOptions="Center">
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton Source="ic_search" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked" />
+                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked">
+                                    <ImageButton.Source>
+                                        <AppThemeBinding Light="ic_search_light" Dark="ic_search" />
+                                    </ImageButton.Source>
+                                </ImageButton>
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton Source="ic_refresh" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked" />
+                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked">
+                                    <ImageButton.Source>
+                                        <AppThemeBinding Light="ic_refresh_light" Dark="ic_refresh" />
+                                    </ImageButton.Source>
+                                </ImageButton>
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton Source="ic_settings" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked" />
+                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked">
+                                    <ImageButton.Source>
+                                        <AppThemeBinding Light="ic_settings_light" Dark="ic_settings" />
+                                    </ImageButton.Source>
+                                </ImageButton>
                             </Border>
                         </HorizontalStackLayout>
                     </Grid>
@@ -44,62 +56,11 @@
                         </Grid>
                     </Border>
 
-                    <!-- AI 助手入口卡：搜索框打开且未输入内容时显示 -->
-                    <Border x:Name="AiEntryCard"
-                            Margin="18,0,18,10"
-                            Padding="16,14"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 16"
-                            IsVisible="False">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnAiEntryTapped" />
-                        </Border.GestureRecognizers>
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                <GradientStop Color="#667eea" Offset="0" />
-                                <GradientStop Color="#764ba2" Offset="1" />
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Border WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" StrokeThickness="0" Padding="0">
-                                <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="42" HeightRequest="42" />
-                            </Border>
-                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
-                                <Label Text="🐾 和 Yuki 聊聊" FontSize="15" FontAttributes="Bold" TextColor="White" />
-                                <Label Text="帮你找歌、推荐、聊天都可以" FontSize="11" TextColor="#CCFFFFFF" />
-                            </VerticalStackLayout>
-                            <Label Grid.Column="2" Text="›" FontSize="22" TextColor="#CCFFFFFF" VerticalOptions="Center" />
-                        </Grid>
-                    </Border>
-
                     <Border Margin="18,0,18,10" Padding="0" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding ShowSearchResults}">
                         <ScrollView MaximumHeightRequest="380">
                             <VerticalStackLayout Spacing="0">
-                                <VerticalStackLayout IsVisible="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}}">
-                                    <Label Text="歌曲" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,12,16,4" />
-                                    <CollectionView ItemsSource="{Binding SearchResults}" SelectionMode="Single" SelectionChanged="OnSearchResultSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
-                                        <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
-                                        <CollectionView.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Padding="14,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                                                    <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 8" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
-                                                        <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
-                                                    </Border>
-                                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
-                                                        <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
-                                                        <Label FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1">
-                                                            <Label.Text><MultiBinding StringFormat="{}{0} · {1}"><Binding Path="Artist" TargetNullValue="未知艺术家" /><Binding Path="Album" TargetNullValue="未知专辑" /></MultiBinding></Label.Text>
-                                                        </Label>
-                                                    </VerticalStackLayout>
-                                                    <Label Grid.Column="2" Text="{Binding Duration, Converter={StaticResource DurationConverter}}" FontSize="11" TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </CollectionView.ItemTemplate>
-                                    </CollectionView>
-                                </VerticalStackLayout>
                                 <VerticalStackLayout IsVisible="{Binding SearchArtistResults.Count, Converter={StaticResource CountToBoolConverter}}">
-                                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,4" />
-                                    <Label Text="歌手" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,8,16,4" />
+                                    <Label Text="歌手" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,12,16,4" />
                                     <CollectionView ItemsSource="{Binding SearchArtistResults}" SelectionMode="Single" SelectionChanged="OnSearchArtistSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchArtistResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
                                         <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                                         <CollectionView.ItemTemplate>
@@ -134,6 +95,29 @@
                                                             <Label.Text><MultiBinding StringFormat="{}{0} · {1}"><Binding Path="ArtistName" TargetNullValue="未知艺术家" /><Binding Path="Subtitle" /></MultiBinding></Label.Text>
                                                         </Label>
                                                     </VerticalStackLayout>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </CollectionView.ItemTemplate>
+                                    </CollectionView>
+                                </VerticalStackLayout>
+                                <VerticalStackLayout IsVisible="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}}">
+                                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,4" />
+                                    <Label Text="歌曲" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,8,16,4" />
+                                    <CollectionView ItemsSource="{Binding SearchResults}" SelectionMode="Single" SelectionChanged="OnSearchResultSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                                        <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                                        <CollectionView.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Padding="14,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                                    <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 8" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                                        <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
+                                                    </Border>
+                                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                                                        <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                                        <Label FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1">
+                                                            <Label.Text><MultiBinding StringFormat="{}{0} · {1}"><Binding Path="Artist" TargetNullValue="未知艺术家" /><Binding Path="Album" TargetNullValue="未知专辑" /></MultiBinding></Label.Text>
+                                                        </Label>
+                                                    </VerticalStackLayout>
+                                                    <Label Grid.Column="2" Text="{Binding Duration, Converter={StaticResource DurationConverter}}" FontSize="11" TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
                                                 </Grid>
                                             </DataTemplate>
                                         </CollectionView.ItemTemplate>
@@ -219,6 +203,33 @@
                         </CarouselView>
                         <IndicatorView x:Name="HeroIndicator" Margin="0,0,0,16" IndicatorColor="#50FFFFFF" SelectedIndicatorColor="White" IndicatorsShape="Circle" HorizontalOptions="Center" />
 
+                        <!-- AI 助手入口卡：位于轮播卡片下方，点击进入 AI 聊天模式 -->
+                        <Border x:Name="AiEntryCard"
+                                Margin="18,0,18,16"
+                                Padding="16,14"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 16">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnAiEntryTapped" />
+                            </Border.GestureRecognizers>
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#667eea" Offset="0" />
+                                    <GradientStop Color="#764ba2" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <Border WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" StrokeThickness="0" Padding="0">
+                                    <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="42" HeightRequest="42" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                    <Label Text="🐾 和 Yuki 聊聊" FontSize="15" FontAttributes="Bold" TextColor="White" />
+                                    <Label Text="帮你找歌、推荐、聊天都可以" FontSize="11" TextColor="#CCFFFFFF" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2" Text="›" FontSize="22" TextColor="#CCFFFFFF" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+
                         <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
                             <Label Text="每日推荐" Style="{StaticResource SectionTitleStyle}" />
                             <Button Grid.Column="1" Text="换一批 ↻" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnShuffleDailyClicked" />
@@ -245,7 +256,7 @@
 
                         <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
                             <Label Text="推荐艺人" Style="{StaticResource SectionTitleStyle}" />
-                            <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" />
+                            <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnViewAllArtistsClicked" />
                         </Grid>
                         <CollectionView x:Name="ArtistsList" Margin="18,0,18,16" HeightRequest="140" ItemsSource="{Binding Artists}" SelectionMode="Single" SelectionChanged="OnArtistSelected" ItemsUpdatingScrollMode="KeepItemsInView">
                             <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
@@ -269,7 +280,7 @@
                         <VerticalStackLayout Spacing="0" Margin="0,0,0,16">
                             <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
                                 <Label Text="最多播放" Style="{StaticResource SectionTitleStyle}" />
-                                <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" />
+                                <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnViewAllTopPlayedClicked" />
                             </Grid>
                             <CollectionView x:Name="TopPlayedList" Margin="18,0,18,16" ItemsSource="{Binding TopPlayedSongs}" SelectionMode="Single" SelectionChanged="OnTopPlayedSongSelected" ItemsUpdatingScrollMode="KeepItemsInView">
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
@@ -302,7 +313,7 @@
 
                             <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
                                 <Label Text="我的最爱 ★" Style="{StaticResource SectionTitleStyle}" />
-                                <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" />
+                                <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnViewAllFavoritesClicked" />
                             </Grid>
                             <CollectionView x:Name="FavoriteList" Margin="18,0,18,16" ItemsSource="{Binding FavoriteSongs}" SelectionMode="Single" SelectionChanged="OnFavoriteSongSelected" ItemsUpdatingScrollMode="KeepItemsInView">
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
@@ -338,7 +349,7 @@
                     <VerticalStackLayout x:Name="PanelArtist" IsVisible="{Binding CurrentCategory, Converter={StaticResource IntToBoolConverter}, ConverterParameter=2}" Spacing="0">
                         <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
                             <Label Text="推荐歌手" Style="{StaticResource SectionTitleStyle}" />
-                            <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" />
+                            <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnViewAllArtistsClicked" />
                         </Grid>
                         <CollectionView x:Name="ArtistGrid" Margin="18,0,18,16" ItemsSource="{Binding Artists}" SelectionMode="Single" SelectionChanged="OnArtistSelected" ItemsUpdatingScrollMode="KeepItemsInView">
                             <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
@@ -363,7 +374,7 @@
                         </Grid>
                         <Label Text="从你的曲库里随机挑出的专辑 · 帮你重新发现" FontSize="11.5" TextColor="{DynamicResource TextHintColor}" Margin="20,0,20,10" />
                         <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
-                            <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" />
+                            <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnViewAllAlbumsClicked" />
                         </Grid>
                         <CollectionView x:Name="AlbumGrid" Margin="18,0,18,16" ItemsSource="{Binding Albums}" SelectionMode="Single" SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView">
                             <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
@@ -396,7 +407,7 @@
         <Grid x:Name="ChatOverlay"
               IsVisible="{Binding IsChatMode}"
               Background="{DynamicResource PageBackgroundBrush}"
-              RowDefinitions="Auto,*,Auto">
+              RowDefinitions="Auto,*,Auto,Auto">
 
             <Grid Grid.Row="0" Margin="16,10,16,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <controls:BackButton x:Name="ChatBackButton"
@@ -420,7 +431,9 @@
             <CollectionView x:Name="ChatMessagesList"
                             Grid.Row="1" Margin="12,0,12,0"
                             ItemsSource="{Binding ChatMessages}"
-                            ItemsUpdatingScrollMode="KeepLastItemInView">
+                            SelectionMode="None"
+                            ItemsUpdatingScrollMode="KeepLastItemInView"
+                            Scrolled="OnChatMessagesScrolled">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
@@ -429,24 +442,30 @@
                                     WidthRequest="36" HeightRequest="36"
                                     StrokeThickness="0" StrokeShape="RoundRectangle 18"
                                     IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}"
-                                    VerticalOptions="End">
+                                    VerticalOptions="Start" Margin="0,2,0,0">
                                 <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
                             </Border>
-                            <BoxView Grid.Column="0" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}" />
 
-                            <!-- 消息气泡 -->
+                            <!-- 占位（对方消息时空，自己消息时让气泡靠右） -->
+                            <BoxView Grid.Column="0" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}" Color="Transparent" />
+
+                            <!-- 消息气泡：位于中间列，根据角色左/右对齐 -->
                             <Border Grid.Column="1"
                                     Padding="14,10"
                                     StrokeThickness="0"
                                     MaximumWidthRequest="280"
                                     StrokeShape="RoundRectangle 18"
                                     BackgroundColor="{Binding Role, Converter={StaticResource ChatBubbleColorConverter}}"
-                                    HorizontalOptions="{Binding Role, Converter={StaticResource ChatBubbleAlignmentConverter}}">
+                                    HorizontalOptions="{Binding Role, Converter={StaticResource ChatBubbleAlignmentConverter}}"
+                                    VerticalOptions="Start">
                                 <Label Text="{Binding Content}"
                                        FontSize="14"
                                        TextColor="White"
                                        LineBreakMode="WordWrap" />
                             </Border>
+
+                            <!-- 占位（自己消息时空，对方消息时让气泡靠左） -->
+                            <BoxView Grid.Column="2" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}" Color="Transparent" />
 
                             <!-- 用户头像（右）：user 消息显示 -->
                             <Border Grid.Column="2"
@@ -454,19 +473,82 @@
                                     StrokeThickness="0" StrokeShape="RoundRectangle 18"
                                     BackgroundColor="{DynamicResource PrimaryColor}"
                                     IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}"
-                                    VerticalOptions="End">
+                                    VerticalOptions="Start" Margin="0,2,0,0">
                                 <Label Text="👤"
                                        FontSize="18"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center" />
                             </Border>
-                            <BoxView Grid.Column="2" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <Border Grid.Row="2" Margin="12,10,12,14"
+            <!-- 思考过程小窗口：思考中或有步骤时显示，点击展开/折叠 -->
+            <Border Grid.Row="2" Margin="12,4,12,0"
+                    Padding="14,10"
+                    StrokeThickness="1"
+                    Stroke="{DynamicResource GlassStrokeColor}"
+                    StrokeShape="RoundRectangle 14"
+                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                    IsVisible="{Binding HasThinkingSteps}"
+                    InputTransparent="False">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ToggleThinkingCommand}" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <!-- 思考中动画指示器 -->
+                    <ActivityIndicator Grid.Column="0"
+                                       IsRunning="{Binding IsAgentThinking}"
+                                       IsVisible="{Binding IsAgentThinking}"
+                                       Color="{DynamicResource PrimaryColor}"
+                                       WidthRequest="16" HeightRequest="16" />
+                    <Label Grid.Column="0"
+                           Text="✓"
+                           FontSize="14"
+                           TextColor="{DynamicResource PrimaryColor}"
+                           IsVisible="{Binding IsAgentThinking, Converter={StaticResource InvertedBoolConverter}}"
+                           VerticalOptions="Center"
+                           WidthRequest="16"
+                           HorizontalTextAlignment="Center" />
+                    <Label Grid.Column="1"
+                           Text="{Binding ThinkingSummary}"
+                           FontSize="12"
+                           TextColor="{DynamicResource TextSecondaryColor}"
+                           VerticalOptions="Center"
+                           LineBreakMode="TailTruncation" />
+                    <Label Grid.Column="2"
+                           Text="▲"
+                           FontSize="10"
+                           TextColor="{DynamicResource TextHintColor}"
+                           VerticalOptions="Center"
+                           IsVisible="{Binding IsThinkingExpanded}" />
+                    <Label Grid.Column="2"
+                           Text="▼"
+                           FontSize="10"
+                           TextColor="{DynamicResource TextHintColor}"
+                           VerticalOptions="Center"
+                           IsVisible="{Binding IsThinkingExpanded, Converter={StaticResource InvertedBoolConverter}}" />
+                </Grid>
+            </Border>
+
+            <!-- 思考过程展开详情 -->
+            <CollectionView Grid.Row="2"
+                            Margin="12,56,12,0"
+                            MaximumHeightRequest="200"
+                            IsVisible="{Binding IsThinkingExpanded}"
+                            ItemsSource="{Binding ThinkingSteps}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Label Text="{Binding}"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextHintColor}"
+                               Padding="14,4" />
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Border Grid.Row="3" Margin="12,10,12,14"
                     Style="{StaticResource GlassInputStyle}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <Entry x:Name="ChatInputBox"

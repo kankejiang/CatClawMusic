@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services.AI;
+using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -15,6 +16,7 @@ public partial class AiSettingsViewModel : ObservableObject
     private readonly IAgentService _agentService;
     private readonly ILlmClient _llmClient;
     private readonly IAgentConfigStorage _configStorage;
+    private readonly ChatMemoryService _chatMemoryService;
 
     /// <summary>可选的 LLM 提供商列表</summary>
     public ObservableCollection<LlmProviderInfo> Providers { get; } = new();
@@ -97,20 +99,55 @@ public partial class AiSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _configuredStatus = "未配置";
 
+    /// <summary>当前配置名称</summary>
+    [ObservableProperty]
+    private string _currentConfigName = "";
+
+    /// <summary>当前提供商显示名称</summary>
+    [ObservableProperty]
+    private string _currentProviderName = "";
+
+    /// <summary>当前模型名称</summary>
+    [ObservableProperty]
+    private string _currentModel = "";
+
+    /// <summary>当前 API URL</summary>
+    [ObservableProperty]
+    private string _currentApiUrl = "";
+
+    /// <summary>是否存在已配置的当前模型</summary>
+    [ObservableProperty]
+    private bool _hasCurrentConfig;
+
+    /// <summary>长期记忆内容</summary>
+    [ObservableProperty]
+    private string _memoryContent = "";
+
+    /// <summary>回退模型列表</summary>
+    [ObservableProperty]
+    private ObservableCollection<LlmConfig> _fallbackConfigs = new();
+
+    /// <summary>是否存在回退模型</summary>
+    [ObservableProperty]
+    private bool _hasFallbackConfigs;
+
     /// <summary>
     /// 初始化 <see cref="AiSettingsViewModel"/> 实例，并填充可选提供商列表。
     /// </summary>
     /// <param name="agentService">Agent 服务，用于读取/切换默认 Agent</param>
     /// <param name="llmClient">LLM 客户端，用于连接测试</param>
     /// <param name="configStorage">Agent 配置存储</param>
+    /// <param name="chatMemoryService">聊天长期记忆服务</param>
     public AiSettingsViewModel(
         IAgentService agentService,
         ILlmClient llmClient,
-        IAgentConfigStorage configStorage)
+        IAgentConfigStorage configStorage,
+        ChatMemoryService chatMemoryService)
     {
         _agentService = agentService;
         _llmClient = llmClient;
         _configStorage = configStorage;
+        _chatMemoryService = chatMemoryService;
 
         foreach (var p in LlmProviderInfo.GetAll())
             Providers.Add(p);
@@ -120,6 +157,8 @@ public partial class AiSettingsViewModel : ObservableObject
     public void OnAppearing()
     {
         LoadConfig();
+        LoadFallbackConfigs();
+        LoadMemoryContent();
         RefreshConfiguredStatus();
     }
 
@@ -142,10 +181,67 @@ public partial class AiSettingsViewModel : ObservableObject
 
             RefreshPresetModels();
             CurrentAgentName = _agentService.GetCurrentAgent()?.Name ?? "Yuki";
+
+            // 填充 Dashboard 展示属性
+            CurrentConfigName = string.IsNullOrWhiteSpace(config.Name) ? "默认配置" : config.Name;
+            CurrentProviderName = GetProviderDisplayName(config.Provider);
+            CurrentModel = config.Model;
+            CurrentApiUrl = config.ApiUrl;
+            HasCurrentConfig = !string.IsNullOrWhiteSpace(config.ApiUrl)
+                               && !string.IsNullOrWhiteSpace(config.ApiKey);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[AiSettings] LoadConfig 失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>根据提供商 ID 获取显示名称</summary>
+    private static string GetProviderDisplayName(string providerId)
+    {
+        var provider = LlmProviderInfo.GetAll().FirstOrDefault(p => p.Id == providerId);
+        return provider?.Name ?? (string.IsNullOrWhiteSpace(providerId) ? "自定义" : providerId);
+    }
+
+    /// <summary>加载回退模型列表（排除当前配置，仅保留 FallbackEnabled=true 的）</summary>
+    private void LoadFallbackConfigs()
+    {
+        FallbackConfigs.Clear();
+        try
+        {
+            var currentName = AgentService.GetCurrentConfigName();
+            var allConfigs = AgentService.LoadAllConfigs();
+            foreach (var c in allConfigs.Where(c => c.FallbackEnabled && c.Name != currentName))
+                FallbackConfigs.Add(c);
+            HasFallbackConfigs = FallbackConfigs.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AiSettings] LoadFallbackConfigs 失败: {ex.Message}");
+            HasFallbackConfigs = false;
+        }
+    }
+
+    /// <summary>加载长期记忆内容</summary>
+    private void LoadMemoryContent()
+    {
+        MemoryContent = ChatMemoryService.LoadMemory();
+    }
+
+    /// <summary>IsEnabled 变化时自动持久化到当前配置</summary>
+    partial void OnIsEnabledChanged(bool value)
+    {
+        try
+        {
+            var config = AgentService.LoadConfig();
+            if (config.Enabled == value) return;
+            config.Enabled = value;
+            AgentService.SaveConfig(config);
+            RefreshConfiguredStatus();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AiSettings] 保存 Enabled 失败: {ex.Message}");
         }
     }
 
@@ -371,6 +467,72 @@ public partial class AiSettingsViewModel : ObservableObject
     public void CloseModelPicker()
     {
         IsModelPickerVisible = false;
+    }
+
+    /// <summary>导航到模型管理页面</summary>
+    [RelayCommand]
+    private async Task ManageModelsAsync()
+    {
+        try
+        {
+            await Shell.Current.GoToAsync("settings/modelmanager");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AiSettings] 导航模型管理失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>添加一条长期记忆（弹出输入框）</summary>
+    [RelayCommand]
+    private async Task AddMemoryAsync()
+    {
+        try
+        {
+            string? input = null;
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                if (Application.Current?.MainPage is Page page)
+                    input = await page.DisplayPromptAsync("添加记忆", "请输入要长期记住的内容：", "确定", "取消", maxLength: 500);
+            });
+
+            if (string.IsNullOrWhiteSpace(input)) return;
+
+            await _chatMemoryService.AppendImportantMemoryAsync(input);
+            LoadMemoryContent();
+            await ToastAsync("记忆已添加");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AiSettings] 添加记忆失败: {ex.Message}");
+            await ToastAsync($"添加失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>清空所有长期记忆（带确认弹窗）</summary>
+    [RelayCommand]
+    private async Task ClearMemoryAsync()
+    {
+        try
+        {
+            var confirm = false;
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                if (Application.Current?.MainPage is Page page)
+                    confirm = await page.DisplayAlert("确认", "确定要清空所有长期记忆吗？此操作不可撤销。", "清空", "取消");
+            });
+
+            if (!confirm) return;
+
+            await _chatMemoryService.ClearMemoryAsync();
+            LoadMemoryContent();
+            await ToastAsync("记忆已清空");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AiSettings] 清空记忆失败: {ex.Message}");
+            await ToastAsync($"清空失败：{ex.Message}");
+        }
     }
 
     private static async Task ToastAsync(string message)

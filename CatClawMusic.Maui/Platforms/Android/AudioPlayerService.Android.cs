@@ -15,6 +15,12 @@ public partial class AudioPlayerService
     private SimpleExoPlayer? _player;
     /// <summary>当前音量（0.0 ~ 1.0）</summary>
     private float _volume = 1.0f;
+    /// <summary>标记全局 Authenticator 是否已注册（仅注册一次）</summary>
+    private static bool _authenticatorRegistered;
+    /// <summary>当前播放歌曲的 Basic Auth 用户名（从 URL userinfo 提取）</summary>
+    private static string? _currentAuthUser;
+    /// <summary>当前播放歌曲的 Basic Auth 密码（从 URL userinfo 提取）</summary>
+    private static string? _currentAuthPass;
     /// <summary>ExoPlayer 是否已进入 STATE_READY/STATE_ENDED 状态（即 Prepare 完成）</summary>
     private volatile bool _isPrepared;
     /// <summary>由 ExoPlayerListener 维护的真实播放状态，避免依赖 .NET 绑定的 IsPlaying 属性</summary>
@@ -110,6 +116,15 @@ public partial class AudioPlayerService
         if (_player != null) return _player;
 
         var ctx = _androidContext ?? global::Android.App.Application.Context;
+
+        // 注册全局 Authenticator，让 HttpURLConnection 在收到 401 时从 URL 的 userinfo 提取认证信息
+        // ExoPlayer 的 DefaultHttpDataSource 内部使用 HttpURLConnection，不解析 URL 中的 user:pass@
+        if (!_authenticatorRegistered)
+        {
+            Java.Net.Authenticator.SetDefault(new WebDavAuthenticator());
+            _authenticatorRegistered = true;
+        }
+
         _player = new SimpleExoPlayer.Builder(ctx).Build();
         _player.Volume = _volume;
         _player.RepeatMode = 0; // REPEAT_MODE_OFF
@@ -153,6 +168,37 @@ public partial class AudioPlayerService
         _cachedPositionMs = 0;
         _lastSeekTicks = 0;
         _currentPath = source.ToString();
+
+        // 从 URL userinfo (user:pass@host) 提取 Basic Auth 凭证，供全局 Authenticator 使用
+        // ExoPlayer 的 DefaultHttpDataSource 不解析 URL userinfo，需通过 Authenticator 在 401 时提供
+        try
+        {
+            var userInfo = source.UserInfo;
+            if (!string.IsNullOrEmpty(userInfo))
+            {
+                var parts = userInfo.Split(':');
+                if (parts.Length >= 2)
+                {
+                    _currentAuthUser = Uri.UnescapeDataString(parts[0]);
+                    _currentAuthPass = Uri.UnescapeDataString(parts[1]);
+                }
+                else
+                {
+                    _currentAuthUser = null;
+                    _currentAuthPass = null;
+                }
+            }
+            else
+            {
+                _currentAuthUser = null;
+                _currentAuthPass = null;
+            }
+        }
+        catch
+        {
+            _currentAuthUser = null;
+            _currentAuthPass = null;
+        }
 
         try
         {
@@ -698,12 +744,8 @@ public partial class AudioPlayerService
     {
         var ctx = _androidContext ?? global::Android.App.Application.Context;
 
-        // Android 13+ 必须在运行时授予 POST_NOTIFICATIONS，否则 StartForeground 会抛 SecurityException，
-        // 导致整个播放通知（含媒体控件）都不显示。在启动前台服务前尽量申请该权限（失败不影响播放流程）。
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
-        {
-            _ = Microsoft.Maui.ApplicationModel.MainThread.InvokeOnMainThreadAsync(RequestNotificationPermissionAsync);
-        }
+        // Android 13+ 必须在运行时授予 POST_NOTIFICATIONS，否则 StartForeground 会抛 SecurityException
+        _ = Microsoft.Maui.ApplicationModel.MainThread.InvokeOnMainThreadAsync(RequestNotificationPermissionAsync);
 
         try { ForegroundPlayerService.Start(ctx, _currentTitle, _currentArtist); }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AudioPlayer] FG start: {ex.Message}"); }
@@ -890,6 +932,31 @@ public partial class AudioPlayerService
         {
             source.Recycle();
             return null;
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // WebDAV HTTP 认证
+    // ═══════════════════════════════════════
+
+    /// <summary>
+    /// 全局 Authenticator，向 HttpURLConnection 提供 Basic Auth 凭证。
+    /// ExoPlayer 的 DefaultHttpDataSource 内部使用 HttpURLConnection，
+    /// 后者默认不解析 URL 中的 userinfo，需通过 Authenticator 在 401 时提供凭证。
+    /// 凭证由 PlayInternalAsync 从当前播放 URL 的 userinfo 提取并写入静态字段。
+    /// 仅当静态字段非空时返回凭证，不影响其他 HTTP 请求。
+    /// </summary>
+    private sealed class WebDavAuthenticator : Java.Net.Authenticator
+    {
+        protected override Java.Net.PasswordAuthentication? PasswordAuthentication
+        {
+            get
+            {
+                var user = _currentAuthUser;
+                var pass = _currentAuthPass;
+                if (string.IsNullOrEmpty(user) || pass == null) return null;
+                return new Java.Net.PasswordAuthentication(user, pass.ToCharArray());
+            }
         }
     }
 }

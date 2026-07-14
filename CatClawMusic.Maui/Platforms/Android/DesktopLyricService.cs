@@ -282,9 +282,7 @@ public class DesktopLyricService : IDesktopLyricService
         _layoutParams = new WindowManagerLayoutParams(
             ViewGroup.LayoutParams.MatchParent,
             ViewGroup.LayoutParams.WrapContent,
-            Build.VERSION.SdkInt >= BuildVersionCodes.O
-                ? WindowManagerTypes.ApplicationOverlay
-                : WindowManagerTypes.Phone,
+            WindowManagerTypes.ApplicationOverlay,
             WindowManagerFlags.NotFocusable | WindowManagerFlags.NotTouchModal | WindowManagerFlags.LayoutNoLimits,
             Format.Rgba8888)
         {

@@ -114,6 +114,7 @@ public class MusicDatabase
             await _database.CreateTableAsync<CachedSong>();
             await _database.CreateTableAsync<SongArtist>();
             await _database.CreateTableAsync<MigrationFlag>();
+            await _database.CreateTableAsync<ChatMessageRecord>();
 
             await CreateIndexesAsync();
 
@@ -219,6 +220,8 @@ public class MusicDatabase
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_source ON Songs(Source)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_protocol ON Songs(Protocol)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_source_protocol ON Songs(Source, Protocol)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_filepath ON Songs(FilePath)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_songs_remoteid ON Songs(RemoteId)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_albums_artist ON Albums(ArtistId)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_play_history_time ON PlayHistory(PlayedAt DESC)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_song_artists_song ON SongArtists(SongId)"); } catch { }
@@ -2626,5 +2629,42 @@ public class MusicDatabase
         /// </summary>
         public int pk { get; set; }
     }
+
+    // ═══════════ ChatMessageRecord ═══════════
+
+    /// <summary>保存一条聊天记录到数据库</summary>
+    public async Task<int> SaveChatMessageAsync(ChatMessageRecord record)
+        => await _database.InsertAsync(record);
+
+    /// <summary>获取最近的聊天记录（按时间正序返回，即最旧的在前）</summary>
+    /// <param name="limit">返回条数</param>
+    /// <param name="beforeId">只加载此 Id 之前的记录（用于向上翻页加载更多），传0或null表示不限制</param>
+    public async Task<List<ChatMessageRecord>> GetRecentChatMessagesAsync(int limit, int? beforeId = null)
+    {
+        if (beforeId.HasValue && beforeId.Value > 0)
+        {
+            // 向上翻页：加载指定Id之前的记录
+            return await _database.Table<ChatMessageRecord>()
+                .Where(r => r.Id < beforeId.Value)
+                .OrderByDescending(r => r.Id)
+                .Take(limit)
+                .ToListAsync()
+                .ContinueWith(t => t.Result.AsEnumerable().Reverse().ToList());
+        }
+        // 首次加载：取最近N条
+        return await _database.Table<ChatMessageRecord>()
+            .OrderByDescending(r => r.Id)
+            .Take(limit)
+            .ToListAsync()
+            .ContinueWith(t => t.Result.AsEnumerable().Reverse().ToList());
+    }
+
+    /// <summary>获取聊天记录总数</summary>
+    public async Task<int> GetChatMessageCountAsync()
+        => await _database.Table<ChatMessageRecord>().CountAsync();
+
+    /// <summary>清空所有聊天记录</summary>
+    public async Task ClearChatMessagesAsync()
+        => await _database.DeleteAllAsync<ChatMessageRecord>();
 }
 

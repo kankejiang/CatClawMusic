@@ -250,6 +250,8 @@ public partial class NowPlayingViewModel : ObservableObject
         CyclePlayModeCommand = new RelayCommand(CyclePlayMode);
         ToggleLikeCommand = new AsyncRelayCommand(ToggleLikeAsync);
         SeekCommand = new RelayCommand<double>(OnSeek);
+        PlaySongFromQueueCommand = new AsyncRelayCommand<Song>(PlaySongFromQueueAsync);
+        RemoveSongFromQueueCommand = new AsyncRelayCommand<Song>(RemoveSongFromQueueAsync);
 
         if (_interactionState != null)
         {
@@ -266,9 +268,10 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         if (!isInteracting && _audioService.IsPlaying && !_isSeeking)
         {
+            // 使用播放器实时位置而非 Progress，因为用户滚动期间 Progress 未被更新
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                UpdateLyricPosition(TimeSpan.FromSeconds(Progress));
+                UpdateLyricPosition(TimeSpan.FromSeconds(_audioService.CurrentPosition));
             });
         }
     }
@@ -375,6 +378,10 @@ public partial class NowPlayingViewModel : ObservableObject
     public IRelayCommand ToggleLikeCommand { get; }
     /// <summary>进度跳转命令，参数为目标位置（秒）</summary>
     public RelayCommand<double> SeekCommand { get; }
+    /// <summary>从播放队列中选择一首歌播放</summary>
+    public IAsyncRelayCommand<Song> PlaySongFromQueueCommand { get; }
+    /// <summary>从播放队列中移除一首歌</summary>
+    public IAsyncRelayCommand<Song> RemoveSongFromQueueCommand { get; }
 
     private void OnPlaybackStateChanged(object? sender, bool isPlaying)
     {
@@ -490,6 +497,27 @@ public partial class NowPlayingViewModel : ObservableObject
         _queue.Previous();
         await LoadCurrentSongAsync();
     }
+
+    /// <summary>从播放队列中点选一首歌播放</summary>
+    private async Task PlaySongFromQueueAsync(Song? song)
+    {
+        if (song == null) return;
+        _queue.SelectSong(song.Id);
+        await LoadCurrentSongAsync();
+    }
+
+    /// <summary>从播放队列中移除一首歌。若移除的是当前歌曲则切换到下一首</summary>
+    private async Task RemoveSongFromQueueAsync(Song? song)
+    {
+        if (song == null) return;
+        var wasCurrent = _queue.CurrentSong?.Id == song.Id;
+        _queue.RemoveSong(song.Id);
+        if (wasCurrent)
+            await LoadCurrentSongAsync();
+    }
+
+    /// <summary>获取当前播放队列歌曲列表（供播放列表弹窗使用）</summary>
+    public IReadOnlyList<Song> GetQueueSongs() => _queue.GetSongs();
 
     // === Play Mode Cycling: ListRepeat → SingleRepeat → Shuffle → ListRepeat ===
 
@@ -880,14 +908,16 @@ public partial class NowPlayingViewModel : ObservableObject
             ct.ThrowIfCancellationRequested();
 
             // Android SAF content:// 路径、远程 http(s):// URL 和 smb://（通过本地代理转 http）：用 MediaMetadataRetriever.GetEmbeddedPicture() 提取
+            // 注意：WebDAV/SMB 协议的歌曲跳过此路径（MediaMetadataRetriever 无法处理带 user:pass@ 的 URL），改由步骤 6 处理
 #if ANDROID
             string? extractUri = null;
             if (song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
                 extractUri = song.FilePath;
             }
-            else if (song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            else if ((song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 || song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                && song.Protocol != ProtocolType.WebDAV && song.Protocol != ProtocolType.SMB)
             {
                 try
                 {
@@ -907,7 +937,8 @@ public partial class NowPlayingViewModel : ObservableObject
                     extractUri = song.FilePath;
                 }
             }
-            else if (song.FilePath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
+            else if (song.FilePath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase)
+                && song.Protocol != ProtocolType.SMB)
             {
                 var proxy = SmbStreamProxy.Current;
                 proxy?.Start();
@@ -984,6 +1015,41 @@ public partial class NowPlayingViewModel : ObservableObject
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[CoverArt] Navidrome旧数据封面获取失败: {ex.Message}");
+            }
+        }
+
+        // 6. WebDAV/SMB: 通过 INetworkMusicService 下载文件头并提取内嵌封面
+        // MediaMetadataRetriever.SetDataSource 无法处理带 user:pass@ 的 WebDAV URL，需走 NetworkMusicService
+        if (coverPath == null
+            && (song.Protocol == ProtocolType.WebDAV || song.Protocol == ProtocolType.SMB)
+            && !string.IsNullOrEmpty(song.RemoteId))
+        {
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                var networkSvc = MauiProgram.Services.GetService<INetworkMusicService>();
+                if (networkSvc != null)
+                {
+                    var profiles = await networkSvc.GetProfilesAsync();
+                    var profile = profiles.FirstOrDefault(p => p.Protocol == song.Protocol && p.IsEnabled);
+                    if (profile != null)
+                    {
+                        var stream = await networkSvc.GetCoverAsync(song.RemoteId, profile);
+                        if (stream != null)
+                        {
+                            var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+                            using (var fs = File.Create(cachedPath))
+                                await stream.CopyToAsync(fs, ct);
+                            stream.Dispose();
+                            coverPath = cachedPath;
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CoverArt] WebDAV/SMB 封面获取失败: {ex.Message}");
             }
         }
 
@@ -1130,6 +1196,17 @@ public partial class NowPlayingViewModel : ObservableObject
 
         _currentLyricIndex = newIndex;
 
+        // 智能删除空行开启时，若当前行为空行（被过滤），不更新 UI 显示索引，
+        // 保持上一句歌词的高亮位置不变，避免歌词向下回滚。
+        // 空行代表间奏/停顿，UI 应停留在上一句歌词等待下一句出现。
+        if (_originalToFilteredMap != null
+            && newIndex >= 0
+            && newIndex < _originalToFilteredMap.Length
+            && _originalToFilteredMap[newIndex] == -1)
+        {
+            return;
+        }
+
         // UI 显示使用过滤后列表和索引；预览行也基于过滤后列表，跳过空行
         var displayLines = _filteredLines ?? _currentLyrics.Lines;
         var displayIndex = MapOriginalToFiltered(newIndex);
@@ -1158,6 +1235,17 @@ public partial class NowPlayingViewModel : ObservableObject
         if (lineIndex < 0 || lineIndex >= _currentLyrics!.Lines.Count)
         {
             CurrentLineFillProgress = 0.0;
+            return;
+        }
+
+        // 智能删除空行开启时，若当前行为空行（被过滤），跳过填充进度更新，
+        // 保持上一句歌词的着色状态（1.0=完全填充），等待下一句非空行再继续着色。
+        // 这样可避免空行期间把上一句的 FillProgress 重置为 0 导致重复着色。
+        if (_originalToFilteredMap != null
+            && lineIndex < _originalToFilteredMap.Length
+            && _originalToFilteredMap[lineIndex] == -1)
+        {
+            CurrentLineFillProgress = 1.0;
             return;
         }
 
@@ -1214,13 +1302,28 @@ public partial class NowPlayingViewModel : ObservableObject
         }
     }
 
-    /// <summary>将原始歌词行索引映射为过滤后列表中的索引（-1 表示该行被过滤）</summary>
+    /// <summary>将原始歌词行索引映射为过滤后列表中的索引。
+    /// 若该行是空行被过滤，回退到最近的前一个非空行（空行代表停顿，前一行仍为当前歌词）。</summary>
     private int MapOriginalToFiltered(int originalIndex)
     {
         if (_originalToFilteredMap == null || originalIndex < 0 || originalIndex >= _originalToFilteredMap.Length)
             return originalIndex;
         var mapped = _originalToFilteredMap[originalIndex];
-        return mapped < 0 ? originalIndex : mapped;
+        if (mapped >= 0)
+            return mapped;
+        // 当前行是空行（被过滤），向前查找最近的可显示行
+        for (int i = originalIndex - 1; i >= 0; i--)
+        {
+            if (_originalToFilteredMap[i] >= 0)
+                return _originalToFilteredMap[i];
+        }
+        // 前面没有可显示行，向后查找
+        for (int i = originalIndex + 1; i < _originalToFilteredMap.Length; i++)
+        {
+            if (_originalToFilteredMap[i] >= 0)
+                return _originalToFilteredMap[i];
+        }
+        return -1;
     }
 
     /// <summary>

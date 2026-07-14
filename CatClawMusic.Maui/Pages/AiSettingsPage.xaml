@@ -3,37 +3,40 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
-             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.AiSettingsPage"
              Title="AI 设置"
+             Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid RowDefinitions="Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <controls:HeroCard Grid.Row="0">
-            <controls:HeroCard.CardContent>
-                <VerticalStackLayout Padding="44,0,0,0" Spacing="6">
-                    <Label Text="🤖 AI 设置"
-                           Style="{StaticResource PageTitleStyle}"
-                           TextColor="White" />
-                    <Label Text="配置 OpenAI 兼容的大语言模型，让 Yuki 帮你管理音乐库。"
-                           Style="{StaticResource PageSubtitleStyle}"
-                           TextColor="#F3F5FF" />
-                    <Label Text="{Binding ConfiguredStatus}"
-                           FontSize="12"
-                           TextColor="#B8C7FF" />
-                </VerticalStackLayout>
-            </controls:HeroCard.CardContent>
-        </controls:HeroCard>
+        <Grid.Behaviors>
+            <controls:SafeAreaPaddingBehavior />
+        </Grid.Behaviors>
+
+        <!-- 顶部栏：BackButton + 标题 -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto,*"
+              ColumnSpacing="10"
+              Padding="16,8,16,10">
+            <controls:BackButton VerticalOptions="Center" />
+            <Label Grid.Column="1"
+                   Text="AI 设置"
+                   FontSize="20"
+                   FontFamily="OpenSansSemibold"
+                   TextColor="{DynamicResource TextPrimaryColor}"
+                   VerticalOptions="Center" />
+        </Grid>
 
         <ScrollView Grid.Row="1">
-            <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
+            <VerticalStackLayout Padding="16,4,16,22" Spacing="14">
 
+                <!-- 卡片1：AI 助手开关 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <VerticalStackLayout Spacing="2">
-                            <Label Text="启用 AI 助手"
+                            <Label Text="AI 助手"
                                    FontSize="15"
                                    FontFamily="OpenSansSemibold"
                                    TextColor="{DynamicResource TextPrimaryColor}" />
@@ -48,241 +51,190 @@
                     </Grid>
                 </Border>
 
+                <!-- 卡片2：主对话模型 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="提供商"
-                               FontSize="16"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Picker Title="选择 LLM 提供商"
-                                ItemsSource="{Binding Providers}"
-                                ItemDisplayBinding="{Binding Name}"
-                                SelectedItem="{Binding SelectedProvider}"
-                                BackgroundColor="#22FFFFFF"
-                                TextColor="{DynamicResource TextPrimaryColor}"
-                                TitleColor="{DynamicResource TextSecondaryColor}" />
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border Style="{StaticResource GlassCardStyle}">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="API 配置"
-                               FontSize="16"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="{DynamicResource TextPrimaryColor}" />
-
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="Base URL"
-                                   FontSize="12"
-                                   TextColor="{DynamicResource TextSecondaryColor}" />
-                            <Entry Text="{Binding ApiUrl}"
-                                   Placeholder="https://api.deepseek.com/v1"
-                                   Keyboard="Url"
-                                   BackgroundColor="#22FFFFFF"
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Label Text="主对话模型"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
                                    TextColor="{DynamicResource TextPrimaryColor}"
-                                   PlaceholderColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="API Key"
-                                   FontSize="12"
-                                   TextColor="{DynamicResource TextSecondaryColor}" />
-                            <Entry Text="{Binding ApiKey}"
-                                   Placeholder="sk-..."
-                                   IsPassword="True"
-                                   BackgroundColor="#22FFFFFF"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   PlaceholderColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-
-                        <VerticalStackLayout Spacing="4">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <Label Text="模型名"
-                                       FontSize="12"
-                                       TextColor="{DynamicResource TextSecondaryColor}" />
-                                <Button Grid.Column="1"
-                                        Text="获取模型"
-                                        Command="{Binding FetchModelsCommand}"
-                                        FontSize="11"
-                                        HeightRequest="28"
-                                        CornerRadius="14"
-                                        Padding="10,0"
-                                        BackgroundColor="#33FFFFFF"
-                                        TextColor="{DynamicResource TextSecondaryColor}"
-                                        IsEnabled="{Binding IsFetchingModels, Converter={StaticResource InvertedBoolConverter}}" />
-                            </Grid>
-                            <Entry Text="{Binding Model}"
-                                   Placeholder="deepseek-chat"
-                                   BackgroundColor="#22FFFFFF"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   PlaceholderColor="{DynamicResource TextHintColor}" />
-                            <Label Text="{Binding FetchModelsResult}"
-                                   FontSize="11"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   IsVisible="{Binding FetchModelsResult, Converter={StaticResource StringToBoolConverter}}" />
-                            <Label Text="可选预设模型（点击填入）"
-                                   FontSize="11"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   IsVisible="{Binding PresetModels.Count, Converter={StaticResource IntToBoolConverter}}" />
-                            <FlexLayout Direction="Row" Wrap="Wrap" AlignItems="Start" JustifyContent="Start">
-                                <BindableLayout.ItemsSource>
-                                    <Binding Path="PresetModels" />
-                                </BindableLayout.ItemsSource>
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,6,6"
-                                                Padding="10,4"
-                                                Stroke="{DynamicResource GlassStrokeColor}"
-                                                StrokeShape="RoundRectangle 12"
-                                                BackgroundColor="#1AFFFFFF">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.UsePresetModelCommand}"
-                                                                      CommandParameter="{Binding .}" />
-                                            </Border.GestureRecognizers>
-                                            <Label Text="{Binding .}"
-                                                   FontSize="11"
-                                                   TextColor="{DynamicResource TextSecondaryColor}" />
-                                        </Border>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </FlexLayout>
-                            <Label Text="从 API 获取的模型（点击填入）"
-                                   FontSize="11"
-                                   TextColor="{DynamicResource PrimaryColor}"
-                                   IsVisible="{Binding IsModelPickerVisible}"
-                                   Margin="0,6,0,2" />
-                            <FlexLayout Direction="Row" Wrap="Wrap" AlignItems="Start" JustifyContent="Start"
-                                        IsVisible="{Binding IsModelPickerVisible}">
-                                <BindableLayout.ItemsSource>
-                                    <Binding Path="FetchedModels" />
-                                </BindableLayout.ItemsSource>
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,6,6"
-                                                Padding="10,4"
-                                                StrokeThickness="0"
-                                                StrokeShape="RoundRectangle 12"
-                                                BackgroundColor="{DynamicResource PrimaryColor}">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectFetchedModelCommand}"
-                                                                      CommandParameter="{Binding .}" />
-                                            </Border.GestureRecognizers>
-                                            <Label Text="{Binding .}"
-                                                   FontSize="11"
-                                                   TextColor="White" />
-                                        </Border>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </FlexLayout>
-                        </VerticalStackLayout>
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border Style="{StaticResource GlassCardStyle}">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="高级参数"
-                               FontSize="16"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="{DynamicResource TextPrimaryColor}" />
-
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                            <VerticalStackLayout Spacing="2">
-                                <Label Text="温度 (Temperature)"
-                                       FontSize="13"
-                                       TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="{Binding Temperature, StringFormat='{0:F2}'}"
-                                       FontSize="11"
-                                       TextColor="{DynamicResource TextHintColor}" />
-                            </VerticalStackLayout>
-                            <Slider Grid.Column="1"
-                                    Minimum="0" Maximum="2"
-                                    Value="{Binding Temperature}"
-                                    WidthRequest="180"
-                                    ThumbColor="{DynamicResource PrimaryColor}"
-                                    MinimumTrackColor="{DynamicResource PrimaryColor}"
+                                   VerticalOptions="Center" />
+                            <Button Grid.Column="1"
+                                    Text="管理"
+                                    Command="{Binding ManageModelsCommand}"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    TextColor="White"
+                                    CornerRadius="14"
+                                    HeightRequest="32"
+                                    Padding="14,0"
+                                    FontSize="12"
                                     VerticalOptions="Center" />
                         </Grid>
 
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                            <VerticalStackLayout Spacing="2">
-                                <Label Text="最大 Tokens"
+                        <!-- 已配置：显示概览 -->
+                        <VerticalStackLayout Spacing="6"
+                                             IsVisible="{Binding HasCurrentConfig}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Label Text="配置"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding CurrentConfigName}"
                                        FontSize="13"
                                        TextColor="{DynamicResource TextPrimaryColor}" />
-                            </VerticalStackLayout>
-                            <Entry Grid.Column="1"
-                                   Text="{Binding MaxTokens}"
-                                   Keyboard="Numeric"
-                                   WidthRequest="120"
-                                   BackgroundColor="#22FFFFFF"
-                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                        </Grid>
+                            </Grid>
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Label Text="提供商"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding CurrentProviderName}"
+                                       FontSize="13"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Label Text="模型"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding CurrentModel}"
+                                       FontSize="13"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Label Text="API URL"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding CurrentApiUrl}"
+                                       FontSize="13"
+                                       TextColor="{DynamicResource TextSecondaryColor}"
+                                       MaxLines="1"
+                                       LineBreakMode="MiddleTruncation" />
+                            </Grid>
+                        </VerticalStackLayout>
+
+                        <!-- 未配置提示 -->
+                        <Label Text="未配置，点击管理添加"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextHintColor}"
+                               IsVisible="{Binding HasCurrentConfig, Converter={StaticResource InvertedBoolConverter}}" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Style="{StaticResource GlassCardStyle}"
-                        IsVisible="{Binding TestResult, Converter={StaticResource StringToBoolConverter}}">
-                    <VerticalStackLayout Spacing="4">
-                        <Label Text="连接测试"
-                               FontSize="13"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Text="{Binding TestResult}"
-                               FontSize="13"
-                               TextColor="{Binding TestResultColor}" />
-                    </VerticalStackLayout>
-                </Border>
-
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                    <Button Grid.Column="0"
-                            Text="{Binding IsTesting, StringFormat='测试连接'}"
-                            Command="{Binding TestConnectionCommand}"
-                            BackgroundColor="#33FFFFFF"
-                            TextColor="White"
-                            CornerRadius="18"
-                            HeightRequest="46"
-                            FontSize="14"
-                            IsEnabled="{Binding IsTesting, Converter={StaticResource InvertedBoolConverter}}" />
-                    <Button Grid.Column="1"
-                            Text="{Binding IsSaving, StringFormat='保存配置'}"
-                            Command="{Binding SaveCommand}"
-                            BackgroundColor="{DynamicResource PrimaryColor}"
-                            TextColor="White"
-                            CornerRadius="18"
-                            HeightRequest="46"
-                            FontSize="14"
-                            IsEnabled="{Binding IsSaving, Converter={StaticResource InvertedBoolConverter}}" />
-                </Grid>
-
-                <Button Text="重置为默认值"
-                        Command="{Binding ResetToDefaultCommand}"
-                        BackgroundColor="Transparent"
-                        TextColor="{DynamicResource TextHintColor}"
-                        CornerRadius="16"
-                        HeightRequest="38"
-                        FontSize="12" />
-
+                <!-- 卡片3：回退模型 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="当前助手"
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="回退模型"
                                FontSize="16"
                                FontFamily="OpenSansSemibold"
                                TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Label Text="🐾" FontSize="22" VerticalOptions="Center" />
-                            <VerticalStackLayout Grid.Column="1" Spacing="2">
-                                <Label Text="{Binding CurrentAgentName}"
-                                       FontSize="14"
-                                       FontFamily="OpenSansSemibold"
-                                       TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="猫爪音乐内置小助手"
-                                       FontSize="11"
-                                       TextColor="{DynamicResource TextHintColor}" />
-                            </VerticalStackLayout>
-                        </Grid>
+
+                        <!-- 回退模型列表 -->
+                        <VerticalStackLayout Spacing="6"
+                                             IsVisible="{Binding HasFallbackConfigs}">
+                            <BindableLayout.ItemsSource>
+                                <Binding Path="FallbackConfigs" />
+                            </BindableLayout.ItemsSource>
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Padding="2,3">
+                                        <Label Text="{Binding Name}"
+                                               FontSize="13"
+                                               TextColor="{DynamicResource TextPrimaryColor}" />
+                                        <Label Grid.Column="1"
+                                               Text="{Binding Model}"
+                                               FontSize="12"
+                                               TextColor="{DynamicResource TextSecondaryColor}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+
+                        <!-- 空状态提示 -->
+                        <Label Text="未设置回退模型，主模型失败时将无法自动切换"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}"
+                               IsVisible="{Binding HasFallbackConfigs, Converter={StaticResource InvertedBoolConverter}}" />
+
+                        <Label Text="主模型请求失败时，将按顺序切换到这些回退模型"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextHintColor}"
+                               Margin="0,4,0,0" />
                     </VerticalStackLayout>
+                </Border>
+
+                <!-- 卡片4：长期记忆 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="长期记忆"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+
+                        <Editor Text="{Binding MemoryContent}"
+                                IsReadOnly="True"
+                                HeightRequest="200"
+                                BackgroundColor="#22FFFFFF"
+                                TextColor="{DynamicResource TextPrimaryColor}"
+                                FontSize="13"
+                                Placeholder="暂无长期记忆"
+                                PlaceholderColor="{DynamicResource TextHintColor}" />
+
+                        <HorizontalStackLayout Spacing="8">
+                            <Button Text="添加记忆"
+                                    Command="{Binding AddMemoryCommand}"
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    TextColor="White"
+                                    CornerRadius="16"
+                                    HeightRequest="38"
+                                    Padding="16,0"
+                                    FontSize="13" />
+                            <Button Text="清空记忆"
+                                    Command="{Binding ClearMemoryCommand}"
+                                    BackgroundColor="#33FFFFFF"
+                                    TextColor="{DynamicResource TextSecondaryColor}"
+                                    CornerRadius="16"
+                                    HeightRequest="38"
+                                    Padding="16,0"
+                                    FontSize="13" />
+                        </HorizontalStackLayout>
+
+                        <Label Text="长期记忆会作为系统提示的一部分注入到每次对话中，帮助 AI 记住重要信息"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextHintColor}"
+                               Margin="0,2,0,0" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 卡片5：当前助手 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Padding="2">
+                        <Border Grid.Column="0"
+                                WidthRequest="56"
+                                HeightRequest="56"
+                                StrokeShape="RoundRectangle 28"
+                                StrokeThickness="0"
+                                Padding="0">
+                            <Image Source="avatar_yuki.png"
+                                   Aspect="AspectFill"
+                                   WidthRequest="56"
+                                   HeightRequest="56" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="Yuki"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="猫爪音乐内置小助手"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                    </Grid>
                 </Border>
 
             </VerticalStackLayout>
         </ScrollView>
-</Grid>
+    </Grid>
 </ContentPage>

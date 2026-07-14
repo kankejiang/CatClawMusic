@@ -2,6 +2,7 @@ using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
+using Android.Runtime;
 using Android.Views;
 using AndroidX.Core.View;
 using CatClawMusic.Maui.Services;
@@ -27,10 +28,29 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnCreate(savedInstanceState);
         SetupEdgeToEdge();
+        SetupHighRefreshRate();
 
         // 将 Android Context 传给 AudioPlayerService 用于启动前台服务
         var audioPlayer = MauiProgram.Services.GetService<AudioPlayerService>();
         audioPlayer?.SetAndroidContext(this);
+    }
+
+    /// <summary>请求窗口使用高刷新率（120Hz），解决 MAUI 默认 60Hz 帧率低的问题。
+    /// Android 会自动回退到设备支持的最高值。</summary>
+    private void SetupHighRefreshRate()
+    {
+        if (Window == null) return;
+
+        var attrs = Window.Attributes;
+        try
+        {
+            // .NET Android 未绑定 preferredDisplayRefreshRate 字段，通过 JNI 设置
+            var clazz = JNIEnv.FindClass("android/view/WindowManager$LayoutParams");
+            var fieldId = JNIEnv.GetFieldID(clazz, "preferredDisplayRefreshRate", "I");
+            JNIEnv.SetField(attrs.Handle, fieldId, (nint)120);
+            Window.Attributes = attrs;
+        }
+        catch { }
     }
 
     /// <summary>配置 Edge-to-Edge 显示：内容延伸到系统栏下方、状态栏与导航栏透明、并应用 insets 监听器</summary>
@@ -72,7 +92,7 @@ public class MainActivity : MauiAppCompatActivity
                     (int)(mauiColor.Blue * 255));
                 Window?.DecorView.SetBackgroundColor(androidColor);
 
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.M && Window?.DecorView != null)
+                if (Window?.DecorView != null)
                 {
                     var brightness = 0.299f * mauiColor.Red + 0.587f * mauiColor.Green + 0.114f * mauiColor.Blue;
                     var isLight = brightness > 0.5f;

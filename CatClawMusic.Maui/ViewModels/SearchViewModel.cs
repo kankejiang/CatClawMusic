@@ -21,6 +21,7 @@ public partial class SearchViewModel : ObservableObject
     private readonly IAgentService _agentService;
     private readonly IMusicLibraryService _libraryService;
     private readonly ChatMemoryService _chatMemoryService;
+    private readonly MusicDatabase _database;
 
     private List<Song> _allDailyRecommendSongs = [];
     private List<SearchArtistItem> _allArtists = [];
@@ -80,6 +81,25 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _isChatMode;
 
+    /// <summary>Agent 是否正在思考（等待 AI 响应或工具调用中）</summary>
+    [ObservableProperty]
+    private bool _isAgentThinking;
+
+    /// <summary>思考过程面板是否展开（点击切换）</summary>
+    [ObservableProperty]
+    private bool _isThinkingExpanded;
+
+    /// <summary>思考过程单行摘要（折叠时显示）</summary>
+    [ObservableProperty]
+    private string _thinkingSummary = "";
+
+    /// <summary>思考过程步骤详情（展开时显示）</summary>
+    [ObservableProperty]
+    private ObservableCollection<string> _thinkingSteps = new();
+
+    /// <summary>是否有思考步骤可展示</summary>
+    public bool HasThinkingSteps => ThinkingSteps.Count > 0;
+
     /// <summary>空状态提示文本</summary>
     [ObservableProperty]
     private string _emptyStateText = "这里还没有内容";
@@ -126,6 +146,10 @@ public partial class SearchViewModel : ObservableObject
     /// <summary>是否显示搜索下拉结果</summary>
     [ObservableProperty]
     private bool _showSearchResults;
+
+    /// <summary>搜索框非空但无任何匹配结果时为 true，用于展示"问问 Yuki"入口</summary>
+    [ObservableProperty]
+    private bool _hasNoSearchResults;
 
     /// <summary>当前分类索引（0=推荐, 1=排行榜, 2=歌手, 3=推荐专辑）</summary>
     [ObservableProperty]
@@ -194,6 +218,8 @@ public partial class SearchViewModel : ObservableObject
     public IAsyncRelayCommand RefreshCommand { get; }
     /// <summary>随机每日推荐命令</summary>
     public IRelayCommand ShuffleDailyCommand { get; }
+    /// <summary>切换思考面板展开/折叠</summary>
+    public IRelayCommand ToggleThinkingCommand { get; }
 
     /// <summary>请求进入聊天模式时触发，供页面订阅</summary>
     public event EventHandler? EnterChatModeRequested;
@@ -207,12 +233,13 @@ public partial class SearchViewModel : ObservableObject
     /// <param name="agentService">Agent 服务，用于 AI 聊天</param>
     /// <param name="libraryService">音乐库服务</param>
     /// <param name="chatMemoryService">聊天记忆服务</param>
-    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService, ChatMemoryService chatMemoryService)
+    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService, ChatMemoryService chatMemoryService, MusicDatabase database)
     {
         _exploreDataService = exploreDataService;
         _agentService = agentService;
         _libraryService = libraryService;
         _chatMemoryService = chatMemoryService;
+        _database = database;
         AgentName = _agentService.GetCurrentAgent().Name;
 
         SwitchTabCommand = new RelayCommand<int>(SwitchTab);
@@ -223,6 +250,7 @@ public partial class SearchViewModel : ObservableObject
         ExitChatModeCommand = new RelayCommand(ExitChatMode);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ShuffleDailyCommand = new RelayCommand(ShuffleDaily);
+        ToggleThinkingCommand = new RelayCommand(() => IsThinkingExpanded = !IsThinkingExpanded);
 
         // 读取 AI 推荐开关持久化状态
         IsAiRecommendationEnabled = Preferences.Default.Get("ai_recommendation_enabled", false);
@@ -247,19 +275,92 @@ public partial class SearchViewModel : ObservableObject
         RefreshEmptyState();
     }
 
+    /// <summary>最早已加载消息的数据库Id（用于向上翻页加载更多），0表示未加载</summary>
+    private int _oldestLoadedMessageId;
+    /// <summary>是否还有更多历史记录可加载</summary>
+    [ObservableProperty]
+    private bool _hasMoreChatHistory;
+    /// <summary>是否正在加载更多历史记录（防止重复触发）</summary>
+    private bool _isLoadingMoreHistory;
+
+    /// <summary>进入聊天模式时加载最近20条历史记录</summary>
+    private async Task LoadRecentChatHistoryAsync()
+    {
+        try
+        {
+            var records = await _database.GetRecentChatMessagesAsync(20);
+            ChatMessages.Clear();
+            if (records.Count == 0)
+            {
+                // 没有历史记录，添加欢迎消息
+                ChatMessages.Add(new ChatMessage
+                {
+                    Role = "assistant",
+                    Content = _agentService.IsConfigured
+                        ? "Yuki 在这里喵，可以帮你找歌、放歌、建歌单。"
+                        : "Yuki 在这里喵，不过 AI 还没配置，先去设置页完成配置吧。"
+                });
+                _oldestLoadedMessageId = 0;
+                HasMoreChatHistory = false;
+            }
+            else
+            {
+                foreach (var r in records)
+                {
+                    ChatMessages.Add(new ChatMessage { Role = r.Role, Content = r.Content });
+                }
+                _oldestLoadedMessageId = records[0].Id;
+                var total = await _database.GetChatMessageCountAsync();
+                HasMoreChatHistory = total > ChatMessages.Count;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadChatHistory failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>向上翻页时加载更多历史记录，插入到列表头部</summary>
+    public async Task LoadMoreChatHistoryAsync()
+    {
+        if (_isLoadingMoreHistory || !HasMoreChatHistory || _oldestLoadedMessageId <= 0)
+            return;
+
+        _isLoadingMoreHistory = true;
+        try
+        {
+            var older = await _database.GetRecentChatMessagesAsync(20, _oldestLoadedMessageId);
+            if (older.Count > 0)
+            {
+                // 插入到列表头部
+                for (int i = 0; i < older.Count; i++)
+                {
+                    ChatMessages.Insert(i, new ChatMessage { Role = older[i].Role, Content = older[i].Content });
+                }
+                _oldestLoadedMessageId = older[0].Id;
+                var total = await _database.GetChatMessageCountAsync();
+                HasMoreChatHistory = total > ChatMessages.Count;
+            }
+            else
+            {
+                HasMoreChatHistory = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadMoreChatHistory failed: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingMoreHistory = false;
+        }
+    }
+
     private void EnterChatMode()
     {
         IsChatMode = true;
-        if (ChatMessages.Count == 0)
-        {
-            ChatMessages.Add(new ChatMessage
-            {
-                Role = "assistant",
-                Content = _agentService.IsConfigured
-                    ? "Yuki 在这里喵，可以帮你找歌、放歌、建歌单。"
-                    : "Yuki 在这里喵，不过 AI 还没配置，先去设置页完成配置吧。"
-            });
-        }
+        // 异步加载历史记录
+        _ = LoadRecentChatHistoryAsync();
         EnterChatModeRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -543,6 +644,7 @@ public partial class SearchViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(query))
         {
             ShowSearchResults = false;
+            HasNoSearchResults = false;
             SearchResults.Clear();
             SearchArtistResults.Clear();
             SearchAlbumResults.Clear();
@@ -595,7 +697,9 @@ public partial class SearchViewModel : ObservableObject
                 SearchResults = new ObservableCollection<Song>(songs);
                 SearchArtistResults = new ObservableCollection<SearchArtistItem>(artists);
                 SearchAlbumResults = new ObservableCollection<SearchAlbumItem>(albums);
-                ShowSearchResults = songs.Count > 0 || artists.Count > 0 || albums.Count > 0;
+                var hasResults = songs.Count > 0 || artists.Count > 0 || albums.Count > 0;
+                ShowSearchResults = hasResults;
+                HasNoSearchResults = !hasResults;
             });
         }
         catch (OperationCanceledException)
@@ -612,6 +716,7 @@ public partial class SearchViewModel : ObservableObject
     public void ClearSearchDropdown()
     {
         ShowSearchResults = false;
+        HasNoSearchResults = false;
         SearchResults.Clear();
         SearchArtistResults.Clear();
         SearchAlbumResults.Clear();
@@ -636,12 +741,19 @@ public partial class SearchViewModel : ObservableObject
         }
 
         ChatInput = "";
+
+        // 发送新消息时折叠思考面板，清空上一次的步骤
+        IsThinkingExpanded = false;
+        ThinkingSteps.Clear();
+        ThinkingSummary = "";
+
         var userMsg = new ChatMessage
         {
             Role = "user",
             Content = userMessage
         };
         ChatMessages.Add(userMsg);
+        _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "user", Content = userMessage, Timestamp = DateTime.UtcNow });
         _ = _chatMemoryService.AppendMessageAsync(userMsg);
 
         if (!_agentService.IsConfigured)
@@ -649,16 +761,21 @@ public partial class SearchViewModel : ObservableObject
             var notConfiguredMsg = new ChatMessage
             {
                 Role = "assistant",
-                Content = "AI 还没有配置好喵，先到“设置 > 探索设置”里填一下模型信息吧。"
+                Content = "AI 还没有配置好喵，先到“设置 > AI 设置”里填一下模型信息吧。"
             };
             ChatMessages.Add(notConfiguredMsg);
+            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = notConfiguredMsg.Content, Timestamp = DateTime.UtcNow });
             _ = _chatMemoryService.AppendMessageAsync(notConfiguredMsg);
             return;
         }
 
+        // 开始思考：显示思考面板
+        IsAgentThinking = true;
+        ThinkingSummary = "思考中...";
+
         try
         {
-            var response = await _agentService.SendMessageAsync(userMessage);
+            var response = await _agentService.SendMessageAsync(userMessage, OnPartialMessage);
             var assistantMsg = new ChatMessage
             {
                 Role = "assistant",
@@ -666,18 +783,48 @@ public partial class SearchViewModel : ObservableObject
                 Songs = response.Songs
             };
             ChatMessages.Add(assistantMsg);
+            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
             _ = _chatMemoryService.AppendMessageAsync(assistantMsg);
+
+            // 思考完成：更新摘要
+            IsAgentThinking = false;
+            if (ThinkingSteps.Count > 0)
+                ThinkingSummary = $"完成 · {ThinkingSteps.Count} 个步骤";
+            else
+                ThinkingSummary = "";
         }
         catch (Exception ex)
         {
+            IsAgentThinking = false;
             var errorMsg = new ChatMessage
             {
                 Role = "assistant",
                 Content = $"出错了喵：{ex.Message}"
             };
             ChatMessages.Add(errorMsg);
+            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = errorMsg.Content, Timestamp = DateTime.UtcNow });
             _ = _chatMemoryService.AppendMessageAsync(errorMsg);
+            ThinkingSummary = "";
         }
+    }
+
+    /// <summary>Agent 中间消息回调：处理工具调用过程展示</summary>
+    private void OnPartialMessage(ChatMessage partial)
+    {
+        if (partial.Role == "assistant" && partial.ToolCalls != null && partial.ToolCalls.Count > 0)
+        {
+            var toolNames = string.Join(", ", partial.ToolCalls.Select(tc => tc.Function?.Name ?? "?"));
+            var step = $"🔧 调用工具: {toolNames}";
+            ThinkingSteps.Add(step);
+            ThinkingSummary = step;
+        }
+        else if (partial.Role == "tool" && !string.IsNullOrEmpty(partial.Name))
+        {
+            var step = $"✅ {partial.Name} 完成";
+            ThinkingSteps.Add(step);
+            ThinkingSummary = step;
+        }
+        OnPropertyChanged(nameof(HasThinkingSteps));
     }
 
     /// <summary>根据当前 SearchQuery 重新过滤各分区集合（供 PC 端顶栏搜索调用）</summary>

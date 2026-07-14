@@ -68,7 +68,7 @@
   <data name="LocalMusic" xml:space="preserve"><value>本地音乐</value></data>
   <data name="RemoteMusic" xml:space="preserve"><value>远程音乐服务</value></data>
   <data name="Plugins" xml:space="preserve"><value>插件管理</value></data>
-  <data name="ExploreSettings" xml:space="preserve"><value>探索设置</value></data>
+  <data name="ExploreSettings" xml:space="preserve"><value>AI 设置</value></data>
   <data name="Permissions" xml:space="preserve"><value>权限管理</value></data>
   <data name="GeneralSettings" xml:space="preserve"><value>通用设置</value></data>
   <data name="GeneralSettingsDesc" xml:space="preserve"><value>通用行为、播放偏好与系统选项</value></data>

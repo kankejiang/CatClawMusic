@@ -17,14 +17,54 @@ public class LlmConfig
     public string ApiKey { get; set; } = "";
     /// <summary>模型名称（如 deepseek-chat）</summary>
     public string Model { get; set; } = "deepseek-chat";
-    /// <summary>采样温度（0.0 - 2.0，值越大回复越发散）</summary>
+    /// <summary>采样温度（0.0 - 2.0，值越大回复越发散）。仅对非推理模型生效，推理模型会被忽略</summary>
     public double Temperature { get; set; } = 0.7;
-    /// <summary>单次响应最大 token 数</summary>
+    /// <summary>单次响应最大 token 数（旧字段，保留用于反序列化兼容；新配置请使用 <see cref="MaxCompletionTokens"/>）</summary>
     public int MaxTokens { get; set; } = 2048;
     /// <summary>是否启用该配置</summary>
     public bool Enabled { get; set; }
     /// <summary>是否作为退回模型（当前模型失败时按顺序尝试下一个启用了退回的模型）</summary>
     public bool FallbackEnabled { get; set; }
+    /// <summary>推理力度（auto/disabled/high/max），仅部分模型支持，默认 disabled</summary>
+    public string ReasoningEffort { get; set; } = "disabled";
+
+    // ===== Agent 时代高级参数 =====
+
+    /// <summary>核采样（0.0 - 1.0），替代温度的采样策略，1.0 表示使用模型默认</summary>
+    public double TopP { get; set; } = 1.0;
+    /// <summary>频率惩罚（-2.0 到 2.0，默认 0），正值降低模型逐字重复同一内容的概率</summary>
+    public double FrequencyPenalty { get; set; } = 0;
+    /// <summary>存在惩罚（-2.0 到 2.0，默认 0），正值鼓励模型谈论新主题</summary>
+    public double PresencePenalty { get; set; } = 0;
+    /// <summary>响应格式（text/json_object），默认 text；json_object 用于结构化输出</summary>
+    public string ResponseFormat { get; set; } = "text";
+    /// <summary>最大输出 token 数（含推理 token），0 表示使用模型默认上限，替代旧的 <see cref="MaxTokens"/></summary>
+    public int MaxCompletionTokens { get; set; } = 0;
+    /// <summary>是否启用上下文缓存（prompt_cache_key），开启后相似前缀请求可命中缓存降低 token 消耗</summary>
+    public bool ContextCaching { get; set; } = true;
+}
+
+/// <summary>
+/// Agent 全局运行设置，存储于配置存储中，影响所有模型配置的对话行为。
+/// </summary>
+public static class AgentRunSettings
+{
+    /// <summary>配置存储键：执行轮数上限（0 表示不限）</summary>
+    public const string KeyMaxToolRounds = "agent_max_tool_rounds";
+    /// <summary>配置存储键：规划轮数上限（0 表示不限，需选择独立规划模型才生效）</summary>
+    public const string KeyMaxPlanRounds = "agent_max_plan_rounds";
+    /// <summary>配置存储键：推理力度（auto/disabled/high/max）</summary>
+    public const string KeyReasoningEffort = "agent_reasoning_effort";
+
+    /// <summary>执行轮数上限默认值（0=不限）</summary>
+    public const int DefaultMaxToolRounds = 5;
+    /// <summary>规划轮数上限默认值（0=不限）</summary>
+    public const int DefaultMaxPlanRounds = 0;
+    /// <summary>推理力度默认值</summary>
+    public const string DefaultReasoningEffort = "disabled";
+
+    /// <summary>可选推理力度列表</summary>
+    public static readonly string[] ReasoningEffortOptions = { "auto", "disabled", "high", "max" };
 }
 
 /// <summary>
@@ -34,8 +74,6 @@ public class LlmConfigEntry : LlmConfig
 {
     /// <summary>条目唯一 ID（Guid 前 8 位）</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
-    /// <summary>条目显示名称（隐藏继承自基类的 Name 字段）</summary>
-    public new string Name { get; set; } = "";
     /// <summary>是否为当前激活的配置</summary>
     public bool IsActive { get; set; }
     /// <summary>创建时间</summary>

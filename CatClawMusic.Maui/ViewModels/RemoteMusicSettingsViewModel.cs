@@ -430,7 +430,7 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
                 }
             });
 
-            var songs = await _networkMusicService.ScanAsync(profile, progress);
+            var songs = await Task.Run(() => _networkMusicService.ScanAsync(profile, progress));
             
             SyncStatus = $"发现 {songs.Count} 首歌曲，正在导入...";
             HasSyncProgress = false;

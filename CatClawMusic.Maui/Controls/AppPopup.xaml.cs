@@ -132,6 +132,10 @@ public partial class AppPopup : ContentView
         PopupCard.Scale = 0.9;
         PopupCard.TranslationY = 20;
 
+#if ANDROID
+        ApplyBlurToSiblings();
+#endif
+
         MainThread.BeginInvokeOnMainThread(async () =>
         {
             await Task.WhenAll(
@@ -155,6 +159,10 @@ public partial class AppPopup : ContentView
             PopupCard.ScaleTo(0.9, 180, Easing.CubicIn)
         );
 
+#if ANDROID
+        RemoveBlurFromSiblings();
+#endif
+
         this.Opacity = 0;
         this.IsVisible = false;
         this.InputTransparent = true;
@@ -167,4 +175,40 @@ public partial class AppPopup : ContentView
         if (CloseOnMaskTapped)
             Close();
     }
+
+#if ANDROID
+    private readonly List<global::Android.Views.View> _blurredViews = new();
+
+    /// <summary>对弹窗背后的兄弟视图应用高斯模糊 RenderEffect</summary>
+    private void ApplyBlurToSiblings()
+    {
+        _blurredViews.Clear();
+
+        if (this.Parent is Microsoft.Maui.Controls.Layout layout)
+        {
+            foreach (var child in layout.Children)
+            {
+                if (child == this) continue;
+                if (child is Microsoft.Maui.Controls.View view &&
+                    view.Handler?.PlatformView is global::Android.Views.View nativeView)
+                {
+                    nativeView.SetRenderEffect(
+                        global::Android.Graphics.RenderEffect.CreateBlurEffect(
+                            24, 24, global::Android.Graphics.Shader.TileMode.Clamp));
+                    _blurredViews.Add(nativeView);
+                }
+            }
+        }
+    }
+
+    /// <summary>移除兄弟视图上的模糊效果</summary>
+    private void RemoveBlurFromSiblings()
+    {
+        foreach (var view in _blurredViews)
+        {
+            try { view.SetRenderEffect(null); } catch { }
+        }
+        _blurredViews.Clear();
+    }
+#endif
 }

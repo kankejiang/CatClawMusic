@@ -3,17 +3,233 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:ai="clr-namespace:CatClawMusic.Core.Services.AI;assembly=CatClawMusic.Core"
              x:Class="CatClawMusic.Maui.Pages.ModelManagerPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleModelManager]}"
+             Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
-    <Grid RowDefinitions="Auto,*" Background="{DynamicResource PageBackgroundBrush}">
-        <controls:HeroCard Grid.Row="0">
-            <controls:HeroCard.CardContent>
-                <VerticalStackLayout Spacing="12" HorizontalOptions="Center" Padding="44,0,0,0">
-                    <Label Text="模型管理" Style="{StaticResource PageTitleStyle}" />
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FeatureInDev]}" Style="{StaticResource PageSubtitleStyle}" HorizontalTextAlignment="Center" />
-                </VerticalStackLayout>
-            </controls:HeroCard.CardContent>
-        </controls:HeroCard>
+
+    <Grid RowDefinitions="Auto,*,Auto"
+          Background="{DynamicResource PageBackgroundBrush}">
+
+        <!-- 顶部栏：返回 + 标题 + 添加 -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto,*,Auto"
+              Padding="4,4,8,4"
+              Background="{DynamicResource HeroBrush}">
+            <controls:BackButton Grid.Column="0" />
+            <Label Grid.Column="1"
+                   Text="模型管理"
+                   Style="{StaticResource PageTitleStyle}"
+                   TextColor="White"
+                   FontSize="20"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Center" />
+            <Button Grid.Column="2"
+                    x:Name="AddButton"
+                    Text="+"
+                    FontSize="22"
+                    FontAttributes="Bold"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    CornerRadius="22"
+                    Padding="0"
+                    BackgroundColor="#33FFFFFF"
+                    TextColor="White"
+                    Clicked="OnAddClicked"
+                    VerticalOptions="Center" />
+        </Grid>
+
+        <!-- 列表区 -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,12,16,8" Spacing="10">
+
+                <!-- ═══ Agent 运行设置卡片 ═══ -->
+                <Border Style="{StaticResource GlassCardStyle}" Padding="14">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="Agent 运行"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+
+                        <!-- 执行轮数上限 -->
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="执行轮数上限"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="限制每次回复最多调用多少轮工具；0 表示不限，复杂代码任务建议不限"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   LineBreakMode="WordWrap" />
+                            <Entry x:Name="MaxToolRoundsEntry"
+                                   Keyboard="Numeric"
+                                   TextChanged="OnMaxToolRoundsChanged"
+                                   ReturnType="Done" />
+                        </VerticalStackLayout>
+
+                        <!-- 规划轮数上限 -->
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="规划轮数上限"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="选择独立规划模型后，此上限才会生效；0 表示不限"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   LineBreakMode="WordWrap" />
+                            <Entry x:Name="MaxPlanRoundsEntry"
+                                   Keyboard="Numeric"
+                                   TextChanged="OnMaxPlanRoundsChanged"
+                                   ReturnType="Done" />
+                        </VerticalStackLayout>
+
+                        <!-- 推理力度 -->
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="推理力度"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="控制模型推理深度，disabled 表示不启用"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   LineBreakMode="WordWrap" />
+                            <Picker x:Name="ReasoningEffortPicker"
+                                    Title="选择推理力度"
+                                    SelectedIndexChanged="OnReasoningEffortChanged" />
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <BindableLayout.ItemsSource>
+                    <Binding Path="Configs" />
+                </BindableLayout.ItemsSource>
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="ai:LlmConfigEntry">
+                        <Border Style="{StaticResource GlassCardStyle}"
+                                Padding="14">
+                            <VerticalStackLayout Spacing="10">
+                                <!-- 第一行：名称 + 状态标识 -->
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                        <Label Text="{Binding Name}"
+                                               FontSize="16"
+                                               FontFamily="OpenSansSemibold"
+                                               TextColor="{DynamicResource TextPrimaryColor}"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding Model}"
+                                               FontSize="12"
+                                               TextColor="{DynamicResource TextSecondaryColor}"
+                                               LineBreakMode="TailTruncation" />
+                                    </VerticalStackLayout>
+                                    <HorizontalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Start">
+                                        <Border StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 10"
+                                                Padding="8,3"
+                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                IsVisible="{Binding IsActive}">
+                                            <Label Text="主"
+                                                   FontSize="11"
+                                                   TextColor="White" />
+                                        </Border>
+                                        <Border StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 10"
+                                                Padding="8,3"
+                                                BackgroundColor="{DynamicResource AccentColor}"
+                                                IsVisible="{Binding FallbackEnabled}">
+                                            <Label Text="备"
+                                                   FontSize="11"
+                                                   TextColor="White" />
+                                        </Border>
+                                        <Border StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 10"
+                                                Padding="8,3"
+                                                BackgroundColor="{DynamicResource ChipInactiveColor}"
+                                                IsVisible="{Binding Enabled, Converter={StaticResource InvertedBoolConverter}}">
+                                            <Label Text="禁用"
+                                                   FontSize="11"
+                                                   TextColor="{DynamicResource TextHintColor}" />
+                                        </Border>
+                                    </HorizontalStackLayout>
+                                </Grid>
+
+                                <!-- 提供商信息 -->
+                                <Label Text="{Binding Provider}"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+
+                                <!-- 操作按钮区 -->
+                                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                                    <Button Grid.Column="0"
+                                            Text="设为主"
+                                            FontSize="11"
+                                            HeightRequest="32"
+                                            CornerRadius="16"
+                                            Padding="6,0"
+                                            BackgroundColor="#33FFFFFF"
+                                            TextColor="{DynamicResource TextSecondaryColor}"
+                                            Clicked="OnSetMainClicked"
+                                            CommandParameter="{Binding Name}"
+                                            IsVisible="{Binding IsActive, Converter={StaticResource InvertedBoolConverter}}" />
+                                    <Button Grid.Column="1"
+                                            Text="切换备"
+                                            FontSize="11"
+                                            HeightRequest="32"
+                                            CornerRadius="16"
+                                            Padding="6,0"
+                                            BackgroundColor="#33FFFFFF"
+                                            TextColor="{DynamicResource TextSecondaryColor}"
+                                            Clicked="OnToggleFallbackClicked"
+                                            CommandParameter="{Binding Name}" />
+                                    <Button Grid.Column="2"
+                                            Text="编辑"
+                                            FontSize="11"
+                                            HeightRequest="32"
+                                            CornerRadius="16"
+                                            Padding="6,0"
+                                            BackgroundColor="#33FFFFFF"
+                                            TextColor="{DynamicResource TextSecondaryColor}"
+                                            Clicked="OnEditClicked"
+                                            CommandParameter="{Binding Name}" />
+                                    <Button Grid.Column="3"
+                                            Text="删除"
+                                            FontSize="11"
+                                            HeightRequest="32"
+                                            CornerRadius="16"
+                                            Padding="6,0"
+                                            BackgroundColor="#33FF6E87"
+                                            TextColor="White"
+                                            Clicked="OnDeleteClicked"
+                                            CommandParameter="{Binding Name}" />
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+
+                <!-- 空列表提示 -->
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{Binding HasConfigs, Converter={StaticResource InvertedBoolConverter}}">
+                    <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
+                        <Label Text="暂无模型配置"
+                               FontSize="14"
+                               TextColor="{DynamicResource TextHintColor}"
+                               HorizontalOptions="Center" />
+                        <Label Text="点击右上角 + 添加第一个配置"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextHintColor}"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- 底部说明 -->
+        <Border Grid.Row="2"
+                Style="{StaticResource GlassCardStyle}"
+                Margin="16,8,16,16"
+                Padding="12,10">
+            <Label Text="主模型请求失败时，将按列表顺序依次切换到标记为「备」的回退模型"
+                   FontSize="12"
+                   TextColor="{DynamicResource TextSecondaryColor}"
+                   LineBreakMode="WordWrap" />
+        </Border>
     </Grid>
 </ContentPage>

@@ -20,6 +20,7 @@ public partial class AiSettingsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        Shell.SetNavBarIsVisible(this, false);
         _vm.OnAppearing();
     }
 }

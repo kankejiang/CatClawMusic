@@ -20,6 +20,12 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <summary>退回配置列表的提供函数（可选）</summary>
     private readonly Func<List<LlmConfig>>? _fallbackConfigsProvider;
 
+    /// <summary>
+    /// 临时配置覆盖（仅用于编辑页测试连接/获取模型列表时使用，不污染持久化存储）。
+    /// 设置后，所有 _configProvider() 调用都会优先返回此配置；置空则回退到持久化配置。
+    /// </summary>
+    public static LlmConfig? TempConfigOverride { get; set; }
+
     /// <summary>JSON 序列化选项，使用蛇形命名与忽略 null 值</summary>
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -44,11 +50,17 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         _httpClient.Timeout = TimeSpan.FromSeconds(120);
     }
 
+    /// <summary>获取当前生效的配置：优先返回临时覆盖，无则从持久化存储读取</summary>
+    private LlmConfig GetEffectiveConfig()
+    {
+        return TempConfigOverride ?? _configProvider();
+    }
+
     /// <summary>获取所有可用的退回配置（启用了 FallbackEnabled 且 Enabled 的配置，按列表顺序）</summary>
     private List<LlmConfig> GetFallbackConfigs()
     {
         if (_fallbackConfigsProvider == null) return new();
-        var currentConfig = _configProvider();
+        var currentConfig = GetEffectiveConfig();
         return _fallbackConfigsProvider()
             .Where(c => c.FallbackEnabled && c.Enabled
                 && !string.IsNullOrWhiteSpace(c.ApiUrl)
@@ -67,7 +79,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <exception cref="InvalidOperationException">API 未配置或所有退回均失败时抛出</exception>
     public async Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default)
     {
-        var config = _configProvider();
+        var config = GetEffectiveConfig();
         if (string.IsNullOrWhiteSpace(config.ApiUrl) || string.IsNullOrWhiteSpace(config.ApiKey))
             throw new InvalidOperationException("AI 服务未配置，请先在设置中配置 API 信息");
 
@@ -139,7 +151,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     {
         try
         {
-            var config = _configProvider();
+            var config = GetEffectiveConfig();
             if (string.IsNullOrWhiteSpace(config.ApiUrl) || string.IsNullOrWhiteSpace(config.ApiKey))
                 return false;
 
@@ -168,7 +180,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <exception cref="InvalidOperationException">API 未配置或请求失败时抛出</exception>
     public async Task<List<string>> GetModelsAsync()
     {
-        var config = _configProvider();
+        var config = GetEffectiveConfig();
         if (string.IsNullOrWhiteSpace(config.ApiUrl) || string.IsNullOrWhiteSpace(config.ApiKey))
             throw new InvalidOperationException("请先填写 API 地址和 Key");
 
@@ -294,10 +306,55 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         var body = new Dictionary<string, object?>
         {
             ["model"] = config.Model,
-            ["messages"] = msgList,
-            ["temperature"] = config.Temperature,
-            ["max_tokens"] = config.MaxTokens
+            ["messages"] = msgList
         };
+
+        // 温度：仅对非推理模型发送（推理模型 o1/o3/deepseek-reasoner 等不支持 temperature）
+        var isReasoningModel = !string.IsNullOrEmpty(config.ReasoningEffort)
+                               && config.ReasoningEffort != "disabled";
+        if (!isReasoningModel)
+        {
+            body["temperature"] = config.Temperature;
+        }
+
+        // 输出长度上限：优先使用 max_completion_tokens（含推理 token，OpenAI 推荐的新字段）
+        // 旧字段 max_tokens 作为兼容回退
+        if (config.MaxCompletionTokens > 0)
+            body["max_completion_tokens"] = config.MaxCompletionTokens;
+        else if (config.MaxTokens > 0)
+            body["max_tokens"] = config.MaxTokens;
+
+        // 核采样（仅在非默认值时发送，避免与服务端默认冲突）
+        if (config.TopP > 0 && config.TopP < 1.0)
+            body["top_p"] = config.TopP;
+
+        // 频率惩罚（仅在非默认值时发送）
+        if (config.FrequencyPenalty != 0)
+            body["frequency_penalty"] = config.FrequencyPenalty;
+
+        // 存在惩罚（仅在非默认值时发送）
+        if (config.PresencePenalty != 0)
+            body["presence_penalty"] = config.PresencePenalty;
+
+        // 响应格式（仅非 text 时发送，部分模型不支持 json_object）
+        if (!string.IsNullOrEmpty(config.ResponseFormat)
+            && config.ResponseFormat != "text")
+        {
+            body["response_format"] = new Dictionary<string, object> { ["type"] = config.ResponseFormat };
+        }
+
+        // 上下文缓存：使用稳定的 cache key，前缀相同时提高 API 端缓存命中率
+        if (config.ContextCaching)
+        {
+            body["prompt_cache_key"] = "catclaw_agent_v1";
+        }
+
+        // 推理力度参数（仅 disabled 以外的值才发送，避免不支持的模型报错）
+        if (!string.IsNullOrEmpty(config.ReasoningEffort)
+            && config.ReasoningEffort != "disabled")
+        {
+            body["reasoning_effort"] = config.ReasoningEffort;
+        }
 
         if (tools != null && tools.Count > 0)
         {

@@ -50,10 +50,6 @@ public partial class SearchPage : ContentPage
                     ChatInputBox?.Focus();
                 });
             }
-            if (e.PropertyName == nameof(_vm.IsSearchOpen) || e.PropertyName == nameof(_vm.SearchQuery) || e.PropertyName == nameof(_vm.ShowSearchResults))
-            {
-                UpdateAiEntryVisibility();
-            }
         };
     }
 
@@ -254,6 +250,30 @@ public partial class SearchPage : ContentPage
     private void OnQuickRecentTapped(object? sender, TappedEventArgs e)
     {
         _vm.CurrentCategory = 0;
+    }
+
+    /// <summary>点击“查看全部”按钮（推荐艺人/推荐歌手）时触发，导航到全部艺术家列表页。</summary>
+    private async void OnViewAllArtistsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("artists");
+    }
+
+    /// <summary>点击“查看全部”按钮（推荐专辑）时触发，导航到全部专辑列表页。</summary>
+    private async void OnViewAllAlbumsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("albums");
+    }
+
+    /// <summary>点击“查看全部”按钮（最多播放）时触发，导航到最多播放歌单详情页（系统虚拟歌单 Id=-4）。</summary>
+    private async void OnViewAllTopPlayedClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync($"playlistdetail?playlistId=-4&name={Uri.EscapeDataString("最多播放")}");
+    }
+
+    /// <summary>点击“查看全部”按钮（我的最爱）时触发，导航到收藏歌曲歌单详情页（系统虚拟歌单 Id=-2）。</summary>
+    private async void OnViewAllFavoritesClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync($"playlistdetail?playlistId=-2&name={Uri.EscapeDataString("收藏歌曲")}");
     }
 
     /// <summary>滚动到指定元素位置（适配 CollectionView 的实现）。</summary>
@@ -509,14 +529,6 @@ public partial class SearchPage : ContentPage
         }
     }
 
-    /// <summary>更新 AI 助手入口卡片可见性：搜索框打开且未输入内容时显示。</summary>
-    private void UpdateAiEntryVisibility()
-    {
-        AiEntryCard.IsVisible = _vm.IsSearchOpen
-                              && string.IsNullOrWhiteSpace(_vm.SearchQuery)
-                              && !_vm.ShowSearchResults;
-    }
-
     /// <summary>点击 AI 助手入口卡：进入聊天模式，关闭搜索下拉。</summary>
     private void OnAiEntryTapped(object? sender, TappedEventArgs e)
     {
@@ -662,5 +674,35 @@ public partial class SearchPage : ContentPage
             : $"帮我找一下关于「{searchQuery}」的歌曲";
 
         await _vm.SendMessageFromSearchAsync(message);
+    }
+
+    /// <summary>聊天消息列表滚动时检测是否需要加载更多历史记录</summary>
+    private async void OnChatMessagesScrolled(object? sender, ItemsViewScrolledEventArgs e)
+    {
+        // 当滚动到接近顶部时自动加载更多
+        if (e.VerticalOffset < 50 && _vm.HasMoreChatHistory)
+        {
+            // 记录当前滚动位置和内容高度，加载后恢复位置
+            var previousCount = _vm.ChatMessages.Count;
+            await _vm.LoadMoreChatHistoryAsync();
+            var newCount = _vm.ChatMessages.Count;
+            if (newCount > previousCount)
+            {
+                // 加载了新条目，向下滚动到原来位置（避免跳动）
+                var addedCount = newCount - previousCount;
+                // 估算每条高度约60px，滚动到原位置
+                Dispatcher.Dispatch(async () =>
+                {
+                    await Task.Delay(50);
+                    if (ChatMessagesList.Handler != null)
+                    {
+                        // 滚动到原第一条消息（现在偏移了addedCount条）
+                        var targetIndex = addedCount;
+                        if (targetIndex < _vm.ChatMessages.Count)
+                            ChatMessagesList.ScrollTo(targetIndex, position: ScrollToPosition.Start, animate: false);
+                    }
+                });
+            }
+        }
     }
 }
