@@ -50,10 +50,6 @@ public partial class SearchPage : ContentPage
                     ChatInputBox?.Focus();
                 });
             }
-            if (e.PropertyName == nameof(_vm.IsSearchOpen) || e.PropertyName == nameof(_vm.SearchQuery) || e.PropertyName == nameof(_vm.ShowSearchResults))
-            {
-                UpdateAiEntryVisibility();
-            }
         };
     }
 
@@ -254,6 +250,30 @@ public partial class SearchPage : ContentPage
     private void OnQuickRecentTapped(object? sender, TappedEventArgs e)
     {
         _vm.CurrentCategory = 0;
+    }
+
+    /// <summary>点击“查看全部”按钮（推荐艺人/推荐歌手）时触发，导航到全部艺术家列表页。</summary>
+    private async void OnViewAllArtistsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("artists");
+    }
+
+    /// <summary>点击“查看全部”按钮（推荐专辑）时触发，导航到全部专辑列表页。</summary>
+    private async void OnViewAllAlbumsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("albums");
+    }
+
+    /// <summary>点击“查看全部”按钮（最多播放）时触发，导航到最多播放歌单详情页（系统虚拟歌单 Id=-4）。</summary>
+    private async void OnViewAllTopPlayedClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync($"playlistdetail?playlistId=-4&name={Uri.EscapeDataString("最多播放")}");
+    }
+
+    /// <summary>点击“查看全部”按钮（我的最爱）时触发，导航到收藏歌曲歌单详情页（系统虚拟歌单 Id=-2）。</summary>
+    private async void OnViewAllFavoritesClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync($"playlistdetail?playlistId=-2&name={Uri.EscapeDataString("收藏歌曲")}");
     }
 
     /// <summary>滚动到指定元素位置（适配 CollectionView 的实现）。</summary>
@@ -507,14 +527,6 @@ public partial class SearchPage : ContentPage
             SearchBox.Text = "";
             _vm.ClearSearchDropdown();
         }
-    }
-
-    /// <summary>更新 AI 助手入口卡片可见性：搜索框打开且未输入内容时显示。</summary>
-    private void UpdateAiEntryVisibility()
-    {
-        AiEntryCard.IsVisible = _vm.IsSearchOpen
-                              && string.IsNullOrWhiteSpace(_vm.SearchQuery)
-                              && !_vm.ShowSearchResults;
     }
 
     /// <summary>点击 AI 助手入口卡：进入聊天模式，关闭搜索下拉。</summary>

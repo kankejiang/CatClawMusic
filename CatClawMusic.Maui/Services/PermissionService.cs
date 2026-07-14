@@ -103,27 +103,24 @@ public class PermissionService : IPermissionService
     public Task<bool> RequestManageStoragePermissionAsync()
     {
 #if ANDROID
-        if (OperatingSystem.IsAndroidVersionAtLeast(30))
+        try
+        {
+            var intent = new Android.Content.Intent(
+                Android.Provider.Settings.ActionManageAppAllFilesAccessPermission,
+                Android.Net.Uri.Parse($"package:{Android.App.Application.Context.PackageName}"));
+            intent.AddFlags(Android.Content.ActivityFlags.NewTask);
+            Android.App.Application.Context.StartActivity(intent);
+        }
+        catch
         {
             try
             {
                 var intent = new Android.Content.Intent(
-                    Android.Provider.Settings.ActionManageAppAllFilesAccessPermission,
-                    Android.Net.Uri.Parse($"package:{Android.App.Application.Context.PackageName}"));
+                    Android.Provider.Settings.ActionManageAllFilesAccessPermission);
                 intent.AddFlags(Android.Content.ActivityFlags.NewTask);
                 Android.App.Application.Context.StartActivity(intent);
             }
-            catch
-            {
-                try
-                {
-                    var intent = new Android.Content.Intent(
-                        Android.Provider.Settings.ActionManageAllFilesAccessPermission);
-                    intent.AddFlags(Android.Content.ActivityFlags.NewTask);
-                    Android.App.Application.Context.StartActivity(intent);
-                }
-                catch { }
-            }
+            catch { }
         }
 #endif
         return Task.FromResult(false); // 需要用户手动授权

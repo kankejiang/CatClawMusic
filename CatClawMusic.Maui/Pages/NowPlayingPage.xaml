@@ -252,10 +252,19 @@
                 </Grid>
             </Grid>
 
-            <!-- Row 2: 进度条 + 播放控件 -->
-            <Grid Grid.Row="2" RowDefinitions="Auto,Auto" RowSpacing="10" Margin="0,4,0,0">
+            <!-- Row 2: 收藏按钮 + 进度条 + 播放控件 -->
+            <Grid Grid.Row="2" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" Margin="0,4,0,0">
+                <!-- 收藏按钮（进度条右上方） -->
+                <ImageButton Grid.Row="0"
+                        WidthRequest="36" HeightRequest="36"
+                        CornerRadius="18" Padding="6"
+                        Aspect="AspectFit"
+                        BackgroundColor="Transparent"
+                        Source="{Binding LikeIconSourceWhite}"
+                        Command="{Binding ToggleLikeCommand}"
+                        HorizontalOptions="End" VerticalOptions="Center" />
                 <!-- 进度条 -->
-                <Grid Grid.Row="0" RowDefinitions="Auto,Auto" RowSpacing="2">
+                <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="2">
                     <Slider x:Name="ProgressSlider"
                             Minimum="0"
                             Maximum="1"
@@ -280,7 +289,7 @@
                 </Grid>
 
                 <!-- ═══ 竖屏播放控件：5个按钮等分居中 ═══ -->
-                <Grid Grid.Row="1"
+                <Grid Grid.Row="2"
                       x:Name="PhoneControls"
                       IsVisible="True"
                       ColumnDefinitions="*,*,*,*,*"
@@ -318,18 +327,18 @@
                             Source="{Binding PlayNextIconSourceWhite}"
                             Command="{Binding PlayNextCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
-                    <!-- 收藏 -->
+                    <!-- 播放列表 -->
                     <ImageButton Grid.Column="4" WidthRequest="40" HeightRequest="40"
                             CornerRadius="20" Padding="8"
                             Aspect="AspectFit"
                             BackgroundColor="Transparent"
-                            Source="{Binding LikeIconSourceWhite}"
-                            Command="{Binding ToggleLikeCommand}"
+                            Source="{Binding PlaylistIconSource}"
+                            Clicked="OnOpenPlaylistClicked"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                 </Grid>
 
                 <!-- ═══ 横屏播放控件：左/中/右三栏 ═══ -->
-                <Grid Grid.Row="1"
+                <Grid Grid.Row="2"
                       x:Name="DesktopControls"
                       IsVisible="False"
                       ColumnDefinitions="*,Auto,*"
@@ -415,5 +424,10 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- 播放列表弹窗（预定义，默认隐藏） -->
+        <controls:AppPopup x:Name="PlaylistPopup"
+                           Title="播放列表"
+                           CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

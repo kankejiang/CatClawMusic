@@ -42,6 +42,10 @@ public partial class PlaylistPage : ContentPage
     {
         if (e.CurrentSelection.FirstOrDefault() is Playlist playlist)
         {
+            if (sender is CollectionView collectionView)
+            {
+                collectionView.SelectedItem = null;
+            }
             await Shell.Current.GoToAsync($"playlistdetail?playlistId={playlist.Id}&name={Uri.EscapeDataString(playlist.Name)}");
         }
     }

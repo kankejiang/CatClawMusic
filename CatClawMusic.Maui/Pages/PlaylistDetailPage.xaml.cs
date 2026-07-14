@@ -56,6 +56,7 @@ public partial class PlaylistDetailPage : ContentPage
     {
         if (e.CurrentSelection.FirstOrDefault() is Song song)
         {
+            if (sender is CollectionView cv) cv.SelectedItem = null;
             await _viewModel.PlaySongCommand.ExecuteAsync(song);
         }
     }

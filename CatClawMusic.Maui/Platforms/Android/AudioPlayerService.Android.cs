@@ -698,12 +698,8 @@ public partial class AudioPlayerService
     {
         var ctx = _androidContext ?? global::Android.App.Application.Context;
 
-        // Android 13+ 必须在运行时授予 POST_NOTIFICATIONS，否则 StartForeground 会抛 SecurityException，
-        // 导致整个播放通知（含媒体控件）都不显示。在启动前台服务前尽量申请该权限（失败不影响播放流程）。
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
-        {
-            _ = Microsoft.Maui.ApplicationModel.MainThread.InvokeOnMainThreadAsync(RequestNotificationPermissionAsync);
-        }
+        // Android 13+ 必须在运行时授予 POST_NOTIFICATIONS，否则 StartForeground 会抛 SecurityException
+        _ = Microsoft.Maui.ApplicationModel.MainThread.InvokeOnMainThreadAsync(RequestNotificationPermissionAsync);
 
         try { ForegroundPlayerService.Start(ctx, _currentTitle, _currentArtist); }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AudioPlayer] FG start: {ex.Message}"); }

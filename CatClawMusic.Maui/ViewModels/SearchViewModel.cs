@@ -80,6 +80,25 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _isChatMode;
 
+    /// <summary>Agent 是否正在思考（等待 AI 响应或工具调用中）</summary>
+    [ObservableProperty]
+    private bool _isAgentThinking;
+
+    /// <summary>思考过程面板是否展开（点击切换）</summary>
+    [ObservableProperty]
+    private bool _isThinkingExpanded;
+
+    /// <summary>思考过程单行摘要（折叠时显示）</summary>
+    [ObservableProperty]
+    private string _thinkingSummary = "";
+
+    /// <summary>思考过程步骤详情（展开时显示）</summary>
+    [ObservableProperty]
+    private ObservableCollection<string> _thinkingSteps = new();
+
+    /// <summary>是否有思考步骤可展示</summary>
+    public bool HasThinkingSteps => ThinkingSteps.Count > 0;
+
     /// <summary>空状态提示文本</summary>
     [ObservableProperty]
     private string _emptyStateText = "这里还没有内容";
@@ -194,6 +213,8 @@ public partial class SearchViewModel : ObservableObject
     public IAsyncRelayCommand RefreshCommand { get; }
     /// <summary>随机每日推荐命令</summary>
     public IRelayCommand ShuffleDailyCommand { get; }
+    /// <summary>切换思考面板展开/折叠</summary>
+    public IRelayCommand ToggleThinkingCommand { get; }
 
     /// <summary>请求进入聊天模式时触发，供页面订阅</summary>
     public event EventHandler? EnterChatModeRequested;
@@ -223,6 +244,7 @@ public partial class SearchViewModel : ObservableObject
         ExitChatModeCommand = new RelayCommand(ExitChatMode);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ShuffleDailyCommand = new RelayCommand(ShuffleDaily);
+        ToggleThinkingCommand = new RelayCommand(() => IsThinkingExpanded = !IsThinkingExpanded);
 
         // 读取 AI 推荐开关持久化状态
         IsAiRecommendationEnabled = Preferences.Default.Get("ai_recommendation_enabled", false);
@@ -636,6 +658,12 @@ public partial class SearchViewModel : ObservableObject
         }
 
         ChatInput = "";
+
+        // 发送新消息时折叠思考面板，清空上一次的步骤
+        IsThinkingExpanded = false;
+        ThinkingSteps.Clear();
+        ThinkingSummary = "";
+
         var userMsg = new ChatMessage
         {
             Role = "user",
@@ -656,9 +684,13 @@ public partial class SearchViewModel : ObservableObject
             return;
         }
 
+        // 开始思考：显示思考面板
+        IsAgentThinking = true;
+        ThinkingSummary = "思考中...";
+
         try
         {
-            var response = await _agentService.SendMessageAsync(userMessage);
+            var response = await _agentService.SendMessageAsync(userMessage, OnPartialMessage);
             var assistantMsg = new ChatMessage
             {
                 Role = "assistant",
@@ -667,9 +699,17 @@ public partial class SearchViewModel : ObservableObject
             };
             ChatMessages.Add(assistantMsg);
             _ = _chatMemoryService.AppendMessageAsync(assistantMsg);
+
+            // 思考完成：更新摘要
+            IsAgentThinking = false;
+            if (ThinkingSteps.Count > 0)
+                ThinkingSummary = $"完成 · {ThinkingSteps.Count} 个步骤";
+            else
+                ThinkingSummary = "";
         }
         catch (Exception ex)
         {
+            IsAgentThinking = false;
             var errorMsg = new ChatMessage
             {
                 Role = "assistant",
@@ -677,7 +717,27 @@ public partial class SearchViewModel : ObservableObject
             };
             ChatMessages.Add(errorMsg);
             _ = _chatMemoryService.AppendMessageAsync(errorMsg);
+            ThinkingSummary = "";
         }
+    }
+
+    /// <summary>Agent 中间消息回调：处理工具调用过程展示</summary>
+    private void OnPartialMessage(ChatMessage partial)
+    {
+        if (partial.Role == "assistant" && partial.ToolCalls != null && partial.ToolCalls.Count > 0)
+        {
+            var toolNames = string.Join(", ", partial.ToolCalls.Select(tc => tc.Function?.Name ?? "?"));
+            var step = $"🔧 调用工具: {toolNames}";
+            ThinkingSteps.Add(step);
+            ThinkingSummary = step;
+        }
+        else if (partial.Role == "tool" && !string.IsNullOrEmpty(partial.Name))
+        {
+            var step = $"✅ {partial.Name} 完成";
+            ThinkingSteps.Add(step);
+            ThinkingSummary = step;
+        }
+        OnPropertyChanged(nameof(HasThinkingSteps));
     }
 
     /// <summary>根据当前 SearchQuery 重新过滤各分区集合（供 PC 端顶栏搜索调用）</summary>

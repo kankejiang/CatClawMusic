@@ -285,14 +285,7 @@ public class ForegroundPlayerService : Service
         _pendingArtist = artist;
 
         var intent = new Intent(context, typeof(ForegroundPlayerService));
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
-        {
-            context.StartForegroundService(intent);
-        }
-        else
-        {
-            context.StartService(intent);
-        }
+        context.StartForegroundService(intent);
     }
 
     public static void Stop(global::Android.Content.Context context)
@@ -414,17 +407,14 @@ public class ForegroundPlayerService : Service
 
     private void CreateNotificationChannel()
     {
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
+        var channel = new NotificationChannel(ChannelId, ChannelName, NotificationImportance.Low)
         {
-            var channel = new NotificationChannel(ChannelId, ChannelName, NotificationImportance.Low)
-            {
-                Description = "猫爪音乐播放控制",
-                LockscreenVisibility = NotificationVisibility.Public
-            };
-            channel.SetShowBadge(false);
-            var manager = GetSystemService(NotificationService) as NotificationManager;
-            manager?.CreateNotificationChannel(channel);
-        }
+            Description = "猫爪音乐播放控制",
+            LockscreenVisibility = NotificationVisibility.Public
+        };
+        channel.SetShowBadge(false);
+        var manager = GetSystemService(NotificationService) as NotificationManager;
+        manager?.CreateNotificationChannel(channel);
     }
 
     public override void OnDestroy()

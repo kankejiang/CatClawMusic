@@ -562,14 +562,171 @@ public partial class NowPlayingPage : ContentPage
         GoToFullLyrics();
     }
 
-    /// <summary>点击播放列表按钮：打开歌单列表页</summary>
+    /// <summary>点击播放列表按钮：弹出播放队列弹窗</summary>
     private void OnOpenPlaylistClicked(object? sender, EventArgs e)
     {
-#if WINDOWS
-        _ = Shell.Current.GoToAsync("//library/playlist");
-#else
-        MainPage.Instance?.SwitchToTab(2);
-#endif
+        BuildPlaylistPopupContent();
+        PlaylistPopup.Open();
+
+        // 延迟滚动到当前歌曲
+        _ = Task.Delay(300).ContinueWith(_ =>
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    var currentSong = _viewModel.CurrentSong;
+                    if (currentSong != null && _playlistCollectionView != null)
+                    {
+                        var songs = _viewModel.GetQueueSongs();
+                        var idx = songs.ToList().FindIndex(s => s.Id == currentSong.Id);
+                        if (idx >= 0)
+                            _playlistCollectionView.ScrollTo(idx, position: ScrollToPosition.Center, animate: false);
+                    }
+                }
+                catch { }
+            }));
+    }
+
+    private CollectionView? _playlistCollectionView;
+
+    /// <summary>构建播放列表弹窗内容：歌曲列表 + 每项可点击播放/滑动删除</summary>
+    private void BuildPlaylistPopupContent()
+    {
+        PlaylistPopup.ClearContent();
+
+        var songs = _viewModel.GetQueueSongs();
+        var currentSong = _viewModel.CurrentSong;
+        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
+        var textHint = (Color)Application.Current!.Resources["TextHintColor"];
+
+        // 歌曲数量标签
+        var countLabel = new Label
+        {
+            Text = $"{songs.Count} 首歌曲",
+            FontSize = 13,
+            TextColor = textHint,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        PlaylistPopup.AddContent(countLabel);
+
+        // 歌曲列表 CollectionView（高度限制 400，可滚动）
+        _playlistCollectionView = new CollectionView
+        {
+            SelectionMode = SelectionMode.None,
+            HeightRequest = Math.Min(songs.Count * 56, 400),
+            VerticalScrollBarVisibility = ScrollBarVisibility.Default,
+            ItemsSource = songs.ToList(),
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var grid = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitionCollection
+                    {
+                        new() { Width = GridLength.Auto },       // 播放指示器
+                        new() { Width = new GridLength(1, GridUnitType.Star) }, // 歌曲信息
+                        new() { Width = GridLength.Auto }         // 删除按钮
+                    },
+                    HeightRequest = 52,
+                    Padding = new Thickness(0, 4),
+                    ColumnSpacing = 10
+                };
+
+                // 播放指示器（当前歌曲显示小图标）
+                var indicator = new Image
+                {
+                    WidthRequest = 16,
+                    HeightRequest = 16,
+                    Aspect = Aspect.AspectFit,
+                    Source = ImageSourceHelper.FromNameOriginal("ic_play_dark"),
+                    IsVisible = false,
+                    VerticalOptions = LayoutOptions.Center
+                };
+                grid.Add(indicator, 0);
+
+                // 歌曲信息
+                var infoStack = new VerticalStackLayout
+                {
+                    Spacing = 2,
+                    VerticalOptions = LayoutOptions.Center
+                };
+                var titleLabel = new Label
+                {
+                    FontSize = 14,
+                    FontFamily = "OpenSansSemibold",
+                    MaxLines = 1,
+                    LineBreakMode = LineBreakMode.TailTruncation,
+                    VerticalOptions = LayoutOptions.Center
+                };
+                titleLabel.SetBinding(Label.TextProperty, "Title");
+                var artistLabel = new Label
+                {
+                    FontSize = 12,
+                    TextColor = textSecondary,
+                    MaxLines = 1,
+                    LineBreakMode = LineBreakMode.TailTruncation
+                };
+                artistLabel.SetBinding(Label.TextProperty, "Artist");
+                infoStack.Children.Add(titleLabel);
+                infoStack.Children.Add(artistLabel);
+                grid.Add(infoStack, 1);
+
+                // 删除按钮
+                var removeBtn = new ImageButton
+                {
+                    WidthRequest = 32,
+                    HeightRequest = 32,
+                    CornerRadius = 16,
+                    Padding = 6,
+                    Aspect = Aspect.AspectFit,
+                    BackgroundColor = Colors.Transparent,
+                    Source = ImageSourceHelper.FromNameOriginal("ic_close"),
+                    VerticalOptions = LayoutOptions.Center
+                };
+                grid.Add(removeBtn, 2);
+
+                // 绑定上下文加载后设置当前歌曲高亮
+                grid.BindingContextChanged += (s, _) =>
+                {
+                    if (s is Grid g && g.BindingContext is Song song)
+                    {
+                        var isCurrent = currentSong != null && song.Id == currentSong.Id;
+                        titleLabel.TextColor = isCurrent ? primaryColor : textPrimary;
+                        indicator.IsVisible = isCurrent;
+                        if (isCurrent)
+                            titleLabel.FontAttributes = FontAttributes.Bold;
+                    }
+                };
+
+                // 点击播放
+                var tapGesture = new TapGestureRecognizer();
+                tapGesture.Tapped += (_, _) =>
+                {
+                    if (grid.BindingContext is Song song)
+                    {
+                        PlaylistPopup.Close();
+                        _ = _viewModel.PlaySongFromQueueCommand.ExecuteAsync(song);
+                    }
+                };
+                grid.GestureRecognizers.Add(tapGesture);
+
+                // 删除按钮点击
+                removeBtn.Clicked += (_, _) =>
+                {
+                    if (grid.BindingContext is Song song)
+                    {
+                        _ = _viewModel.RemoveSongFromQueueCommand.ExecuteAsync(song);
+                        // 刷新列表
+                        BuildPlaylistPopupContent();
+                    }
+                };
+
+                return grid;
+            })
+        };
+        _playlistCollectionView.Behaviors.Add(new Controls.ScrollPerformanceBehavior());
+        PlaylistPopup.AddContent(_playlistCollectionView);
     }
 
     // ─── 窗口控制按钮 ──
