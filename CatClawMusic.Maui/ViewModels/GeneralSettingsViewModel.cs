@@ -38,6 +38,14 @@ public partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isClearingCache = false;
 
+    /// <summary>缓存大小上限（MB），绑定到设置页 Slider</summary>
+    [ObservableProperty]
+    private int _cacheSizeLimitMB;
+
+    /// <summary>缓存大小上限展示文本</summary>
+    [ObservableProperty]
+    private string _cacheSizeLimitText = "";
+
     /// <summary>
     /// 初始化 <see cref="GeneralSettingsViewModel"/> 实例，并立即刷新缓存大小。
     /// </summary>
@@ -45,6 +53,8 @@ public partial class GeneralSettingsViewModel : ObservableObject
     {
         // 打开设置页时，Picker 反映当前已保存的语言
         SelectedLanguageIndex = LocalizationService.GetSavedCultureIndex();
+        CacheSizeLimitMB = Preferences.Default.Get("audio_cache_size_mb", AudioCacheService.DefaultCacheSizeMB);
+        UpdateCacheSizeLimitText();
         _ = RefreshCacheSizeAsync();
     }
 
@@ -66,11 +76,13 @@ public partial class GeneralSettingsViewModel : ObservableObject
         IsClearingCache = true;
         try
         {
-            var cacheDir = Path.Combine(FileSystem.CacheDirectory, "music_cache");
-            if (Directory.Exists(cacheDir))
+            await AudioCacheService.Instance.ClearAllAsync();
+            // 也清理旧的封面缓存目录
+            var coverDir = Path.Combine(FileSystem.CacheDirectory, "covers");
+            if (Directory.Exists(coverDir))
             {
-                Directory.Delete(cacheDir, true);
-                Directory.CreateDirectory(cacheDir);
+                Directory.Delete(coverDir, true);
+                Directory.CreateDirectory(coverDir);
             }
             await RefreshCacheSizeAsync();
         }
@@ -79,6 +91,22 @@ public partial class GeneralSettingsViewModel : ObservableObject
             System.Diagnostics.Debug.WriteLine($"[GeneralVM] ClearCache failed: {ex}");
         }
         finally { IsClearingCache = false; }
+    }
+
+    /// <summary>
+    /// 缓存大小上限变化时：保存到 Preferences 并触发淘汰检查。
+    /// </summary>
+    partial void OnCacheSizeLimitMBChanged(int value)
+    {
+        AudioCacheService.Instance.SetCacheSizeLimitMB(value);
+        UpdateCacheSizeLimitText();
+    }
+
+    private void UpdateCacheSizeLimitText()
+    {
+        CacheSizeLimitText = CacheSizeLimitMB >= 1024
+            ? $"{CacheSizeLimitMB / 1024.0:F1} GB"
+            : $"{CacheSizeLimitMB} MB";
     }
 
     /// <summary>

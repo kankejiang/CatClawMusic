@@ -619,11 +619,14 @@ public static class MauiProgram
                     var reqMsg = new HttpRequestMessage(HttpMethod.Get, proxyUrl);
                     reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, lyricsHeadSize - 1);
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB Range 请求: {proxyUrl[..Math.Min(80, proxyUrl.Length)]}...");
                     var resp = _sharedHttpClient.SendAsync(reqMsg, cts.Token).GetAwaiter().GetResult();
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB Range 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                     if (!resp.IsSuccessStatusCode) return null;
                     using var ms = new MemoryStream();
                     resp.Content.ReadAsStream().CopyTo(ms);
                     var bytes = ms.ToArray();
+                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB Range 下载完成: {bytes.Length / 1024}KB");
                     if (bytes.Length == 0) return null;
                     return new MemoryStream(bytes);
                 }

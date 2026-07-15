@@ -139,6 +139,30 @@ public class PlayQueue
         }
         return song;
     }
+
+    /// <summary>
+    /// 预览下一首歌曲（不推进播放位置），用于预缓冲。
+    /// 随机模式下仅预览当前洗牌列表中的下一首，不触发重新洗牌。
+    /// </summary>
+    public Song? PeekNextSong()
+    {
+        if (_originalList.Count == 0) return null;
+
+        var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
+        if (PlayMode == PlayMode.SingleRepeat)
+            return CurrentSong;
+
+        int nextIndex = _currentIndex + 1;
+        if (nextIndex >= list.Count)
+        {
+            if (PlayMode == PlayMode.ListRepeat)
+                nextIndex = 0;
+            else
+                return null; // Sequential 结束 / Shuffle 需重洗牌（预览不可靠）
+        }
+
+        return nextIndex < list.Count ? list[nextIndex] : null;
+    }
     
     /// <summary>
     /// 上一曲

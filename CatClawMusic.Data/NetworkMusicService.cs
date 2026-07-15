@@ -961,6 +961,23 @@ public class NetworkMusicService : INetworkMusicService
             })
             .ToList();
 
+        // 收集歌词文件（.lrc/.ttml），按父目录+文件名索引（避免跨目录误匹配）
+        var lyricsMap = new Dictionary<string, RemoteFile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in allFiles)
+        {
+            if (f.IsDirectory) continue;
+            var ext = System.IO.Path.GetExtension(f.Name)?.ToUpperInvariant() ?? "";
+            if (ext is ".LRC" or ".TTML")
+            {
+                var nameNoExt = System.IO.Path.GetFileNameWithoutExtension(f.Name) ?? "";
+                if (!string.IsNullOrEmpty(nameNoExt))
+                {
+                    var parentDir = System.IO.Path.GetDirectoryName(f.Path)?.Replace('\\', '/').TrimEnd('/') ?? "";
+                    lyricsMap.TryAdd($"{parentDir}/{nameNoExt}", f);
+                }
+            }
+        }
+
         System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 过滤后音频文件: {audioFiles.Count}");
         progress?.Report((0, audioFiles.Count, $"发现 {audioFiles.Count} 个音频文件，正在提取元数据..."));
 
@@ -1018,6 +1035,17 @@ public class NetworkMusicService : INetworkMusicService
                     RemoteId = file.Path,
                     CoverArtPath = file.Path
                 };
+
+                // 匹配同目录下的外挂歌词文件
+                var audioNameNoExt = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? "";
+                var audioParentDir = System.IO.Path.GetDirectoryName(file.Path)?.Replace('\\', '/').TrimEnd('/') ?? "";
+                if (!string.IsNullOrEmpty(audioNameNoExt) && lyricsMap.TryGetValue($"{audioParentDir}/{audioNameNoExt}", out var lrcFile))
+                {
+                    if (_webDav is WebDavService wdsLrc)
+                        song.LyricsPath = wdsLrc.BuildStreamUrl(lrcFile.Path);
+                    else
+                        song.LyricsPath = BuildWebDavStreamUrl(lrcFile.Path, profile);
+                }
 
                 if (!quickScan)
                 {
@@ -1099,6 +1127,8 @@ public class NetworkMusicService : INetworkMusicService
 
         var audioFiles = new List<RemoteFile>();
         var subDirs = new List<RemoteFile>();
+        // 收集同目录下的歌词文件（.lrc/.ttml），按父目录+文件名索引
+        var lyricsMap = new Dictionary<string, RemoteFile>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var file in files)
         {
@@ -1111,6 +1141,15 @@ public class NetworkMusicService : INetworkMusicService
                     ext = System.IO.Path.GetExtension(file.Path)?.ToUpperInvariant() ?? "";
                 if (IsAudioExtension(ext))
                     audioFiles.Add(file);
+                else if (ext is ".LRC" or ".TTML")
+                {
+                    var nameNoExt = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? "";
+                    if (!string.IsNullOrEmpty(nameNoExt))
+                    {
+                        var parentDir = System.IO.Path.GetDirectoryName(file.Path)?.Replace('\\', '/').TrimEnd('/') ?? "";
+                        lyricsMap.TryAdd($"{parentDir}/{nameNoExt}", file);
+                    }
+                }
             }
         }
 
@@ -1187,6 +1226,17 @@ public class NetworkMusicService : INetworkMusicService
                     RemoteId = file.Path,
                     CoverArtPath = file.Path
                 };
+
+                // 匹配同目录下的外挂歌词文件
+                var audioNameNoExt = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? "";
+                var audioParentDir = System.IO.Path.GetDirectoryName(file.Path)?.Replace('\\', '/').TrimEnd('/') ?? "";
+                if (!string.IsNullOrEmpty(audioNameNoExt) && lyricsMap.TryGetValue($"{audioParentDir}/{audioNameNoExt}", out var lrcFile))
+                {
+                    if (_webDav is WebDavService wdsLrc)
+                        song.LyricsPath = wdsLrc.BuildStreamUrl(lrcFile.Path);
+                    else
+                        song.LyricsPath = BuildWebDavStreamUrl(lrcFile.Path, profile);
+                }
 
                 if (!quickScan)
                 {
@@ -1348,6 +1398,8 @@ public class NetworkMusicService : INetworkMusicService
 
         var audioFiles = new List<RemoteFile>();
         var subDirs = new List<RemoteFile>();
+        // 收集同目录下的歌词文件（.lrc/.ttml），按父目录+文件名索引
+        var lyricsMap = new Dictionary<string, RemoteFile>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var file in files)
         {
@@ -1360,6 +1412,15 @@ public class NetworkMusicService : INetworkMusicService
                     ext = System.IO.Path.GetExtension(file.Path)?.ToUpperInvariant() ?? "";
                 if (IsAudioExtension(ext))
                     audioFiles.Add(file);
+                else if (ext is ".LRC" or ".TTML")
+                {
+                    var nameNoExt = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? "";
+                    if (!string.IsNullOrEmpty(nameNoExt))
+                    {
+                        var parentDir = System.IO.Path.GetDirectoryName(file.Path)?.Replace('\\', '/').TrimEnd('/') ?? "";
+                        lyricsMap.TryAdd($"{parentDir}/{nameNoExt}", file);
+                    }
+                }
             }
         }
 
@@ -1402,6 +1463,12 @@ public class NetworkMusicService : INetworkMusicService
                     RemoteId = file.Path,
                     CoverArtPath = file.Path
                 };
+
+                // 匹配同目录下的外挂歌词文件
+                var audioNameNoExt = System.IO.Path.GetFileNameWithoutExtension(file.Name) ?? "";
+                var audioParentDir = System.IO.Path.GetDirectoryName(file.Path)?.Replace('\\', '/').TrimEnd('/') ?? "";
+                if (!string.IsNullOrEmpty(audioNameNoExt) && lyricsMap.TryGetValue($"{audioParentDir}/{audioNameNoExt}", out var lrcFile))
+                    song.LyricsPath = BuildSmbStreamUrl(lrcFile.Path, profile);
 
                 if (!quickScan)
                 {

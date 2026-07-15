@@ -126,26 +126,32 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         {
             _currentFilePath = filePath;
 
-            // 先尝试异步URL解析器（如 OpenList raw_url 获取）
-            string resolvedPath = filePath;
-            if (AsyncUrlResolver != null)
-            {
-                try
-                {
-                    var asyncResolved = await AsyncUrlResolver(filePath);
-                    if (!string.IsNullOrEmpty(asyncResolved))
-                        resolvedPath = asyncResolved;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[AudioPlayerService] AsyncUrlResolver error: {ex.Message}");
-                }
-            }
+            // 检查本地缓存：如果音频已缓存到本地，直接使用本地文件
+            string resolvedPath = AudioCacheService.Instance.GetCachedPath(filePath) ?? filePath;
 
-            // 应用同步 URL 转换器（如 smb:// → http://127.0.0.1:xxxx/ 代理）
-            var syncResolved = UrlTransformer?.Invoke(resolvedPath);
-            if (!string.IsNullOrEmpty(syncResolved))
-                resolvedPath = syncResolved;
+            // 如果是本地缓存文件，跳过 URL 解析和代理转换
+            if (resolvedPath == filePath)
+            {
+                // 先尝试异步URL解析器（如 OpenList raw_url 获取）
+                if (AsyncUrlResolver != null)
+                {
+                    try
+                    {
+                        var asyncResolved = await AsyncUrlResolver(filePath);
+                        if (!string.IsNullOrEmpty(asyncResolved))
+                            resolvedPath = asyncResolved;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[AudioPlayerService] AsyncUrlResolver error: {ex.Message}");
+                    }
+                }
+
+                // 应用同步 URL 转换器（如 smb:// → http://127.0.0.1:xxxx/ 代理）
+                var syncResolved = UrlTransformer?.Invoke(resolvedPath);
+                if (!string.IsNullOrEmpty(syncResolved))
+                    resolvedPath = syncResolved;
+            }
 
             PlatformPlay(BuildSourceUri(resolvedPath));
             // 不在此处启动 PositionTimer — ExoPlayer 的 OnIsPlayingChanged 回调会负责启动/停止

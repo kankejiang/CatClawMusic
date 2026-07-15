@@ -1754,8 +1754,8 @@ public class MusicDatabase
         }
     }
 
-    /// <summary>获取缓存的网络歌曲</summary>
-    /// <returns>去重后的网络歌曲列表（SMB 优先于 WebDAV）</returns>
+    /// <summary>获取缓存的网络歌曲（不去重，保留同歌名不同版本）</summary>
+    /// <returns>网络歌曲列表</returns>
     public async Task<List<Song>> GetCachedNetworkSongsAsync()
     {
         await EnsureMaintenanceCompletedAsync();
@@ -1777,11 +1777,7 @@ public class MusicDatabase
         foreach (var s in songs)
             s.AllArtists = allArtistsDict6.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
 
-        // 同一标题+艺术家的歌曲去重，SMB 优先于 WebDAV
-        return songs
-            .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
-            .Select(g => g.FirstOrDefault(s => s.Source == SongSource.SMB) ?? g.First())
-            .ToList();
+        return songs;
     }
 
     /// <summary>缓存网络歌曲数量</summary>

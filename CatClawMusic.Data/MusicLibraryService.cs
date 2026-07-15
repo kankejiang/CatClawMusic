@@ -187,20 +187,11 @@ public class MusicLibraryService : IMusicLibraryService
             }
         }
 
-        // 合并结果：本地 + 网络，按标题+艺术家去重（本地优先）
+        // 合并结果：本地 + 网络（不去重，保留同歌名不同版本）
         if (networkResults.Count == 0) return localResults;
 
         var allResults = new List<Song>(localResults);
-        var localKeys = new HashSet<string>(
-            localResults.Select(s => ((s.Title ?? "").Trim() + "|" + (s.Artist ?? "").Trim()).ToLowerInvariant()),
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var ns in networkResults)
-        {
-            var key = ((ns.Title ?? "").Trim() + "|" + (ns.Artist ?? "").Trim()).ToLowerInvariant();
-            if (localKeys.Add(key))
-                allResults.Add(ns);
-        }
+        allResults.AddRange(networkResults);
 
         return allResults;
     }
@@ -235,9 +226,9 @@ public class MusicLibraryService : IMusicLibraryService
     }
 
     /// <summary>
-    /// 获取去重合并的全部歌曲：本地 + 网络歌曲按标题+艺术家去重，本地优先，自动过滤已关闭协议
+    /// 获取全部歌曲：本地 + 网络歌曲合并，自动过滤已关闭协议（不去重，保留同歌名不同版本）
     /// </summary>
-    /// <returns>去重合并后的歌曲列表</returns>
+    /// <returns>合并后的歌曲列表</returns>
     public async Task<List<Song>> GetMergedSongsAsync()
     {
         var allSongs = await GetAllSongsAsync();
@@ -247,21 +238,7 @@ public class MusicLibraryService : IMusicLibraryService
         var enabledProtocols = await _db.GetEnabledProtocolsAsync();
         allSongs = _db.FilterByEnabledProtocols(allSongs, enabledProtocols);
 
-        var deduped = allSongs
-            .GroupBy(s => (s.Title?.Trim() ?? "").ToLowerInvariant() + "|" + (s.Artist?.Trim() ?? "").ToLowerInvariant())
-            .Select(g =>
-            {
-                var local = g.FirstOrDefault(s => s.Source == SongSource.Local);
-                if (local != null) return local;
-                var webdav = g.FirstOrDefault(s => s.Source == SongSource.WebDAV);
-                if (webdav != null) return webdav;
-                var smb = g.FirstOrDefault(s => s.Source == SongSource.SMB);
-                if (smb != null) return smb;
-                return g.First();
-            })
-            .OrderBy(s => s.Title)
-            .ToList();
-        return deduped;
+        return allSongs.OrderBy(s => s.Title).ToList();
     }
 
     /// <summary>
