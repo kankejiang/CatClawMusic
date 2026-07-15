@@ -53,9 +53,39 @@ public partial class DesktopDiscoverPage : ContentPage
         SetupHeroTimer();
 
         _vm.PropertyChanged += OnViewModelPropertyChanged;
+        _vm.ChatHistoryLoaded += OnChatHistoryLoaded;
+        _vm.ScrollToLatestMessageRequested += (s, e) => ScrollToLatestMessage();
         // 注意：本页被 DesktopMainPage 提取 Content 后，ContentPage 自身脱离可视化树，
         // 因此监听 HeroScroll（仍留在树中）的尺寸变化来重排 Hero 卡片宽度。
         HeroScroll.SizeChanged += OnHeroSizeChanged;
+    }
+
+    private void OnChatHistoryLoaded(object? sender, ChatHistoryLoadedEventArgs e)
+    {
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), () =>
+        {
+            if (e.ScrollToEnd && _vm.ChatMessages.Count > 0)
+            {
+                ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: false);
+            }
+            else if (e.ItemsAdded > 0)
+            {
+                var targetIndex = e.ItemsAdded;
+                if (targetIndex < _vm.ChatMessages.Count)
+                    ChatMessagesList.ScrollTo(targetIndex, position: ScrollToPosition.Start, animate: false);
+            }
+        });
+    }
+
+    private void ScrollToLatestMessage()
+    {
+        if (_vm.ChatMessages.Count > 0)
+        {
+            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), () =>
+            {
+                ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: true);
+            });
+        }
     }
 
     // ─── Hero carousel ───
@@ -87,16 +117,6 @@ public partial class DesktopDiscoverPage : ContentPage
             {
                 LayoutHeroCards();
                 _ = ScrollHeroTo(0);
-            });
-        }
-
-        if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
-        {
-            Dispatcher.Dispatch(async () =>
-            {
-                await Task.Delay(200);
-                if (_vm.ChatMessages.Count > 0)
-                    ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: false);
             });
         }
     }
@@ -686,30 +706,9 @@ public partial class DesktopDiscoverPage : ContentPage
     /// <summary>聊天消息列表滚动时检测是否需要加载更多历史记录</summary>
     private async void OnChatMessagesScrolled(object? sender, ItemsViewScrolledEventArgs e)
     {
-        // 当滚动到接近顶部时自动加载更多
-        if (e.VerticalOffset < 50 && _vm.HasMoreChatHistory)
+        if (e.VerticalOffset < 30 && _vm.HasMoreChatHistory)
         {
-            // 记录当前滚动位置和内容高度，加载后恢复位置
-            var previousCount = _vm.ChatMessages.Count;
             await _vm.LoadMoreChatHistoryAsync();
-            var newCount = _vm.ChatMessages.Count;
-            if (newCount > previousCount)
-            {
-                // 加载了新条目，向下滚动到原来位置（避免跳动）
-                var addedCount = newCount - previousCount;
-                // 估算每条高度约60px，滚动到原位置
-                Dispatcher.Dispatch(async () =>
-                {
-                    await Task.Delay(50);
-                    if (ChatMessagesList.Handler != null)
-                    {
-                        // 滚动到原第一条消息（现在偏移了addedCount条）
-                        var targetIndex = addedCount;
-                        if (targetIndex < _vm.ChatMessages.Count)
-                            ChatMessagesList.ScrollTo(targetIndex, position: ScrollToPosition.Start, animate: false);
-                    }
-                });
-            }
         }
     }
 }

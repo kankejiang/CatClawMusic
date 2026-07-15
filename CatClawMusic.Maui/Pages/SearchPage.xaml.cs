@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Services;
@@ -14,6 +15,7 @@ public partial class SearchPage : ContentPage
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService _audioPlayer;
     private readonly IServiceProvider _services;
+    private readonly NowPlayingViewModel _nowPlayingVm;
     private SettingsPage? _settingsPage;
     private bool _isSettingsPanelOpen;
     private IDispatcherTimer? _heroAutoScrollTimer;
@@ -25,7 +27,8 @@ public partial class SearchPage : ContentPage
     /// <param name="vm">搜索页面对应的视图模型。</param>
     /// <param name="audioPlayer">音频播放服务。</param>
     /// <param name="services">服务提供程序，用于解析设置页面。</param>
-    public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer, IServiceProvider services)
+    /// <param name="nowPlayingVm">当前播放视图模型，用于驱动聊天模式下的迷你播放器。</param>
+    public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer, IServiceProvider services, NowPlayingViewModel nowPlayingVm)
     {
         InitializeComponent();
         _db = db;
@@ -33,24 +36,93 @@ public partial class SearchPage : ContentPage
         _vm = vm;
         _audioPlayer = audioPlayer;
         _services = services;
+        _nowPlayingVm = nowPlayingVm;
         BindingContext = _vm;
         UpdateTabVisualState(0);
         SetupHeroAutoScroll();
 
         ChatBackButton.Clicked += OnChatBackClicked;
 
+        ChatMiniPlayer.BindingContext = _nowPlayingVm;
+        _nowPlayingVm.PropertyChanged += OnNowPlayingPropertyChanged;
+
+        _vm.ChatHistoryLoaded += OnChatHistoryLoaded;
+        _vm.ScrollToLatestMessageRequested += (s, e) => ScrollToLatestMessage();
+
         _vm.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
             {
-                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(200), () =>
+                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () =>
                 {
-                    if (_vm.ChatMessages.Count > 0)
-                        ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1);
                     ChatInputBox?.Focus();
                 });
+                UpdateChatMiniPlayerVisibility();
+            }
+            else if (e.PropertyName == nameof(_vm.IsChatMode) && !_vm.IsChatMode)
+            {
+                UpdateChatMiniPlayerVisibility();
             }
         };
+    }
+
+    private void OnNowPlayingPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(NowPlayingViewModel.Title) ||
+            e.PropertyName == nameof(NowPlayingViewModel.CurrentSong))
+        {
+            MainThread.BeginInvokeOnMainThread(UpdateChatMiniPlayerVisibility);
+        }
+    }
+
+    private void UpdateChatMiniPlayerVisibility()
+    {
+        if (!_vm.IsChatMode)
+        {
+            ChatMiniPlayer.IsVisible = false;
+            ChatMiniPlayer.HeightRequest = 0;
+            return;
+        }
+        var hasSong = !string.IsNullOrEmpty(_nowPlayingVm.Title);
+        ChatMiniPlayer.IsVisible = hasSong;
+        ChatMiniPlayer.HeightRequest = hasSong ? 52 : 0;
+    }
+
+    private void OnChatMiniPlayerTapped(object? sender, EventArgs e)
+    {
+#if WINDOWS
+        DesktopMainPage.Instance?.SwitchToNamedTab("playing");
+#else
+        MainPage.Instance?.SwitchToTab(0);
+#endif
+    }
+
+    private void OnChatHistoryLoaded(object? sender, ChatHistoryLoadedEventArgs e)
+    {
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), () =>
+        {
+            if (e.ScrollToEnd && _vm.ChatMessages.Count > 0)
+            {
+                ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: false);
+            }
+            else if (e.ItemsAdded > 0)
+            {
+                var targetIndex = e.ItemsAdded;
+                if (targetIndex < _vm.ChatMessages.Count)
+                    ChatMessagesList.ScrollTo(targetIndex, position: ScrollToPosition.Start, animate: false);
+            }
+        });
+    }
+
+    private void ScrollToLatestMessage()
+    {
+        if (_vm.ChatMessages.Count > 0)
+        {
+            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), () =>
+            {
+                ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: true);
+            });
+        }
     }
 
     private void SetupHeroAutoScroll()
@@ -679,30 +751,9 @@ public partial class SearchPage : ContentPage
     /// <summary>聊天消息列表滚动时检测是否需要加载更多历史记录</summary>
     private async void OnChatMessagesScrolled(object? sender, ItemsViewScrolledEventArgs e)
     {
-        // 当滚动到接近顶部时自动加载更多
-        if (e.VerticalOffset < 50 && _vm.HasMoreChatHistory)
+        if (e.VerticalOffset < 30 && _vm.HasMoreChatHistory)
         {
-            // 记录当前滚动位置和内容高度，加载后恢复位置
-            var previousCount = _vm.ChatMessages.Count;
             await _vm.LoadMoreChatHistoryAsync();
-            var newCount = _vm.ChatMessages.Count;
-            if (newCount > previousCount)
-            {
-                // 加载了新条目，向下滚动到原来位置（避免跳动）
-                var addedCount = newCount - previousCount;
-                // 估算每条高度约60px，滚动到原位置
-                Dispatcher.Dispatch(async () =>
-                {
-                    await Task.Delay(50);
-                    if (ChatMessagesList.Handler != null)
-                    {
-                        // 滚动到原第一条消息（现在偏移了addedCount条）
-                        var targetIndex = addedCount;
-                        if (targetIndex < _vm.ChatMessages.Count)
-                            ChatMessagesList.ScrollTo(targetIndex, position: ScrollToPosition.Start, animate: false);
-                    }
-                });
-            }
         }
     }
 }

@@ -363,7 +363,7 @@ public static class MauiProgram
         services.AddSingleton<NowPlayingViewModel>();
         services.AddSingleton<LibraryViewModel>();
         services.AddSingleton<PlaylistViewModel>();
-        services.AddTransient<SearchViewModel>();
+        services.AddSingleton<SearchViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AlbumDetailViewModel>();
         services.AddTransient<ArtistDetailViewModel>();
@@ -438,7 +438,8 @@ public static class MauiProgram
         Log("Step 51: Services set");
 
         AgentService.LibrarySnapshotProvider = () => MusicLibrarySnapshotService.LoadSnapshot();
-        AgentService.MemoryProvider = () => ChatMemoryService.LoadMemory();
+        var chatMemoryService = Services.GetRequiredService<Services.ChatMemoryService>();
+        AgentService.MemoryProvider = () => chatMemoryService.LoadMemory();
 
         _ = Task.Run(async () =>
         {

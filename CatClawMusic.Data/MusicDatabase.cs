@@ -226,6 +226,8 @@ public class MusicDatabase
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_play_history_time ON PlayHistory(PlayedAt DESC)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_song_artists_song ON SongArtists(SongId)"); } catch { }
         try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_song_artists_artist ON SongArtists(ArtistId)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_chat_messages_id ON ChatMessageRecord(Id DESC)"); } catch { }
+        try { await _database.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON ChatMessageRecord(Timestamp)"); } catch { }
     }
 
     // ═══════════ Song CRUD ═══════════
@@ -2662,6 +2664,22 @@ public class MusicDatabase
     /// <summary>获取聊天记录总数</summary>
     public async Task<int> GetChatMessageCountAsync()
         => await _database.Table<ChatMessageRecord>().CountAsync();
+
+    /// <summary>裁剪聊天记录，只保留最近指定条数</summary>
+    public async Task TrimChatMessagesAsync(int keepCount)
+    {
+        try
+        {
+            var count = await _database.Table<ChatMessageRecord>().CountAsync();
+            if (count <= keepCount) return;
+
+            var toDelete = count - keepCount;
+            await _database.ExecuteAsync(
+                "DELETE FROM ChatMessageRecord WHERE Id IN (SELECT Id FROM ChatMessageRecord ORDER BY Id ASC LIMIT ?)",
+                toDelete);
+        }
+        catch { }
+    }
 
     /// <summary>清空所有聊天记录</summary>
     public async Task ClearChatMessagesAsync()

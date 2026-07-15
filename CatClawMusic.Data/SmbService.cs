@@ -23,8 +23,87 @@ public class SmbService : INetworkFileService, IDisposable
     private ISMBFileStore? _fileStore;
 
     /// <summary>
+    /// SMBLibrary 的 SMB2Client 仅支持 TCP 445 端口，无法指定其他端口。
+    /// 当用户配置了非 445 端口时给出明确提示。
+    /// </summary>
+    private static string BuildSmbPortHint(ConnectionProfile profile)
+    {
+        var port = profile.Port > 0 ? profile.Port : 445;
+        return port != 445
+            ? $"\n\n注意：当前使用的 SMB 库仅支持 445 端口，配置端口 {port} 将被忽略。"
+            : "";
+    }
+
+    /// <summary>
+    /// 尝试连接 SMB 服务器。
+    /// 优先使用字符串主机名让 SMBLibrary 内部解析（支持 NetBIOS 和 Failover Cluster）；
+    /// 失败后回退到 Dns.GetHostAddresses，依次尝试 IPv6 和 IPv4 地址。
+    /// SMB2Client 不支持自定义端口，始终使用 445。
+    /// </summary>
+    private static bool TryConnectSMB(SMB2Client client, string host, out string? error)
+    {
+        error = null;
+        host = host.Trim();
+
+        // 1) 优先使用字符串主机名连接（SMBLibrary 内部会做 DNS 解析，CSV 故障转移集群需要此方式）
+        try
+        {
+            if (client.Connect(host, SMBTransportType.DirectTCPTransport))
+                return true;
+            error = $"SMB 服务器 {host}:445 拒绝连接";
+        }
+        catch (Exception ex)
+        {
+            error = $"通过主机名连接失败: {ex.Message}";
+        }
+
+        // 2) 回退：手动 DNS 解析并尝试所有地址（IPv6 优先，再 IPv4）
+        try
+        {
+            var addresses = System.Net.Dns.GetHostAddresses(host);
+            if (addresses == null || addresses.Length == 0)
+            {
+                error = $"无法解析主机 {host} 到任何 IP 地址";
+                return false;
+            }
+
+            // 按地址族排序：IPv6 -> IPv4，相同族内按原始顺序
+            var ordered = addresses
+                .OrderByDescending(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                .ThenByDescending(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                .ToList();
+
+            foreach (var addr in ordered)
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SMB] 尝试连接 {addr} ({addr.AddressFamily})");
+                    if (client.Connect(addr, SMBTransportType.DirectTCPTransport))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SMB] 成功连接到 {addr}");
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SMB] 连接 {addr} 失败: {ex.Message}");
+                }
+            }
+
+            var addrList = string.Join(", ", addresses.Select(a => a.ToString()));
+            error = $"无法连接到 {host}:445\nDNS 解析结果: {addrList}\n已尝试 {addresses.Length} 个地址，请确认：\n• 该 IP 是否确实运行了 SMB 服务\n• 445 端口是否被防火墙/运营商封锁\n• 若在内网使用，域名是否解析到了正确的内网 IP";
+        }
+        catch (Exception ex)
+        {
+            error = $"DNS 解析失败: {ex.Message}";
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// 确保 SMB 客户端已按 profile 完成连接和共享挂载。
-    /// 若 host/port/共享名/账号密码未变化，则复用现有连接；否则重新建立连接。
+    /// 若 host/共享名/账号密码未变化，则复用现有连接；否则重新建立连接。
     /// </summary>
     /// <param name="profile">连接配置。</param>
     /// <exception cref="InvalidOperationException">连接、登录或挂载共享失败时抛出。</exception>
@@ -41,31 +120,10 @@ public class SmbService : INetworkFileService, IDisposable
             DisconnectLocked();
 
             _client = new SMB2Client();
-            var port = profile.Port > 0 ? profile.Port : 445;
             var host = profile.Host.Trim();
 
-            bool connected;
-            try
-            {
-                connected = _client.Connect(IPAddress.Parse(host), SMBTransportType.DirectTCPTransport);
-            }
-            catch
-            {
-                try
-                {
-                    var addresses = System.Net.Dns.GetHostAddresses(host);
-                    var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                    if (ipv4 == null) throw new InvalidOperationException($"无法解析主机 {host}");
-                    connected = _client.Connect(ipv4, SMBTransportType.DirectTCPTransport);
-                }
-                catch
-                {
-                    throw new InvalidOperationException($"无法连接到 {host}:{port}");
-                }
-            }
-
-            if (!connected)
-                throw new InvalidOperationException($"无法连接到 {host}:{port}");
+            if (!TryConnectSMB(_client, host, out var connectError))
+                throw new InvalidOperationException($"无法连接到 SMB 服务器 {host}:445\n{connectError}{BuildSmbPortHint(profile)}");
 
             var shareName = string.IsNullOrEmpty(profile.ShareName) ? "share" : profile.ShareName.Trim();
             var status = _client.Login(string.IsNullOrEmpty(profile.DomainName) ? "" : profile.DomainName,
@@ -106,23 +164,9 @@ public class SmbService : INetworkFileService, IDisposable
             {
                 var tempClient = new SMB2Client();
                 var host = profile.Host.Trim();
-                var port = profile.Port > 0 ? profile.Port : 445;
 
-                bool connected;
-                try
-                {
-                    connected = tempClient.Connect(IPAddress.Parse(host), SMBTransportType.DirectTCPTransport);
-                }
-                catch
-                {
-                    var addresses = System.Net.Dns.GetHostAddresses(host);
-                    var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                    if (ipv4 == null) return (false, shares, $"无法解析主机 {host}");
-                    connected = tempClient.Connect(ipv4, SMBTransportType.DirectTCPTransport);
-                }
-
-                if (!connected)
-                    return (false, shares, $"无法连接到 {host}:{port}");
+                if (!TryConnectSMB(tempClient, host, out var connectError))
+                    return (false, shares, $"无法连接到 SMB 服务器 {host}:445\n{connectError}{BuildSmbPortHint(profile)}");
 
                 var status = tempClient.Login(
                     string.IsNullOrEmpty(profile.DomainName) ? "" : profile.DomainName,
@@ -167,23 +211,9 @@ public class SmbService : INetworkFileService, IDisposable
             {
                 var tempClient = new SMB2Client();
                 var host = profile.Host.Trim();
-                var port = profile.Port > 0 ? profile.Port : 445;
 
-                bool connected;
-                try
-                {
-                    connected = tempClient.Connect(IPAddress.Parse(host), SMBTransportType.DirectTCPTransport);
-                }
-                catch
-                {
-                    var addresses = System.Net.Dns.GetHostAddresses(host);
-                    var ipv4 = addresses.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                    if (ipv4 == null) return (false, $"无法解析主机 {host}");
-                    connected = tempClient.Connect(ipv4, SMBTransportType.DirectTCPTransport);
-                }
-
-                if (!connected)
-                    return (false, $"无法连接到 {host}:{port}");
+                if (!TryConnectSMB(tempClient, host, out var connectError))
+                    return (false, $"无法连接到 SMB 服务器 {host}:445\n{connectError}{BuildSmbPortHint(profile)}");
 
                 var status = tempClient.Login(
                     string.IsNullOrEmpty(profile.DomainName) ? "" : profile.DomainName,

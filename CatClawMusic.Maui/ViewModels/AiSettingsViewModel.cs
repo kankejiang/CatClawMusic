@@ -225,7 +225,7 @@ public partial class AiSettingsViewModel : ObservableObject
     /// <summary>加载长期记忆内容</summary>
     private void LoadMemoryContent()
     {
-        MemoryContent = ChatMemoryService.LoadMemory();
+        MemoryContent = _chatMemoryService.LoadMemory();
     }
 
     /// <summary>IsEnabled 变化时自动持久化到当前配置</summary>
@@ -498,7 +498,7 @@ public partial class AiSettingsViewModel : ObservableObject
 
             if (string.IsNullOrWhiteSpace(input)) return;
 
-            await _chatMemoryService.AppendImportantMemoryAsync(input);
+            await _chatMemoryService.AddMemoryAsync("preference", input, 7);
             LoadMemoryContent();
             await ToastAsync("记忆已添加");
         }

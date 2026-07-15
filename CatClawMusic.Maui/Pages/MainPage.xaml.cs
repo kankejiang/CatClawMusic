@@ -303,6 +303,35 @@ public partial class MainPage : ContentPage
         InvokeLifecycle(_tabPages[_currentIndex], "OnDisappearing");
     }
 
+    /// <summary>
+    /// 系统返回键处理：聊天模式下退出聊天，全屏歌词/播放页返回发现页，否则不拦截（交由系统处理）。
+    /// </summary>
+    protected override bool OnBackButtonPressed()
+    {
+        var searchVm = _services.GetService<SearchViewModel>();
+        if (searchVm?.IsChatMode == true)
+        {
+            searchVm.ExitChatModeCommand.Execute(null);
+            return true;
+        }
+
+        if (_currentIndex == 0)
+        {
+            // 全屏歌词页 → 返回播放页
+            _ = AnimateToPage(1);
+            return true;
+        }
+
+        if (_currentIndex == 1)
+        {
+            // 播放页 → 返回发现页
+            _ = AnimateToPage(2);
+            return true;
+        }
+
+        return base.OnBackButtonPressed();
+    }
+
     /// <summary>当 ViewPager 网格尺寸发生变化时触发，重新计算各页面位置以适配新尺寸。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>
@@ -673,11 +702,13 @@ public partial class MainPage : ContentPage
         TabBar.Padding = new Thickness(0, 6, 0, hideTabBar ? 8 : bottom + 8);
     }
 
-    /// <summary>迷你播放器仅在有当前歌曲且非全屏页时显示</summary>
+    /// <summary>迷你播放器仅在有当前歌曲且非全屏页、非聊天模式时显示（聊天模式下迷你播放器显示在聊天界面输入框上方）</summary>
     private void UpdateMiniPlayerVisibility()
     {
         var hasSong = !string.IsNullOrEmpty(_nowPlayingVm.Title);
-        var visible = hasSong && _currentIndex > 1;
+        var searchVm = _services.GetService<SearchViewModel>();
+        var isChatMode = searchVm?.IsChatMode == true;
+        var visible = hasSong && _currentIndex > 1 && !isChatMode;
         MiniPlayer.IsVisible = visible;
         MiniPlayer.HeightRequest = visible ? 52 : 0;
     }

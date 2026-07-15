@@ -407,7 +407,7 @@
         <Grid x:Name="ChatOverlay"
               IsVisible="{Binding IsChatMode}"
               Background="{DynamicResource PageBackgroundBrush}"
-              RowDefinitions="Auto,*,Auto">
+              RowDefinitions="Auto,*,Auto,Auto">
 
             <Grid Grid.Row="0" Margin="16,10,16,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <controls:BackButton x:Name="ChatBackButton"
@@ -543,7 +543,75 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <Border Grid.Row="2" Margin="12,10,12,14"
+            <!-- 聊天模式迷你播放器：有歌曲播放时显示在输入框上方 -->
+            <Grid Grid.Row="2" x:Name="ChatMiniPlayer"
+                  ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                  ColumnSpacing="10"
+                  Padding="12,6"
+                  HeightRequest="52"
+                  Background="{DynamicResource HeroBrush}"
+                  IsVisible="False">
+
+                <Border Grid.Column="0"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 8"
+                        WidthRequest="40" HeightRequest="40"
+                        BackgroundColor="{DynamicResource ChipInactiveColor}">
+                    <Image Source="{Binding CoverImage}"
+                           Aspect="AspectFill" />
+                </Border>
+
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="1"
+                                     VerticalOptions="Center">
+                    <Label Text="{Binding Title}"
+                           FontSize="13"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="White"
+                           MaxLines="1"
+                           LineBreakMode="TailTruncation" />
+                    <Label Text="{Binding Artist}"
+                           FontSize="11"
+                           TextColor="#CCFFFFFF"
+                           MaxLines="1"
+                           LineBreakMode="TailTruncation" />
+                </VerticalStackLayout>
+
+                <Button Grid.Column="0" Grid.ColumnSpan="2"
+                        BackgroundColor="Transparent"
+                        Text=""
+                        BorderWidth="0"
+                        CornerRadius="0"
+                        Padding="0"
+                        Clicked="OnChatMiniPlayerTapped"
+                        HorizontalOptions="Fill" VerticalOptions="Fill" />
+
+                <Button Grid.Column="2"
+                        WidthRequest="28" HeightRequest="28"
+                        CornerRadius="14" Padding="0"
+                        BackgroundColor="Transparent"
+                        ImageSource="{Binding PlayPreviousIconSourceWhite}"
+                        Command="{Binding PlayPreviousCommand}"
+                        VerticalOptions="Center" HorizontalOptions="Center" />
+
+                <Button Grid.Column="3"
+                        WidthRequest="36" HeightRequest="36"
+                        CornerRadius="18" Padding="0"
+                        BackgroundColor="Transparent"
+                        ImageSource="{Binding PlayPauseIconSourceWhite}"
+                        Command="{Binding TogglePlayPauseCommand}"
+                        VerticalOptions="Center" HorizontalOptions="Center" />
+
+                <Button Grid.Column="4"
+                        WidthRequest="28" HeightRequest="28"
+                        CornerRadius="14" Padding="0"
+                        BackgroundColor="Transparent"
+                        ImageSource="{Binding PlayNextIconSourceWhite}"
+                        Command="{Binding PlayNextCommand}"
+                        VerticalOptions="Center" HorizontalOptions="Center" />
+            </Grid>
+
+            <Border Grid.Row="3" Margin="12,10,12,14"
                     Style="{StaticResource GlassInputStyle}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <Entry x:Name="ChatInputBox"

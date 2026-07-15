@@ -575,7 +575,9 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
                 return;
             }
 
-            svc.Configure(profile);
+            // Configure 对 SMB 是同步网络操作（TCP 连接 + 登录 + TreeConnect），
+            // 必须放到后台线程执行，否则会卡死 UI 线程导致 ANR
+            await Task.Run(() => svc.Configure(profile));
             var files = await svc.ListFilesAsync(path);
             var dirs = files.Where(f => f.IsDirectory).OrderBy(f => f.Name).ToList();
 

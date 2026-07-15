@@ -286,16 +286,18 @@ public partial class SearchViewModel : ObservableObject
     /// <summary>是否正在加载更多历史记录（防止重复触发）</summary>
     private bool _isLoadingMoreHistory;
 
-    /// <summary>进入聊天模式时加载最近20条历史记录</summary>
+    /// <summary>聊天历史加载完成事件（首次加载或加载更多后触发，供页面处理滚动）</summary>
+    public event EventHandler<ChatHistoryLoadedEventArgs>? ChatHistoryLoaded;
+
+    /// <summary>进入聊天模式时加载最近30条历史记录</summary>
     private async Task LoadRecentChatHistoryAsync()
     {
         try
         {
-            var records = await _database.GetRecentChatMessagesAsync(20);
+            var records = await _database.GetRecentChatMessagesAsync(30);
             ChatMessages.Clear();
             if (records.Count == 0)
             {
-                // 没有历史记录，添加欢迎消息
                 ChatMessages.Add(new ObservableChatMessage
                 {
                     Role = "assistant",
@@ -316,6 +318,8 @@ public partial class SearchViewModel : ObservableObject
                 var total = await _database.GetChatMessageCountAsync();
                 HasMoreChatHistory = total > ChatMessages.Count;
             }
+
+            ChatHistoryLoaded?.Invoke(this, new ChatHistoryLoadedEventArgs { IsInitialLoad = true, ScrollToEnd = true });
         }
         catch (Exception ex)
         {
@@ -330,12 +334,12 @@ public partial class SearchViewModel : ObservableObject
             return;
 
         _isLoadingMoreHistory = true;
+        var previousCount = ChatMessages.Count;
         try
         {
             var older = await _database.GetRecentChatMessagesAsync(20, _oldestLoadedMessageId);
             if (older.Count > 0)
             {
-                // 插入到列表头部
                 for (int i = 0; i < older.Count; i++)
                 {
                     ChatMessages.Insert(i, new ObservableChatMessage { Role = older[i].Role, Content = older[i].Content });
@@ -343,6 +347,13 @@ public partial class SearchViewModel : ObservableObject
                 _oldestLoadedMessageId = older[0].Id;
                 var total = await _database.GetChatMessageCountAsync();
                 HasMoreChatHistory = total > ChatMessages.Count;
+
+                ChatHistoryLoaded?.Invoke(this, new ChatHistoryLoadedEventArgs
+                {
+                    IsInitialLoad = false,
+                    ItemsAdded = older.Count,
+                    PreviousCount = previousCount
+                });
             }
             else
             {
@@ -758,7 +769,8 @@ public partial class SearchViewModel : ObservableObject
         };
         ChatMessages.Add(userMsg);
         _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "user", Content = userMessage, Timestamp = DateTime.UtcNow });
-        _ = _chatMemoryService.AppendMessageAsync(userMsg);
+        _chatMemoryService.RecordMessage(userMsg);
+        _ = TrimOldChatMessagesAsync();
 
         if (!_agentService.IsConfigured)
         {
@@ -769,8 +781,9 @@ public partial class SearchViewModel : ObservableObject
             };
             ChatMessages.Add(notConfiguredMsg);
             _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = notConfiguredMsg.Content, Timestamp = DateTime.UtcNow });
-            _ = _chatMemoryService.AppendMessageAsync(notConfiguredMsg);
+            _chatMemoryService.RecordMessage(notConfiguredMsg);
             _currentThinkingMessage = null;
+            _ = TriggerMemoryExtractionAsync();
             return;
         }
 
@@ -786,6 +799,7 @@ public partial class SearchViewModel : ObservableObject
         ChatMessages.Add(assistantMsg);
         _currentThinkingMessage = assistantMsg;
         IsAgentThinking = true;
+        ScrollToLatestMessageRequested?.Invoke(this, EventArgs.Empty);
 
         try
         {
@@ -805,8 +819,9 @@ public partial class SearchViewModel : ObservableObject
             });
 
             _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
-            _ = _chatMemoryService.AppendMessageAsync(assistantMsg);
+            _chatMemoryService.RecordMessage(assistantMsg);
             IsAgentThinking = false;
+            _ = TriggerMemoryExtractionAsync();
         }
         catch (Exception ex)
         {
@@ -819,8 +834,45 @@ public partial class SearchViewModel : ObservableObject
                 assistantMsg.IsThinkingExpanded = false;
             });
             _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
-            _ = _chatMemoryService.AppendMessageAsync(assistantMsg);
+            _chatMemoryService.RecordMessage(assistantMsg);
             IsAgentThinking = false;
+            _ = TriggerMemoryExtractionAsync();
+        }
+    }
+
+    /// <summary>请求滚动到最新消息的事件（供页面订阅）</summary>
+    public event EventHandler? ScrollToLatestMessageRequested;
+
+    /// <summary>裁剪旧聊天记录，只保留最近1000条</summary>
+    private async Task TrimOldChatMessagesAsync()
+    {
+        try
+        {
+            var count = await _database.GetChatMessageCountAsync();
+            if (count > 1000)
+            {
+                await _database.TrimChatMessagesAsync(1000);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>触发AI记忆提取（后台异步，不阻塞UI）</summary>
+    private async Task TriggerMemoryExtractionAsync()
+    {
+        if (!_agentService.IsConfigured) return;
+
+        try
+        {
+            await Task.Delay(2000);
+            await _chatMemoryService.ForceMemoryExtractionAsync(async (sysPrompt, userPrompt) =>
+            {
+                return await _agentService.QuickAskAsync(sysPrompt, userPrompt);
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] 记忆提取失败: {ex.Message}");
         }
     }
 
@@ -1431,4 +1483,12 @@ public class HeroCardItem
     public Color GradientEnd { get; set; } = Colors.Purple;
     /// <summary>播放按钮图标（WinUI 需代码赋值，XAML 字面量不渲染）</summary>
     public ImageSource? PlayIcon { get; set; }
+}
+
+public class ChatHistoryLoadedEventArgs : EventArgs
+{
+    public bool IsInitialLoad { get; set; }
+    public bool ScrollToEnd { get; set; }
+    public int ItemsAdded { get; set; }
+    public int PreviousCount { get; set; }
 }
