@@ -430,15 +430,45 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
                 }
             });
 
-            var songs = await Task.Run(() => _networkMusicService.ScanAsync(profile, progress));
-            
-            SyncStatus = $"发现 {songs.Count} 首歌曲，正在导入...";
-            HasSyncProgress = false;
-            var imported = await _musicLibrary.ImportSongsAsync(songs);
-            
+            var songs = await Task.Run(() => _networkMusicService.ScanAsync(profile, progress, quickScan: true));
+
+            // MusicScanner 已在扫描过程中通过批量操作入库（含 ArtistId/AlbumId），
+            // 无需再调 ImportSongsAsync 逐首重复插入（1226 首 × 3 次 DB 操作 = 极慢）
             SyncProgress = 1;
             await RefreshAsync();
-            await ToastAsync($"同步完成！共导入 {imported.Count} 首歌曲");
+            await ToastAsync($"同步完成！发现 {songs.Count} 首歌曲，正在后台补全元数据...");
+
+            // 后台回填元数据（艺术家、专辑、时长等），不阻塞用户操作
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var backfillProgress = new Progress<(int done, int total, string status)>(p =>
+                    {
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            SyncStatus = p.status;
+                            if (p.total > 0)
+                            {
+                                SyncProgress = (double)p.done / p.total;
+                                HasSyncProgress = true;
+                            }
+                        });
+                    });
+                    await _networkMusicService.BackfillMetadataAsync(profile, backfillProgress);
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await RefreshAsync();
+                        SyncStatus = "";
+                        SyncProgress = 0;
+                        HasSyncProgress = false;
+                    });
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 元数据回填失败: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -534,6 +564,15 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
             await GoUpAsync();
             return;
         }
+        // 点击 SMB 共享名项：设置共享名后加载根目录
+        if (item.IsShare)
+        {
+            FormShareName = item.Name;
+            BrowseCurrentPath = "/";
+            DirectoryItems.Clear();
+            await LoadDirectoriesAsync("/");
+            return;
+        }
         BrowseCurrentPath = item.Path;
         DirectoryItems.Clear();
         await LoadDirectoriesAsync(item.Path);
@@ -573,6 +612,33 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
             {
                 await ToastAsync("未找到对应协议服务");
                 return;
+            }
+
+            // SMB 协议且未填共享名时，先列出可用共享让用户选择
+            if (profile.Protocol == ProtocolType.SMB && string.IsNullOrWhiteSpace(profile.ShareName))
+            {
+                if (svc is SmbService smb)
+                {
+                    var (ok, shares, msg) = await smb.ListSharesAsync(profile);
+                    if (!ok || shares.Count == 0)
+                    {
+                        await ToastAsync($"无法列出共享：{msg}");
+                        return;
+                    }
+                    DirectoryItems.Clear();
+                    foreach (var s in shares)
+                    {
+                        DirectoryItems.Add(new RemoteDirItem
+                        {
+                            Name = s,
+                            Path = "/",
+                            IsDirectory = true,
+                            IsShare = true
+                        });
+                    }
+                    BrowseCurrentPath = "（请选择共享）";
+                    return;
+                }
             }
 
             // Configure 对 SMB 是同步网络操作（TCP 连接 + 登录 + TreeConnect），
@@ -676,4 +742,8 @@ public partial class RemoteDirItem : ObservableObject
     /// <summary>是否为"返回上级"项</summary>
     [ObservableProperty]
     private bool _isParent;
+
+    /// <summary>是否为 SMB 共享名选择项（用户未填共享名时列出可用共享）</summary>
+    [ObservableProperty]
+    private bool _isShare;
 }

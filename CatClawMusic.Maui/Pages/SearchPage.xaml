@@ -432,11 +432,13 @@
                             Grid.Row="1" Margin="12,0,12,0"
                             ItemsSource="{Binding ChatMessages}"
                             SelectionMode="None"
-                            ItemsUpdatingScrollMode="KeepLastItemInView"
-                            Scrolled="OnChatMessagesScrolled">
+                            ItemsUpdatingScrollMode="KeepItemsInView"
+                            Scrolled="OnChatMessagesScrolled"
+                            Rotation="180">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
+                              Rotation="180">
                             <!-- Yuki 头像（左）：assistant 消息显示，顶部对齐（QQ/微信样式） -->
                             <Border Grid.Column="0"
                                     WidthRequest="36" HeightRequest="36"

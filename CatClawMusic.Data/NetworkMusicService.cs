@@ -194,7 +194,8 @@ public class NetworkMusicService : INetworkMusicService
     /// <returns>扫描到的所有歌曲列表</returns>
     public async Task<List<Song>> ScanAsync(ConnectionProfile profile,
         IProgress<(int done, int total, string status)>? progress = null,
-        Action<List<Song>>? songBatchCallback = null)
+        Action<List<Song>>? songBatchCallback = null,
+        bool quickScan = false)
     {
         try { await _db.EnsureInitializedAsync(); } catch { }
 
@@ -233,7 +234,7 @@ public class NetworkMusicService : INetworkMusicService
         }
         else if (profile.Protocol == ProtocolType.SMB)
         {
-            var (newSongs, allFoundIds) = await ScanSmbAsync(profile, songBatchCallback, progress);
+            var (newSongs, allFoundIds) = await ScanSmbAsync(profile, songBatchCallback, progress, quickScan);
             allSongs = newSongs;
             foreach (var id in allFoundIds)
             {
@@ -269,9 +270,9 @@ public class NetworkMusicService : INetworkMusicService
     }
 
     /// <summary>
-    /// 下载文件头部数据用于读取标签信息的大小（512KB）
+    /// 下载文件头部数据用于读取标签信息的大小（256KB，平衡扫描速度和封面质量）
     /// </summary>
-    private const int TagHeadSize = 128 * 1024;
+    private const int TagHeadSize = 256 * 1024;
 
     /// <summary>
     /// 下载远程文件的头部数据用于标签解析，失败时回退到完整下载
@@ -544,6 +545,78 @@ public class NetworkMusicService : INetworkMusicService
             if (result != null) return result;
         }
         return null;
+    }
+
+    /// <summary>
+    /// 后台回填网络歌曲元数据：找到所有缺少元数据的歌曲（快速扫描入库的），
+    /// 逐批从远程服务器下载标签信息并更新数据库。
+    /// </summary>
+    public async Task BackfillMetadataAsync(ConnectionProfile profile,
+        IProgress<(int done, int total, string status)>? progress = null)
+    {
+        try { await _db.EnsureInitializedAsync(); } catch { }
+
+        var source = profile.Protocol switch
+        {
+            ProtocolType.SMB => SongSource.SMB,
+            ProtocolType.WebDAV => SongSource.WebDAV,
+            ProtocolType.Navidrome => SongSource.WebDAV,
+            _ => (SongSource?)null
+        };
+        if (source == null) return;
+
+        // 找到所有缺少元数据的歌曲（快速扫描时 Artist 设为"未知艺术家"、Duration=0）
+        var allCached = await _db.GetCachedNetworkSongsAsync();
+        var needsBackfill = allCached
+            .Where(s => s.Source == source.Value
+                && (s.Duration <= 0
+                    || string.IsNullOrWhiteSpace(s.Artist)
+                    || s.Artist == "未知艺术家"))
+            .ToList();
+
+        if (needsBackfill.Count == 0) return;
+
+        var total = needsBackfill.Count;
+        var done = 0;
+        progress?.Report((0, total, $"正在补全元数据 0/{total}"));
+
+        var tasks = needsBackfill.Select(song => Task.Run(async () =>
+        {
+            await ScanSemaphore.WaitAsync();
+            try
+            {
+                var tagged = await FetchSongMetadataAsync(song, profile);
+                if (tagged != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(tagged.Title) && tagged.Title != song.Title)
+                        song.Title = tagged.Title;
+                    if (!string.IsNullOrWhiteSpace(tagged.Artist) && tagged.Artist != "未知艺术家")
+                        song.Artist = tagged.Artist;
+                    if (!string.IsNullOrWhiteSpace(tagged.Album) && tagged.Album != "未知专辑")
+                        song.Album = tagged.Album;
+                    if (tagged.Duration > 0) song.Duration = tagged.Duration;
+                    if (tagged.Bitrate > 0) song.Bitrate = tagged.Bitrate;
+                    if (tagged.Year > 0) song.Year = tagged.Year;
+                    if (tagged.TrackNumber > 0) song.TrackNumber = tagged.TrackNumber;
+                    song.Genre = tagged.Genre;
+                    await _db.SaveSongAsync(song);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CatClaw] 元数据回填失败: {song.FilePath}, {ex.Message}");
+            }
+            finally
+            {
+                ScanSemaphore.Release();
+                var d = Interlocked.Increment(ref done);
+                if (progress != null && (d % 10 == 0 || d == total))
+                    progress.Report((d, total, $"正在补全元数据 {d}/{total}"));
+            }
+        }));
+
+        await Task.WhenAll(tasks);
+        progress?.Report((total, total, $"元数据补全完成，共 {total} 首"));
     }
 
     /// <summary>
@@ -1199,7 +1272,8 @@ public class NetworkMusicService : INetworkMusicService
     /// <returns>(新扫描到的歌曲列表, 所有发现的文件路径 ID 集合)。</returns>
     private async Task<(List<Song> NewSongs, HashSet<string> AllFoundIds)> ScanSmbAsync(
         ConnectionProfile profile, Action<List<Song>>? songBatchCallback,
-        IProgress<(int done, int total, string status)>? progress = null)
+        IProgress<(int done, int total, string status)>? progress = null,
+        bool quickScan = false)
     {
         var songs = new List<Song>();
         var basePath = profile.BasePath?.TrimEnd('/', '\\') ?? "\\";
@@ -1218,7 +1292,7 @@ public class NetworkMusicService : INetworkMusicService
             var existingSongs = await _db.GetCachedNetworkSongsAsync();
             existingIds = existingSongs
                 .Where(s => s.Source == SongSource.SMB && !string.IsNullOrEmpty(s.RemoteId))
-                .Select(s => s.RemoteId!)
+                .Select(s => s.RemoteId!.TrimStart('\\'))
                 .ToHashSet();
         }
         catch { }
@@ -1226,7 +1300,7 @@ public class NetworkMusicService : INetworkMusicService
         var scanner = new MusicScanner(_db, songBatchCallback);
         var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         progress?.Report((0, 0, "正在递归扫描 SMB 目录..."));
-        await ScanSmbDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, 0, progress);
+        await ScanSmbDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, 0, progress);
         await scanner.FlushAsync();
         progress?.Report((songs.Count, songs.Count, $"扫描完成，发现 {songs.Count} 首歌曲"));
 
@@ -1246,7 +1320,7 @@ public class NetworkMusicService : INetworkMusicService
     /// <param name="visitedDirs">已访问目录集合（防止循环）。</param>
     /// <param name="depth">当前递归深度。</param>
     private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
-        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, int depth = 0,
+        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, bool quickScan = false, int depth = 0,
         IProgress<(int done, int total, string status)>? progress = null)
     {
         if (depth > MaxScanDepth) return;
@@ -1290,7 +1364,7 @@ public class NetworkMusicService : INetworkMusicService
         }
 
         foreach (var subDir in subDirs)
-            await ScanSmbDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, depth + 1, progress);
+            await ScanSmbDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, depth + 1, progress);
 
         if (audioFiles.Count == 0) return;
 
@@ -1329,16 +1403,24 @@ public class NetworkMusicService : INetworkMusicService
                     CoverArtPath = file.Path
                 };
 
-                try
+                if (!quickScan)
                 {
-                    var tagged = await FetchSmbMetadataAsync(song, profile);
-                    if (tagged == null)
+                    try
+                    {
+                        var tagged = await FetchSmbMetadataAsync(song, profile);
+                        if (tagged == null)
+                        {
+                            song.Artist = "未知艺术家";
+                            song.Album = "未知专辑";
+                        }
+                    }
+                    catch
                     {
                         song.Artist = "未知艺术家";
                         song.Album = "未知专辑";
                     }
                 }
-                catch
+                else
                 {
                     song.Artist = "未知艺术家";
                     song.Album = "未知专辑";

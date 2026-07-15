@@ -289,7 +289,7 @@ public partial class SearchViewModel : ObservableObject
     /// <summary>聊天历史加载完成事件（首次加载或加载更多后触发，供页面处理滚动）</summary>
     public event EventHandler<ChatHistoryLoadedEventArgs>? ChatHistoryLoaded;
 
-    /// <summary>进入聊天模式时加载最近30条历史记录</summary>
+    /// <summary>进入聊天模式时加载最近30条历史记录（倒序存储：index 0 = 最新）</summary>
     private async Task LoadRecentChatHistoryAsync()
     {
         try
@@ -298,7 +298,7 @@ public partial class SearchViewModel : ObservableObject
             ChatMessages.Clear();
             if (records.Count == 0)
             {
-                ChatMessages.Add(new ObservableChatMessage
+                ChatMessages.Insert(0, new ObservableChatMessage
                 {
                     Role = "assistant",
                     Content = _agentService.IsConfigured
@@ -310,9 +310,10 @@ public partial class SearchViewModel : ObservableObject
             }
             else
             {
-                foreach (var r in records)
+                // 数据库返回正序（旧→新），倒序插入使最新消息在 index 0
+                for (int i = records.Count - 1; i >= 0; i--)
                 {
-                    ChatMessages.Add(new ObservableChatMessage { Role = r.Role, Content = r.Content });
+                    ChatMessages.Add(new ObservableChatMessage { Role = records[i].Role, Content = records[i].Content });
                 }
                 _oldestLoadedMessageId = records[0].Id;
                 var total = await _database.GetChatMessageCountAsync();
@@ -327,32 +328,31 @@ public partial class SearchViewModel : ObservableObject
         }
     }
 
-    /// <summary>向上翻页时加载更多历史记录，插入到列表头部</summary>
+    /// <summary>向上翻页时加载更多历史记录，追加到列表末尾（倒序模式下末尾 = 最旧）</summary>
     public async Task LoadMoreChatHistoryAsync()
     {
         if (_isLoadingMoreHistory || !HasMoreChatHistory || _oldestLoadedMessageId <= 0)
             return;
 
         _isLoadingMoreHistory = true;
-        var previousCount = ChatMessages.Count;
         try
         {
             var older = await _database.GetRecentChatMessagesAsync(20, _oldestLoadedMessageId);
             if (older.Count > 0)
             {
-                for (int i = 0; i < older.Count; i++)
+                // 数据库返回正序（旧→新），倒序追加使更旧的消息在列表末尾
+                for (int i = older.Count - 1; i >= 0; i--)
                 {
-                    ChatMessages.Insert(i, new ObservableChatMessage { Role = older[i].Role, Content = older[i].Content });
+                    ChatMessages.Add(new ObservableChatMessage { Role = older[i].Role, Content = older[i].Content });
                 }
                 _oldestLoadedMessageId = older[0].Id;
                 var total = await _database.GetChatMessageCountAsync();
                 HasMoreChatHistory = total > ChatMessages.Count;
 
+                // 倒序模式下末尾追加不改变已有项 index，无需滚动位置修复
                 ChatHistoryLoaded?.Invoke(this, new ChatHistoryLoadedEventArgs
                 {
-                    IsInitialLoad = false,
-                    ItemsAdded = older.Count,
-                    PreviousCount = previousCount
+                    IsInitialLoad = false
                 });
             }
             else
@@ -767,7 +767,8 @@ public partial class SearchViewModel : ObservableObject
             Role = "user",
             Content = userMessage
         };
-        ChatMessages.Add(userMsg);
+        // 倒序模式：新消息插入到头部（index 0），翻转后显示在视觉底部
+        ChatMessages.Insert(0, userMsg);
         _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "user", Content = userMessage, Timestamp = DateTime.UtcNow });
         _chatMemoryService.RecordMessage(userMsg);
         _ = TrimOldChatMessagesAsync();
@@ -779,7 +780,8 @@ public partial class SearchViewModel : ObservableObject
                 Role = "assistant",
                 Content = "AI 还没有配置好喵，先到“设置 > AI 设置”里填一下模型信息吧。"
             };
-            ChatMessages.Add(notConfiguredMsg);
+            // 倒序模式：新消息插入到头部
+            ChatMessages.Insert(0, notConfiguredMsg);
             _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = notConfiguredMsg.Content, Timestamp = DateTime.UtcNow });
             _chatMemoryService.RecordMessage(notConfiguredMsg);
             _currentThinkingMessage = null;
@@ -796,7 +798,8 @@ public partial class SearchViewModel : ObservableObject
             IsThinkingExpanded = true
         };
         assistantMsg.ThinkingSteps.Add("💭 正在思考你的问题...");
-        ChatMessages.Add(assistantMsg);
+        // 倒序模式：助手占位消息插入到头部，出现在用户消息之上（视觉下方）
+        ChatMessages.Insert(0, assistantMsg);
         _currentThinkingMessage = assistantMsg;
         IsAgentThinking = true;
         ScrollToLatestMessageRequested?.Invoke(this, EventArgs.Empty);

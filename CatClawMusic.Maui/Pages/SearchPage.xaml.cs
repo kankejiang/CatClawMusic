@@ -99,28 +99,25 @@ public partial class SearchPage : ContentPage
 
     private void OnChatHistoryLoaded(object? sender, ChatHistoryLoadedEventArgs e)
     {
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), () =>
+        // 倒序模式下：首次加载需要滚到 index 0（最新消息，翻转后视觉在底部）
+        // 加载更多历史时无需处理（末尾追加不改变已有项位置）
+        if (e is { IsInitialLoad: true, ScrollToEnd: true } && _vm.ChatMessages.Count > 0)
         {
-            if (e.ScrollToEnd && _vm.ChatMessages.Count > 0)
+            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), () =>
             {
-                ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: false);
-            }
-            else if (e.ItemsAdded > 0)
-            {
-                var targetIndex = e.ItemsAdded;
-                if (targetIndex < _vm.ChatMessages.Count)
-                    ChatMessagesList.ScrollTo(targetIndex, position: ScrollToPosition.Start, animate: false);
-            }
-        });
+                ChatMessagesList.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
+            });
+        }
     }
 
     private void ScrollToLatestMessage()
     {
+        // 倒序模式：最新消息在 index 0，翻转后视觉在底部，滚动到 Start 即可
         if (_vm.ChatMessages.Count > 0)
         {
             Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), () =>
             {
-                ChatMessagesList.ScrollTo(_vm.ChatMessages.Count - 1, position: ScrollToPosition.End, animate: true);
+                ChatMessagesList.ScrollTo(0, position: ScrollToPosition.Start, animate: true);
             });
         }
     }
@@ -748,9 +745,11 @@ public partial class SearchPage : ContentPage
         await _vm.SendMessageFromSearchAsync(message);
     }
 
-    /// <summary>聊天消息列表滚动时检测是否需要加载更多历史记录</summary>
+    /// <summary>聊天消息列表滚动时检测是否需要加载更多历史记录
+    /// 倒序+翻转模式：视觉底部 = 数据源末尾 = 最旧消息，滚到底部时加载更旧的历史</summary>
     private async void OnChatMessagesScrolled(object? sender, ItemsViewScrolledEventArgs e)
     {
+        // 翻转后 VerticalOffset 语义反转：滚到视觉底部时 offset 接近 0
         if (e.VerticalOffset < 30 && _vm.HasMoreChatHistory)
         {
             await _vm.LoadMoreChatHistoryAsync();

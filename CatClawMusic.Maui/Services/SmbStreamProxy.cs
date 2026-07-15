@@ -164,15 +164,36 @@ public class SmbStreamProxy : IDisposable
                 _smbLock.Release();
             }
 
-            if (fileInfo == null)
+            bool unknownLength = false;
+            long fileSize;
+            if (fileInfo != null && fileInfo.Size > 0)
             {
-                response.StatusCode = 404;
-                response.Close();
-                return;
+                fileSize = fileInfo.Size;
             }
-
-            var fileSize = fileInfo.Size;
-            if (fileSize <= 0) fileSize = 1; // 避免 Content-Length: 0 导致 ExoPlayer 出错
+            else
+            {
+                // 兜底：GetFileInfoAsync 取不到元数据时，直接探测首字节确认文件存在。
+                // 探测成功则按“未知长度”整文件分块传输（不设置 Content-Length，
+                // HttpListener 自动使用分块编码），保证 SMB 歌曲仍可播放（仅不支持拖动）。
+                await _smbLock.WaitAsync();
+                try
+                {
+                    _smb.Configure(profile);
+                    var probe = await _smb.OpenReadRangeAsync(remotePath, 0, 1);
+                    if (probe == null || probe.Length == 0)
+                    {
+                        response.StatusCode = 404;
+                        response.Close();
+                        return;
+                    }
+                    unknownLength = true;
+                }
+                finally
+                {
+                    _smbLock.Release();
+                }
+                fileSize = 0;
+            }
 
             // 解析 Range 头
             long start = 0;
@@ -180,7 +201,7 @@ public class SmbStreamProxy : IDisposable
             bool isRangeRequest = false;
 
             var rangeHeader = request.Headers["Range"];
-            if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
+            if (!unknownLength && !string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
             {
                 var range = rangeHeader.Substring(6);
                 var dashIdx = range.IndexOf('-');
@@ -198,26 +219,31 @@ public class SmbStreamProxy : IDisposable
                 }
             }
 
-            var contentLength = end - start + 1;
+            var contentLength = unknownLength ? 0 : (end - start + 1);
 
             response.StatusCode = isRangeRequest ? 206 : 200;
             response.ContentType = "application/octet-stream";
-            response.ContentLength64 = contentLength;
             response.Headers["Accept-Ranges"] = "bytes";
-            if (isRangeRequest)
-                response.Headers["Content-Range"] = $"bytes {start}-{end}/{fileSize}";
+            if (!unknownLength)
+            {
+                response.ContentLength64 = contentLength;
+                if (isRangeRequest)
+                    response.Headers["Content-Range"] = $"bytes {start}-{end}/{fileSize}";
+            }
 
             // 从 SMB 按范围读取并发送
             const int chunkSize = 128 * 1024; // 128KB
             var output = response.OutputStream;
-            long bytesRemaining = contentLength;
+            long bytesRemaining = unknownLength ? long.MaxValue : contentLength;
             long currentOffset = start;
 
             try
             {
                 while (bytesRemaining > 0 && response.OutputStream.CanWrite)
                 {
-                    var toRead = (int)Math.Min(chunkSize, bytesRemaining);
+                    var toRead = unknownLength
+                        ? chunkSize
+                        : (int)Math.Min(chunkSize, bytesRemaining);
                     byte[] chunk;
                     await _smbLock.WaitAsync();
                     try
@@ -235,7 +261,7 @@ public class SmbStreamProxy : IDisposable
                     await output.WriteAsync(chunk, 0, chunk.Length);
                     await output.FlushAsync();
                     currentOffset += chunk.Length;
-                    bytesRemaining -= chunk.Length;
+                    if (!unknownLength) bytesRemaining -= chunk.Length;
                 }
             }
             catch (Exception ex)
@@ -288,7 +314,8 @@ public class SmbStreamProxy : IDisposable
             }
 
             // 路径: /shareName/path/to/file
-            var absPath = uri.AbsolutePath.TrimStart('/');
+            // Uri.AbsolutePath 可能对中文等非 ASCII 字符做 percent-encoding，需要解码还原
+            var absPath = Uri.UnescapeDataString(uri.AbsolutePath).TrimStart('/');
             var firstSlash = absPath.IndexOf('/');
             if (firstSlash < 0)
             {

@@ -453,11 +453,13 @@
             <CollectionView x:Name="ChatMessagesList" Grid.Row="1" Margin="0,0,0,0"
                             ItemsSource="{Binding ChatMessages}"
                             SelectionMode="None"
-                            ItemsUpdatingScrollMode="KeepLastItemInView"
-                            Scrolled="OnChatMessagesScrolled">
+                            ItemsUpdatingScrollMode="KeepItemsInView"
+                            Scrolled="OnChatMessagesScrolled"
+                            Rotation="180">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
+                              Rotation="180">
                             <!-- Yuki 头像（左）：assistant 消息显示 -->
                             <Border Grid.Column="0" WidthRequest="36" HeightRequest="36" StrokeThickness="0" StrokeShape="RoundRectangle 18"
                                     IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}"

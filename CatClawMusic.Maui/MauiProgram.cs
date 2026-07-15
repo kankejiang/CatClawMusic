@@ -145,7 +145,7 @@ public static class MauiProgram
                 if (authToken != null)
                     reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
                 System.Diagnostics.Debug.WriteLine("[Lyrics] RemoteUrlStreamOpener 发送 HTTP 请求...");
-                var resp = httpClient.Send(reqMsg);
+                var resp = httpClient.SendAsync(reqMsg).GetAwaiter().GetResult();
                 System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                 if (!resp.IsSuccessStatusCode)
                 {
@@ -441,6 +441,9 @@ public static class MauiProgram
         var chatMemoryService = Services.GetRequiredService<Services.ChatMemoryService>();
         AgentService.MemoryProvider = () => chatMemoryService.LoadMemory();
 
+        // 后台迁移旧版未下采样的封面缓存，避免 UI 加载大图卡顿
+        _ = CoverHelper.MigrateLegacyCoversAsync();
+
         _ = Task.Run(async () =>
         {
             try
@@ -610,8 +613,18 @@ public static class MauiProgram
                 {
                     var proxyUrl = smbProxy.ToProxyUrl(url);
                     if (proxyUrl == null) return null;
-                    var bytes = _sharedHttpClient.GetByteArrayAsync(proxyUrl).GetAwaiter().GetResult();
-                    if (bytes.Length == 0 || bytes.Length > 50 * 1024 * 1024) return null;
+                    // 使用 Range 请求仅下载文件头部（FLAC/MP3/M4A 歌词标签均在头部），
+                    // 避免下载整个文件（30-100MB FLAC）导致 HttpClient 超时
+                    const int lyricsHeadSize = 512 * 1024;
+                    var reqMsg = new HttpRequestMessage(HttpMethod.Get, proxyUrl);
+                    reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, lyricsHeadSize - 1);
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                    var resp = _sharedHttpClient.SendAsync(reqMsg, cts.Token).GetAwaiter().GetResult();
+                    if (!resp.IsSuccessStatusCode) return null;
+                    using var ms = new MemoryStream();
+                    resp.Content.ReadAsStream().CopyTo(ms);
+                    var bytes = ms.ToArray();
+                    if (bytes.Length == 0) return null;
                     return new MemoryStream(bytes);
                 }
                 catch (Exception ex)
@@ -659,7 +672,7 @@ public static class MauiProgram
                     if (authToken != null)
                         reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
                     System.Diagnostics.Debug.WriteLine("[Lyrics] Android RemoteUrlStreamOpener 发送 Range 请求...");
-                    var resp = webDavHttpClient.Send(reqMsg);
+                    var resp = webDavHttpClient.SendAsync(reqMsg).GetAwaiter().GetResult();
                     System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                     if (!resp.IsSuccessStatusCode)
                         return null;

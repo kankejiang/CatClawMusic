@@ -125,7 +125,9 @@ public class SmbService : INetworkFileService, IDisposable
             if (!TryConnectSMB(_client, host, out var connectError))
                 throw new InvalidOperationException($"无法连接到 SMB 服务器 {host}:445\n{connectError}{BuildSmbPortHint(profile)}");
 
-            var shareName = string.IsNullOrEmpty(profile.ShareName) ? "share" : profile.ShareName.Trim();
+            var shareName = string.IsNullOrEmpty(profile.ShareName) ? "" : profile.ShareName.Trim();
+            if (string.IsNullOrEmpty(shareName))
+                throw new InvalidOperationException("未指定 SMB 共享名，请在连接配置中填写共享名或通过浏览路径选择。");
             var status = _client.Login(string.IsNullOrEmpty(profile.DomainName) ? "" : profile.DomainName,
                 profile.UserName, profile.Password);
 
@@ -225,7 +227,13 @@ public class SmbService : INetworkFileService, IDisposable
                     return (false, $"认证失败: {status}");
                 }
 
-                var shareName = string.IsNullOrEmpty(profile.ShareName) ? "share" : profile.ShareName.Trim();
+                var shareName = string.IsNullOrEmpty(profile.ShareName) ? "" : profile.ShareName.Trim();
+                if (string.IsNullOrEmpty(shareName))
+                {
+                    tempClient.Logoff();
+                    tempClient.Disconnect();
+                    return (false, "未指定 SMB 共享名，请填写共享名或通过浏览路径选择");
+                }
                 var fileStore = tempClient.TreeConnect(shareName, out status);
                 if (status != NTStatus.STATUS_SUCCESS || fileStore == null)
                 {
@@ -354,7 +362,7 @@ public class SmbService : INetworkFileService, IDisposable
                         var isDir = (info.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0
                                     || (long)info.EndOfFile == 0;
                         var entryPath = string.IsNullOrEmpty(normalizedPath)
-                            ? $"\\{name}"
+                            ? name
                             : $"{normalizedPath}\\{name}";
 
                         files.Add(new RemoteFile
@@ -502,50 +510,96 @@ public class SmbService : INetworkFileService, IDisposable
             lock (_lock) { fileStore = _fileStore; }
             if (fileStore == null) return null;
 
+            // 通过“打开父目录句柄 + QueryDirectory(文件名)”获取文件信息。
+            // 关键：不能对“文件句柄”调用 QueryDirectory —— SMB 协议下这会对文件句柄返回失败，
+            // 导致本方法始终返回 null。而 SmbStreamProxy 正是用本方法判断文件存在性与大小，
+            // 一旦返回 null 代理就回 404，结果是所有 SMB 歌曲都无法播放。
             var normalizedPath = NormalizePath(filePath);
-            object? handle;
-            NTStatus status;
+            var lastSep = normalizedPath.LastIndexOf('\\');
+            var parentDir = lastSep < 0 ? "" : normalizedPath.Substring(0, lastSep);
+            var fileName = lastSep < 0 ? normalizedPath : normalizedPath.Substring(lastSep + 1);
+            if (string.IsNullOrEmpty(fileName)) return null;
+
+            object? dirHandle;
+            NTStatus dirStatus;
             lock (_lock)
             {
-                status = fileStore.CreateFile(
-                    out handle,
+                dirStatus = fileStore.CreateFile(
+                    out dirHandle,
                     out _,
-                    normalizedPath,
+                    parentDir,
                     AccessMask.GENERIC_READ,
-                    SMBLibrary.FileAttributes.Normal,
-                    ShareAccess.Read,
+                    SMBLibrary.FileAttributes.Directory,
+                    ShareAccess.Read | ShareAccess.Delete,
                     CreateDisposition.FILE_OPEN,
-                    CreateOptions.FILE_NON_DIRECTORY_FILE,
+                    CreateOptions.FILE_DIRECTORY_FILE,
                     null);
+                // 根目录打开失败时回退到 "\"（与 ListFilesAsync 一致）
+                if (dirStatus != NTStatus.STATUS_SUCCESS && string.IsNullOrEmpty(parentDir))
+                {
+                    dirStatus = fileStore.CreateFile(
+                        out dirHandle,
+                        out _,
+                        @"\",
+                        AccessMask.GENERIC_READ,
+                        SMBLibrary.FileAttributes.Directory,
+                        ShareAccess.Read | ShareAccess.Delete,
+                        CreateDisposition.FILE_OPEN,
+                        CreateOptions.FILE_DIRECTORY_FILE,
+                        null);
+                }
             }
 
-            if (status != NTStatus.STATUS_SUCCESS)
+            if (dirStatus != NTStatus.STATUS_SUCCESS)
                 return null;
 
-            List<QueryDirectoryFileInformation>? info;
+            List<QueryDirectoryFileInformation>? entries;
             NTStatus queryStatus;
             lock (_lock)
             {
+                // 先按精确文件名查询；部分服务器对精确名过滤支持不好时回退到 "*" 再按名匹配
                 queryStatus = fileStore.QueryDirectory(
-                    out info,
-                    handle,
-                    System.IO.Path.GetFileName(filePath),
+                    out entries,
+                    dirHandle,
+                    fileName,
                     FileInformationClass.FileBothDirectoryInformation);
-                fileStore.CloseFile(handle);
+                if (queryStatus != NTStatus.STATUS_SUCCESS || entries == null || entries.Count == 0)
+                {
+                    queryStatus = fileStore.QueryDirectory(
+                        out entries,
+                        dirHandle,
+                        "*",
+                        FileInformationClass.FileBothDirectoryInformation);
+                }
+                fileStore.CloseFile(dirHandle);
             }
 
-            if (queryStatus != NTStatus.STATUS_SUCCESS || info == null || info.Count == 0)
+            if (queryStatus != NTStatus.STATUS_SUCCESS || entries == null || entries.Count == 0)
                 return null;
 
-            if (info[0] is FileBothDirectoryInformation fi)
+            FileBothDirectoryInformation? match = null;
+            foreach (var e in entries)
+            {
+                if (e is FileBothDirectoryInformation fi
+                    && string.Equals(fi.FileName, fileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    match = fi;
+                    break;
+                }
+            }
+            // 精确名查询通常只返回 1 条，回退到 "*" 且无同名匹配时退化为首条
+            if (match == null && entries.Count == 1 && entries[0] is FileBothDirectoryInformation fi2)
+                match = fi2;
+
+            if (match != null)
             {
                 return new RemoteFile
                 {
-                    Name = fi.FileName,
+                    Name = match.FileName,
                     Path = filePath,
-                    IsDirectory = (fi.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0,
-                    Size = (long)fi.EndOfFile,
-                    LastModified = new DateTimeOffset(fi.LastWriteTime, TimeSpan.Zero).ToUnixTimeSeconds()
+                    IsDirectory = (match.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0,
+                    Size = (long)match.EndOfFile,
+                    LastModified = new DateTimeOffset(match.LastWriteTime, TimeSpan.Zero).ToUnixTimeSeconds()
                 };
             }
 
