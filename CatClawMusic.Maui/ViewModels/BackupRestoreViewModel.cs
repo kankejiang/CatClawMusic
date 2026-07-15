@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -56,15 +57,127 @@ public partial class BackupRestoreViewModel : ObservableObject
     [ObservableProperty]
     private string _progressMessage = "";
 
+    // ── 备份选项对话框 ──
+    /// <summary>是否显示备份选项对话框</summary>
+    [ObservableProperty]
+    private bool _isBackupOptionsVisible;
+
+    /// <summary>是否显示恢复选项对话框</summary>
+    [ObservableProperty]
+    private bool _isRestoreOptionsVisible;
+
+    /// <summary>备份选项：AI 聊天记录</summary>
+    [ObservableProperty]
+    private bool _optChatHistory = true;
+
+    /// <summary>备份选项：AI 记忆内容</summary>
+    [ObservableProperty]
+    private bool _optAiMemory = true;
+
+    /// <summary>备份选项：已保存的模型</summary>
+    [ObservableProperty]
+    private bool _optLlmConfigs = true;
+
+    /// <summary>备份选项：播放记录</summary>
+    [ObservableProperty]
+    private bool _optPlayHistory = true;
+
+    /// <summary>恢复操作的目标备份文件（选择恢复时暂存）</summary>
+    private BackupFileInfo? _pendingRestoreFile;
+    /// <summary>权限服务，用于检查/请求外部存储权限</summary>
+    private readonly IPermissionService? _permissionService;
+
     /// <summary>
     /// 初始化 <see cref="BackupRestoreViewModel"/> 实例。
     /// </summary>
     /// <param name="backupService">备份服务</param>
     /// <param name="dialogService">对话框服务，可为空（设计时支持）</param>
-    public BackupRestoreViewModel(BackupService backupService, IDialogService? dialogService = null)
+    /// <param name="permissionService">权限服务，可为空（设计时支持）</param>
+    public BackupRestoreViewModel(BackupService backupService, IDialogService? dialogService = null, IPermissionService? permissionService = null)
     {
         _backupService = backupService;
         _dialogService = dialogService;
+        _permissionService = permissionService;
+    }
+
+    /// <summary>根据当前勾选状态构建 BackupItems 位掩码</summary>
+    private BackupItems BuildSelectedItems()
+    {
+        var items = BackupItems.None;
+        if (OptChatHistory) items |= BackupItems.ChatHistory;
+        if (OptAiMemory) items |= BackupItems.AiMemory;
+        if (OptLlmConfigs) items |= BackupItems.LlmConfigs;
+        if (OptPlayHistory) items |= BackupItems.PlayHistory;
+        return items;
+    }
+
+    /// <summary>显示备份选项对话框</summary>
+    [RelayCommand]
+    private void ShowBackupOptions()
+    {
+        IsBackupOptionsVisible = true;
+    }
+
+    /// <summary>确认备份选项并执行备份</summary>
+    [RelayCommand]
+    private async Task ConfirmBackupAsync()
+    {
+        IsBackupOptionsVisible = false;
+        var items = BuildSelectedItems();
+        if (items == BackupItems.None)
+        {
+            StatusText = "请至少选择一项";
+            return;
+        }
+        await CreateBackupWithItemsAsync(items);
+    }
+
+    /// <summary>取消备份选项对话框</summary>
+    [RelayCommand]
+    private void CancelBackupOptions()
+    {
+        IsBackupOptionsVisible = false;
+    }
+
+    /// <summary>显示恢复选项对话框（针对指定备份文件）</summary>
+    [RelayCommand]
+    private void ShowRestoreOptions(BackupFileInfo? file)
+    {
+        _pendingRestoreFile = file;
+        IsRestoreOptionsVisible = true;
+    }
+
+    /// <summary>确认恢复选项并执行恢复</summary>
+    [RelayCommand]
+    private async Task ConfirmRestoreAsync()
+    {
+        IsRestoreOptionsVisible = false;
+        var items = BuildSelectedItems();
+        if (items == BackupItems.None)
+        {
+            StatusText = "请至少选择一项";
+            return;
+        }
+        if (_pendingRestoreFile != null)
+            await RestoreBackupWithItemsAsync(_pendingRestoreFile, items);
+    }
+
+    /// <summary>取消恢复选项对话框</summary>
+    [RelayCommand]
+    private void CancelRestoreOptions()
+    {
+        IsRestoreOptionsVisible = false;
+        _pendingRestoreFile = null;
+    }
+
+    /// <summary>全选所有备份选项</summary>
+    [RelayCommand]
+    private void SelectAllOptions()
+    {
+        OptChatHistory = true;
+        OptAiMemory = true;
+        OptLlmConfigs = true;
+        OptPlayHistory = true;
     }
 
     /// <summary>
@@ -112,12 +225,20 @@ public partial class BackupRestoreViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 创建备份：备份全部数据（数据库 + 封面等），实时反馈进度并刷新列表。
+    /// 创建备份（使用指定选项）：实时反馈进度并刷新列表。
     /// </summary>
-    [RelayCommand]
-    public async Task CreateBackupAsync()
+    /// <param name="items">要备份的数据类别</param>
+    public async Task CreateBackupWithItemsAsync(BackupItems items)
     {
         if (IsBackingUp) return;
+
+        // 检查外部存储权限，未授权时提示用户并中断
+        if (!await EnsureStoragePermissionAsync())
+        {
+            StatusText = "请先授予「所有文件访问」权限";
+            return;
+        }
+
         IsBackingUp = true;
         Progress = 0;
         ProgressMessage = "正在备份...";
@@ -133,7 +254,7 @@ public partial class BackupRestoreViewModel : ObservableObject
                 });
             });
 
-            var path = await _backupService.BackupAsync(GetBackupDirectory(), BackupItems.All, progress);
+            var path = await _backupService.BackupAsync(GetBackupDirectory(), items, progress);
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -156,13 +277,21 @@ public partial class BackupRestoreViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 从指定文件恢复备份：还原数据库与封面等数据，实时反馈进度。
+    /// 从指定文件恢复备份（使用指定选项）：实时反馈进度。
     /// </summary>
-    /// <param name="file">要恢复的备份文件信息，为空则忽略</param>
-    [RelayCommand]
-    public async Task RestoreBackupAsync(BackupFileInfo? file)
+    /// <param name="file">要恢复的备份文件信息</param>
+    /// <param name="items">要恢复的数据类别</param>
+    public async Task RestoreBackupWithItemsAsync(BackupFileInfo file, BackupItems items)
     {
-        if (file == null || IsRestoring) return;
+        if (IsRestoring) return;
+
+        // 检查外部存储权限（读取外部存储备份文件需要）
+        if (!await EnsureStoragePermissionAsync())
+        {
+            StatusText = "请先授予「所有文件访问」权限";
+            return;
+        }
+
         IsRestoring = true;
         Progress = 0;
         ProgressMessage = "正在恢复...";
@@ -178,7 +307,7 @@ public partial class BackupRestoreViewModel : ObservableObject
                 });
             });
 
-            await _backupService.RestoreAsync(file.FilePath, BackupItems.All, progress);
+            await _backupService.RestoreAsync(file.FilePath, items, progress);
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -240,11 +369,56 @@ public partial class BackupRestoreViewModel : ObservableObject
 
     // ──── Helpers ────
 
+    /// <summary>
+    /// 获取备份目录：优先使用外部存储 /sdcard/CatClawMusic/backups（卸载不删除），
+    /// 外部存储不可用时回退到应用私有目录。
+    /// </summary>
     private static string GetBackupDirectory()
     {
+#if ANDROID
+        try
+        {
+            var externalRoot = Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath ?? "/sdcard";
+            var dir = Path.Combine(externalRoot, "CatClawMusic", "backups");
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+        catch
+        {
+            // 外部存储不可用，回退到私有目录
+            var dir = Path.Combine(FileSystem.AppDataDirectory, "backups");
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+#else
         var dir = Path.Combine(FileSystem.AppDataDirectory, "backups");
         Directory.CreateDirectory(dir);
         return dir;
+#endif
+    }
+
+    /// <summary>
+    /// 检查外部存储权限：Android 11+ 需要"管理所有文件"权限才能写入外部存储。
+    /// </summary>
+    /// <returns>已授权返回 true；否则返回 false</returns>
+    private async Task<bool> EnsureStoragePermissionAsync()
+    {
+        if (_permissionService == null) return true;
+        var granted = await _permissionService.CheckManageStoragePermissionAsync();
+        if (!granted)
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                if (_dialogService != null)
+                {
+                    await _dialogService.ShowAlertAsync("需要权限",
+                        "备份需要「所有文件访问」权限才能写入外部存储（卸载不丢失），即将跳转到系统设置授权。",
+                        "去设置");
+                }
+                await _permissionService.RequestManageStoragePermissionAsync();
+            });
+        }
+        return granted;
     }
 
     private static string ParseBackupDate(string fileName)

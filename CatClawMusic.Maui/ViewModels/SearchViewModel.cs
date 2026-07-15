@@ -69,9 +69,12 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private string _agentName = BuiltinAgent.Yuki.Name;
 
-    /// <summary>聊天消息集合</summary>
+    /// <summary>聊天消息集合（使用 ObservableChatMessage 以支持气泡内思考过程展示）</summary>
     [ObservableProperty]
-    private ObservableCollection<ChatMessage> _chatMessages = new();
+    private ObservableCollection<ObservableChatMessage> _chatMessages = new();
+
+    /// <summary>当前正在思考的消息引用（用于 OnPartialMessage 追加步骤）</summary>
+    private ObservableChatMessage? _currentThinkingMessage;
 
     /// <summary>聊天输入框文本</summary>
     [ObservableProperty]
@@ -293,7 +296,7 @@ public partial class SearchViewModel : ObservableObject
             if (records.Count == 0)
             {
                 // 没有历史记录，添加欢迎消息
-                ChatMessages.Add(new ChatMessage
+                ChatMessages.Add(new ObservableChatMessage
                 {
                     Role = "assistant",
                     Content = _agentService.IsConfigured
@@ -307,7 +310,7 @@ public partial class SearchViewModel : ObservableObject
             {
                 foreach (var r in records)
                 {
-                    ChatMessages.Add(new ChatMessage { Role = r.Role, Content = r.Content });
+                    ChatMessages.Add(new ObservableChatMessage { Role = r.Role, Content = r.Content });
                 }
                 _oldestLoadedMessageId = records[0].Id;
                 var total = await _database.GetChatMessageCountAsync();
@@ -335,7 +338,7 @@ public partial class SearchViewModel : ObservableObject
                 // 插入到列表头部
                 for (int i = 0; i < older.Count; i++)
                 {
-                    ChatMessages.Insert(i, new ChatMessage { Role = older[i].Role, Content = older[i].Content });
+                    ChatMessages.Insert(i, new ObservableChatMessage { Role = older[i].Role, Content = older[i].Content });
                 }
                 _oldestLoadedMessageId = older[0].Id;
                 var total = await _database.GetChatMessageCountAsync();
@@ -731,7 +734,7 @@ public partial class SearchViewModel : ObservableObject
         await SendMessageAsync();
     }
 
-    /// <summary>发送聊天消息：将用户输入发送给 Agent 并追加回复</summary>
+    /// <summary>发送聊天消息：将用户输入发送给 Agent 并追加回复。思考过程内嵌于助手气泡，发送新消息时自动折叠上条。</summary>
     public async Task SendMessageAsync()
     {
         var userMessage = ChatInput?.Trim();
@@ -742,12 +745,13 @@ public partial class SearchViewModel : ObservableObject
 
         ChatInput = "";
 
-        // 发送新消息时折叠思考面板，清空上一次的步骤
-        IsThinkingExpanded = false;
-        ThinkingSteps.Clear();
-        ThinkingSummary = "";
+        // 发送新消息时自动折叠上一条助手消息的思考过程
+        if (_currentThinkingMessage != null)
+        {
+            _currentThinkingMessage.IsThinkingExpanded = false;
+        }
 
-        var userMsg = new ChatMessage
+        var userMsg = new ObservableChatMessage
         {
             Role = "user",
             Content = userMessage
@@ -758,7 +762,7 @@ public partial class SearchViewModel : ObservableObject
 
         if (!_agentService.IsConfigured)
         {
-            var notConfiguredMsg = new ChatMessage
+            var notConfiguredMsg = new ObservableChatMessage
             {
                 Role = "assistant",
                 Content = "AI 还没有配置好喵，先到“设置 > AI 设置”里填一下模型信息吧。"
@@ -766,65 +770,82 @@ public partial class SearchViewModel : ObservableObject
             ChatMessages.Add(notConfiguredMsg);
             _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = notConfiguredMsg.Content, Timestamp = DateTime.UtcNow });
             _ = _chatMemoryService.AppendMessageAsync(notConfiguredMsg);
+            _currentThinkingMessage = null;
             return;
         }
 
-        // 开始思考：显示思考面板
+        // 立即创建助手占位气泡，思考过程内嵌其中（默认展开）
+        var assistantMsg = new ObservableChatMessage
+        {
+            Role = "assistant",
+            Content = "",
+            IsThinking = true,
+            IsThinkingExpanded = true
+        };
+        assistantMsg.ThinkingSteps.Add("💭 正在思考你的问题...");
+        ChatMessages.Add(assistantMsg);
+        _currentThinkingMessage = assistantMsg;
         IsAgentThinking = true;
-        ThinkingSummary = "思考中...";
 
         try
         {
             var response = await _agentService.SendMessageAsync(userMessage, OnPartialMessage);
-            var assistantMsg = new ChatMessage
+
+            // 思考完成：填充回复内容、移除占位步骤、自动折叠
+            MainThread.BeginInvokeOnMainThread(() =>
             {
-                Role = "assistant",
-                Content = BuildAssistantMessage(response),
-                Songs = response.Songs
-            };
-            ChatMessages.Add(assistantMsg);
+                assistantMsg.Content = BuildAssistantMessage(response);
+                assistantMsg.Songs = response.Songs;
+                assistantMsg.IsThinking = false;
+                // 移除"正在思考"占位项（如果有工具调用，工具步骤已追加在后面，只移除第一项占位）
+                if (assistantMsg.ThinkingSteps.Count > 0 && assistantMsg.ThinkingSteps[0].StartsWith("💭"))
+                    assistantMsg.ThinkingSteps.RemoveAt(0);
+                // 自动折叠
+                assistantMsg.IsThinkingExpanded = false;
+            });
+
             _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
             _ = _chatMemoryService.AppendMessageAsync(assistantMsg);
-
-            // 思考完成：更新摘要
             IsAgentThinking = false;
-            if (ThinkingSteps.Count > 0)
-                ThinkingSummary = $"完成 · {ThinkingSteps.Count} 个步骤";
-            else
-                ThinkingSummary = "";
         }
         catch (Exception ex)
         {
-            IsAgentThinking = false;
-            var errorMsg = new ChatMessage
+            MainThread.BeginInvokeOnMainThread(() =>
             {
-                Role = "assistant",
-                Content = $"出错了喵：{ex.Message}"
-            };
-            ChatMessages.Add(errorMsg);
-            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = errorMsg.Content, Timestamp = DateTime.UtcNow });
-            _ = _chatMemoryService.AppendMessageAsync(errorMsg);
-            ThinkingSummary = "";
+                assistantMsg.Content = $"出错了喵：{ex.Message}";
+                assistantMsg.IsThinking = false;
+                if (assistantMsg.ThinkingSteps.Count > 0 && assistantMsg.ThinkingSteps[0].StartsWith("💭"))
+                    assistantMsg.ThinkingSteps.RemoveAt(0);
+                assistantMsg.IsThinkingExpanded = false;
+            });
+            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
+            _ = _chatMemoryService.AppendMessageAsync(assistantMsg);
+            IsAgentThinking = false;
         }
     }
 
-    /// <summary>Agent 中间消息回调：处理工具调用过程展示</summary>
+    /// <summary>Agent 中间消息回调：将工具调用过程追加到当前思考气泡（回调来自后台线程，需切回主线程更新 UI）</summary>
     private void OnPartialMessage(ChatMessage partial)
     {
+        if (_currentThinkingMessage == null) return;
+
         if (partial.Role == "assistant" && partial.ToolCalls != null && partial.ToolCalls.Count > 0)
         {
             var toolNames = string.Join(", ", partial.ToolCalls.Select(tc => tc.Function?.Name ?? "?"));
             var step = $"🔧 调用工具: {toolNames}";
-            ThinkingSteps.Add(step);
-            ThinkingSummary = step;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                _currentThinkingMessage?.ThinkingSteps.Add(step);
+            });
         }
         else if (partial.Role == "tool" && !string.IsNullOrEmpty(partial.Name))
         {
             var step = $"✅ {partial.Name} 完成";
-            ThinkingSteps.Add(step);
-            ThinkingSummary = step;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                _currentThinkingMessage?.ThinkingSteps.Add(step);
+            });
         }
-        OnPropertyChanged(nameof(HasThinkingSteps));
     }
 
     /// <summary>根据当前 SearchQuery 重新过滤各分区集合（供 PC 端顶栏搜索调用）</summary>

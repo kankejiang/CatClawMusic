@@ -407,7 +407,7 @@
         <Grid x:Name="ChatOverlay"
               IsVisible="{Binding IsChatMode}"
               Background="{DynamicResource PageBackgroundBrush}"
-              RowDefinitions="Auto,*,Auto,Auto">
+              RowDefinitions="Auto,*,Auto">
 
             <Grid Grid.Row="0" Margin="16,10,16,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <controls:BackButton x:Name="ChatBackButton"
@@ -437,38 +437,101 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <Grid Padding="2,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                            <!-- Yuki 头像（左）：assistant 消息显示 -->
+                            <!-- Yuki 头像（左）：assistant 消息显示，顶部对齐（QQ/微信样式） -->
                             <Border Grid.Column="0"
                                     WidthRequest="36" HeightRequest="36"
                                     StrokeThickness="0" StrokeShape="RoundRectangle 18"
                                     IsVisible="{Binding Role, Converter={StaticResource IsAssistantConverter}}"
-                                    VerticalOptions="End">
+                                    VerticalOptions="Start">
                                 <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="36" HeightRequest="36" />
                             </Border>
                             <BoxView Grid.Column="0" WidthRequest="36" IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}" />
 
-                            <!-- 消息气泡 -->
+                            <!-- 消息气泡（含思考过程）：紧贴头像，顶部对齐 -->
                             <Border Grid.Column="1"
-                                    Padding="14,10"
+                                    Padding="12,10"
                                     StrokeThickness="0"
                                     MaximumWidthRequest="280"
-                                    StrokeShape="RoundRectangle 18"
+                                    StrokeShape="RoundRectangle 16"
                                     BackgroundColor="{Binding Role, Converter={StaticResource ChatBubbleColorConverter}}"
                                     HorizontalOptions="{Binding Role, Converter={StaticResource ChatBubbleAlignmentConverter}}"
                                     VerticalOptions="Start">
-                                <Label Text="{Binding Content}"
-                                       FontSize="14"
-                                       TextColor="White"
-                                       LineBreakMode="WordWrap" />
+                                <VerticalStackLayout Spacing="6">
+                                    <!-- 思考/工具调用过程区块（仅助手消息且有步骤时可见，点击折叠/展开） -->
+                                    <Border IsVisible="{Binding HasThinkingSteps}"
+                                            Padding="10,8"
+                                            StrokeThickness="1"
+                                            Stroke="#33FFFFFF"
+                                            StrokeShape="RoundRectangle 10"
+                                            BackgroundColor="#22FFFFFF">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Command="{Binding ToggleThinkingCommand}" />
+                                        </Border.GestureRecognizers>
+                                        <VerticalStackLayout Spacing="4">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                                <!-- 思考中旋转指示器 / 完成对勾 -->
+                                                <ActivityIndicator Grid.Column="0"
+                                                                   IsRunning="{Binding IsThinking}"
+                                                                   IsVisible="{Binding IsThinking}"
+                                                                   Color="White"
+                                                                   WidthRequest="12" HeightRequest="12" />
+                                                <Label Grid.Column="0" Text="✓"
+                                                       FontSize="11"
+                                                       TextColor="White"
+                                                       IsVisible="{Binding IsThinking, Converter={StaticResource InvertedBoolConverter}}"
+                                                       VerticalOptions="Center"
+                                                       WidthRequest="12"
+                                                       HorizontalTextAlignment="Center" />
+                                                <Label Grid.Column="1"
+                                                       Text="{Binding ThinkingSummary}"
+                                                       FontSize="11"
+                                                       TextColor="#E6FFFFFF"
+                                                       VerticalOptions="Center"
+                                                       LineBreakMode="TailTruncation" />
+                                                <Label Grid.Column="2" Text="▲"
+                                                       FontSize="9"
+                                                       TextColor="#B3FFFFFF"
+                                                       VerticalOptions="Center"
+                                                       IsVisible="{Binding IsThinkingExpanded}" />
+                                                <Label Grid.Column="2" Text="▼"
+                                                       FontSize="9"
+                                                       TextColor="#B3FFFFFF"
+                                                       VerticalOptions="Center"
+                                                       IsVisible="{Binding IsThinkingExpanded, Converter={StaticResource InvertedBoolConverter}}" />
+                                            </Grid>
+                                            <!-- 展开详情：思考步骤列表 -->
+                                            <CollectionView IsVisible="{Binding IsThinkingExpanded}"
+                                                            ItemsSource="{Binding ThinkingSteps}"
+                                                            MaximumHeightRequest="160"
+                                                            Margin="0,2,0,0">
+                                                <CollectionView.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Label Text="{Binding}"
+                                                               FontSize="10"
+                                                               TextColor="#CCFFFFFF"
+                                                               Padding="2,2" />
+                                                    </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                            </CollectionView>
+                                        </VerticalStackLayout>
+                                    </Border>
+
+                                    <!-- 消息正文（思考中时不显示，避免空白） -->
+                                    <Label Text="{Binding Content}"
+                                           FontSize="14"
+                                           TextColor="White"
+                                           LineBreakMode="WordWrap"
+                                           IsVisible="{Binding Content, Converter={StaticResource StringToBoolConverter}}" />
+                                </VerticalStackLayout>
                             </Border>
 
-                            <!-- 用户头像（右）：user 消息显示 -->
+                            <!-- 用户头像（右）：user 消息显示，顶部对齐（QQ/微信样式） -->
                             <Border Grid.Column="2"
                                     WidthRequest="36" HeightRequest="36"
                                     StrokeThickness="0" StrokeShape="RoundRectangle 18"
                                     BackgroundColor="{DynamicResource PrimaryColor}"
                                     IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}"
-                                    VerticalOptions="End">
+                                    VerticalOptions="Start">
                                 <Label Text="👤"
                                        FontSize="18"
                                        HorizontalOptions="Center"
@@ -480,7 +543,7 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <Border Grid.Row="3" Margin="12,10,12,14"
+            <Border Grid.Row="2" Margin="12,10,12,14"
                     Style="{StaticResource GlassInputStyle}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <Entry x:Name="ChatInputBox"

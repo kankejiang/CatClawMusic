@@ -21,6 +21,10 @@ public class BackupData
     public List<LlmConfig> LlmConfigs { get; set; } = new();
     public string? CurrentConfigName { get; set; }
     public string? CurrentAgentId { get; set; }
+    /// <summary>AI 聊天记录（数据库持久化的消息）</summary>
+    public List<ChatMessageRecord> ChatMessages { get; set; } = new();
+    /// <summary>AI 记忆文件内容（ai_memory.md 全文）</summary>
+    public string? AiMemoryContent { get; set; }
 }
 
 
@@ -35,7 +39,9 @@ public enum BackupItems
     Artists        = 1 << 3,  // 艺术家元数据
     LlmConfigs     = 1 << 4,  // AI模型配置
     ArtistCovers   = 1 << 5,  // 艺术家照片
-    All            = Playlists | PlayHistory | Favorites | Artists | LlmConfigs | ArtistCovers,
+    ChatHistory    = 1 << 6,  // AI聊天记录
+    AiMemory       = 1 << 7,  // AI记忆内容
+    All            = Playlists | PlayHistory | Favorites | Artists | LlmConfigs | ArtistCovers | ChatHistory | AiMemory,
 }
 
 /// <summary>备份/恢复进度信息</summary>
@@ -100,6 +106,8 @@ public class BackupService
     private readonly IAgentConfigStorage _configStorage;
     /// <summary>艺术家封面缓存目录绝对路径</summary>
     private readonly string _artistCoversDir;
+    /// <summary>AI 记忆文件路径（ai_memory.md）</summary>
+    private readonly string _aiMemoryFilePath;
 
     /// <summary>JSON 序列化选项：缩进输出 + camelCase 命名</summary>
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -114,11 +122,13 @@ public class BackupService
     /// <param name="db">数据库访问实例。</param>
     /// <param name="configStorage">AI Agent 配置存储。</param>
     /// <param name="artistCoversDir">艺术家封面缓存目录路径。</param>
-    public BackupService(MusicDatabase db, IAgentConfigStorage configStorage, string artistCoversDir)
+    /// <param name="aiMemoryFilePath">AI 记忆文件路径。</param>
+    public BackupService(MusicDatabase db, IAgentConfigStorage configStorage, string artistCoversDir, string aiMemoryFilePath)
     {
         _db = db;
         _configStorage = configStorage;
         _artistCoversDir = artistCoversDir;
+        _aiMemoryFilePath = aiMemoryFilePath;
     }
 
     /// <summary>执行备份，将数据写入指定目录下的 CatClawMusic 文件夹</summary>
@@ -170,6 +180,18 @@ public class BackupService
             data.LlmConfigs = AgentService.LoadAllConfigs();
             data.CurrentConfigName = AgentService.GetCurrentConfigName();
             data.CurrentAgentId = AgentService.LoadCurrentAgentId();
+        }
+        if (items.HasFlag(BackupItems.ChatHistory))
+        {
+            var chatCount = await _db.GetChatMessageCountAsync();
+            data.ChatMessages = await _db.GetRecentChatMessagesAsync(chatCount);
+            Report(progress, 65, $"已读取 {data.ChatMessages.Count} 条聊天记录");
+        }
+        if (items.HasFlag(BackupItems.AiMemory))
+        {
+            if (System.IO.File.Exists(_aiMemoryFilePath))
+                data.AiMemoryContent = await System.IO.File.ReadAllTextAsync(_aiMemoryFilePath);
+            Report(progress, 70, "已读取 AI 记忆");
         }
 
         var json = JsonSerializer.Serialize(data, JsonOptions);
@@ -239,6 +261,18 @@ public class BackupService
 
         if (items.HasFlag(BackupItems.LlmConfigs))
             RestoreLlmConfigs(data);
+
+        if (items.HasFlag(BackupItems.ChatHistory))
+        {
+            await RestoreChatHistoryAsync(data);
+            Report(progress, 90, "已恢复聊天记录");
+        }
+
+        if (items.HasFlag(BackupItems.AiMemory))
+        {
+            await RestoreAiMemoryAsync(data);
+            Report(progress, 95, "已恢复 AI 记忆");
+        }
 
         Report(progress, 100, "恢复完成");
     }
@@ -562,6 +596,32 @@ public class BackupService
             AgentService.SetCurrentConfigName(data.CurrentConfigName);
         if (!string.IsNullOrEmpty(data.CurrentAgentId))
             AgentService.SaveCurrentAgentId(data.CurrentAgentId);
+    }
+
+    /// <summary>
+    /// 恢复 AI 聊天记录：先清空当前记录，再按时间顺序重新插入。
+    /// </summary>
+    private async Task RestoreChatHistoryAsync(BackupData data)
+    {
+        if (data.ChatMessages.Count == 0) return;
+        await _db.ClearChatMessagesAsync();
+        foreach (var msg in data.ChatMessages)
+        {
+            msg.Id = 0; // 重置主键，由数据库自增分配
+            await _db.SaveChatMessageAsync(msg);
+        }
+    }
+
+    /// <summary>
+    /// 恢复 AI 记忆文件：将备份的记忆内容覆盖写入 ai_memory.md。
+    /// </summary>
+    private async Task RestoreAiMemoryAsync(BackupData data)
+    {
+        if (string.IsNullOrEmpty(data.AiMemoryContent)) return;
+        var dir = System.IO.Path.GetDirectoryName(_aiMemoryFilePath);
+        if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
+            System.IO.Directory.CreateDirectory(dir);
+        await System.IO.File.WriteAllTextAsync(_aiMemoryFilePath, data.AiMemoryContent);
     }
 
     // ═══════════ ZIP 打包 / 解压 ═══════════

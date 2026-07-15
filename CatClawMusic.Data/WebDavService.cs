@@ -53,7 +53,8 @@ public class WebDavService : INetworkFileService, IDisposable
     }
 
     /// <summary>
-    /// 尝试通过 REST API 检测是否为 OpenList/Alist 服务器
+    /// 尝试通过 REST API 检测是否为 OpenList/Alist 服务器。
+    /// 手动跟随重定向以适配域名经反向代理的场景。
     /// </summary>
     private static async Task<bool> IsOpenListByApiAsync(ConnectionProfile profile)
     {
@@ -76,40 +77,78 @@ public class WebDavService : INetworkFileService, IDisposable
                 {
                     RemoteCertificateValidationCallback = (_, _, _, _) => true
                 },
-                ConnectTimeout = TimeSpan.FromSeconds(5)
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                AllowAutoRedirect = false
             })
             { Timeout = TimeSpan.FromSeconds(5) };
 
-            var apiResp = await apiClient.GetAsync(apiUrl);
-            if (apiResp.IsSuccessStatusCode)
+            // 手动跟随重定向（域名经反代时 /api/public/settings 可能重定向）
+            var currentUrl = apiUrl;
+            for (var i = 0; i <= 3; i++)
             {
-                var body = await apiResp.Content.ReadAsStringAsync();
-                if (body.Contains("\"version\"", StringComparison.Ordinal) &&
-                    (body.Contains("alist", StringComparison.OrdinalIgnoreCase) ||
-                     body.Contains("openlist", StringComparison.OrdinalIgnoreCase)))
+                var apiResp = await apiClient.GetAsync(currentUrl);
+                var statusCode = (int)apiResp.StatusCode;
+                if (statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] API 检测到 OpenList/Alist");
-                    return true;
+                    var location = apiResp.Headers.Location;
+                    if (location == null) return false;
+                    currentUrl = location.IsAbsoluteUri
+                        ? location.ToString()
+                        : new Uri(new Uri(currentUrl), location).ToString();
+                    continue;
                 }
+                if (apiResp.IsSuccessStatusCode)
+                {
+                    var body = await apiResp.Content.ReadAsStringAsync();
+                    if (body.Contains("\"version\"", StringComparison.Ordinal) &&
+                        (body.Contains("alist", StringComparison.OrdinalIgnoreCase) ||
+                         body.Contains("openlist", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[WebDAV] API 检测到 OpenList/Alist");
+                        return true;
+                    }
+                }
+                return false;
             }
+            return false;
         }
         catch { /* API 检测失败不影响主流程 */ }
         return false;
     }
 
     /// <summary>
-    /// 尝试对指定 URL 发送 PROPFIND depth=0 请求，返回是否成功
+    /// 尝试对指定 URL 发送 PROPFIND depth=0 请求，返回是否成功。
+    /// 手动跟随 301/302/307/308 重定向（域名经反向代理时常见 HTTP→HTTPS、路径规范化等重定向）。
     /// </summary>
     private async Task<bool> TryPropFindAsync(string url, HttpClient? client = null)
     {
         try
         {
             var httpClient = client ?? GetClient();
-            var req = new HttpRequestMessage(new HttpMethod("PROPFIND"), url);
-            req.Headers.Add("Depth", "0");
-            req.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
-            var resp = await httpClient.SendAsync(req);
-            return resp.IsSuccessStatusCode;
+            var currentUrl = url;
+            for (var i = 0; i <= 3; i++)
+            {
+                var req = new HttpRequestMessage(new HttpMethod("PROPFIND"), currentUrl);
+                req.Headers.Add("Depth", "0");
+                req.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
+                var resp = await httpClient.SendAsync(req);
+                var statusCode = (int)resp.StatusCode;
+
+                // 跟随重定向（域名经反向代理时常见）
+                if (statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308)
+                {
+                    var location = resp.Headers.Location;
+                    if (location == null) return false;
+                    currentUrl = location.IsAbsoluteUri
+                        ? location.ToString()
+                        : new Uri(new Uri(currentUrl), location).ToString();
+                    System.Diagnostics.Debug.WriteLine($"[WebDAV] TryPropFind 重定向: {statusCode} -> {currentUrl}");
+                    continue;
+                }
+
+                return resp.IsSuccessStatusCode;
+            }
+            return false;
         }
         catch { return false; }
     }
@@ -283,7 +322,8 @@ public class WebDavService : INetworkFileService, IDisposable
 
         if (!string.IsNullOrEmpty(profile.UserName))
         {
-            var byteArray = Encoding.ASCII.GetBytes($"{profile.UserName}:{profile.Password}");
+            // 使用 UTF8 而非 ASCII，避免密码含非 ASCII 字符（如中文）时被截断
+            var byteArray = Encoding.UTF8.GetBytes($"{profile.UserName}:{profile.Password}");
             _client.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
         }
@@ -397,7 +437,8 @@ public class WebDavService : INetworkFileService, IDisposable
 
         if (!string.IsNullOrEmpty(profile.UserName))
         {
-            var byteArray = Encoding.ASCII.GetBytes($"{profile.UserName}:{profile.Password}");
+            // 使用 UTF8 而非 ASCII，避免密码含非 ASCII 字符时被截断
+            var byteArray = Encoding.UTF8.GetBytes($"{profile.UserName}:{profile.Password}");
             client.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
         }
@@ -604,20 +645,59 @@ public class WebDavService : INetworkFileService, IDisposable
                 }
             }
 
-            // ── 第4步：区分认证错误 ──
+            // ── 第4步：区分认证错误（手动跟随重定向以获取最终状态码） ──
             try
             {
                 var rootUrl = BuildUrlForProfile(profile, "/", isDirectory: true);
-                var req = new HttpRequestMessage(new HttpMethod("PROPFIND"), rootUrl);
-                req.Headers.Add("Depth", "0");
-                req.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
-                var resp = await GetClient().SendAsync(req);
-                if ((int)resp.StatusCode == 401 || (int)resp.StatusCode == 403)
-                    return (false, $"认证失败：{hostInfo}，请检查账号和密码");
+                var currentUrl = rootUrl;
+                for (var i = 0; i <= 3; i++)
+                {
+                    var req = new HttpRequestMessage(new HttpMethod("PROPFIND"), currentUrl);
+                    req.Headers.Add("Depth", "0");
+                    req.Content = new StringContent(PropFindBody, Encoding.UTF8, "application/xml");
+                    var resp = await GetClient().SendAsync(req);
+                    var statusCode = (int)resp.StatusCode;
+
+                    // 跟随重定向（域名经反向代理时常见 HTTP→HTTPS、路径规范化等）
+                    if (statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308)
+                    {
+                        var location = resp.Headers.Location;
+                        if (location == null) break;
+                        currentUrl = location.IsAbsoluteUri
+                            ? location.ToString()
+                            : new Uri(new Uri(currentUrl), location).ToString();
+                        System.Diagnostics.Debug.WriteLine($"[WebDAV] 第4步重定向: {statusCode} -> {currentUrl}");
+                        continue;
+                    }
+
+                    if (statusCode == 401 || statusCode == 403)
+                    {
+                        // 检查 WWW-Authenticate 头以区分 Basic/Digest 认证
+                        var authHeader = resp.Headers.WwwAuthenticate;
+                        var authSchemes = authHeader?.Select(a => a.Scheme)?.ToList();
+                        var schemesText = authSchemes != null && authSchemes.Count > 0
+                            ? string.Join(", ", authSchemes)
+                            : "未知";
+
+                        // 域名场景下常见反向代理剥离 Authorization 头
+                        var isDomain = !System.Net.IPAddress.TryParse(profile.Host, out _);
+                        var hint = isDomain
+                            ? "\n\n可能原因：\n• 域名经反向代理（Nginx/Caddy）时可能未转发 Authorization 头\n• 请在反代配置中添加：proxy_set_header Authorization $http_authorization;\n• 或检查域名是否指向了正确的 WebDAV 服务端口"
+                            : "";
+
+                        return (false, $"认证失败：{hostInfo}（HTTP {statusCode}）\n服务器要求认证方式：{schemesText}\n请检查账号和密码{hint}");
+                    }
+
+                    break;
+                }
             }
             catch (HttpRequestException aex) when ((int?)aex.StatusCode == 401 || (int?)aex.StatusCode == 403)
             {
-                return (false, $"认证失败：{hostInfo}，请检查账号和密码");
+                var isDomain = !System.Net.IPAddress.TryParse(profile.Host, out _);
+                var hint = isDomain
+                    ? "\n\n提示：使用域名时如果密码正确但仍报此错误，可能是反向代理未转发 Authorization 头"
+                    : "";
+                return (false, $"认证失败：{hostInfo}，请检查账号和密码{hint}");
             }
             catch { }
 
@@ -626,7 +706,13 @@ public class WebDavService : INetworkFileService, IDisposable
         catch (HttpRequestException ex)
         {
             var msg = ex.Message;
-            if ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403) msg = "认证失败，请检查账号和密码";
+            if ((int?)ex.StatusCode == 401 || (int?)ex.StatusCode == 403)
+            {
+                var isDomain = !System.Net.IPAddress.TryParse(profile.Host, out _);
+                msg = isDomain
+                    ? $"认证失败，请检查账号和密码\n\n提示：使用域名时可能是反向代理未转发 Authorization 头"
+                    : "认证失败，请检查账号和密码";
+            }
             else if ((int?)ex.StatusCode == 404) msg = $"路径不存在 → {hostInfo}";
             else if (ex.Message.Contains("timeout") || ex.Message.Contains("timed out")) msg = $"连接超时：{hostInfo}";
             else if (ex.Message.Contains("refused")) msg = $"连接被拒绝：{hostInfo}";

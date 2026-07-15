@@ -277,7 +277,8 @@ public static class MauiProgram
         services.AddSingleton<BackupService>(sp =>
             new BackupService(sp.GetRequiredService<MusicDatabase>(),
                 sp.GetRequiredService<IAgentConfigStorage>(),
-                artistCoversDir));
+                artistCoversDir,
+                System.IO.Path.Combine(FileSystem.AppDataDirectory, "ai_memory.md")));
         services.AddSingleton<IUpdateService, UpdateService>();
 
         // ═══════════════════════════════════════════════════

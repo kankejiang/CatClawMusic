@@ -38,26 +38,7 @@
                                FontSize="12"
                                TextColor="{DynamicResource TextHintColor}" />
                         <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[CreateBackup]}"
-                                Command="{Binding CreateBackupCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
-                                TextColor="White"
-                                CornerRadius="16"
-                                HeightRequest="42"
-                                FontSize="13" />
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border Style="{StaticResource GlassCardStyle}">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RestoreData]}"
-                               FontSize="16"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RestoreDataDesc]}"
-                               FontSize="12"
-                               TextColor="{DynamicResource TextHintColor}" />
-                        <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SelectBackupFile]}"
-                                Command="{Binding RestoreBackupCommand}"
+                                Command="{Binding ShowBackupOptionsCommand}"
                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                 TextColor="White"
                                 CornerRadius="16"
@@ -125,7 +106,7 @@
                                         </VerticalStackLayout>
                                         <Button Grid.Column="1"
                                                 Text="恢复"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RestoreBackupCommand}"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ShowRestoreOptionsCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                                 TextColor="White"
@@ -151,5 +132,118 @@
 
             </VerticalStackLayout>
         </ScrollView>
+
+        <!-- 备份选项对话框 -->
+        <Grid IsVisible="{Binding IsBackupOptionsVisible}"
+              BackgroundColor="#99000000"
+              ZIndex="50">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Command="{Binding CancelBackupOptionsCommand}" />
+            </Grid.GestureRecognizers>
+            <Border Margin="24,0,24,0"
+                    Padding="0"
+                    StrokeThickness="1"
+                    Stroke="{DynamicResource GlassStrokeColor}"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="{DynamicResource WindowBackgroundColor}"
+                    VerticalOptions="Center">
+                <VerticalStackLayout Spacing="0">
+                    <Label Text="选择备份内容"
+                           FontSize="17" FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           HorizontalOptions="Center" Margin="0,18,0,4" />
+                    <Label Text="勾选需要备份的数据"
+                           FontSize="12" TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" Margin="0,0,0,14" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+
+                    <VerticalStackLayout Padding="20,14" Spacing="12">
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptChatHistory}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="AI 聊天记录" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptAiMemory}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="记忆内容" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptLlmConfigs}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="已保存的模型" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptPlayHistory}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="播放记录" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <Grid ColumnDefinitions="*,*" Margin="0,0,0,0">
+                        <Button Grid.Column="0" Text="全选" Command="{Binding SelectAllOptionsCommand}"
+                                BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}"
+                                CornerRadius="0" HeightRequest="46" FontSize="14" />
+                        <Button Grid.Column="1" Text="开始备份" Command="{Binding ConfirmBackupCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}" TextColor="White"
+                                CornerRadius="0" HeightRequest="46" FontSize="14" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- 恢复选项对话框 -->
+        <Grid IsVisible="{Binding IsRestoreOptionsVisible}"
+              BackgroundColor="#99000000"
+              ZIndex="50">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Command="{Binding CancelRestoreOptionsCommand}" />
+            </Grid.GestureRecognizers>
+            <Border Margin="24,0,24,0"
+                    Padding="0"
+                    StrokeThickness="1"
+                    Stroke="{DynamicResource GlassStrokeColor}"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="{DynamicResource WindowBackgroundColor}"
+                    VerticalOptions="Center">
+                <VerticalStackLayout Spacing="0">
+                    <Label Text="选择恢复内容"
+                           FontSize="17" FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           HorizontalOptions="Center" Margin="0,18,0,4" />
+                    <Label Text="勾选需要恢复的数据"
+                           FontSize="12" TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" Margin="0,0,0,14" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+
+                    <VerticalStackLayout Padding="20,14" Spacing="12">
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptChatHistory}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="AI 聊天记录" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptAiMemory}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="记忆内容" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptLlmConfigs}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="已保存的模型" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <HorizontalStackLayout Spacing="10">
+                            <CheckBox IsChecked="{Binding OptPlayHistory}" Color="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
+                            <Label Text="播放记录" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <Grid ColumnDefinitions="*,*">
+                        <Button Grid.Column="0" Text="取消" Command="{Binding CancelRestoreOptionsCommand}"
+                                BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}"
+                                CornerRadius="0" HeightRequest="46" FontSize="14" />
+                        <Button Grid.Column="1" Text="开始恢复" Command="{Binding ConfirmRestoreCommand}"
+                                BackgroundColor="{DynamicResource PrimaryColor}" TextColor="White"
+                                CornerRadius="0" HeightRequest="46" FontSize="14" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
 </Grid>
 </ContentPage>
