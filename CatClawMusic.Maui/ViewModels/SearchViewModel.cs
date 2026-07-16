@@ -29,6 +29,10 @@ public partial class SearchViewModel : ObservableObject
     private List<Song> _allTopPlayedSongs = [];
     private List<Song> _allRecentAddedSongs = [];
 
+    // 搜索专用：包含全部艺术家/专辑（非每日推荐10个），确保搜索栏能匹配到库内任意艺术家/专辑
+    private List<SearchArtistItem> _allArtistsForSearch = [];
+    private List<SearchAlbumItem> _allAlbumsForSearch = [];
+
     /// <summary>每日推荐歌曲集合（已应用筛选）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _dailyRecommendSongs = new();
@@ -427,6 +431,9 @@ public partial class SearchViewModel : ObservableObject
 
                 ApplyFilters();
                 await LoadFavoritesAndGenerateHeroCards();
+
+                // 后台加载全部艺术家/专辑用于搜索栏匹配（不阻塞主流程）
+                _ = LoadAllArtistsAndAlbumsForSearchAsync();
             }
             catch (Exception ex)
             {
@@ -516,6 +523,9 @@ public partial class SearchViewModel : ObservableObject
 
             ApplyFilters();
             await LoadFavoritesAndGenerateHeroCards();
+
+            // 后台加载全部艺术家/专辑用于搜索栏匹配（不阻塞主流程）
+            _ = LoadAllArtistsAndAlbumsForSearchAsync();
         }
         catch (Exception ex)
         {
@@ -536,6 +546,45 @@ public partial class SearchViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 后台加载全部艺术家/专辑用于搜索栏匹配。
+    /// 每日推荐只随机展示 10 个艺术家/专辑，但搜索栏需要能匹配到库内任意艺术家/专辑，
+    /// 因此单独加载全量列表供 <see cref="UpdateSearchDropdownAsync"/> 使用。
+    /// </summary>
+    private async Task LoadAllArtistsAndAlbumsForSearchAsync()
+    {
+        try
+        {
+            var allArtistsTask = _exploreDataService.GetAllArtistsAsync();
+            var allAlbumsTask = _exploreDataService.GetAllAlbumsAsync();
+            await Task.WhenAll(allArtistsTask, allAlbumsTask);
+
+            _allArtistsForSearch = allArtistsTask.Result
+                .Select(a => new SearchArtistItem
+                {
+                    Id = a.Id,
+                    Name = a.Name,
+                    Subtitle = $"{a.SongCount} 首歌曲",
+                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover))
+                })
+                .ToList();
+            _allAlbumsForSearch = allAlbumsTask.Result
+                .Select(a => new SearchAlbumItem
+                {
+                    Id = a.Id,
+                    Title = a.Title,
+                    ArtistName = a.ArtistName,
+                    Subtitle = $"{a.SongCount} 首歌曲",
+                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover))
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadAllArtistsAndAlbumsForSearch failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// 扫描完成后重新加载探索数据：清除所有缓存并强制全量刷新。
     /// 在 LocalScanService.NeedsReload 标记为 true 时由页面 OnAppearing 调用。
     /// </summary>
@@ -552,6 +601,8 @@ public partial class SearchViewModel : ObservableObject
             _allTopPlayedSongs = [];
             _allArtists = [];
             _allAlbums = [];
+            _allArtistsForSearch = [];
+            _allAlbumsForSearch = [];
             _allRecentAddedSongs = [];
             ApplyFilters();
 
@@ -673,6 +724,8 @@ public partial class SearchViewModel : ObservableObject
             var q = query.Trim();
 
             // 将 LINQ 过滤放到线程池线程执行
+            // 搜索使用全量艺术家/专辑列表（_allArtistsForSearch/_allAlbumsForSearch），
+            // 而非每日推荐的 10 个，确保能匹配到库内任意艺术家/专辑
             var (songs, artists, albums) = await Task.Run(() =>
             {
                 var songs = _allDailyRecommendSongs
@@ -687,12 +740,14 @@ public partial class SearchViewModel : ObservableObject
                     .Take(10)
                     .ToList();
 
-                var artists = _allArtists
+                var searchArtists = _allArtistsForSearch.Count > 0 ? _allArtistsForSearch : _allArtists;
+                var artists = searchArtists
                     .Where(a => a.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
                     .Take(6)
                     .ToList();
 
-                var albums = _allAlbums
+                var searchAlbums = _allAlbumsForSearch.Count > 0 ? _allAlbumsForSearch : _allAlbums;
+                var albums = searchAlbums
                     .Where(a =>
                         a.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                         a.ArtistName.Contains(q, StringComparison.OrdinalIgnoreCase))

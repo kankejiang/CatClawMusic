@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.PlaylistPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -10,21 +11,36 @@
 
         <Grid RowDefinitions="Auto,Auto,*">
 
-            <!-- Header -->
-            <Grid Grid.Row="0" Margin="16,16,16,10"
-                  ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
-                       Style="{StaticResource PageTitleStyle}"
-                       VerticalOptions="Center" />
-                <Border Grid.Column="1"
-                        Style="{StaticResource GlassIconContainerStyle}"
-                        VerticalOptions="Center">
-                    <ImageButton Source="ic_add"
-                                 WidthRequest="40" HeightRequest="40"
-                                 BackgroundColor="Transparent"
-                                 Clicked="OnCreatePlaylistClicked" />
-                </Border>
-            </Grid>
+            <!-- Hero Card（与其他页面样式一致） -->
+            <Border Grid.Row="0"
+                    Margin="16,8,16,8"
+                    Style="{StaticResource GlassCardStrongStyle}"
+                    Background="{DynamicResource HeroBrush}">
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PlaylistSubtitle]}"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F2F4FF" />
+                    </VerticalStackLayout>
+                    <Border Grid.Column="1"
+                            Style="{StaticResource GlassIconContainerStyle}"
+                            BackgroundColor="#26FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            VerticalOptions="Start">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCreatePlaylistClicked" />
+                        </Border.GestureRecognizers>
+                        <Image Source="ic_add"
+                               WidthRequest="22" HeightRequest="22"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </Border>
 
             <!-- Status -->
             <Label Grid.Row="1"
@@ -94,5 +110,10 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
         </Grid>
+
+        <!-- 新建歌单输入弹窗（替代 DisplayPromptAsync，避免 MAUI 11 兼容性问题） -->
+        <controls:AppPopup x:Name="CreatePlaylistPopup"
+                           Title="新建歌单"
+                           CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

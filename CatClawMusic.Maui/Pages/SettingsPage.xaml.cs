@@ -98,6 +98,10 @@ public partial class SettingsPage : ContentPage
     private async void OnBackupRestoreClicked(object? sender, EventArgs e)
         => await NavigateToSettingsAsync("backuprestore");
 
+    /// <summary>点击诊断日志项时触发，导航到诊断日志页面。</summary>
+    private async void OnDiagnosticLogClicked(object? sender, EventArgs e)
+        => await NavigateToSettingsAsync("diagnosticlog");
+
     /// <summary>点击关于项时触发，清除更新红点并导航到关于页面。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>

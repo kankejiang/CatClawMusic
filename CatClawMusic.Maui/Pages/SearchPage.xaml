@@ -143,13 +143,13 @@
                         </ScrollView>
                     </Border>
 
-                    <Grid x:Name="CategoryTabBar" Margin="18,0,18,14" ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
+                    <Grid x:Name="CategoryTabBar" Margin="18,0,18,14" ColumnDefinitions="*,*,*,*,*" ColumnSpacing="8">
                         <Border Grid.Column="0" x:Name="TabRec" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
                             <Label x:Name="TabRecLabel" Text="推荐" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="0" /></Border.GestureRecognizers>
                         </Border>
                         <Border Grid.Column="1" x:Name="TabRank" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
-                            <Label x:Name="TabRankLabel" Text="排行榜" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
+                            <Label x:Name="TabRankLabel" Text="排行" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="1" /></Border.GestureRecognizers>
                         </Border>
                         <Border Grid.Column="2" x:Name="TabArtist" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
@@ -157,8 +157,12 @@
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="2" /></Border.GestureRecognizers>
                         </Border>
                         <Border Grid.Column="3" x:Name="TabAlbum" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
-                            <Label x:Name="TabAlbumLabel" Text="推荐专辑" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
+                            <Label x:Name="TabAlbumLabel" Text="专辑" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="3" /></Border.GestureRecognizers>
+                        </Border>
+                        <Border Grid.Column="4" x:Name="TabStats" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                            <Label x:Name="TabStatsLabel" Text="报告" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
+                            <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="4" /></Border.GestureRecognizers>
                         </Border>
                     </Grid>
 
@@ -391,6 +395,10 @@
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
+                    </VerticalStackLayout>
+
+                    <!-- ═══ 报告面板（听歌统计）═══ -->
+                    <VerticalStackLayout x:Name="PanelStats" IsVisible="{Binding CurrentCategory, Converter={StaticResource IntToBoolConverter}, ConverterParameter=4}" Spacing="0">
                     </VerticalStackLayout>
 
                     <ActivityIndicator Margin="0,10" IsVisible="{Binding IsLoading}" IsRunning="{Binding IsLoading}" Color="{DynamicResource PrimaryColor}" HorizontalOptions="Center" />

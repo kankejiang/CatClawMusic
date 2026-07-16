@@ -75,8 +75,8 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         try
         {
             var pos = svc.CurrentPosition;
-            // 25fps 下每 tick 约 0.04s 变化，阈值 0.03 确保不跳过有效更新但过滤抖动
-            if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.03 && pos > 0)
+            // 10fps 下每 tick 约 0.1s 变化，阈值 0.05 确保不跳过有效更新但过滤抖动
+            if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.05 && pos > 0)
                 return;
             svc._lastNotifiedPosition = pos;
             svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
@@ -202,11 +202,11 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 50ms 触发一次位置更新（20fps），确保逐字填充动画流畅</summary>
+    /// <summary>启动进度定时器，每 100ms 触发一次位置更新（10fps），平衡流畅度与主线程负载</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 50, 50);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 100, 100);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>

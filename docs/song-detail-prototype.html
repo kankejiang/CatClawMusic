@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>歌曲详情 · CatClaw Music 原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #080B1A; --bg-1: #0B0D20; --bg-2: #15132E;
+    --surface: #1A2040; --card: #182244; --card-strong: #1E2A52;
+    --stroke: #2A3870; --stroke-strong: #3A4A8C;
+    --primary: #8C7BFF; --primary-deep: #6250F6;
+    --accent: #55D6FF; --like: #FF7AAE;
+    --text-1: #F7F8FF; --text-2: #C2C6E4; --text-3: #8D93B7;
+    --chip-bg: #1C2850; --chip-active: #FF6C5CE7;
+    --display: "Space Grotesk", "Noto Sans SC", system-ui, sans-serif;
+    --body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; font-family: var(--body); color: var(--text-1); background: var(--bg-0); }
+  body { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 28px 16px 56px;
+    background: radial-gradient(1100px 700px at 18% -8%, rgba(140,123,255,.22), transparent 60%),
+                radial-gradient(900px 620px at 92% 8%, rgba(85,214,255,.16), transparent 58%),
+                linear-gradient(180deg, var(--bg-1), var(--bg-2) 38%, var(--bg-0) 100%); }
+  .device { position: relative; width: 100%; max-width: 430px; border-radius: 38px; padding: 10px;
+    background: linear-gradient(160deg, rgba(58,74,140,.55), rgba(26,32,64,.35));
+    border: 1px solid rgba(120,135,200,.30); box-shadow: 0 40px 90px -30px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06); overflow: hidden; }
+  @media (max-width: 480px) { body { padding: 0; } .device { max-width: 100%; border-radius: 0; border: none; box-shadow: none; padding: 0; } }
+  .screen { position: relative; border-radius: 30px; overflow: hidden; min-height: 920px;
+    background: radial-gradient(700px 480px at 50% -10%, rgba(140,123,255,.10), transparent 60%),
+                linear-gradient(180deg, #0B0D20 0%, #15132E 32%, #0A0C1C 72%, #080914 100%);
+    transition: background .6s ease; }
+  @media (max-width: 480px) { .screen { border-radius: 0; min-height: 100vh; } }
+  .scroll { padding: 0 18px 36px; }
+
+  /* 顶栏 */
+  .np-bar { display: flex; align-items: center; gap: 10px; padding: 14px 0 6px; }
+  .icon-btn { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 12px;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: #fff; cursor: pointer; transition: transform .18s ease, background .18s ease; }
+  .icon-btn:active { transform: scale(.92); background: rgba(255,255,255,.18); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .np-title { font-size: 11px; letter-spacing: 2px; color: var(--text-3); margin: 0 auto; text-transform: uppercase; }
+
+  /* 封面 */
+  .cover-lg { width: 210px; height: 210px; margin: 8px auto 2px; border-radius: 26px; display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 70px; color: #fff;
+    box-shadow: 0 34px 64px -22px rgba(0,0,0,.72), inset 0 0 0 1px rgba(255,255,255,.10); }
+
+  /* 歌曲信息 */
+  .now-title { font-family: var(--display); font-size: 23px; font-weight: 700; color: var(--text-1); text-align: center; margin-top: 16px; letter-spacing: .3px; }
+  .now-artist { font-size: 14px; color: var(--text-2); text-align: center; margin-top: 5px; }
+  .now-artist b { color: var(--accent); font-weight: 500; }
+  .album-chip { display: inline-flex; align-items: center; gap: 6px; margin: 12px auto 0; padding: 6px 14px; border-radius: 999px;
+    background: rgba(255,255,255,.06); border: 1px solid var(--stroke); font-size: 12px; color: var(--text-2); }
+  .album-chip svg { width: 13px; height: 13px; opacity: .8; }
+  .center { text-align: center; }
+
+  /* 歌词（静态、可滚动） */
+  .lyrics { margin-top: 6px; max-height: 230px; overflow-y: auto; padding: 4px 0;
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+    mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent); scrollbar-width: thin; scrollbar-color: rgba(140,123,255,.4) transparent; }
+  .lyrics::-webkit-scrollbar { width: 4px; }
+  .lyrics::-webkit-scrollbar-thumb { background: rgba(140,123,255,.4); border-radius: 999px; }
+  .lyric-line { text-align: center; font-size: 14px; color: var(--text-3); padding: 7px 14px; line-height: 1.45; }
+
+  /* 通用卡片 */
+  .card { background: linear-gradient(180deg, rgba(30,42,82,.72), rgba(24,34,68,.72)); border: 1px solid var(--stroke); border-radius: 22px; padding: 16px; margin-top: 18px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+  .card-title { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text-1); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card-title .badge { font-size: 10px; font-weight: 600; color: var(--accent); background: rgba(85,214,255,.12); border: 1px solid rgba(85,214,255,.3); padding: 2px 8px; border-radius: 999px; }
+
+  /* 详情信息网格 */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+  .info-cell { }
+  .info-k { font-size: 11px; color: var(--text-3); }
+  .info-v { font-size: 14px; color: var(--text-1); margin-top: 3px; font-weight: 500; }
+  .info-v .tag { font-size: 11px; font-weight: 600; color: var(--accent); background: rgba(85,214,255,.12); border: 1px solid rgba(85,214,255,.3); padding: 1px 8px; border-radius: 999px; margin-left: 6px; }
+  .info-path { font-size: 12px; line-height: 1.45; color: var(--text-2); word-break: break-all; font-family: var(--display); }
+
+  .reveal { opacity: 0; transform: translateY(14px); animation: rise .6s cubic-bezier(.16,1,.3,1) forwards; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  .hint { text-align: center; font-size: 11.5px; color: var(--text-3); margin-top: 22px; }
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="screen" id="screen">
+      <div class="scroll">
+
+        <!-- 顶栏 -->
+        <div class="np-bar">
+          <button class="icon-btn" title="返回" aria-label="返回">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="np-title">歌曲详情</div>
+          <button class="icon-btn" title="更多" aria-label="更多">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg>
+          </button>
+        </div>
+
+        <!-- 封面 -->
+        <div class="cover-lg" id="cover">晴</div>
+
+        <!-- 歌曲信息 -->
+        <div class="now-title" id="songTitle">晴天</div>
+        <div class="now-artist">演唱 <b id="songArtist">周杰伦</b></div>
+        <div class="center"><span class="album-chip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-6 9 6v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21V12h6v9"/></svg>
+          <span id="albumChip">叶惠美 · 2003</span>
+        </span></div>
+
+        <!-- 歌词 -->
+        <div class="card reveal" style="animation-delay:.04s">
+          <div class="card-title">歌词</div>
+          <div class="lyrics" id="lyricsInner"></div>
+        </div>
+
+        <!-- 歌曲详情信息 -->
+        <div class="card reveal" style="animation-delay:.08s">
+          <div class="card-title">基本信息</div>
+          <div class="info-grid" id="infoBasic"></div>
+        </div>
+
+        <div class="card reveal" style="animation-delay:.1s">
+          <div class="card-title">文件与音质</div>
+          <div class="info-grid" id="infoFile"></div>
+        </div>
+
+        <p class="hint reveal" style="animation-delay:.12s">歌曲详情页原型 · 不含播放控制，仅展示信息</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // —— 模拟歌曲数据（字段对齐 Song 模型）——
+  const song = {
+    title: "晴天", artist: "周杰伦", allArtists: "周杰伦", album: "叶惠美", year: 2003,
+    durationSec: 209, genre: "华语流行", bitrate: 320, fileSizeMB: 8.4,
+    playCount: 128, isLocal: true, isNetwork: false, hasLyrics: true, track: 4,
+    dateAdded: "2025-03-12", dateModified: "2025-06-01",
+    filePath: "/storage/emulated/0/Music/周杰伦/叶惠美/04 晴天.mp3",
+    coverA: "#8C7BFF", coverB: "#55D6FF"
+  };
+  const lyrics = [
+    "故事的小黄花","从出生那年就飘着","童年的荡秋千","随记忆一直晃到现在",
+    "吹着前奏望着山坡","不知道 不觉","Re So So Si Do Si La","So La Si Si Si Si La Si La So",
+    "陪我去的地方","Green light, I'm searching for you","Aha ~ 是梦吧 对你说","点够了 刚好的温存",
+    "我的爱 未眠","（间奏…）","为你弹奏萧邦的夜曲","纪念我死去的爱情"
+  ];
+  // —— 填充静态信息 ——
+  document.getElementById("cover").style.background = `linear-gradient(135deg, ${song.coverA}, ${song.coverB})`;
+  document.getElementById("songTitle").textContent = song.title;
+  document.getElementById("songArtist").textContent = song.artist;
+  document.getElementById("albumChip").textContent = `${song.album} · ${song.year}`;
+  // 沉浸背景光晕（用封面主色）
+  document.getElementById("screen").style.background =
+    `radial-gradient(620px 420px at 50% 16%, ${song.coverA}40, transparent 60%), linear-gradient(180deg, #0B0D20, #15132E 42%, #080914 100%)`;
+
+  // 详情信息卡
+  function fmtDur(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; }
+  function buildGrid(id, rows){
+    const grid = document.getElementById(id);
+    rows.forEach(([k, v, full]) => {
+      const cell = document.createElement("div");
+      cell.className = "info-cell";
+      if (full) cell.style.gridColumn = "1 / -1";
+      const vHtml = full ? `<div class="info-v info-path">${v}</div>` : `<div class="info-v">${v}</div>`;
+      cell.innerHTML = `<div class="info-k">${k}</div>${vHtml}`;
+      grid.appendChild(cell);
+    });
+  }
+  const fmt = song.filePath.split(".").pop().toUpperCase();
+  const src = song.isLocal && song.isNetwork ? "本地 + 网络" : song.isLocal ? "本地" : song.isNetwork ? "网络" : "未知";
+  buildGrid("infoBasic", [
+    ["专辑", song.album],
+    ["艺术家", song.artist],
+    ["流派", song.genre],
+    ["发行年份", song.year],
+    ["曲目", `第 ${song.track} 首`],
+    ["时长", fmtDur(song.durationSec)]
+  ]);
+  buildGrid("infoFile", [
+    ["音质", `${song.bitrate} kbps`],
+    ["文件格式", fmt],
+    ["文件大小", `${song.fileSizeMB} MB`],
+    ["来源", src],
+    ["播放次数", `${song.playCount} 次`],
+    ["歌词", song.hasLyrics ? "有" : "无"],
+    ["添加时间", song.dateAdded, true],
+    ["修改时间", song.dateModified, true],
+    ["文件路径", song.filePath, true]
+  ]);
+
+  // 歌词（静态渲染，可滚动）
+  const inner = document.getElementById("lyricsInner");
+  lyrics.forEach((t) => {
+    const line = document.createElement("div");
+    line.className = "lyric-line";
+    line.textContent = t;
+    inner.appendChild(line);
+  });
+</script>
+</body>
+</html>

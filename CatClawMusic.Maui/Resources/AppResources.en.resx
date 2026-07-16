@@ -129,6 +129,7 @@
   <data name="ChatPlaceholder" xml:space="preserve"><value>Ask Yuki: play something, find something, make a playlist...</value></data>
   <data name="DesktopSearchPlaceholder" xml:space="preserve"><value>Search songs, artists, albums…</value></data>
   <data name="LibrarySubtitle" xml:space="preserve"><value>Your local and remote favorites in a beautiful glass music library.</value></data>
+  <data name="PlaylistSubtitle" xml:space="preserve"><value>Favorites, recent plays and custom playlists — manage your collection in one place.</value></data>
   <data name="Artists" xml:space="preserve"><value>Artists</value></data>
   <data name="LocalMusicSection" xml:space="preserve"><value>Local Music</value></data>
   <data name="RemoteMusicSection" xml:space="preserve"><value>Remote Music</value></data>

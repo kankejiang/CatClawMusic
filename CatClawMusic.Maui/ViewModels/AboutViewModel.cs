@@ -13,9 +13,23 @@ public partial class AboutViewModel : ObservableObject
     private readonly IUpdateService? _updateService;
     private readonly IDialogService? _dialogService;
 
-    /// <summary>应用版本号</summary>
+    /// <summary>应用版本号（从 AppInfo 同步，格式 v{主.次.修订}</summary>
     [ObservableProperty]
-    private string _version = "v1.6.0";
+    private string _version = GetAppVersionString();
+
+    /// <summary>获取应用版本号字符串（带 v 前缀），失败时回退到 1.0.0</summary>
+    private static string GetAppVersionString()
+    {
+        try
+        {
+            var v = AppInfo.Current?.VersionString;
+            return string.IsNullOrEmpty(v) ? "v1.0.0" : $"v{v}";
+        }
+        catch
+        {
+            return "v1.0.0";
+        }
+    }
 
     /// <summary>版权声明文本</summary>
     [ObservableProperty]

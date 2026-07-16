@@ -13,19 +13,15 @@
 - **规则**: 每次有较大代码改动后，自动构建 APK
 - **版本**: v1.5.3
 
-## 艺术家元数据
-- **模型**: `ArtistSearchResult` 类（在 `IArtistMetadataScraper.cs` 中）包含以下字段：
-  - 基本信息：Name, NameAliases, Gender, Area, Birthday, Description, PhotoUrl
-  - 扩展信息（v1.4.9新增）：RealName（本名）, Nickname（昵称）, Ethnicity（民族）, BirthPlace（出生地）, Education（毕业院校）, Zodiac（星座）, Height（身高）, Agency（经纪公司）, RepresentativeWorks（代表作品）, Occupation（职业）
-- **保存**: `ArtistMetadataSaver.cs` 将元数据保存为 JSON（`artist_info.json`）
-- **显示**: `ArtistDetailFragment.cs` 显示本名和扩展信息
-
-## 数据源优先级
-- **网易云** → **百度百科** → **豆瓣** → **QQ音乐**
-- `BaiduBaikeScraper.cs`：解析百度百科 infobox，提取丰富的艺术家元数据
-- `DoubanScraper.cs`：提供中文简介（网页抓取方式）
-- `MultiSourcePhotoScraper.cs`：只实现 QQ音乐（已移除 iTunes/Wikipedia）
-- 已删除：MusicBrainz、TheAudioDB、iTunes、Wikipedia（对中文艺术家效果差）
+## 艺术家元数据（MAUI 主线真实情况，2026-07-16 核实）
+- ⚠️ 下方旧记录描述的是已非主线的 Xamarin 项目 `CatClawMusic.UI`（含 `ArtistMetadataSaver.cs`/`artist_info.json`/`ArtistDetailFragment.cs`）。**当前主线 `CatClawMusic.Maui` 现状不同，见下。**
+- **抓取接口**：`IArtistMetadataScraper`（`CatClawMusic.Data/IArtistMetadataScraper.cs`），含 `SearchArtistsAsync(name)→List<ArtistSearchResult>` 与 `DownloadAndCacheArtistCoverAsync`。`ArtistSearchResult` 字段齐全：基础(Name/Gender/Region/Birthday/Description/Alias) + 扩展(RealName/Nickname/Ethnicity/BirthPlace/Education/Zodiac/Height/Agency/RepresentativeWorks/Occupation)。
+- **5 个实现**：`NetEaseMusicScraper`(网易云) / `AiArtistScraper`(AI·LLM，填基础字段) / `MultiSourcePhotoScraper`(多源照片) / `BaiduBaikeScraper`(百度百科，解析 infobox 填**全部**扩展字段，最全) / `DoubanScraper`(豆瓣)。
+- **DI 注册优先级（MauiProgram.cs:237-239）**：网易云 → AI → 多源照片。**百度百科与豆瓣当前未注册进 `IArtistMetadataScraper`、也未被任何代码调用（孤儿实现）。**
+- **关键缺口**：全仓 `SearchArtistsAsync(` 只有定义、无调用方；`ArtistMatchPage`/`ArtistMatchDetailPage` 是空壳；MAUI 内**无 `ArtistMetadataSaver`、无 `artist_info.json`**。即"抓取能力已建好，但没接到保存与展示"。
+- **本地 Artist 表只存 Name**：`MusicDatabase.GetOrCreateArtistIdAsync` 扫描歌曲拆名后 `new Artist { Name = n }` 入库（MusicDatabase.cs:718），Gender/Birthday/Region/Description/Cover 本地扫描均不填。`ArtistDetailPage` 现仅显示 Name + 用歌曲封面回填的头像 + 专辑/歌曲。
+- **唯一能间接回填厚字段的路径**：`BackupService` 恢复备份时把 Gender/Birthday/Region/Description 写回 Artist 表（`UpdateArtistAsync`）。
+- **要做"艺人资料卡"需补**：① 接通抓取（进入 ArtistDetailPage 或手动"补全资料"时遍历注册 scrapers 取最佳匹配）；② 持久化（扩展 Artist 表加扩展列并 `UpdateArtistAsync`，或按名存 JSON 缓存）；③ 把 `BaiduBaikeScraper` 重新注册进 `IArtistMetadataScraper`（厚字段最全来源），合并逻辑优先采用其扩展字段。
 
 ## 探索设置
 - 来源选择 Chip 定义在 `fragment_artist_match.xml` 和 `fragment_artist_match_detail.xml`

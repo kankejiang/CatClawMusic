@@ -8,7 +8,7 @@ using System.Collections.ObjectModel;
 namespace CatClawMusic.Maui.ViewModels;
 
 /// <summary>
-/// 歌单列表页 ViewModel：管理 3 个系统歌单（全部歌曲/收藏/最近播放）与用户自定义歌单的加载、
+/// 歌单列表页 ViewModel：管理 2 个系统歌单（收藏/最近播放）与用户自定义歌单的加载、
 /// 创建、删除、收藏切换与计数刷新等交互。
 /// </summary>
 public partial class PlaylistViewModel : ObservableObject
@@ -33,6 +33,10 @@ public partial class PlaylistViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoading = false;
 
+    /// <summary>歌单总数（含系统歌单，用于顶部卡片展示）</summary>
+    [ObservableProperty]
+    private int _playlistCount;
+
     /// <summary>
     /// 初始化 <see cref="PlaylistViewModel"/> 实例。
     /// </summary>
@@ -42,13 +46,26 @@ public partial class PlaylistViewModel : ObservableObject
     {
         _musicLibrary = musicLibrary;
         _db = db;
+
+        // 订阅音乐库歌单变更事件：AI Agent 或其他模块修改歌单后自动标记 dirty，
+        // 避免移动端 PlaylistPage.OnAppearing 因未检查 _isDirty 而不刷新。
+        _musicLibrary.PlaylistsChanged += OnPlaylistsChanged;
+    }
+
+    /// <summary>音乐库歌单变更回调：标记 dirty 以便页面下次出现时刷新</summary>
+    private void OnPlaylistsChanged()
+    {
+        MarkDirty();
     }
 
     /// <summary>标记数据已变更，下次刷新时强制重新加载</summary>
     public void MarkDirty() => _isDirty = true;
 
+    /// <summary>数据是否已变更（供页面 OnAppearing 检查是否需要刷新）</summary>
+    public bool IsDirty => _isDirty;
+
     /// <summary>
-    /// 加载播放列表（含3个系统歌单 + 用户歌单）
+    /// 加载播放列表（含2个系统歌单 + 用户歌单）
     /// </summary>
     [RelayCommand]
     public async Task LoadPlaylistsAsync()
@@ -60,21 +77,14 @@ public partial class PlaylistViewModel : ObservableObject
         {
             Playlists.Clear();
 
-            var allCountTask = _musicLibrary.GetMergedSongCountAsync();
             var favCountTask = _musicLibrary.GetFavoriteSongCountAsync();
             var recentCountTask = _musicLibrary.GetRecentSongCountAsync();
-            var allFirstIdTask = _musicLibrary.GetFirstSongIdForAllAsync();
             var favFirstIdTask = _musicLibrary.GetFirstFavoriteSongIdAsync();
             var recentFirstIdTask = _musicLibrary.GetFirstRecentSongIdAsync();
 
-            await Task.WhenAll(allCountTask, favCountTask, recentCountTask,
-                allFirstIdTask, favFirstIdTask, recentFirstIdTask);
+            await Task.WhenAll(favCountTask, recentCountTask,
+                favFirstIdTask, recentFirstIdTask);
 
-            Playlists.Add(new Playlist
-            {
-                Id = -1, Name = "全部歌曲", SongCount = allCountTask.Result,
-                IsSystem = true, CoverSongId = allFirstIdTask.Result, CreatedAt = _epoch
-            });
             Playlists.Add(new Playlist
             {
                 Id = -2, Name = "收藏歌曲", SongCount = favCountTask.Result,
@@ -136,6 +146,7 @@ public partial class PlaylistViewModel : ObservableObject
             });
 
             _isDirty = false;
+            PlaylistCount = Playlists.Count;
             StatusText = Playlists.Count == 0 ? "暂无播放列表" : "";
         }
         catch (Exception ex)
@@ -164,20 +175,17 @@ public partial class PlaylistViewModel : ObservableObject
     /// </summary>
     public async Task RefreshSystemPlaylistCountsAsync()
     {
-        if (Playlists.Count < 3) return;
+        if (Playlists.Count < 2) return;
         try
         {
-            var allCountTask = _musicLibrary.GetMergedSongCountAsync();
             var favCountTask = _musicLibrary.GetFavoriteSongCountAsync();
             var recentCountTask = _musicLibrary.GetRecentSongCountAsync();
-            var allFirstIdTask = _musicLibrary.GetFirstSongIdForAllAsync();
             var favFirstIdTask = _musicLibrary.GetFirstFavoriteSongIdAsync();
             var recentFirstIdTask = _musicLibrary.GetFirstRecentSongIdAsync();
 
-            await Task.WhenAll(allCountTask, favCountTask, recentCountTask,
-                allFirstIdTask, favFirstIdTask, recentFirstIdTask);
+            await Task.WhenAll(favCountTask, recentCountTask,
+                favFirstIdTask, recentFirstIdTask);
 
-            UpdateSystemPlaylist(-1, "全部歌曲", allCountTask.Result, allFirstIdTask.Result, _epoch);
             UpdateSystemPlaylist(-2, "收藏歌曲", favCountTask.Result, favFirstIdTask.Result, _epoch + 1);
             UpdateSystemPlaylist(-3, "最近播放", recentCountTask.Result, recentFirstIdTask.Result, _epoch + 2);
         }

@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using System.Collections.ObjectModel;
@@ -16,6 +17,8 @@ public partial class LibraryPage : ContentPage
     private readonly LibraryViewModel _vm;
     private readonly IAudioPlayerService? _audioPlayer;
     private readonly INetworkMusicService? _networkMusicService;
+    private readonly SearchViewModel? _searchVm;
+    private readonly ExploreDataService? _exploreDataService;
     private bool _isFirstAppearing = true;
 
     /// <summary>初始化 <see cref="LibraryPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
@@ -31,7 +34,42 @@ public partial class LibraryPage : ContentPage
         _vm = vm;
         _audioPlayer = sp.GetService<IAudioPlayerService>();
         _networkMusicService = sp.GetService<INetworkMusicService>();
+        _searchVm = sp.GetService<SearchViewModel>();
+        _exploreDataService = sp.GetService<ExploreDataService>();
         BindingContext = _vm;
+
+        // 订阅发现页数据源变更事件：失效缓存并重新加载探索数据
+        _vm.DiscoverSourceChanged += OnDiscoverSourceChanged;
+    }
+
+    /// <summary>发现页数据源变更回调：失效每日推荐缓存并触发 SearchViewModel 重新加载</summary>
+    private void OnDiscoverSourceChanged()
+    {
+        // 失效每日推荐缓存（艺术家/专辑/歌曲），使下次加载按新筛选重新查询
+        _exploreDataService?.InvalidateDailyRecommendCache();
+
+        // 触发 SearchViewModel 重新加载探索数据
+        if (_searchVm != null)
+        {
+            _ = MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                try
+                {
+                    await _searchVm.ReloadAfterScanAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LibraryPage] 发现页数据源切换后重新加载失败: {ex.Message}");
+                }
+            });
+        }
+    }
+
+    /// <summary>页面卸载时取消事件订阅，避免内存泄漏</summary>
+    protected override void OnHandlerChanging(HandlerChangingEventArgs args)
+    {
+        base.OnHandlerChanging(args);
+        _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
     }
 
     /// <summary>当页面显示在屏幕上时触发，首次出现时加载本地音乐库数据。</summary>
@@ -305,6 +343,121 @@ public partial class LibraryPage : ContentPage
     private void OnSortClicked(object? sender, EventArgs e)
     {
         ShowSortDialog();
+    }
+
+    /// <summary>点击发现页来源按钮时触发，弹出数据源选择下拉框。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">点击事件参数。</param>
+    private void OnDiscoverSourceClicked(object? sender, TappedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("[LibraryPage] OnDiscoverSourceClicked 触发");
+        try
+        {
+            ShowDiscoverSourcePopup();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LibraryPage] OnDiscoverSourceClicked 异常: {ex}");
+        }
+    }
+
+    /// <summary>构建并显示发现页来源选择弹窗（替代 DisplayActionSheet，避免 MAUI 11 Android 兼容性问题）</summary>
+    private void ShowDiscoverSourcePopup()
+    {
+        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+        var inactiveColor = (Color)Application.Current!.Resources["ChipInactiveColor"];
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
+        var textHint = (Color)Application.Current!.Resources["TextHintColor"];
+        var cardBg = (Color)Application.Current!.Resources["CardBackgroundStrongColor"];
+
+        // 选项定义：(显示名称, 值, 描述)
+        var options = new[]
+        {
+            ("自动", "auto", "本地和网络都有 → 本地；只有网络 → 网络"),
+            ("本地", "local", "仅显示本地音乐库内容"),
+            ("网络", "network", "仅显示网络音乐源内容"),
+            ("混合", "all", "合并显示本地与网络内容")
+        };
+
+        var currentSource = _vm.DiscoverSource ?? "auto";
+
+        // 清空旧内容（保留标题栏）
+        DiscoverSourcePopup.ClearContent();
+
+        // 选项列表
+        foreach (var (label, value, desc) in options)
+        {
+            var isSelected = value == currentSource;
+
+            var optionBorder = new Border
+            {
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(12) },
+                Stroke = isSelected ? primaryColor : inactiveColor,
+                StrokeThickness = isSelected ? 1.5 : 1,
+                BackgroundColor = isSelected ? Color.FromArgb("#1A") : cardBg,
+                Padding = new Thickness(14, 10),
+                Margin = new Thickness(0, 0, 0, 8),
+                HorizontalOptions = LayoutOptions.Fill
+            };
+
+            var grid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new() { Width = new GridLength(1, GridUnitType.Star) },
+                    new() { Width = GridLength.Auto }
+                },
+                ColumnSpacing = 8
+            };
+
+            var textStack = new VerticalStackLayout { Spacing = 2 };
+            textStack.Add(new Label
+            {
+                Text = label,
+                FontSize = 15,
+                FontAttributes = isSelected ? FontAttributes.Bold : FontAttributes.None,
+                TextColor = isSelected ? primaryColor : textPrimary
+            });
+            textStack.Add(new Label
+            {
+                Text = desc,
+                FontSize = 11,
+                TextColor = textHint,
+                MaxLines = 1,
+                LineBreakMode = LineBreakMode.TailTruncation
+            });
+            grid.Add(textStack, 0);
+
+            if (isSelected)
+            {
+                grid.Add(new Label
+                {
+                    Text = "\u2713",
+                    FontSize = 16,
+                    TextColor = primaryColor,
+                    FontAttributes = FontAttributes.Bold,
+                    VerticalOptions = LayoutOptions.Center
+                }, 1);
+            }
+
+            optionBorder.Content = grid;
+
+            // 点击选择该项
+            var capturedValue = value;
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) =>
+            {
+                System.Diagnostics.Debug.WriteLine($"[LibraryPage] 选择发现页来源: {capturedValue}");
+                _vm.SetDiscoverSource(capturedValue);
+                DiscoverSourcePopup.Close();
+            };
+            optionBorder.GestureRecognizers.Add(tap);
+
+            DiscoverSourcePopup.AddContent(optionBorder);
+        }
+
+        DiscoverSourcePopup.Open();
     }
 
     /// <summary>点击清除按钮时触发，弹出确认清除音乐库的对话框。</summary>

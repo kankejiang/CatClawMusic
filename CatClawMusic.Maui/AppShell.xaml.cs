@@ -21,6 +21,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("settings/generalsettings", typeof(Pages.GeneralSettingsPage));
         Routing.RegisterRoute("settings/backuprestore", typeof(Pages.BackupRestorePage));
         Routing.RegisterRoute("settings/about", typeof(Pages.AboutPage));
+        Routing.RegisterRoute("settings/diagnosticlog", typeof(Pages.LogPage));
         Routing.RegisterRoute("settings/localmusicsettings", typeof(Pages.LocalMusicSettingsPage));
         Routing.RegisterRoute("settings/musicfoldersettings", typeof(Pages.MusicFolderSettingsPage));
         Routing.RegisterRoute("settings/remotemusicsettings", typeof(Pages.RemoteMusicSettingsPage));
@@ -68,6 +69,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("generalsettings", typeof(Pages.GeneralSettingsPage));
         Routing.RegisterRoute("backuprestore", typeof(Pages.BackupRestorePage));
         Routing.RegisterRoute("about", typeof(Pages.AboutPage));
+        Routing.RegisterRoute("diagnosticlog", typeof(Pages.LogPage));
         Routing.RegisterRoute("localmusicsettings", typeof(Pages.LocalMusicSettingsPage));
         Routing.RegisterRoute("musicfoldersettings", typeof(Pages.MusicFolderSettingsPage));
         Routing.RegisterRoute("remotemusicsettings", typeof(Pages.RemoteMusicSettingsPage));
@@ -77,6 +79,8 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("permissionmanagement", typeof(Pages.PermissionManagementPage));
         Routing.RegisterRoute("albumdetail", typeof(Pages.AlbumDetailPage));
         Routing.RegisterRoute("artistdetail", typeof(Pages.ArtistDetailPage));
+        // 全局别名：NowPlayingPage 顶栏"歌曲详情"按钮使用 Shell.Current.GoToAsync("songdetail?songId=...")
+        Routing.RegisterRoute("songdetail", typeof(Pages.SongDetailPage));
         Routing.RegisterRoute("albums", typeof(Pages.AlbumsPage));
         Routing.RegisterRoute("artists", typeof(Pages.ArtistsPage));
         Routing.RegisterRoute("playlistdetail", typeof(Pages.PlaylistDetailPage));

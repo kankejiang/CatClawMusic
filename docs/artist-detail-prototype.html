@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>艺术家详情 · CatClaw Music 原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #080B1A; --bg-1: #0B0D20; --bg-2: #15132E;
+    --surface: #1A2040; --card: #182244; --card-strong: #1E2A52;
+    --stroke: #2A3870; --stroke-strong: #3A4A8C;
+    --primary: #8C7BFF; --primary-deep: #6250F6;
+    --accent: #55D6FF; --like: #FF7AAE; --good: #7AF0C8;
+    --text-1: #F7F8FF; --text-2: #C2C6E4; --text-3: #8D93B7;
+    --chip-bg: #1C2850; --chip-active: #FF6C5CE7;
+    --display: "Space Grotesk", "Noto Sans SC", system-ui, sans-serif;
+    --body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; font-family: var(--body); color: var(--text-1); background: var(--bg-0); }
+  body { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 28px 16px 56px;
+    background: radial-gradient(1100px 700px at 18% -8%, rgba(140,123,255,.22), transparent 60%),
+                radial-gradient(900px 620px at 92% 8%, rgba(85,214,255,.16), transparent 58%),
+                linear-gradient(180deg, var(--bg-1), var(--bg-2) 38%, var(--bg-0) 100%); }
+  .device { position: relative; width: 100%; max-width: 430px; border-radius: 38px; padding: 10px;
+    background: linear-gradient(160deg, rgba(58,74,140,.55), rgba(26,32,64,.35));
+    border: 1px solid rgba(120,135,200,.30); box-shadow: 0 40px 90px -30px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06); overflow: hidden; }
+  @media (max-width: 480px) { body { padding: 0; } .device { max-width: 100%; border-radius: 0; border: none; box-shadow: none; padding: 0; } }
+  .screen { position: relative; border-radius: 30px; overflow: hidden; min-height: 920px;
+    background: radial-gradient(700px 480px at 50% -10%, rgba(140,123,255,.10), transparent 60%),
+                linear-gradient(180deg, #0B0D20 0%, #15132E 32%, #0A0C1C 72%, #080914 100%); }
+  @media (max-width: 480px) { .screen { border-radius: 0; min-height: 100vh; } }
+  .scroll { padding: 0 18px 36px; }
+
+  /* 顶栏 */
+  .np-bar { display: flex; align-items: center; gap: 10px; padding: 14px 0 6px; }
+  .icon-btn { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 12px;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: #fff; cursor: pointer; transition: transform .18s ease, background .18s ease; }
+  .icon-btn:active { transform: scale(.92); background: rgba(255,255,255,.18); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .np-title { font-size: 11px; letter-spacing: 2px; color: var(--text-3); margin: 0 auto; text-transform: uppercase; }
+
+  /* 通用卡片 */
+  .card { background: linear-gradient(180deg, rgba(30,42,82,.72), rgba(24,34,68,.72)); border: 1px solid var(--stroke); border-radius: 22px; padding: 16px; margin-top: 18px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+  .card-title { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text-1); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card-title .badge { font-size: 10px; font-weight: 600; color: var(--accent); background: rgba(85,214,255,.12); border: 1px solid rgba(85,214,255,.3); padding: 2px 8px; border-radius: 999px; }
+
+  /* 头图 */
+  .hero-artist { position: relative; height: 200px; border-radius: 24px; overflow: hidden; margin-top: 6px;
+    background: linear-gradient(135deg, var(--coverA, #8C7BFF), var(--coverB, #55D6FF)); }
+  .hero-artist::before { content: ""; position: absolute; inset: 0; background: radial-gradient(360px 200px at 80% 10%, rgba(255,255,255,.28), transparent 60%); }
+  .hero-artist::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,11,26,0) 30%, rgba(8,11,26,.88) 100%); }
+  .hero-initial { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 110px; color: rgba(255,255,255,.20); }
+  .hero-overlay { position: absolute; left: 18px; right: 18px; bottom: 16px; z-index: 2; }
+  .hero-name { font-family: var(--display); font-size: 27px; font-weight: 700; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.55); line-height: 1.1; }
+  .hero-nick { font-size: 13px; color: rgba(255,255,255,.82); margin-top: 4px; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+
+  /* 关键标签 */
+  .chip-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .chip { font-size: 12px; color: var(--text-2); background: rgba(255,255,255,.06); border: 1px solid var(--stroke); padding: 5px 11px; border-radius: 999px; }
+  .chip b { color: var(--text-1); font-weight: 600; }
+
+  /* 播放全部 */
+  .play-cta { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; height: 48px; margin-top: 16px;
+    border: 0; border-radius: 16px; cursor: pointer; color: #fff; font-size: 14.5px; font-weight: 600;
+    background: linear-gradient(135deg, var(--chip-active), #8C5CF6); box-shadow: 0 14px 30px -10px rgba(255,108,92,.55);
+    transition: transform .15s ease, filter .15s ease; font-family: var(--body); }
+  .play-cta:active { transform: scale(.98); filter: brightness(1.08); }
+  .play-cta svg { width: 20px; height: 20px; }
+
+  /* 统计行 */
+  .stat-row { display: flex; gap: 10px; margin-top: 16px; }
+  .stat { flex: 1; text-align: center; padding: 12px 4px; border-radius: 16px; background: linear-gradient(180deg, rgba(30,42,82,.7), rgba(24,34,68,.7)); border: 1px solid var(--stroke); }
+  .stat-v { font-family: var(--display); font-size: 18px; font-weight: 700; color: var(--text-1); }
+  .stat-k { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+  /* 简介 */
+  .bio { font-size: 13.5px; line-height: 1.75; color: var(--text-2); }
+
+  /* 艺人资料 */
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 14px; }
+  .meta-cell.span2 { grid-column: 1 / -1; }
+  .meta-k { font-size: 11px; color: var(--text-3); margin-bottom: 3px; }
+  .meta-v { font-size: 13.5px; color: var(--text-1); font-weight: 500; line-height: 1.45; }
+
+  /* Tab 切换 */
+  .seg { display: flex; gap: 0; padding: 4px; border-radius: 14px; background: rgba(42,56,112,.4); border: 1px solid var(--stroke); }
+  .seg-btn { flex: 1; text-align: center; padding: 9px 0; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); font-size: 13.5px; font-weight: 600; cursor: pointer; transition: all .2s ease; font-family: var(--body); }
+  .seg-btn.active { background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; box-shadow: 0 6px 16px -8px rgba(140,123,255,.7); }
+
+  /* 专辑网格 */
+  .albums-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .album-cover { aspect-ratio: 1; border-radius: 14px; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 30px; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+  .album-title { font-size: 13px; font-weight: 600; color: var(--text-1); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .album-sub { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }
+
+  /* 歌曲行 */
+  .song-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+  .song-row + .song-row { border-top: 1px solid rgba(42,56,112,.5); }
+  .song-cover { width: 46px; height: 46px; flex: 0 0 auto; border-radius: 12px; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 17px; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+  .song-meta { flex: 1; min-width: 0; }
+  .song-title { font-size: 14px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-dur { font-family: var(--display); font-size: 12px; font-weight: 600; color: var(--text-3); flex: 0 0 auto; }
+
+  .reveal { opacity: 0; transform: translateY(14px); animation: rise .6s cubic-bezier(.16,1,.3,1) forwards; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  .hint { text-align: center; font-size: 11.5px; color: var(--text-3); margin-top: 22px; }
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="screen">
+      <div class="scroll">
+
+        <!-- 顶栏 -->
+        <div class="np-bar">
+          <button class="icon-btn" title="返回" aria-label="返回">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="np-title">艺术家</div>
+          <button class="icon-btn" title="更多" aria-label="更多">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg>
+          </button>
+        </div>
+
+        <!-- 头图 -->
+        <div class="hero-artist reveal" id="hero" style="animation-delay:0s">
+          <div class="hero-initial" id="heroInitial">周</div>
+          <div class="hero-overlay">
+            <div class="hero-name" id="heroName">周杰伦</div>
+            <div class="hero-nick" id="heroNick">Jay Chou</div>
+          </div>
+        </div>
+
+        <!-- 关键标签 -->
+        <div class="chip-row reveal" id="chips" style="animation-delay:.04s"></div>
+
+        <!-- 播放全部 -->
+        <button class="play-cta reveal" id="playCta" style="animation-delay:.06s">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          播放全部
+        </button>
+
+        <!-- 统计 -->
+        <div class="stat-row reveal" id="stats" style="animation-delay:.08s"></div>
+
+        <!-- 简介 -->
+        <div class="card reveal" style="animation-delay:.1s">
+          <div class="card-title">简介</div>
+          <div class="bio" id="bio"></div>
+        </div>
+
+        <!-- 艺人资料 -->
+        <div class="card reveal" style="animation-delay:.14s">
+          <div class="card-title">艺人资料 <span class="badge">来自资料库</span></div>
+          <div class="meta-grid" id="meta"></div>
+        </div>
+
+        <!-- Tab -->
+        <div class="card reveal" style="animation-delay:.18s; padding-bottom: 14px;">
+          <div class="seg" id="seg">
+            <button class="seg-btn active" data-tab="albums">专辑 <span id="albumsCount"></span></button>
+            <button class="seg-btn" data-tab="songs">歌曲 <span id="songsCount"></span></button>
+          </div>
+          <div id="albumsView" style="margin-top:14px;"></div>
+          <div id="songsView" style="margin-top:14px; display:none;"></div>
+        </div>
+
+        <p class="hint reveal" style="animation-delay:.22s">艺术家详情页原型 · 视觉确认用，含艺人资料与专辑/歌曲切换</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // —— 模拟艺术家数据（字段对齐 Artist 模型 + 资料库挖掘结果）——
+  const artist = {
+    name: "周杰伦", nickname: "Jay Chou", gender: "男", area: "中国台湾",
+    birthday: "1979-01-18", zodiac: "摩羯座", ethnicity: "汉族", birthPlace: "台湾省新北市",
+    education: "淡江高级中学", height: "173 cm", agency: "杰威尔音乐",
+    occupation: "歌手 / 词曲创作人 / 导演", representativeWorks: "《七里香》《青花瓷》《双截棍》《夜曲》",
+    description: "华语流行乐坛最具影响力的音乐人之一，以融合中西方曲风的创作闻名，作品横跨流行、说唱、古典与电影配乐，多次引领华语音乐风潮。",
+    coverA: "#8C7BFF", coverB: "#55D6FF"
+  };
+  const stats = { songs: 142, albums: 14, hours: 9.6, plays: 1062 };
+  const albums = [
+    ["叶惠美", 2003, 10], ["范特西", 2001, 11], ["七里香", 2004, 10],
+    ["我很忙", 2007, 12], ["十一月的萧邦", 2005, 11], ["魔杰座", 2008, 10]
+  ];
+  const songs = [
+    ["晴天", "叶惠美", "4:29", 128], ["七里香", "七里香", "4:59", 96],
+    ["青花瓷", "我很忙", "3:59", 112], ["稻香", "魔杰座", "3:43", 74],
+    ["双截棍", "范特西", "3:21", 63], ["夜曲", "十一月的萧邦", "3:46", 88]
+  ];
+  const rpal = [["#8C7BFF","#55D6FF"],["#FF7AAE","#FFB36B"],["#55D6FF","#7AF0C8"],["#A78BFA","#F0ABFC"],["#5EEAD4","#60A5FA"],["#FFB36B","#8C7BFF"]];
+  function grad(i){ const p = rpal[i % rpal.length]; return `linear-gradient(135deg, ${p[0]}, ${p[1]})`; }
+  function initial(n){ return (n || "♪").trim().charAt(0); }
+
+  // 头图
+  const hero = document.getElementById("hero");
+  hero.style.setProperty("--coverA", artist.coverA);
+  hero.style.setProperty("--coverB", artist.coverB);
+  document.getElementById("heroInitial").textContent = initial(artist.name);
+  document.getElementById("heroName").textContent = artist.name;
+  document.getElementById("heroNick").textContent = artist.nickname || "";
+
+  // 关键标签
+  const chipData = [["性别", artist.gender], ["地区", artist.area], ["生日", artist.birthday]];
+  const chipsEl = document.getElementById("chips");
+  chipData.forEach(c => {
+    if (!c[1]) return;
+    const el = document.createElement("div");
+    el.className = "chip";
+    el.innerHTML = `${c[0]} <b>${c[1]}</b>`;
+    chipsEl.appendChild(el);
+  });
+
+  // 统计
+  const statDefs = [["在库歌曲", stats.songs], ["专辑", stats.albums], ["总时长", stats.hours + " h"], ["播放次数", stats.plays]];
+  const statsEl = document.getElementById("stats");
+  statDefs.forEach(s => {
+    const el = document.createElement("div");
+    el.className = "stat";
+    el.innerHTML = `<div class="stat-v">${s[1]}</div><div class="stat-k">${s[0]}</div>`;
+    statsEl.appendChild(el);
+  });
+
+  // 简介
+  document.getElementById("bio").textContent = artist.description;
+
+  // 艺人资料（跳过空字段，长字段跨两列）
+  const metaDefs = [
+    ["性别", artist.gender], ["生日", artist.birthday],
+    ["星座", artist.zodiac], ["地区", artist.area],
+    ["民族", artist.ethnicity], ["出生地", artist.birthPlace],
+    ["身高", artist.height], ["职业", artist.occupation, true],
+    ["毕业院校", artist.education], ["经纪公司", artist.agency],
+    ["昵称", artist.nickname], ["代表作品", artist.representativeWorks, true]
+  ];
+  const metaEl = document.getElementById("meta");
+  metaDefs.forEach(m => {
+    if (!m[1]) return;
+    const el = document.createElement("div");
+    el.className = "meta-cell" + (m[2] ? " span2" : "");
+    el.innerHTML = `<div class="meta-k">${m[0]}</div><div class="meta-v">${m[1]}</div>`;
+    metaEl.appendChild(el);
+  });
+
+  // 专辑
+  document.getElementById("albumsCount").textContent = albums.length;
+  document.getElementById("songsCount").textContent = songs.length;
+  const albumsView = document.getElementById("albumsView");
+  albums.forEach((a, i) => {
+    const el = document.createElement("div");
+    el.innerHTML = `
+      <div class="album-cover" style="background:${grad(i)}">${initial(a[0])}</div>
+      <div class="album-title">${a[0]}</div>
+      <div class="album-sub">${a[1]} · ${a[2]} 首</div>`;
+    albumsView.appendChild(el);
+  });
+
+  // 歌曲
+  const songsView = document.getElementById("songsView");
+  songs.forEach((s, i) => {
+    const el = document.createElement("div");
+    el.className = "song-row";
+    el.innerHTML = `
+      <div class="song-cover" style="background:${grad(i)}">${initial(s[0])}</div>
+      <div class="song-meta"><div class="song-title">${s[0]}</div><div class="song-sub">${s[1]} · ${s[3]} 次播放</div></div>
+      <div class="song-dur">${s[2]}</div>`;
+    songsView.appendChild(el);
+  });
+
+  // Tab 切换
+  const seg = document.getElementById("seg");
+  seg.addEventListener("click", e => {
+    const btn = e.target.closest(".seg-btn");
+    if (!btn) return;
+    seg.querySelectorAll(".seg-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const tab = btn.dataset.tab;
+    albumsView.style.display = tab === "albums" ? "block" : "none";
+    songsView.style.display = tab === "songs" ? "block" : "none";
+  });
+
+  // 播放全部（原型反馈）
+  const playCta = document.getElementById("playCta");
+  playCta.addEventListener("click", () => {
+    const old = playCta.innerHTML;
+    playCta.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 已加入播放队列`;
+    setTimeout(() => { playCta.innerHTML = old; }, 1200);
+  });
+</script>
+</body>
+</html>

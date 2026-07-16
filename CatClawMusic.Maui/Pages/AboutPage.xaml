@@ -12,13 +12,22 @@
 
         <controls:HeroCard Grid.Row="0">
             <controls:HeroCard.CardContent>
-                <VerticalStackLayout Padding="44,0,0,0"
-                                     Spacing="14"
+                <VerticalStackLayout Spacing="14"
                                      HorizontalOptions="Center">
-                    <Image Source="cover_default"
-                           WidthRequest="100"
-                           HeightRequest="100"
-                           HorizontalOptions="Center" />
+                    <Border Stroke="White"
+                            StrokeThickness="3"
+                            StrokeShape="RoundRectangle 100"
+                            WidthRequest="110"
+                            HeightRequest="110"
+                            HorizontalOptions="Center"
+                            Padding="0">
+                        <Image Source="avatar_yuki"
+                               WidthRequest="104"
+                               HeightRequest="104"
+                               Aspect="AspectFill"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
                            Style="{StaticResource PageTitleStyle}"
                            HorizontalOptions="Center"

@@ -129,6 +129,7 @@
   <data name="ChatPlaceholder" xml:space="preserve"><value>问问 Yuki：播放谁、找什么、建什么歌单...</value></data>
   <data name="DesktopSearchPlaceholder" xml:space="preserve"><value>搜索歌曲、歌手、专辑…</value></data>
   <data name="LibrarySubtitle" xml:space="preserve"><value>把本地和网络收藏放进一座更好看的玻璃唱片馆。</value></data>
+  <data name="PlaylistSubtitle" xml:space="preserve"><value>收藏、最近播放与自建歌单，一处管理你的音乐集合。</value></data>
   <data name="Artists" xml:space="preserve"><value>艺术家</value></data>
   <data name="LocalMusicSection" xml:space="preserve"><value>本地音乐</value></data>
   <data name="RemoteMusicSection" xml:space="preserve"><value>网络音乐</value></data>
