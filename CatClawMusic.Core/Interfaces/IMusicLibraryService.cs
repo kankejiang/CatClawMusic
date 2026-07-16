@@ -8,6 +8,12 @@ namespace CatClawMusic.Core.Interfaces;
 public interface IMusicLibraryService
 {
     /// <summary>
+    /// 歌单数据变更事件（创建/删除/重命名/添加歌曲/移除歌曲等操作后触发），
+    /// 供 UI 层（如 PlaylistViewModel）订阅以刷新歌单列表。
+    /// </summary>
+    event Action? PlaylistsChanged;
+
+    /// <summary>
     /// 扫描本地音乐
     /// </summary>
     Task<List<Song>> ScanLocalAsync(List<string>? customFolders = null);

@@ -16,6 +16,8 @@ public partial class LibraryPage : ContentPage
     private readonly LibraryViewModel _vm;
     private readonly IAudioPlayerService? _audioPlayer;
     private readonly INetworkMusicService? _networkMusicService;
+    private readonly SearchViewModel? _searchVm;
+    private readonly ExploreDataService? _exploreDataService;
     private bool _isFirstAppearing = true;
 
     /// <summary>初始化 <see cref="LibraryPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
@@ -31,7 +33,42 @@ public partial class LibraryPage : ContentPage
         _vm = vm;
         _audioPlayer = sp.GetService<IAudioPlayerService>();
         _networkMusicService = sp.GetService<INetworkMusicService>();
+        _searchVm = sp.GetService<SearchViewModel>();
+        _exploreDataService = sp.GetService<ExploreDataService>();
         BindingContext = _vm;
+
+        // 订阅发现页数据源变更事件：失效缓存并重新加载探索数据
+        _vm.DiscoverSourceChanged += OnDiscoverSourceChanged;
+    }
+
+    /// <summary>发现页数据源变更回调：失效每日推荐缓存并触发 SearchViewModel 重新加载</summary>
+    private void OnDiscoverSourceChanged()
+    {
+        // 失效每日推荐缓存（艺术家/专辑/歌曲），使下次加载按新筛选重新查询
+        _exploreDataService?.InvalidateDailyRecommendCache();
+
+        // 触发 SearchViewModel 重新加载探索数据
+        if (_searchVm != null)
+        {
+            _ = MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                try
+                {
+                    await _searchVm.ReloadAfterScanAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LibraryPage] 发现页数据源切换后重新加载失败: {ex.Message}");
+                }
+            });
+        }
+    }
+
+    /// <summary>页面卸载时取消事件订阅，避免内存泄漏</summary>
+    protected override void OnHandlerChanging(HandlerChangingEventArgs args)
+    {
+        base.OnHandlerChanging(args);
+        _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
     }
 
     /// <summary>当页面显示在屏幕上时触发，首次出现时加载本地音乐库数据。</summary>
@@ -305,6 +342,37 @@ public partial class LibraryPage : ContentPage
     private void OnSortClicked(object? sender, EventArgs e)
     {
         ShowSortDialog();
+    }
+
+    /// <summary>点击发现页来源按钮时触发，弹出数据源选择下拉框。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">事件参数。</param>
+    private async void OnDiscoverSourceClicked(object? sender, EventArgs e)
+    {
+        // 选项顺序：自动、本地、网络、混合
+        // 自动模式规则：本地和网络都有 → 本地；只有网络 → 网络；只有本地 → 本地
+        var result = await DisplayActionSheet(
+            "发现页来源",
+            "取消",
+            null,
+            "自动",
+            "本地",
+            "网络",
+            "混合");
+
+        var source = result switch
+        {
+            "自动" => "auto",
+            "本地" => "local",
+            "网络" => "network",
+            "混合" => "all",
+            _ => null
+        };
+
+        if (!string.IsNullOrEmpty(source))
+        {
+            _vm.SetDiscoverSource(source);
+        }
     }
 
     /// <summary>点击清除按钮时触发，弹出确认清除音乐库的对话框。</summary>

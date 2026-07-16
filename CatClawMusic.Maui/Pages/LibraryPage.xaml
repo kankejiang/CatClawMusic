@@ -23,20 +23,48 @@
                            Style="{StaticResource PageSubtitleStyle}"
                            TextColor="#F2F4FF" />
                 </VerticalStackLayout>
-                <Border Grid.Column="1"
-                        Style="{StaticResource GlassBadgeStyle}"
-                        BackgroundColor="#26FFFFFF"
-                        Stroke="{DynamicResource GlassStrokeColor}"
-                        VerticalOptions="Start">
-                    <Label Text="{OnPlatform Default='ANDROID',
-                                              Android='ANDROID',
-                                              WinUI='WINDOWS',
-                                              iOS='IOS',
-                                              MacCatalyst='MACOS'}"
-                           FontSize="11"
-                           FontFamily="OpenSansSemibold"
-                           TextColor="White" />
-                </Border>
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="6"
+                                     VerticalOptions="Center">
+                    <Border Style="{StaticResource GlassBadgeStyle}"
+                            BackgroundColor="#26FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            HorizontalOptions="End">
+                        <Label Text="{OnPlatform Default='ANDROID',
+                                                  Android='ANDROID',
+                                                  WinUI='WINDOWS',
+                                                  iOS='IOS',
+                                                  MacCatalyst='MACOS'}"
+                               FontSize="11"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="White" />
+                    </Border>
+                    <Border x:Name="DiscoverSourceBtn"
+                            Style="{StaticResource GlassBadgeStyle}"
+                            BackgroundColor="#26FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            HorizontalOptions="End"
+                            Padding="10,4">
+                        <Grid ColumnDefinitions="Auto,Auto"
+                              ColumnSpacing="4">
+                            <Button Grid.ColumnSpan="2"
+                                    BackgroundColor="Transparent"
+                                    Clicked="OnDiscoverSourceClicked"
+                                    InputTransparent="False" />
+                            <Label Grid.Column="0"
+                                   Text="发现页来源"
+                                   FontSize="11"
+                                   TextColor="#E6FFFFFF"
+                                   InputTransparent="True" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding DiscoverSourceDisplayText}"
+                                   FontSize="11"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="White"
+                                   InputTransparent="True" />
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
             </Grid>
         </Border>
 

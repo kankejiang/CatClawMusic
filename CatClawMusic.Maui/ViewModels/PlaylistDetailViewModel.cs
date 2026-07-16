@@ -9,7 +9,7 @@ using System.Collections.ObjectModel;
 namespace CatClawMusic.Maui.ViewModels;
 
 /// <summary>
-/// 歌单详情页 ViewModel：加载指定歌单（含“全部歌曲/收藏/最近播放”等虚拟歌单）的歌曲列表，
+/// 歌单详情页 ViewModel：加载指定歌单（含“收藏/最近播放”等虚拟歌单）的歌曲列表，
 /// 提供单曲播放、整列表播放、移除歌曲、切换收藏与按来源筛选等交互能力。
 /// </summary>
 public partial class PlaylistDetailViewModel : ObservableObject
@@ -67,10 +67,10 @@ public partial class PlaylistDetailViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 设置歌单参数并加载：根据歌单 ID 选择不同数据源（全部/收藏/最近/普通歌单），
+    /// 设置歌单参数并加载：根据歌单 ID 选择不同数据源（收藏/最近/普通歌单），
     /// 并按已启用协议过滤歌曲。
     /// </summary>
-    /// <param name="playlistId">歌单 ID（-1=全部, -2=收藏, -3=最近播放, 其他=普通歌单）</param>
+    /// <param name="playlistId">歌单 ID（-2=收藏, -3=最近播放, -4=最多播放, 其他=普通歌单）</param>
     /// <param name="name">歌单名称</param>
     public async Task LoadPlaylistAsync(int playlistId, string name)
     {
@@ -85,9 +85,6 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
             switch (playlistId)
             {
-                case -1:
-                    songs = await _musicLibrary.GetMergedSongsAsync();
-                    break;
                 case -2:
                     songs = await _musicLibrary.GetFavoriteSongsAsync();
                     break;
