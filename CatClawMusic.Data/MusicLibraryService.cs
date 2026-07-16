@@ -19,6 +19,15 @@ public class MusicLibraryService : IMusicLibraryService
     /// </summary>
     private readonly INetworkMusicService? _networkMusic;
 
+    /// <summary>歌单数据变更事件，在歌单 CRUD 与歌曲增删后触发</summary>
+    public event Action? PlaylistsChanged;
+
+    /// <summary>触发歌单变更事件（安全调用，避免异常传播）</summary>
+    private void RaisePlaylistsChanged()
+    {
+        try { PlaylistsChanged?.Invoke(); } catch { }
+    }
+
     /// <summary>
     /// 创建 MusicLibraryService 实例
     /// </summary>
@@ -399,40 +408,65 @@ public class MusicLibraryService : IMusicLibraryService
     /// </summary>
     /// <param name="name">播放列表名称</param>
     /// <returns>新播放列表的 ID</returns>
-    public async Task<int> CreatePlaylistAsync(string name) => await _db.CreatePlaylistAsync(name);
+    public async Task<int> CreatePlaylistAsync(string name)
+    {
+        var id = await _db.CreatePlaylistAsync(name);
+        RaisePlaylistsChanged();
+        return id;
+    }
 
     /// <summary>
     /// 委托：更新播放列表
     /// </summary>
     /// <param name="playlist">播放列表对象</param>
-    public async Task UpdatePlaylistAsync(Playlist playlist) => await _db.UpdatePlaylistAsync(playlist);
+    public async Task UpdatePlaylistAsync(Playlist playlist)
+    {
+        await _db.UpdatePlaylistAsync(playlist);
+        RaisePlaylistsChanged();
+    }
 
     /// <summary>
     /// 委托：删除播放列表
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
-    public async Task DeletePlaylistAsync(int playlistId) => await _db.DeletePlaylistAsync(playlistId);
+    public async Task DeletePlaylistAsync(int playlistId)
+    {
+        await _db.DeletePlaylistAsync(playlistId);
+        RaisePlaylistsChanged();
+    }
 
     /// <summary>
     /// 委托：向播放列表添加歌曲
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <param name="songId">歌曲 ID</param>
-    public async Task AddSongToPlaylistAsync(int playlistId, int songId) => await _db.AddSongToPlaylistAsync(playlistId, songId);
+    public async Task AddSongToPlaylistAsync(int playlistId, int songId)
+    {
+        await _db.AddSongToPlaylistAsync(playlistId, songId);
+        RaisePlaylistsChanged();
+    }
 
     /// <summary>
     /// 委托：从播放列表移除歌曲
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <param name="songId">歌曲 ID</param>
-    public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId) => await _db.RemoveSongFromPlaylistAsync(playlistId, songId);
+    public async Task RemoveSongFromPlaylistAsync(int playlistId, int songId)
+    {
+        await _db.RemoveSongFromPlaylistAsync(playlistId, songId);
+        RaisePlaylistsChanged();
+    }
 
     /// <summary>
     /// 委托：从播放列表批量移除歌曲
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <param name="songIds">歌曲 ID 集合</param>
-    public async Task RemoveSongsFromPlaylistAsync(int playlistId, IEnumerable<int> songIds) => await _db.RemoveSongsFromPlaylistAsync(playlistId, songIds);
+    public async Task RemoveSongsFromPlaylistAsync(int playlistId, IEnumerable<int> songIds)
+    {
+        await _db.RemoveSongsFromPlaylistAsync(playlistId, songIds);
+        RaisePlaylistsChanged();
+    }
 
     /// <summary>
     /// 委托：获取播放列表中的所有歌曲

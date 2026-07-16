@@ -22,6 +22,7 @@ public partial class LibraryViewModel : ObservableObject
 {
     private readonly MusicDatabase _db;
     private readonly PlayQueue _queue;
+    private readonly ExploreDataService? _exploreDataService;
 
     // === Observable Properties ===
 
@@ -95,6 +96,24 @@ public partial class LibraryViewModel : ObservableObject
     /// <summary>缓存所有网络歌曲（未过滤），用于切换协议时快速过滤</summary>
     private List<Song> _allNetworkSongs = new();
 
+    /// <summary>发现页数据源筛选：auto(自动) / local(本地) / network(网络) / all(混合)</summary>
+    [ObservableProperty]
+    private string _discoverSource = "auto";
+
+    /// <summary>是否存在本地音乐（用于"自动"模式判断）</summary>
+    [ObservableProperty]
+    private bool _hasLocalMusic = true;
+
+    /// <summary>发现页来源按钮显示文字</summary>
+    public string DiscoverSourceDisplayText => DiscoverSource switch
+    {
+        "auto" => "自动",
+        "local" => "本地",
+        "network" => "网络",
+        "all" => "混合",
+        _ => "自动"
+    };
+
     // === Commands ===
 
     /// <summary>切换 Tab 命令（参数为 "Local" 或 "Network"）</summary>
@@ -112,16 +131,64 @@ public partial class LibraryViewModel : ObservableObject
     public event EventHandler? ClearDataRequested;
     /// <summary>请求播放某首歌曲时触发，供外部页面订阅以同步 UI 状态</summary>
     public event Action<Song>? SongPlayRequested;
+    /// <summary>发现页数据源变更时触发，供 SearchViewModel 订阅以重新加载探索数据</summary>
+    public event Action? DiscoverSourceChanged;
 
-    public LibraryViewModel(MusicDatabase db, PlayQueue queue)
+    public LibraryViewModel(MusicDatabase db, PlayQueue queue, ExploreDataService? exploreDataService = null)
     {
         _db = db;
         _queue = queue;
+        _exploreDataService = exploreDataService;
+
+        // 读取持久化的发现页数据源设置，并应用到 ExploreDataService
+        DiscoverSource = Preferences.Default.Get("discover_source", "auto");
+        _exploreDataService?.SetSourceFilter(GetEffectiveDiscoverSource());
 
         SwitchTabCommand = new RelayCommand<string>(SwitchTab);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         SortCommand = new RelayCommand(ShowSortDialog);
         ClearCommand = new RelayCommand(ConfirmClear);
+    }
+
+    /// <summary>
+    /// 获取实际生效的发现页来源筛选值。
+    /// 自动模式规则：只有本地音乐 → 本地；只有网络音乐 → 网络；本地和网络都有 → 本地。
+    /// </summary>
+    public string GetEffectiveDiscoverSource()
+    {
+        if (DiscoverSource != "auto") return DiscoverSource;
+        // 自动模式：本地和网络都有时优先本地；仅网络时用网络
+        if (HasNetworkProtocols && !HasLocalMusic) return "network";
+        return "local";
+    }
+
+    /// <summary>DiscoverSource 变更时同步刷新按钮文字并重新应用筛选</summary>
+    partial void OnDiscoverSourceChanged(string value)
+    {
+        OnPropertyChanged(nameof(DiscoverSourceDisplayText));
+        _exploreDataService?.SetSourceFilter(GetEffectiveDiscoverSource());
+    }
+
+    /// <summary>HasLocalMusic 变更时，若处于自动模式则重新应用筛选并通知刷新</summary>
+    partial void OnHasLocalMusicChanged(bool value)
+    {
+        if (DiscoverSource == "auto")
+        {
+            _exploreDataService?.SetSourceFilter(GetEffectiveDiscoverSource());
+            DiscoverSourceChanged?.Invoke();
+        }
+    }
+
+    /// <summary>设置发现页数据源（由页面弹窗选择后调用），持久化并通知 SearchViewModel 刷新</summary>
+    public void SetDiscoverSource(string? source)
+    {
+        if (string.IsNullOrEmpty(source) || source == DiscoverSource) return;
+
+        DiscoverSource = source;
+        Preferences.Default.Set("discover_source", source);
+
+        // 通知 SearchViewModel 重新加载探索数据
+        DiscoverSourceChanged?.Invoke();
     }
 
     /// <summary>
@@ -153,6 +220,7 @@ public partial class LibraryViewModel : ObservableObject
         }
 
         ProtocolOptions = options;
+        var oldHasNetwork = HasNetworkProtocols;
         HasNetworkProtocols = options.Count > 1; // 有除"全部"之外的协议
 
         if (!HasNetworkProtocols && CurrentTab == "Network")
@@ -163,6 +231,21 @@ public partial class LibraryViewModel : ObservableObject
         else if (HasNetworkProtocols && SelectedProtocolIndex >= options.Count)
         {
             SelectedProtocolIndex = 0;
+        }
+
+        // 更新本地音乐存在标志（用于发现页"自动"模式判断）
+        try
+        {
+            var localCount = await _db.GetLocalSongCountAsync();
+            HasLocalMusic = localCount > 0;
+        }
+        catch { }
+
+        // 自动模式下，本地/网络音乐存在状态变化可能导致生效筛选变化，重新应用并通知
+        if (DiscoverSource == "auto" && (oldHasNetwork != HasNetworkProtocols))
+        {
+            _exploreDataService?.SetSourceFilter(GetEffectiveDiscoverSource());
+            DiscoverSourceChanged?.Invoke();
         }
 
         // 如果在 Network Tab，重新应用协议过滤

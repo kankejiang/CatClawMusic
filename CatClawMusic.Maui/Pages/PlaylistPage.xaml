@@ -10,21 +10,36 @@
 
         <Grid RowDefinitions="Auto,Auto,*">
 
-            <!-- Header -->
-            <Grid Grid.Row="0" Margin="16,16,16,10"
-                  ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
-                       Style="{StaticResource PageTitleStyle}"
-                       VerticalOptions="Center" />
-                <Border Grid.Column="1"
-                        Style="{StaticResource GlassIconContainerStyle}"
-                        VerticalOptions="Center">
-                    <ImageButton Source="ic_add"
-                                 WidthRequest="40" HeightRequest="40"
-                                 BackgroundColor="Transparent"
-                                 Clicked="OnCreatePlaylistClicked" />
-                </Border>
-            </Grid>
+            <!-- Hero Card（与其他页面样式一致） -->
+            <Border Grid.Row="0"
+                    Margin="16,8,16,8"
+                    Style="{StaticResource GlassCardStrongStyle}"
+                    Background="{DynamicResource HeroBrush}">
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="12">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PlaylistSubtitle]}"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F2F4FF" />
+                    </VerticalStackLayout>
+                    <Border Grid.Column="1"
+                            Style="{StaticResource GlassIconContainerStyle}"
+                            BackgroundColor="#26FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            VerticalOptions="Start">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCreatePlaylistClicked" />
+                        </Border.GestureRecognizers>
+                        <Image Source="ic_add"
+                               WidthRequest="40" HeightRequest="40"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </Border>
 
             <!-- Status -->
             <Label Grid.Row="1"

@@ -451,7 +451,8 @@ public class PlaySongTool : IAgentTool
 }
 
 /// <summary>
-/// 联网搜索工具，通过 DuckDuckGo HTML 接口在互联网上搜索信息。
+/// 联网搜索工具，通过 DuckDuckGo 在互联网上搜索信息。
+/// 优先使用 DuckDuckGo HTML 接口（POST），失败时回退到 Lite 版本。
 /// </summary>
 public class WebSearchTool : IAgentTool
 {
@@ -460,16 +461,22 @@ public class WebSearchTool : IAgentTool
     /// <summary>工具名称</summary>
     public string Name => "web_search";
     /// <summary>工具描述</summary>
-    public string Description => "在互联网上搜索信息，可以搜索新闻、知识、音乐资讯等内容";
+    public string Description => "在互联网上搜索信息，可以搜索新闻、知识、音乐资讯等内容。当用户询问实时信息、最新资讯或你不确定的知识时使用此工具。";
 
     /// <summary>
-    /// 构造 WebSearchTool 实例，初始化 HttpClient 并设置 UA 与超时
+    /// 构造 WebSearchTool 实例，初始化 HttpClient 并设置完整的浏览器请求头。
     /// </summary>
     public WebSearchTool()
     {
-        _httpClient = new HttpClient();
-        _httpClient.Timeout = TimeSpan.FromSeconds(10);
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        _httpClient = new HttpClient(new HttpClientHandler
+        {
+            AllowAutoRedirect = true,
+            MaxAutomaticRedirections = 5
+        });
+        _httpClient.Timeout = TimeSpan.FromSeconds(15);
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        _httpClient.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        _httpClient.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
     }
 
     /// <summary>
@@ -506,21 +513,32 @@ public class WebSearchTool : IAgentTool
 
         try
         {
-            // 使用 DuckDuckGo 的 HTML 搜索页面（简单的替代方案）
-            var searchUrl = $"https://html.duckduckgo.com/html/?q={Uri.EscapeDataString(query)}";
-            var response = await _httpClient.GetAsync(searchUrl);
-            response.EnsureSuccessStatusCode();
-            var html = await response.Content.ReadAsStringAsync();
+            // 优先使用 DuckDuckGo HTML 接口（POST 方式，更稳定）
+            var results = await SearchDuckDuckGoHtmlAsync(query);
 
-            // 简单解析搜索结果（截取一些内容）
-            var results = ExtractSearchResults(html, query);
+            // 若 HTML 接口无结果，回退到 Lite 版本
+            if (results.Count == 0)
+            {
+                results = await SearchDuckDuckGoLiteAsync(query);
+            }
+
+            if (results.Count > 0)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    query = query,
+                    results = results,
+                    message = $"搜索完成，找到 {results.Count} 条相关结果"
+                });
+            }
 
             return JsonSerializer.Serialize(new
             {
-                success = true,
+                success = false,
                 query = query,
-                results = results,
-                message = "搜索完成，已找到相关信息"
+                results = Array.Empty<object>(),
+                message = $"已搜索「{query}」但未找到相关结果，建议换个关键词试试"
             });
         }
         catch (Exception ex)
@@ -530,103 +548,160 @@ public class WebSearchTool : IAgentTool
     }
 
     /// <summary>
-    /// 从 DuckDuckGo 返回的 HTML 中简单解析搜索结果（标题、URL、摘要）
+    /// 通过 DuckDuckGo HTML 接口搜索（POST 方式）
     /// </summary>
-    /// <param name="html">搜索结果 HTML</param>
-    /// <param name="query">原始搜索关键词（无结果时用于提示）</param>
-    /// <returns>解析得到的结果列表，最多 5 条</returns>
-    private List<object> ExtractSearchResults(string html, string query)
+    private async Task<List<object>> SearchDuckDuckGoHtmlAsync(string query)
     {
-        var results = new List<object>();
-
-        // 简单的 HTML 解析，提取搜索结果
-        // 注意：这只是一个基础实现，实际项目中建议使用 HTML 解析库
         try
         {
-            var lines = html.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            var resultCount = 0;
-            var currentTitle = "";
-            var currentUrl = "";
-            var currentSnippet = "";
-
-            foreach (var line in lines)
+            var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                if (resultCount >= 5) break;
-
-                if (line.Contains("class=\"result__a\""))
-                {
-                    // 提取 URL
-                    var urlMatch = System.Text.RegularExpressions.Regex.Match(line, "href=\"([^\"]+)\"");
-                    if (urlMatch.Success)
-                    {
-                        currentUrl = urlMatch.Groups[1].Value;
-                        // 清理 URL
-                        if (currentUrl.StartsWith("//")) currentUrl = "https:" + currentUrl;
-                    }
-
-                    // 提取标题
-                    var titleMatch = System.Text.RegularExpressions.Regex.Match(line, ">([^<]+)</a>");
-                    if (titleMatch.Success)
-                    {
-                        currentTitle = titleMatch.Groups[1].Value.Trim();
-                    }
-                }
-                else if (line.Contains("class=\"result__snippet\""))
-                {
-                    // 提取摘要
-                    var snippetMatch = System.Text.RegularExpressions.Regex.Match(line, ">([^<]+)</a>");
-                    if (snippetMatch.Success)
-                    {
-                        currentSnippet = snippetMatch.Groups[1].Value.Trim();
-                    }
-                    else
-                    {
-                        var simpleMatch = System.Text.RegularExpressions.Regex.Match(line, ">([^<]+)<");
-                        if (simpleMatch.Success)
-                        {
-                            currentSnippet = simpleMatch.Groups[1].Value.Trim();
-                        }
-                    }
-
-                    if (!string.IsNullOrEmpty(currentTitle) && !string.IsNullOrEmpty(currentUrl))
-                    {
-                        results.Add(new
-                        {
-                            title = currentTitle,
-                            url = currentUrl,
-                            snippet = currentSnippet
-                        });
-                        resultCount++;
-
-                        currentTitle = "";
-                        currentUrl = "";
-                        currentSnippet = "";
-                    }
-                }
-            }
-
-            // 如果没有找到结果，返回简单的提示
-            if (results.Count == 0)
-            {
-                results.Add(new
-                {
-                    title = "搜索提示",
-                    url = "",
-                    snippet = $"已尝试搜索「{query}」，由于网页解析限制，建议用户直接使用浏览器查看详细结果"
-                });
-            }
-        }
-        catch
-        {
-            results.Add(new
-            {
-                title = "搜索提示",
-                url = "",
-                snippet = $"已尝试搜索「{query}」，网络搜索功能可用，但解析网页内容时遇到限制"
+                ["q"] = query,
+                ["b"] = ""
             });
+            var response = await _httpClient.PostAsync("https://html.duckduckgo.com/html/", content);
+            response.EnsureSuccessStatusCode();
+            var html = await response.Content.ReadAsStringAsync();
+            return ParseDuckDuckGoHtmlResults(html);
         }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebSearch] DuckDuckGo HTML 搜索失败: {ex.Message}");
+            return new List<object>();
+        }
+    }
 
+    /// <summary>
+    /// 通过 DuckDuckGo Lite 接口搜索（GET 方式，更简单的 HTML 结构）
+    /// </summary>
+    private async Task<List<object>> SearchDuckDuckGoLiteAsync(string query)
+    {
+        try
+        {
+            var searchUrl = $"https://lite.duckduckgo.com/lite/?q={Uri.EscapeDataString(query)}";
+            var response = await _httpClient.GetAsync(searchUrl);
+            response.EnsureSuccessStatusCode();
+            var html = await response.Content.ReadAsStringAsync();
+            return ParseDuckDuckGoLiteResults(html);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebSearch] DuckDuckGo Lite 搜索失败: {ex.Message}");
+            return new List<object>();
+        }
+    }
+
+    /// <summary>
+    /// 解析 DuckDuckGo HTML 搜索结果页（class="result__a" / class="result__snippet"）
+    /// </summary>
+    private List<object> ParseDuckDuckGoHtmlResults(string html)
+    {
+        var results = new List<object>();
+        try
+        {
+            // 匹配所有结果链接（result__a class）
+            var linkPattern = @"<a[^>]*class=""result__a""[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>";
+            var linkMatches = System.Text.RegularExpressions.Regex.Matches(html, linkPattern);
+
+            // 匹配所有摘要（result__snippet class）
+            var snippetPattern = @"<a[^>]*class=""result__snippet""[^>]*>([\s\S]*?)</a>";
+            var snippetMatches = System.Text.RegularExpressions.Regex.Matches(html, snippetPattern);
+
+            var count = Math.Min(linkMatches.Count, 5);
+            for (int i = 0; i < count; i++)
+            {
+                var url = linkMatches[i].Groups[1].Value;
+                var title = CleanHtmlText(linkMatches[i].Groups[2].Value);
+                var snippet = i < snippetMatches.Count ? CleanHtmlText(snippetMatches[i].Groups[1].Value) : "";
+
+                // DuckDuckGo 的 URL 可能是重定向链接（//duckduckgo.com/l/?uddg=...），需要解码
+                url = DecodeDuckDuckGoUrl(url);
+
+                if (!string.IsNullOrEmpty(title))
+                {
+                    results.Add(new { title, url, snippet });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebSearch] 解析 HTML 结果失败: {ex.Message}");
+        }
         return results;
+    }
+
+    /// <summary>
+    /// 解析 DuckDuckGo Lite 搜索结果页（表格结构，class="result-link"）
+    /// </summary>
+    private List<object> ParseDuckDuckGoLiteResults(string html)
+    {
+        var results = new List<object>();
+        try
+        {
+            // Lite 版本使用表格布局，链接在 class="result-link" 中
+            var linkPattern = @"<a[^>]*class=""result-link""[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>";
+            var linkMatches = System.Text.RegularExpressions.Regex.Matches(html, linkPattern);
+
+            // 摘要在链接所在行的下一个 td 中
+            var tdPattern = @"<td[^>]*class=""result-snippet""[^>]*>([\s\S]*?)</td>";
+            var snippetMatches = System.Text.RegularExpressions.Regex.Matches(html, tdPattern);
+
+            var count = Math.Min(linkMatches.Count, 5);
+            for (int i = 0; i < count; i++)
+            {
+                var url = linkMatches[i].Groups[1].Value;
+                var title = CleanHtmlText(linkMatches[i].Groups[2].Value);
+                var snippet = i < snippetMatches.Count ? CleanHtmlText(snippetMatches[i].Groups[1].Value) : "";
+
+                url = DecodeDuckDuckGoUrl(url);
+
+                if (!string.IsNullOrEmpty(title))
+                {
+                    results.Add(new { title, url, snippet });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebSearch] 解析 Lite 结果失败: {ex.Message}");
+        }
+        return results;
+    }
+
+    /// <summary>清理 HTML 文本：去除标签、解码实体、压缩空白</summary>
+    private static string CleanHtmlText(string html)
+    {
+        if (string.IsNullOrEmpty(html)) return "";
+        // 去除所有 HTML 标签
+        var text = System.Text.RegularExpressions.Regex.Replace(html, @"<[^>]+>", "");
+        // 解码常见 HTML 实体
+        text = System.Net.WebUtility.HtmlDecode(text);
+        // 压缩空白
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        return text;
+    }
+
+    /// <summary>解码 DuckDuckGo 重定向 URL（//duckduckgo.com/l/?uddg=ENCODED_URL）</summary>
+    private static string DecodeDuckDuckGoUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return "";
+        if (url.StartsWith("//")) url = "https:" + url;
+        // 检查是否是 DuckDuckGo 重定向链接
+        var uddgIdx = url.IndexOf("uddg=", StringComparison.OrdinalIgnoreCase);
+        if (uddgIdx > 0)
+        {
+            var encoded = url[(uddgIdx + 5)..];
+            var ampIdx = encoded.IndexOf('&');
+            if (ampIdx >= 0) encoded = encoded[..ampIdx];
+            try
+            {
+                var decoded = Uri.UnescapeDataString(encoded);
+                if (Uri.TryCreate(decoded, UriKind.Absolute, out _))
+                    return decoded;
+            }
+            catch { }
+        }
+        return url;
     }
 }
 

@@ -28,10 +28,10 @@ public partial class PlaylistPage : ContentPage
             _isFirstAppearing = false;
             await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
         }
-        // 非首次切回：仅在数据为空时重新加载，避免切页时全量重建 CollectionView
-        else if (_viewModel.Playlists.Count == 0)
+        // 非首次切回：数据为空或 AI Agent/其他模块标记了 dirty 时重新加载
+        else if (_viewModel.Playlists.Count == 0 || _viewModel.IsDirty)
         {
-            await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
+            await _viewModel.RefreshIfChangedAsync();
         }
     }
 
@@ -50,7 +50,7 @@ public partial class PlaylistPage : ContentPage
         }
     }
 
-    /// <summary>点击歌单项的菜单按钮时触发，弹出操作菜单以执行删除歌单等操作。</summary>
+    /// <summary>点击歌单项的菜单按钮时触发，弹出操作菜单以执行重命名、删除等操作。</summary>
     /// <param name="sender">事件源，通常为携带歌单上下文的图片按钮。</param>
     /// <param name="e">事件参数。</param>
     private async void OnPlaylistMenuClicked(object? sender, EventArgs e)
@@ -62,9 +62,17 @@ public partial class PlaylistPage : ContentPage
 
             var action = await DisplayActionSheet(
                 playlist.Name, "取消", null,
-                "删除歌单");
+                "重命名歌单", "删除歌单");
 
-            if (action == "删除歌单")
+            if (action == "重命名歌单")
+            {
+                var newName = await DisplayPromptAsync("重命名歌单", "请输入新的歌单名称", "确定", "取消", initialValue: playlist.Name, maxLength: 30);
+                if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == playlist.Name) return;
+
+                await _viewModel.RenamePlaylistAsync(playlist.Id, newName.Trim());
+                await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
+            }
+            else if (action == "删除歌单")
             {
                 var confirm = await DisplayAlert("确认删除", $"确定要删除歌单「{playlist.Name}」吗？\n歌曲不会被删除。", "删除", "取消");
                 if (confirm)
@@ -84,7 +92,13 @@ public partial class PlaylistPage : ContentPage
         var name = await DisplayPromptAsync("新建歌单", "请输入歌单名称", "创建", "取消", maxLength: 30);
         if (string.IsNullOrWhiteSpace(name)) return;
 
-        await _viewModel.CreatePlaylistAsync(name.Trim());
+        var newId = await _viewModel.CreatePlaylistAsync(name.Trim());
         await _viewModel.LoadPlaylistsCommand.ExecuteAsync(null);
+
+        if (newId > 0)
+        {
+            // 创建成功后直接跳转到歌单详情页
+            await Shell.Current.GoToAsync($"playlistdetail?playlistId={newId}&name={Uri.EscapeDataString(name.Trim())}");
+        }
     }
 }
