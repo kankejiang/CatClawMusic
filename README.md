@@ -338,31 +338,6 @@ CatClawMusic/
 
 ---
 
-## 📝 更新日志
-
-### 🐾 v1.6.4 (2026-07-01)
-
-#### 🐛 问题修复
-- **修复封面不显示**：SAF 扫描的歌曲 FilePath 是 content:// URI，原逻辑跳过导致封面无法提取。现在扫描时通过 MediaMetadataRetriever 直接提取嵌入封面并缓存
-- **修复进度条不动**：通过 ExoPlayer IPlayerListener 准确跟踪播放状态（OnPlaybackStateChanged/OnIsPlayingChanged），避免依赖 .NET 绑定的 IsPlaying 属性；进度定时器改为每 500ms 始终更新，不再依赖 IsPlaying
-- **修复 MAUI 构建错误**：修复多处 Android 平台特定代码的命名冲突（File/Uri/MediaMetadataRetriever）
-
-#### ✨ 新功能
-- **设置页完善**：AI 设置/权限管理/远程音乐服务/插件管理 4 个占位页全部转正为真实功能页
-  - AI 设置页：支持 8 个提供商配置、测试连通性、保存/重置
-  - 权限管理页：4 类权限状态展示、一键去授权、打开系统设置
-  - 远程音乐服务页：连接列表 CRUD、测试连通性、缓存统计
-  - 插件管理页：插件列表、启用切换、分类展示
-- **全局导航优化**：隐藏所有页面顶部导航栏，二级页面添加返回按钮
-- **封面提取优化**：SafeContentScanner 扫描时直接提取嵌入封面，避免后续重复提取
-
-#### 🔧 技术改进
-- 项目结构从 CatClawMusic.UI (Xamarin) 迁移到 CatClawMusic.Maui (MAUI)
-- 使用 CommunityToolkit.Mvvm 实现 MVVM 模式
-- 添加 BackButton 公共控件，批量注入到 25 个二级页面
-
----
-
 ## 🗄️ 数据库结构
 
 **SQLite + WAL 模式**，11 张表：Songs / Artists / Albums / SongArtists / Playlists / PlaylistSongs / Favorites / PlayHistory / Lyrics / CachedSongs / ConnectionProfiles
