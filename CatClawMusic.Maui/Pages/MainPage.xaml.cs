@@ -55,6 +55,11 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
         _services = services;
+
+        // .NET MAUI 11 / CoreCLR：Layout 默认 SafeAreaEdges=Container，会在底部（及顶部）套系统栏内缩，
+        // 使自定义 TabBar 离屏幕底部一截、下方露出空白。Mono 时代无此默认，升级 .NET 11 后才出现。
+        // 用代码显式设为 None 让页面真正边缘到边；不依赖 XAML（Release 的 SourceGen 膨胀器可能丢弃该属性）。
+        ApplyEdgeToEdgeSafeArea();
         _nowPlayingVm = nowPlayingVm;
         _interactionState = services.GetService<Services.IInteractionStateService>();
         Instance = this;
@@ -81,6 +86,7 @@ public partial class MainPage : ContentPage
 
         // 订阅系统栏高度变化，更新 SafeArea padding
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+
     }
 
     /// <summary>创建 5 个页面（全屏歌词 + 4 个 tab），提取 Content 放入 ViewPager</summary>
@@ -234,6 +240,42 @@ public partial class MainPage : ContentPage
         UpdatePagePositions(0);
         UpdateTabBarVisibility();
         UpdateTabBarSelection();
+
+        // 启动后兜底：窗口稳定后反复强制 Edge-to-Edge，复刻「导航到二级页再返回」的全屏效果
+        // （MAUI 在窗口就绪前会把 DecorFitsSystemWindows 重置为 true，导致启动首帧露白）。
+#if ANDROID
+        StartEdgeToEdgeSettlingTimer();
+#endif
+
+        // 启动时 SafeAreaHelper.BottomInset 可能尚未就绪（EdgeToEdgeInsets 经 BeginInvokeOnMainThread 异步赋值），
+        // 延迟一帧再应用一次，确保 BottomInset 已是真实导航栏高度，消除启动空白。
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            await Task.Delay(120);
+            UpdateSafeAreaPadding();
+        });
+
+        // 关键修复：「启动有空白、导航后变全屏」的根因是 MAUI 在首次布局时已对
+        // 根容器（android.R.id.content）套了导航栏高度的原生底部 padding，
+        // EdgeToEdgeInsets 虽然返回 Consumed，但首次 dispatches 可能在监听器就绪前到达。
+        // 导航到二级页面再返回会触发系统重新派发 insets → 监听器返回 Consumed → padding 清零。
+        // 首帧布局后主动清零原生 padding 并请求重新派发 insets，使 Consumed 在启动时立即生效。
+#if ANDROID
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            await Task.Delay(250);
+            ClearNativeBottomPadding();
+            UpdateSafeAreaPadding();
+        });
+        // 第三次兜底：部分机型首帧后 MAUI 仍会重派系统栏 inset 并给页面容器套底部内缩，
+        // 多延迟一帧再次清零，确保「启动即全屏」与导航返回后的表现一致。
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            await Task.Delay(700);
+            ClearNativeBottomPadding();
+            UpdateSafeAreaPadding();
+        });
+#endif
 
         // 处理待切换的 tab（PendingTabIndex 使用 0-4 的 tab 索引，需 +1 映射到 ViewPager）
         if (PendingTabIndex.HasValue)
@@ -670,7 +712,6 @@ public partial class MainPage : ContentPage
         var hideTabBar = isFullScreen || isChatMode;
         // MAUI 11: IsVisible=false 在 Auto 行中可能不收缩行高，需要同时设置 HeightRequest=0
         TabBar.IsVisible = !hideTabBar;
-        TabBar.HeightRequest = hideTabBar ? 0 : 64;
         UpdateMiniPlayerVisibility();
         UpdateSafeAreaPadding();
     }
@@ -684,8 +725,99 @@ public partial class MainPage : ContentPage
     /// <summary>
     /// 根据当前页面是否全屏，更新 SafeArea padding：
     /// - 全屏页面（播放页/歌词页）：ViewPagerGrid 无顶部 padding，让雾面背景延伸到状态栏；TabBar 隐藏无需底部 padding
-    /// - 非全屏页面：ViewPagerGrid 顶部留出状态栏高度；TabBar 底部留出导航栏高度
+    /// - 非全屏页面：ViewPagerGrid 顶部留出状态栏高度；TabBar 底部留出导航栏高度，并动态调整高度包含 inset
     /// </summary>
+    /// <summary>
+    /// 关闭各布局的安全区内缩：.NET MAUI 11 起 Layout 默认 SafeAreaEdges=Container，
+    /// 会在底部（及顶部）套系统栏内缩 padding，使自定义 TabBar 离屏幕底部一截、下方露出空白。
+    /// 项目从 Mono 升级到 .NET 11 / CoreCLR 后该默认行为才出现，故在此显式禁用。
+    /// </summary>
+    private void ApplyEdgeToEdgeSafeArea()
+    {
+#if ANDROID
+        // 注意：必须用完全限定名 Microsoft.Maui.Controls.Layout，
+        // 否则未限定的 Layout 会解析成 VisualElement.Layout(Rect) 方法而编译失败（CS0119）。
+        // 页面自身也显式设为 None（全局样式已覆盖，这里双保险，防止 Release SourceGen 膨胀器丢弃 XAML 属性）。
+        this.SetValue(Microsoft.Maui.Controls.Layout.SafeAreaEdgesProperty, SafeAreaEdges.None);
+        if (this.Content is Microsoft.Maui.Controls.Layout root)
+            root.SetValue(Microsoft.Maui.Controls.Layout.SafeAreaEdgesProperty, SafeAreaEdges.None);
+        ViewPagerGrid.SetValue(Microsoft.Maui.Controls.Layout.SafeAreaEdgesProperty, SafeAreaEdges.None);
+        MiniPlayer.SetValue(Microsoft.Maui.Controls.Layout.SafeAreaEdgesProperty, SafeAreaEdges.None);
+        TabBar.SetValue(Microsoft.Maui.Controls.Layout.SafeAreaEdgesProperty, SafeAreaEdges.None);
+#endif
+    }
+
+    /// <summary>
+    /// 清除页面容器（MainPage 的原生视图 + android.R.id.content 根视图）上的原生 padding。
+    /// 即使 EdgeToEdgeInsets 已返回 Consumed，MAUI 在启动首帧仍可能给页面容器套一层底部
+    /// 系统栏内缩 padding（表现为 TabBar 下方空白），导致「启动有空白、导航返回后变全屏」。
+    /// 这里只清页面容器级别的 padding，不清叶子控件的 padding（避免破坏按钮等控件的内边距）。
+    /// </summary>
+#if ANDROID
+    private void ClearNativeBottomPadding()
+    {
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            var rootView = activity?.Window?.DecorView?.FindViewById(Android.Resource.Id.Content);
+            if (rootView != null)
+                rootView.SetPadding(0, 0, 0, 0);
+
+            // MainPage 的原生容器（MAUI ContentViewGroup）：清除其可能残留的底部内缩 padding
+            if (this.Handler?.PlatformView is Android.Views.View pageView)
+                pageView.SetPadding(0, 0, 0, 0);
+
+            if (rootView != null)
+                AndroidX.Core.View.ViewCompat.RequestApplyInsets(rootView);
+        }
+        catch { }
+    }
+#endif
+
+#if ANDROID
+    private bool _edgeToEdgeSettling;
+    private int _edgeToEdgeTicks;
+
+    /// <summary>
+    /// 启动后兜底：MAUI 的 AndroidWindow 在窗口完全就绪（首个页面铺设）之前会把
+    /// DecorFitsSystemWindows 重置为 true（内容止于系统栏），导致首帧 MainPage 比屏幕矮一截、
+    /// TabBar 被裁切露出底部空白；而「导航到二级页再返回」之所以能全屏，是因为那时窗口已稳定、
+    /// 重新铺设后才生效。这里用定时器在窗口稳定后反复强制 Edge-to-Edge + 清零原生 padding +
+    /// 强制整页重排，复刻「导航返回」的全屏效果，确保「启动即全屏」。
+    /// </summary>
+    private void StartEdgeToEdgeSettlingTimer()
+    {
+        if (_edgeToEdgeSettling) return;
+        _edgeToEdgeSettling = true;
+        _edgeToEdgeTicks = 0;
+        Microsoft.Maui.Controls.Device.StartTimer(TimeSpan.FromMilliseconds(500), () =>
+        {
+            _edgeToEdgeTicks++;
+            ForceFullScreenAfterStartup();
+            if (_edgeToEdgeTicks >= 6)
+            {
+                _edgeToEdgeSettling = false;
+                return false; // 停止定时器
+            }
+            return true; // 继续
+        });
+    }
+
+    /// <summary>复刻「导航返回」的全屏效果：重新强制 Edge-to-Edge、清零原生 padding、重排整页。</summary>
+    private void ForceFullScreenAfterStartup()
+    {
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity as MainActivity;
+            activity?.SetupEdgeToEdge();
+        }
+        catch { }
+        ClearNativeBottomPadding();
+        UpdateSafeAreaPadding();
+        try { this.Content?.ForceLayout(); } catch { }
+    }
+#endif
+
     private void UpdateSafeAreaPadding()
     {
         var top = SafeAreaHelper.TopInset;
@@ -699,7 +831,26 @@ public partial class MainPage : ContentPage
         ViewPagerGrid.Padding = isFullScreen ? new Thickness(0) : new Thickness(0, top, 0, 0);
 
         // TabBar 底部留出导航栏高度（全屏页面或聊天模式 TabBar 已隐藏）
-        TabBar.Padding = new Thickness(0, 6, 0, hideTabBar ? 8 : bottom + 8);
+        var tabBarHeight = hideTabBar ? 0 : 64 + bottom;
+        var tabBarBottomPad = hideTabBar ? 8 : bottom + 8;
+        TabBar.Padding = new Thickness(0, 6, 0, tabBarBottomPad);
+        TabBar.HeightRequest = tabBarHeight;
+
+        // 关键修复：根 Grid 已设 SafeAreaEdges="None"，页面边缘到边延伸到屏幕底部（含导航栏区域），
+        // 不再由 MAUI 预留底部安全区；TabBar 自身 HeightRequest(64+bottom) 与 Padding(bottom+8)
+        // 负责把图标抬离系统导航栏。因此这里无需再用 TranslationY 下移（否则会推到屏幕外）。
+#if ANDROID
+        this.Padding = new Thickness(0);
+#endif
+        TabBar.TranslationY = 0;
+
+        // 强制重排：HeightRequest/Padding 变化需立即重新测量才生效，
+        // 否则要等下一次布局才刷新，导致启动时的底部空白残留（滑到全屏页再返回才变正常的现象）。
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            TabBar.InvalidateMeasure();
+            this.Content?.InvalidateMeasure();
+        });
     }
 
     /// <summary>迷你播放器仅在有当前歌曲且非全屏页、非聊天模式时显示（聊天模式下迷你播放器显示在聊天界面输入框上方）</summary>

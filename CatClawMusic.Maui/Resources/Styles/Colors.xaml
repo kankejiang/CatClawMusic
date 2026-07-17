@@ -72,6 +72,10 @@
     <Color x:Key="ChipInactiveTextColor">#B8C0E0</Color>
     <Color x:Key="ChipActiveTextColor">#FFFFFF</Color>
     <Color x:Key="BadgeBackgroundColor">#1A2650</Color>
+    <Color x:Key="BadgeStrokeColor">#2A3870</Color>
+    <Color x:Key="CardOverlayColor">#0AFFFFFF</Color>
+    <Color x:Key="ButtonOverlayColor">#12FFFFFF</Color>
+    <Color x:Key="ProgressTrackColor">#20FFFFFF</Color>
 
     <!-- 文本 -->
     <Color x:Key="TextPrimaryColor">#F7F8FF</Color>

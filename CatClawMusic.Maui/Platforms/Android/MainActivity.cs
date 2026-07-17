@@ -29,10 +29,47 @@ public class MainActivity : MauiAppCompatActivity
         base.OnCreate(savedInstanceState);
         SetupEdgeToEdge();
         SetupHighRefreshRate();
+        // 首帧布局（含 Splash 关闭后的真实布局）后再次强制 Edge-to-Edge：
+        // MAUI 的 AndroidWindow 可能在 OnCreate 之后才真正建立并把 DecorFitsSystemWindows 重置为 true，
+        // 导致「启动有空白、导航返回后变全屏」。GlobalLayout 监听在每次真实布局后都再强制一次，覆盖该时机。
+        AttachEdgeToEdgeReassert();
 
         // 将 Android Context 传给 AudioPlayerService 用于启动前台服务
         var audioPlayer = MauiProgram.Services.GetService<AudioPlayerService>();
         audioPlayer?.SetAndroidContext(this);
+    }
+
+    /// <summary>Activity 创建完成（窗口已附加、MAUI 已完成首轮窗口搭建）后回调。
+    /// MAUI 的 AndroidWindow 可能在 OnCreate 之后才真正建立并把 DecorFitsSystemWindows 重置为 true，
+    /// 因此这里再次强制 Edge-to-Edge，确保首帧即全屏、启动无底部空白。</summary>
+    protected override void OnPostCreate(Bundle? savedInstanceState)
+    {
+        base.OnPostCreate(savedInstanceState);
+        SetupEdgeToEdge();
+    }
+
+    /// <summary>每次 Activity 回到前台（含首次启动）回调：再次确保 Edge-to-Edge 生效，
+    /// 抵消任何在 OnCreate/OnPostCreate 之后才发生的窗口装饰重置。</summary>
+    protected override void OnResume()
+    {
+        base.OnResume();
+        SetupEdgeToEdge();
+    }
+
+    /// <summary>挂载一次性（重复数次）全局布局监听：每次真实布局后都重新强制 Edge-to-Edge，
+    /// 覆盖 Splash 关闭、主题切换等可能把窗口重置为「内容止于导航栏」的时机，确保启动即全屏。</summary>
+    private void AttachEdgeToEdgeReassert()
+    {
+        try
+        {
+            var rootView = Window?.DecorView?.FindViewById(Android.Resource.Id.Content);
+            if (rootView?.ViewTreeObserver != null)
+            {
+                var listener = new EdgeToEdgeGlobalLayoutListener(this, rootView, 4);
+                rootView.ViewTreeObserver.AddOnGlobalLayoutListener(listener);
+            }
+        }
+        catch { }
     }
 
     /// <summary>请求窗口使用高刷新率（120Hz），解决 MAUI 默认 60Hz 帧率低的问题。
@@ -53,17 +90,29 @@ public class MainActivity : MauiAppCompatActivity
         catch { }
     }
 
-    /// <summary>配置 Edge-to-Edge 显示：内容延伸到系统栏下方、状态栏与导航栏透明、并应用 insets 监听器</summary>
-    private void SetupEdgeToEdge()
+    /// <summary>配置 Edge-to-Edge 显示：内容延伸到系统栏下方、状态栏与导航栏透明、并应用 insets 监听器。
+    /// 可在 OnCreate/OnPostCreate/OnResume 及每次布局后重复调用（幂等）。</summary>
+    internal void SetupEdgeToEdge()
     {
         if (Window == null) return;
 
         // 允许内容延伸到系统栏下方
         WindowCompat.SetDecorFitsSystemWindows(Window, false);
 
-        // 状态栏和导航栏透明
+        // 启用窗口绘制系统栏背景
+        Window.AddFlags(WindowManagerFlags.DrawsSystemBarBackgrounds);
+
+        // 状态栏和导航栏完全透明
         Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
         Window.SetNavigationBarColor(Android.Graphics.Color.Transparent);
+
+        // Android 11+: 设置导航栏对比度为 0（不自动添加半透明遮罩）
+        if (OperatingSystem.IsAndroidVersionAtLeast(29))
+        {
+            Window.Attributes.LayoutInDisplayCutoutMode = LayoutInDisplayCutoutMode.Always;
+            Window.NavigationBarContrastEnforced = false;
+            Window.StatusBarContrastEnforced = false;
+        }
 
         // DecorView 背景设为应用背景色，让系统栏区域颜色与页面一致
         UpdateDecorViewBackground();
@@ -73,10 +122,24 @@ public class MainActivity : MauiAppCompatActivity
         if (rootView != null)
         {
             ViewCompat.SetOnApplyWindowInsetsListener(rootView, new EdgeToEdgeInsets());
+            // 请求重新应用 insets
+            ViewCompat.RequestApplyInsets(rootView);
+
+            // 关键修复：EdgeToEdgeInsets 通过 BeginInvokeOnMainThread 异步更新 SafeAreaHelper，
+            // 但 MainPage 的 OnAppearing 可能在此之前运行 → 启动时 BottomInset=0 →
+            // TabBar 高度 64、覆盖不了导航栏 → 下方露出空白。
+            // 导航到二级页面再返回时，异步回调已完成 → BottomInset=真实值 → 全屏。
+            // 这里同步读取系统栏高度，确保 SafeAreaHelper 在首帧布局前就有真实值。
+            var density = Resources?.DisplayMetrics?.Density ?? 1f;
+            var statusHId = Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
+            var navHId = Resources?.GetIdentifier("navigation_bar_height", "dimen", "android") ?? 0;
+            var syncTop = (statusHId > 0 ? Resources?.GetDimensionPixelSize(statusHId) ?? 0 : 0) / density;
+            var syncBottom = (navHId > 0 ? Resources?.GetDimensionPixelSize(navHId) ?? 0 : 0) / density;
+            SafeAreaHelper.UpdateInsets(syncTop, syncBottom);
         }
     }
 
-    /// <summary>从应用资源读取 WindowBackgroundColor 并应用到 DecorView，同时根据亮度自动调整状态栏图标颜色</summary>
+    /// <summary>从应用资源读取 WindowBackgroundColor 并应用到 DecorView，同时根据亮度自动调整状态栏/导航栏图标颜色</summary>
     public void UpdateDecorViewBackground()
     {
         try
@@ -96,13 +159,19 @@ public class MainActivity : MauiAppCompatActivity
                 {
                     var brightness = 0.299f * mauiColor.Red + 0.587f * mauiColor.Green + 0.114f * mauiColor.Blue;
                     var isLight = brightness > 0.5f;
-                    const int lightStatusBarFlag = 0x00002000; // SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                    var flags = (int)Window.DecorView.SystemUiVisibility;
-                    if (isLight)
-                        flags |= lightStatusBarFlag;
-                    else
-                        flags &= ~lightStatusBarFlag;
-                    Window.DecorView.SystemUiVisibility = (StatusBarVisibility)flags;
+
+                    // 使用 AndroidX WindowInsetsControllerCompat 来控制状态栏/导航栏图标颜色
+                    if (Window != null)
+                    {
+                        var insetsController = WindowCompat.GetInsetsController(Window, Window.DecorView);
+                        if (insetsController != null)
+                        {
+                            // Light status bar = 深色状态栏图标
+                            insetsController.AppearanceLightStatusBars = isLight;
+                            // Light navigation bar = 深色导航栏图标
+                            insetsController.AppearanceLightNavigationBars = isLight;
+                        }
+                    }
                 }
                 return;
             }
@@ -138,6 +207,12 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
         if (v == null || insets == null) return insets!;
         var systemBars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars());
 
+        // 关键：强制清零根内容视图的原生 padding。
+        // 即使返回 Consumed，MAUI 仍可能在其 ApplySafeArea 中将导航栏高度作为
+        // ContentViewGroup 的底部 padding，导致所有页面（含全屏页）底部留空。
+        // 项目内部页面通过 SafeAreaHelper 自行管理 padding，根视图不应再叠加。
+        v.SetPadding(0, 0, 0, 0);
+
         // 不设置根视图 padding，让内容延伸到系统栏区域
         // 各页面通过 SafeAreaHelper 自行处理 padding
         try
@@ -153,5 +228,39 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
         catch { }
 
         return WindowInsetsCompat.Consumed;
+    }
+}
+
+/// <summary>
+/// 全局布局监听：每次真实布局完成后重新强制 Edge-to-Edge（重复数次），
+/// 覆盖 Splash 关闭后、主题切换等窗口被重置为「内容止于系统栏」的时机，
+/// 确保首帧起页面就延伸到屏幕底部（含导航栏区域），消除启动底部空白。
+/// </summary>
+internal class EdgeToEdgeGlobalLayoutListener : Java.Lang.Object, Android.Views.ViewTreeObserver.IOnGlobalLayoutListener
+{
+    private readonly System.WeakReference<MainActivity> _activity;
+    private readonly Android.Views.View _view;
+    private int _remaining;
+
+    public EdgeToEdgeGlobalLayoutListener(MainActivity activity, Android.Views.View view, int repeats)
+    {
+        _activity = new System.WeakReference<MainActivity>(activity);
+        _view = view;
+        _remaining = repeats;
+    }
+
+    public void OnGlobalLayout()
+    {
+        if (_activity.TryGetTarget(out var activity))
+            activity.SetupEdgeToEdge();
+        _remaining--;
+        if (_remaining <= 0)
+        {
+            var observer = _view?.ViewTreeObserver;
+            if (observer != null && observer.IsAlive)
+            {
+                try { observer.RemoveOnGlobalLayoutListener(this); } catch { }
+            }
+        }
     }
 }

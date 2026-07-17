@@ -24,6 +24,32 @@
         <Setter Property="SelectionMode" Value="Single" />
     </Style>
 
+    <!--
+        边缘到边（Edge-to-Edge）全局安全区策略。
+        .NET MAUI 10/11 起，Layout（Grid/StackLayout/...）的 SafeAreaEdges 默认值为 Container，
+        会在底部（及顶部）自动套一层「系统导航栏高度」的内边距。本项目是自定义 TabBar + 全屏播放器，
+        需要内容真正延伸到屏幕底部，并由代码（SafeAreaHelper / TabBar.HeightRequest）自行管理安全区。
+        若放任 Container 默认，每个 tab 页面底部（提取进 ViewPagerGrid 的 Content 根布局）都会
+        多出一段等于导航栏高度的空白，且启动首帧 MAUI 还会给页面容器套底部内缩（需导航返回后才消失）。
+        因此全局强制 SafeAreaEdges=None，关闭所有自动安全区内缩；各页面所需的顶部/底部留白
+        已在对应页面用 SafeAreaHelper、SafeAreaPaddingBehavior 或显式 Padding 手动处理。
+    -->
+    <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+        <Setter Property="SafeAreaEdges" Value="None" />
+    </Style>
+    <Style TargetType="Layout" ApplyToDerivedTypes="True">
+        <Setter Property="SafeAreaEdges" Value="None" />
+    </Style>
+    <Style TargetType="ScrollView" ApplyToDerivedTypes="True">
+        <Setter Property="SafeAreaEdges" Value="None" />
+    </Style>
+    <Style TargetType="ContentView" ApplyToDerivedTypes="True">
+        <Setter Property="SafeAreaEdges" Value="None" />
+    </Style>
+    <Style TargetType="Border" ApplyToDerivedTypes="True">
+        <Setter Property="SafeAreaEdges" Value="None" />
+    </Style>
+
     <Style x:Key="PageTitleStyle" TargetType="Label">
         <Setter Property="FontSize" Value="30" />
         <Setter Property="FontAttributes" Value="Bold" />

@@ -87,7 +87,7 @@ public partial class LibraryPage : ContentPage
             Padding = new Thickness(14),
             StrokeShape = new RoundRectangle { CornerRadius = 18 },
             Stroke = (Color)Application.Current!.Resources["GlassStrokeColor"],
-            BackgroundColor = Color.FromArgb("#0AFFFFFF")
+            BackgroundColor = (Color)Application.Current!.Resources["CardOverlayColor"]
         };
 
         var grid = new Grid
@@ -177,7 +177,7 @@ public partial class LibraryPage : ContentPage
             StrokeShape = new RoundRectangle { CornerRadius = 11 },
             StrokeThickness = 1,
             Stroke = (Color)Application.Current!.Resources["GlassStrokeColor"],
-            BackgroundColor = Color.FromArgb("#12FFFFFF"),
+            BackgroundColor = (Color)Application.Current!.Resources["ButtonOverlayColor"],
             VerticalOptions = LayoutOptions.Center
         };
         arrowBorder.Content = new Image
@@ -250,7 +250,7 @@ public partial class LibraryPage : ContentPage
             HeightRequest = 8,
             StrokeShape = new RoundRectangle { CornerRadius = 99 },
             StrokeThickness = 0,
-            BackgroundColor = Color.FromArgb("#802A3870"),
+            BackgroundColor = (Color)Application.Current!.Resources["ProgressTrackColor"],
             VerticalOptions = LayoutOptions.Center,
             Padding = new Thickness(0)
         };
@@ -312,7 +312,7 @@ public partial class LibraryPage : ContentPage
             HeightRequest = 132,
             StrokeShape = new RoundRectangle { CornerRadius = 16 },
             StrokeThickness = 1,
-            Stroke = Color.FromArgb("#14FFFFFF"),
+            Stroke = (Color)Application.Current!.Resources["GlassStrokeColor"],
             Background = new LinearGradientBrush
             {
                 StartPoint = new Point(0, 0),

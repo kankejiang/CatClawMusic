@@ -5,10 +5,12 @@
              x:Class="CatClawMusic.Maui.Pages.MainPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             SafeAreaEdges="None">
 
     <Grid RowDefinitions="*,Auto,Auto"
-          Background="{DynamicResource PageBackgroundBrush}">
+          Background="{DynamicResource PageBackgroundBrush}"
+          SafeAreaEdges="None">
 
         <!-- 自定义背景图片层（用户可选，覆盖在渐变背景之上、内容之下） -->
         <Image x:Name="CustomBackgroundImage"
@@ -27,7 +29,8 @@
         <!-- ViewPager 区域：所有 tab 页面水平排列，滑动时同时移动 -->
         <Grid x:Name="ViewPagerGrid" Grid.Row="0"
               BackgroundColor="Transparent"
-              IsClippedToBounds="True">
+              IsClippedToBounds="True"
+              SafeAreaEdges="None">
             <Grid.GestureRecognizers>
                 <PanGestureRecognizer PanUpdated="OnPanUpdated" />
             </Grid.GestureRecognizers>
@@ -40,7 +43,8 @@
               Padding="10,6"
               HeightRequest="52"
               Background="{DynamicResource HeroBrush}"
-              IsVisible="False">
+              IsVisible="False"
+              SafeAreaEdges="None">
 
             <!-- 封面 -->
             <Border Grid.Column="0"
@@ -110,9 +114,9 @@
         <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库） -->
         <Grid Grid.Row="2" x:Name="TabBar"
               ColumnDefinitions="*,*,*,*"
-              HeightRequest="64"
               BackgroundColor="{DynamicResource TabBarBackgroundColor}"
-              Padding="0,4,0,4">
+              Padding="0,4,0,4"
+              SafeAreaEdges="None">
 
             <Grid Grid.Column="0" x:Name="TabItem0"
                   HorizontalOptions="Fill" VerticalOptions="Fill">
@@ -202,5 +206,6 @@
                                    Margin="0,32,0,0" />
             </VerticalStackLayout>
         </Grid>
+
     </Grid>
 </ContentPage>

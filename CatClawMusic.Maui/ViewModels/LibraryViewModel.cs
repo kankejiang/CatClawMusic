@@ -362,7 +362,7 @@ public partial class LibraryViewModel : ObservableObject
                     : $"搜索结果 ({FilteredSongs.Count})";
             });
         }
-        catch (OperationCanceledException)
+        catch (System.OperationCanceledException)
         {
         }
         catch (Exception ex)
@@ -659,7 +659,7 @@ public partial class LibraryViewModel : ObservableObject
             if (!string.IsNullOrEmpty(path))
             {
                 var statFs = new StatFs(path);
-                var availableBytes = statFs.AvailableBytesLong;
+                var availableBytes = statFs.AvailableBlocks * statFs.BlockSize;
                 return FormatSize(availableBytes);
             }
         }
