@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>本地音乐 · 全部歌曲</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#080B1A; --bg2:#0d1228; --card:rgba(255,255,255,.05); --card2:rgba(255,255,255,.08);
+    --line:rgba(255,255,255,.08); --txt:#EAECFF; --sub:#9aa0c5; --dim:#6b7099;
+    --p1:#8C7BFF; --p2:#55D6FF; --grad:linear-gradient(135deg,#8C7BFF,#55D6FF);
+  }
+  html,body{ height:100%; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--txt);
+    display:flex; align-items:center; justify-content:center; padding:24px; min-height:100vh;
+  }
+  .phone{
+    width:390px; height:844px; background:
+      radial-gradient(120% 80% at 80% -10%, rgba(140,123,255,.18), transparent 60%),
+      radial-gradient(120% 80% at -10% 10%, rgba(85,214,255,.12), transparent 55%),
+      var(--bg);
+    border-radius:44px; position:relative; overflow:hidden;
+    box-shadow:0 40px 80px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .scroll{ height:100%; overflow-y:auto; overflow-x:hidden; padding-bottom:110px; }
+  .scroll::-webkit-scrollbar{ display:none; }
+
+  /* 顶栏 */
+  .bar{ position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:12px;
+    padding:16px 18px 12px; background:linear-gradient(180deg, rgba(8,11,26,.92), rgba(8,11,26,.6) 70%, transparent);
+    backdrop-filter:blur(14px); }
+  .icon-btn{ width:38px; height:38px; border-radius:12px; background:var(--card); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; color:var(--txt); flex:0 0 auto; }
+  .bar h1{ font-size:19px; font-weight:700; letter-spacing:.3px; }
+  .bar .count{ font-size:12px; color:var(--sub); font-weight:500; margin-top:1px; }
+  .bar .spacer{ flex:1; }
+
+  /* 搜索 */
+  .search{ margin:2px 18px 12px; display:flex; align-items:center; gap:10px; padding:11px 14px;
+    background:var(--card); border:1px solid var(--line); border-radius:14px; }
+  .search input{ background:transparent; border:none; outline:none; color:var(--txt); font-size:14px; flex:1; }
+  .search input::placeholder{ color:var(--dim); }
+
+  /* 播放条 */
+  .playrow{ display:flex; gap:10px; padding:0 18px 12px; }
+  .pbtn{ flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:13px;
+    border-radius:14px; font-size:14px; font-weight:700; border:none; color:#0a0d1f; background:var(--grad); }
+  .pbtn.ghost{ background:var(--card); color:var(--txt); border:1px solid var(--line); font-weight:600; }
+
+  /* 排序栏 */
+  .sortbar{ position:sticky; top:64px; z-index:15; display:flex; align-items:center; gap:8px;
+    padding:8px 18px 10px; overflow-x:auto; background:linear-gradient(180deg, rgba(8,11,26,.92), rgba(8,11,26,.55));
+    backdrop-filter:blur(10px); }
+  .sortbar::-webkit-scrollbar{ display:none; }
+  .chip{ flex:0 0 auto; display:flex; align-items:center; gap:5px; padding:7px 13px; border-radius:20px;
+    font-size:12.5px; font-weight:600; color:var(--sub); background:var(--card); border:1px solid var(--line); white-space:nowrap; }
+  .chip.active{ color:#0a0d1f; background:var(--grad); border-color:transparent; }
+  .chip .arrow{ font-size:10px; opacity:.9; }
+  .chip.active .arrow{ display:inline; }
+  .chip .arrow{ display:none; }
+
+  /* 分组标签 */
+  .group{ padding:14px 20px 6px; font-size:12px; font-weight:700; color:var(--p2); letter-spacing:1px; }
+
+  /* 歌曲行 */
+  .list{ padding:2px 12px 0; }
+  .song{ display:flex; align-items:center; gap:12px; padding:9px 8px; border-radius:14px; }
+  .song:active{ background:var(--card); }
+  .cover{ width:46px; height:46px; border-radius:10px; flex:0 0 auto; position:relative;
+    background:linear-gradient(135deg,#2a3170,#3a2a6a); box-shadow:0 6px 14px rgba(0,0,0,.35); overflow:hidden; }
+  .cover span{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:18px; opacity:.85; }
+  .meta{ flex:1; min-width:0; }
+  .title{ font-size:14.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sub{ font-size:12px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .right{ flex:0 0 auto; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .dur{ font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums; }
+  .badge{ font-size:10px; padding:1px 6px; border-radius:6px; background:rgba(140,123,255,.16); color:var(--p1); font-weight:700; }
+  .more{ width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; color:var(--dim); flex:0 0 auto; }
+
+  /* A-Z 索引 */
+  .rail{ position:absolute; right:3px; top:210px; bottom:110px; z-index:18; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:1px; padding:6px 3px; }
+  .rail b{ font-size:9px; color:var(--dim); font-weight:700; line-height:1.15; }
+
+  .empty{ text-align:center; color:var(--dim); padding:40px 20px; font-size:13px; display:none; }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="scroll">
+      <!-- 顶栏 -->
+      <div class="bar">
+        <div class="icon-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <h1>本地音乐</h1>
+          <div class="count" id="count">1,024 首歌曲</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="icon-btn" id="viewToggle" title="切换视图">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+
+      <!-- 搜索 -->
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="q" placeholder="搜索歌曲、艺术家、专辑" />
+      </div>
+
+      <!-- 播放全部 / 随机 -->
+      <div class="playrow">
+        <button class="pbtn" id="playAll">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>播放全部
+        </button>
+        <button class="pbtn ghost" id="shuffle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>随机播放
+        </button>
+      </div>
+
+      <!-- 排序栏 -->
+      <div class="sortbar" id="sortbar">
+        <div class="chip active" data-k="title">标题 <span class="arrow">↑</span></div>
+        <div class="chip" data-k="artist">艺术家 <span class="arrow">↑</span></div>
+        <div class="chip" data-k="album">专辑 <span class="arrow">↑</span></div>
+        <div class="chip" data-k="added">最近添加 <span class="arrow">↑</span></div>
+        <div class="chip" data-k="dur">时长 <span class="arrow">↑</span></div>
+        <div class="chip" data-k="plays">播放次数 <span class="arrow">↑</span></div>
+      </div>
+
+      <!-- 列表 -->
+      <div class="list" id="list"></div>
+      <div class="empty" id="empty">没有匹配的歌曲</div>
+    </div>
+
+    <!-- A-Z 索引（按标题排序时显示） -->
+    <div class="rail" id="rail"></div>
+  </div>
+
+<script>
+  // 模拟数据：字段对齐 Song 模型（Title/Artist/Album/Duration秒/DateAdded序/PlayCount/Year）
+  const songs = [
+    ["起风了","买辣椒也用券","起风了",325,42,88,2017],
+    ["晴天","周杰伦","叶惠美",269,120,342,2003],
+    ["夜曲","周杰伦","十一月的萧邦",228,118,256,2005],
+    ["稻香","周杰伦","魔杰座",223,95,198,2008],
+    ["安河桥","宋冬野","安和桥北",340,60,143,2013],
+    ["董小姐","宋冬野","安和桥北",320,58,167,2013],
+    ["成都","赵雷","无法长大",327,70,289,2016],
+    ["理想","赵雷","无法长大",258,68,102,2016],
+    ["斑马斑马","宋冬野","安和桥北",295,55,88,2013],
+    ["消愁","毛不易","平凡的一天",258,80,231,2018],
+    ["像我这样的人","毛不易","平凡的一天",239,79,176,2018],
+    ["无问","毛不易","无问",240,110,95,2018],
+    ["岁月神偷","金玟岐","岁月神偷",258,30,64,2015],
+    ["南山南","马頔","南山南",302,25,133,2014],
+    ["贝加尔湖畔","李健","李健",279,90,121,2015],
+    ["袼","陈粒","如也",212,15,47,2015],
+    ["易燃易爆炸","陈粒","如也",245,16,158,2015],
+    ["光年之外","邓紫棋","光年之外",235,105,312,2017],
+    ["泡沫","邓紫棋","Xposed",255,103,204,2012],
+    ["Lemon","米津玄師","Lemon",256,130,278,2018],
+  ];
+
+  const state = { key:"title", asc:true, view:"list", q:"" };
+  const collator = new Intl.Collator("zh-Hans-CN", { numeric:true });
+  const fmt = s => Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+  const initial = t => {
+    const c = t[0];
+    if (/[A-Za-z]/.test(c)) return c.toUpperCase();
+    if (/[0-9]/.test(c)) return "#";
+    return c; // 中文直接用首字（原型简化）
+  };
+
+  function sorted(){
+    let arr = songs.filter(s=>{
+      if(!state.q) return true;
+      const q = state.q.toLowerCase();
+      return s[0].toLowerCase().includes(q) || s[1].toLowerCase().includes(q) || s[2].toLowerCase().includes(q);
+    });
+    const k = state.key;
+    arr.sort((a,b)=>{
+      let r;
+      if(k==="title") r = collator.compare(a[0],b[0]);
+      else if(k==="artist") r = collator.compare(a[1],b[1]) || collator.compare(a[0],b[0]);
+      else if(k==="album") r = collator.compare(a[2],b[2]) || collator.compare(a[0],b[0]);
+      else if(k==="added") r = b[4]-a[4];      // 序号越大越新
+      else if(k==="dur") r = a[3]-b[3];
+      else if(k==="plays") r = b[5]-a[5];
+      return state.asc ? r : -r;
+    });
+    return arr;
+  }
+
+  function render(){
+    const arr = sorted();
+    const list = document.getElementById("list");
+    const empty = document.getElementById("empty");
+    document.getElementById("count").textContent = arr.length.toLocaleString()+" 首歌曲";
+    empty.style.display = arr.length ? "none" : "block";
+
+    let html = "", lastGroup = null;
+    const grouped = state.key==="title" && !state.q; // 仅按标题分组显示字母标签
+    arr.forEach((s,i)=>{
+      if(grouped){
+        const g = initial(s[0]);
+        if(g!==lastGroup){ html += `<div class="group">${g}</div>`; lastGroup=g; }
+      }
+      const rightMeta =
+        state.key==="plays" ? `<span class="badge">${s[5]} 次</span>` :
+        state.key==="added" ? `<span class="dur">最近添加</span>` :
+        state.key==="album" ? `<span class="dur">${s[6]}</span>` :
+        `<span class="dur">${fmt(s[3])}</span>`;
+      html += `
+      <div class="song">
+        <div class="cover"><span>♪</span></div>
+        <div class="meta">
+          <div class="title">${s[0]}</div>
+          <div class="sub">${s[1]} · ${s[2]}</div>
+        </div>
+        <div class="right">${rightMeta}</div>
+        <div class="more">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </div>
+      </div>`;
+    });
+    list.innerHTML = html;
+    renderRail(grouped, arr);
+  }
+
+  function renderRail(show, arr){
+    const rail = document.getElementById("rail");
+    if(!show){ rail.innerHTML=""; return; }
+    const seen = [];
+    arr.forEach(s=>{ const g=initial(s[0]); if(!seen.includes(g)) seen.push(g); });
+    rail.innerHTML = seen.map(g=>`<b>${g}</b>`).join("");
+  }
+
+  // 排序 chip
+  document.getElementById("sortbar").addEventListener("click", e=>{
+    const chip = e.target.closest(".chip"); if(!chip) return;
+    const k = chip.dataset.k;
+    if(state.key===k){ state.asc = !state.asc; }   // 再次点击切换升降序
+    else { state.key = k; state.asc = (k!=="added"&&k!=="plays"); } // 时间/次数默认降序
+    document.querySelectorAll(".chip").forEach(c=>{
+      c.classList.toggle("active", c.dataset.k===state.key);
+      const ar = c.querySelector(".arrow");
+      if(c.dataset.k===state.key) ar.textContent = state.asc ? "↑" : "↓";
+    });
+    render();
+  });
+
+  // 搜索
+  document.getElementById("q").addEventListener("input", e=>{ state.q = e.target.value.trim(); render(); });
+
+  render();
+</script>
+</body>
+</html>

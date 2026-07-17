@@ -212,8 +212,9 @@ public class NetworkMusicService : INetworkMusicService
                     foreach (var s in batch)
                     {
                         if (!string.IsNullOrEmpty(s.RemoteId)) scannedRemoteIds.Add(s.RemoteId);
-                        await scanner.AddSongAsync(s);
                     }
+                    // 批量入队，避免逐首 await 锁竞争
+                    await scanner.AddSongsBatchAsync(batch);
                 }
                 catch (Exception ex)
                 {
@@ -1348,7 +1349,7 @@ public class NetworkMusicService : INetworkMusicService
         catch { }
 
         var scanner = new MusicScanner(_db, songBatchCallback);
-        var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var visitedDirs = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         progress?.Report((0, 0, "正在递归扫描 SMB 目录..."));
         await ScanSmbDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, 0, progress);
         await scanner.FlushAsync();
@@ -1370,14 +1371,14 @@ public class NetworkMusicService : INetworkMusicService
     /// <param name="visitedDirs">已访问目录集合（防止循环）。</param>
     /// <param name="depth">当前递归深度。</param>
     private async Task ScanSmbDirectoryAsync(string path, ConnectionProfile profile, List<Song> songs,
-        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, HashSet<string> visitedDirs, bool quickScan = false, int depth = 0,
+        System.Collections.Concurrent.ConcurrentDictionary<string, byte> foundIds, HashSet<string> existingIds, MusicScanner scanner, System.Collections.Concurrent.ConcurrentDictionary<string, byte> visitedDirs, bool quickScan = false, int depth = 0,
         IProgress<(int done, int total, string status)>? progress = null)
     {
         if (depth > MaxScanDepth) return;
 
         var normalizedDir = path.TrimEnd('/').TrimEnd('\\');
         if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "\\";
-        if (!visitedDirs.Add(normalizedDir))
+        if (!visitedDirs.TryAdd(normalizedDir, 0))
         {
             Log.Debug("NetworkMusicService", $"[SMB Scan] 跳过已访问目录: {path}");
             return;
@@ -1424,8 +1425,26 @@ public class NetworkMusicService : INetworkMusicService
             }
         }
 
-        foreach (var subDir in subDirs)
-            await ScanSmbDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, depth + 1, progress);
+        // 并行扫描子目录（与 WebDAV 版本一致），上限 4 并发避免 SMB 协议压力
+        if (subDirs.Count > 0)
+        {
+            var degree = Math.Min(4, subDirs.Count);
+            using var sem = new SemaphoreSlim(degree, degree);
+            var subTasks = subDirs.Select(async subDir =>
+            {
+                await sem.WaitAsync();
+                try
+                {
+                    await ScanSmbDirectoryAsync(subDir.Path, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, depth + 1, progress);
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("NetworkMusicService", $"[SMB] 子目录扫描失败: {subDir.Path}, {ex.Message}");
+                }
+                finally { sem.Release(); }
+            });
+            await Task.WhenAll(subTasks);
+        }
 
         if (audioFiles.Count == 0) return;
 

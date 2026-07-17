@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using System.Collections.Concurrent;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -188,14 +189,21 @@ public class LocalScanService
                     }
 
                     var totalFiles = allFilePaths.Count;
-                    var customSongs = new List<Song>();
+                    // 并发收集，避免并行循环内向 List 加锁
+                    var customSongs = new ConcurrentBag<Song>();
                     var processed = 0;
 
                     await Task.Run(() =>
                     {
-                        foreach (var path in allFilePaths)
+                        // 并行度上限 8，充分利用八核 CPU
+                        var degree = Math.Min(8, Math.Max(2, Environment.ProcessorCount));
+                        var options = new ParallelOptions
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
+                            MaxDegreeOfParallelism = degree,
+                            CancellationToken = cancellationToken
+                        };
+                        Parallel.ForEach(allFilePaths, options, path =>
+                        {
                             try
                             {
                                 var song = TagReader.ReadSongInfo(path);
@@ -209,14 +217,15 @@ public class LocalScanService
                             {
                                 Log.Debug("LocalScanService", $"[LocalScan] ReadSongInfo error: {path}, {ex.Message}");
                             }
-                            processed++;
+                            // 原子自增进度
+                            var p = Interlocked.Increment(ref processed);
                             // 每 5 个文件或最后一个文件报告一次进度，避免过于频繁
-                            if (processed % 5 == 0 || processed == totalFiles)
+                            if (p % 5 == 0 || p == totalFiles)
                             {
-                                var localRatio = totalFiles > 0 ? (double)processed / totalFiles : 0;
-                                ReportStepProgress(currentStep, localRatio, $"[{currentStep + 1}/{totalSteps}] 读取元数据 {processed}/{totalFiles} (已发现 {customSongs.Count} 首)");
+                                var localRatio = totalFiles > 0 ? (double)p / totalFiles : 0;
+                                ReportStepProgress(currentStep, localRatio, $"[{currentStep + 1}/{totalSteps}] 读取元数据 {p}/{totalFiles} (已发现 {customSongs.Count} 首)");
                             }
-                        }
+                        });
                     }, cancellationToken);
 
                     foreach (var s in customSongs)

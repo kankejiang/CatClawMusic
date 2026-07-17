@@ -10,101 +10,74 @@ using Microsoft.Maui;
 #if ANDROID
 using Android.Media;
 using Android.Net;
+using Android.OS;
 #endif
 
 namespace CatClawMusic.Maui.ViewModels;
 
-/// <summary>
-/// 音乐库页 ViewModel：管理本地与网络缓存歌曲的加载、搜索过滤、排序、清空与播放等交互，
-/// 同时维护歌曲/专辑/艺术家数量统计、Tab 切换状态与网络协议筛选。
-/// </summary>
 public partial class LibraryViewModel : ObservableObject
 {
     private readonly MusicDatabase _db;
     private readonly PlayQueue _queue;
     private readonly ExploreDataService? _exploreDataService;
 
-    // === Observable Properties ===
-
-    /// <summary>当前 Tab 下的全部歌曲集合（应用搜索/协议过滤前）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _songs = new();
 
-    /// <summary>经过搜索过滤后的歌曲集合（绑定到列表 UI）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _filteredSongs = new();
 
-    /// <summary>是否正在加载歌曲</summary>
     [ObservableProperty]
     private bool _isLoading;
 
-    /// <summary>搜索关键字</summary>
     [ObservableProperty]
     private string _searchQuery = "";
 
-    /// <summary>状态文本（用于向用户展示加载进度或结果）</summary>
     [ObservableProperty]
     private string _statusText = "加载中...";
 
-    /// <summary>当前 Tab 名称（"Local" 或 "Network"）</summary>
     [ObservableProperty]
     private string _currentTab = "Local";
 
-    /// <summary>“本地”Tab 的颜色</summary>
     [ObservableProperty]
     private string _localTabColor = "#9B7ED8";
 
-    /// <summary>“网络”Tab 的颜色</summary>
     [ObservableProperty]
     private string _networkTabColor = "#3D3D3D";
 
-    /// <summary>网络协议选择器是否可见（在 Network Tab 且有多个协议时显示）</summary>
     [ObservableProperty]
     private bool _isNetworkTabVisible;
 
-    /// <summary>是否配置了至少一个网络协议（控制“网络音乐”Tab 是否显示）</summary>
     [ObservableProperty]
     private bool _hasNetworkProtocols;
 
-    /// <summary>当前 Tab 下的歌曲数量</summary>
     [ObservableProperty]
     private int _songCount;
 
-    /// <summary>当前 Tab 下的专辑数量</summary>
     [ObservableProperty]
     private int _albumCount;
 
-    /// <summary>当前 Tab 下的艺术家数量</summary>
     [ObservableProperty]
     private int _artistCount;
 
-    /// <summary>分区标题（如“全部歌曲”或“搜索结果 (N)”）</summary>
     [ObservableProperty]
     private string _sectionTitle = "全部歌曲";
 
-    /// <summary>可选网络协议列表（第一项始终为“全部”，后续为已启用协议名称）</summary>
     [ObservableProperty]
     private List<string> _protocolOptions = new();
 
-    /// <summary>当前选中的协议索引（0 = 全部）</summary>
     [ObservableProperty]
     private int _selectedProtocolIndex;
 
-    /// <summary>缓存已启用的协议类型列表，与 ProtocolOptions 索引对齐（第0位为 null 表示全部）</summary>
     private List<ProtocolType?> _protocolTypes = new();
-
-    /// <summary>缓存所有网络歌曲（未过滤），用于切换协议时快速过滤</summary>
     private List<Song> _allNetworkSongs = new();
 
-    /// <summary>发现页数据源筛选：auto(自动) / local(本地) / network(网络) / all(混合)</summary>
     [ObservableProperty]
     private string _discoverSource = "auto";
 
-    /// <summary>是否存在本地音乐（用于"自动"模式判断）</summary>
     [ObservableProperty]
     private bool _hasLocalMusic = true;
 
-    /// <summary>发现页来源按钮显示文字</summary>
     public string DiscoverSourceDisplayText => DiscoverSource switch
     {
         "auto" => "自动",
@@ -114,24 +87,14 @@ public partial class LibraryViewModel : ObservableObject
         _ => "自动"
     };
 
-    // === Commands ===
-
-    /// <summary>切换 Tab 命令（参数为 "Local" 或 "Network"）</summary>
     public IRelayCommand<string> SwitchTabCommand { get; }
-    /// <summary>刷新当前 Tab 数据命令</summary>
     public IAsyncRelayCommand RefreshCommand { get; }
-    /// <summary>弹出排序对话框命令</summary>
     public IRelayCommand SortCommand { get; }
-    /// <summary>清空当前 Tab 数据命令（弹出确认）</summary>
     public IRelayCommand ClearCommand { get; }
 
-    /// <summary>请求弹出排序对话框时触发，供页面订阅</summary>
     public event EventHandler? ShowSortDialogRequested;
-    /// <summary>请求清空数据时触发，供页面订阅以弹窗确认</summary>
     public event EventHandler? ClearDataRequested;
-    /// <summary>请求播放某首歌曲时触发，供外部页面订阅以同步 UI 状态</summary>
     public event Action<Song>? SongPlayRequested;
-    /// <summary>发现页数据源变更时触发，供 SearchViewModel 订阅以重新加载探索数据</summary>
     public event Action? DiscoverSourceChanged;
 
     public LibraryViewModel(MusicDatabase db, PlayQueue queue, ExploreDataService? exploreDataService = null)
@@ -140,7 +103,6 @@ public partial class LibraryViewModel : ObservableObject
         _queue = queue;
         _exploreDataService = exploreDataService;
 
-        // 读取持久化的发现页数据源设置，并应用到 ExploreDataService
         DiscoverSource = Preferences.Default.Get("discover_source", "auto");
         _exploreDataService?.SetSourceFilter(GetEffectiveDiscoverSource());
 
@@ -150,26 +112,19 @@ public partial class LibraryViewModel : ObservableObject
         ClearCommand = new RelayCommand(ConfirmClear);
     }
 
-    /// <summary>
-    /// 获取实际生效的发现页来源筛选值。
-    /// 自动模式规则：只有本地音乐 → 本地；只有网络音乐 → 网络；本地和网络都有 → 本地。
-    /// </summary>
     public string GetEffectiveDiscoverSource()
     {
         if (DiscoverSource != "auto") return DiscoverSource;
-        // 自动模式：本地和网络都有时优先本地；仅网络时用网络
         if (HasNetworkProtocols && !HasLocalMusic) return "network";
         return "local";
     }
 
-    /// <summary>DiscoverSource 变更时同步刷新按钮文字并重新应用筛选</summary>
     partial void OnDiscoverSourceChanged(string value)
     {
         OnPropertyChanged(nameof(DiscoverSourceDisplayText));
         _exploreDataService?.SetSourceFilter(GetEffectiveDiscoverSource());
     }
 
-    /// <summary>HasLocalMusic 变更时，若处于自动模式则重新应用筛选并通知刷新</summary>
     partial void OnHasLocalMusicChanged(bool value)
     {
         if (DiscoverSource == "auto")
@@ -179,28 +134,19 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
-    /// <summary>设置发现页数据源（由页面弹窗选择后调用），持久化并通知 SearchViewModel 刷新</summary>
     public void SetDiscoverSource(string? source)
     {
         if (string.IsNullOrEmpty(source) || source == DiscoverSource) return;
-
         DiscoverSource = source;
         Preferences.Default.Set("discover_source", source);
-
-        // 通知 SearchViewModel 重新加载探索数据
         DiscoverSourceChanged?.Invoke();
     }
 
-    /// <summary>
-    /// 初始化/刷新网络协议列表。
-    /// 从数据库读取已启用的协议，更新 HasNetworkProtocols 和 ProtocolOptions。
-    /// 如果当前在 Network Tab 但所有协议都已删除，自动切回 Local Tab。
-    /// </summary>
     public async Task RefreshProtocolsAsync()
     {
         var enabled = await _db.GetEnabledProtocolsAsync();
 
-        _protocolTypes = new List<ProtocolType?> { null }; // 第一项：全部
+        _protocolTypes = new List<ProtocolType?> { null };
         var options = new List<string> { "全部" };
 
         if (enabled.Contains(ProtocolType.WebDAV))
@@ -221,11 +167,10 @@ public partial class LibraryViewModel : ObservableObject
 
         ProtocolOptions = options;
         var oldHasNetwork = HasNetworkProtocols;
-        HasNetworkProtocols = options.Count > 1; // 有除"全部"之外的协议
+        HasNetworkProtocols = options.Count > 1;
 
         if (!HasNetworkProtocols && CurrentTab == "Network")
         {
-            // 所有协议都已删除，切回本地
             SwitchTab("Local");
         }
         else if (HasNetworkProtocols && SelectedProtocolIndex >= options.Count)
@@ -233,7 +178,6 @@ public partial class LibraryViewModel : ObservableObject
             SelectedProtocolIndex = 0;
         }
 
-        // 更新本地音乐存在标志（用于发现页"自动"模式判断）
         try
         {
             var localCount = await _db.GetLocalSongCountAsync();
@@ -241,24 +185,21 @@ public partial class LibraryViewModel : ObservableObject
         }
         catch { }
 
-        // 自动模式下，本地/网络音乐存在状态变化可能导致生效筛选变化，重新应用并通知
         if (DiscoverSource == "auto" && (oldHasNetwork != HasNetworkProtocols))
         {
             _exploreDataService?.SetSourceFilter(GetEffectiveDiscoverSource());
             DiscoverSourceChanged?.Invoke();
         }
 
-        // 如果在 Network Tab，重新应用协议过滤
         if (CurrentTab == "Network")
         {
             ApplyProtocolFilter();
         }
     }
 
-    private void SwitchTab(string? tab)
+    public void SwitchTab(string? tab)
     {
         if (string.IsNullOrEmpty(tab)) return;
-
         if (tab == "Network" && !HasNetworkProtocols) return;
 
         CurrentTab = tab;
@@ -274,7 +215,7 @@ public partial class LibraryViewModel : ObservableObject
         {
             LocalTabColor = "#3D3D3D";
             NetworkTabColor = "#9B7ED8";
-            IsNetworkTabVisible = ProtocolOptions.Count > 2; // 超过"全部+一个协议"才显示选择器
+            IsNetworkTabVisible = ProtocolOptions.Count > 2;
             _ = LoadNetworkAsync();
         }
     }
@@ -287,7 +228,6 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
-    /// <summary>根据当前选中的协议过滤网络歌曲，并叠加搜索过滤</summary>
     private void ApplyProtocolFilter()
     {
         if (_allNetworkSongs.Count == 0)
@@ -300,7 +240,6 @@ public partial class LibraryViewModel : ObservableObject
         List<Song> filtered;
         if (SelectedProtocolIndex <= 0 || SelectedProtocolIndex >= _protocolTypes.Count)
         {
-            // "全部" 或索引无效：显示所有网络歌曲
             filtered = _allNetworkSongs;
         }
         else
@@ -313,7 +252,6 @@ public partial class LibraryViewModel : ObservableObject
         FilterSongs();
     }
 
-    /// <summary>异步加载本地音乐：从数据库读取歌曲并批量解析封面</summary>
     public async Task LoadLocalAsync()
     {
         try
@@ -322,7 +260,6 @@ public partial class LibraryViewModel : ObservableObject
             StatusText = "正在加载本地音乐...";
 
             var songs = await _db.GetSongsWithDetailsAsync();
-
             await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
 
             _allNetworkSongs = new List<Song>();
@@ -340,7 +277,6 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
-    /// <summary>异步加载网络缓存音乐：从数据库读取缓存网络歌曲，按协议过滤后展示</summary>
     public async Task LoadNetworkAsync()
     {
         try
@@ -349,7 +285,6 @@ public partial class LibraryViewModel : ObservableObject
             StatusText = "正在加载网络音乐...";
 
             var songs = await _db.GetCachedNetworkSongsAsync();
-
             await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
 
             _allNetworkSongs = songs;
@@ -371,34 +306,27 @@ public partial class LibraryViewModel : ObservableObject
     {
         await RefreshProtocolsAsync();
         if (CurrentTab == "Local")
-        {
             await LoadLocalAsync();
-        }
         else
-        {
             await LoadNetworkAsync();
-        }
     }
 
     private CancellationTokenSource? _filterCts;
 
     partial void OnSearchQueryChanged(string value)
     {
-        // 防抖 250ms 避免每次按键触发过滤
         _filterCts?.Cancel();
         _filterCts?.Dispose();
         _filterCts = new CancellationTokenSource();
         _ = FilterSongsAsync(_filterCts.Token);
     }
 
-    /// <summary>过滤入口（fire-and-forget，避免UI线程死锁）</summary>
     private void FilterSongs() => _ = FilterSongsAsync(default);
 
     private async Task FilterSongsAsync(CancellationToken ct)
     {
         try
         {
-            // 仅在搜索框有内容时启用防抖
             if (!string.IsNullOrWhiteSpace(SearchQuery))
             {
                 await Task.Delay(250, ct).ConfigureAwait(false);
@@ -407,7 +335,6 @@ public partial class LibraryViewModel : ObservableObject
             var query = SearchQuery;
             var songs = Songs;
 
-            // 后台线程执行 LINQ 过滤
             var filtered = await Task.Run(() =>
             {
                 IEnumerable<Song> source = songs;
@@ -425,14 +352,11 @@ public partial class LibraryViewModel : ObservableObject
 
             ct.ThrowIfCancellationRequested();
 
-            // 回到主线程更新 ObservableCollection
-            // 直接替换实例：触发 1 次 PropertyChanged → CollectionView 全量重建一次，
-            // 比 Clear+Add (N 次 CollectionChanged → N 次布局刷新) 快得多
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (ct.IsCancellationRequested) return;
                 FilteredSongs = new ObservableCollection<Song>(filtered);
-                UpdateStats(); // 统一在此处更新歌曲/专辑/艺术家数量，避免竞态条件
+                UpdateStats();
                 SectionTitle = string.IsNullOrWhiteSpace(SearchQuery)
                     ? "全部歌曲"
                     : $"搜索结果 ({FilteredSongs.Count})";
@@ -440,7 +364,6 @@ public partial class LibraryViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            // 防抖正常行为
         }
         catch (Exception ex)
         {
@@ -471,7 +394,6 @@ public partial class LibraryViewModel : ObservableObject
         ClearDataRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>对当前过滤后的歌曲按指定方式排序</summary>
     public void ApplySort(string sortBy)
     {
         var songs = FilteredSongs.ToList();
@@ -489,19 +411,14 @@ public partial class LibraryViewModel : ObservableObject
         FilteredSongs = new ObservableCollection<Song>(sorted);
     }
 
-    /// <summary>清空当前 Tab 的歌曲数据（本地或网络缓存）</summary>
     public async Task ClearSongsAsync()
     {
         try
         {
             if (CurrentTab == "Local")
-            {
                 await _db.ClearLocalSongsAsync();
-            }
             else
-            {
                 await _db.ClearCachedNetworkSongsAsync();
-            }
 
             Songs.Clear();
             FilteredSongs.Clear();
@@ -514,7 +431,6 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
-    /// <summary>播放指定歌曲：将其加入播放队列并选中（实际音频播放由页面处理）</summary>
     public async Task PlaySongAsync(Song? song)
     {
         if (song == null) return;
@@ -523,7 +439,6 @@ public partial class LibraryViewModel : ObservableObject
         {
             _queue.SetSongs([.. FilteredSongs]);
             _queue.SelectSong(song.Id);
-
             StatusText = $"正在播放: {song.Title}";
         }
         catch (Exception ex)
@@ -532,4 +447,457 @@ public partial class LibraryViewModel : ObservableObject
         }
     }
 
+    // ═══════════════════════════════════════════════════════
+    // 音乐库总览属性
+    // ═══════════════════════════════════════════════════════
+
+    [ObservableProperty]
+    private int _totalSongCount;
+
+    [ObservableProperty]
+    private int _totalArtistCount;
+
+    [ObservableProperty]
+    private int _totalAlbumCount;
+
+    [ObservableProperty]
+    private double _totalHours;
+
+    [ObservableProperty]
+    private int _libraryCount;
+
+    [ObservableProperty]
+    private string _totalMusicSizeText = "0 GB";
+
+    [ObservableProperty]
+    private string _freeSpaceText = "0 GB";
+
+    [ObservableProperty]
+    private int _folderCount;
+
+    [ObservableProperty]
+    private string _totalSizeText = "0 GB";
+
+    [ObservableProperty]
+    private string _lastScanText = "尚未扫描";
+
+    [ObservableProperty]
+    private bool _isSynced = true;
+
+    [ObservableProperty]
+    private bool _autoScanEnabled = true;
+
+    [ObservableProperty]
+    private string _excludeFoldersText = "Android/、录音、*.tmp";
+
+    [ObservableProperty]
+    private int _scanProgress;
+
+    [ObservableProperty]
+    private bool _isScanning;
+
+    [ObservableProperty]
+    private string _scanStatusText = "";
+
+    [ObservableProperty]
+    private int _scannedCount;
+
+    [ObservableProperty]
+    private int _scanTotalCount;
+
+    public string ScanCountText => ScanTotalCount > 0 ? $"{ScannedCount} / {ScanTotalCount}" : "";
+
+    [ObservableProperty]
+    private ObservableCollection<LibraryCardItem> _libraryCards = new();
+
+    [ObservableProperty]
+    private ObservableCollection<FormatSizeItem> _formatSizeItems = new();
+
+    [ObservableProperty]
+    private ObservableCollection<RecentAddItem> _recentAddItems = new();
+
+    [ObservableProperty]
+    private int _localSongCount;
+
+    [ObservableProperty]
+    private int _networkSongCount;
+
+    [ObservableProperty]
+    private int _favoriteCount;
+
+    [ObservableProperty]
+    private int _recentPlayCount;
+
+    [ObservableProperty]
+    private int _trashCount;
+
+    [RelayCommand]
+    public void ToggleAutoScan()
+    {
+        AutoScanEnabled = !AutoScanEnabled;
+        Preferences.Default.Set("auto_scan", AutoScanEnabled);
+    }
+
+    partial void OnScannedCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(ScanCountText));
+    }
+
+    partial void OnScanTotalCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(ScanCountText));
+    }
+
+    public async Task LoadOverviewDataAsync()
+    {
+        try
+        {
+            var allSongs = await _db.GetSongsWithDetailsAsync();
+            var localSongs = allSongs.Where(s => s.Source == SongSource.Local).ToList();
+            var networkSongs = allSongs.Where(s => s.Source != SongSource.Local).ToList();
+
+            LocalSongCount = localSongs.Count;
+            NetworkSongCount = networkSongs.Count;
+            FavoriteCount = await _db.GetFavoriteCountAsync();
+            RecentPlayCount = await _db.GetRecentPlayCountAsync();
+            TrashCount = 0;
+
+            TotalSongCount = allSongs.Count;
+            TotalAlbumCount = allSongs.Select(s => s.AlbumId).Distinct().Count();
+            TotalArtistCount = allSongs.Select(s => s.ArtistId).Distinct().Count();
+            TotalHours = allSongs.Sum(s => s.Duration) / 3600000.0;
+            LibraryCount = 4 + (TrashCount > 0 ? 1 : 0);
+
+            var totalBytes = localSongs.Sum(s => s.FileSize);
+            TotalMusicSizeText = FormatSize(totalBytes);
+
+            FolderCount = localSongs.Select(s => GetTopFolder(s.FilePath)).Distinct().Count();
+
+            FreeSpaceText = GetFreeSpaceText();
+
+            var formatGroups = localSongs
+                .GroupBy(s => GetFileExtension(s.FilePath))
+                .Select(g => new FormatSizeItem(
+                    g.Key,
+                    g.Sum(s => s.FileSize),
+                    GetFormatColor(g.Key)))
+                .OrderByDescending(x => x.SizeBytes)
+                .ToList();
+
+            if (formatGroups.Count > 0)
+            {
+                var maxSize = formatGroups.Max(x => x.SizeBytes);
+                foreach (var item in formatGroups)
+                {
+                    item.MaxSizeBytes = maxSize;
+                }
+            }
+            FormatSizeItems = new ObservableCollection<FormatSizeItem>(formatGroups);
+
+            var recent = localSongs
+                .OrderByDescending(s => s.DateAdded)
+                .Take(8)
+                .Select((s, i) =>
+                {
+                    var (c1, c2) = GetGradientColors(i);
+                    return new RecentAddItem(
+                        s.Title ?? "未知歌曲",
+                        s.Artist ?? "未知艺术家",
+                        c1, c2);
+                })
+                .ToList();
+            RecentAddItems = new ObservableCollection<RecentAddItem>(recent);
+
+            var networkOnline = HasNetworkProtocols && NetworkSongCount > 0;
+            var lastSync = "今天 09:14";
+            try
+            {
+                var lastScan = Preferences.Default.Get("last_scan_time", 0L);
+                if (lastScan > 0)
+                {
+                    var dt = DateTimeOffset.FromUnixTimeSeconds(lastScan).LocalDateTime;
+                    lastSync = dt.ToString("HH:mm");
+                }
+            }
+            catch { }
+
+            LibraryCards = new ObservableCollection<LibraryCardItem>
+            {
+                new("本地音乐库", $"{LocalSongCount} 首 · {FolderCount} 个文件夹 · 今天 {lastSync} 扫描", "已同步", "ok",
+                    "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder.svg", "local"),
+                new("网络音乐库", networkOnline ? $"{NetworkSongCount} 首 · 已连接" : "未配置",
+                    networkOnline ? "在线" : "离线", networkOnline ? "on" : "off",
+                    "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi.svg", "network"),
+                new("我喜欢的", $"{FavoriteCount} 首 · 智能歌单", "", "",
+                    "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite.svg", "favorite"),
+                new("最近播放", $"{RecentPlayCount} 首 · 自动记录", "", "",
+                    "linear-gradient(135deg,#7A6CF0,#A78BFA)", "ic_history.svg", "recent"),
+            };
+
+            if (TrashCount > 0)
+            {
+                LibraryCards.Add(new LibraryCardItem(
+                    "回收站", $"{TrashCount} 首 · 可恢复", "7 天前清理", "sync",
+                    "linear-gradient(135deg,#5A6280,#8D93B7)", "ic_trash.svg", "trash"));
+            }
+
+            LibraryCount = LibraryCards.Count;
+            LoadScanInfo();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("LibraryViewModel", $"[Library] LoadOverviewDataAsync failed: {ex.Message}");
+        }
+    }
+
+    private string GetFreeSpaceText()
+    {
+#if ANDROID
+        try
+        {
+            var path = global::Android.App.Application.Context.GetExternalFilesDir(null)?.AbsolutePath;
+            if (!string.IsNullOrEmpty(path))
+            {
+                var statFs = new StatFs(path);
+                var availableBytes = statFs.AvailableBytesLong;
+                return FormatSize(availableBytes);
+            }
+        }
+        catch { }
+#endif
+        try
+        {
+            var drive = DriveInfo.GetDrives().FirstOrDefault(d => d.DriveType == DriveType.Fixed && d.IsReady);
+            if (drive != null)
+            {
+                return FormatSize(drive.AvailableFreeSpace);
+            }
+        }
+        catch { }
+        return "-- GB";
+    }
+
+    private void LoadScanInfo()
+    {
+        var lastScan = Preferences.Default.Get("last_scan_time", 0L);
+        if (lastScan > 0)
+        {
+            var dt = DateTimeOffset.FromUnixTimeSeconds(lastScan).LocalDateTime;
+            var added = Preferences.Default.Get("last_scan_added", 0);
+            var elapsed = Preferences.Default.Get("last_scan_elapsed", 0);
+            LastScanText = $"{dt:MM-dd HH:mm} · 耗时 {elapsed}s · 新增 {added} 首";
+        }
+        AutoScanEnabled = Preferences.Default.Get("auto_scan", true);
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1073741824) return $"{bytes / 1073741824.0:F1} GB";
+        if (bytes >= 1048576) return $"{bytes / 1048576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+
+    private static string FormatTimeAgo(long unixTimestamp)
+    {
+        if (unixTimestamp <= 0) return "未知";
+        var dt = DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).LocalDateTime;
+        var diff = DateTime.Now - dt;
+        if (diff.TotalDays < 1) return "今天";
+        if (diff.TotalDays < 2) return "昨天";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays} 天前";
+        if (diff.TotalDays < 30) return $"{(int)(diff.TotalDays / 7)} 周前";
+        return dt.ToString("MM-dd");
+    }
+
+    private static string GetTopFolder(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return "未知";
+        var dir = Path.GetDirectoryName(path);
+        if (string.IsNullOrEmpty(dir)) return path;
+        var parts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length <= 2) return dir;
+        return "/" + string.Join("/", parts.Take(3));
+    }
+
+    private static string GetFileExtension(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return "未知";
+        var ext = Path.GetExtension(path).ToUpperInvariant();
+        return string.IsNullOrEmpty(ext) ? "未知" : ext.TrimStart('.');
+    }
+
+    private static Color GetFormatColor(string ext) => ext.ToUpperInvariant() switch
+    {
+        "MP3" => Color.FromArgb("#8C7BFF"),
+        "FLAC" => Color.FromArgb("#55D6FF"),
+        "M4A" => Color.FromArgb("#FF7AAE"),
+        "WAV" or "APE" => Color.FromArgb("#7AF0C8"),
+        "OGG" => Color.FromArgb("#FFB36B"),
+        _ => Color.FromArgb("#A78BFA")
+    };
+
+    private static readonly (Color C1, Color C2)[] CoverPalettes = {
+        (Color.FromArgb("#8C7BFF"), Color.FromArgb("#55D6FF")),
+        (Color.FromArgb("#FF7AAE"), Color.FromArgb("#FFB36B")),
+        (Color.FromArgb("#55D6FF"), Color.FromArgb("#7AF0C8")),
+        (Color.FromArgb("#A78BFA"), Color.FromArgb("#F0ABFC")),
+        (Color.FromArgb("#5EEAD4"), Color.FromArgb("#60A5FA")),
+        (Color.FromArgb("#FF6C5C"), Color.FromArgb("#FFB36B")),
+        (Color.FromArgb("#818CF8"), Color.FromArgb("#A78BFA")),
+        (Color.FromArgb("#F472B6"), Color.FromArgb("#FB7185"))
+    };
+
+    private static (Color C1, Color C2) GetGradientColors(int index) =>
+        CoverPalettes[Math.Abs(index) % CoverPalettes.Length];
+}
+
+public class LibraryCardItem
+{
+    public string Name { get; }
+    public string Subtitle { get; }
+    public string StatusText { get; }
+    public string StatusType { get; }
+    public string IconBackground { get; }
+    public string IconSource { get; }
+    public string Target { get; }
+
+    public LibraryCardItem(string name, string subtitle, string statusText, string statusType,
+        string iconBackground, string iconSource, string target)
+    {
+        Name = name;
+        Subtitle = subtitle;
+        StatusText = statusText;
+        StatusType = statusType;
+        IconBackground = iconBackground;
+        IconSource = iconSource;
+        Target = target;
+    }
+}
+
+public class FormatSizeItem : ObservableObject
+{
+    public string Name { get; }
+    public long SizeBytes { get; }
+    public Color Color { get; }
+    public string SizeText => FormatSize(SizeBytes);
+
+    private long _maxSizeBytes;
+    public long MaxSizeBytes
+    {
+        get => _maxSizeBytes;
+        set => SetProperty(ref _maxSizeBytes, value);
+    }
+
+    public double Progress => _maxSizeBytes > 0 ? (double)SizeBytes / _maxSizeBytes : 0;
+
+    public FormatSizeItem(string name, long sizeBytes, Color color)
+    {
+        Name = name;
+        SizeBytes = sizeBytes;
+        Color = color;
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1073741824) return $"{bytes / 1073741824.0:F1} GB";
+        if (bytes >= 1048576) return $"{bytes / 1048576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+}
+
+public class RecentAddItem
+{
+    public string Title { get; }
+    public string Artist { get; }
+    public Color CoverColor1 { get; }
+    public Color CoverColor2 { get; }
+    public string Initial { get; }
+
+    public RecentAddItem(string title, string artist, Color coverColor1, Color coverColor2)
+    {
+        Title = title;
+        Artist = artist;
+        CoverColor1 = coverColor1;
+        CoverColor2 = coverColor2;
+        Initial = string.IsNullOrEmpty(title) ? "♪" : title.Trim()[0].ToString().ToUpper();
+    }
+}
+
+public class FolderInfo
+{
+    public string Path { get; }
+    public int SongCount { get; }
+    public string SizeText { get; }
+
+    public FolderInfo(string path, int songCount, string sizeText)
+    {
+        Path = path;
+        SongCount = songCount;
+        SizeText = sizeText;
+    }
+}
+
+public class GenreBarData
+{
+    public string Name { get; }
+    public int Count { get; }
+
+    public GenreBarData(string name, int count)
+    {
+        Name = name;
+        Count = count;
+    }
+}
+
+public class RecentSongItem
+{
+    public string Title { get; }
+    public string Artist { get; }
+    public string TimeAgo { get; }
+    public Color CoverColor { get; }
+    public string Initial { get; }
+
+    public RecentSongItem(string title, string artist, string timeAgo, Color coverColor)
+    {
+        Title = title;
+        Artist = artist;
+        TimeAgo = timeAgo;
+        CoverColor = coverColor;
+        Initial = string.IsNullOrEmpty(title) ? "♪" : title.Trim()[0].ToString().ToUpper();
+    }
+}
+
+public class ArtistRankItem
+{
+    public string Name { get; }
+    public int SongCount { get; }
+    public double Percentage { get; }
+    public Color AvatarColor { get; }
+    public string Initial { get; }
+    public string SubInfo => $"{SongCount} 首歌曲";
+
+    public ArtistRankItem(string name, int songCount, double percentage, Color avatarColor)
+    {
+        Name = name;
+        SongCount = songCount;
+        Percentage = percentage;
+        AvatarColor = avatarColor;
+        Initial = string.IsNullOrEmpty(name) ? "♪" : name.Trim()[0].ToString().ToUpper();
+    }
+}
+
+public class PieSegmentData
+{
+    public string Name { get; }
+    public int Count { get; }
+    public Color Color { get; }
+
+    public PieSegmentData(string name, int count, Color color)
+    {
+        Name = name;
+        Count = count;
+        Color = color;
+    }
 }

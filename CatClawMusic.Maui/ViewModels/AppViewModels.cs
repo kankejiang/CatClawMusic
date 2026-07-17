@@ -681,10 +681,10 @@ public partial class NowPlayingViewModel : ObservableObject
         var song = _queue.CurrentSong;
         var oldSongId = _loadedSongId;
 
-        // 换歌前先 flush 上一首的聆听时长
+        // 换歌前先 flush 上一首的聆听时长（后台执行，不阻塞切歌）
         if (oldSongId > 0 && song != null && song.Id != oldSongId)
         {
-            await FlushListeningAsync(isFinalFlush: true);
+            _ = Task.Run(() => FlushListeningAsync(isFinalFlush: true));
         }
 
         // 启动恢复：如果队列为空，尝试从 Preferences 恢复上次的整个播放队列
@@ -760,12 +760,20 @@ public partial class NowPlayingViewModel : ObservableObject
             Preferences.Default.Set("last_playing_song_id", song.Id);
         }
 
-        // Check favorite
-        try { IsLiked = await _db.IsFavoriteAsync(song.Id); }
-        catch { IsLiked = false; }
-        LikeIcon = IsLiked ? "\u2665" : "\u2661";
-        LikeIconSource = ImageSourceHelper.FromNameThemed(IsLiked ? "ic_favorite" : "ic_favorite_border");
-        LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
+        // Check favorite (与播放并行执行，不阻塞切歌)
+        var favoriteTask = Task.Run(async () =>
+        {
+            try { return await _db.IsFavoriteAsync(song.Id); }
+            catch { return false; }
+        }, ct);
+
+        // 预加载封面（与播放并行，提前显示）
+        var coverTask = Task.Run(async () =>
+        {
+            try { await LoadCoverAsync(song, ct); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { Log.Debug("AppViewModels", $"[CoverArt] 预加载封面失败: {ex.Message}"); }
+        }, ct);
 
 #if ANDROID || WINDOWS
         // 更新前台播放通知 / Windows SMTC 显示
@@ -786,43 +794,52 @@ public partial class NowPlayingViewModel : ObservableObject
             // 换歌时且允许自动播放才启动播放（启动恢复除外）
             if (!string.IsNullOrEmpty(song.FilePath))
             {
-                try
+                // 播放与收藏查询并行执行
+                var playTask = _audioService.PlayAsync(song.FilePath);
+                await Task.WhenAll(playTask, favoriteTask);
+                IsLiked = favoriteTask.Result;
+                if (_lastRecordedSongId != song.Id)
                 {
-                    await _audioService.PlayAsync(song.FilePath);
-                    if (_lastRecordedSongId != song.Id)
-                    {
-                        _lastRecordedSongId = song.Id;
-                        _ = RecordPlayAsync(song.Id);
-                    }
+                    _lastRecordedSongId = song.Id;
+                    _ = RecordPlayAsync(song.Id);
                 }
-                catch (Exception ex) { Log.Debug("AppViewModels", $"Play error: {ex.Message}"); }
+            }
+            else
+            {
+                IsLiked = await favoriteTask;
             }
 
-            // 换歌时重新加载封面、歌词，网络歌曲先缓存到本地再处理
+            // 更新收藏图标
+            LikeIcon = IsLiked ? "\u2665" : "\u2661";
+            LikeIconSource = ImageSourceHelper.FromNameThemed(IsLiked ? "ic_favorite" : "ic_favorite_border");
+            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
+
+            // 换歌时加载歌词（封面已在上方预加载），网络歌曲先缓存到本地再处理
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    // 网络歌曲：先缓存到本地，然后用本地文件方式处理一切
+                    // 网络歌曲：先缓存到本地，然后用本地文件方式处理
                     if (song.Source != SongSource.Local)
                     {
                         var localPath = await ResolveToLocalPathAsync(song, ct);
                         if (localPath != null)
                         {
-                            // 缓存成功：用本地文件提取元数据、封面、歌词
                             await Task.WhenAll(
                                 LoadMetadataFromLocalFileAsync(song, localPath),
-                                LoadCoverFromLocalFileAsync(song, localPath, ct),
                                 LoadLyricsFromLocalFileAsync(song, localPath, ct)
                             );
+                            // 封面已在预加载阶段处理，仅在网络缓存成功后补充加载
+                            if (string.IsNullOrEmpty(song.CoverArtPath) || !File.Exists(song.CoverArtPath))
+                                await LoadCoverFromLocalFileAsync(song, localPath, ct);
                             return;
                         }
                     }
-                    // 本地歌曲或缓存失败：走原有流程
-                    await Task.WhenAll(
-                        LoadCoverAsync(song, ct),
-                        LoadLyricsAsync(song, ct)
-                    );
+                    // 本地歌曲：封面已预加载，仅加载歌词
+                    await LoadLyricsAsync(song, ct);
+                    // 如果封面预加载失败，补充加载
+                    if (!HasCover)
+                        await LoadCoverAsync(song, ct);
                     if (song.Source != SongSource.Local && _networkMusic != null)
                         await FetchAndUpdateSongMetadataAsync(song);
                 }
@@ -886,8 +903,8 @@ public partial class NowPlayingViewModel : ObservableObject
         // 重置启动恢复标志
         _isStartupRestore = false;
 
-        // 保存队列状态（歌曲ID列表 + 当前歌曲ID）
-        SaveQueueState();
+        // 保存队列状态（后台执行，不阻塞切歌）
+        _ = Task.Run(SaveQueueState);
     }
 
     // === 队列状态持久化 ===

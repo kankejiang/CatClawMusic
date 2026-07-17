@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>音乐库总览 · CatClaw Music 原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #080B1A; --bg-1: #0B0D20; --bg-2: #15132E;
+    --surface: #1A2040; --card: #182244; --card-strong: #1E2A52;
+    --stroke: #2A3870; --stroke-strong: #3A4A8C;
+    --primary: #8C7BFF; --primary-deep: #6250F6;
+    --accent: #55D6FF; --like: #FF7AAE; --good: #7AF0C8; --warn: #FFB36B;
+    --text-1: #F7F8FF; --text-2: #C2C6E4; --text-3: #8D93B7;
+    --chip-bg: #1C2850; --chip-active: #FF6C5CE7;
+    --display: "Space Grotesk", "Noto Sans SC", system-ui, sans-serif;
+    --body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; font-family: var(--body); color: var(--text-1); background: var(--bg-0); }
+  body { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 28px 16px 56px;
+    background: radial-gradient(1100px 700px at 18% -8%, rgba(140,123,255,.22), transparent 60%),
+                radial-gradient(900px 620px at 92% 8%, rgba(85,214,255,.16), transparent 58%),
+                linear-gradient(180deg, var(--bg-1), var(--bg-2) 38%, var(--bg-0) 100%); }
+  .device { position: relative; width: 100%; max-width: 430px; border-radius: 38px; padding: 10px;
+    background: linear-gradient(160deg, rgba(58,74,140,.55), rgba(26,32,64,.35));
+    border: 1px solid rgba(120,135,200,.30); box-shadow: 0 40px 90px -30px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06); overflow: hidden; }
+  @media (max-width: 480px) { body { padding: 0; } .device { max-width: 100%; border-radius: 0; border: none; box-shadow: none; padding: 0; } }
+  .screen { position: relative; border-radius: 30px; overflow: hidden; min-height: 920px;
+    background: radial-gradient(700px 480px at 50% -10%, rgba(140,123,255,.10), transparent 60%),
+                linear-gradient(180deg, #0B0D20 0%, #15132E 32%, #0A0C1C 72%, #080914 100%); }
+  @media (max-width: 480px) { .screen { border-radius: 0; min-height: 100vh; } }
+  .scroll { padding: 0 18px 36px; }
+
+  /* 顶栏 */
+  .np-bar { display: flex; align-items: center; gap: 10px; padding: 14px 0 6px; }
+  .icon-btn { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 12px;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: #fff; cursor: pointer; transition: transform .18s ease, background .18s ease; }
+  .icon-btn:active { transform: scale(.92); background: rgba(255,255,255,.18); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .np-title { font-size: 11px; letter-spacing: 2px; color: var(--text-3); margin: 0 auto; text-transform: uppercase; }
+
+  /* Hero */
+  .hero { position: relative; margin-top: 6px; border-radius: 24px; padding: 22px 20px; overflow: hidden;
+    background: linear-gradient(135deg, rgba(140,123,255,.30), rgba(85,214,255,.16));
+    border: 1px solid var(--stroke); box-shadow: inset 0 1px 0 rgba(255,255,255,.07); }
+  .hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(420px 220px at 85% -20%, rgba(255,108,92,.28), transparent 60%); }
+  .hero-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .hero-name { font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--text-1); }
+  .hero-sub { font-size: 12.5px; color: var(--text-2); margin-top: 3px; }
+  .scan-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; padding: 10px 15px; border-radius: 13px;
+    font-family: var(--display); font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; white-space: nowrap;
+    background: linear-gradient(135deg, var(--primary), var(--primary-deep)); border: none;
+    box-shadow: 0 12px 26px -10px rgba(140,123,255,.7); transition: transform .18s ease, opacity .2s; }
+  .scan-btn:active { transform: scale(.95); }
+  .scan-btn:disabled { opacity: .7; cursor: default; }
+  .scan-btn svg { width: 15px; height: 15px; }
+  .hero-stats { position: relative; display: flex; gap: 0; margin-top: 18px; }
+  .hero-stat { flex: 1; text-align: center; position: relative; }
+  .hero-stat + .hero-stat::before { content: ""; position: absolute; left: 0; top: 12%; height: 76%; width: 1px; background: rgba(255,255,255,.14); }
+  .hero-stat-v { font-family: var(--display); font-size: 19px; font-weight: 700; color: var(--text-1); }
+  .hero-stat-k { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  /* 通用卡片 */
+  .card { background: linear-gradient(180deg, rgba(30,42,82,.72), rgba(24,34,68,.72)); border: 1px solid var(--stroke); border-radius: 22px; padding: 16px; margin-top: 18px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+  .card-title { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text-1); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card-title .badge { font-size: 10px; font-weight: 600; color: var(--accent); background: rgba(85,214,255,.12); border: 1px solid rgba(85,214,255,.3); padding: 2px 8px; border-radius: 999px; }
+  .card-title .spacer { margin-left: auto; }
+
+  /* 库卡片 */
+  .lib-card { display: flex; align-items: center; gap: 13px; padding: 14px; border-radius: 18px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--stroke); margin-top: 12px; transition: background .18s ease; }
+  .lib-card:active { background: rgba(255,255,255,.08); }
+  .lib-ico { width: 50px; height: 50px; flex: 0 0 auto; border-radius: 15px; display: grid; place-items: center; color: #fff; }
+  .lib-ico svg { width: 25px; height: 25px; }
+  .lib-body { flex: 1; min-width: 0; }
+  .lib-name { font-size: 15px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 8px; }
+  .lib-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lib-act { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; cursor: pointer;
+    background: rgba(255,255,255,.07); border: 1px solid var(--stroke); color: var(--text-1); transition: background .18s ease; }
+  .lib-act:active { background: rgba(255,255,255,.16); }
+  .lib-act svg { width: 16px; height: 16px; }
+
+  /* 状态徽章 */
+  .status { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+  .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-ok { color: var(--good); background: rgba(122,240,200,.12); border: 1px solid rgba(122,240,200,.32); }
+  .status-on { color: var(--accent); background: rgba(85,214,255,.12); border: 1px solid rgba(85,214,255,.32); }
+  .status-sync { color: var(--warn); background: rgba(255,179,107,.12); border: 1px solid rgba(255,179,107,.32); }
+
+  /* 扫描进度条 */
+  .scanbar { height: 8px; border-radius: 999px; background: rgba(42,56,112,.5); overflow: hidden; margin-top: 12px; display: none; }
+  .scanbar.on { display: block; }
+  .scanfill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width .25s linear; }
+  .scan-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-3); margin-top: 7px; display: none; }
+  .scan-meta.on { display: flex; }
+
+  /* 存储占用 */
+  .store-total { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+  .store-size { font-family: var(--display); font-size: 26px; font-weight: 700; color: var(--text-1); }
+  .store-cap { font-size: 12px; color: var(--text-3); }
+  .fmt-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .fmt-row:last-child { margin-bottom: 0; }
+  .fmt-dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+  .fmt-name { width: 64px; flex: 0 0 auto; font-size: 12.5px; color: var(--text-2); }
+  .fmt-track { flex: 1; height: 8px; border-radius: 999px; background: rgba(42,56,112,.5); overflow: hidden; }
+  .fmt-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 1s cubic-bezier(.16,1,.3,1); }
+  .fmt-val { width: 70px; flex: 0 0 auto; text-align: right; font-family: var(--display); font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .store-free { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(42,56,112,.5); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); }
+  .store-free b { color: var(--text-2); font-weight: 600; }
+
+  /* 设置行（自动扫描开关） */
+  .set-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
+  .set-row + .set-row { border-top: 1px solid rgba(42,56,112,.5); }
+  .set-ico { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 11px; display: grid; place-items: center; color: #fff; }
+  .set-ico svg { width: 17px; height: 17px; }
+  .set-body { flex: 1; min-width: 0; }
+  .set-name { font-size: 13.5px; color: var(--text-1); font-weight: 500; }
+  .set-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+  .toggle { width: 46px; height: 27px; flex: 0 0 auto; border-radius: 999px; background: rgba(42,56,112,.7); border: 1px solid var(--stroke); position: relative; cursor: pointer; transition: background .22s ease; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: #fff; transition: transform .22s cubic-bezier(.16,1,.3,1); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  .toggle.on { background: linear-gradient(90deg, var(--primary), var(--accent)); border-color: transparent; }
+  .toggle.on::after { transform: translateX(19px); }
+  .set-act { font-size: 13px; color: var(--accent); font-weight: 600; flex: 0 0 auto; cursor: pointer; }
+
+  /* 横向快速访问 */
+  .hscroll { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; -ms-overflow-style: none; }
+  .hscroll::-webkit-scrollbar { display: none; }
+  .qcard { flex: 0 0 132px; width: 132px; }
+  .qcover { width: 132px; height: 132px; border-radius: 16px; display: grid; place-items: center; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); position: relative; overflow: hidden; }
+  .qcover svg { width: 34px; height: 34px; opacity: .9; }
+  .qtitle { font-size: 13px; font-weight: 500; color: var(--text-1); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qsub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .reveal { opacity: 0; transform: translateY(14px); animation: rise .6s cubic-bezier(.16,1,.3,1) forwards; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  .hint { text-align: center; font-size: 11.5px; color: var(--text-3); margin-top: 22px; }
+  .spin { animation: spin 1s linear infinite; transform-origin: center; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 二级页 */
+  .tabbar { display: flex; gap: 8px; margin-top: 14px; }
+  .tab { flex: 1; text-align: center; padding: 10px; border-radius: 13px; font-family: var(--display); font-size: 13px; font-weight: 600; color: var(--text-3); background: rgba(255,255,255,.05); border: 1px solid var(--stroke); cursor: pointer; transition: all .18s ease; }
+  .tab.active { color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-deep)); border-color: transparent; box-shadow: 0 10px 22px -10px rgba(140,123,255,.7); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .gcover { width: 100%; aspect-ratio: 1 / 1; border-radius: 14px; display: grid; place-items: center; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); position: relative; overflow: hidden; }
+  .gcover svg { width: 26px; height: 26px; opacity: .85; }
+  .gtitle { font-size: 12.5px; font-weight: 500; color: var(--text-1); margin-top: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gsub { font-size: 11px; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-act { flex: 0 0 auto; font-size: 12px; color: var(--accent); font-weight: 600; cursor: pointer; padding: 5px 9px; border-radius: 9px; background: rgba(85,214,255,.1); border: 1px solid rgba(85,214,255,.28); white-space: nowrap; }
+  .row-act.like { color: var(--like); background: rgba(255,122,174,.12); border-color: rgba(255,122,174,.3); }
+  .row-act.recover { color: var(--good); background: rgba(122,240,200,.12); border-color: rgba(122,240,200,.3); }
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="screen">
+      <div class="scroll">
+      <section id="overviewView">
+        <!-- 顶栏 -->
+        <div class="np-bar">
+          <button class="icon-btn" title="返回" aria-label="返回">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="np-title">音乐库</div>
+          <button class="icon-btn" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9.4l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4.5a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 6l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 11h.1a2 2 0 0 1 0 4h-.1z"/></svg>
+          </button>
+        </div>
+
+        <!-- Hero -->
+        <div class="hero reveal" style="animation-delay:0s">
+          <div class="hero-head">
+            <div>
+              <div class="hero-name">我的音乐库</div>
+              <div class="hero-sub">本地 + 网络 · 共 5 个资料库</div>
+            </div>
+            <button class="scan-btn" id="scanBtn">
+              <svg id="scanIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.3-4.3M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/></svg>
+              <span id="scanTxt">立即扫描</span>
+            </button>
+          </div>
+          <div class="hero-stats">
+            <div class="hero-stat"><div class="hero-stat-v">1,284</div><div class="hero-stat-k">歌曲</div></div>
+            <div class="hero-stat"><div class="hero-stat-v">213</div><div class="hero-stat-k">艺术家</div></div>
+            <div class="hero-stat"><div class="hero-stat-v">167</div><div class="hero-stat-k">专辑</div></div>
+            <div class="hero-stat"><div class="hero-stat-v">106.7</div><div class="hero-stat-k">小时</div></div>
+          </div>
+        </div>
+
+        <!-- 资料库列表 -->
+        <div class="card reveal" style="animation-delay:.06s">
+          <div class="card-title">资料库 <span class="badge">5</span></div>
+
+          <div class="lib-card">
+            <div class="lib-ico" style="background:linear-gradient(135deg,#6250F6,#8C7BFF)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7l-2-2H5a2 2 0 0 0-2 2z"/></svg>
+            </div>
+            <div class="lib-body">
+              <div class="lib-name">本地音乐库 <span class="status status-ok">已同步</span></div>
+              <div class="lib-sub">1,024 首 · 32 个文件夹 · 今天 09:14 扫描</div>
+            </div>
+            <div class="lib-act" title="打开" aria-label="打开">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <div class="lib-card">
+            <div class="lib-ico" style="background:linear-gradient(135deg,#1E9FE0,#55D6FF)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+            </div>
+            <div class="lib-body">
+              <div class="lib-name">网络音乐库 <span class="status status-on">在线</span></div>
+              <div class="lib-sub">260 首 · 2 小时前同步 · 已连接</div>
+            </div>
+            <div class="lib-act" title="打开" aria-label="打开">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <div class="lib-card">
+            <div class="lib-ico" style="background:linear-gradient(135deg,#FF5C8A,#FF7AAE)">
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21s-6.7-4.3-9.3-8.2C.7 9.8 2.1 6 5.6 6c2 0 3.3 1.1 4.4 2.6C11.1 7.1 12.4 6 14.4 6c3.5 0 4.9 3.8 2.9 6.8C18.7 16.7 12 21 12 21z"/></svg>
+            </div>
+            <div class="lib-body">
+              <div class="lib-name">我喜欢的</div>
+              <div class="lib-sub">86 首 · 智能歌单</div>
+            </div>
+            <div class="lib-act" title="打开" aria-label="打开">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <div class="lib-card">
+            <div class="lib-ico" style="background:linear-gradient(135deg,#7A6CF0,#A78BFA)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2"/></svg>
+            </div>
+            <div class="lib-body">
+              <div class="lib-name">最近播放</div>
+              <div class="lib-sub">153 首 · 自动记录</div>
+            </div>
+            <div class="lib-act" title="打开" aria-label="打开">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <div class="lib-card">
+            <div class="lib-ico" style="background:linear-gradient(135deg,#5A6280,#8D93B7)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            </div>
+            <div class="lib-body">
+              <div class="lib-name">回收站 <span class="status status-sync">7 天前清理</span></div>
+              <div class="lib-sub">12 首 · 可恢复</div>
+            </div>
+            <div class="lib-act" title="打开" aria-label="打开">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- 扫描管理 -->
+        <div class="card reveal" style="animation-delay:.1s">
+          <div class="card-title">扫描管理</div>
+
+          <div class="set-row">
+            <div class="set-ico" style="background:linear-gradient(135deg,#6250F6,#8C7BFF)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg>
+            </div>
+            <div class="set-body">
+              <div class="set-name">自动扫描</div>
+              <div class="set-sub">打开 App 时检查新音乐</div>
+            </div>
+            <div class="toggle on" id="autoToggle" role="switch" aria-checked="true" tabindex="0"></div>
+          </div>
+
+          <div class="set-row">
+            <div class="set-ico" style="background:linear-gradient(135deg,#1E9FE0,#55D6FF)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+            </div>
+            <div class="set-body">
+              <div class="set-name">上次扫描</div>
+              <div class="set-sub" id="lastScan">今天 09:14 · 耗时 18 秒 · 新增 24 首</div>
+            </div>
+          </div>
+
+          <div class="set-row">
+            <div class="set-ico" style="background:linear-gradient(135deg,#FF5C8A,#FF7AAE)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7l-2-2H5a2 2 0 0 0-2 2z"/></svg>
+            </div>
+            <div class="set-body">
+              <div class="set-name">排除文件夹</div>
+              <div class="set-sub">Android/、录音、*.tmp</div>
+            </div>
+            <div class="set-act">编辑</div>
+          </div>
+
+          <div class="scanbar" id="scanbar"><div class="scanfill" id="scanfill"></div></div>
+          <div class="scan-meta" id="scanmeta"><span id="scanPct">扫描中 0%</span><span id="scanCount">0 / 0</span></div>
+        </div>
+
+        <!-- 存储占用 -->
+        <div class="card reveal" style="animation-delay:.14s">
+          <div class="card-title">存储占用 <span class="spacer"></span><span class="badge">本机</span></div>
+          <div class="store-total">
+            <div class="store-size">5.5 GB</div>
+            <div class="store-cap">音乐文件总大小</div>
+          </div>
+          <div id="fmts"></div>
+          <div class="store-free">
+            <span>设备剩余空间</span>
+            <b id="freeSpace">48.3 GB</b>
+          </div>
+        </div>
+
+        <!-- 快速访问：最近添加 -->
+        <div class="card reveal" style="animation-delay:.18s">
+          <div class="card-title">最近添加 <span class="badge">本周</span></div>
+          <div class="hscroll" id="recent"></div>
+        </div>
+
+        <p class="hint reveal" style="animation-delay:.22s">音乐库总览 / 管理页原型 · 仅展示视觉，聚焦「有哪些库 + 扫描与存储」</p>
+      </section>
+
+      <!-- 二级页：资料库详情 -->
+      <section id="detailView" style="display:none">
+        <div class="np-bar">
+          <button class="icon-btn" id="detailBack" title="返回" aria-label="返回">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="np-title" id="detailTitle">资料库</div>
+          <button class="icon-btn" title="更多" aria-label="更多">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg>
+          </button>
+        </div>
+
+        <div class="hero reveal" style="animation-delay:0s">
+          <div class="hero-head">
+            <div class="hero-ico" id="detailIco" style="background:linear-gradient(135deg,#6250F6,#8C7BFF)">
+              <svg id="detailIcoSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7l-2-2H5a2 2 0 0 0-2 2z"/></svg>
+            </div>
+            <div>
+              <div class="hero-name" id="detailName">本地音乐库</div>
+              <div class="hero-sub" id="detailSub">32 个文件夹</div>
+            </div>
+            <span class="status status-ok" id="detailStatus">已同步</span>
+          </div>
+          <div class="hero-stats">
+            <div class="hero-stat"><div class="hero-stat-v" id="dSongs">0</div><div class="hero-stat-k">歌曲</div></div>
+            <div class="hero-stat"><div class="hero-stat-v" id="dAlbums">0</div><div class="hero-stat-k">专辑</div></div>
+            <div class="hero-stat"><div class="hero-stat-v" id="dArtists">0</div><div class="hero-stat-k">艺术家</div></div>
+            <div class="hero-stat"><div class="hero-stat-v" id="dHours">0</div><div class="hero-stat-k">小时</div></div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab active" data-tab="songs">歌曲</div>
+          <div class="tab" data-tab="albums">专辑</div>
+          <div class="tab" data-tab="artists">艺术家</div>
+        </div>
+
+        <div class="card reveal" style="animation-delay:.06s">
+          <div id="detailContent"></div>
+        </div>
+
+        <p class="hint reveal" style="animation-delay:.1s">资料库二级页原型 · 点击顶部返回回到总览</p>
+      </section>
+    </div>
+  </div>
+
+<script>
+  // —— 模拟数据（字段对齐 MusicDatabase 聚合 / 扫描服务）——
+  const total = {
+    songCount: 1284, artistCount: 213, albumCount: 167, totalHours: 106.7,
+    localCount: 1024, networkCount: 260, favoriteCount: 86, totalSizeGB: 5.5,
+    folderCount: 32, lastScanAdded: 24, freeSpaceGB: 48.3
+  };
+  const fmtStats = [
+    ["MP3", 3.2, "#8C7BFF"], ["FLAC", 1.8, "#55D6FF"],
+    ["M4A", 0.3, "#FF7AAE"], ["WAV/APE", 0.2, "#7AF0C8"]
+  ];
+  const recent = [
+    ["夜曲", "周杰伦"], ["起风了", "买辣椒也用券"], ["Lose Yourself", "Eminem"],
+    ["红玫瑰", "陈奕迅"], ["夜空中最亮的星", "逃跑计划"], ["晴天", "周杰伦"]
+  ];
+  const rpal = [["#8C7BFF","#55D6FF"],["#FF7AAE","#FFB36B"],["#55D6FF","#7AF0C8"],["#A78BFA","#F0ABFC"],["#5EEAD4","#60A5FA"],["#FF6C5C","#FFB36B"]];
+
+  // 存储格式条
+  const fEl = document.getElementById("fmts");
+  const fMax = Math.max(...fmtStats.map(f => f[1]));
+  fmtStats.forEach((f) => {
+    const row = document.createElement("div");
+    row.className = "fmt-row";
+    row.innerHTML = `
+      <span class="fmt-dot" style="background:${f[2]}"></span>
+      <span class="fmt-name">${f[0]}</span>
+      <span class="fmt-track"><span class="fmt-fill"></span></span>
+      <span class="fmt-val">${f[1]} GB</span>`;
+    fEl.appendChild(row);
+    const fill = row.querySelector(".fmt-fill");
+    requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = (f[1] / fMax * 100) + "%"; }));
+  });
+
+  // 最近添加横向卡片
+  const rEl = document.getElementById("recent");
+  recent.forEach((r, i) => {
+    const p = rpal[i % rpal.length];
+    const card = document.createElement("div");
+    card.className = "qcard";
+    card.innerHTML = `
+      <div class="qcover" style="background:linear-gradient(135deg, ${p[0]}, ${p[1]})">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+      </div>
+      <div class="qtitle">${r[0]}</div>
+      <div class="qsub">${r[1]}</div>`;
+    rEl.appendChild(card);
+  });
+
+  // 自动扫描开关
+  const autoToggle = document.getElementById("autoToggle");
+  function toggleAuto() {
+    const on = autoToggle.classList.toggle("on");
+    autoToggle.setAttribute("aria-checked", on ? "true" : "false");
+  }
+  autoToggle.addEventListener("click", toggleAuto);
+  autoToggle.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleAuto(); } });
+
+  // 立即扫描（模拟进度）
+  const scanBtn = document.getElementById("scanBtn");
+  const scanIco = document.getElementById("scanIco");
+  const scanTxt = document.getElementById("scanTxt");
+  const scanbar = document.getElementById("scanbar");
+  const scanfill = document.getElementById("scanfill");
+  const scanmeta = document.getElementById("scanmeta");
+  const scanPct = document.getElementById("scanPct");
+  const scanCount = document.getElementById("scanCount");
+  const lastScan = document.getElementById("lastScan");
+  let scanning = false;
+
+  scanBtn.addEventListener("click", () => {
+    if (scanning) return;
+    scanning = true;
+    scanBtn.disabled = true;
+    scanIco.classList.add("spin");
+    scanTxt.textContent = "扫描中…";
+    scanbar.classList.add("on");
+    scanmeta.classList.add("on");
+    const goal = total.localCount + total.networkCount;
+    let pct = 0;
+    const timer = setInterval(() => {
+      pct = Math.min(100, pct + Math.random() * 14 + 6);
+      scanfill.style.width = pct + "%";
+      scanPct.textContent = "扫描中 " + Math.floor(pct) + "%";
+      scanCount.textContent = Math.floor(goal * pct / 100) + " / " + goal;
+      if (pct >= 100) {
+        clearInterval(timer);
+        setTimeout(finishScan, 350);
+      }
+    }, 260);
+  });
+
+  function finishScan() {
+    scanIco.classList.remove("spin");
+    scanTxt.textContent = "立即扫描";
+    scanBtn.disabled = false;
+    scanbar.classList.remove("on");
+    scanmeta.classList.remove("on");
+    scanfill.style.width = "0";
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    lastScan.textContent = "今天 " + hh + ":" + mm + " · 耗时 21 秒 · 新增 " + total.lastScanAdded + " 首";
+    scanning = false;
+  }
+
+  // —— 资料库二级页 ——
+  const libs = {
+    local: {
+      name: "本地音乐库", sub: "32 个文件夹 · 今天 09:14 扫描", status: "已同步", statusClass: "status-ok",
+      ico: "linear-gradient(135deg,#6250F6,#8C7BFF)",
+      icoPath: "M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7l-2-2H5a2 2 0 0 0-2 2z",
+      stats: { songs: 1024, albums: 142, artists: 198, hours: 88.4 },
+      songs: [["夜曲","周杰伦","3:42"],["晴天","周杰伦","4:29"],["起风了","买辣椒也用券","5:11"],["红玫瑰","陈奕迅","4:02"],["夜空中最亮的星","逃跑计划","4:15"],["Lose Yourself","Eminem","5:26"]],
+      albums: [["范特西","周杰伦"],["七里香","周杰伦"],["U87","陈奕迅"],["The Eminem Show","Eminem"]],
+      artists: [["周杰伦",142],["陈奕迅",96],["薛之谦",74],["Taylor Swift",61],["李荣浩",53]]
+    },
+    net: {
+      name: "网络音乐库", sub: "已连接 · 2 小时前同步", status: "在线", statusClass: "status-on",
+      ico: "linear-gradient(135deg,#1E9FE0,#55D6FF)",
+      icoPath: "M5 12.55a11 11 0 0 1 14 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01",
+      stats: { songs: 260, albums: 25, artists: 15, hours: 18.3 },
+      songs: [["晴天","周杰伦","4:29"],["七里香","周杰伦","4:59"],["Love Story","Taylor Swift","3:55"],["Blank Space","Taylor Swift","3:51"],["孤勇者","陈奕迅","4:16"],["Viva La Vida","Coldplay","4:02"]],
+      albums: [["1989","Taylor Swift"],["Red","Taylor Swift"],["Parachutes","Coldplay"],["U87","陈奕迅"]],
+      artists: [["Taylor Swift",61],["周杰伦",142],["陈奕迅",96],["Coldplay",28],["薛之谦",74]]
+    },
+    fav: {
+      name: "我喜欢的", sub: "智能歌单 · 自动收集", status: "86 首", statusClass: "status-ok",
+      ico: "linear-gradient(135deg,#FF5C8A,#FF7AAE)",
+      icoPath: "M12 21s-6.7-4.3-9.3-8.2C.7 9.8 2.1 6 5.6 6c2 0 3.3 1.1 4.4 2.6C11.1 7.1 12.4 6 14.4 6c3.5 0 4.9 3.8 2.9 6.8C18.7 16.7 12 21 12 21z",
+      stats: { songs: 86, albums: 60, artists: 42, hours: 6.9 },
+      songs: [["夜曲","周杰伦","3:42"],["起风了","买辣椒也用券","5:11"],["红玫瑰","陈奕迅","4:02"],["晴天","周杰伦","4:29"],["孤勇者","陈奕迅","4:16"],["Love Story","Taylor Swift","3:55"]],
+      albums: [["范特西","周杰伦"],["U87","陈奕迅"],["1989","Taylor Swift"],["七里香","周杰伦"]],
+      artists: [["周杰伦",142],["陈奕迅",96],["Taylor Swift",61],["薛之谦",74],["李荣浩",53]]
+    },
+    recent: {
+      name: "最近播放", sub: "自动记录 · 近 30 天", status: "153 首", statusClass: "status-on",
+      ico: "linear-gradient(135deg,#7A6CF0,#A78BFA)",
+      icoPath: "M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2",
+      stats: { songs: 153, albums: 88, artists: 51, hours: 12.1 },
+      songs: [["夜曲","周杰伦","3 天前"],["起风了","买辣椒也用券","5 天前"],["Lose Yourself","Eminem","1 周前"],["红玫瑰","陈奕迅","1 周前"],["夜空中最亮的星","逃跑计划","2 周前"],["晴天","周杰伦","2 周前"]],
+      albums: [["范特西","周杰伦"],["U87","陈奕迅"],["The Eminem Show","Eminem"],["1989","Taylor Swift"]],
+      artists: [["周杰伦",142],["陈奕迅",96],["Eminem",40],["Taylor Swift",61],["逃跑计划",22]]
+    },
+    trash: {
+      name: "回收站", sub: "7 天前清理 · 可恢复", status: "12 首", statusClass: "status-sync",
+      ico: "linear-gradient(135deg,#5A6280,#8D93B7)",
+      icoPath: "M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6",
+      stats: { songs: 12, albums: 9, artists: 8, hours: 0.9 },
+      songs: [["未命名录音 01","未知艺术家","1 天前"],["demo_片段","未知艺术家","2 天前"],["旧版_夜曲","周杰伦","3 天前"],["电话录音","未知艺术家","5 天前"]],
+      albums: [["未知专辑","未知艺术家"],["未分类","未知艺术家"],["Demo","Unknown"]],
+      artists: [["未知艺术家",6],["周杰伦",1],["Unknown",3]]
+    }
+  };
+
+  const typeOrder = ["local", "net", "fav", "recent", "trash"];
+  let currentType = "local";
+  let currentTab = "songs";
+
+  document.querySelectorAll(".lib-card").forEach((card, idx) => {
+    card.style.cursor = "pointer";
+    card.addEventListener("click", () => openDetail(typeOrder[idx]));
+  });
+
+  function renderContent() {
+    const lib = libs[currentType];
+    const el = document.getElementById("detailContent");
+    if (currentTab === "songs") {
+      el.innerHTML = lib.songs.map((s, i) => {
+        let right;
+        if (currentType === "fav") right = `<div class="row-act like">♥</div>`;
+        else if (currentType === "trash") right = `<div class="row-act recover">恢复</div>`;
+        else right = `<div class="list-val">${s[2]}</div>`;
+        return `<div class="list-row">
+          <div class="list-cover" style="background:${grad(i, rpal)}">${initial(s[0])}</div>
+          <div class="list-meta"><div class="list-title">${s[0]}</div><div class="list-sub">${s[1]}</div></div>
+          ${right}</div>`;
+      }).join("");
+    } else if (currentTab === "albums") {
+      el.innerHTML = `<div class="grid">` + lib.albums.map((a, i) => {
+        const p = rpal[i % rpal.length];
+        return `<div class="gcard"><div class="gcover" style="background:linear-gradient(135deg, ${p[0]}, ${p[1]})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.4"/></svg>
+          </div><div class="gtitle">${a[0]}</div><div class="gsub">${a[1]}</div></div>`;
+      }).join("") + `</div>`;
+    } else {
+      el.innerHTML = lib.artists.map((a, i) => {
+        const pct = ((a[1] / lib.stats.songs) * 100).toFixed(1);
+        return `<div class="list-row">
+          <div class="list-ava" style="background:${grad(i, rpal)}">${initial(a[0])}</div>
+          <div class="list-meta"><div class="list-title">${a[0]}</div><div class="list-sub">${a[1]} 首歌曲</div></div>
+          <div class="list-val"><span class="accent">${pct}%</span></div></div>`;
+      }).join("");
+    }
+  }
+
+  function openDetail(type) {
+    currentType = type;
+    const lib = libs[type];
+    document.getElementById("detailName").textContent = lib.name;
+    document.getElementById("detailSub").textContent = lib.sub;
+    const st = document.getElementById("detailStatus");
+    st.textContent = lib.status;
+    st.className = "status " + lib.statusClass;
+    document.getElementById("detailIco").style.background = lib.ico;
+    document.getElementById("detailIcoSvg").setAttribute("d", lib.icoPath);
+    document.getElementById("dSongs").textContent = lib.stats.songs.toLocaleString();
+    document.getElementById("dAlbums").textContent = lib.stats.albums.toLocaleString();
+    document.getElementById("dArtists").textContent = lib.stats.artists.toLocaleString();
+    document.getElementById("dHours").textContent = lib.stats.hours;
+    currentTab = "songs";
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === "songs"));
+    renderContent();
+    document.getElementById("overviewView").style.display = "none";
+    document.getElementById("detailView").style.display = "block";
+    window.scrollTo(0, 0);
+  }
+
+  document.getElementById("detailBack").addEventListener("click", () => {
+    document.getElementById("detailView").style.display = "none";
+    document.getElementById("overviewView").style.display = "block";
+    window.scrollTo(0, 0);
+  });
+
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      currentTab = tab.dataset.tab;
+      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === tab));
+      renderContent();
+    });
+  });
+</script>
+</body>
+</html>

@@ -10,7 +10,19 @@ public class FFmpegService : IDisposable
     private string? _ffmpegPath;
     private bool _initAttempted;
     private bool _disposed;
-    private readonly SemaphoreSlim _transcodeLock = new(2, 2);
+    private readonly SemaphoreSlim _transcodeLock = new(4, 4);
+    /// <summary>转码 WAV 缓存目录（按源文件指纹命名，避免重复转码）</summary>
+    private static readonly string WavCacheDir = Path.Combine(Path.GetTempPath(), "cc_ff_cache");
+    /// <summary>缓存上限（200MB），超出时按最后访问时间清理最旧的文件</summary>
+    private const long MaxCacheBytes = 200L * 1024 * 1024;
+    /// <summary>缓存键与文件路径的内存映射，避免每次都遍历目录</summary>
+    private static readonly Dictionary<string, string> _cacheMap = new();
+    private static readonly object _cacheMapLock = new();
+
+    static FFmpegService()
+    {
+        try { Directory.CreateDirectory(WavCacheDir); } catch { }
+    }
 
     /// <summary>需要 FFmpeg 软解的扩展名集合</summary>
     private static readonly string[] TranscodeExtensions =
@@ -57,8 +69,15 @@ public class FFmpegService : IDisposable
             return null;
         if (_ffmpegPath == null || !File.Exists(inputPath)) return null;
 
-        var outputPath = Path.Combine(Path.GetTempPath(),
-            $"cc_ff_{Path.GetFileNameWithoutExtension(inputPath)}_{Guid.NewGuid():N}.wav");
+        // 缓存命中：基于源文件指纹（路径+长度+修改时间）查找已转码的 WAV
+        var cacheKey = BuildCacheKey(inputPath);
+        if (TryGetCachedWav(cacheKey, out var cachedPath))
+        {
+            Log.Debug("FFmpegService", $"[FFmpeg] 缓存命中: {Path.GetFileName(inputPath)}");
+            return cachedPath;
+        }
+
+        var outputPath = Path.Combine(WavCacheDir, $"cc_ff_{cacheKey}.wav");
 
         var args = $"-y -i \"{inputPath}\" -acodec pcm_s16le -ar 44100 -ac 2 \"{outputPath}\"";
         var result = await RunFFmpegAsync(args, ct);
@@ -68,7 +87,97 @@ public class FFmpegService : IDisposable
             SafeDelete(outputPath);
             return null;
         }
+
+        // 注册到缓存映射并尝试清理超限缓存
+        RegisterCachedWav(cacheKey, outputPath);
+        _ = Task.Run(TryTrimCacheAsync);
+
         return outputPath;
+    }
+
+    /// <summary>基于源文件路径+长度+修改时间生成稳定哈希，作为缓存键</summary>
+    private static string BuildCacheKey(string inputPath)
+    {
+        long size = 0, mtime = 0;
+        try
+        {
+            var fi = new FileInfo(inputPath);
+            if (fi.Exists)
+            {
+                size = fi.Length;
+                mtime = fi.LastWriteTimeUtc.Ticks;
+            }
+        }
+        catch { }
+        var raw = $"{inputPath}|{size}|{mtime}";
+        // 简单稳定的字符串哈希（避免 SHA256 在 Android 上额外开销）
+        ulong hash = 14695981039346656037UL;
+        unchecked
+        {
+            foreach (var c in raw)
+            {
+                hash ^= c;
+                hash *= 1099511628211UL;
+            }
+        }
+        return hash.ToString("x16");
+    }
+
+    /// <summary>尝试从缓存中获取 WAV 文件路径，校验文件存在性并更新访问时间</summary>
+    private static bool TryGetCachedWav(string cacheKey, out string? path)
+    {
+        path = null;
+        lock (_cacheMapLock)
+        {
+            if (!_cacheMap.TryGetValue(cacheKey, out var p) || p == null) return false;
+            if (!File.Exists(p))
+            {
+                _cacheMap.Remove(cacheKey);
+                return false;
+            }
+            path = p;
+        }
+        // 更新访问时间，LRU 清理依据
+        try { File.SetLastAccessTimeUtc(path, DateTime.UtcNow); } catch { }
+        return true;
+    }
+
+    /// <summary>注册已生成的 WAV 缓存</summary>
+    private static void RegisterCachedWav(string cacheKey, string path)
+    {
+        lock (_cacheMapLock) { _cacheMap[cacheKey] = path; }
+    }
+
+    /// <summary>缓存超限时按最后访问时间清理最旧的文件（后台执行）</summary>
+    private static void TryTrimCacheAsync()
+    {
+        try
+        {
+            var dir = new DirectoryInfo(WavCacheDir);
+            if (!dir.Exists) return;
+            var files = dir.GetFiles("*.wav");
+            var total = 0L;
+            foreach (var f in files) total += f.Length;
+            if (total <= MaxCacheBytes) return;
+
+            // 按访问时间升序，删除最旧的直至总量降到 80% 阈值
+            var target = (long)(MaxCacheBytes * 0.8);
+            foreach (var f in files.OrderBy(f => f.LastAccessTimeUtc))
+            {
+                if (total <= target) break;
+                try { total -= f.Length; f.Delete(); } catch { }
+            }
+
+            // 同步内存映射
+            lock (_cacheMapLock)
+            {
+                var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var f in dir.GetFiles("*.wav")) existing.Add(f.FullName);
+                var staleKeys = _cacheMap.Where(kv => !existing.Contains(kv.Value)).Select(kv => kv.Key).ToList();
+                foreach (var k in staleKeys) _cacheMap.Remove(k);
+            }
+        }
+        catch { }
     }
 
     // ═══════════════════════════════════════

@@ -3,7 +3,7 @@ using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>艺术家列表页面，展示本地音乐库中的所有艺术家。</summary>
+/// <summary>艺术家列表页面，展示本地音乐库中的所有艺术家，支持搜索、筛选、排序和网格/列表视图切换。</summary>
 public partial class ArtistsPage : ContentPage
 {
     private readonly ArtistsViewModel _viewModel;
@@ -29,19 +29,75 @@ public partial class ArtistsPage : ContentPage
         }
     }
 
-    /// <summary>在艺术家列表中选中某个艺术家时触发，清除选中状态并导航到该艺术家的详情页。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">选择变更事件参数。</param>
-    private async void OnArtistSelected(object? sender, SelectionChangedEventArgs e)
+    /// <summary>返回按钮点击事件</summary>
+    private async void OnBackTapped(object? sender, EventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is ArtistWithCount artist)
-        {
-            if (sender is CollectionView collectionView)
-            {
-                collectionView.SelectedItem = null;
-            }
+        await Shell.Current.GoToAsync("..");
+    }
 
+    /// <summary>搜索按钮点击事件</summary>
+    private void OnSearchTapped(object? sender, EventArgs e)
+    {
+        _viewModel.IsSearchVisible = !_viewModel.IsSearchVisible;
+        if (_viewModel.IsSearchVisible)
+        {
+            // Focus the search entry
+        }
+    }
+
+    /// <summary>筛选 chip 点击事件</summary>
+    private void OnFilterChipTapped(object? sender, EventArgs e)
+    {
+        if (sender is Border border && border.BindingContext is ArtistsViewModel.FilterChip chip)
+        {
+            _viewModel.SelectFilter(chip.FilterKey);
+        }
+    }
+
+    /// <summary>排序 chip 点击事件</summary>
+    private void OnSortChipTapped(object? sender, EventArgs e)
+    {
+        if (sender is Border border && border.BindingContext is ArtistsViewModel.SortOption option)
+        {
+            _viewModel.SelectSort(option.Key);
+        }
+    }
+
+    /// <summary>视图切换按钮点击事件</summary>
+    private void OnViewToggleTapped(object? sender, EventArgs e)
+    {
+        if (sender is Border border && border.Parent is Grid viewToggle)
+        {
+            var column = Grid.GetColumn(border);
+            _viewModel.IsGridView = column == 0;
+        }
+    }
+
+    /// <summary>字母 rail 点击事件</summary>
+    private void OnLetterTapped(object? sender, EventArgs e)
+    {
+        if (sender is Border border && border.BindingContext is ArtistsViewModel.LetterRailItem letter)
+        {
+            _viewModel.SelectLetter(letter.Key);
+        }
+    }
+
+    /// <summary>艺术家点击事件 - 导航到艺术家详情页</summary>
+    private async void OnArtistTapped(object? sender, EventArgs e)
+    {
+        if (sender is Border border && border.BindingContext is ArtistWithCount artist)
+        {
+            _viewModel.SelectedArtist = artist;
             await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name ?? string.Empty)}");
+        }
+    }
+
+    /// <summary>最常聆听卡片点击事件</summary>
+    private async void OnMostPlayedTapped(object? sender, EventArgs e)
+    {
+        if (_viewModel.MostPlayedArtist != null)
+        {
+            await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(_viewModel.MostPlayedArtist.Name ?? string.Empty)}");
         }
     }
 }

@@ -18,7 +18,7 @@ namespace CatClawMusic.Maui.Platforms.Android;
 public class CachingFileImageSourceService : IImageSourceService<FileImageSource>
 {
     /// <summary>无显式尺寸时（GetDrawableAsync）的默认解码上限</summary>
-    private const int DefaultTargetPx = 512;
+    private const int DefaultTargetPx = 1024;
 
     /// <summary>将 FileImageSource 加载到指定 ImageView，优先命中内存缓存。
     /// 缓存命中时同步返回（零开销），缓存未命中时将解码移至后台线程避免阻塞 UI。</summary>
@@ -68,7 +68,7 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
                 if (density <= 0) density = 1f;
                 var dpMax = Math.Max(imageView.Width, imageView.Height) / density;
                 var px = (int)(dpMax * density * 1.5f);
-                return Math.Clamp(px, 64, 512);
+                return Math.Clamp(px, 64, 1024);
             }
         }
         catch

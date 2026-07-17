@@ -745,6 +745,20 @@ public class MusicDatabase
         await _database.UpdateAsync(artist);
     }
 
+    /// <summary>批量更新艺术家（在单事务中执行所有 UPDATE）</summary>
+    /// <param name="artists">需要更新的艺术家集合</param>
+    public async Task UpdateArtistsBatchAsync(IEnumerable<Artist> artists)
+    {
+        var list = artists?.ToList();
+        if (list == null || list.Count == 0) return;
+        await EnsureMaintenanceCompletedAsync();
+        await _database.RunInTransactionAsync(tran =>
+        {
+            foreach (var a in list)
+                tran.Update(a);
+        });
+    }
+
     /// <summary>
     /// 获取所有专辑列表
     /// </summary>
@@ -1085,6 +1099,48 @@ public class MusicDatabase
     }
 
     /// <summary>
+    /// 批量增加播放次数：对每个 SongId 一次性 +count，避免 N 次串行 await。
+    /// 用于备份恢复等需要一次性恢复大量播放历史的场景。
+    /// </summary>
+    /// <param name="entries">[(songId, playCount), ...] 已合并后的计数</param>
+    public async Task RecordPlayBatchAsync(List<(int SongId, int PlayCount)> entries)
+    {
+        if (entries == null || entries.Count == 0) return;
+        await EnsureMaintenanceCompletedAsync();
+        await _playHistoryLock.WaitAsync();
+        try
+        {
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            await _database.RunInTransactionAsync(tran =>
+            {
+                foreach (var (songId, count) in entries)
+                {
+                    if (songId <= 0 || count <= 0) continue;
+                    // 直接 UPDATE，命中则 PlayCount += count；未命中则 INSERT
+                    var affected = tran.Execute(
+                        "UPDATE PlayHistory SET PlayCount = PlayCount + ?, PlayedAt = ? WHERE SongId = ?",
+                        count, now, songId);
+                    if (affected == 0)
+                    {
+                        tran.Execute(
+                            "INSERT INTO PlayHistory(SongId, PlayedAt, PlayCount) VALUES (?, ?, ?)",
+                            songId, now, count);
+                    }
+                }
+            });
+            await TrimHistoryAsync(200);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("MusicDatabase", $"[CatClaw] RecordPlayBatchAsync 失败: {ex.Message}");
+        }
+        finally
+        {
+            _playHistoryLock.Release();
+        }
+    }
+
+    /// <summary>
     /// 裁剪 PlaySession 表，仅保留最近指定数量的会话记录，避免无限增长。
     /// </summary>
     /// <param name="keepCount">保留记录数量上限</param>
@@ -1321,6 +1377,42 @@ public class MusicDatabase
     }
 
     /// <summary>
+    /// 批量收藏歌曲（仅 INSERT 不存在的，跳过已收藏的）。
+    /// 用于备份恢复等需要一次性收藏大量歌曲的场景。
+    /// </summary>
+    /// <param name="songIds">需要收藏的歌曲 ID 集合</param>
+    public async Task SetFavoritesBatchAsync(IEnumerable<int> songIds)
+    {
+        var ids = songIds?.Distinct().Where(id => id > 0).ToList();
+        if (ids == null || ids.Count == 0) return;
+        await EnsureMaintenanceCompletedAsync();
+
+        // 一次性查询已存在的收藏记录
+        const int chunkSize = 500;
+        var existingIds = new HashSet<int>();
+        for (int i = 0; i < ids.Count; i += chunkSize)
+        {
+            var chunk = ids.Skip(i).Take(chunkSize).ToList();
+            var existing = await _database.Table<Favorite>()
+                .Where(f => chunk.Contains(f.SongId))
+                .ToListAsync();
+            foreach (var f in existing) existingIds.Add(f.SongId);
+        }
+
+        var missing = ids.Where(id => !existingIds.Contains(id)).ToList();
+        if (missing.Count == 0) return;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await _database.RunInTransactionAsync(tran =>
+        {
+            foreach (var id in missing)
+                tran.Execute(
+                    "INSERT OR IGNORE INTO Favorites(SongId, AddedAt) VALUES (?, ?)",
+                    id, now);
+        });
+    }
+
+    /// <summary>
     /// 检查歌曲是否已收藏
     /// </summary>
     /// <param name="songId">歌曲 ID</param>
@@ -1517,6 +1609,58 @@ public class MusicDatabase
         if (playlist != null)
         {
             playlist.SongCount = maxPos + 1;
+            await UpdatePlaylistAsync(playlist);
+        }
+    }
+
+    /// <summary>
+    /// 批量添加歌曲到播放列表（跳过已存在的）。
+    /// 内部在单事务中顺序写入，Position 从当前 maxPos+1 递增。
+    /// </summary>
+    /// <param name="playlistId">目标播放列表 ID</param>
+    /// <param name="songIds">需要添加的歌曲 ID 集合</param>
+    public async Task AddSongsToPlaylistBatchAsync(int playlistId, IEnumerable<int> songIds)
+    {
+        var ids = songIds?.Distinct().Where(id => id > 0).ToList();
+        if (ids == null || ids.Count == 0) return;
+        await EnsureMaintenanceCompletedAsync();
+
+        // 一次性查询已存在的 (避免逐首 IsExisting 查询)
+        const int chunkSize = 500;
+        var existingIds = new HashSet<int>();
+        for (int i = 0; i < ids.Count; i += chunkSize)
+        {
+            var chunk = ids.Skip(i).Take(chunkSize).ToList();
+            var existing = await _database.Table<PlaylistSong>()
+                .Where(ps => ps.PlaylistId == playlistId && chunk.Contains(ps.SongId))
+                .ToListAsync();
+            foreach (var ps in existing) existingIds.Add(ps.SongId);
+        }
+
+        var missing = ids.Where(id => !existingIds.Contains(id)).ToList();
+        if (missing.Count == 0) return;
+
+        // 起始 Position = 当前数量（在事务外查询，事务内递增写入）
+        var startPos = await _database.Table<PlaylistSong>()
+            .Where(ps => ps.PlaylistId == playlistId)
+            .CountAsync();
+
+        await _database.RunInTransactionAsync(tran =>
+        {
+            int pos = startPos;
+            foreach (var songId in missing)
+            {
+                tran.Execute(
+                    "INSERT INTO PlaylistSong(PlaylistId, SongId, Position) VALUES (?, ?, ?)",
+                    playlistId, songId, pos);
+                pos++;
+            }
+        });
+
+        var playlist = await GetPlaylistByIdAsync(playlistId);
+        if (playlist != null)
+        {
+            playlist.SongCount = startPos + missing.Count;
             await UpdatePlaylistAsync(playlist);
         }
     }
@@ -2750,6 +2894,23 @@ public class MusicDatabase
     /// <summary>保存一条聊天记录到数据库</summary>
     public async Task<int> SaveChatMessageAsync(ChatMessageRecord record)
         => await _database.InsertAsync(record);
+
+    /// <summary>批量插入聊天记录（在单事务中顺序写入）</summary>
+    /// <param name="records">待插入的记录集合（Id 应为 0，由数据库自增分配）</param>
+    public async Task SaveChatMessagesBatchAsync(IEnumerable<ChatMessageRecord> records)
+    {
+        var list = records?.ToList();
+        if (list == null || list.Count == 0) return;
+        await EnsureMaintenanceCompletedAsync();
+        await _database.RunInTransactionAsync(tran =>
+        {
+            foreach (var r in list)
+            {
+                r.Id = 0; // 由数据库自增分配
+                tran.Insert(r);
+            }
+        });
+    }
 
     /// <summary>获取最近的聊天记录（按时间正序返回，即最旧的在前）</summary>
     /// <param name="limit">返回条数</param>

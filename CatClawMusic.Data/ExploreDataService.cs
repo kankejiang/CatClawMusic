@@ -253,8 +253,12 @@ public class ExploreDataService
     private async Task<List<ArtistWithCount>> GetAllArtistsWithCountInternalAsync()
     {
         await _db.EnsureInitializedAsync();
-        var artists = await _db.GetAllArtistsAsync();
-        var songs = await GetFilteredSongsAsync();
+        // 并行执行两个独立查询
+        var artistsTask = _db.GetAllArtistsAsync();
+        var songsTask = GetFilteredSongsAsync();
+        await Task.WhenAll(artistsTask, songsTask);
+        var artists = artistsTask.Result;
+        var songs = songsTask.Result;
 
         // 通过 SongArtists 多对多表统计每首歌的艺术家，确保
         // 合作歌曲（如 "周杰伦 / 林俊杰"）的两位艺术家都能正确计数。
@@ -363,9 +367,14 @@ public class ExploreDataService
     private async Task<List<AlbumWithCount>> GetAllAlbumsWithCountInternalAsync()
     {
         await _db.EnsureInitializedAsync();
-        var albums = await _db.GetAllAlbumsAsync();
-        var songs = await GetFilteredSongsAsync();
-        var artists = await _db.GetAllArtistsAsync();
+        // 并行执行三个独立查询
+        var albumsTask = _db.GetAllAlbumsAsync();
+        var songsTask = GetFilteredSongsAsync();
+        var artistsTask = _db.GetAllArtistsAsync();
+        await Task.WhenAll(albumsTask, songsTask, artistsTask);
+        var albums = albumsTask.Result;
+        var songs = songsTask.Result;
+        var artists = artistsTask.Result;
         var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
 
         var albumSongCount = songs.GroupBy(s => s.AlbumId)
@@ -389,7 +398,8 @@ public class ExploreDataService
                     CoverArtPath = a.CoverArtPath,
                     Cover = a.Cover,
                     ArtistName = a.ArtistId > 0 ? artistDict.GetValueOrDefault(a.ArtistId, "未知艺术家") : "未知艺术家",
-                    SongCount = albumSongCount.GetValueOrDefault(a.Id, 0)
+                    SongCount = albumSongCount.GetValueOrDefault(a.Id, 0),
+                    Year = a.Year ?? a.ReleaseYear
                 };
                 if (albumSampleCover.TryGetValue(a.Id, out var sample))
                 {
@@ -545,6 +555,8 @@ public class AlbumWithCount
     public string ArtistName { get; set; } = "";
     /// <summary>该专辑的歌曲总数</summary>
     public int SongCount { get; set; }
+    /// <summary>发行年份</summary>
+    public int? Year { get; set; }
     /// <summary>从该专辑第一首歌曲获取的封面路径，用于列表页快速显示</summary>
     public string? SampleCoverPath { get; set; }
     /// <summary>从该专辑第一首歌曲获取的歌曲 ID，用于解析封面缓存</summary>

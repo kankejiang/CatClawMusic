@@ -37,7 +37,7 @@
                 <TapGestureRecognizer Tapped="OnPageTapped" />
             </Grid.GestureRecognizers>
 
-            <!-- Row 0: 顶部导航栏（左上角收起按钮 + 右上角窗口控件） -->
+            <!-- Row 0: 顶部导航栏（左上角收起按钮 + 歌曲信息 + 右上角窗口控件） -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" HeightRequest="40">
                 <!-- 左上角收起按钮（向下箭头，点击收起播放页；Windows端同时承担返回功能） -->
                 <Border Grid.Column="0"
@@ -54,6 +54,28 @@
                            WidthRequest="22" HeightRequest="22"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
+
+                <!-- 歌曲信息（收起按钮右侧） -->
+                <Grid Grid.Column="1" ColumnDefinitions="Auto" VerticalOptions="Center">
+                    <Grid Grid.Column="0" RowDefinitions="Auto,Auto" RowSpacing="0">
+                        <Label Grid.Row="0"
+                               Text="{Binding Title}"
+                               FontSize="14"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="White"
+                               MaxLines="1"
+                               LineBreakMode="TailTruncation"
+                               HorizontalTextAlignment="Start" />
+                        <Label Grid.Row="1"
+                               Text="{Binding Artist}"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               Opacity="0.9"
+                               MaxLines="1"
+                               LineBreakMode="TailTruncation"
+                               HorizontalTextAlignment="Start" />
+                    </Grid>
+                </Grid>
 
                 <!-- 右上角窗口控制按钮（仅 Windows 端显示） -->
                 <!-- 最小化按钮 -->
@@ -131,19 +153,18 @@
                   ColumnDefinitions="1*,Auto,1*"
                   Padding="0,8,0,4">
 
-                <!-- 封面 + 歌曲信息（位置由代码后台根据屏幕方向动态设置） -->
+                <!-- 封面（位置由代码后台根据屏幕方向动态设置） -->
                 <Grid Grid.Row="0"
                       Grid.Column="0"
                       Grid.RowSpan="1"
                       Grid.ColumnSpan="3"
                       x:Name="LeftHalf"
-                      RowDefinitions="Auto,Auto"
-                      RowSpacing="16"
-                      HorizontalOptions="Center"
-                      VerticalOptions="Center"
-                      Padding="16,0">
-                    <!-- 封面容器：辉光投影层与封面本体层重叠，辉光在下、封面在上 -->
-                    <Grid Grid.Row="0" HorizontalOptions="Center">
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill"
+                      Padding="0,0">
+                    <!-- 封面容器：辉光投影层与封面本体层重叠，居中显示，整体下移 -->
+                    <Grid HorizontalOptions="Center" VerticalOptions="Center"
+                          TranslationY="16">
                         <!-- 封面辉光（模糊投影）- 底层 -->
                         <Border x:Name="CoverGlow"
                                 StrokeThickness="0"
@@ -171,34 +192,6 @@
                                    WidthRequest="286"
                                    HeightRequest="286" />
                         </Border>
-                    </Grid>
-                    <!-- 歌曲信息（居中） -->
-                    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="6"
-                          HorizontalOptions="Center">
-                        <Label Grid.Row="0"
-                               Text="{Binding Title}"
-                               FontSize="22"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="White"
-                               MaxLines="2"
-                               LineBreakMode="TailTruncation"
-                               HorizontalTextAlignment="Center" />
-                        <Label Grid.Row="1"
-                               Text="{Binding Artist}"
-                               FontSize="15"
-                               TextColor="{DynamicResource TextSecondaryColor}"
-                               Opacity="0.9"
-                               MaxLines="1"
-                               LineBreakMode="TailTruncation"
-                               HorizontalTextAlignment="Center" />
-                        <Label Grid.Row="2"
-                               Text="{Binding Album}"
-                               FontSize="13"
-                               TextColor="{DynamicResource TextHintColor}"
-                               Opacity="0.8"
-                               MaxLines="1"
-                               LineBreakMode="TailTruncation"
-                               HorizontalTextAlignment="Center" />
                     </Grid>
                 </Grid>
 
@@ -228,7 +221,7 @@
                             </CollectionView.ItemsLayout>
                             <CollectionView.Header>
                                 <VerticalStackLayout x:Name="LyricStack"
-                                                     Padding="0,40,0,40"
+                                                     Padding="0,10,0,10"
                                                      Spacing="8"
                                                      HorizontalOptions="Center" />
                             </CollectionView.Header>
@@ -252,8 +245,8 @@
                 </Grid>
             </Grid>
 
-            <!-- Row 2: 收藏按钮 + 进度条 + 播放控件 -->
-            <Grid Grid.Row="2" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" Margin="0,4,0,0">
+            <!-- Row 2: 收藏按钮 + 进度条 + 播放控件 + 歌曲详情 -->
+            <Grid Grid.Row="2" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6" Margin="0,4,0,0">
                 <!-- 收藏按钮（进度条右上方） -->
                 <ImageButton Grid.Row="0"
                         WidthRequest="36" HeightRequest="36"
@@ -422,6 +415,36 @@
                             Clicked="OnOpenLyricsClicked"
                             HorizontalOptions="End" VerticalOptions="Center" />
                 </Grid>
+
+                <!-- ═══ 歌曲详情入口（竖屏） ═══ -->
+                <ImageButton Grid.Row="3"
+                             x:Name="SongDetailEntryPhone"
+                             IsVisible="True"
+                             WidthRequest="40" HeightRequest="40"
+                             CornerRadius="20" Padding="8"
+                             Aspect="AspectFit"
+                             BackgroundColor="Transparent"
+                             Clicked="OnSongDetailTapped"
+                             HorizontalOptions="Center" VerticalOptions="Center">
+                    <ImageButton.Source>
+                        <AppThemeBinding Light="ic_info_light" Dark="ic_info" />
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <!-- ═══ 歌曲详情入口（横屏） ═══ -->
+                <ImageButton Grid.Row="3"
+                             x:Name="SongDetailEntryDesktop"
+                             IsVisible="False"
+                             WidthRequest="40" HeightRequest="40"
+                             CornerRadius="20" Padding="8"
+                             Aspect="AspectFit"
+                             BackgroundColor="Transparent"
+                             Clicked="OnSongDetailTapped"
+                             HorizontalOptions="Center" VerticalOptions="Center">
+                    <ImageButton.Source>
+                        <AppThemeBinding Light="ic_info_light" Dark="ic_info" />
+                    </ImageButton.Source>
+                </ImageButton>
             </Grid>
         </Grid>
 

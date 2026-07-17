@@ -14,8 +14,8 @@ public static class CoverHelper
     private static readonly string _coverCacheDir;
     private static readonly ConcurrentDictionary<int, byte> _resolvedSongIds = new();
 
-    /// <summary>下采样后的封面最大边长（像素）。UI 最大显示 132x132，2x 余量足够覆盖。</summary>
-    private const int MaxCoverSize = 300;
+    /// <summary>下采样后的封面最大边长（像素）。播放页大图需高分辨率，1024 覆盖大多数场景。</summary>
+    private const int MaxCoverSize = 1024;
 
     static CoverHelper()
     {
@@ -29,39 +29,52 @@ public static class CoverHelper
     /// <summary>
     /// 批量解析歌曲封面：先查磁盘缓存，未命中则提取嵌入封面。
     /// 直接修改 song.CoverArtPath 为缓存文件路径。
+    /// 使用并行处理（最多 8 线程）以充分利用八核 CPU。
     /// </summary>
     /// <param name="songs">待解析封面的歌曲集合</param>
     public static void BatchResolveCovers(IEnumerable<Song> songs)
     {
-        foreach (var song in songs)
+        var songList = songs as IList<Song> ?? songs.ToList();
+        if (songList.Count == 0) return;
+
+        // 单首或少量歌曲直接串行，避免线程调度开销
+        if (songList.Count <= 2)
         {
-            if (song.Id <= 0) continue;
-
-            // 跳过已解析过的（同一会话内）
-            if (_resolvedSongIds.ContainsKey(song.Id))
-            {
-                // 确保路径还在
-                var cachedPath = GetCachedPath(song.Id);
-                if (File.Exists(cachedPath))
-                {
-                    song.CoverArtPath = cachedPath;
-                }
-                continue;
-            }
-
-            var path = ResolveSingleCover(song);
-            if (path != null)
-            {
-                song.CoverArtPath = path;
-            }
-
-            _resolvedSongIds.TryAdd(song.Id, 0);
+            foreach (var song in songList)
+                ResolveOneInline(song);
+            return;
         }
+
+        // 并行度：上限 8，避免在核心数较少的设备上过度调度
+        var degree = Math.Min(8, Math.Max(2, Environment.ProcessorCount));
+        var options = new ParallelOptions { MaxDegreeOfParallelism = degree };
+        Parallel.ForEach(songList, options, ResolveOneInline);
+    }
+
+    /// <summary>单首歌曲封面解析的内联方法（线程安全，无共享状态）</summary>
+    private static void ResolveOneInline(Song song)
+    {
+        if (song.Id <= 0) return;
+
+        // 跳过已解析过的（同一会话内）
+        if (_resolvedSongIds.ContainsKey(song.Id))
+        {
+            var cachedPath = GetCachedPath(song.Id);
+            if (File.Exists(cachedPath))
+                song.CoverArtPath = cachedPath;
+            return;
+        }
+
+        var path = ResolveSingleCover(song);
+        if (path != null)
+            song.CoverArtPath = path;
+
+        _resolvedSongIds.TryAdd(song.Id, 0);
     }
 
     /// <summary>
     /// 解析单首歌曲的封面路径。
-    /// 优先检查磁盘缓存，然后尝试从音频文件提取嵌入封面。
+    /// 优先检查磁盘缓存（已下采样），然后尝试从音频文件提取嵌入封面。
     /// 提取后会下采样到 MaxCoverSize 以减少 UI 解码开销。
     /// </summary>
     /// <param name="song">待解析封面的歌曲对象</param>
@@ -133,7 +146,7 @@ public static class CoverHelper
     /// <param name="sourcePath">原始图片路径</param>
     /// <param name="destPath">目标缓存路径</param>
     /// <returns>下采样成功返回 true；失败返回 false</returns>
-    private static bool DownsampleToCache(string sourcePath, string destPath)
+    public static bool DownsampleToCache(string sourcePath, string destPath)
     {
         try
         {
@@ -204,39 +217,11 @@ public static class CoverHelper
     }
 
     /// <summary>
-    /// 迁移旧版未下采样的缓存封面：检查文件大小，超过阈值的重新下采样。
-    /// 应在应用启动时调用一次（后台线程），避免阻塞 UI。
+    /// 迁移旧版缓存封面：不做任何操作，旧缓存继续使用。
+    /// 新提取的封面自动使用新的 MaxCoverSize（1024px）。
     /// </summary>
     public static Task MigrateLegacyCoversAsync()
     {
-        return Task.Run(() =>
-        {
-            try
-            {
-                if (!Directory.Exists(_coverCacheDir)) return;
-                // 50KB 以上认为可能是未下采样的原图（300x300 JPEG 约 10-30KB）
-                const long threshold = 50 * 1024;
-                foreach (var file in Directory.EnumerateFiles(_coverCacheDir, "*.jpg"))
-                {
-                    try
-                    {
-                        var info = new FileInfo(file);
-                        if (info.Length < threshold) continue;
-                        // 原地覆盖下采样
-                        var tempPath = file + ".tmp";
-                        if (DownsampleToCache(file, tempPath))
-                        {
-                            File.Copy(tempPath, file, overwrite: true);
-                            File.Delete(tempPath);
-                        }
-                    }
-                    catch { /* 忽略单个文件失败 */ }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Debug("CoverHelper", $"[CoverHelper] Migrate legacy covers failed: {ex.Message}");
-            }
-        });
+        return Task.CompletedTask;
     }
 }

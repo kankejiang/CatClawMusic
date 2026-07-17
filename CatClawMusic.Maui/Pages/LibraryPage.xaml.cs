@@ -5,11 +5,11 @@ using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Shapes;
 using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>音乐库页面，展示本地与网络音乐库中的歌曲列表，支持播放、排序、清除等操作。</summary>
 public partial class LibraryPage : ContentPage
 {
     private readonly MusicDatabase _db;
@@ -21,11 +21,6 @@ public partial class LibraryPage : ContentPage
     private readonly ExploreDataService? _exploreDataService;
     private bool _isFirstAppearing = true;
 
-    /// <summary>初始化 <see cref="LibraryPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
-    /// <param name="db">音乐数据库访问对象。</param>
-    /// <param name="queue">播放队列。</param>
-    /// <param name="vm">音乐库页面对应的视图模型。</param>
-    /// <param name="sp">服务提供程序，用于获取音频播放与网络音乐服务。</param>
     public LibraryPage(MusicDatabase db, PlayQueue queue, LibraryViewModel vm, IServiceProvider sp)
     {
         InitializeComponent();
@@ -38,14 +33,352 @@ public partial class LibraryPage : ContentPage
         _exploreDataService = sp.GetService<ExploreDataService>();
         BindingContext = _vm;
 
-        // 订阅发现页数据源变更事件：失效缓存并重新加载探索数据
         _vm.DiscoverSourceChanged += OnDiscoverSourceChanged;
-
-        // 订阅扫描完成事件：扫描结束后自动刷新本地音乐库
         Services.LocalScanService.ScanCompleted += OnScanCompleted;
+
+        _vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
-    /// <summary>扫描完成回调：如果在本地音乐 Tab 则自动刷新列表</summary>
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(LibraryViewModel.LibraryCards))
+            RenderLibraryCards();
+        else if (e.PropertyName == nameof(LibraryViewModel.FormatSizeItems))
+            RenderFormatBars();
+        else if (e.PropertyName == nameof(LibraryViewModel.RecentAddItems))
+            RenderRecentAdd();
+    }
+
+    private void RenderLibraryCards()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            LibraryCardsContainer.Children.Clear();
+            foreach (var card in _vm.LibraryCards)
+            {
+                LibraryCardsContainer.Children.Add(CreateLibraryCard(card));
+            }
+        });
+    }
+
+    private View CreateLibraryCard(LibraryCardItem item)
+    {
+        var (statusBg, statusColor) = item.StatusType switch
+        {
+            "ok" => (Color.FromArgb("#1E7AF0C8"), Color.FromArgb("#7AF0C8")),
+            "on" => (Color.FromArgb("#1E55D6FF"), Color.FromArgb("#55D6FF")),
+            "sync" => (Color.FromArgb("#1EFFB36B"), Color.FromArgb("#FFB36B")),
+            "off" => (Color.FromArgb("#1E8D93B7"), Color.FromArgb("#8D93B7")),
+            _ => (Color.FromArgb("#1E7AF0C8"), Color.FromArgb("#7AF0C8"))
+        };
+
+        var (iconColor1, iconColor2) = item.IconBackground switch
+        {
+            var s when s.Contains("6250F6") => (Color.FromArgb("#6250F6"), Color.FromArgb("#8C7BFF")),
+            var s when s.Contains("1E9FE0") => (Color.FromArgb("#1E9FE0"), Color.FromArgb("#55D6FF")),
+            var s when s.Contains("FF5C8A") => (Color.FromArgb("#FF5C8A"), Color.FromArgb("#FF7AAE")),
+            var s when s.Contains("7A6CF0") => (Color.FromArgb("#7A6CF0"), Color.FromArgb("#A78BFA")),
+            var s when s.Contains("5A6280") => (Color.FromArgb("#5A6280"), Color.FromArgb("#8D93B7")),
+            _ => (Color.FromArgb("#6250F6"), Color.FromArgb("#8C7BFF"))
+        };
+
+        var cardBorder = new Border
+        {
+            Padding = new Thickness(14),
+            StrokeShape = new RoundRectangle { CornerRadius = 18 },
+            Stroke = (Color)Application.Current!.Resources["GlassStrokeColor"],
+            BackgroundColor = Color.FromArgb("#0AFFFFFF")
+        };
+
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new() { Width = GridLength.Auto },
+                new() { Width = GridLength.Star },
+                new() { Width = GridLength.Auto }
+            },
+            ColumnSpacing = 13
+        };
+
+        var iconBorder = new Border
+        {
+            WidthRequest = 50,
+            HeightRequest = 50,
+            StrokeShape = new RoundRectangle { CornerRadius = 15 },
+            StrokeThickness = 0,
+            Background = new LinearGradientBrush
+            {
+                EndPoint = new Point(1, 1),
+                GradientStops = new GradientStopCollection
+                {
+                    new(iconColor1, 0),
+                    new(iconColor2, 1)
+                }
+            }
+        };
+        iconBorder.Content = new Image
+        {
+            Source = item.IconSource,
+            WidthRequest = 25,
+            HeightRequest = 25,
+            Aspect = Aspect.AspectFit,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.Center
+        };
+        grid.Add(iconBorder, 0);
+
+        var bodyStack = new VerticalStackLayout { VerticalOptions = LayoutOptions.Center };
+        var nameRow = new HorizontalStackLayout { Spacing = 8 };
+        nameRow.Add(new Label
+        {
+            Text = item.Name,
+            FontSize = 15,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"]
+        });
+
+        if (!string.IsNullOrEmpty(item.StatusText))
+        {
+            var statusBadge = new Border
+            {
+                StrokeShape = new RoundRectangle { CornerRadius = 99 },
+                StrokeThickness = 1,
+                Stroke = statusBg,
+                BackgroundColor = statusBg,
+                Padding = new Thickness(8, 2),
+                VerticalOptions = LayoutOptions.Center
+            };
+            statusBadge.Content = new Label
+            {
+                Text = item.StatusText,
+                FontSize = 10.5,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = statusColor
+            };
+            nameRow.Add(statusBadge);
+        }
+        bodyStack.Add(nameRow);
+
+        bodyStack.Add(new Label
+        {
+            Text = item.Subtitle,
+            FontSize = 12,
+            TextColor = (Color)Application.Current!.Resources["TextHintColor"],
+            Margin = new Thickness(0, 3, 0, 0),
+            LineBreakMode = LineBreakMode.TailTruncation
+        });
+        grid.Add(bodyStack, 1);
+
+        var arrowBorder = new Border
+        {
+            WidthRequest = 34,
+            HeightRequest = 34,
+            StrokeShape = new RoundRectangle { CornerRadius = 11 },
+            StrokeThickness = 1,
+            Stroke = (Color)Application.Current!.Resources["GlassStrokeColor"],
+            BackgroundColor = Color.FromArgb("#12FFFFFF"),
+            VerticalOptions = LayoutOptions.Center
+        };
+        arrowBorder.Content = new Image
+        {
+            Source = "ic_arrow_forward.svg",
+            WidthRequest = 16,
+            HeightRequest = 16,
+            Aspect = Aspect.AspectFit,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.Center
+        };
+        grid.Add(arrowBorder, 2);
+
+        var target = item.Target;
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += (s, e) => OnLibraryCardTapped(target);
+        cardBorder.GestureRecognizers.Add(tap);
+
+        cardBorder.Content = grid;
+        return cardBorder;
+    }
+
+    private void RenderFormatBars()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            FormatBarsContainer.Children.Clear();
+            foreach (var fmt in _vm.FormatSizeItems)
+            {
+                FormatBarsContainer.Children.Add(CreateFormatBar(fmt));
+            }
+        });
+    }
+
+    private View CreateFormatBar(FormatSizeItem item)
+    {
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new() { Width = GridLength.Auto },
+                new() { Width = new GridLength(64) },
+                new() { Width = GridLength.Star },
+                new() { Width = new GridLength(70) }
+            },
+            ColumnSpacing = 10
+        };
+
+        grid.Add(new Border
+        {
+            WidthRequest = 9,
+            HeightRequest = 9,
+            StrokeShape = new RoundRectangle { CornerRadius = 3 },
+            StrokeThickness = 0,
+            BackgroundColor = item.Color,
+            VerticalOptions = LayoutOptions.Center
+        }, 0);
+
+        grid.Add(new Label
+        {
+            Text = item.Name,
+            FontSize = 12.5,
+            TextColor = (Color)Application.Current!.Resources["TextSecondaryColor"],
+            VerticalOptions = LayoutOptions.Center,
+            LineBreakMode = LineBreakMode.TailTruncation
+        }, 1);
+
+        var trackBorder = new Border
+        {
+            HeightRequest = 8,
+            StrokeShape = new RoundRectangle { CornerRadius = 99 },
+            StrokeThickness = 0,
+            BackgroundColor = Color.FromArgb("#802A3870"),
+            VerticalOptions = LayoutOptions.Center,
+            Padding = new Thickness(0)
+        };
+        var fillWidth = Math.Max(0, Math.Min(1, item.Progress));
+        var fillBorder = new Border
+        {
+            HeightRequest = 8,
+            StrokeShape = new RoundRectangle { CornerRadius = 99 },
+            StrokeThickness = 0,
+            HorizontalOptions = LayoutOptions.Start,
+            VerticalOptions = LayoutOptions.Start,
+            WidthRequest = Math.Max(4, fillWidth * 280),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0),
+                GradientStops = new GradientStopCollection
+                {
+                    new(Color.FromArgb("#8C7BFF"), 0),
+                    new(Color.FromArgb("#55D6FF"), 1)
+                }
+            }
+        };
+        trackBorder.Content = fillBorder;
+        grid.Add(trackBorder, 2);
+
+        grid.Add(new Label
+        {
+            Text = item.SizeText,
+            FontSize = 12,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalTextAlignment = TextAlignment.End
+        }, 3);
+
+        return grid;
+    }
+
+    private void RenderRecentAdd()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            RecentAddContainer.Children.Clear();
+            foreach (var item in _vm.RecentAddItems)
+            {
+                RecentAddContainer.Children.Add(CreateRecentCard(item));
+            }
+        });
+    }
+
+    private View CreateRecentCard(RecentAddItem item)
+    {
+        var stack = new VerticalStackLayout { WidthRequest = 132 };
+
+        var cover = new Border
+        {
+            WidthRequest = 132,
+            HeightRequest = 132,
+            StrokeShape = new RoundRectangle { CornerRadius = 16 },
+            StrokeThickness = 1,
+            Stroke = Color.FromArgb("#14FFFFFF"),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 1),
+                GradientStops = new GradientStopCollection
+                {
+                    new(item.CoverColor1, 0),
+                    new(item.CoverColor2, 1)
+                }
+            }
+        };
+        cover.Content = new Image
+        {
+            Source = "ic_music_note.svg",
+            WidthRequest = 34,
+            HeightRequest = 34,
+            Aspect = Aspect.AspectFit,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.Center
+        };
+        stack.Add(cover);
+
+        stack.Add(new Label
+        {
+            Text = item.Title,
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
+            Margin = new Thickness(0, 8, 0, 0),
+            LineBreakMode = LineBreakMode.TailTruncation
+        });
+
+        stack.Add(new Label
+        {
+            Text = item.Artist,
+            FontSize = 11.5,
+            TextColor = (Color)Application.Current!.Resources["TextHintColor"],
+            Margin = new Thickness(0, 2, 0, 0),
+            LineBreakMode = LineBreakMode.TailTruncation
+        });
+
+        return stack;
+    }
+
+    private void OnLibraryCardTapped(string target)
+    {
+        switch (target)
+        {
+            case "local":
+                _vm.SwitchTab("Local");
+                break;
+            case "network":
+                if (_vm.HasNetworkProtocols)
+                    _vm.SwitchTab("Network");
+                break;
+            case "favorite":
+                _ = Shell.Current.GoToAsync("library/favorites");
+                break;
+            case "recent":
+                _ = Shell.Current.GoToAsync("library/recent");
+                break;
+            case "trash":
+                break;
+        }
+    }
+
     private void OnScanCompleted(object? sender, int importedCount)
     {
         _ = MainThread.InvokeOnMainThreadAsync(async () =>
@@ -56,9 +389,8 @@ public partial class LibraryPage : ContentPage
                 {
                     await _vm.LoadLocalAsync();
                 }
-                // 刷新协议列表和本地音乐存在状态
                 await _vm.RefreshProtocolsAsync();
-                // 同时刷新发现页数据
+                await _vm.LoadOverviewDataAsync();
                 if (_searchVm != null)
                 {
                     await _searchVm.ReloadAfterScanAsync();
@@ -71,13 +403,9 @@ public partial class LibraryPage : ContentPage
         });
     }
 
-    /// <summary>发现页数据源变更回调：失效每日推荐缓存并触发 SearchViewModel 重新加载</summary>
     private void OnDiscoverSourceChanged()
     {
-        // 失效每日推荐缓存（艺术家/专辑/歌曲），使下次加载按新筛选重新查询
         _exploreDataService?.InvalidateDailyRecommendCache();
-
-        // 触发 SearchViewModel 重新加载探索数据
         if (_searchVm != null)
         {
             _ = MainThread.InvokeOnMainThreadAsync(async () =>
@@ -94,15 +422,14 @@ public partial class LibraryPage : ContentPage
         }
     }
 
-    /// <summary>页面卸载时取消事件订阅，避免内存泄漏</summary>
     protected override void OnHandlerChanging(HandlerChangingEventArgs args)
     {
         base.OnHandlerChanging(args);
         _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
         Services.LocalScanService.ScanCompleted -= OnScanCompleted;
+        _vm.PropertyChanged -= OnViewModelPropertyChanged;
     }
 
-    /// <summary>当页面显示在屏幕上时触发，首次出现时加载本地音乐库数据。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -112,11 +439,10 @@ public partial class LibraryPage : ContentPage
             _isFirstAppearing = false;
             await _vm.RefreshProtocolsAsync();
             await LoadInitialDataAsync();
+            await _vm.LoadOverviewDataAsync();
         }
         else if (Services.LocalScanService.NeedsReload)
         {
-            // 扫描后切回音乐库页面：刷新本地音乐列表与协议
-            // 不消费 NeedsReload 标记，让发现页 OnAppearing 也能各自刷新
             try
             {
                 if (_vm.CurrentTab == "Local")
@@ -124,16 +450,15 @@ public partial class LibraryPage : ContentPage
                     await _vm.LoadLocalAsync();
                 }
                 await _vm.RefreshProtocolsAsync();
+                await _vm.LoadOverviewDataAsync();
             }
             catch (Exception ex)
             {
                 Log.Debug("LibraryPage.xaml", $"[LibraryPage] 扫描后刷新本地音乐失败: {ex.Message}");
             }
         }
-        // 其他情况非首次切回：不重新加载数据，避免切页时全量重建 CollectionView 导致大量 GC
     }
 
-    /// <summary>首次加载时根据当前 Tab 加载对应数据</summary>
     private async Task LoadInitialDataAsync()
     {
         try
@@ -149,20 +474,6 @@ public partial class LibraryPage : ContentPage
         }
     }
 
-    /// <summary>在歌曲列表中选中某首歌曲时触发，清除选中状态并播放该歌曲。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">选择变更事件参数。</param>
-    private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is Song song)
-        {
-            // Clear selection
-            SongList.SelectedItem = null;
-            
-            await PlaySongAsync(song);
-        }
-    }
-
     private async Task PlaySongAsync(Song song)
     {
         try
@@ -174,8 +485,6 @@ public partial class LibraryPage : ContentPage
             {
                 await _audioPlayer.PlayAsync(song.FilePath);
             }
-
-            // 不再跳转播放页，迷你播放器会自动弹出
         }
         catch (Exception ex)
         {
@@ -183,233 +492,7 @@ public partial class LibraryPage : ContentPage
         }
     }
 
-    /// <summary>当视图模型触发歌曲点击事件时触发，根据特殊标识执行排序或清除操作。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="song">被点击的歌曲，可能携带特殊操作标识。</param>
-    private void OnViewModelSongClicked(object? sender, Song song)
-    {
-        // Handle special actions from ViewModel
-        if (song.Title == "SORT_REQUEST")
-        {
-            ShowSortDialog();
-        }
-        else if (song.Title == "CLEAR_REQUEST")
-        {
-            ConfirmClearAsync();
-        }
-    }
-
-    /// <summary>当视图模型触发歌曲长按事件时触发，显示该歌曲的上下文菜单。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="song">被长按的歌曲。</param>
-    private void OnViewModelSongLongClicked(object? sender, Song song)
-    {
-        ShowSongContextMenu(song);
-    }
-
-    private async void ShowSortDialog()
-    {
-        var result = await DisplayActionSheet(
-            "排序方式",
-            "取消",
-            null,
-            "文件名",
-            "入库时间",
-            "文件大小",
-            "文件夹",
-            "艺术家",
-            "标题"
-        );
-
-        if (!string.IsNullOrEmpty(result) && result != "取消")
-        {
-            ApplySort(result);
-        }
-    }
-
-    private void ApplySort(string sortBy)
-    {
-        var songs = _vm.FilteredSongs.ToList();
-        var sorted = sortBy switch
-        {
-            "文件名" => songs.OrderBy(s => Path.GetFileNameWithoutExtension(s.FilePath ?? "")).ToList(),
-            "入库时间" => songs.OrderByDescending(s => s.DateAdded).ToList(),
-            "文件大小" => songs.OrderByDescending(s => s.FileSize).ToList(),
-            "文件夹" => songs.OrderBy(s => Path.GetDirectoryName(s.FilePath ?? "")).ToList(),
-            "艺术家" => songs.OrderBy(s => s.Artist ?? "").ToList(),
-            "标题" => songs.OrderBy(s => s.Title ?? "").ToList(),
-            _ => songs
-        };
-
-        _vm.FilteredSongs = new ObservableCollection<Song>(sorted);
-    }
-
-    private async void ConfirmClearAsync()
-    {
-        var type = _vm.CurrentTab == "Local" ? "本地音乐库" : "网络音乐库";
-        
-        var result = await DisplayAlert(
-            "确认清除",
-            $"确定要清除{type}中的所有歌曲吗？\n\n此操作不可撤销。",
-            "确认清除",
-            "取消"
-        );
-
-        if (result)
-        {
-            try
-            {
-                if (_vm.CurrentTab == "Local")
-                {
-                    await _db.ClearLocalSongsAsync();
-                }
-                else
-                {
-                    await _db.ClearCachedNetworkSongsAsync();
-                }
-                
-                _vm.Songs.Clear();
-                _vm.FilteredSongs.Clear();
-                _vm.StatusText = $"{type}已清空";
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("错误", $"清除失败: {ex.Message}", "确定");
-            }
-        }
-    }
-
-    private async void ShowSongContextMenu(Song song)
-    {
-        var actions = new Dictionary<string, Action>();
-        
-        actions.Add("▶  播放", async () => await PlaySongAsync(song));
-        
-        actions.Add("⏭  下一首播放", () =>
-        {
-            _queue.AddNext(song);
-            DisplayAlert("提示", $"已添加: {song.Title}", "确定");
-        });
-
-        actions.Add("📋  添加到歌单", () => ShowAddToPlaylistDialog(song));
-        
-        actions.Add("❤  收藏", async () =>
-        {
-            var isFav = await _db.IsFavoriteAsync(song.Id);
-            await _db.SetFavoriteAsync(song.Id, !isFav);
-            await DisplayAlert("提示", isFav ? "已取消收藏" : "已收藏", "确定");
-        });
-
-        actions.Add("ℹ  歌曲详情", () =>
-        {
-            ShowSongDetails(song);
-        });
-
-        var actionSheetResult = await DisplayActionSheet(
-            $"{song.Title}",
-            "取消",
-            null,
-            actions.Keys.ToArray()
-        );
-
-        if (actionSheetResult != null && actions.ContainsKey(actionSheetResult))
-        {
-            actions[actionSheetResult]();
-        }
-    }
-
-    private async void ShowAddToPlaylistDialog(Song song)
-    {
-        try
-        {
-            var musicLibrary = Handler?.MauiContext?.Services.GetService<IMusicLibraryService>();
-            if (musicLibrary == null) return;
-
-            var playlists = await musicLibrary.GetAllPlaylistsAsync();
-            if (playlists.Count == 0)
-            {
-                await DisplayAlert("提示", "暂无歌单，请先创建歌单", "确定");
-                return;
-            }
-
-            var result = await DisplayActionSheet(
-                "添加到歌单",
-                "取消",
-                null,
-                playlists.Select(p => p.Name).ToArray()
-            );
-
-            if (!string.IsNullOrEmpty(result) && result != "取消")
-            {
-                var playlist = playlists.FirstOrDefault(p => p.Name == result);
-                if (playlist != null)
-                {
-                    await musicLibrary.AddSongToPlaylistAsync(playlist.Id, song.Id);
-                    await DisplayAlert("提示", $"已添加到「{playlist.Name}」", "确定");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("错误", ex.Message, "确定");
-        }
-    }
-
-    private async void ShowSongDetails(Song song)
-    {
-        var durationStr = TimeSpan.FromSeconds(song.Duration).ToString(@"mm\:ss");
-        var sourceStr = song.Source switch
-        {
-            SongSource.Local => "本地",
-            SongSource.WebDAV => "网络",
-            SongSource.SMB => "SMB",
-            SongSource.Cache => "缓存",
-            _ => "未知"
-        };
-        var info = $"艺术家：{song.Artist}\n" +
-                  $"专辑：{song.Album}\n" +
-                  $"时长：{durationStr}\n" +
-                  $"来源：{sourceStr}\n" +
-                  $"比特率：{(song.Bitrate > 0 ? $"{song.Bitrate}kbps" : "未知")}\n" +
-                  $"文件大小：{FormatFileSize(song.FileSize)}\n" +
-                  $"路径：{song.FilePath}";
-
-        await DisplayAlert(song.Title ?? "未知歌曲", info, "确定");
-    }
-
-    private static string FormatFileSize(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        return $"{bytes / (1024.0 * 1024.0):F1} MB";
-    }
-
-    /// <summary>点击排序按钮时触发，弹出排序方式选择对话框。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
-    private void OnSortClicked(object? sender, EventArgs e)
-    {
-        ShowSortDialog();
-    }
-
-    /// <summary>点击发现页来源按钮时触发，弹出数据源选择下拉框。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">点击事件参数。</param>
-    private void OnDiscoverSourceClicked(object? sender, TappedEventArgs e)
-    {
-        Log.Debug("LibraryPage.xaml", "[LibraryPage] OnDiscoverSourceClicked 触发");
-        try
-        {
-            ShowDiscoverSourcePopup();
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("LibraryPage.xaml", $"[LibraryPage] OnDiscoverSourceClicked 异常: {ex}");
-        }
-    }
-
-    /// <summary>构建并显示发现页来源选择弹窗（替代 DisplayActionSheet，避免 MAUI 11 Android 兼容性问题）</summary>
-    private void ShowDiscoverSourcePopup()
+    private async void ShowDiscoverSourcePopup()
     {
         var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
         var inactiveColor = (Color)Application.Current!.Resources["ChipInactiveColor"];
@@ -418,7 +501,6 @@ public partial class LibraryPage : ContentPage
         var textHint = (Color)Application.Current!.Resources["TextHintColor"];
         var cardBg = (Color)Application.Current!.Resources["CardBackgroundStrongColor"];
 
-        // 选项定义：(显示名称, 值, 描述)
         var options = new[]
         {
             ("自动", "auto", "本地和网络都有 → 本地；只有网络 → 网络"),
@@ -429,10 +511,8 @@ public partial class LibraryPage : ContentPage
 
         var currentSource = _vm.DiscoverSource ?? "auto";
 
-        // 清空旧内容（保留标题栏）
         DiscoverSourcePopup.ClearContent();
 
-        // 选项列表
         foreach (var (label, value, desc) in options)
         {
             var isSelected = value == currentSource;
@@ -490,12 +570,10 @@ public partial class LibraryPage : ContentPage
 
             optionBorder.Content = grid;
 
-            // 点击选择该项
             var capturedValue = value;
             var tap = new TapGestureRecognizer();
             tap.Tapped += (_, _) =>
             {
-                Log.Debug("LibraryPage.xaml", $"[LibraryPage] 选择发现页来源: {capturedValue}");
                 _vm.SetDiscoverSource(capturedValue);
                 DiscoverSourcePopup.Close();
             };
@@ -507,43 +585,18 @@ public partial class LibraryPage : ContentPage
         DiscoverSourcePopup.Open();
     }
 
-    /// <summary>点击清除按钮时触发，弹出确认清除音乐库的对话框。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
-    private async void OnClearClicked(object? sender, EventArgs e)
+    private async void OnScanTapped(object? sender, EventArgs e)
     {
-        ConfirmClearAsync();
+        await Shell.Current.GoToAsync("musicfoldersettings");
     }
 
-    /// <summary>触发加载更多歌曲时调用，用于分页加载场景。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
-    private void OnLoadMore(object? sender, EventArgs e)
+    private async void OnEditExcludeTapped(object? sender, EventArgs e)
     {
-        // Load more songs if using pagination
-        Log.Debug("LibraryPage.xaml", "Load more songs triggered");
+        await Shell.Current.GoToAsync("musicfoldersettings");
     }
 
-    /// <summary>点击歌曲分类按钮时触发（当前为空实现，预留扩展）。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
-    private void OnSongsClicked(object? sender, EventArgs e)
-    {
-    }
-
-    /// <summary>点击专辑分类按钮时触发，导航到专辑列表页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnAlbumsClicked(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("albums");
-    }
-
-    /// <summary>点击艺术家分类按钮时触发，导航到艺术家列表页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
-    private async void OnArtistsClicked(object? sender, EventArgs e)
-    {
-        await Shell.Current.GoToAsync("artists");
+        await Shell.Current.GoToAsync("library/albums");
     }
 }

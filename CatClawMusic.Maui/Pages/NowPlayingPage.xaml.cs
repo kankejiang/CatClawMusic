@@ -30,8 +30,19 @@ public partial class NowPlayingPage : ContentPage
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
         Loaded += OnPageLoaded;
 
+        // 监听 RootGrid 尺寸变化（Content 被 MainPage 提取后 OnSizeAllocated 不会触发）
+        RootGrid.SizeChanged += OnRootSizeChanged;
+
         // 设置收起图标（使用 ImageSourceHelper 确保 Windows 端正确加载）
         CollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
+    }
+
+    private void OnRootSizeChanged(object? sender, EventArgs e)
+    {
+        var w = RootGrid.Width;
+        var h = RootGrid.Height;
+        if (w > 0 && h > 0)
+            ApplyLayoutForOrientation(w, h);
     }
 
     private void OnPageLoaded(object? sender, EventArgs e)
@@ -72,8 +83,8 @@ public partial class NowPlayingPage : ContentPage
         var isLandscape = width > height;
         // 封面尺寸：横屏根据高度计算（避免超出窗口），竖屏根据较短边计算
         var coverSize = isLandscape
-            ? Math.Clamp((int)(height * 0.6), 260, 480)
-            : Math.Clamp((int)(Math.Min(width, height) * 0.55), 240, 360);
+            ? Math.Clamp((int)(height * 0.75), 280, 560)
+            : Math.Clamp((int)(width - 60), 280, 560);
 
         if (_isLandscape == isLandscape && _lastCoverSize == coverSize)
             return;
@@ -81,16 +92,15 @@ public partial class NowPlayingPage : ContentPage
         var orientationChanged = _isLandscape != isLandscape;
         _isLandscape = isLandscape;
 
-        if (orientationChanged)
+        if (isLandscape)
         {
-            if (isLandscape)
+            // 横屏：封面左、歌词右
+            if (orientationChanged)
             {
-                // 横屏：封面左、歌词右
                 Grid.SetRow(LeftHalf, 0);
                 Grid.SetColumn(LeftHalf, 0);
                 Grid.SetRowSpan(LeftHalf, 2);
                 Grid.SetColumnSpan(LeftHalf, 1);
-                LeftHalf.RowSpacing = 22;
 
                 Grid.SetRow(RightHalf, 0);
                 Grid.SetColumn(RightHalf, 2);
@@ -99,15 +109,25 @@ public partial class NowPlayingPage : ContentPage
 
                 PhoneControls.IsVisible = false;
                 DesktopControls.IsVisible = true;
+                SongDetailEntryPhone.IsVisible = false;
+                SongDetailEntryDesktop.IsVisible = true;
             }
-            else
+            RightHalf.ClearValue(HeightRequestProperty);
+            MainContent.RowDefinitions = new RowDefinitionCollection
             {
-                // 竖屏：封面上、歌词下
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Star }
+            };
+        }
+        else
+        {
+            // 竖屏：封面上、歌词下，歌词区域限制为5行高度
+            if (orientationChanged)
+            {
                 Grid.SetRow(LeftHalf, 0);
                 Grid.SetColumn(LeftHalf, 0);
                 Grid.SetRowSpan(LeftHalf, 1);
                 Grid.SetColumnSpan(LeftHalf, 3);
-                LeftHalf.RowSpacing = 16;
 
                 Grid.SetRow(RightHalf, 1);
                 Grid.SetColumn(RightHalf, 0);
@@ -116,7 +136,16 @@ public partial class NowPlayingPage : ContentPage
 
                 PhoneControls.IsVisible = true;
                 DesktopControls.IsVisible = false;
+                SongDetailEntryPhone.IsVisible = true;
+                SongDetailEntryDesktop.IsVisible = false;
             }
+            // 5行歌词高度估算：约 200-220px
+            RightHalf.HeightRequest = 200;
+            MainContent.RowDefinitions = new RowDefinitionCollection
+            {
+                new RowDefinition { Height = GridLength.Star },
+                new RowDefinition { Height = GridLength.Auto }
+            };
         }
 
         if (_lastCoverSize != coverSize)
@@ -562,6 +591,14 @@ public partial class NowPlayingPage : ContentPage
         GoToFullLyrics();
     }
 
+    /// <summary>点击歌曲详情入口：跳转到歌曲详情页</summary>
+    private void OnSongDetailTapped(object? sender, EventArgs e)
+    {
+        var song = _viewModel.CurrentSong;
+        if (song == null || song.Id <= 0) return;
+
+        _ = Shell.Current.GoToAsync($"songdetail?songId={song.Id}");
+    }
     /// <summary>点击播放列表按钮：弹出播放队列弹窗</summary>
     private void OnOpenPlaylistClicked(object? sender, EventArgs e)
     {

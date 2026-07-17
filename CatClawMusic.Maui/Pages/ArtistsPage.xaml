@@ -2,90 +2,411 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.ArtistsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid RowDefinitions="Auto,Auto,*"
+    <ContentPage.Resources>
+        <converters:InitialConverter x:Key="InitialConverter" />
+        <converters:CoverArtConverter x:Key="CoverArtConverter" />
+        <converters:PlaceholderColorConverter x:Key="PlaceholderColorConverter" />
+        <converters:NameToLetterConverter x:Key="NameToLetterConverter" />
+        <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <controls:HeroCard Grid.Row="0">
-            <controls:HeroCard.CardContent>
-                <Grid ColumnDefinitions="*,Auto"
-                      ColumnSpacing="12"
-                      Padding="44,0,0,0">
-                    <VerticalStackLayout Spacing="2">
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
-                               Style="{StaticResource PageTitleStyle}"
-                               TextColor="White" />
-                        <Label Text="浏览音乐库中的所有艺术家"
-                               Style="{StaticResource PageSubtitleStyle}"
-                               TextColor="#F2F4FF" />
-                    </VerticalStackLayout>
-                    <Border Grid.Column="1"
-                            Style="{StaticResource GlassBadgeStyle}"
-                            BackgroundColor="#26FFFFFF"
-                            Stroke="{DynamicResource GlassStrokeColor}"
-                            VerticalOptions="Start">
-                        <Label Text="{Binding Artists.Count, StringFormat='{0} 位'}"
-                               FontSize="11"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="White" />
-                    </Border>
-                </Grid>
-            </controls:HeroCard.CardContent>
-        </controls:HeroCard>
+        <!-- 顶栏 -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto,*,Auto"
+              Padding="16,12,16,8"
+              Background="{DynamicResource PageBackgroundBrush}">
+            <Border Grid.Column="0"
+                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                    Stroke="{DynamicResource GlassStrokeColor}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 12"
+                    WidthRequest="38" HeightRequest="38">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBackTapped" />
+                </Border.GestureRecognizers>
+                <Image Source="ic_arrow_left.svg"
+                       WidthRequest="18" HeightRequest="18"
+                       Aspect="AspectFit"
+                       VerticalOptions="Center" HorizontalOptions="Center" />
+            </Border>
 
-        <Label Grid.Row="1"
-               Text="{Binding StatusText}"
-               FontSize="12"
-               TextColor="{DynamicResource TextHintColor}"
-               Margin="20,0,20,10"
-               IsVisible="{Binding IsLoading}" />
+            <VerticalStackLayout Grid.Column="1"
+                                 VerticalOptions="Center"
+                                 Margin="14,0,0,0">
+                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
+                       FontSize="22"
+                       FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource TextPrimaryColor}" />
+            </VerticalStackLayout>
 
-        <CollectionView Grid.Row="2"
-                        ItemsSource="{Binding Artists}"
-                        SelectionMode="Single"
-                        SelectionChanged="OnArtistSelected"
-                        Margin="0,0,0,8">
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Border Margin="16,0,16,10"
-                            Padding="12"
-                            StrokeShape="RoundRectangle 20"
+            <Border Grid.Column="2"
+                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                    Stroke="{DynamicResource GlassStrokeColor}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 12"
+                    WidthRequest="38" HeightRequest="38">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnSearchTapped" />
+                </Border.GestureRecognizers>
+                <Image Source="ic_search.svg"
+                       WidthRequest="17" HeightRequest="17"
+                       Aspect="AspectFit"
+                       VerticalOptions="Center" HorizontalOptions="Center" />
+            </Border>
+        </Grid>
+
+        <!-- Hero 区域 - 标题统计 -->
+        <VerticalStackLayout Grid.Row="1"
+                             Padding="20,8,20,4">
+            <Label FontSize="12"
+                   TextColor="{DynamicResource TextHintColor}">
+                <Label.FormattedText>
+                    <FormattedString>
+                        <Span Text="共 " />
+                        <Span Text="{Binding TotalArtists}" FontAttributes="Bold" TextColor="{DynamicResource AccentColor}" />
+                        <Span Text=" 位艺术家 · 收录于你的音乐库" />
+                    </FormattedString>
+                </Label.FormattedText>
+            </Label>
+        </VerticalStackLayout>
+
+        <!-- 搜索框 -->
+        <Border Grid.Row="2"
+                Margin="16,4,16,10"
+                Padding="11,0,14,0"
+                StrokeShape="RoundRectangle 14"
+                StrokeThickness="1"
+                Stroke="{DynamicResource GlassStrokeColor}"
+                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+            <Grid ColumnDefinitions="Auto,*"
+                  VerticalOptions="Center">
+                <Image Source="ic_search.svg"
+                       WidthRequest="16" HeightRequest="16" />
+                <Entry Grid.Column="1"
+                       Placeholder="搜索艺术家、按地区筛选…"
+                       Text="{Binding SearchQuery}"
+                       FontSize="14"
+                       TextColor="{DynamicResource TextPrimaryColor}"
+                       PlaceholderColor="{DynamicResource TextHintColor}"
+                       VerticalOptions="Center"
+                       Margin="10,0,0,0" />
+            </Grid>
+        </Border>
+
+        <!-- 来源筛选 chips + 工具栏 -->
+        <Grid Grid.Row="3"
+              RowDefinitions="Auto,Auto"
+              Padding="0,0,0,8">
+            <!-- 筛选 chips -->
+            <ScrollView Grid.Row="0"
+                        Orientation="Horizontal"
+                        Padding="16,4">
+                <HorizontalStackLayout Spacing="8" x:Name="FilterChips"
+                                       BindableLayout.ItemsSource="{Binding SourceFilters}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="14,7"
+                                    StrokeShape="RoundRectangle 999"
+                                    StrokeThickness="1"
+                                    BackgroundColor="{Binding BackgroundColor}"
+                                    Stroke="{Binding BorderColor}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnFilterChipTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding Label}"
+                                       FontSize="12.5"
+                                       TextColor="{Binding TextColor}" />
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </HorizontalStackLayout>
+            </ScrollView>
+
+            <!-- 工具栏：排序 + 视图切换 -->
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="*,Auto"
+                  Padding="16,6,16,0">
+                <ScrollView Grid.Column="0"
+                            Orientation="Horizontal">
+                    <HorizontalStackLayout Spacing="6" x:Name="SortButtons"
+                                           BindableLayout.ItemsSource="{Binding SortOptions}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="11,6"
+                                        StrokeShape="RoundRectangle 9"
+                                        StrokeThickness="1"
+                                        Stroke="{Binding BorderColor}"
+                                        BackgroundColor="{Binding BackgroundColor}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnSortChipTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Label}"
+                                           FontSize="12"
+                                           TextColor="{Binding TextColor}" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </HorizontalStackLayout>
+                </ScrollView>
+
+                <!-- 视图切换 -->
+                <Border Grid.Column="1"
+                        StrokeShape="RoundRectangle 10"
+                        StrokeThickness="1"
+                        Stroke="{DynamicResource GlassStrokeColor}"
+                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                        Margin="10,0,0,0">
+                    <Grid ColumnDefinitions="Auto,Auto"
+                          ColumnSpacing="0">
+                        <Border Grid.Column="0"
+                                WidthRequest="34" HeightRequest="30"
+                                BackgroundColor="{Binding GridButtonColor}"
+                                StrokeShape="RoundRectangle 10,0,0,10">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnViewToggleTapped" CommandParameter="grid" />
+                            </Border.GestureRecognizers>
+                            <Image Source="ic_grid.svg"
+                                   WidthRequest="16" HeightRequest="16"
+                                   Aspect="AspectFit"
+                                   VerticalOptions="Center" HorizontalOptions="Center" />
+                        </Border>
+                        <Border Grid.Column="1"
+                                WidthRequest="34" HeightRequest="30"
+                                BackgroundColor="{Binding ListButtonColor}"
+                                StrokeShape="RoundRectangle 0,10,10,0">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnViewToggleTapped" CommandParameter="list" />
+                            </Border.GestureRecognizers>
+                            <Image Source="ic_list.svg"
+                                   WidthRequest="16" HeightRequest="16"
+                                   Aspect="AspectFit"
+                                   VerticalOptions="Center" HorizontalOptions="Center" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- 主体布局：列表 + 右侧字母 rail -->
+        <Grid Grid.Row="4"
+              ColumnDefinitions="*,Auto"
+              Padding="8,0,0,8"
+              ColumnSpacing="0">
+
+            <!-- 网格视图 -->
+            <ScrollView Grid.Column="0"
+                        x:Name="GridScrollView"
+                        IsVisible="{Binding IsGridView}">
+                <VerticalStackLayout Spacing="6">
+                    <!-- 最常聆听 -->
+                    <Border Padding="13,15"
+                            StrokeShape="RoundRectangle 18"
                             StrokeThickness="1"
                             Stroke="{DynamicResource GlassStrokeColor}"
-                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
-                        <Grid ColumnDefinitions="Auto,*"
-                              ColumnSpacing="14">
+                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                            Margin="0,0,0,8"
+                            IsVisible="{Binding HasMostPlayed}">
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              ColumnSpacing="13">
                             <Border Grid.Column="0"
-                                    WidthRequest="56"
-                                    HeightRequest="56"
-                                    StrokeShape="RoundRectangle 28"
+                                    WidthRequest="46" HeightRequest="46"
+                                    StrokeShape="RoundRectangle 13"
                                     StrokeThickness="0"
-                                    BackgroundColor="{DynamicResource SurfaceColor}">
-                                <Image Source="{Binding Cover}"
-                                       Aspect="AspectFill"
-                                       WidthRequest="56"
-                                       HeightRequest="56" />
+                                    BackgroundColor="{Binding MostPlayedPlaceholderColor}">
+                                <Grid>
+                                    <Image Source="{Binding MostPlayedCover}"
+                                           Aspect="AspectFill"
+                                           IsVisible="{Binding MostPlayedHasCover}" />
+                                    <Label Text="{Binding MostPlayedInitial}"
+                                           FontSize="18"
+                                           FontFamily="OpenSansSemibold"
+                                           TextColor="#DDFFFFFF"
+                                           HorizontalOptions="Center" VerticalOptions="Center"
+                                           IsVisible="{Binding MostPlayedHasCover, Converter={StaticResource InvertedBoolConverter}}" />
+                                </Grid>
                             </Border>
                             <VerticalStackLayout Grid.Column="1"
                                                  VerticalOptions="Center"
-                                                 Spacing="2">
-                                <Label Text="{Binding Name}"
-                                       FontSize="15"
-                                       FontFamily="OpenSansSemibold"
-                                       TextColor="{DynamicResource TextPrimaryColor}"
-                                       MaxLines="1" />
-                                <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
+                                                 Spacing="1">
+                                <Label Text="最常聆听"
                                        FontSize="12"
                                        TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding MostPlayedName}"
+                                       FontSize="14"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                <Label Text="{Binding MostPlayedSubInfo}"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource AccentColor}" />
                             </VerticalStackLayout>
+                            <Border Grid.Column="2"
+                                    StrokeShape="RoundRectangle 999"
+                                    StrokeThickness="0"
+                                    BackgroundColor="#22FFFFFF"
+                                    Padding="10,6"
+                                    VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnMostPlayedTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="查看全部"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextSecondaryColor}" />
+                            </Border>
                         </Grid>
                     </Border>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+
+                    <!-- 艺术家网格 -->
+                    <FlexLayout Direction="Row"
+                                Wrap="Wrap"
+                                JustifyContent="Start"
+                                AlignItems="Start"
+                                BindableLayout.ItemsSource="{Binding FilteredArtists}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Border WidthRequest="100"
+                                        Margin="0,0,8,12"
+                                        StrokeThickness="0"
+                                        BackgroundColor="Transparent">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnArtistTapped" />
+                                    </Border.GestureRecognizers>
+                                    <VerticalStackLayout Spacing="8">
+                                        <Border StrokeShape="RoundRectangle 18"
+                                                StrokeThickness="0"
+                                                BackgroundColor="{Binding Id, Converter={StaticResource PlaceholderColorConverter}}">
+                                            <Grid>
+                                                <Image Source="{Binding Cover}"
+                                                       Aspect="AspectFill"
+                                                       IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}}" />
+                                                <Label Text="{Binding Name, Converter={StaticResource InitialConverter}}"
+                                                       FontSize="30"
+                                                       FontFamily="OpenSansSemibold"
+                                                       TextColor="#DDFFFFFF"
+                                                       HorizontalOptions="Center" VerticalOptions="Center"
+                                                       IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}, ConverterParameter=invert}" />
+                                            </Grid>
+                                        </Border>
+                                        <Label Text="{Binding Name}"
+                                               FontSize="12.5"
+                                               FontFamily="OpenSansSemibold"
+                                               TextColor="{DynamicResource TextPrimaryColor}"
+                                               HorizontalOptions="Center"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding SongCount, StringFormat='{0} 首'}"
+                                               FontSize="10.5"
+                                               TextColor="{DynamicResource TextHintColor}"
+                                               HorizontalOptions="Center" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <!-- 列表视图 -->
+            <CollectionView Grid.Column="0"
+                            x:Name="ListCollectionView"
+                            ItemsSource="{Binding FilteredArtists}"
+                            SelectionMode="None"
+                            IsVisible="{Binding IsListView}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="9,6"
+                                StrokeShape="RoundRectangle 14"
+                                StrokeThickness="0"
+                                BackgroundColor="Transparent"
+                                Margin="0,0,0,2">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnArtistTapped" />
+                            </Border.GestureRecognizers>
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="13"
+                                  VerticalOptions="Center">
+                                <Border Grid.Column="0"
+                                        WidthRequest="50" HeightRequest="50"
+                                        StrokeShape="RoundRectangle 14"
+                                        StrokeThickness="0"
+                                        BackgroundColor="{Binding Id, Converter={StaticResource PlaceholderColorConverter}}">
+                                    <Grid>
+                                        <Image Source="{Binding Cover}"
+                                               Aspect="AspectFill"
+                                               IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}}" />
+                                        <Label Text="{Binding Name, Converter={StaticResource InitialConverter}}"
+                                               FontSize="20"
+                                               FontFamily="OpenSansSemibold"
+                                               TextColor="#DDFFFFFF"
+                                               HorizontalOptions="Center" VerticalOptions="Center"
+                                               IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}, ConverterParameter=invert}" />
+                                    </Grid>
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1"
+                                                     VerticalOptions="Center"
+                                                     Spacing="2">
+                                    <Label Text="{Binding Name}"
+                                           FontSize="14"
+                                           FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           LineBreakMode="TailTruncation" />
+                                    <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
+                                           FontSize="11.5"
+                                           TextColor="{DynamicResource TextHintColor}"
+                                           LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2"
+                                       Text="{Binding Name, Converter={StaticResource NameToLetterConverter}}"
+                                       FontSize="11"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource AccentColor}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <!-- 字母 rail -->
+            <ScrollView Grid.Column="1"
+                        Margin="0,8,6,0"
+                        VerticalOptions="Start">
+                <VerticalStackLayout Spacing="1" x:Name="LetterRail"
+                                     BindableLayout.ItemsSource="{Binding LetterRailItems}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Border WidthRequest="18"
+                                    HeightRequest="18"
+                                    StrokeShape="RoundRectangle 5"
+                                    StrokeThickness="0"
+                                    BackgroundColor="{Binding BackgroundColor}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnLetterTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding Label}"
+                                       FontSize="9.5"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{Binding TextColor}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+            </ScrollView>
+        </Grid>
+
+        <!-- 加载指示器 -->
+        <ActivityIndicator Grid.Row="4"
+                           IsRunning="{Binding IsLoading}"
+                           IsVisible="{Binding IsLoading}"
+                           Color="{DynamicResource PrimaryColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
     </Grid>
 </ContentPage>

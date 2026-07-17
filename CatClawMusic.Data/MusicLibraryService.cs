@@ -101,7 +101,8 @@ public class MusicLibraryService : IMusicLibraryService
     }
 
     /// <summary>
-    /// 对歌曲列表按 FilePath 去重，填充 ArtistId 和 AlbumId 后批量入库
+    /// 对歌曲列表按 FilePath 去重，填充 ArtistId 和 AlbumId 后批量入库。
+    /// 使用批量 API（EnsureArtistsBatchAsync / EnsureAlbumsBatchAsync / InsertSongsBatchAsync）大幅减少逐条 await 的 IO 次数。
     /// </summary>
     private async Task<List<Song>> SaveAndDeduplicateAsync(List<Song> allSongs)
     {
@@ -110,39 +111,69 @@ public class MusicLibraryService : IMusicLibraryService
             .Select(g => g.First())
             .ToList();
 
+        if (distinct.Count == 0) return distinct;
+
+        // 1. 收集所有艺术家名 + (专辑名, 主艺术家ID) 对，确保存在艺术家
+        var allArtistNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var song in distinct)
         {
-            try
-            {
-                // 拆分多艺术家（如 "国风堂/哦漏" → ["国风堂", "哦漏"]）
-                var artistNames = MusicUtility.SplitArtistNames(song.Artist);
-                var artistIds = new List<int>();
-                foreach (var name in artistNames)
-                {
-                    var id = await _db.EnsureArtistAsync(name);
-                    artistIds.Add(id);
-                }
-
-                // 主艺术家
-                song.ArtistId = artistIds.Count > 0 ? artistIds[0] : await _db.EnsureArtistAsync("未知艺术家");
-                song.AlbumId = await _db.EnsureAlbumAsync(song.Album, song.ArtistId);
-                song.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                await _db.SaveSongAsync(song);
-
-                // 多艺术家关联（跳过主艺术家，避免重复）
-                if (artistIds.Count > 1)
-                {
-                    var extraIds = artistIds.Skip(1).ToList();
-                    if (extraIds.Count > 0)
-                        await _db.SaveSongArtistsBatchAsync(new List<(int, List<int>)>
-                        {
-                            (song.Id, artistIds)
-                        });
-                }
-            }
-            catch (Exception ex) { Log.Debug("MusicLibraryService", $"[CatClaw] 保存歌曲失败: {song.FilePath}, {ex.Message}"); }
+            foreach (var name in MusicUtility.SplitArtistNames(song.Artist))
+                allArtistNames.Add(name);
         }
-        return distinct;
+        if (allArtistNames.Count == 0)
+            allArtistNames.Add("未知艺术家");
+
+        var artistIdMap = await _db.EnsureArtistsBatchAsync(allArtistNames.ToList());
+        var unknownArtistId = artistIdMap.TryGetValue("未知艺术家", out var uId) ? uId
+            : (artistIdMap.FirstOrDefault().Value);
+
+        // 2. 为每首歌解析主艺术家ID，构造 (album, artistId) 列表
+        var songArtistIds = new List<List<int>>(distinct.Count);
+        var albumInputs = new List<(string title, int artistId)>(distinct.Count);
+        for (int i = 0; i < distinct.Count; i++)
+        {
+            var song = distinct[i];
+            var names = MusicUtility.SplitArtistNames(song.Artist);
+            var ids = new List<int>();
+            foreach (var name in names)
+            {
+                if (artistIdMap.TryGetValue(name, out var id))
+                    ids.Add(id);
+            }
+            if (ids.Count == 0)
+                ids.Add(unknownArtistId);
+            songArtistIds.Add(ids);
+            song.ArtistId = ids[0];
+            song.AlbumId = 0; // 待批量分配
+            albumInputs.Add((song.Album, song.ArtistId));
+            song.DateAdded = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        }
+
+        // 3. 批量确保专辑存在
+        var albumIdMap = await _db.EnsureAlbumsBatchAsync(albumInputs);
+        for (int i = 0; i < distinct.Count; i++)
+        {
+            var song = distinct[i];
+            if (albumIdMap.TryGetValue((song.Album, song.ArtistId), out var albumId))
+                song.AlbumId = albumId;
+        }
+
+        // 4. 批量插入歌曲（内部已处理 FilePath/RemoteId 去重）
+        var inserted = await _db.InsertSongsBatchAsync(distinct);
+
+        // 5. 收集多艺术家关联，批量写入
+        var songArtistEntries = new List<(int SongId, List<int> ArtistIds)>();
+        for (int i = 0; i < inserted.Count; i++)
+        {
+            var song = inserted[i];
+            var ids = songArtistIds[i];
+            if (ids.Count > 1)
+                songArtistEntries.Add((song.Id, ids));
+        }
+        if (songArtistEntries.Count > 0)
+            await _db.SaveSongArtistsBatchAsync(songArtistEntries);
+
+        return inserted;
     }
 
     /// <summary>
@@ -177,17 +208,21 @@ public class MusicLibraryService : IMusicLibraryService
             {
                 var profiles = await _networkMusic.GetProfilesAsync();
                 var enabledProfiles = profiles.Where(p => p.IsEnabled).ToList();
-                foreach (var profile in enabledProfiles)
+                if (enabledProfiles.Count > 0)
                 {
-                    try
+                    // 多台服务器并行搜索，每个 profile 独立无依赖
+                    var searchTasks = enabledProfiles.Select(async profile =>
                     {
-                        var results = await _networkMusic.SearchAsync(keyword, profile);
-                        networkResults.AddRange(results);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Debug("MusicLibraryService", $"[CatClaw] 网络({profile.Name})搜索失败: {ex.Message}");
-                    }
+                        try { return await _networkMusic.SearchAsync(keyword, profile); }
+                        catch (Exception ex)
+                        {
+                            Log.Debug("MusicLibraryService", $"[CatClaw] 网络({profile.Name})搜索失败: {ex.Message}");
+                            return new List<Song>();
+                        }
+                    });
+                    var results = await Task.WhenAll(searchTasks);
+                    foreach (var r in results)
+                        networkResults.AddRange(r);
                 }
             }
             catch (Exception ex)

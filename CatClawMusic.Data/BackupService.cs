@@ -320,34 +320,45 @@ public class BackupService
     private async Task<List<PlaylistSongBackupEntry>> LoadAllPlaylistSongsWithInfoAsync()
     {
         var playlists = await _db.GetAllPlaylistsAsync();
+        if (playlists.Count == 0) return new List<PlaylistSongBackupEntry>();
+
         var allSongs = await _db.GetSongsAsync();
         var songMap = allSongs.ToDictionary(s => s.Id, s => s);
         var allEntries = new List<PlaylistSongBackupEntry>();
 
-        foreach (var pl in playlists)
-        {
-            try
-            {
-                var dbConn = GetDatabaseConnection();
-                var songs = await dbConn.Table<PlaylistSong>()
-                    .Where(ps => ps.PlaylistId == pl.Id)
-                    .OrderBy(ps => ps.Position)
-                    .ToListAsync();
+        // 一次查询所有歌单歌曲，避免逐歌单 ToListAsync 累计 RTT
+        var playlistIds = playlists.Select(p => p.Id).ToList();
+        var dbConn = GetDatabaseConnection();
+        var allPlaylistSongs = new List<PlaylistSong>();
 
-                foreach (var ps in songs)
-                {
-                    songMap.TryGetValue(ps.SongId, out var song);
-                    allEntries.Add(new PlaylistSongBackupEntry
-                    {
-                        PlaylistId = ps.PlaylistId,
-                        SongId = ps.SongId,
-                        SongTitle = song?.Title,
-                        SongArtist = song?.Artist,
-                        Position = ps.Position,
-                    });
-                }
-            }
-            catch { }
+        // SQLite-net 不支持 IN 大列表的批量查询，分块处理（500/批）
+        const int chunkSize = 500;
+        for (int i = 0; i < playlistIds.Count; i += chunkSize)
+        {
+            var chunk = playlistIds.Skip(i).Take(chunkSize).ToList();
+            var rows = await dbConn.Table<PlaylistSong>()
+                .Where(ps => chunk.Contains(ps.PlaylistId))
+                .ToListAsync();
+            allPlaylistSongs.AddRange(rows);
+        }
+
+        // 按 PlaylistId + Position 排序
+        allPlaylistSongs = allPlaylistSongs
+            .OrderBy(ps => ps.PlaylistId)
+            .ThenBy(ps => ps.Position)
+            .ToList();
+
+        foreach (var ps in allPlaylistSongs)
+        {
+            songMap.TryGetValue(ps.SongId, out var song);
+            allEntries.Add(new PlaylistSongBackupEntry
+            {
+                PlaylistId = ps.PlaylistId,
+                SongId = ps.SongId,
+                SongTitle = song?.Title,
+                SongArtist = song?.Artist,
+                Position = ps.Position,
+            });
         }
         return allEntries;
     }
@@ -453,7 +464,8 @@ public class BackupService
                 songKeyMap[key] = s.Id;
         }
 
-        // 恢复歌单中的歌曲关联
+        // 恢复歌单中的歌曲关联：按 PlaylistId 分组后批量写入
+        var songsByPlaylist = new Dictionary<int, List<int>>();
         foreach (var ps in data.PlaylistSongs)
         {
             if (!oldIdToNewId.TryGetValue(ps.PlaylistId, out var newPlaylistId)) continue;
@@ -470,9 +482,17 @@ public class BackupService
 
             if (song != null)
             {
-                await _db.AddSongToPlaylistAsync(newPlaylistId, song.Id);
+                if (!songsByPlaylist.TryGetValue(newPlaylistId, out var list))
+                {
+                    list = new List<int>();
+                    songsByPlaylist[newPlaylistId] = list;
+                }
+                list.Add(song.Id);
             }
         }
+
+        foreach (var (playlistId, songIds) in songsByPlaylist)
+            await _db.AddSongsToPlaylistBatchAsync(playlistId, songIds);
     }
 
     /// <summary>
@@ -493,9 +513,10 @@ public class BackupService
                 songKeyMap[key] = s.Id;
         }
 
+        // 按 SongId 合并 PlayCount，避免 N×PlayCount 次串行 await
+        var mergedPlayCount = new Dictionary<int, int>();
         foreach (var ph in data.PlayHistory)
         {
-            // 优先 SongId，其次 Title+Artist
             int songId = 0;
             if (songIdSet.Contains(ph.SongId))
             {
@@ -507,11 +528,16 @@ public class BackupService
                 songKeyMap.TryGetValue(key, out songId);
             }
 
-            if (songId > 0)
+            if (songId > 0 && ph.PlayCount > 0)
             {
-                for (int i = 0; i < ph.PlayCount; i++)
-                    await _db.RecordPlayAsync(songId);
+                mergedPlayCount[songId] = mergedPlayCount.TryGetValue(songId, out var c) ? c + ph.PlayCount : ph.PlayCount;
             }
+        }
+
+        if (mergedPlayCount.Count > 0)
+        {
+            var entries = mergedPlayCount.Select(kv => (kv.Key, kv.Value)).ToList();
+            await _db.RecordPlayBatchAsync(entries);
         }
     }
 
@@ -533,9 +559,10 @@ public class BackupService
                 songKeyMap[key] = s.Id;
         }
 
+        // 收集需要收藏的 SongId，一次性批量写入
+        var toFavorite = new HashSet<int>();
         foreach (var fav in data.Favorites)
         {
-            // 优先 SongId，其次 Title+Artist
             int songId = 0;
             if (songIdSet.Contains(fav.SongId))
             {
@@ -546,14 +573,11 @@ public class BackupService
                 var key = $"{(fav.SongTitle?.Trim() ?? "")}|{(fav.SongArtist?.Trim() ?? "")}";
                 songKeyMap.TryGetValue(key, out songId);
             }
-
-            if (songId > 0)
-            {
-                var isFav = await _db.IsFavoriteAsync(songId);
-                if (!isFav)
-                    await _db.SetFavoriteAsync(songId, true);
-            }
+            if (songId > 0) toFavorite.Add(songId);
         }
+
+        if (toFavorite.Count > 0)
+            await _db.SetFavoritesBatchAsync(toFavorite);
     }
 
     /// <summary>
@@ -565,6 +589,8 @@ public class BackupService
         var artists = await _db.GetAllArtistsAsync();
         var artistByName = artists.ToDictionary(a => a.Name, a => a);
 
+        // 收集需要更新的艺术家，一次性批量 UPDATE
+        var toUpdate = new List<Artist>();
         foreach (var entry in data.Artists)
         {
             if (!artistByName.TryGetValue(entry.Name, out var artist)) continue;
@@ -579,9 +605,11 @@ public class BackupService
             if (string.IsNullOrEmpty(artist.Description) && !string.IsNullOrEmpty(entry.Description))
                 { artist.Description = entry.Description; changed = true; }
 
-            if (changed)
-                await _db.UpdateArtistAsync(artist);
+            if (changed) toUpdate.Add(artist);
         }
+
+        if (toUpdate.Count > 0)
+            await _db.UpdateArtistsBatchAsync(toUpdate);
     }
 
     /// <summary>
@@ -605,11 +633,8 @@ public class BackupService
     {
         if (data.ChatMessages.Count == 0) return;
         await _db.ClearChatMessagesAsync();
-        foreach (var msg in data.ChatMessages)
-        {
-            msg.Id = 0; // 重置主键，由数据库自增分配
-            await _db.SaveChatMessageAsync(msg);
-        }
+        // 批量插入，避免逐条 await
+        await _db.SaveChatMessagesBatchAsync(data.ChatMessages);
     }
 
     /// <summary>
@@ -788,6 +813,7 @@ public class BackupService
 
         int total = artistsWithCover.Count;
         int index = 0;
+        var artistsToUpdate = new List<Artist>();
         foreach (var item in artistsWithCover)
         {
             var artist = item.Artist;
@@ -815,11 +841,11 @@ public class BackupService
                     FileName = uniqueName,
                 });
 
-                // 若数据库中的路径已失效，但缓存目录兜底找到，则顺便修正数据库
+                // 若数据库中的路径已失效，但缓存目录兜底找到，则收集后批量更新
                 if (artist.Cover != coverPath)
                 {
                     artist.Cover = coverPath;
-                    await _db.UpdateArtistAsync(artist);
+                    artistsToUpdate.Add(artist);
                 }
             }
             catch { /* 单张封面备份失败不影响整体 */ }
@@ -828,6 +854,10 @@ public class BackupService
             var percent = startPercent + (endPercent - startPercent) * index / Math.Max(total, 1);
             Report(progress, percent, $"正在复制艺术家照片 ({index}/{total})...");
         }
+
+        // 批量更新数据库，避免逐条 UpdateArtistAsync
+        if (artistsToUpdate.Count > 0)
+            await _db.UpdateArtistsBatchAsync(artistsToUpdate);
 
         return entries;
     }

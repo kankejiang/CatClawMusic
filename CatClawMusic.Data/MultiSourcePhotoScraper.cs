@@ -154,6 +154,8 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
             if (!data.TryGetProperty("singer", out var singer)) return results;
             if (!singer.TryGetProperty("itemlist", out var itemList)) return results;
 
+            // 先收集候选，再并行获取详情（避免逐条 await 累计 RTT）
+            var candidates = new List<(string name, string? mid, ArtistSearchResult result)>();
             foreach (var item in itemList.EnumerateArray())
             {
                 var singerName = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
@@ -170,19 +172,34 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
                         ? $"https://y.gtimg.cn/music/photo_new/T001R300x300M000{mid}.jpg"
                         : null
                 };
+                candidates.Add((singerName, mid, result));
+                if (candidates.Count >= limit) break;
+            }
 
-                // 如果有 mid，尝试获取详情
-                if (mid != null)
+            // 并行获取每个候选的详情
+            if (candidates.Count > 0)
+            {
+                var detailTasks = candidates.Select(async c =>
                 {
-                    var (g, r, b, d) = await GetQqMusicArtistInfoAsync(mid);
-                    result.Gender = g;
-                    result.Region = r;
-                    result.Birthday = b;
-                    result.Description = d;
-                }
-
-                results.Add(result);
-                if (results.Count >= limit) break;
+                    if (c.mid != null)
+                    {
+                        try
+                        {
+                            var (g, r, b, d) = await GetQqMusicArtistInfoAsync(c.mid);
+                            c.result.Gender = g;
+                            c.result.Region = r;
+                            c.result.Birthday = b;
+                            c.result.Description = d;
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Debug("MultiSourcePhotoScraper", $"[QQMusic] 详情失败 {c.name}: {ex.Message}");
+                        }
+                    }
+                    return c.result;
+                });
+                var filled = await Task.WhenAll(detailTasks);
+                results.AddRange(filled);
             }
         }
         catch (Exception ex)

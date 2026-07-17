@@ -35,7 +35,7 @@ public partial class MainPage : ContentPage
     private DateTime _lastPanRunningTime;
     private IDisposable? _panInteractionToken;
     private const double SwipeThresholdRatio = 0.25;
-    private const int AnimDuration = 280;
+    private const int AnimDuration = 450;
     private const int PanWatchdogInterval = 400;
     /// <summary>方向判定阈值：位移超过此值才判定水平/垂直方向（像素），避免手指微颤误触</summary>
     private const double DirectionLockThreshold = 14;
@@ -527,7 +527,7 @@ public partial class MainPage : ContentPage
         {
             if (ViewPagerGrid.Children[i] is not VisualElement view) continue;
             var targetX = (i - targetIndex) * width;
-            animations.Add(view.TranslateTo(targetX, 0, AnimDuration, Easing.SinOut));
+            animations.Add(view.TranslateTo(targetX, 0, AnimDuration, Easing.CubicOut));
         }
         await Task.WhenAll(animations);
 
@@ -558,7 +558,7 @@ public partial class MainPage : ContentPage
         {
             if (ViewPagerGrid.Children[i] is not VisualElement view) continue;
             var targetX = (i - _currentIndex) * width;
-            animations.Add(view.TranslateTo(targetX, 0, 200, Easing.SinOut));
+            animations.Add(view.TranslateTo(targetX, 0, 300, Easing.CubicOut));
         }
         await Task.WhenAll(animations);
 
