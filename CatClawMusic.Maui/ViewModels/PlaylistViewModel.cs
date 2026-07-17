@@ -151,7 +151,7 @@ public partial class PlaylistViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PlaylistVM] LoadPlaylists failed: {ex}");
+            Log.Debug("PlaylistViewModel", $"[PlaylistVM] LoadPlaylists failed: {ex}");
             StatusText = "加载失败";
         }
         finally

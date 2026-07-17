@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Core.ClawCircle;
 
@@ -176,7 +177,7 @@ public class ClawCircleTrackerClient : IClawCircleSignaling, IDisposable
         catch (WebSocketException) { }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCircle] 信令接收异常: {ex.Message}");
+            Log.Debug("ClawCircleTrackerClient", $"[ClawCircle] 信令接收异常: {ex.Message}");
         }
     }
 

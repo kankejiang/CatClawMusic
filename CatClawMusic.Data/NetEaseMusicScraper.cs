@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using System.Text.Json;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Data;
 
@@ -102,7 +103,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 获取艺术家封面失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 获取艺术家封面失败: {ex.Message}");
         }
 
         return null;
@@ -230,7 +231,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 获取艺术家信息失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 获取艺术家信息失败: {ex.Message}");
             return null;
         }
     }
@@ -294,7 +295,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 搜索艺术家列表失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 搜索艺术家列表失败: {ex.Message}");
         }
         return results;
     }
@@ -314,7 +315,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 下载艺术家封面失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 下载艺术家封面失败: {ex.Message}");
         }
         return null;
     }
@@ -357,7 +358,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 搜索艺术家失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 搜索艺术家失败: {ex.Message}");
         }
 
         return null;
@@ -399,7 +400,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 获取艺术家封面URL失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 获取艺术家封面URL失败: {ex.Message}");
         }
 
         return null;
@@ -444,7 +445,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 获取专辑封面失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 获取专辑封面失败: {ex.Message}");
         }
 
         return null;
@@ -491,7 +492,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 获取专辑信息失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 获取专辑信息失败: {ex.Message}");
             return null;
         }
     }
@@ -547,7 +548,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 搜索专辑失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 搜索专辑失败: {ex.Message}");
         }
 
         return null;
@@ -576,7 +577,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NetEaseScraper] 获取专辑封面URL失败: {ex.Message}");
+            Log.Debug("NetEaseMusicScraper", $"[NetEaseScraper] 获取专辑封面URL失败: {ex.Message}");
         }
 
         return null;

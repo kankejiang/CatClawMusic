@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Core.ClawCircle;
 
@@ -329,12 +330,12 @@ public class P2PTransferEngine : IDisposable
                 lock (_lock) opened = _holeOpened.Contains(peer.DeviceId);
                 if (opened) break;
                 try { await _udp.SendAsync(peer.Wan!, peer.Port!.Value, frame, ct); }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[ClawCircle] 打洞发送失败: {ex.Message}"); }
+                catch (Exception ex) { Log.Debug("P2PTransferEngine", $"[ClawCircle] 打洞发送失败: {ex.Message}"); }
                 await Task.Delay(PunchIntervalMs, ct);
             }
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[ClawCircle] 打洞异常: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("P2PTransferEngine", $"[ClawCircle] 打洞异常: {ex.Message}"); }
     }
 
     // ── 直连 UDP 接收循环 ──

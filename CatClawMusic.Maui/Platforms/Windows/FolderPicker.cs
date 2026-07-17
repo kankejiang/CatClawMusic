@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using WinRT.Interop;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Windows;
 
@@ -42,16 +43,16 @@ public static class WindowsFolderPicker
             {
                 // 未打包 WinUI 应用若无窗口句柄，PickSingleFolderAsync 会抛异常；
                 // 这里仅记录，交给外层 catch 处理并返回 null，由调用方提示用户。
-                System.Diagnostics.Debug.WriteLine("[WindowsFolderPicker] 无法获取窗口句柄，文件夹选择器可能无法正常弹出。");
+                Log.Debug("FolderPicker", "[WindowsFolderPicker] 无法获取窗口句柄，文件夹选择器可能无法正常弹出。");
             }
 
             var folder = await picker.PickSingleFolderAsync();
-            System.Diagnostics.Debug.WriteLine($"[WindowsFolderPicker] 选择结果: {(folder == null ? "null(取消)" : folder.Path)}");
+            Log.Debug("FolderPicker", $"[WindowsFolderPicker] 选择结果: {(folder == null ? "null(取消)" : folder.Path)}");
             return folder?.Path;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WindowsFolderPicker] Pick error: {ex}");
+            Log.Debug("FolderPicker", $"[WindowsFolderPicker] Pick error: {ex}");
             return null;
         }
     }
@@ -76,7 +77,7 @@ public static class WindowsFolderPicker
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WindowsFolderPicker] MAUI 窗口句柄获取失败: {ex}");
+            Log.Debug("FolderPicker", $"[WindowsFolderPicker] MAUI 窗口句柄获取失败: {ex}");
         }
 
         // 2) 回退：Win32 前台 / 激活窗口句柄
@@ -90,7 +91,7 @@ public static class WindowsFolderPicker
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WindowsFolderPicker] Win32 窗口句柄获取失败: {ex}");
+            Log.Debug("FolderPicker", $"[WindowsFolderPicker] Win32 窗口句柄获取失败: {ex}");
         }
 
         return IntPtr.Zero;

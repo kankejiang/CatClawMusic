@@ -328,7 +328,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadChatHistory failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] LoadChatHistory failed: {ex.Message}");
         }
     }
 
@@ -366,7 +366,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadMoreChatHistory failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] LoadMoreChatHistory failed: {ex.Message}");
         }
         finally
         {
@@ -437,7 +437,7 @@ public partial class SearchViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadDataAsync(refresh) failed: {ex.Message}");
+                Log.Debug("SearchViewModel", $"[SearchVM] LoadDataAsync(refresh) failed: {ex.Message}");
             }
             finally { IsLoading = false; }
             return;
@@ -531,7 +531,7 @@ public partial class SearchViewModel : ObservableObject
         {
             EmptyStateText = $"加载失败：{ex.Message}";
             IsCurrentTabEmpty = true;
-            System.Diagnostics.Debug.WriteLine($"[SearchViewModel] 加载探索数据失败: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchViewModel] 加载探索数据失败: {ex.Message}");
         }
         finally
         {
@@ -580,7 +580,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadAllArtistsAndAlbumsForSearch failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] LoadAllArtistsAndAlbumsForSearch failed: {ex.Message}");
         }
     }
 
@@ -610,7 +610,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] ReloadAfterScan failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] ReloadAfterScan failed: {ex.Message}");
         }
     }
 
@@ -777,7 +777,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Search] UpdateSearchDropdown failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[Search] UpdateSearchDropdown failed: {ex.Message}");
         }
     }
 
@@ -930,7 +930,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] 记忆提取失败: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] 记忆提取失败: {ex.Message}");
         }
     }
 
@@ -1281,7 +1281,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 每日推荐获取失败: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] AI 每日推荐获取失败: {ex.Message}");
             _aiAttemptDate = today;
         }
         finally
@@ -1354,7 +1354,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 推荐解析失败: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] AI 推荐解析失败: {ex.Message}");
         }
         return result;
     }
@@ -1393,7 +1393,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] AI 推荐缓存写入失败: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] AI 推荐缓存写入失败: {ex.Message}");
         }
     }
 
@@ -1438,7 +1438,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] RefreshAsync failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] RefreshAsync failed: {ex.Message}");
         }
     }
 
@@ -1470,7 +1470,7 @@ public partial class SearchViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SearchVM] LoadFavorites failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] LoadFavorites failed: {ex.Message}");
             GenerateHeroCards();
         }
     }

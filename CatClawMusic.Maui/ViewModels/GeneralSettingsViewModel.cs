@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CatClawMusic.Maui.Services;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -88,7 +89,7 @@ public partial class GeneralSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[GeneralVM] ClearCache failed: {ex}");
+            Log.Debug("GeneralSettingsViewModel", $"[GeneralVM] ClearCache failed: {ex}");
         }
         finally { IsClearingCache = false; }
     }
@@ -123,7 +124,7 @@ public partial class GeneralSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[GeneralVM] ResetSettings failed: {ex}");
+            Log.Debug("GeneralSettingsViewModel", $"[GeneralVM] ResetSettings failed: {ex}");
         }
     }
 

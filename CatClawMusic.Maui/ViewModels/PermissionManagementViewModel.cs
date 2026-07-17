@@ -76,7 +76,7 @@ public partial class PermissionManagementViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PermissionManagement] Refresh 失败: {ex.Message}");
+            Log.Debug("PermissionManagementViewModel", $"[PermissionManagement] Refresh 失败: {ex.Message}");
         }
         finally
         {
@@ -109,7 +109,7 @@ public partial class PermissionManagementViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PermissionManagement] Request 失败: {ex.Message}");
+            Log.Debug("PermissionManagementViewModel", $"[PermissionManagement] Request 失败: {ex.Message}");
         }
 
         // 跳转授权后给系统一点时间
@@ -122,7 +122,7 @@ public partial class PermissionManagementViewModel : ObservableObject
     public void OpenAppSettings()
     {
         try { _permissionService.OpenAppSettings(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[PermissionManagement] OpenAppSettings 失败: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("PermissionManagementViewModel", $"[PermissionManagement] OpenAppSettings 失败: {ex.Message}"); }
     }
 
     private static async Task<bool> CheckNotificationPermissionAsync()

@@ -77,16 +77,16 @@ public class SmbService : INetworkFileService, IDisposable
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SMB] 尝试连接 {addr} ({addr.AddressFamily})");
+                    Log.Debug("SmbService", $"[SMB] 尝试连接 {addr} ({addr.AddressFamily})");
                     if (client.Connect(addr, SMBTransportType.DirectTCPTransport))
                     {
-                        System.Diagnostics.Debug.WriteLine($"[SMB] 成功连接到 {addr}");
+                        Log.Debug("SmbService", $"[SMB] 成功连接到 {addr}");
                         return true;
                     }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SMB] 连接 {addr} 失败: {ex.Message}");
+                    Log.Debug("SmbService", $"[SMB] 连接 {addr} 失败: {ex.Message}");
                 }
             }
 
@@ -269,14 +269,14 @@ public class SmbService : INetworkFileService, IDisposable
             lock (_lock) { fileStore = _fileStore; }
             if (fileStore == null)
             {
-                System.Diagnostics.Debug.WriteLine("[SMB] ListFiles _fileStore 为空，未连接");
+                Log.Debug("SmbService", "[SMB] ListFiles _fileStore 为空，未连接");
                 return files;
             }
 
             try
             {
                 var normalizedPath = NormalizePath(path);
-                System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 开始 path={path}, normalized={normalizedPath}");
+                Log.Debug("SmbService", $"[SMB] ListFiles 开始 path={path}, normalized={normalizedPath}");
                 object? queryHandle;
 
                 lock (_lock)
@@ -292,7 +292,7 @@ public class SmbService : INetworkFileService, IDisposable
                         CreateOptions.FILE_DIRECTORY_FILE,
                         null);
 
-                    System.Diagnostics.Debug.WriteLine($"[SMB] CreateFile path='{normalizedPath}' status={status}");
+                    Log.Debug("SmbService", $"[SMB] CreateFile path='{normalizedPath}' status={status}");
 
                     if (status != NTStatus.STATUS_SUCCESS)
                     {
@@ -309,12 +309,12 @@ public class SmbService : INetworkFileService, IDisposable
                                 CreateOptions.FILE_DIRECTORY_FILE,
                                 null);
 
-                            System.Diagnostics.Debug.WriteLine($"[SMB] CreateFile 回退 path='\\' status={status}");
+                            Log.Debug("SmbService", $"[SMB] CreateFile 回退 path='\\' status={status}");
                         }
 
                         if (status != NTStatus.STATUS_SUCCESS)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 打开目录失败 {path}: {status}");
+                            Log.Debug("SmbService", $"[SMB] ListFiles 打开目录失败 {path}: {status}");
                             return files;
                         }
                     }
@@ -332,12 +332,12 @@ public class SmbService : INetworkFileService, IDisposable
                     fileStore.CloseFile(queryHandle);
                 }
 
-                System.Diagnostics.Debug.WriteLine($"[SMB] QueryDirectory status={queryStatus}, entries={entries?.Count ?? 0}");
+                Log.Debug("SmbService", $"[SMB] QueryDirectory status={queryStatus}, entries={entries?.Count ?? 0}");
 
                 if ((queryStatus != NTStatus.STATUS_SUCCESS && queryStatus != NTStatus.STATUS_NO_MORE_FILES)
                     || entries == null || entries.Count == 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 查询结果为空 {path}: {queryStatus}");
+                    Log.Debug("SmbService", $"[SMB] ListFiles 查询结果为空 {path}: {queryStatus}");
                     return files;
                 }
 
@@ -346,7 +346,7 @@ public class SmbService : INetworkFileService, IDisposable
                 {
                     if (entries[i] is FileBothDirectoryInformation diag)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[SMB] 诊断 entry[{i}]: name='{diag.FileName}' attr={diag.FileAttributes} (0x{(uint)diag.FileAttributes:X8}) isDir={(diag.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0}");
+                        Log.Debug("SmbService", $"[SMB] 诊断 entry[{i}]: name='{diag.FileName}' attr={diag.FileAttributes} (0x{(uint)diag.FileAttributes:X8}) isDir={(diag.FileAttributes & SMBLibrary.FileAttributes.Directory) != 0}");
                     }
                 }
 
@@ -378,7 +378,7 @@ public class SmbService : INetworkFileService, IDisposable
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SMB] ListFiles 异常: {ex.Message}");
+                Log.Debug("SmbService", $"[SMB] ListFiles 异常: {ex.Message}");
             }
 
             return files;

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -118,7 +119,7 @@ public class AudioCacheService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AudioCache] 缓存失败: {remoteUrl[..Math.Min(60, remoteUrl.Length)]}, {ex.Message}");
+            Log.Debug("AudioCacheService", $"[AudioCache] 缓存失败: {remoteUrl[..Math.Min(60, remoteUrl.Length)]}, {ex.Message}");
             tcs.TrySetResult(null);
             return null;
         }
@@ -188,7 +189,7 @@ public class AudioCacheService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AudioCache] 清除缓存失败: {ex.Message}");
+            Log.Debug("AudioCacheService", $"[AudioCache] 清除缓存失败: {ex.Message}");
         }
     }
 

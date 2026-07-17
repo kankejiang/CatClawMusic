@@ -4,6 +4,7 @@ using Android.Graphics;
 using Android.Media;
 using Android.Media.Session;
 using Android.OS;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -86,7 +87,7 @@ public class ForegroundPlayerService : Service
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[FGService] StartForeground failed: {ex.GetType().Name}: {ex.Message}");
+            Log.Debug("ForegroundPlayerService", $"[FGService] StartForeground failed: {ex.GetType().Name}: {ex.Message}");
             try
             {
                 var fallback = new Notification.Builder(this, ChannelId)
@@ -100,7 +101,7 @@ public class ForegroundPlayerService : Service
             }
             catch (Exception ex2)
             {
-                System.Diagnostics.Debug.WriteLine($"[FGService] Fallback StartForeground also failed: {ex2.GetType().Name}: {ex2.Message}");
+                Log.Debug("ForegroundPlayerService", $"[FGService] Fallback StartForeground also failed: {ex2.GetType().Name}: {ex2.Message}");
             }
         }
 
@@ -402,7 +403,7 @@ public class ForegroundPlayerService : Service
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[FGService] MediaStyle build failed: {ex.GetType().Name}: {ex.Message}");
+                Log.Debug("ForegroundPlayerService", $"[FGService] MediaStyle build failed: {ex.GetType().Name}: {ex.Message}");
             }
         }
 

@@ -2,6 +2,7 @@ using Android.App;
 using Android.Content;
 using Android.Provider;
 using AUri = Android.Net.Uri;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -100,7 +101,7 @@ public static class FolderPicker
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] 释放 URI 权限失败: {ex.Message}");
+            Log.Debug("FolderPicker", $"[CatClaw] 释放 URI 权限失败: {ex.Message}");
         }
     }
 
@@ -139,11 +140,11 @@ public static class FolderPicker
             }
             catch (Java.Lang.SecurityException)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 权限已丢失: {uriStr}");
+                Log.Debug("FolderPicker", $"[CatClaw] SAF 权限已丢失: {uriStr}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF 验证异常: {ex.Message}");
+                Log.Debug("FolderPicker", $"[CatClaw] SAF 验证异常: {ex.Message}");
             }
         }
 
@@ -198,7 +199,7 @@ public static class FolderPicker
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] SAF persist failed: {ex.Message}");
+                Log.Debug("FolderPicker", $"[CatClaw] SAF persist failed: {ex.Message}");
             }
 
             _tcs?.TrySetResult(uri.ToString());

@@ -1,4 +1,5 @@
 using CatClawMusic.Maui.ViewModels;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -26,7 +27,7 @@ public partial class ClawCircleSettingsPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCirclePage] OnAppearing 错误: {ex.Message}");
+            Log.Debug("ClawCircleSettingsPage.xaml", $"[ClawCirclePage] OnAppearing 错误: {ex.Message}");
         }
     }
 

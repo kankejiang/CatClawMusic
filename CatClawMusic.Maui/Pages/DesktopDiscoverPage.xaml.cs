@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
@@ -21,6 +22,7 @@ public partial class DesktopDiscoverPage : ContentPage
     private readonly IAudioPlayerService _audioPlayer;
     private readonly IServiceProvider _services;
     private readonly IThemeService? _themeService;
+    private readonly ListeningStatsView _statsView;
 
     private IDispatcherTimer? _heroTimer;
     private int _heroIndex;
@@ -29,7 +31,8 @@ public partial class DesktopDiscoverPage : ContentPage
 
     /// <summary>初始化 <see cref="DesktopDiscoverPage"/> 并注入所需服务与视图模型。</summary>
     public DesktopDiscoverPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm,
-        IAudioPlayerService audioPlayer, IServiceProvider services, IThemeService? themeService)
+        IAudioPlayerService audioPlayer, IServiceProvider services, IThemeService? themeService,
+        ListeningStatsView statsView)
     {
         InitializeComponent();
         _db = db;
@@ -38,7 +41,11 @@ public partial class DesktopDiscoverPage : ContentPage
         _audioPlayer = audioPlayer;
         _services = services;
         _themeService = themeService;
+        _statsView = statsView;
         BindingContext = _vm;
+
+        // 将听歌统计视图添加到"报告"面板
+        PanelStats.Children.Add(_statsView);
 
         // 用 ImageSourceHelper 在代码后台设图标源（WinUI 上 XAML 字面量 Source="ic_xxx" 不渲染）
         HeroPrev.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_left");
@@ -277,7 +284,7 @@ public partial class DesktopDiscoverPage : ContentPage
         {
             LocalScanService.NeedsReload = false;
             try { await _vm.ReloadAfterScanAsync(); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopDiscover reload: {ex.Message}"); }
+            catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover reload: {ex.Message}"); }
             if (_vm.HeroCards.Count > 0)
             {
                 _heroIndex = 0;
@@ -294,7 +301,7 @@ public partial class DesktopDiscoverPage : ContentPage
         }
 
         try { await _vm.LoadExploreDataAsync(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopDiscover OnAppearing: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover OnAppearing: {ex.Message}"); }
 
         if (_vm.HeroCards.Count > 0)
         {
@@ -384,6 +391,11 @@ public partial class DesktopDiscoverPage : ContentPage
         {
             _vm.CurrentCategory = idx;
             UpdateTabVisualState(idx);
+            // 切换到"报告"Tab 时触发统计数据加载
+            if (idx == 4)
+            {
+                _ = _statsView.LoadAsync();
+            }
         }
     }
 
@@ -404,6 +416,9 @@ public partial class DesktopDiscoverPage : ContentPage
 
         TabAlbum.BackgroundColor = selectedIndex == 3 ? primary : cardBg;
         TabAlbumLabel.TextColor = selectedIndex == 3 ? Colors.White : textSecondary;
+
+        TabStats.BackgroundColor = selectedIndex == 4 ? primary : cardBg;
+        TabStatsLabel.TextColor = selectedIndex == 4 ? Colors.White : textSecondary;
     }
 
     private void OnArtistsViewAllClicked(object? sender, EventArgs e)
@@ -659,7 +674,7 @@ public partial class DesktopDiscoverPage : ContentPage
     {
         if (_vm.IsLoading) return;
         try { await _vm.LoadExploreDataAsync(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopDiscover refresh: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover refresh: {ex.Message}"); }
     }
 
     // ─── AI Chat ───

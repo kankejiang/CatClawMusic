@@ -126,7 +126,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PlaylistDetailVM] LoadAsync({playlistId}) failed: {ex}");
+            Log.Debug("PlaylistDetailViewModel", $"[PlaylistDetailVM] LoadAsync({playlistId}) failed: {ex}");
             StatusText = "加载失败";
         }
         finally { IsLoading = false; }

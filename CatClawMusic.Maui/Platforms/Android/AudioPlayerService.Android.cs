@@ -5,6 +5,7 @@ using Android.OS;
 using AndroidX.Media3.Common;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.Platforms.Android;
+using ALog = Android.Util.Log;
 using SimpleExoPlayer = AndroidX.Media3.ExoPlayer.SimpleExoPlayer;
 namespace CatClawMusic.Maui.Services;
 
@@ -223,21 +224,21 @@ public partial class AudioPlayerService
 
                 if (_ffmpeg != null && _ffmpeg.IsAvailable)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 转码: {Path.GetFileName(localPath)}");
+                    Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 转码: {Path.GetFileName(localPath)}");
                     var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath);
                     if (wavPath != null)
                     {
                         playUri = new Uri("file://" + wavPath);
-                        System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 转码完成，使用 WAV 播放");
+                        Log.Debug("AudioPlayerService.Android", "[ExoPlayer] FFmpeg 转码完成，使用 WAV 播放");
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 转码失败，回退原生播放");
+                        Log.Debug("AudioPlayerService.Android", "[ExoPlayer] FFmpeg 转码失败，回退原生播放");
                     }
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 不可用，回退原生播放 m4a");
+                    Log.Debug("AudioPlayerService.Android", "[ExoPlayer] FFmpeg 不可用，回退原生播放 m4a");
                 }
             }
 
@@ -254,7 +255,7 @@ public partial class AudioPlayerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] Play error: {ex.Message}");
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] Play error: {ex.Message}");
             // FFmpeg 兜底：如果 ExoPlayer 直接播放失败，尝试转码
             await TryFFmpegFallbackAsync(source);
         }
@@ -268,11 +269,11 @@ public partial class AudioPlayerService
         {
             _ffmpeg ??= new FFmpegService();
             await _ffmpeg.InitializeAsync();
-            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 就绪: {_ffmpeg.IsAvailable}");
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 就绪: {_ffmpeg.IsAvailable}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 初始化异常: {ex.Message}");
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 初始化异常: {ex.Message}");
         }
     }
 
@@ -287,7 +288,7 @@ public partial class AudioPlayerService
 
         try
         {
-            System.Diagnostics.Debug.WriteLine("[ExoPlayer] 尝试 FFmpeg 兜底转码...");
+            Log.Debug("AudioPlayerService.Android", "[ExoPlayer] 尝试 FFmpeg 兜底转码...");
             var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath);
             if (wavPath == null) return;
 
@@ -302,11 +303,11 @@ public partial class AudioPlayerService
             AcquireWakeLock();
             // 音频焦点由 ExoPlayer 自动管理
             StartForegroundService();
-            System.Diagnostics.Debug.WriteLine("[ExoPlayer] FFmpeg 兜底成功");
+            Log.Debug("AudioPlayerService.Android", "[ExoPlayer] FFmpeg 兜底成功");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] FFmpeg 兜底失败: {ex.Message}");
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 兜底失败: {ex.Message}");
         }
     }
 
@@ -420,7 +421,7 @@ public partial class AudioPlayerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] GetDuration error: {ex.Message}");
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] GetDuration error: {ex.Message}");
         }
         return 0;
     }
@@ -514,7 +515,7 @@ public partial class AudioPlayerService
                     {
                         var dur = _owner._player?.Duration ?? 0;
                         var pos = _owner._player?.CurrentPosition ?? 0;
-                        System.Diagnostics.Debug.WriteLine($"[ExoPlayer] STATE_READY: Duration={dur}ms, Position={pos}ms");
+                        Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] STATE_READY: Duration={dur}ms, Position={pos}ms");
                         if (dur > 0)
                         {
                             _owner.DurationChanged?.Invoke(_owner, dur / 1000.0);
@@ -524,7 +525,7 @@ public partial class AudioPlayerService
                     catch { }
                 });
             }
-            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] State={playbackState} prepared={_owner._isPrepared}");
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] State={playbackState} prepared={_owner._isPrepared}");
         }
 
         /// <summary>IsPlaying 状态变化回调：同步更新真实播放状态，并通知上层 PlaybackStateChanged</summary>
@@ -532,7 +533,7 @@ public partial class AudioPlayerService
         public void OnIsPlayingChanged(bool isPlaying)
         {
             _owner._isActuallyPlaying = isPlaying;
-            System.Diagnostics.Debug.WriteLine($"[ExoPlayer] IsPlaying={isPlaying}");
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] IsPlaying={isPlaying}");
             // 同步通知上层 PlaybackStateChanged
             try { _owner.PlaybackStateChanged?.Invoke(_owner, isPlaying); }
             catch { }
@@ -748,7 +749,7 @@ public partial class AudioPlayerService
         _ = Microsoft.Maui.ApplicationModel.MainThread.InvokeOnMainThreadAsync(RequestNotificationPermissionAsync);
 
         try { ForegroundPlayerService.Start(ctx, _currentTitle, _currentArtist); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AudioPlayer] FG start: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[AudioPlayer] FG start: {ex.Message}"); }
     }
 
     /// <summary>Android 13+ 申请通知权限（POST_NOTIFICATIONS），已授权则跳过；异常不影响播放</summary>
@@ -766,7 +767,7 @@ public partial class AudioPlayerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AudioPlayer] 通知权限申请异常: {ex.Message}");
+            Log.Debug("AudioPlayerService.Android", $"[AudioPlayer] 通知权限申请异常: {ex.Message}");
         }
     }
 
@@ -889,7 +890,7 @@ public partial class AudioPlayerService
             }
             catch (Exception ex)
             {
-                Android.Util.Log.Error("AudioPlayerSvc", $"OnNotifLyricsRequested failed: {ex.GetType().Name}: {ex.Message}");
+                ALog.Error("AudioPlayerSvc", $"OnNotifLyricsRequested failed: {ex.GetType().Name}: {ex.Message}");
             }
         });
     }

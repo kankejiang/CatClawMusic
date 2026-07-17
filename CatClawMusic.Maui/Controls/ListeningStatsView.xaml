@@ -1,0 +1,466 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             x:Class="CatClawMusic.Maui.Controls.ListeningStatsView"
+             x:Name="Root">
+
+    <VerticalStackLayout Padding="16,4,16,28" Spacing="16">
+
+        <!-- 加载中 / 状态文本 -->
+        <ActivityIndicator IsVisible="{Binding IsLoading}"
+                           IsRunning="{Binding IsLoading}"
+                           Color="{DynamicResource PrimaryColor}"
+                           HorizontalOptions="Center" />
+
+        <Label Text="{Binding StatusText}"
+               FontSize="12"
+               TextColor="{DynamicResource TextHintColor}"
+               HorizontalOptions="Center"
+               IsVisible="{Binding StatusText, Converter={StaticResource StringToBoolConverter}}" />
+
+        <!-- ═══ 时间范围 Chips ═══ -->
+        <FlexLayout JustifyContent="Center" Direction="Row" AlignItems="Center">
+            <Border StrokeShape="RoundRectangle 999" StrokeThickness="1"
+                    Stroke="{DynamicResource GlassStrokeColor}"
+                    BackgroundColor="{DynamicResource CardBackgroundColor}"
+                    Padding="4">
+                <HorizontalStackLayout Spacing="0">
+                    <Border StrokeShape="RoundRectangle 999" StrokeThickness="0" Padding="14,8"
+                            BackgroundColor="{Binding Range7BgColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SwitchRangeCommand}"
+                                                  CommandParameter="{x:Int32 7}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="近 7 天" FontSize="13" FontFamily="OpenSansSemibold"
+                               TextColor="{Binding Range7TextColor}" />
+                    </Border>
+                    <Border StrokeShape="RoundRectangle 999" StrokeThickness="0" Padding="14,8"
+                            BackgroundColor="{Binding Range30BgColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SwitchRangeCommand}"
+                                                  CommandParameter="{x:Int32 30}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="近 30 天" FontSize="13" FontFamily="OpenSansSemibold"
+                               TextColor="{Binding Range30TextColor}" />
+                    </Border>
+                    <Border StrokeShape="RoundRectangle 999" StrokeThickness="0" Padding="14,8"
+                            BackgroundColor="{Binding RangeAllBgColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SwitchRangeCommand}"
+                                                  CommandParameter="{x:Int32 0}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="全部" FontSize="13" FontFamily="OpenSansSemibold"
+                               TextColor="{Binding RangeAllTextColor}" />
+                    </Border>
+                </HorizontalStackLayout>
+            </Border>
+        </FlexLayout>
+
+        <!-- ═══ 顶部统计卡（3 列）═══ -->
+        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10"
+              IsVisible="{Binding HasData}">
+            <!-- 总播放 -->
+            <Border Grid.Column="0" Style="{StaticResource GlassCardStyle}" Padding="14,16">
+                <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
+                    <HorizontalStackLayout Spacing="3" HorizontalOptions="Center">
+                        <Label Text="{Binding TotalPlaysText}"
+                               FontSize="26" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="次" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                               VerticalOptions="End" Margin="0,0,0,3" />
+                    </HorizontalStackLayout>
+                    <Label Text="总播放" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Border>
+            <!-- 听过的歌 -->
+            <Border Grid.Column="1" Style="{StaticResource GlassCardStyle}" Padding="14,16">
+                <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
+                    <HorizontalStackLayout Spacing="3" HorizontalOptions="Center">
+                        <Label Text="{Binding SongsHeardText}"
+                               FontSize="26" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="首" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                               VerticalOptions="End" Margin="0,0,0,3" />
+                    </HorizontalStackLayout>
+                    <Label Text="听过的歌" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Border>
+            <!-- 听歌天数 -->
+            <Border Grid.Column="2" Style="{StaticResource GlassCardStyle}" Padding="14,16">
+                <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
+                    <HorizontalStackLayout Spacing="3" HorizontalOptions="Center">
+                        <Label Text="{Binding ListeningDaysText}"
+                               FontSize="26" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="天" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                               VerticalOptions="End" Margin="0,0,0,3" />
+                    </HorizontalStackLayout>
+                    <Label Text="听歌天数" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ═══ 听歌时长大卡 ═══ -->
+        <Border Padding="18,16" StrokeShape="RoundRectangle 24" StrokeThickness="1"
+                Stroke="{DynamicResource GlassStrokeStrongColor}"
+                IsVisible="{Binding HasData}">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#4D8C7BFF" Offset="0" />
+                    <GradientStop Color="#2655D6FF" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <VerticalStackLayout Spacing="14">
+                <HorizontalStackLayout Spacing="8">
+                    <Border WidthRequest="8" HeightRequest="8"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 4"
+                            BackgroundColor="{DynamicResource AccentColor}"
+                            VerticalOptions="Center" />
+                    <Label Text="累计听歌时长" FontSize="13"
+                           TextColor="{DynamicResource TextSecondaryColor}"
+                           VerticalOptions="Center" />
+                </HorizontalStackLayout>
+                <Label Text="{Binding TotalDurationText}"
+                       FontSize="38" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                       TextColor="White" />
+
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                    <!-- 日均时长 -->
+                    <Border Grid.Column="0" Padding="10,6" StrokeThickness="1"
+                            Stroke="#3078A0DC" StrokeShape="RoundRectangle 14"
+                            BackgroundColor="#28100C1E">
+                        <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                            <HorizontalStackLayout Spacing="2" HorizontalOptions="Center">
+                                <Label Text="{Binding AvgDurationText}"
+                                       FontSize="18" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                <Label Text="分" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                       VerticalOptions="End" Margin="0,0,0,2" />
+                            </HorizontalStackLayout>
+                            <Label Text="日均时长" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                   HorizontalOptions="Center" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <!-- 最长单曲 -->
+                    <Border Grid.Column="1" Padding="10,6" StrokeThickness="1"
+                            Stroke="#3078A0DC" StrokeShape="RoundRectangle 14"
+                            BackgroundColor="#28100C1E">
+                        <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                            <Label Text="{Binding LongestSongText}"
+                                   FontSize="18" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   HorizontalOptions="Center" />
+                            <Label Text="最长单曲" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                   HorizontalOptions="Center" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <!-- 深夜听歌 -->
+                    <Border Grid.Column="2" Padding="10,6" StrokeThickness="1"
+                            Stroke="#3078A0DC" StrokeShape="RoundRectangle 14"
+                            BackgroundColor="#28100C1E">
+                        <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                            <HorizontalStackLayout Spacing="2" HorizontalOptions="Center">
+                                <Label Text="{Binding NightPercentText}"
+                                       FontSize="18" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                <Label Text="%" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                       VerticalOptions="End" Margin="0,0,0,2" />
+                            </HorizontalStackLayout>
+                            <Label Text="深夜听歌" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                   HorizontalOptions="Center" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ═══ 连续听歌 ═══ -->
+        <Border Style="{StaticResource GlassCardStyle}" Padding="16,14"
+                IsVisible="{Binding HasData}">
+            <VerticalStackLayout Spacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="🔥" FontSize="14" VerticalOptions="Center" />
+                        <Label Text="连续听歌" FontSize="14" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Label Grid.Column="1" Text="{Binding StreakCapText}" FontSize="11"
+                           TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,1,*" ColumnSpacing="18" HorizontalOptions="Center" Margin="0,2,0,0">
+                    <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                        <HorizontalStackLayout Spacing="3" HorizontalOptions="Center">
+                            <Label Text="{Binding StreakCurrentText}"
+                                   FontSize="26" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="天" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                   VerticalOptions="End" Margin="0,0,0,3" />
+                        </HorizontalStackLayout>
+                        <Label Text="当前连续" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                    <BoxView Grid.Column="1" WidthRequest="1" HeightRequest="44"
+                             BackgroundColor="{DynamicResource GlassStrokeColor}" />
+                    <VerticalStackLayout Grid.Column="2" Spacing="4" HorizontalOptions="Center">
+                        <HorizontalStackLayout Spacing="3" HorizontalOptions="Center">
+                            <Label Text="{Binding StreakBestText}"
+                                   FontSize="26" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="天" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                   VerticalOptions="End" Margin="0,0,0,3" />
+                        </HorizontalStackLayout>
+                        <Label Text="最长连续" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ═══ 环比对比 ═══ -->
+        <Border Style="{StaticResource GlassCardStyle}" Padding="16,14"
+                IsVisible="{Binding HasData}">
+            <VerticalStackLayout Spacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Text="对比上一周期" FontSize="14" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                    <Label Grid.Column="1" Text="{Binding CompareCapText}" FontSize="11"
+                           TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10" IsVisible="{Binding HasCompare}">
+                    <CollectionView Grid.ColumnSpan="3" ItemsSource="{Binding CompareItems}"
+                                    SelectionMode="None" ItemsUpdatingScrollMode="KeepItemsInView">
+                        <CollectionView.ItemsLayout>
+                            <GridItemsLayout Orientation="Vertical" Span="3" VerticalItemSpacing="10" HorizontalItemSpacing="10" />
+                        </CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="10,12" StrokeThickness="1"
+                                        Stroke="#3078A0DC" StrokeShape="RoundRectangle 14"
+                                        BackgroundColor="#28100C1E">
+                                    <VerticalStackLayout Spacing="5" HorizontalOptions="Center">
+                                        <Label Text="{Binding Label}" FontSize="11"
+                                               TextColor="{DynamicResource TextHintColor}"
+                                               HorizontalOptions="Center" />
+                                        <Label Text="{Binding Value}" FontSize="15" FontAttributes="Bold"
+                                               FontFamily="OpenSansSemibold"
+                                               TextColor="{DynamicResource TextPrimaryColor}"
+                                               HorizontalOptions="Center" />
+                                        <Label Text="{Binding DeltaText}" FontSize="11" FontAttributes="Bold"
+                                               TextColor="{Binding DeltaColor}"
+                                               HorizontalOptions="Center" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ═══ 听歌趋势 ═══ -->
+        <Border Style="{StaticResource GlassCardStyle}" Padding="16,14"
+                IsVisible="{Binding HasData}">
+            <VerticalStackLayout Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Text="听歌趋势" FontSize="14" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                    <Border Grid.Column="1" StrokeShape="RoundRectangle 999" StrokeThickness="1"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            BackgroundColor="{DynamicResource CardBackgroundColor}" Padding="3">
+                        <HorizontalStackLayout Spacing="0">
+                            <Border StrokeShape="RoundRectangle 999" StrokeThickness="0" Padding="10,5"
+                                    BackgroundColor="{Binding CountMetricBgColor}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SwitchMetricCommand}"
+                                                          CommandParameter="{x:Boolean True}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="次数" FontSize="11" FontFamily="OpenSansSemibold"
+                                       TextColor="{Binding CountMetricTextColor}" />
+                            </Border>
+                            <Border StrokeShape="RoundRectangle 999" StrokeThickness="0" Padding="10,5"
+                                    BackgroundColor="{Binding DurationMetricBgColor}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SwitchMetricCommand}"
+                                                          CommandParameter="{x:Boolean False}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="时长" FontSize="11" FontFamily="OpenSansSemibold"
+                                       TextColor="{Binding DurationMetricTextColor}" />
+                            </Border>
+                        </HorizontalStackLayout>
+                    </Border>
+                </Grid>
+                <Label Text="{Binding TrendCapText}" FontSize="11"
+                       TextColor="{DynamicResource TextHintColor}" />
+
+                <!-- 趋势柱状图：用 Grid 等宽列（Star）实现柱子均匀分布，避免 CollectionView 水平滚动测量为 0 的问题。
+                     柱子在 code-behind 中根据 TrendBars 动态构建，含蓝紫渐变和辉光效果。 -->
+                <Grid x:Name="TrendChartGrid" HeightRequest="160" />
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ═══ 听歌时段分布 ═══ -->
+        <VerticalStackLayout Spacing="10" IsVisible="{Binding HasData}">
+            <Label Text="听歌时段分布" Style="{StaticResource SectionTitleStyle}" Margin="4,0,0,2" />
+            <Border Style="{StaticResource GlassCardStyle}" Padding="16,14">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="一天中，你更常在什么时候听歌" FontSize="13"
+                           TextColor="{DynamicResource TextSecondaryColor}" />
+                    <VerticalStackLayout Spacing="11" BindableLayout.ItemsSource="{Binding TimeSlots}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="78,*,46" ColumnSpacing="10" VerticalOptions="Center">
+                                    <Label Grid.Column="0" Text="{Binding Name}" FontSize="12"
+                                           TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center" />
+                                    <ProgressBar Grid.Column="1" Progress="{Binding Ratio}"
+                                                 HeightRequest="9"
+                                                 ProgressColor="{DynamicResource AccentColor}"
+                                                 BackgroundColor="#552A3870" />
+                                    <Label Grid.Column="2" Text="{Binding PercentText}" FontSize="12"
+                                           FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           HorizontalTextAlignment="End" VerticalOptions="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                    <Label Text="{Binding NightNoteText}" FontSize="11.5"
+                           TextColor="{DynamicResource TextSecondaryColor}" Margin="0,4,0,0" />
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- ═══ 最爱歌曲 Top 10 ═══ -->
+        <VerticalStackLayout Spacing="10"
+                             IsVisible="{Binding TopSongs.Count, Converter={StaticResource CountToBoolConverter}}">
+            <Label Text="最爱歌曲 · Top 10" Style="{StaticResource SectionTitleStyle}" Margin="4,0,0,2" />
+            <Border Style="{StaticResource GlassCardStyle}" Padding="14,10">
+                <CollectionView ItemsSource="{Binding TopSongs}"
+                                SelectionMode="Single"
+                                SelectionChanged="OnTopSongSelected"
+                                ItemsUpdatingScrollMode="KeepItemsInView">
+                    <CollectionView.Behaviors>
+                        <controls:ScrollPerformanceBehavior />
+                    </CollectionView.Behaviors>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Padding="0,9" ColumnDefinitions="28,Auto,*,Auto" ColumnSpacing="12">
+                                <Label Grid.Column="0" Text="{Binding RankText}"
+                                       FontSize="16" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource PrimaryColor}"
+                                       HorizontalTextAlignment="Center" VerticalOptions="Center" />
+                                <Border Grid.Column="1" WidthRequest="48" HeightRequest="48"
+                                        StrokeShape="RoundRectangle 13" StrokeThickness="0"
+                                        BackgroundColor="{DynamicResource SurfaceColor}"
+                                        VerticalOptions="Center">
+                                    <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}"
+                                           Aspect="AspectFill" WidthRequest="48" HeightRequest="48" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="2" Spacing="3" VerticalOptions="Center">
+                                    <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                    <Label Text="{Binding Artist}" FontSize="11"
+                                           TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                                    <ProgressBar Progress="{Binding ProgressRatio}"
+                                                 ProgressColor="{DynamicResource PrimaryColor}"
+                                                 HeightRequest="5" Margin="0,2,0,0"
+                                                 BackgroundColor="#552A3870" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="3" Text="{Binding PlayCountText}"
+                                       FontSize="12" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource TextSecondaryColor}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- ═══ 最爱歌手 Top 5 ═══ -->
+        <VerticalStackLayout Spacing="10"
+                             IsVisible="{Binding TopArtists.Count, Converter={StaticResource CountToBoolConverter}}">
+            <Label Text="最爱歌手 · Top 5" Style="{StaticResource SectionTitleStyle}" Margin="4,0,0,2" />
+            <Border Style="{StaticResource GlassCardStyle}" Padding="14,14">
+                <CollectionView ItemsSource="{Binding TopArtists}"
+                                SelectionMode="None"
+                                ItemsUpdatingScrollMode="KeepItemsInView"
+                                HeightRequest="138">
+                    <CollectionView.Behaviors>
+                        <controls:ScrollPerformanceBehavior />
+                    </CollectionView.Behaviors>
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Horizontal" ItemSpacing="12" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout WidthRequest="92" Spacing="6" HorizontalOptions="Center">
+                                <Border WidthRequest="76" HeightRequest="76"
+                                        StrokeShape="RoundRectangle 38" StrokeThickness="1"
+                                        Stroke="#30FFFFFF"
+                                        BackgroundColor="{Binding AvatarColor}"
+                                        HorizontalOptions="Center">
+                                    <Label Text="{Binding Initial}"
+                                           FontSize="28" FontAttributes="Bold" FontFamily="OpenSansSemibold"
+                                           TextColor="White"
+                                           HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                                <Label Text="{Binding Name}" FontSize="12" FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       HorizontalOptions="Center" HorizontalTextAlignment="Center"
+                                       MaxLines="1" />
+                                <Label Text="{Binding PlayCountText}" FontSize="10"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- ═══ 最近在听 ═══ -->
+        <VerticalStackLayout Spacing="10"
+                             IsVisible="{Binding RecentSongs.Count, Converter={StaticResource CountToBoolConverter}}">
+            <Label Text="最近在听" Style="{StaticResource SectionTitleStyle}" Margin="4,0,0,2" />
+            <Border Style="{StaticResource GlassCardStyle}" Padding="14,6">
+                <CollectionView ItemsSource="{Binding RecentSongs}"
+                                SelectionMode="Single"
+                                SelectionChanged="OnRecentSongSelected"
+                                ItemsUpdatingScrollMode="KeepItemsInView">
+                    <CollectionView.Behaviors>
+                        <controls:ScrollPerformanceBehavior />
+                    </CollectionView.Behaviors>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Padding="0,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <Border Grid.Column="0" WidthRequest="44" HeightRequest="44"
+                                        StrokeShape="RoundRectangle 11" StrokeThickness="0"
+                                        BackgroundColor="{DynamicResource SurfaceColor}"
+                                        VerticalOptions="Center">
+                                    <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}"
+                                           Aspect="AspectFill" WidthRequest="44" HeightRequest="44" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                    <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                    <Label Text="{Binding Artist}" FontSize="11"
+                                           TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2"
+                                       Text="{Binding Duration, Converter={StaticResource DurationConverter}}"
+                                       FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Border>
+        </VerticalStackLayout>
+
+    </VerticalStackLayout>
+</ContentView>

@@ -128,7 +128,7 @@ public partial class ModelEditPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ModelEdit] LoadExistingConfig 失败: {ex.Message}");
+            Log.Debug("ModelEditPage.xaml", $"[ModelEdit] LoadExistingConfig 失败: {ex.Message}");
             ApplyDefaultValues();
         }
     }

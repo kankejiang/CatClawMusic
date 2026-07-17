@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Data;
 
@@ -70,7 +71,7 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[QQMusic] 下载封面失败: {ex.Message}");
+            Log.Debug("MultiSourcePhotoScraper", $"[QQMusic] 下载封面失败: {ex.Message}");
         }
 
         return null;
@@ -124,7 +125,7 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[QQMusic] 详情获取失败: {ex.Message}");
+            Log.Debug("MultiSourcePhotoScraper", $"[QQMusic] 详情获取失败: {ex.Message}");
             return (null, null, null, null);
         }
     }
@@ -186,7 +187,7 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[QQMusic] 搜索失败: {ex.Message}");
+            Log.Debug("MultiSourcePhotoScraper", $"[QQMusic] 搜索失败: {ex.Message}");
         }
         return results;
     }

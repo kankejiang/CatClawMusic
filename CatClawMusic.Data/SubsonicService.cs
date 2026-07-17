@@ -166,7 +166,7 @@ public class SubsonicService : ISubsonicService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CatClaw] getAlbumList2 第{page}页失败: {ex.Message}");
+                    Log.Debug("SubsonicService", $"[CatClaw] getAlbumList2 第{page}页失败: {ex.Message}");
                     break;
                 }
                 offset += pageSize;
@@ -229,7 +229,7 @@ public class SubsonicService : ISubsonicService
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongs 专辑 {albumName} 失败: {ex.Message}");
+                        Log.Debug("SubsonicService", $"[CatClaw] GetSongs 专辑 {albumName} 失败: {ex.Message}");
                     }
                 }).ToArray();
 
@@ -241,7 +241,7 @@ public class SubsonicService : ISubsonicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongsAsync 失败: {ex.GetType().Name}: {ex.Message}");
+            Log.Debug("SubsonicService", $"[CatClaw] GetSongsAsync 失败: {ex.GetType().Name}: {ex.Message}");
         }
         return songs;
     }
@@ -375,7 +375,7 @@ public class SubsonicService : ISubsonicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetLyrics 失败: {ex.Message}");
+            Log.Debug("SubsonicService", $"[CatClaw] GetLyrics 失败: {ex.Message}");
         }
         return null;
     }
@@ -404,7 +404,7 @@ public class SubsonicService : ISubsonicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] GetSongAsync 失败: {ex.Message}");
+            Log.Debug("SubsonicService", $"[CatClaw] GetSongAsync 失败: {ex.Message}");
         }
         return null;
     }

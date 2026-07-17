@@ -2,6 +2,7 @@ using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -116,7 +117,7 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MusicFolder] AddFolder error: {ex.Message}");
+            Log.Debug("MusicFolderSettingsViewModel", $"[MusicFolder] AddFolder error: {ex.Message}");
         }
 #elif WINDOWS
         try
@@ -136,7 +137,7 @@ public partial class MusicFolderSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MusicFolder] AddFolder error: {ex.Message}");
+            Log.Debug("MusicFolderSettingsViewModel", $"[MusicFolder] AddFolder error: {ex.Message}");
         }
 #else
         await Task.CompletedTask;

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Services.AI;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -116,7 +117,7 @@ public partial class ModelManagerPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ModelManager] LoadConfigs 失败: {ex.Message}");
+            Log.Debug("ModelManagerPage.xaml", $"[ModelManager] LoadConfigs 失败: {ex.Message}");
         }
         OnPropertyChanged(nameof(HasConfigs));
     }

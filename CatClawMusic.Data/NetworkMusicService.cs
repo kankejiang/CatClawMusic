@@ -157,13 +157,13 @@ public class NetworkMusicService : INetworkMusicService
                         var rawUrl = await wds.GetOpenListStreamUrlAsync(virtualPath);
                         if (!string.IsNullOrEmpty(rawUrl))
                         {
-                            System.Diagnostics.Debug.WriteLine($"[URL Resolver] OpenList raw_url: {rawUrl[..Math.Min(80, rawUrl.Length)]}...");
+                            Log.Debug("NetworkMusicService", $"[URL Resolver] OpenList raw_url: {rawUrl[..Math.Min(80, rawUrl.Length)]}...");
                             return rawUrl;
                         }
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[URL Resolver] OpenList raw_url 获取失败: {ex.Message}");
+                        Log.Debug("NetworkMusicService", $"[URL Resolver] OpenList raw_url 获取失败: {ex.Message}");
                     }
                 }
 
@@ -171,7 +171,7 @@ public class NetworkMusicService : INetworkMusicService
                 if (!hasDavPrefix && !string.IsNullOrEmpty(wds.DavPrefix))
                 {
                     var fixedUrl = wds.BuildStreamUrl(virtualPath);
-                    System.Diagnostics.Debug.WriteLine($"[URL Resolver] 修复URL: {url[..Math.Min(60, url.Length)]}... → {fixedUrl[..Math.Min(80, fixedUrl.Length)]}...");
+                    Log.Debug("NetworkMusicService", $"[URL Resolver] 修复URL: {url[..Math.Min(60, url.Length)]}... → {fixedUrl[..Math.Min(80, fixedUrl.Length)]}...");
                     return fixedUrl;
                 }
             }
@@ -180,7 +180,7 @@ public class NetworkMusicService : INetworkMusicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[URL Resolver] 解析失败: {ex.Message}");
+            Log.Debug("NetworkMusicService", $"[URL Resolver] 解析失败: {ex.Message}");
             return null;
         }
     }
@@ -217,7 +217,7 @@ public class NetworkMusicService : INetworkMusicService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 增量入库失败: {ex.Message}");
+                    Log.Debug("NetworkMusicService", $"[CatClaw] 增量入库失败: {ex.Message}");
                 }
                 songBatchCallback?.Invoke(batch);
             });
@@ -247,9 +247,9 @@ public class NetworkMusicService : INetworkMusicService
             var source = profile.Protocol == ProtocolType.SMB ? SongSource.SMB : SongSource.WebDAV;
             var removed = await _db.RemoveStaleSongsAsync(source, new HashSet<string>(), scannedRemoteIds);
             if (removed > 0)
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理 {removed} 首已移除的网络歌曲 ({source})");
+                Log.Debug("NetworkMusicService", $"[CatClaw] 清理 {removed} 首已移除的网络歌曲 ({source})");
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 清理旧网络歌曲失败: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("NetworkMusicService", $"[CatClaw] 清理旧网络歌曲失败: {ex.Message}"); }
 
         return allSongs;
     }
@@ -350,7 +350,7 @@ public class NetworkMusicService : INetworkMusicService
                     if (_streamUrlCache.TryGetValue(songId, out var cached) && cached.expiry > DateTime.UtcNow)
                     {
                         downloadUrl = cached.url;
-                        System.Diagnostics.Debug.WriteLine("[CatClaw] Cover: 复用播放缓存 URL");
+                        Log.Debug("NetworkMusicService", "[CatClaw] Cover: 复用播放缓存 URL");
                     }
 
                     // 缓存不可用：获取 CDN raw_url
@@ -390,7 +390,7 @@ public class NetworkMusicService : INetworkMusicService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CatClaw] OpenList 封面提取失败: {ex.Message}");
+                    Log.Debug("NetworkMusicService", $"[CatClaw] OpenList 封面提取失败: {ex.Message}");
                 }
             }
 
@@ -410,7 +410,7 @@ public class NetworkMusicService : INetworkMusicService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 封面提取失败: {ex.Message}");
+                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 封面提取失败: {ex.Message}");
             }
         }
         if (profile.Protocol == ProtocolType.SMB)
@@ -431,7 +431,7 @@ public class NetworkMusicService : INetworkMusicService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] SMB 封面提取失败: {ex.Message}");
+                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 封面提取失败: {ex.Message}");
             }
         }
         return null;
@@ -465,7 +465,7 @@ public class NetworkMusicService : INetworkMusicService
                     using var lrcStream = await _webDav.OpenReadAsync(lrcPath);
                     using var reader = new StreamReader(lrcStream);
                     var lrcText = await reader.ReadToEndAsync();
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] 读取歌词文件 {lrcPath}，长度={lrcText?.Length ?? 0}，前200字符={lrcText?[..Math.Min(200, lrcText?.Length ?? 0)]?.Replace('\n', ' ')}");
+                    Log.Debug("NetworkMusicService", $"[WebDAV] 读取歌词文件 {lrcPath}，长度={lrcText?.Length ?? 0}，前200字符={lrcText?[..Math.Min(200, lrcText?.Length ?? 0)]?.Replace('\n', ' ')}");
                     if (!string.IsNullOrWhiteSpace(lrcText))
                         return lrcText;
                 }
@@ -486,7 +486,7 @@ public class NetworkMusicService : INetworkMusicService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 歌词提取失败: {ex.Message}");
+                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 歌词提取失败: {ex.Message}");
             }
         }
         if (profile.Protocol == ProtocolType.SMB)
@@ -520,7 +520,7 @@ public class NetworkMusicService : INetworkMusicService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] SMB 歌词提取失败: {ex.Message}");
+                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 歌词提取失败: {ex.Message}");
             }
         }
         return null;
@@ -604,7 +604,7 @@ public class NetworkMusicService : INetworkMusicService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] 元数据回填失败: {song.FilePath}, {ex.Message}");
+                Log.Debug("NetworkMusicService", $"[CatClaw] 元数据回填失败: {song.FilePath}, {ex.Message}");
             }
             finally
             {
@@ -672,7 +672,7 @@ public class NetworkMusicService : INetworkMusicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] WebDAV 元数据获取失败: {ex.Message}");
+            Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 元数据获取失败: {ex.Message}");
         }
         return null;
     }
@@ -723,7 +723,7 @@ public class NetworkMusicService : INetworkMusicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] SMB 元数据获取失败: {ex.Message}");
+            Log.Debug("NetworkMusicService", $"[CatClaw] SMB 元数据获取失败: {ex.Message}");
         }
         return null;
     }
@@ -754,7 +754,7 @@ public class NetworkMusicService : INetworkMusicService
                 if (_streamUrlCache.TryGetValue(cacheKey, out var cached)
                     && cached.expiry > DateTime.UtcNow)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl cache hit: {cacheKey[..Math.Min(60, cacheKey.Length)]}");
+                    Log.Debug("NetworkMusicService", $"[OpenList] StreamUrl cache hit: {cacheKey[..Math.Min(60, cacheKey.Length)]}");
                     return cached.url;
                 }
 
@@ -868,7 +868,7 @@ public class NetworkMusicService : INetworkMusicService
         if (_webDav is WebDavService wds && wds.CurrentServerType == WebDavServerType.OpenList
             && (WebDavServerType)profile.ServerType != WebDavServerType.OpenList)
         {
-            System.Diagnostics.Debug.WriteLine("[WebDAV Scan] 自动检测到 OpenList，更新 profile.ServerType");
+            Log.Debug("NetworkMusicService", "[WebDAV Scan] 自动检测到 OpenList，更新 profile.ServerType");
             profile.ServerType = (int)WebDavServerType.OpenList;
             try { await _db.SaveConnectionProfileAsync(profile); } catch { }
             serverType = WebDavServerType.OpenList;
@@ -896,13 +896,13 @@ public class NetworkMusicService : INetworkMusicService
 
         if (allFiles.Count > 0)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 成功，找到 {allFiles.Count} 个文件，并发处理中...");
+            Log.Debug("NetworkMusicService", $"[WebDAV Scan] 深度 PROPFIND 成功，找到 {allFiles.Count} 个文件，并发处理中...");
             progress?.Report((0, allFiles.Count, $"发现 {allFiles.Count} 个文件，正在扫描..."));
             await ProcessFileListAsync(allFiles, profile, songs, foundIds, existingIds, scanner, quickScan, metadataRefreshMap, progress);
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 深度 PROPFIND 不支持，回退到递归扫描 (quickScan={quickScan})");
+            Log.Debug("NetworkMusicService", $"[WebDAV Scan] 深度 PROPFIND 不支持，回退到递归扫描 (quickScan={quickScan})");
             progress?.Report((0, 0, "正在递归扫描目录..."));
             var visitedDirs = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
             await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap, 0, progress);
@@ -913,7 +913,7 @@ public class NetworkMusicService : INetworkMusicService
         // 快速扫描模式：后台异步补齐元数据（不阻塞扫描完成）
         if (quickScan && songs.Count > 0)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 快速扫描完成，{songs.Count} 首歌曲已入库，后台补齐元数据...");
+            Log.Debug("NetworkMusicService", $"[WebDAV Scan] 快速扫描完成，{songs.Count} 首歌曲已入库，后台补齐元数据...");
             progress?.Report((songs.Count, songs.Count, $"快速扫描完成，发现 {songs.Count} 首歌曲，后台补齐元数据..."));
             _ = Task.Run(async () => await FetchMetadataInBackgroundAsync(songs, profile));
         }
@@ -978,7 +978,7 @@ public class NetworkMusicService : INetworkMusicService
             }
         }
 
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 过滤后音频文件: {audioFiles.Count}");
+        Log.Debug("NetworkMusicService", $"[WebDAV Scan] 过滤后音频文件: {audioFiles.Count}");
         progress?.Report((0, audioFiles.Count, $"发现 {audioFiles.Count} 个音频文件，正在提取元数据..."));
 
         var processedCount = 0;
@@ -1003,7 +1003,7 @@ public class NetworkMusicService : INetworkMusicService
                             if (tagged != null)
                             {
                                 await _db.SaveSongAsync(existingSong);
-                                System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 元数据补齐: {existingSong.Title} → {existingSong.Artist}/{existingSong.Album}");
+                                Log.Debug("NetworkMusicService", $"[WebDAV Scan] 元数据补齐: {existingSong.Title} → {existingSong.Artist}/{existingSong.Album}");
                             }
                         }
                         catch { }
@@ -1108,7 +1108,7 @@ public class NetworkMusicService : INetworkMusicService
         if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "/";
         if (!visitedDirs.TryAdd(normalizedDir, 0))
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 跳过已访问目录: {path}");
+            Log.Debug("NetworkMusicService", $"[WebDAV Scan] 跳过已访问目录: {path}");
             return;
         }
 
@@ -1119,11 +1119,11 @@ public class NetworkMusicService : INetworkMusicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 列出 {path} 失败: {ex.Message}");
+            Log.Debug("NetworkMusicService", $"[WebDAV Scan] 列出 {path} 失败: {ex.Message}");
             return;
         }
 
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
+        Log.Debug("NetworkMusicService", $"[WebDAV Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
 
         var audioFiles = new List<RemoteFile>();
         var subDirs = new List<RemoteFile>();
@@ -1194,7 +1194,7 @@ public class NetworkMusicService : INetworkMusicService
                             if (tagged != null)
                             {
                                 await _db.SaveSongAsync(existingSong);
-                                System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 元数据补齐: {existingSong.Title} → {existingSong.Artist}/{existingSong.Album}");
+                                Log.Debug("NetworkMusicService", $"[WebDAV Scan] 元数据补齐: {existingSong.Title} → {existingSong.Artist}/{existingSong.Album}");
                             }
                         }
                         catch { }
@@ -1311,7 +1311,7 @@ public class NetworkMusicService : INetworkMusicService
             // 每首之间等待 200ms，避免突发并发请求占满带宽
             await Task.Delay(200);
         }
-        System.Diagnostics.Debug.WriteLine($"[WebDAV Scan] 后台元数据补齐完成: {updated}/{songs.Count} 首已更新");
+        Log.Debug("NetworkMusicService", $"[WebDAV Scan] 后台元数据补齐完成: {updated}/{songs.Count} 首已更新");
     }
 
     /// <summary>
@@ -1379,7 +1379,7 @@ public class NetworkMusicService : INetworkMusicService
         if (string.IsNullOrEmpty(normalizedDir)) normalizedDir = "\\";
         if (!visitedDirs.Add(normalizedDir))
         {
-            System.Diagnostics.Debug.WriteLine($"[SMB Scan] 跳过已访问目录: {path}");
+            Log.Debug("NetworkMusicService", $"[SMB Scan] 跳过已访问目录: {path}");
             return;
         }
 
@@ -1390,11 +1390,11 @@ public class NetworkMusicService : INetworkMusicService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SMB Scan] 列出 {path} 失败: {ex.Message}");
+            Log.Debug("NetworkMusicService", $"[SMB Scan] 列出 {path} 失败: {ex.Message}");
             return;
         }
 
-        System.Diagnostics.Debug.WriteLine($"[SMB Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
+        Log.Debug("NetworkMusicService", $"[SMB Scan] 目录 {path} 有 {files.Count} 个条目 (depth={depth})");
 
         var audioFiles = new List<RemoteFile>();
         var subDirs = new List<RemoteFile>();

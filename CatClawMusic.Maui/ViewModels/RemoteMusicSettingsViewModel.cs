@@ -196,7 +196,7 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[RemoteMusic] Refresh 失败: {ex.Message}");
+            Log.Debug("RemoteMusicSettingsViewModel", $"[RemoteMusic] Refresh 失败: {ex.Message}");
         }
         finally
         {
@@ -466,7 +466,7 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CatClaw] 元数据回填失败: {ex.Message}");
+                    Log.Debug("RemoteMusicSettingsViewModel", $"[CatClaw] 元数据回填失败: {ex.Message}");
                 }
             });
         }
@@ -686,7 +686,7 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BrowsePath] LoadDirs error: {ex}");
+            Log.Debug("RemoteMusicSettingsViewModel", $"[BrowsePath] LoadDirs error: {ex}");
             await ToastAsync($"加载目录失败：{ex.Message}");
         }
         finally

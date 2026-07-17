@@ -95,20 +95,20 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             if (fallbacks.Count == 0)
                 throw;
 
-            System.Diagnostics.Debug.WriteLine($"[LlmClient] 主模型 {config.Name} 调用失败: {primaryEx.Message}，尝试退回模型...");
+            Log.Debug("OpenAiCompatibleLlmClient", $"[LlmClient] 主模型 {config.Name} 调用失败: {primaryEx.Message}，尝试退回模型...");
 
             foreach (var fallback in fallbacks)
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LlmClient] 尝试退回模型: {fallback.Name} ({fallback.Model})");
+                    Log.Debug("OpenAiCompatibleLlmClient", $"[LlmClient] 尝试退回模型: {fallback.Name} ({fallback.Model})");
                     var result = await ChatWithConfigAsync(fallback, messages, tools, ct);
-                    System.Diagnostics.Debug.WriteLine($"[LlmClient] 退回模型 {fallback.Name} 调用成功");
+                    Log.Debug("OpenAiCompatibleLlmClient", $"[LlmClient] 退回模型 {fallback.Name} 调用成功");
                     return result;
                 }
                 catch (Exception fbEx)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LlmClient] 退回模型 {fallback.Name} 也失败: {fbEx.Message}");
+                    Log.Debug("OpenAiCompatibleLlmClient", $"[LlmClient] 退回模型 {fallback.Name} 也失败: {fbEx.Message}");
                 }
             }
 
@@ -452,7 +452,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             throw new InvalidOperationException($"解析 API 响应失败: {ex.Message}\n{Truncate(responseBody, 300)}");
         }
 
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] AI ParseResponse (C# fallback): content='{Truncate(result.Content, 200)}', toolCalls={result.ToolCalls.Count}, finishReason={result.FinishReason}");
+        Log.Debug("OpenAiCompatibleLlmClient", $"[CatClaw] AI ParseResponse (C# fallback): content='{Truncate(result.Content, 200)}', toolCalls={result.ToolCalls.Count}, finishReason={result.FinishReason}");
         return result;
     }
 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -29,11 +30,11 @@ public class FFmpegService : IDisposable
         if (!string.IsNullOrEmpty(destPath) && File.Exists(destPath))
         {
             _ffmpegPath = destPath;
-            Debug.WriteLine($"[FFmpeg] 就绪: {destPath}");
+            Log.Debug("FFmpegService", $"[FFmpeg] 就绪: {destPath}");
             return true;
         }
 
-        Debug.WriteLine("[FFmpeg] libffmpeg.so 未找到");
+        Log.Debug("FFmpegService", "[FFmpeg] libffmpeg.so 未找到");
         return false;
     }
 
@@ -86,32 +87,32 @@ public class FFmpegService : IDisposable
             // 方法 0: /system/bin/linker64 直接加载
             if (await TryLinker64Async(args, cts.Token))
             {
-                Debug.WriteLine("[FFmpeg] linker64 成功");
+                Log.Debug("FFmpegService", "[FFmpeg] linker64 成功");
                 return true;
             }
 
             // 方法 1: Java.Lang.Runtime.Exec()
             if (await TryJavaExecAsync(args, cts.Token))
             {
-                Debug.WriteLine("[FFmpeg] Java exec 成功");
+                Log.Debug("FFmpegService", "[FFmpeg] Java exec 成功");
                 return true;
             }
 
             // 方法 2: sh -c
             if (await TryShExecAsync(args, cts.Token))
             {
-                Debug.WriteLine("[FFmpeg] sh exec 成功");
+                Log.Debug("FFmpegService", "[FFmpeg] sh exec 成功");
                 return true;
             }
 
             // 方法 3: .NET Process
             if (await TryDotNetProcessAsync(args, cts.Token))
             {
-                Debug.WriteLine("[FFmpeg] .NET Process 成功");
+                Log.Debug("FFmpegService", "[FFmpeg] .NET Process 成功");
                 return true;
             }
 
-            Debug.WriteLine("[FFmpeg] 所有执行方式均失败");
+            Log.Debug("FFmpegService", "[FFmpeg] 所有执行方式均失败");
             return false;
         }
         finally { _transcodeLock.Release(); }
@@ -134,7 +135,7 @@ public class FFmpegService : IDisposable
             return await WaitForProcessAsync(process, ct);
         }
         catch (OperationCanceledException) { return false; }
-        catch (Exception ex) { Debug.WriteLine($"[FFmpeg] linker64 异常: {ex.Message}"); return false; }
+        catch (Exception ex) { Log.Debug("FFmpegService", $"[FFmpeg] linker64 异常: {ex.Message}"); return false; }
     }
 
     private async Task<bool> TryJavaExecAsync(string args, CancellationToken ct)
@@ -153,7 +154,7 @@ public class FFmpegService : IDisposable
             return await WaitForProcessAsync(process, ct);
         }
         catch (OperationCanceledException) { return false; }
-        catch (Exception ex) { Debug.WriteLine($"[FFmpeg] Java exec 异常: {ex.Message}"); return false; }
+        catch (Exception ex) { Log.Debug("FFmpegService", $"[FFmpeg] Java exec 异常: {ex.Message}"); return false; }
     }
 
     private async Task<bool> TryShExecAsync(string args, CancellationToken ct)
@@ -169,7 +170,7 @@ public class FFmpegService : IDisposable
             return await WaitForProcessAsync(process, ct);
         }
         catch (OperationCanceledException) { return false; }
-        catch (Exception ex) { Debug.WriteLine($"[FFmpeg] sh exec 异常: {ex.Message}"); return false; }
+        catch (Exception ex) { Log.Debug("FFmpegService", $"[FFmpeg] sh exec 异常: {ex.Message}"); return false; }
     }
 
     private async Task<bool> TryDotNetProcessAsync(string args, CancellationToken ct)
@@ -192,7 +193,7 @@ public class FFmpegService : IDisposable
             catch (OperationCanceledException) { try { p.Kill(true); } catch { } return false; }
             return p.ExitCode == 0;
         }
-        catch (Exception ex) { Debug.WriteLine($"[FFmpeg] .NET Process 异常: {ex.Message}"); return false; }
+        catch (Exception ex) { Log.Debug("FFmpegService", $"[FFmpeg] .NET Process 异常: {ex.Message}"); return false; }
     }
 
     private static async Task<bool> WaitForProcessAsync(Java.Lang.Process process, CancellationToken ct, int timeoutMs = 120_000)

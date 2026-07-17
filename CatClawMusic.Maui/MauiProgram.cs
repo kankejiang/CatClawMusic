@@ -23,25 +23,25 @@ public static class MauiProgram
         // 写固定路径，确保能找到日志
         var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
         try { File.Delete(logPath); } catch { }
-        void Log(string msg)
+        void StartupLog(string msg)
         {
-            System.Diagnostics.Debug.WriteLine($"[STARTUP] {msg}");
+            Log.Debug("MauiProgram", $"[STARTUP] {msg}");
             try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch { }
         }
 
-        Log("Step 0: CreateMauiApp entry");
+        StartupLog("Step 0: CreateMauiApp entry");
 #if WINDOWS
-        Log("Step 0b: WINDOWS symbol IS defined");
+        StartupLog("Step 0b: WINDOWS symbol IS defined");
 #else
-        Log("Step 0b: WINDOWS symbol is NOT defined");
+        StartupLog("Step 0b: WINDOWS symbol is NOT defined");
 #endif
 #if ANDROID
-        Log("Step 0c: ANDROID symbol IS defined");
+        StartupLog("Step 0c: ANDROID symbol IS defined");
 #else
-        Log("Step 0c: ANDROID symbol is NOT defined");
+        StartupLog("Step 0c: ANDROID symbol is NOT defined");
 #endif
         var builder = MauiApp.CreateBuilder();
-        Log("Step 2: UseMauiApp");
+        StartupLog("Step 2: UseMauiApp");
         builder
             .UseMauiApp<App>()
             .ConfigureFonts(fonts =>
@@ -111,7 +111,7 @@ public static class MauiProgram
             try
             {
                 var urlPreview = url?[..Math.Min(60, url?.Length ?? 0)] ?? "";
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 入口: {urlPreview}...");
+                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener 入口: {urlPreview}...");
                 const int headSize = 2 * 1024 * 1024; // 2MB 足以覆盖绝大多数音频标签头
                 var httpClient = _sharedHttpClient;
 
@@ -138,15 +138,15 @@ public static class MauiProgram
                 catch { /* URL 解析失败则使用原始 URL */ }
 
                 var cleanPreview = cleanUrl[..Math.Min(60, cleanUrl.Length)];
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener cleanUrl={cleanPreview}..., authToken={(authToken != null ? "有" : "无")}");
+                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener cleanUrl={cleanPreview}..., authToken={(authToken != null ? "有" : "无")}");
                 // 使用 Range 请求仅下载文件头部
                 var reqMsg = new HttpRequestMessage(HttpMethod.Get, cleanUrl);
                 reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, headSize - 1);
                 if (authToken != null)
                     reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
-                System.Diagnostics.Debug.WriteLine("[Lyrics] RemoteUrlStreamOpener 发送 HTTP 请求...");
+                Log.Debug("MauiProgram", "[Lyrics] RemoteUrlStreamOpener 发送 HTTP 请求...");
                 var resp = httpClient.SendAsync(reqMsg).GetAwaiter().GetResult();
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                 if (!resp.IsSuccessStatusCode)
                 {
                     return null;
@@ -154,13 +154,13 @@ public static class MauiProgram
                 using var ms = new MemoryStream();
                 resp.Content.ReadAsStream().CopyTo(ms);
                 var bytes = ms.ToArray();
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
+                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
                 if (bytes.Length == 0) return null;
                 return new MemoryStream(bytes);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 异常: {ex.Message}");
+                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener 异常: {ex.Message}");
                 return null;
             }
         };
@@ -367,6 +367,7 @@ public static class MauiProgram
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AlbumDetailViewModel>();
         services.AddTransient<ArtistDetailViewModel>();
+        services.AddTransient<SongDetailViewModel>();
         services.AddTransient<AlbumsViewModel>();
         services.AddTransient<ArtistsViewModel>();
         services.AddTransient<PlaylistDetailViewModel>();
@@ -374,6 +375,7 @@ public static class MauiProgram
         services.AddTransient<GeneralSettingsViewModel>();
         services.AddTransient<BackupRestoreViewModel>();
         services.AddTransient<AboutViewModel>();
+        services.AddTransient<LogViewModel>();
         services.AddTransient<LocalMusicSettingsViewModel>();
         services.AddTransient<MusicFolderSettingsViewModel>();
         services.AddTransient<AiSettingsViewModel>();
@@ -382,6 +384,7 @@ public static class MauiProgram
         services.AddTransient<RemoteMusicSettingsViewModel>();
         services.AddTransient<PluginManagementViewModel>();
         services.AddTransient<FolderBrowserViewModel>();
+        services.AddTransient<ListeningStatsViewModel>();
 
         // ═══════════════════════════════════════════════════
         // App Shell
@@ -427,15 +430,16 @@ public static class MauiProgram
         services.AddTransient<Pages.ServerSettingsPage>();
         services.AddTransient<Pages.P2PSettingsPage>();
         services.AddTransient<Pages.SongDetailPage>();
+        services.AddTransient<Controls.ListeningStatsView>();
 
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
 
-        Log("Step 50: Build");
+        StartupLog("Step 50: Build");
         var app = builder.Build();
         Services = app.Services;
-        Log("Step 51: Services set");
+        StartupLog("Step 51: Services set");
 
         AgentService.LibrarySnapshotProvider = () => MusicLibrarySnapshotService.LoadSnapshot();
         var chatMemoryService = Services.GetRequiredService<Services.ChatMemoryService>();
@@ -458,7 +462,7 @@ public static class MauiProgram
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[STARTUP] 初始快照生成失败: {ex.Message}");
+                Log.Debug("MauiProgram", $"[STARTUP] 初始快照生成失败: {ex.Message}");
             }
         });
 
@@ -521,7 +525,7 @@ public static class MauiProgram
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[ClawCircle] Android 打开歌曲流失败: {ex.Message}");
+                    Log.Debug("MauiProgram", $"[ClawCircle] Android 打开歌曲流失败: {ex.Message}");
                     return null;
                 }
             };
@@ -536,7 +540,7 @@ public static class MauiProgram
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[ClawCircle] 打开歌曲流失败: {ex.Message}");
+                    Log.Debug("MauiProgram", $"[ClawCircle] 打开歌曲流失败: {ex.Message}");
                     return null;
                 }
             };
@@ -559,7 +563,7 @@ public static class MauiProgram
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[ClawCircle-P2P] Android 打开歌曲流失败: {ex.Message}");
+                Log.Debug("MauiProgram", $"[ClawCircle-P2P] Android 打开歌曲流失败: {ex.Message}");
                 return null;
             }
         };
@@ -569,7 +573,7 @@ public static class MauiProgram
             try { return File.OpenRead(filePath); }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[ClawCircle-P2P] 打开歌曲流失败: {ex.Message}");
+                Log.Debug("MauiProgram", $"[ClawCircle-P2P] 打开歌曲流失败: {ex.Message}");
                 return null;
             }
         };
@@ -587,7 +591,7 @@ public static class MauiProgram
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[AsyncUrlResolver] WebDAV URL 解析失败: {ex.Message}");
+                    Log.Debug("MauiProgram", $"[AsyncUrlResolver] WebDAV URL 解析失败: {ex.Message}");
                 }
             }
             return null;
@@ -619,20 +623,20 @@ public static class MauiProgram
                     var reqMsg = new HttpRequestMessage(HttpMethod.Get, proxyUrl);
                     reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, lyricsHeadSize - 1);
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB Range 请求: {proxyUrl[..Math.Min(80, proxyUrl.Length)]}...");
+                    Log.Debug("MauiProgram", $"[Lyrics] SMB Range 请求: {proxyUrl[..Math.Min(80, proxyUrl.Length)]}...");
                     var resp = _sharedHttpClient.SendAsync(reqMsg, cts.Token).GetAwaiter().GetResult();
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB Range 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                    Log.Debug("MauiProgram", $"[Lyrics] SMB Range 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                     if (!resp.IsSuccessStatusCode) return null;
                     using var ms = new MemoryStream();
                     resp.Content.ReadAsStream().CopyTo(ms);
                     var bytes = ms.ToArray();
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB Range 下载完成: {bytes.Length / 1024}KB");
+                    Log.Debug("MauiProgram", $"[Lyrics] SMB Range 下载完成: {bytes.Length / 1024}KB");
                     if (bytes.Length == 0) return null;
                     return new MemoryStream(bytes);
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] SMB 流打开异常: {ex.Message}");
+                    Log.Debug("MauiProgram", $"[Lyrics] SMB 流打开异常: {ex.Message}");
                     return null;
                 }
             }
@@ -642,10 +646,10 @@ public static class MauiProgram
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener 入口: {url[..Math.Min(60, url.Length)]}...");
+                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener 入口: {url[..Math.Min(60, url.Length)]}...");
                     var resolvedUrl = networkMusic.ResolveWebDavPlaybackUrlAsync(url).GetAwaiter().GetResult();
                     var downloadUrl = string.IsNullOrEmpty(resolvedUrl) ? url : resolvedUrl;
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener downloadUrl: {downloadUrl[..Math.Min(60, downloadUrl.Length)]}...");
+                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener downloadUrl: {downloadUrl[..Math.Min(60, downloadUrl.Length)]}...");
 
                     // 从 URL userinfo 提取 Basic Auth 凭证（WebDAV 播放 URL 带 user:pass@）
                     string? authToken = null;
@@ -674,21 +678,21 @@ public static class MauiProgram
                     reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, headSize - 1);
                     if (authToken != null)
                         reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
-                    System.Diagnostics.Debug.WriteLine("[Lyrics] Android RemoteUrlStreamOpener 发送 Range 请求...");
+                    Log.Debug("MauiProgram", "[Lyrics] Android RemoteUrlStreamOpener 发送 Range 请求...");
                     var resp = webDavHttpClient.SendAsync(reqMsg).GetAwaiter().GetResult();
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                     if (!resp.IsSuccessStatusCode)
                         return null;
                     using var ms = new MemoryStream();
                     resp.Content.ReadAsStream().CopyTo(ms);
                     var bytes = ms.ToArray();
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] Android RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
+                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
                     if (bytes.Length == 0) return null;
                     return new MemoryStream(bytes);
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] WebDAV/HTTP 流打开异常: {ex.Message}");
+                    Log.Debug("MauiProgram", $"[Lyrics] WebDAV/HTTP 流打开异常: {ex.Message}");
                     return null;
                 }
             }
@@ -696,7 +700,7 @@ public static class MauiProgram
             return prevStreamOpener?.Invoke(url);
         };
 
-        Log("Step 99: Build done, returning");
+        StartupLog("Step 99: Build done, returning");
         return app;
     }
 }

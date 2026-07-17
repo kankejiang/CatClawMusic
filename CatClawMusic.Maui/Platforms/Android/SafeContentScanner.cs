@@ -5,6 +5,7 @@ using CatClawMusic.Core.Models;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using AUri = Android.Net.Uri;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -62,7 +63,7 @@ public static class SafeContentScanner
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[SAF] Scan error: {ex.Message}");
+                Log.Debug("SafeContentScanner", $"[SAF] Scan error: {ex.Message}");
             }
         }
     }
@@ -156,7 +157,7 @@ public static class SafeContentScanner
 
         await producerTask;
         sw.Stop();
-        Debug.WriteLine($"[SAF] 扫描完成：{fileList.Count} 个文件，读取 {total}，耗时 {sw.ElapsedMilliseconds}ms");
+        Log.Debug("SafeContentScanner", $"[SAF] 扫描完成：{fileList.Count} 个文件，读取 {total}，耗时 {sw.ElapsedMilliseconds}ms");
     }
 
     /// <summary>使用多线程递归遍历 SAF 树形 URI 下的所有子文档，收集音频文件与歌词文件</summary>

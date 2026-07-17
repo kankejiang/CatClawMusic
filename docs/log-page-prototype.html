@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>诊断日志 · 猫爪音乐</title>
+<style>
+  :root{
+    --bg:#080B1A; --bg2:#0E1330; --card:rgba(22,28,58,.55); --card-strong:rgba(30,38,76,.7);
+    --stroke:rgba(42,56,112,.6); --stroke-strong:rgba(94,116,196,.55);
+    --text-1:#EEF1FF; --text-2:#C3C9E8; --text-3:#828AB8;
+    --accent:#55D6FF; --brand:#8C7BFF; --brand2:#55D6FF;
+    --info:#55D6FF; --warn:#FFB36B; --err:#FF7AAE; --ok:#7AF0C8;
+    --display:'SF Pro Display','HarmonyOS Sans SC',system-ui,sans-serif;
+    --body:'PingFang SC','HarmonyOS Sans SC',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:#05060f;font-family:var(--body);color:var(--text-1)}
+  .screen{max-width:430px;margin:0 auto;min-height:100vh;background:
+    radial-gradient(1200px 600px at 80% -10%,rgba(140,123,255,.20),transparent 60%),
+    radial-gradient(900px 500px at -10% 10%,rgba(85,214,255,.14),transparent 55%),
+    var(--bg);
+    padding:0 0 30px;position:relative;overflow-x:hidden}
+  .topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;
+    padding:14px 16px 12px;background:linear-gradient(180deg,rgba(8,11,26,.96),rgba(8,11,26,.78));
+    backdrop-filter:blur(14px);border-bottom:1px solid var(--stroke)}
+  .tb-ico{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;cursor:pointer;
+    background:var(--card);border:1px solid var(--stroke);color:var(--text-2)}
+  .tb-ico svg{width:18px;height:18px}
+  .tb-title{font-family:var(--display);font-size:17px;font-weight:700;flex:1}
+  .tb-sub{font-size:11px;color:var(--text-3);margin-top:1px}
+
+  .pad{padding:0 16px}
+  .reveal{opacity:0;transform:translateY(14px);animation:rise .6s cubic-bezier(.16,1,.3,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  /* 设备报告卡 */
+  .dev-card{margin-top:16px;border-radius:20px;padding:16px;background:linear-gradient(135deg,rgba(140,123,255,.18),rgba(85,214,255,.10));
+    border:1px solid var(--stroke-strong);position:relative;overflow:hidden}
+  .dev-card::after{content:"";position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;
+    background:radial-gradient(circle,rgba(85,214,255,.35),transparent 70%)}
+  .dev-h{display:flex;align-items:center;gap:11px;position:relative;z-index:2}
+  .dev-ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;font-size:22px;box-shadow:0 8px 20px -8px rgba(140,123,255,.7)}
+  .dev-name{font-family:var(--display);font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .ver-badge{font-family:var(--display);font-size:12px;font-weight:700;color:#05060f;background:linear-gradient(135deg,var(--brand),var(--brand2));
+    padding:2px 9px;border-radius:999px;box-shadow:0 4px 12px -4px rgba(140,123,255,.6);white-space:nowrap}
+  .dev-ver{font-size:11.5px;color:var(--text-2);margin-top:2px}
+  .dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:14px;position:relative;z-index:2}
+  .dev-row{display:flex;flex-direction:column}
+  .dev-k{font-size:10.5px;color:var(--text-3)}
+  .dev-v{font-size:12.5px;color:var(--text-1);font-weight:500;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* 概览统计 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+  .stat{background:var(--card);border:1px solid var(--stroke);border-radius:16px;padding:12px 8px;text-align:center}
+  .stat .v{font-family:var(--display);font-size:18px;font-weight:700}
+  .stat .l{font-size:10px;color:var(--text-3);margin-top:3px}
+  .stat.e .v{color:var(--err)} .stat.w .v{color:var(--warn)} .stat.i .v{color:var(--info)} .stat.s .v{color:var(--text-1)}
+
+  /* 工具栏 */
+  .toolbar{display:flex;align-items:center;gap:8px;margin-top:18px}
+  .search{flex:1;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--stroke);
+    border-radius:13px;padding:9px 12px;color:var(--text-3)}
+  .search svg{width:16px;height:16px;flex:0 0 auto}
+  .search input{flex:1;background:none;border:0;outline:none;color:var(--text-1);font-size:13px;font-family:var(--body)}
+  .search input::placeholder{color:var(--text-3)}
+  .ic-btn{width:38px;height:38px;flex:0 0 auto;border-radius:12px;display:grid;place-items:center;cursor:pointer;
+    background:var(--card);border:1px solid var(--stroke);color:var(--text-2)}
+  .ic-btn svg{width:18px;height:18px}
+
+  .chips{display:flex;gap:8px;margin-top:12px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;padding:7px 14px;border-radius:999px;font-size:12.5px;cursor:pointer;user-select:none;
+    background:var(--card);border:1px solid var(--stroke);color:var(--text-3);transition:all .18s ease}
+  .chip.active{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-color:transparent;font-weight:600}
+  .chip .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .dot-i{background:var(--info)} .dot-w{background:var(--warn)} .dot-e{background:var(--err)}
+
+  /* 日志列表 */
+  .log-list{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .log{background:var(--card);border:1px solid var(--stroke);border-radius:14px;padding:11px 13px;
+    border-left:3px solid var(--stroke);transition:background .15s ease}
+  .log.i{border-left-color:var(--info)} .log.w{border-left-color:var(--warn)} .log.e{border-left-color:var(--err)}
+  .log-top{display:flex;align-items:center;gap:8px}
+  .lvl{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;letter-spacing:.3px}
+  .lvl.i{background:rgba(85,214,255,.15);color:var(--info)} .lvl.w{background:rgba(255,179,107,.16);color:var(--warn)} .lvl.e{background:rgba(255,122,174,.16);color:var(--err)}
+  .tag{font-size:10.5px;color:var(--text-2);background:rgba(130,138,184,.14);padding:2px 8px;border-radius:6px;font-weight:600}
+  .ts{font-size:10.5px;color:var(--text-3);margin-left:auto;font-family:var(--display);font-variant-numeric:tabular-nums}
+  .msg{font-size:12.5px;color:var(--text-1);margin-top:7px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .log.e .msg{color:#FFD7E4}
+  .empty{text-align:center;color:var(--text-3);font-size:13px;padding:40px 0}
+
+  /* 导出区 */
+  .export{margin-top:20px;border-radius:20px;padding:16px;background:var(--card-strong);border:1px solid var(--stroke-strong)}
+  .export-title{font-family:var(--display);font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .export-title svg{width:17px;height:17px;color:var(--accent)}
+  .exp-opt{display:flex;align-items:center;gap:10px;margin-top:13px;cursor:pointer}
+  .exp-opt .box{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--stroke-strong);flex:0 0 auto;
+    display:grid;place-items:center;transition:all .15s ease}
+  .exp-opt.on .box{background:var(--accent);border-color:var(--accent)}
+  .exp-opt.on .box svg{width:13px;height:13px;color:#05060f}
+  .exp-opt .txt{font-size:12.5px;color:var(--text-1)}
+  .exp-opt .sub{font-size:10.5px;color:var(--text-3);margin-top:1px}
+  .exp-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .ebtn{display:flex;align-items:center;justify-content:center;gap:7px;height:46px;border-radius:14px;cursor:pointer;
+    font-size:13.5px;font-weight:600;border:1px solid var(--stroke);background:var(--card);color:var(--text-1);transition:transform .12s ease,filter .12s ease}
+  .ebtn:active{transform:scale(.97);filter:brightness(1.08)}
+  .ebtn svg{width:18px;height:18px}
+  .ebtn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));border-color:transparent;color:#fff;
+    box-shadow:0 12px 26px -10px rgba(140,123,255,.7);grid-column:1 / -1}
+  .hint{text-align:center;font-size:11px;color:var(--text-3);margin-top:14px;line-height:1.5}
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:rgba(20,26,56,.96);border:1px solid var(--stroke-strong);color:var(--text-1);padding:11px 20px;border-radius:999px;
+    font-size:13px;box-shadow:0 12px 30px -10px rgba(0,0,0,.6);transition:opacity .25s ease,transform .25s ease;z-index:30;max-width:80%}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+  <div class="screen">
+    <div class="topbar">
+      <div class="tb-ico" title="返回">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </div>
+      <div style="flex:1">
+        <div class="tb-title">诊断日志</div>
+        <div class="tb-sub">导出应用日志，协助开发者排查问题</div>
+      </div>
+      <div class="tb-ico" id="refreshBtn" title="刷新">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+      </div>
+    </div>
+
+    <div class="pad">
+      <!-- 设备报告 -->
+      <div class="dev-card reveal" style="animation-delay:.02s">
+        <div class="dev-h">
+          <div class="dev-ic">🐾</div>
+          <div style="flex:1;min-width:0">
+            <div class="dev-name">猫爪音乐 <span class="ver-badge" id="verBadge">v1.6.4</span></div>
+            <div class="dev-ver" id="devVer">当前版本 · build 41 · Android 14</div>
+          </div>
+        </div>
+        <div class="dev-grid">
+          <div class="dev-row"><div class="dev-k">设备型号</div><div class="dev-v" id="devModel">Pixel 8 Pro</div></div>
+          <div class="dev-row"><div class="dev-k">系统版本</div><div class="dev-v" id="devOs">Android 14 (API 34)</div></div>
+          <div class="dev-row"><div class="dev-k">首次安装</div><div class="dev-v" id="devInstall">2026-01-04</div></div>
+          <div class="dev-row"><div class="dev-k">日志路径</div><div class="dev-v">files/debug.log</div></div>
+        </div>
+      </div>
+
+      <!-- 概览 -->
+      <div class="stats reveal" style="animation-delay:.06s">
+        <div class="stat s"><div class="v" id="stTotal">312</div><div class="l">总条数</div></div>
+        <div class="stat e"><div class="v" id="stErr">4</div><div class="l">错误</div></div>
+        <div class="stat w"><div class="v" id="stWarn">17</div><div class="l">警告</div></div>
+        <div class="stat i"><div class="v" id="stSize">86</div><div class="l">KB 大小</div></div>
+      </div>
+
+      <!-- 工具栏 -->
+      <div class="toolbar reveal" style="animation-delay:.1s">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.5-3.5"/></svg>
+          <input id="q" placeholder="搜索日志内容或标签…" />
+        </div>
+        <div class="ic-btn" id="scrollTop" title="滚动到顶部">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </div>
+      </div>
+
+      <!-- 级别筛选 -->
+      <div class="chips reveal" style="animation-delay:.13s" id="levelChips">
+        <div class="chip active" data-l="all">全部</div>
+        <div class="chip" data-l="i"><span class="dot dot-i"></span>信息</div>
+        <div class="chip" data-l="w"><span class="dot dot-w"></span>警告</div>
+        <div class="chip" data-l="e"><span class="dot dot-e"></span>错误</div>
+      </div>
+
+      <!-- 标签筛选 -->
+      <div class="chips reveal" style="animation-delay:.16s" id="tagChips">
+        <div class="chip active" data-t="all">全部模块</div>
+        <div class="chip" data-t="UI">UI</div>
+        <div class="chip" data-t="PLAYBACK">播放</div>
+        <div class="chip" data-t="SCAN">扫描</div>
+        <div class="chip" data-t="P2P">P2P</div>
+        <div class="chip" data-t="DB">数据库</div>
+        <div class="chip" data-t="AI">AI</div>
+      </div>
+
+      <!-- 日志列表 -->
+      <div class="log-list reveal" style="animation-delay:.2s" id="logList"></div>
+      <div class="empty" id="empty" style="display:none">没有匹配的日志</div>
+
+      <!-- 导出区 -->
+      <div class="export reveal" style="animation-delay:.24s">
+        <div class="export-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          导出给开发者
+        </div>
+        <div class="exp-opt on" id="optDevice">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></div>
+          <div>
+            <div class="txt">附加设备与版本信息</div>
+            <div class="sub">包含型号/系统/版本/安装时间，便于复现</div>
+          </div>
+        </div>
+        <div class="exp-opt on" id="optStart">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></div>
+          <div>
+            <div class="txt">包含启动日志</div>
+            <div class="sub">catclaw_startup.log（初始化诊断）</div>
+          </div>
+        </div>
+        <div class="exp-btns">
+          <button class="ebtn primary" id="shareBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v13M7 8l5-5 5 5"/></svg>
+            生成诊断包并分享
+          </button>
+          <button class="ebtn" id="copyBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            复制日志
+          </button>
+          <button class="ebtn" id="clearBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            清空日志
+          </button>
+        </div>
+      </div>
+
+      <p class="hint reveal" style="animation-delay:.28s">日志仅保存在本机，不会自动上传 · 生成诊断包后可手动通过系统分享发送给开发者</p>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+  // —— 模拟日志数据（格式对齐 LogService：HH:mm:ss.fff [I][tag] msg）——
+  const logs = [
+    {t:"09:12:03.184",l:"i",tag:"UI",       m:"AppShell 导航到 LibraryPage"},
+    {t:"09:12:04.902",l:"i",tag:"DB",       m:"GetAllArtistsAsync 返回 213 条，耗时 12ms"},
+    {t:"09:12:11.337",l:"i",tag:"SCAN",     m:"本地扫描开始：目录 /Music，已索引 1024 首"},
+    {t:"09:12:13.058",l:"w",tag:"SCAN",     m:"跳过无权限子目录 /Music/System，已忽略 2 项"},
+    {t:"09:12:19.771",l:"i",tag:"SCAN",     m:"封面提取完成：命中缓存 880，重新生成 144"},
+    {t:"09:12:25.410",l:"e",tag:"PLAYBACK", m:"ExoPlayer 解码失败：格式不支持 mka，trackId=5532"},
+    {t:"09:12:25.640",l:"w",tag:"PLAYBACK", m:"回退到软解解码器，性能可能下降"},
+    {t:"09:12:31.205",l:"i",tag:"PLAYBACK", m:"PlayQueue.SelectSong(晴天下一首=七里香) 成功"},
+    {t:"09:12:48.019",l:"i",tag:"P2P",      m:"UDP 发现收到来自 192.168.1.22:37821 的广播"},
+    {t:"09:12:50.332",l:"w",tag:"P2P",      m:"STUN 反射端点超时（3/3），使用中继候选"},
+    {t:"09:13:02.884",l:"i",tag:"AI",       m:"AgentService 调用 LLM 完成，tokens=1284，耗时 2.1s"},
+    {t:"09:13:05.119",l:"i",tag:"DB",       m:"RecordPlayAsync 写入 PlayHistory，songId=5532"},
+    {t:"09:13:10.556",l:"w",tag:"UI",       m:"ArtistDetailPage 简介字段为空，已显示占位"},
+    {t:"09:13:22.901",l:"i",tag:"SCAN",     m:"本地扫描结束：新增 8 首，更新封面 144，耗时 11.8s"},
+    {t:"09:13:40.273",l:"e",tag:"AI",       m:"BaiduBaikeScraper 请求 429，限流降级到本地缓存"},
+    {t:"09:14:01.648",l:"i",tag:"PLAYBACK", m:"进入后台，AudioFocus 释放，暂停播放"},
+    {t:"09:14:55.902",l:"i",tag:"UI",       m:"主题切换：Dark，已持久化"},
+    {t:"09:15:12.330",l:"w",tag:"DB",       m:"WAL 检查点延迟 320ms，建议定期压缩"},
+    {t:"09:15:30.771",l:"i",tag:"P2P",      m:"分块直传开始：to=dev-7f3a，size=4.2MB，分片=43"},
+    {t:"09:15:48.015",l:"i",tag:"P2P",      m:"分块直传完成：dev-7f3a，速率 6.1MB/s"},
+    {t:"09:16:09.442",l:"e",tag:"PLAYBACK", m:"MediaStore 查询返回 null cursor，已跳过"},
+    {t:"09:16:33.118",l:"i",tag:"SCAN",     m:"网络源同步：WebDAV 连接成功，拉取 12 项"},
+    {t:"09:16:50.667",l:"w",tag:"AI",       m:"OpenAI 兼容客户端超时，已重试 1/3"},
+    {t:"09:17:05.290",l:"i",tag:"UI",       m:"诊断日志页打开，debug.log 大小 86KB"},
+    {t:"09:17:21.903",l:"i",tag:"DB",       m:"BackupService 导出完成：路径 backups/2026-07-16.catclaw"},
+    {t:"09:17:44.552",l:"w",tag:"P2P",      m:"tracker 心跳延迟 1.2s，连接质量一般"},
+    {t:"09:18:02.118",l:"i",tag:"PLAYBACK", m:"恢复前台，AudioFocus 重新获取，续播"},
+  ];
+
+  const state = { level:"all", tag:"all", q:"" };
+  const listEl = document.getElementById("logList");
+  const emptyEl = document.getElementById("empty");
+  const toastEl = document.getElementById("toast");
+
+  function filtered(){
+    return logs.filter(d=>{
+      if(state.level!=="all" && d.l!==state.level) return false;
+      if(state.tag!=="all" && d.tag!==state.tag) return false;
+      if(state.q){
+        const q=state.q.toLowerCase();
+        if(!(d.m.toLowerCase().includes(q) || d.tag.toLowerCase().includes(q))) return false;
+      }
+      return true;
+    });
+  }
+
+  function render(){
+    const arr = filtered();
+    listEl.innerHTML = arr.map(d=>`
+      <div class="log ${d.l}">
+        <div class="log-top">
+          <span class="lvl ${d.l}">${d.l==="i"?"INFO":d.l==="w"?"WARN":"ERROR"}</span>
+          <span class="tag">${d.tag}</span>
+          <span class="ts">${d.t}</span>
+        </div>
+        <div class="msg">${escapeHtml(d.m)}</div>
+      </div>`).join("");
+    emptyEl.style.display = arr.length===0 ? "block" : "none";
+    document.getElementById("stTotal").textContent = logs.length;
+  }
+
+  function escapeHtml(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+  // 级别 chips
+  document.getElementById("levelChips").addEventListener("click",e=>{
+    const c=e.target.closest(".chip"); if(!c) return;
+    document.querySelectorAll("#levelChips .chip").forEach(x=>x.classList.remove("active"));
+    c.classList.add("active"); state.level=c.dataset.l; render();
+  });
+  // 标签 chips
+  document.getElementById("tagChips").addEventListener("click",e=>{
+    const c=e.target.closest(".chip"); if(!c) return;
+    document.querySelectorAll("#tagChips .chip").forEach(x=>x.classList.remove("active"));
+    c.classList.add("active"); state.tag=c.dataset.t; render();
+  });
+  // 搜索
+  document.getElementById("q").addEventListener("input",e=>{ state.q=e.target.value.trim(); render(); });
+
+  // 开关
+  function toggleOpt(id){
+    const el=document.getElementById(id);
+    el.addEventListener("click",()=>el.classList.toggle("on"));
+  }
+  toggleOpt("optDevice"); toggleOpt("optStart");
+
+  // toast
+  let toastTimer=null;
+  function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("show");
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove("show"),1700); }
+
+  // 导出动作
+  document.getElementById("shareBtn").addEventListener("click",()=>{
+    const dev=document.getElementById("optDevice").classList.contains("on");
+    const start=document.getElementById("optStart").classList.contains("on");
+    const parts=[`debug.log (${logs.length} 条)`];
+    if(dev) parts.push("设备信息");
+    if(start) parts.push("启动日志");
+    toast(`已生成诊断包：${parts.join(" + ")}，调用系统分享`);
+  });
+  document.getElementById("copyBtn").addEventListener("click",()=>{
+    const arr=filtered();
+    const text=arr.map(d=>`${d.t}\t[${d.l.toUpperCase()}][${d.tag}] ${d.m}`).join("\n");
+    if(navigator.clipboard) navigator.clipboard.writeText(text).then(()=>toast(`已复制 ${arr.length} 条日志`)).catch(()=>toast("复制失败，请手动选择"));
+    else toast("当前环境不支持剪贴板");
+  });
+  document.getElementById("clearBtn").addEventListener("click",()=>{
+    if(confirm("确定清空所有本地日志？此操作不可撤销。")){ logs.length=0; render(); toast("日志已清空"); }
+  });
+  document.getElementById("refreshBtn").addEventListener("click",()=>{ render(); toast("已刷新日志"); });
+  document.getElementById("scrollTop").addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"}));
+
+  render();
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Helpers;
 
@@ -70,7 +71,7 @@ public static class ImageSourceHelper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ImageSourceHelper] FromName({name}) failed: {ex.Message}");
+            Log.Debug("ImageSourceHelper", $"[ImageSourceHelper] FromName({name}) failed: {ex.Message}");
             _cache[name] = null;
             return null;
         }

@@ -32,6 +32,12 @@ public class LocalScanService
     /// </summary>
     public static bool NeedsReload { get; set; }
 
+    /// <summary>
+    /// 扫描完成事件，当扫描导入新歌曲后触发。
+    /// 参数为本次新导入的歌曲数量。
+    /// </summary>
+    public static event EventHandler<int>? ScanCompleted;
+
     /// <summary>支持的音频文件扩展名集合</summary>
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -108,7 +114,7 @@ public class LocalScanService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LocalScan] MediaStore error: {ex.Message}");
+                    Log.Debug("LocalScanService", $"[LocalScan] MediaStore error: {ex.Message}");
                 }
 #endif
                 currentStep++;
@@ -146,7 +152,7 @@ public class LocalScanService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LocalScan] SAF error: {ex.Message}");
+                    Log.Debug("LocalScanService", $"[LocalScan] SAF error: {ex.Message}");
                 }
 #endif
                 currentStep++;
@@ -163,12 +169,12 @@ public class LocalScanService
                     var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var folder in customFolders)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[LocalScan] 自定义文件夹: '{folder}', Directory.Exists={Directory.Exists(folder)}");
+                        Log.Debug("LocalScanService", $"[LocalScan] 自定义文件夹: '{folder}', Directory.Exists={Directory.Exists(folder)}");
                         if (!Directory.Exists(folder)) continue;
                         try
                         {
                             var filePaths = MusicUtility.ScanFolderRecursive(folder);
-                            System.Diagnostics.Debug.WriteLine($"[LocalScan] 文件夹 '{folder}' 递归发现音频文件数: {filePaths.Count}");
+                            Log.Debug("LocalScanService", $"[LocalScan] 文件夹 '{folder}' 递归发现音频文件数: {filePaths.Count}");
                             foreach (var path in filePaths)
                             {
                                 if (seenPaths.Add(path))
@@ -177,7 +183,7 @@ public class LocalScanService
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[LocalScan] Scan folder error: {folder}, {ex.Message}");
+                            Log.Debug("LocalScanService", $"[LocalScan] Scan folder error: {folder}, {ex.Message}");
                         }
                     }
 
@@ -201,7 +207,7 @@ public class LocalScanService
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"[LocalScan] ReadSongInfo error: {path}, {ex.Message}");
+                                Log.Debug("LocalScanService", $"[LocalScan] ReadSongInfo error: {path}, {ex.Message}");
                             }
                             processed++;
                             // 每 5 个文件或最后一个文件报告一次进度，避免过于频繁
@@ -219,7 +225,7 @@ public class LocalScanService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LocalScan] Custom folders error: {ex.Message}");
+                    Log.Debug("LocalScanService", $"[LocalScan] Custom folders error: {ex.Message}");
                 }
                 currentStep++;
             }
@@ -255,12 +261,12 @@ public class LocalScanService
                     var removedCount = await _db.RemoveLocalSongsNotInPathsAsync(scannedPaths);
                     if (removedCount > 0)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[LocalScan] 清理了 {removedCount} 首过时本地歌曲");
+                        Log.Debug("LocalScanService", $"[LocalScan] 清理了 {removedCount} 首过时本地歌曲");
                     }
                 }
                 catch (Exception cex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LocalScan] Cleanup stale songs error: {cex.Message}");
+                    Log.Debug("LocalScanService", $"[LocalScan] Cleanup stale songs error: {cex.Message}");
                 }
             }
 
@@ -279,7 +285,7 @@ public class LocalScanService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LocalScan] Error: {ex}");
+            Log.Debug("LocalScanService", $"[LocalScan] Error: {ex}");
             progress?.Report((0, 100, $"扫描失败: {ex.Message}"));
         }
 
@@ -288,6 +294,7 @@ public class LocalScanService
         {
             NeedsReload = true;
             _ = _snapshotService.GenerateSnapshotAsync(_db);
+            ScanCompleted?.Invoke(null, totalImported);
         }
 
         return totalImported;

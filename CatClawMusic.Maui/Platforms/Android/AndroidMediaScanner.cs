@@ -3,6 +3,7 @@ using Android.Database;
 using Android.Provider;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -74,7 +75,7 @@ public static class AndroidMediaScanner
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MediaStore] Scan error: {ex.Message}");
+            Log.Debug("AndroidMediaScanner", $"[MediaStore] Scan error: {ex.Message}");
         }
         return songs;
     }

@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Core.Services;
 
@@ -134,7 +135,7 @@ public class PlayQueue
         var song = CurrentSong;
         if (song == null)
         {
-            System.Diagnostics.Debug.WriteLine($"[PlayQueue] Next 得到越界索引，已重置: mode={PlayMode}, index={_currentIndex}, original={_originalList.Count}, shuffled={_shuffledList.Count}");
+            Log.Debug("PlayQueue", $"[PlayQueue] Next 得到越界索引，已重置: mode={PlayMode}, index={_currentIndex}, original={_originalList.Count}, shuffled={_shuffledList.Count}");
             _currentIndex = -1;
         }
         return song;
@@ -175,7 +176,7 @@ public class PlayQueue
         var list = PlayMode == PlayMode.Shuffle ? _shuffledList : _originalList;
         if (idx < 0 || idx >= list.Count)
         {
-            System.Diagnostics.Debug.WriteLine($"[PlayQueue] Previous 历史索引越界: mode={PlayMode}, idx={idx}, list.Count={list.Count}");
+            Log.Debug("PlayQueue", $"[PlayQueue] Previous 历史索引越界: mode={PlayMode}, idx={idx}, list.Count={list.Count}");
             return CurrentSong;
         }
         _currentIndex = idx;

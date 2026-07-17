@@ -187,7 +187,7 @@ public partial class ArtistDetailViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ArtistDetailVM] LoadArtist({artistName}) failed: {ex}");
+            Log.Debug("ArtistDetailViewModel", $"[ArtistDetailVM] LoadArtist({artistName}) failed: {ex}");
             StatusText = "加载失败";
         }
         finally { IsLoading = false; }

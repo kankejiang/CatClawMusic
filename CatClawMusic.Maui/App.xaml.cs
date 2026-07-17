@@ -49,7 +49,7 @@ public partial class App : Application
             try { await MauiProgram.Services.GetRequiredService<IPluginManager>().InitializeAllAsync(); }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] PluginManager init failed: {ex.Message}");
+                Log.Debug("App.xaml", $"[CatClaw] PluginManager init failed: {ex.Message}");
             }
         });
 
@@ -58,7 +58,7 @@ public partial class App : Application
 
     private static void StartupLog(string msg)
     {
-        System.Diagnostics.Debug.WriteLine($"[STARTUP] {msg}");
+        Log.Debug("App.xaml", $"[STARTUP] {msg}");
         try
         {
             var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");

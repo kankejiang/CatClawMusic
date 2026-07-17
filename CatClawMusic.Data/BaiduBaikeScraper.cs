@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Data;
 
@@ -62,7 +63,7 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BaiduBaike] 搜索失败: {ex.Message}");
+            Log.Debug("BaiduBaikeScraper", $"[BaiduBaike] 搜索失败: {ex.Message}");
         }
         return results;
     }
@@ -98,7 +99,7 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BaiduBaike] DownloadAndCacheArtistCoverAsync 错误: {ex.Message}");
+            Log.Debug("BaiduBaikeScraper", $"[BaiduBaike] DownloadAndCacheArtistCoverAsync 错误: {ex.Message}");
             return null;
         }
     }
@@ -151,7 +152,7 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BaiduBaike] 搜索失败: {ex.Message}");
+            Log.Debug("BaiduBaikeScraper", $"[BaiduBaike] 搜索失败: {ex.Message}");
             // fallback：直接访问词条页
             entries.Clear();
             entries.Add(new BaikeEntry(name, $"https://baike.baidu.com/item/{Uri.EscapeDataString(name)}"));
@@ -193,7 +194,7 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BaiduBaike] 详情获取失败: {url}, {ex.Message}");
+            Log.Debug("BaiduBaikeScraper", $"[BaiduBaike] 详情获取失败: {url}, {ex.Message}");
             return null;
         }
     }

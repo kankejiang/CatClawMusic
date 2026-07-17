@@ -140,7 +140,7 @@ public class MusicLibraryService : IMusicLibraryService
                         });
                 }
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[CatClaw] 保存歌曲失败: {song.FilePath}, {ex.Message}"); }
+            catch (Exception ex) { Log.Debug("MusicLibraryService", $"[CatClaw] 保存歌曲失败: {song.FilePath}, {ex.Message}"); }
         }
         return distinct;
     }
@@ -186,13 +186,13 @@ public class MusicLibraryService : IMusicLibraryService
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[CatClaw] 网络({profile.Name})搜索失败: {ex.Message}");
+                        Log.Debug("MusicLibraryService", $"[CatClaw] 网络({profile.Name})搜索失败: {ex.Message}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CatClaw] 获取网络配置失败: {ex.Message}");
+                Log.Debug("MusicLibraryService", $"[CatClaw] 获取网络配置失败: {ex.Message}");
             }
         }
 

@@ -165,7 +165,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AppearanceVM] SelectBackground failed: {ex.Message}");
+            Log.Debug("AppearanceSettingsViewModel", $"[AppearanceVM] SelectBackground failed: {ex.Message}");
         }
     }
 

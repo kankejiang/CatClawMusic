@@ -2,6 +2,7 @@ using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -149,7 +150,7 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LocalMusic] SelectFolder error: {ex.Message}");
+            Log.Debug("LocalMusicSettingsViewModel", $"[LocalMusic] SelectFolder error: {ex.Message}");
         }
 #else
         await Task.CompletedTask;
@@ -178,7 +179,7 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LocalMusic] RemoveFolder error: {ex.Message}");
+            Log.Debug("LocalMusicSettingsViewModel", $"[LocalMusic] RemoveFolder error: {ex.Message}");
         }
 #else
         try
@@ -192,7 +193,7 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LocalMusic] RemoveFolder error: {ex.Message}");
+            Log.Debug("LocalMusicSettingsViewModel", $"[LocalMusic] RemoveFolder error: {ex.Message}");
         }
 #endif
     }
@@ -256,7 +257,7 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
         catch (Exception ex)
         {
             ScanStatus = $"扫描失败: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"[LocalMusic] Scan failed: {ex}");
+            Log.Debug("LocalMusicSettingsViewModel", $"[LocalMusic] Scan failed: {ex}");
         }
         finally
         {

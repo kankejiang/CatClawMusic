@@ -190,7 +190,7 @@ public partial class DesktopMainPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Desktop] InvokeLifecycle {methodName} on {page.GetType().Name} FAILED: {ex.Message}");
+            Log.Debug("DesktopMainPage.xaml", $"[Desktop] InvokeLifecycle {methodName} on {page.GetType().Name} FAILED: {ex.Message}");
         }
     }
 
@@ -362,7 +362,7 @@ public partial class DesktopMainPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Desktop] OpenPlaylistEmbedded failed: {ex}");
+            Log.Debug("DesktopMainPage.xaml", $"[Desktop] OpenPlaylistEmbedded failed: {ex}");
         }
     }
 
@@ -375,7 +375,7 @@ public partial class DesktopMainPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Desktop] PlayPlaylist failed: {ex}");
+            Log.Debug("DesktopMainPage.xaml", $"[Desktop] PlayPlaylist failed: {ex}");
         }
     }
 
@@ -485,7 +485,7 @@ public partial class DesktopMainPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Desktop] InitVolumeSlider failed: {ex}");
+            Log.Debug("DesktopMainPage.xaml", $"[Desktop] InitVolumeSlider failed: {ex}");
         }
     }
 

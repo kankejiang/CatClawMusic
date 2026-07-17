@@ -4,6 +4,7 @@ using Android.Graphics.Drawables;
 using Android.Widget;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -141,7 +142,7 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CachingFileImageSourceService] Decode failed: {path} - {ex.Message}");
+            Log.Debug("CachingFileImageSourceService", $"[CachingFileImageSourceService] Decode failed: {path} - {ex.Message}");
             return null;
         }
     }

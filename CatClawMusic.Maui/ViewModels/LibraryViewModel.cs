@@ -444,7 +444,7 @@ public partial class LibraryViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Library] FilterSongs failed: {ex.Message}");
+            Log.Debug("LibraryViewModel", $"[Library] FilterSongs failed: {ex.Message}");
         }
     }
 

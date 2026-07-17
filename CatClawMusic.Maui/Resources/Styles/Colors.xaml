@@ -151,4 +151,6 @@
     <converters:IsUserConverter x:Key="IsUserConverter" />
     <converters:ChatBubbleColorConverter x:Key="ChatBubbleColorConverter" />
     <converters:ChatBubbleAlignmentConverter x:Key="ChatBubbleAlignmentConverter" />
+    <converters:LogLevelBackgroundConverter x:Key="LogLevelBackgroundConverter" />
+    <converters:LogLevelForegroundConverter x:Key="LogLevelForegroundConverter" />
 </ResourceDictionary>

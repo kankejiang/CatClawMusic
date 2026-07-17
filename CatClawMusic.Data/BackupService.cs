@@ -762,13 +762,13 @@ public class BackupService
         var entries = new List<ArtistCoverBackupEntry>();
         if (string.IsNullOrEmpty(_artistCoversDir) || !System.IO.Directory.Exists(_artistCoversDir))
         {
-            System.Diagnostics.Debug.WriteLine($"[Backup] 艺术家封面缓存目录不存在或为空: {_artistCoversDir}");
+            Log.Debug("BackupService", $"[Backup] 艺术家封面缓存目录不存在或为空: {_artistCoversDir}");
             return entries;
         }
 
         var artists = await _db.GetAllArtistsAsync();
         var cachedFiles = System.IO.Directory.GetFiles(_artistCoversDir);
-        System.Diagnostics.Debug.WriteLine($"[Backup] 艺术家总数: {artists.Count}, 缓存目录文件数: {cachedFiles.Length}, 目录: {_artistCoversDir}");
+        Log.Debug("BackupService", $"[Backup] 艺术家总数: {artists.Count}, 缓存目录文件数: {cachedFiles.Length}, 目录: {_artistCoversDir}");
 
         var backupDir = GetBackupCoversDirectory(backupFilePath);
         System.IO.Directory.CreateDirectory(backupDir);
@@ -779,11 +779,11 @@ public class BackupService
             .Where(x => x.CoverPath != null)
             .ToList();
 
-        System.Diagnostics.Debug.WriteLine($"[Backup] 找到可备份的艺术家封面数: {artistsWithCover.Count}");
+        Log.Debug("BackupService", $"[Backup] 找到可备份的艺术家封面数: {artistsWithCover.Count}");
         if (artistsWithCover.Count == 0 && artists.Count > 0)
         {
             var sampleNoCover = artists.Take(5).Select(a => $"{a.Name}(Cover={a.Cover ?? "null"})");
-            System.Diagnostics.Debug.WriteLine($"[Backup] 示例无封面艺术家: {string.Join(", ", sampleNoCover)}");
+            Log.Debug("BackupService", $"[Backup] 示例无封面艺术家: {string.Join(", ", sampleNoCover)}");
         }
 
         int total = artistsWithCover.Count;

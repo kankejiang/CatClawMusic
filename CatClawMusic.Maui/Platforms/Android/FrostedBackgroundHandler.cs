@@ -19,6 +19,7 @@ using RectF = Android.Graphics.RectF;
 using Matrix = Android.Graphics.Matrix;
 using View = Android.Views.View;
 using Aspect = Microsoft.Maui.Aspect;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -410,7 +411,7 @@ public class FrostedBackgroundView : View
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[FrostedBackground] Regenerate failed: {ex.Message}");
+            Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] Regenerate failed: {ex.Message}");
         }
 
         // 版本不匹配 → 释放引用
@@ -1027,7 +1028,7 @@ internal static class FrostedBackgroundSourceExtensions
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[FrostedBackground] 解码位图失败: {ex.Message}");
+                            Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] 解码位图失败: {ex.Message}");
                             return null;
                         }
                     });
@@ -1070,7 +1071,7 @@ internal static class FrostedBackgroundSourceExtensions
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[FrostedBackground] 解码位图失败: {ex.Message}");
+                        Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] 解码位图失败: {ex.Message}");
                         return null;
                     }
                 });
@@ -1087,7 +1088,7 @@ internal static class FrostedBackgroundSourceExtensions
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[FrostedBackground] 加载封面失败: {ex.Message}");
+            Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] 加载封面失败: {ex.Message}");
         }
     }
 }

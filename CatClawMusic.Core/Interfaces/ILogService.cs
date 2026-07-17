@@ -6,6 +6,14 @@ namespace CatClawMusic.Core.Interfaces;
 /// </summary>
 public interface ILogService
 {
+    /// <summary>诊断日志是否已开启</summary>
+    bool IsEnabled { get; set; }
+
+    /// <summary>输出调试级别日志</summary>
+    /// <param name="tag">日志标签（标识来源模块）</param>
+    /// <param name="message">日志消息</param>
+    void Debug(string tag, string message);
+
     /// <summary>输出信息级别日志</summary>
     /// <param name="tag">日志标签（标识来源模块）</param>
     /// <param name="message">日志消息</param>
@@ -20,4 +28,7 @@ public interface ILogService
     /// <param name="tag">日志标签</param>
     /// <param name="message">日志消息</param>
     void Error(string tag, string message);
+
+    /// <summary>立即将缓冲区中的日志刷写到磁盘</summary>
+    void Flush();
 }

@@ -230,7 +230,7 @@ public partial class MainPage : ContentPage
         }
         catch { }
 
-        System.Diagnostics.Debug.WriteLine($"[MainPage] OnAppearing, currentIndex={_currentIndex}, ViewPagerGrid.Width={ViewPagerGrid.Width}");
+        Log.Debug("MainPage.xaml", $"[MainPage] OnAppearing, currentIndex={_currentIndex}, ViewPagerGrid.Width={ViewPagerGrid.Width}");
         UpdatePagePositions(0);
         UpdateTabBarVisibility();
         UpdateTabBarSelection();
@@ -284,11 +284,11 @@ public partial class MainPage : ContentPage
                 searchVm.LoadExploreDataAsync()
             );
 
-            System.Diagnostics.Debug.WriteLine("[MainPage] 预加载完成");
+            Log.Debug("MainPage.xaml", "[MainPage] 预加载完成");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MainPage] 预加载失败: {ex.Message}");
+            Log.Debug("MainPage.xaml", $"[MainPage] 预加载失败: {ex.Message}");
         }
         finally
         {
@@ -795,7 +795,7 @@ public partial class MainPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MainPage] InvokeLifecycle {methodName} FAILED: {ex.Message}");
+            Log.Debug("MainPage.xaml", $"[MainPage] InvokeLifecycle {methodName} FAILED: {ex.Message}");
         }
     }
 }

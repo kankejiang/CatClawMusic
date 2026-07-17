@@ -146,7 +146,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SettingsViewModel] 加载状态失败: {ex.Message}");
+            Log.Debug("SettingsViewModel", $"[SettingsViewModel] 加载状态失败: {ex.Message}");
             LocalMusicStatus = "状态加载失败";
             RemoteMusicStatus = "状态加载失败";
             PluginStatus = "状态加载失败";

@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -118,7 +119,7 @@ public partial class AboutViewModel : ObservableObject
         catch (Exception ex)
         {
             UpdateStatus = "检查失败";
-            System.Diagnostics.Debug.WriteLine($"[AboutVM] CheckUpdate failed: {ex}");
+            Log.Debug("AboutViewModel", $"[AboutVM] CheckUpdate failed: {ex}");
         }
         finally { IsCheckingUpdate = false; }
     }

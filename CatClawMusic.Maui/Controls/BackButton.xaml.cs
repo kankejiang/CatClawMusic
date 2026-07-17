@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Interfaces;
 namespace CatClawMusic.Maui.Controls;
 
 public partial class BackButton : ContentView
@@ -63,7 +64,7 @@ public partial class BackButton : ContentView
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BackButton] 返回失败: {ex.Message}");
+            Log.Debug("BackButton.xaml", $"[BackButton] 返回失败: {ex.Message}");
         }
     }
 }

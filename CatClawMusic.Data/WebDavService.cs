@@ -104,7 +104,7 @@ public class WebDavService : INetworkFileService, IDisposable
                         (body.Contains("alist", StringComparison.OrdinalIgnoreCase) ||
                          body.Contains("openlist", StringComparison.OrdinalIgnoreCase)))
                     {
-                        System.Diagnostics.Debug.WriteLine($"[WebDAV] API 检测到 OpenList/Alist");
+                        Log.Debug("WebDavService", $"[WebDAV] API 检测到 OpenList/Alist");
                         return true;
                     }
                 }
@@ -142,7 +142,7 @@ public class WebDavService : INetworkFileService, IDisposable
                     currentUrl = location.IsAbsoluteUri
                         ? location.ToString()
                         : new Uri(new Uri(currentUrl), location).ToString();
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] TryPropFind 重定向: {statusCode} -> {currentUrl}");
+                    Log.Debug("WebDavService", $"[WebDAV] TryPropFind 重定向: {statusCode} -> {currentUrl}");
                     continue;
                 }
 
@@ -214,7 +214,7 @@ public class WebDavService : INetworkFileService, IDisposable
             if (foundPrefix != null)
             {
                 _davPrefix = foundPrefix;
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 成功: prefix='{foundPrefix}', url={foundUrl}");
+                Log.Debug("WebDavService", $"[WebDAV] PROPFIND 成功: prefix='{foundPrefix}', url={foundUrl}");
             }
 
             // ── 第3步：综合判断服务器类型 ──
@@ -225,7 +225,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 {
                     // PROPFIND 完全不行但 API 可用 —— 使用 /dav 默认前缀（所有 Alist/OpenList 都用 /dav）
                     _davPrefix = "/dav";
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] API 检测为 OpenList，但 PROPFIND 不可用（将仅使用 REST API，默认前缀 /dav）");
+                    Log.Debug("WebDavService", $"[WebDAV] API 检测为 OpenList，但 PROPFIND 不可用（将仅使用 REST API，默认前缀 /dav）");
                 }
                 DetectedServerType = WebDavServerType.OpenList;
                 return WebDavServerType.OpenList;
@@ -234,7 +234,7 @@ public class WebDavService : INetworkFileService, IDisposable
             if (foundPrefix != null && !string.IsNullOrEmpty(foundPrefix))
             {
                 // 非空前缀才可用 → OpenList/Alist 特征（标准 WebDAV 不会要求前缀）
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] 需要前缀 '{foundPrefix}' → OpenList");
+                Log.Debug("WebDavService", $"[WebDAV] 需要前缀 '{foundPrefix}' → OpenList");
                 DetectedServerType = WebDavServerType.OpenList;
                 return WebDavServerType.OpenList;
             }
@@ -242,7 +242,7 @@ public class WebDavService : INetworkFileService, IDisposable
             if (foundPrefix == null)
             {
                 // 连无前缀的 PROPFIND 也失败了，无法判断，返回 Standard
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 全部失败，无法确定服务器类型");
+                Log.Debug("WebDavService", $"[WebDAV] PROPFIND 全部失败，无法确定服务器类型");
                 DetectedServerType = WebDavServerType.Standard;
                 return WebDavServerType.Standard;
             }
@@ -272,7 +272,7 @@ public class WebDavService : INetworkFileService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] 检测服务器类型失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[WebDAV] 检测服务器类型失败: {ex.Message}");
             return WebDavServerType.Standard;
         }
     }
@@ -502,7 +502,7 @@ public class WebDavService : INetworkFileService, IDisposable
                     ? location.ToString()
                     : new Uri(new Uri(currentUrl), location).ToString();
 
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 重定向: {statusCode} -> {currentUrl}");
+                Log.Debug("WebDavService", $"[WebDAV] PROPFIND 重定向: {statusCode} -> {currentUrl}");
                 continue;
             }
 
@@ -563,10 +563,10 @@ public class WebDavService : INetworkFileService, IDisposable
                 {
                     workingPrefix = prefix;
                     workingUrl = url;
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试连接 PROPFIND 成功: {desc} → {url}");
+                    Log.Debug("WebDavService", $"[WebDAV] 测试连接 PROPFIND 成功: {desc} → {url}");
                     break;
                 }
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试连接 PROPFIND 失败: {desc}");
+                Log.Debug("WebDavService", $"[WebDAV] 测试连接 PROPFIND 失败: {desc}");
             }
 
             if (workingPrefix != null)
@@ -623,11 +623,11 @@ public class WebDavService : INetworkFileService, IDisposable
                                 _davPrefix = "/dav";
                                 CurrentServerType = WebDavServerType.OpenList;
                                 DetectedServerType = WebDavServerType.OpenList;
-                                System.Diagnostics.Debug.WriteLine($"[WebDAV] PROPFIND 不可用但 REST API 正常，使用 API 模式");
+                                Log.Debug("WebDavService", $"[WebDAV] PROPFIND 不可用但 REST API 正常，使用 API 模式");
                                 return (true, $"连接成功 → {hostInfo}\n检测到 OpenList/Alist，将使用 REST API 模式（PROPFIND 不可用）");
                             }
                             var apiMsg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : "";
-                            System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenList API 返回 code={code}: {apiMsg}");
+                            Log.Debug("WebDavService", $"[WebDAV] OpenList API 返回 code={code}: {apiMsg}");
                             if (code == 403 || apiMsg?.Contains("permission") == true || apiMsg?.Contains("密码") == true)
                                 return (false, $"认证失败：{hostInfo}，请检查账号和密码");
                             if (code == 400 || apiMsg?.Contains("not found") == true || apiMsg?.Contains("不存在") == true)
@@ -641,7 +641,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenList API 验证失败: {ex.Message}");
+                    Log.Debug("WebDavService", $"[WebDAV] OpenList API 验证失败: {ex.Message}");
                 }
             }
 
@@ -666,7 +666,7 @@ public class WebDavService : INetworkFileService, IDisposable
                         currentUrl = location.IsAbsoluteUri
                             ? location.ToString()
                             : new Uri(new Uri(currentUrl), location).ToString();
-                        System.Diagnostics.Debug.WriteLine($"[WebDAV] 第4步重定向: {statusCode} -> {currentUrl}");
+                        Log.Debug("WebDavService", $"[WebDAV] 第4步重定向: {statusCode} -> {currentUrl}");
                         continue;
                     }
 
@@ -724,7 +724,7 @@ public class WebDavService : INetworkFileService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] 测试异常: {ex}");
+            Log.Debug("WebDavService", $"[WebDAV] 测试异常: {ex}");
             return (false, $"{hostInfo}: {ex.Message}");
         }
     }
@@ -747,7 +747,7 @@ public class WebDavService : INetworkFileService, IDisposable
         try
         {
             var url = BuildUrl(path, isDirectory: true);
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListFiles: {url}");
+            Log.Debug("WebDavService", $"[WebDAV] ListFiles: {url}");
             var doc = await PropFindAsync(url, 1);
             var ns = XNamespace.Get("DAV:");
             var files = new List<RemoteFile>();
@@ -797,12 +797,12 @@ public class WebDavService : INetworkFileService, IDisposable
                 });
             }
 
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListFiles 结果: {files.Count} 个条目 ({path})");
+            Log.Debug("WebDavService", $"[WebDAV] ListFiles 结果: {files.Count} 个条目 ({path})");
             return files;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListFiles 失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[WebDAV] ListFiles 失败: {ex.Message}");
             return new List<RemoteFile>();
         }
     }
@@ -823,14 +823,14 @@ public class WebDavService : INetworkFileService, IDisposable
         // OpenList/Alist: 使用 /api/fs/list 递归扫描（PROPFIND depth>1 被当作 depth=1）
         if (serverType == WebDavServerType.OpenList)
         {
-            System.Diagnostics.Debug.WriteLine("[WebDAV] OpenList 模式：使用 /api/fs/list 递归扫描");
+            Log.Debug("WebDavService", "[WebDAV] OpenList 模式：使用 /api/fs/list 递归扫描");
             return await OpenListListAllFilesRecursiveAsync(path);
         }
 
         try
         {
             var url = BuildUrl(path, isDirectory: true);
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListAllFiles (depth=infinity): {url}");
+            Log.Debug("WebDavService", $"[WebDAV] ListAllFiles (depth=infinity): {url}");
             var doc = await PropFindAsync(url, 899);
             var ns = XNamespace.Get("DAV:");
             var files = new List<RemoteFile>();
@@ -867,12 +867,12 @@ public class WebDavService : INetworkFileService, IDisposable
                 });
             }
 
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListAllFiles 结果: {files.Count} 个文件 ({path})");
+            Log.Debug("WebDavService", $"[WebDAV] ListAllFiles 结果: {files.Count} 个文件 ({path})");
             return files;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] ListAllFiles 失败 (将回退到递归扫描): {ex.Message}");
+            Log.Debug("WebDavService", $"[WebDAV] ListAllFiles 失败 (将回退到递归扫描): {ex.Message}");
 
             // 自动检测 OpenList：depth>1 PROPFIND 返回 404/405 是 OpenList 特征
             if (serverType == WebDavServerType.Standard && CurrentServerType == WebDavServerType.Standard)
@@ -880,7 +880,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 var msg = ex.Message;
                 if (msg.Contains("404") || msg.Contains("405"))
                 {
-                    System.Diagnostics.Debug.WriteLine("[WebDAV] depth>1 PROPFIND 返回 404/405 → 自动切换 OpenList 模式");
+                    Log.Debug("WebDavService", "[WebDAV] depth>1 PROPFIND 返回 404/405 → 自动切换 OpenList 模式");
                     CurrentServerType = WebDavServerType.OpenList;
                     try
                     {
@@ -888,7 +888,7 @@ public class WebDavService : INetworkFileService, IDisposable
                     }
                     catch (Exception apiEx)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenList 自动检测后扫描失败: {apiEx.Message}");
+                        Log.Debug("WebDavService", $"[WebDAV] OpenList 自动检测后扫描失败: {apiEx.Message}");
                         CurrentServerType = WebDavServerType.Standard;
                     }
                 }
@@ -1007,7 +1007,7 @@ public class WebDavService : INetworkFileService, IDisposable
                         ? location.ToString()
                         : new Uri(new Uri(currentUrl), location).ToString();
 
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] GET 重定向: {code} -> {currentUrl}");
+                    Log.Debug("WebDavService", $"[WebDAV] GET 重定向: {code} -> {currentUrl}");
                     response.Dispose();
                     continue;
                 }
@@ -1035,7 +1035,7 @@ public class WebDavService : INetworkFileService, IDisposable
                         ? location.ToString()
                         : new Uri(new Uri(currentUrl), location).ToString();
 
-                    System.Diagnostics.Debug.WriteLine($"[WebDAV] CDN 重定向: {redirectCode} -> {currentUrl}");
+                    Log.Debug("WebDavService", $"[WebDAV] CDN 重定向: {redirectCode} -> {currentUrl}");
                     redirectResponse.Dispose();
                     continue;
                 }
@@ -1066,7 +1066,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[OpenList] raw_url 下载失败，回退 WebDAV: {ex.Message}");
+                    Log.Debug("WebDavService", $"[OpenList] raw_url 下载失败，回退 WebDAV: {ex.Message}");
                 }
             }
 
@@ -1077,7 +1077,7 @@ public class WebDavService : INetworkFileService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenRead 失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[WebDAV] OpenRead 失败: {ex.Message}");
             throw;
         }
     }
@@ -1104,7 +1104,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[OpenList] raw_url Range 失败，回退 WebDAV: {ex.Message}");
+                    Log.Debug("WebDavService", $"[OpenList] raw_url Range 失败，回退 WebDAV: {ex.Message}");
                 }
             }
 
@@ -1118,7 +1118,7 @@ public class WebDavService : INetworkFileService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenReadRange 失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[WebDAV] OpenReadRange 失败: {ex.Message}");
             return Array.Empty<byte>();
         }
     }
@@ -1168,7 +1168,7 @@ public class WebDavService : INetworkFileService, IDisposable
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[WebDAV] OpenList GetFileInfo 失败: {ex.Message}");
+                Log.Debug("WebDavService", $"[WebDAV] OpenList GetFileInfo 失败: {ex.Message}");
             }
         }
 
@@ -1201,7 +1201,7 @@ public class WebDavService : INetworkFileService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] GetFileInfo 失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[WebDAV] GetFileInfo 失败: {ex.Message}");
             return null;
         }
     }
@@ -1238,7 +1238,7 @@ public class WebDavService : INetworkFileService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebDAV] PUT 异常: {ex.Message}");
+            Log.Debug("WebDavService", $"[WebDAV] PUT 异常: {ex.Message}");
             return (false, $"上传失败: {ex.Message}");
         }
     }
@@ -1327,7 +1327,7 @@ public class WebDavService : INetworkFileService, IDisposable
 
             if (!response.IsSuccessStatusCode)
             {
-                System.Diagnostics.Debug.WriteLine($"[OpenList] 登录失败: {response.StatusCode} - {json}");
+                Log.Debug("WebDavService", $"[OpenList] 登录失败: {response.StatusCode} - {json}");
                 return null;
             }
 
@@ -1336,18 +1336,18 @@ public class WebDavService : INetworkFileService, IDisposable
             if (code != 200)
             {
                 var msg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : "unknown";
-                System.Diagnostics.Debug.WriteLine($"[OpenList] 登录失败: code={code}, {msg}");
+                Log.Debug("WebDavService", $"[OpenList] 登录失败: code={code}, {msg}");
                 return null;
             }
 
             var token = doc.RootElement.GetProperty("data").GetProperty("token").GetString();
             _openListToken = token;
-            System.Diagnostics.Debug.WriteLine($"[OpenList] 登录成功, token={token?[..Math.Min(20, token?.Length ?? 0)]}...");
+            Log.Debug("WebDavService", $"[OpenList] 登录成功, token={token?[..Math.Min(20, token?.Length ?? 0)]}...");
             return token;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[OpenList] 登录异常: {ex.Message}");
+            Log.Debug("WebDavService", $"[OpenList] 登录异常: {ex.Message}");
             return null;
         }
     }
@@ -1409,14 +1409,14 @@ public class WebDavService : INetworkFileService, IDisposable
                 refresh = false
             });
 
-            System.Diagnostics.Debug.WriteLine($"[OpenList] ListFiles: {openListPath}");
+            Log.Debug("WebDavService", $"[OpenList] ListFiles: {openListPath}");
             var response = await OpenListSendAsync(url,
                 new StringContent(body, Encoding.UTF8, "application/json"));
             var json = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
             {
-                System.Diagnostics.Debug.WriteLine($"[OpenList] ListFiles 失败: {response.StatusCode}");
+                Log.Debug("WebDavService", $"[OpenList] ListFiles 失败: {response.StatusCode}");
                 return new List<RemoteFile>();
             }
 
@@ -1425,7 +1425,7 @@ public class WebDavService : INetworkFileService, IDisposable
             if (code != 200)
             {
                 var msg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : "";
-                System.Diagnostics.Debug.WriteLine($"[OpenList] ListFiles 错误: code={code}, {msg}");
+                Log.Debug("WebDavService", $"[OpenList] ListFiles 错误: code={code}, {msg}");
                 return new List<RemoteFile>();
             }
 
@@ -1457,12 +1457,12 @@ public class WebDavService : INetworkFileService, IDisposable
                 }
             }
 
-            System.Diagnostics.Debug.WriteLine($"[OpenList] ListFiles 结果: {files.Count} 个条目 ({path} → {openListPath})");
+            Log.Debug("WebDavService", $"[OpenList] ListFiles 结果: {files.Count} 个条目 ({path} → {openListPath})");
             return files;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[OpenList] ListFiles 失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[OpenList] ListFiles 失败: {ex.Message}");
             return new List<RemoteFile>();
         }
     }
@@ -1507,7 +1507,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 await Task.Delay(50);
         }
 
-        System.Diagnostics.Debug.WriteLine($"[OpenList] 递归扫描完成: {allFiles.Count} 个文件");
+        Log.Debug("WebDavService", $"[OpenList] 递归扫描完成: {allFiles.Count} 个文件");
         return allFiles;
     }
 
@@ -1540,12 +1540,12 @@ public class WebDavService : INetworkFileService, IDisposable
             if (code != 200) return null;
 
             var rawUrl = doc.RootElement.GetProperty("data").GetProperty("raw_url").GetString();
-            System.Diagnostics.Debug.WriteLine($"[OpenList] GetDownloadUrl: {filePath} → {rawUrl?[..Math.Min(80, rawUrl?.Length ?? 0)]}...");
+            Log.Debug("WebDavService", $"[OpenList] GetDownloadUrl: {filePath} → {rawUrl?[..Math.Min(80, rawUrl?.Length ?? 0)]}...");
             return rawUrl;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[OpenList] GetDownloadUrl 失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[OpenList] GetDownloadUrl 失败: {ex.Message}");
             return null;
         }
     }
@@ -1581,11 +1581,11 @@ public class WebDavService : INetworkFileService, IDisposable
             // /api/fs/get 使用 OpenList 虚拟路径（和 GetDownloadUrl 一致）
             var getUrl = $"{baseUrl}/api/fs/get";
             var getBody = JsonSerializer.Serialize(new { path = openListPath, password = "" });
-            System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl fs/get path: {openListPath[..Math.Min(80, openListPath.Length)]}");
+            Log.Debug("WebDavService", $"[OpenList] StreamUrl fs/get path: {openListPath[..Math.Min(80, openListPath.Length)]}");
             var getResponse = await OpenListSendAsync(getUrl,
                 new StringContent(getBody, Encoding.UTF8, "application/json"));
             var getJson = await getResponse.Content.ReadAsStringAsync();
-            System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl fs/get response: {(int)getResponse.StatusCode}, body={getJson[..Math.Min(200, getJson.Length)]}");
+            Log.Debug("WebDavService", $"[OpenList] StreamUrl fs/get response: {(int)getResponse.StatusCode}, body={getJson[..Math.Min(200, getJson.Length)]}");
 
             string? sign = null;
             string? rawUrl = null;
@@ -1594,7 +1594,7 @@ public class WebDavService : INetworkFileService, IDisposable
                 using var getDoc = JsonDocument.Parse(getJson);
                 var code = getDoc.RootElement.GetProperty("code").GetInt32();
                 var msg = getDoc.RootElement.TryGetProperty("message", out var msgElem) ? msgElem.GetString() : "";
-                System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl fs/get code={code}, message={msg}");
+                Log.Debug("WebDavService", $"[OpenList] StreamUrl fs/get code={code}, message={msg}");
                 if (code == 200 && getDoc.RootElement.TryGetProperty("data", out var getData))
                 {
                     if (getData.TryGetProperty("sign", out var signElem) && signElem.ValueKind == JsonValueKind.String)
@@ -1613,25 +1613,25 @@ public class WebDavService : INetworkFileService, IDisposable
             if (!string.IsNullOrEmpty(sign))
             {
                 var url = $"{baseUrl}/d/{encodedPath}?sign={Uri.EscapeDataString(sign)}";
-                System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl (sign): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
+                Log.Debug("WebDavService", $"[OpenList] StreamUrl (sign): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
                 return url;
             }
 
             // sign 不可用：使用 raw_url（直接 CDN 链接，无需认证）
             if (!string.IsNullOrEmpty(rawUrl))
             {
-                System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl (raw_url): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
+                Log.Debug("WebDavService", $"[OpenList] StreamUrl (raw_url): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
                 return rawUrl;
             }
 
             // 最终回退：/d/ + token
             var fallbackUrl = $"{baseUrl}/d/{encodedPath}?token={_openListToken}";
-            System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl (token fallback): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
+            Log.Debug("WebDavService", $"[OpenList] StreamUrl (token fallback): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
             return fallbackUrl;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[OpenList] StreamUrl 构建失败: {ex.Message}");
+            Log.Debug("WebDavService", $"[OpenList] StreamUrl 构建失败: {ex.Message}");
             return null;
         }
     }

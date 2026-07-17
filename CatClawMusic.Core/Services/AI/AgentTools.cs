@@ -566,7 +566,7 @@ public class WebSearchTool : IAgentTool
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebSearch] DuckDuckGo HTML 搜索失败: {ex.Message}");
+            Log.Debug("AgentTools", $"[WebSearch] DuckDuckGo HTML 搜索失败: {ex.Message}");
             return new List<object>();
         }
     }
@@ -586,7 +586,7 @@ public class WebSearchTool : IAgentTool
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebSearch] DuckDuckGo Lite 搜索失败: {ex.Message}");
+            Log.Debug("AgentTools", $"[WebSearch] DuckDuckGo Lite 搜索失败: {ex.Message}");
             return new List<object>();
         }
     }
@@ -625,7 +625,7 @@ public class WebSearchTool : IAgentTool
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebSearch] 解析 HTML 结果失败: {ex.Message}");
+            Log.Debug("AgentTools", $"[WebSearch] 解析 HTML 结果失败: {ex.Message}");
         }
         return results;
     }
@@ -663,7 +663,7 @@ public class WebSearchTool : IAgentTool
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebSearch] 解析 Lite 结果失败: {ex.Message}");
+            Log.Debug("AgentTools", $"[WebSearch] 解析 Lite 结果失败: {ex.Message}");
         }
         return results;
     }

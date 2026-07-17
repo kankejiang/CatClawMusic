@@ -6,6 +6,7 @@ using Android.Provider;
 using Android.Runtime;
 using Android.Util;
 using Android.Views;
+using ALog = Android.Util.Log;
 using Android.Widget;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
@@ -54,7 +55,7 @@ public class DesktopLyricService : IDesktopLyricService
         // 检查悬浮窗权限
         if (!Settings.CanDrawOverlays(ctx))
         {
-            Log.Warn(Tag, "Show() aborted: overlay permission not granted");
+            ALog.Warn(Tag, "Show() aborted: overlay permission not granted");
             return;
         }
 
@@ -62,13 +63,13 @@ public class DesktopLyricService : IDesktopLyricService
         var wmObj = ctx.GetSystemService(Context.WindowService);
         if (wmObj == null)
         {
-            Log.Warn(Tag, "Show() aborted: WindowManager service not available");
+            ALog.Warn(Tag, "Show() aborted: WindowManager service not available");
             return;
         }
         _windowManager = wmObj.JavaCast<IWindowManager>();
         if (_windowManager == null)
         {
-            Log.Warn(Tag, "Show() aborted: JavaCast<IWindowManager> returned null");
+            ALog.Warn(Tag, "Show() aborted: JavaCast<IWindowManager> returned null");
             return;
         }
 
@@ -86,12 +87,12 @@ public class DesktopLyricService : IDesktopLyricService
             IsShowing = true;
             // 如果设置中已锁定，立即应用锁定状态（隐藏按钮 + 触摸穿透）
             if (_locked) ApplyLockState();
-            Log.Info(Tag, "Show() success: overlay view added to WindowManager");
+            ALog.Info(Tag, "Show() success: overlay view added to WindowManager");
         }
         catch (Exception ex)
         {
-            Log.Error(Tag, $"Show() AddView failed: {ex.GetType().Name}: {ex.Message}");
-            Log.Error(Tag, Java.Lang.Throwable.FromException(ex), $"AddView stacktrace");
+            ALog.Error(Tag, $"Show() AddView failed: {ex.GetType().Name}: {ex.Message}");
+            ALog.Error(Tag, Java.Lang.Throwable.FromException(ex), $"AddView stacktrace");
             // 清理已创建的 View，避免泄漏
             _overlayView = null;
             _container = null;
@@ -111,11 +112,11 @@ public class DesktopLyricService : IDesktopLyricService
         try
         {
             _windowManager.RemoveView(_overlayView);
-            Log.Info(Tag, "Hide() success: overlay view removed");
+            ALog.Info(Tag, "Hide() success: overlay view removed");
         }
         catch (Exception ex)
         {
-            Log.Error(Tag, $"Hide() RemoveView failed: {ex.GetType().Name}: {ex.Message}");
+            ALog.Error(Tag, $"Hide() RemoveView failed: {ex.GetType().Name}: {ex.Message}");
         }
 
         _overlayView = null;
@@ -157,7 +158,7 @@ public class DesktopLyricService : IDesktopLyricService
     public async Task<bool> CheckPermissionAsync()
     {
         var granted = Settings.CanDrawOverlays(Application.Context);
-        Log.Info(Tag, $"CheckPermissionAsync: CanDrawOverlays={granted}");
+        ALog.Info(Tag, $"CheckPermissionAsync: CanDrawOverlays={granted}");
         return await Task.FromResult(granted);
     }
 
@@ -366,7 +367,7 @@ public class DesktopLyricService : IDesktopLyricService
         if (_layoutParams == null || _windowManager == null || _overlayView == null) return;
         _layoutParams.Y = y;
         try { _windowManager.UpdateViewLayout(_overlayView, _layoutParams); }
-        catch (Exception ex) { Log.Warn(Tag, $"UpdatePosition failed: {ex.Message}"); }
+        catch (Exception ex) { ALog.Warn(Tag, $"UpdatePosition failed: {ex.Message}"); }
 
         // 持久化位置
         var displayMetrics = Application.Context.Resources.DisplayMetrics;
@@ -402,11 +403,11 @@ public class DesktopLyricService : IDesktopLyricService
         try
         {
             _windowManager.UpdateViewLayout(_overlayView, _layoutParams);
-            Log.Info(Tag, $"ApplyLockState: locked={_locked}, flags={_layoutParams.Flags}");
+            ALog.Info(Tag, $"ApplyLockState: locked={_locked}, flags={_layoutParams.Flags}");
         }
         catch (Exception ex)
         {
-            Log.Warn(Tag, $"ApplyLockState UpdateViewLayout failed: {ex.Message}");
+            ALog.Warn(Tag, $"ApplyLockState UpdateViewLayout failed: {ex.Message}");
         }
     }
 
@@ -479,7 +480,7 @@ public class DesktopLyricService : IDesktopLyricService
                         {
                             _service._windowManager?.UpdateViewLayout(_service._overlayView, _service._layoutParams);
                         }
-                        catch (Exception ex) { Log.Warn(Tag, $"Drag UpdateViewLayout failed: {ex.Message}"); }
+                        catch (Exception ex) { ALog.Warn(Tag, $"Drag UpdateViewLayout failed: {ex.Message}"); }
                     }
                     return true;
 

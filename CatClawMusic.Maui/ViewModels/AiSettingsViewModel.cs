@@ -192,7 +192,7 @@ public partial class AiSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiSettings] LoadConfig 失败: {ex.Message}");
+            Log.Debug("AiSettingsViewModel", $"[AiSettings] LoadConfig 失败: {ex.Message}");
         }
     }
 
@@ -217,7 +217,7 @@ public partial class AiSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiSettings] LoadFallbackConfigs 失败: {ex.Message}");
+            Log.Debug("AiSettingsViewModel", $"[AiSettings] LoadFallbackConfigs 失败: {ex.Message}");
             HasFallbackConfigs = false;
         }
     }
@@ -241,7 +241,7 @@ public partial class AiSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiSettings] 保存 Enabled 失败: {ex.Message}");
+            Log.Debug("AiSettingsViewModel", $"[AiSettings] 保存 Enabled 失败: {ex.Message}");
         }
     }
 
@@ -369,7 +369,7 @@ public partial class AiSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiSettings] SelectAgent 失败: {ex.Message}");
+            Log.Debug("AiSettingsViewModel", $"[AiSettings] SelectAgent 失败: {ex.Message}");
         }
     }
 
@@ -479,7 +479,7 @@ public partial class AiSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiSettings] 导航模型管理失败: {ex.Message}");
+            Log.Debug("AiSettingsViewModel", $"[AiSettings] 导航模型管理失败: {ex.Message}");
         }
     }
 
@@ -504,7 +504,7 @@ public partial class AiSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiSettings] 添加记忆失败: {ex.Message}");
+            Log.Debug("AiSettingsViewModel", $"[AiSettings] 添加记忆失败: {ex.Message}");
             await ToastAsync($"添加失败：{ex.Message}");
         }
     }
@@ -530,7 +530,7 @@ public partial class AiSettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiSettings] 清空记忆失败: {ex.Message}");
+            Log.Debug("AiSettingsViewModel", $"[AiSettings] 清空记忆失败: {ex.Message}");
             await ToastAsync($"清空失败：{ex.Message}");
         }
     }

@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using System.Collections.Concurrent;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -118,7 +119,7 @@ public static class CoverHelper
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CoverHelper] Extract cover failed for {song.Title}: {ex.Message}");
+                Log.Debug("CoverHelper", $"[CoverHelper] Extract cover failed for {song.Title}: {ex.Message}");
             }
         }
 
@@ -168,7 +169,7 @@ public static class CoverHelper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CoverHelper] Downsample failed: {ex.Message}");
+            Log.Debug("CoverHelper", $"[CoverHelper] Downsample failed: {ex.Message}");
             return false;
         }
     }
@@ -234,7 +235,7 @@ public static class CoverHelper
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CoverHelper] Migrate legacy covers failed: {ex.Message}");
+                Log.Debug("CoverHelper", $"[CoverHelper] Migrate legacy covers failed: {ex.Message}");
             }
         });
     }

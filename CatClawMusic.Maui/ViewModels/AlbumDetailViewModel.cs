@@ -98,7 +98,7 @@ public partial class AlbumDetailViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AlbumDetailVM] LoadAsync({albumTitle}) failed: {ex}");
+            Log.Debug("AlbumDetailViewModel", $"[AlbumDetailVM] LoadAsync({albumTitle}) failed: {ex}");
         }
         finally
         {

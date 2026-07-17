@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Data;
 
@@ -250,7 +251,7 @@ public class MusicScanner
             await LoadCachesAsync();
             _cacheLoaded = true;
             cacheSw.Stop();
-            System.Diagnostics.Debug.WriteLine($"[CatClaw] 加载艺术家/专辑缓存：耗时 {cacheSw.ElapsedMilliseconds}ms");
+            Log.Debug("MusicScanner", $"[CatClaw] 加载艺术家/专辑缓存：耗时 {cacheSw.ElapsedMilliseconds}ms");
         }
 
         if (!_artistCache.TryGetValue(DefaultArtist, out var defaultArtistId))
@@ -363,7 +364,7 @@ public class MusicScanner
         _batchCallback?.Invoke(inserted);
 
         flushSw.Stop();
-        System.Diagnostics.Debug.WriteLine($"[CatClaw] 批次刷写：{toInsert.Length} 首，插入 {inserted.Count}，累计 {_totalInserted}，耗时 {flushSw.ElapsedMilliseconds}ms");
+        Log.Debug("MusicScanner", $"[CatClaw] 批次刷写：{toInsert.Length} 首，插入 {inserted.Count}，累计 {_totalInserted}，耗时 {flushSw.ElapsedMilliseconds}ms");
         }
         finally
         {

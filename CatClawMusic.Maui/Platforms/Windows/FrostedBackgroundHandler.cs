@@ -17,6 +17,7 @@ using WHorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment;
 using WVerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment;
 using WSolidColorBrush = Microsoft.UI.Xaml.Media.SolidColorBrush;
 using MColor = Microsoft.Maui.Graphics.Color;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Windows;
 
@@ -162,7 +163,7 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[FrostedBackground] Windows load failed: {ex.Message}");
+            Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] Windows load failed: {ex.Message}");
         }
     }
 

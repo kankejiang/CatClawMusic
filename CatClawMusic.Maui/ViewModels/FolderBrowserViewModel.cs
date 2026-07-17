@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -151,7 +152,7 @@ public partial class FolderBrowserViewModel : ObservableObject, IQueryAttributab
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[FolderBrowser] Select error: {ex}");
+            Log.Debug("FolderBrowserViewModel", $"[FolderBrowser] Select error: {ex}");
         }
     }
 
@@ -251,11 +252,11 @@ public partial class FolderBrowserViewModel : ObservableObject, IQueryAttributab
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[FolderBrowser] Access denied: {path}");
+                    Log.Debug("FolderBrowserViewModel", $"[FolderBrowser] Access denied: {path}");
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[FolderBrowser] Error listing {path}: {ex}");
+                    Log.Debug("FolderBrowserViewModel", $"[FolderBrowser] Error listing {path}: {ex}");
                 }
 
                 MainThread.BeginInvokeOnMainThread(() =>
@@ -267,7 +268,7 @@ public partial class FolderBrowserViewModel : ObservableObject, IQueryAttributab
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[FolderBrowser] LoadDirectory error: {ex}");
+            Log.Debug("FolderBrowserViewModel", $"[FolderBrowser] LoadDirectory error: {ex}");
         }
         finally
         {

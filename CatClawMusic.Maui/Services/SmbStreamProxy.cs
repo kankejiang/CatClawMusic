@@ -4,6 +4,7 @@ using System.Threading;
 using CatClawMusic.Data;
 using ConnectionProfile = CatClawMusic.Core.Models.ConnectionProfile;
 using ProtocolType = CatClawMusic.Core.Models.ProtocolType;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -64,11 +65,11 @@ public class SmbStreamProxy : IDisposable
 
         if (_listener == null || !_listener.IsListening)
         {
-            System.Diagnostics.Debug.WriteLine("[SmbProxy] 无法绑定端口，代理启动失败");
+            Log.Debug("SmbStreamProxy", "[SmbProxy] 无法绑定端口，代理启动失败");
             return;
         }
 
-        System.Diagnostics.Debug.WriteLine($"[SmbProxy] 代理已启动: http://127.0.0.1:{_port}/");
+        Log.Debug("SmbStreamProxy", $"[SmbProxy] 代理已启动: http://127.0.0.1:{_port}/");
 
         // 开始监听请求
         _ = Task.Run(() => ListenLoop(_cts.Token));
@@ -92,7 +93,7 @@ public class SmbStreamProxy : IDisposable
                 catch (Exception ex)
                 {
                     if (!ct.IsCancellationRequested)
-                        System.Diagnostics.Debug.WriteLine($"[SmbProxy] Accept error: {ex.Message}");
+                        Log.Debug("SmbStreamProxy", $"[SmbProxy] Accept error: {ex.Message}");
                 }
             }
         }
@@ -266,14 +267,14 @@ public class SmbStreamProxy : IDisposable
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SmbProxy] Streaming error: {ex.Message}");
+                Log.Debug("SmbStreamProxy", $"[SmbProxy] Streaming error: {ex.Message}");
             }
 
             response.Close();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[SmbProxy] HandleRequest error: {ex.Message}");
+            Log.Debug("SmbStreamProxy", $"[SmbProxy] HandleRequest error: {ex.Message}");
             try
             {
                 response.StatusCode = 500;

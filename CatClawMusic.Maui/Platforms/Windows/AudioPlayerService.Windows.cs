@@ -3,6 +3,7 @@ using Windows.Media.Core;
 using Windows.Media.Playback;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -42,7 +43,7 @@ public partial class AudioPlayerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AudioPlayerService.Windows] SMTC init failed: {ex.Message}");
+            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] SMTC init failed: {ex.Message}");
         }
     }
 
@@ -56,7 +57,7 @@ public partial class AudioPlayerService
 
     private void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
     {
-        System.Diagnostics.Debug.WriteLine($"[AudioPlayerService.Windows] MediaFailed: {args.Error} - {args.ErrorMessage}");
+        Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] MediaFailed: {args.Error} - {args.ErrorMessage}");
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Stopped);
         PlaybackStateChanged?.Invoke(this, false);
         StopPositionTimer();
@@ -93,7 +94,7 @@ public partial class AudioPlayerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AudioPlayerService.Windows] Play error: {ex.Message}");
+            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] Play error: {ex.Message}");
         }
     }
 
@@ -270,7 +271,7 @@ public partial class AudioPlayerService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[AudioPlayerService.Windows] SMTC thumbnail failed: {ex.Message}");
+                    Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] SMTC thumbnail failed: {ex.Message}");
                     updater.Thumbnail = null;
                 }
             }
@@ -283,7 +284,7 @@ public partial class AudioPlayerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AudioPlayerService.Windows] RefreshSmtcDisplay failed: {ex.Message}");
+            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] RefreshSmtcDisplay failed: {ex.Message}");
         }
     }
 }

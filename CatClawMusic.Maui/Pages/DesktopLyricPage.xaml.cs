@@ -1,4 +1,5 @@
 using CatClawMusic.Maui.ViewModels;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -20,6 +21,6 @@ public partial class DesktopLyricPage : ContentPage
     {
         base.OnAppearing();
         try { await _vm.OnAppearingAsync(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"DesktopLyricPage OnAppearing: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("DesktopLyricPage.xaml", $"DesktopLyricPage OnAppearing: {ex.Message}"); }
     }
 }

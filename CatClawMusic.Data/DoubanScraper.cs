@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Data;
 
@@ -109,7 +110,7 @@ public class DoubanScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"DoubanScraper.SearchArtistsAsync 错误: {ex.Message}");
+            Log.Debug("DoubanScraper", $"DoubanScraper.SearchArtistsAsync 错误: {ex.Message}");
             // 发生错误时尝试网页搜索
             try { results = await SearchByWebAsync(name, limit); }
             catch { }
@@ -184,7 +185,7 @@ public class DoubanScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"DoubanScraper.SearchByWebAsync 错误: {ex.Message}");
+            Log.Debug("DoubanScraper", $"DoubanScraper.SearchByWebAsync 错误: {ex.Message}");
         }
 
         return results;
@@ -229,7 +230,7 @@ public class DoubanScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"DoubanScraper.EnrichArtistInfoAsync 错误: {ex.Message}");
+            Log.Debug("DoubanScraper", $"DoubanScraper.EnrichArtistInfoAsync 错误: {ex.Message}");
         }
     }
 
@@ -267,7 +268,7 @@ public class DoubanScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"DoubanScraper.DownloadAndCacheArtistCoverAsync 错误: {ex.Message}");
+            Log.Debug("DoubanScraper", $"DoubanScraper.DownloadAndCacheArtistCoverAsync 错误: {ex.Message}");
             return null;
         }
     }

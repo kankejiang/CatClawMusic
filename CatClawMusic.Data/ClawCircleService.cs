@@ -106,13 +106,13 @@ public class ClawCircleService : IClawCircleService, IDisposable
         // ── 启动 UDP 发现 ──
         if (!BindUdp(out _udp, out _udpPort))
         {
-            System.Diagnostics.Debug.WriteLine("[ClawCircle] UDP 端口绑定失败，发现能力不可用");
+            Log.Debug("ClawCircleService", "[ClawCircle] UDP 端口绑定失败，发现能力不可用");
         }
 
         // ── 启动迷你 HTTP 服务 ──
         if (!BindTcp(out _tcp, out _tcpPort))
         {
-            System.Diagnostics.Debug.WriteLine("[ClawCircle] TCP 端口绑定失败，共享能力不可用");
+            Log.Debug("ClawCircleService", "[ClawCircle] TCP 端口绑定失败，共享能力不可用");
         }
 
         _running = true;
@@ -180,7 +180,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCircle] Ping 广播失败: {ex.Message}");
+            Log.Debug("ClawCircleService", $"[ClawCircle] Ping 广播失败: {ex.Message}");
         }
     }
 
@@ -194,7 +194,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCircle] 获取对端歌单失败 ({peer.Ip}): {ex.Message}");
+            Log.Debug("ClawCircleService", $"[ClawCircle] 获取对端歌单失败 ({peer.Ip}): {ex.Message}");
             return null;
         }
     }
@@ -220,7 +220,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCircle] 拉取对端歌曲流失败 ({peer.Ip}:{songId}): {ex.Message}");
+            Log.Debug("ClawCircleService", $"[ClawCircle] 拉取对端歌曲流失败 ({peer.Ip}:{songId}): {ex.Message}");
             return null;
         }
     }
@@ -247,7 +247,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
                 catch (Exception ex)
                 {
                     if (ct.IsCancellationRequested) break;
-                    System.Diagnostics.Debug.WriteLine($"[ClawCircle] UDP 接收错误: {ex.Message}");
+                    Log.Debug("ClawCircleService", $"[ClawCircle] UDP 接收错误: {ex.Message}");
                     continue;
                 }
 
@@ -371,7 +371,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCircle] 播报失败: {ex.Message}");
+            Log.Debug("ClawCircleService", $"[ClawCircle] 播报失败: {ex.Message}");
         }
     }
 
@@ -397,7 +397,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
                 catch (Exception ex)
                 {
                     if (ct.IsCancellationRequested) break;
-                    System.Diagnostics.Debug.WriteLine($"[ClawCircle] HTTP Accept 错误: {ex.Message}");
+                    Log.Debug("ClawCircleService", $"[ClawCircle] HTTP Accept 错误: {ex.Message}");
                     continue;
                 }
 
@@ -455,7 +455,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCircle] HTTP 处理错误: {ex.Message}");
+            Log.Debug("ClawCircleService", $"[ClawCircle] HTTP 处理错误: {ex.Message}");
         }
     }
 
@@ -500,7 +500,7 @@ public class ClawCircleService : IClawCircleService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClawCircle] 路由错误: {ex.Message}");
+            Log.Debug("ClawCircleService", $"[ClawCircle] 路由错误: {ex.Message}");
             try { await WriteStatusAsync(ns, 500, "Internal Server Error", ct); } catch { }
         }
     }

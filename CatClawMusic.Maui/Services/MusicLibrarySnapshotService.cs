@@ -1,5 +1,6 @@
 using System.Text;
 using CatClawMusic.Data;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -85,11 +86,11 @@ public class MusicLibrarySnapshotService
             var utf8NoBom = new UTF8Encoding(false);
             await File.WriteAllTextAsync(SnapshotPath, content, utf8NoBom);
 
-            System.Diagnostics.Debug.WriteLine($"[MusicLibrarySnapshot] 快照生成成功({content.Length}字符)：{SnapshotPath}");
+            Log.Debug("MusicLibrarySnapshotService", $"[MusicLibrarySnapshot] 快照生成成功({content.Length}字符)：{SnapshotPath}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MusicLibrarySnapshot] 快照生成失败：{ex.Message}");
+            Log.Debug("MusicLibrarySnapshotService", $"[MusicLibrarySnapshot] 快照生成失败：{ex.Message}");
         }
     }
 
@@ -104,7 +105,7 @@ public class MusicLibrarySnapshotService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MusicLibrarySnapshot] 读取快照失败：{ex.Message}");
+            Log.Debug("MusicLibrarySnapshotService", $"[MusicLibrarySnapshot] 读取快照失败：{ex.Message}");
         }
         return string.Empty;
     }

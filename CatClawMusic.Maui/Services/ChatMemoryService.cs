@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -55,7 +56,7 @@ public class ChatMemoryService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ChatMemory] 加载记忆失败：{ex.Message}");
+            Log.Debug("ChatMemoryService", $"[ChatMemory] 加载记忆失败：{ex.Message}");
             _memoryItems = new List<MemoryItem>();
         }
         finally
@@ -78,7 +79,7 @@ public class ChatMemoryService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ChatMemory] 保存记忆失败：{ex.Message}");
+            Log.Debug("ChatMemoryService", $"[ChatMemory] 保存记忆失败：{ex.Message}");
         }
         finally
         {
@@ -144,7 +145,7 @@ public class ChatMemoryService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ChatMemory] 记忆提取失败：{ex.Message}");
+            Log.Debug("ChatMemoryService", $"[ChatMemory] 记忆提取失败：{ex.Message}");
         }
     }
 
@@ -243,7 +244,7 @@ public class ChatMemoryService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ChatMemory] 处理提取记忆失败：{ex.Message}");
+            Log.Debug("ChatMemoryService", $"[ChatMemory] 处理提取记忆失败：{ex.Message}");
         }
     }
 

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Data;
 
@@ -534,7 +535,7 @@ public class MultiSourceSearchService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[MultiSrc] Apple lyric: {ex.Message}");
+            Log.Debug("MultiSourceSearchService", $"[MultiSrc] Apple lyric: {ex.Message}");
             return null;
         }
     }

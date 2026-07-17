@@ -27,7 +27,7 @@ public class NavigationService : INavigationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Navigation error: {ex.Message}");
+            Log.Debug("NavigationService", $"Navigation error: {ex.Message}");
         }
     }
 
@@ -40,7 +40,7 @@ public class NavigationService : INavigationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Navigation back error: {ex.Message}");
+            Log.Debug("NavigationService", $"Navigation back error: {ex.Message}");
         }
     }
 
@@ -58,7 +58,7 @@ public class NavigationService : INavigationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SwitchTab error: {ex.Message}");
+            Log.Debug("NavigationService", $"SwitchTab error: {ex.Message}");
         }
     }
 

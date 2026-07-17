@@ -176,7 +176,7 @@ public class ThemeService : IThemeService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ThemeService] ApplyTheme failed: {ex.Message}");
+            Log.Debug("ThemeService", $"[ThemeService] ApplyTheme failed: {ex.Message}");
         }
     }
 

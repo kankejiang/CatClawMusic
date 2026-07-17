@@ -75,8 +75,8 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         try
         {
             var pos = svc.CurrentPosition;
-            // 25fps 下每 tick 约 0.04s 变化，阈值 0.03 确保不跳过有效更新但过滤抖动
-            if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.03 && pos > 0)
+            // 10fps 下每 tick 约 0.1s 变化，阈值 0.05 确保不跳过有效更新但过滤抖动
+            if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.05 && pos > 0)
                 return;
             svc._lastNotifiedPosition = pos;
             svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
@@ -85,7 +85,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         catch (Exception ex)
         {
 #if DEBUG
-            System.Diagnostics.Debug.WriteLine($"[PositionTimer] Error: {ex.Message}");
+            Log.Debug("AudioPlayerService", $"[PositionTimer] Error: {ex.Message}");
 #endif
         }
     }
@@ -111,7 +111,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>异步初始化服务（占位实现，平台可在 partial 中扩展）</summary>
     public Task InitializeAsync()
     {
-        System.Diagnostics.Debug.WriteLine("[AudioPlayerService] Initialized");
+        Log.Debug("AudioPlayerService", "[AudioPlayerService] Initialized");
         return Task.CompletedTask;
     }
 
@@ -143,7 +143,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[AudioPlayerService] AsyncUrlResolver error: {ex.Message}");
+                        Log.Debug("AudioPlayerService", $"[AudioPlayerService] AsyncUrlResolver error: {ex.Message}");
                     }
                 }
 
@@ -159,7 +159,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AudioPlayerService] Play error: {ex.Message}");
+            Log.Debug("AudioPlayerService", $"[AudioPlayerService] Play error: {ex.Message}");
         }
     }
 
@@ -202,11 +202,11 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 50ms 触发一次位置更新（20fps），确保逐字填充动画流畅</summary>
+    /// <summary>启动进度定时器，每 100ms 触发一次位置更新（10fps），平衡流畅度与主线程负载</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 50, 50);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 100, 100);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>
@@ -216,7 +216,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         {
             _positionTimer.Dispose();
             _positionTimer = null;
-            System.Diagnostics.Debug.WriteLine("[PositionTimer] Stopped");
+            Log.Debug("AudioPlayerService", "[PositionTimer] Stopped");
         }
     }
 

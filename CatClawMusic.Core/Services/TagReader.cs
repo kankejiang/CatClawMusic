@@ -2,6 +2,7 @@ using CatClawMusic.Core.Models;
 using TagLib;
 using IOFile = System.IO.File;
 using TagLibFile = TagLib.File;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Core.Services;
 
@@ -129,7 +130,7 @@ public class TagReader
                 try
                 {
                     var meta = M4aMetadataReader.ReadAll(filePath);
-                    System.Diagnostics.Debug.WriteLine($"[M4aMeta] ReadAll returned: title={meta?.Title ?? "null"}, artist={meta?.Artist ?? "null"}");
+                    Log.Debug("TagReader", $"[M4aMeta] ReadAll returned: title={meta?.Title ?? "null"}, artist={meta?.Artist ?? "null"}");
                     if (meta != null)
                     {
                         return new Song
@@ -150,7 +151,7 @@ public class TagReader
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[M4aMeta] ReadAll exception: {ex.Message}");
+                    Log.Debug("TagReader", $"[M4aMeta] ReadAll exception: {ex.Message}");
                 }
             }
             return new Song
@@ -268,13 +269,13 @@ public class TagReader
                     var m4aLyrics = M4aMetadataReader.ExtractLyrics(filePath);
                     if (!string.IsNullOrWhiteSpace(m4aLyrics))
                     {
-                        System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 回退成功: {filePath}");
+                        Log.Debug("TagReader", $"[TagReader] M4aMetadataReader 回退成功: {filePath}");
                         return m4aLyrics;
                     }
                 }
                 catch (Exception mex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 回退异常: {mex.Message}");
+                    Log.Debug("TagReader", $"[TagReader] M4aMetadataReader 回退异常: {mex.Message}");
                 }
             }
             return null;
@@ -283,7 +284,7 @@ public class TagReader
         {
             // 部分 m4a 文件会让 TagLibSharp 抛出负长度异常，属于已知兼容性问题，不必刷屏
             if (ex is not ArgumentException)
-                System.Diagnostics.Debug.WriteLine($"[TagReader] ReadEmbeddedLyrics FAILED for {filePath}: {ex.GetType().Name}: {ex.Message}");
+                Log.Debug("TagReader", $"[TagReader] ReadEmbeddedLyrics FAILED for {filePath}: {ex.GetType().Name}: {ex.Message}");
             // m4a/mp4 回退：手动解析 atom 树
             if (isM4a)
             {
@@ -323,13 +324,13 @@ public class TagReader
                     var m4aLyrics = M4aMetadataReader.ExtractLyricsFromStream(stream);
                     if (!string.IsNullOrWhiteSpace(m4aLyrics))
                     {
-                        System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 流回退成功: {fileName}");
+                        Log.Debug("TagReader", $"[TagReader] M4aMetadataReader 流回退成功: {fileName}");
                         return m4aLyrics;
                     }
                 }
                 catch (Exception mex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[TagReader] M4aMetadataReader 流回退异常: {mex.Message}");
+                    Log.Debug("TagReader", $"[TagReader] M4aMetadataReader 流回退异常: {mex.Message}");
                 }
             }
             return null;
@@ -337,7 +338,7 @@ public class TagReader
         catch (Exception ex)
         {
             if (ex is not ArgumentException)
-                System.Diagnostics.Debug.WriteLine($"[TagReader] ReadEmbeddedLyricsFromStream FAILED: {ex.GetType().Name}: {ex.Message}");
+                Log.Debug("TagReader", $"[TagReader] ReadEmbeddedLyricsFromStream FAILED: {ex.GetType().Name}: {ex.Message}");
             // m4a/mp4 回退
             if (isM4a)
             {
@@ -415,7 +416,7 @@ public class TagReader
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[TagReader] WriteMetadata failed: {ex}");
+            Log.Debug("TagReader", $"[TagReader] WriteMetadata failed: {ex}");
             return false;
         }
     }
@@ -440,7 +441,7 @@ public class TagReader
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[TagReader] WriteEmbeddedLyrics failed: {ex}");
+            Log.Debug("TagReader", $"[TagReader] WriteEmbeddedLyrics failed: {ex}");
             return false;
         }
     }
@@ -466,7 +467,7 @@ public class TagReader
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[TagReader] WriteCoverToFile failed: {ex}");
+            Log.Debug("TagReader", $"[TagReader] WriteCoverToFile failed: {ex}");
             return false;
         }
     }

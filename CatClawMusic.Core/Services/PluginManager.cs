@@ -178,7 +178,7 @@ public class PluginManager : IPluginManager
                 .FirstOrDefault(a => a.GetName().Name == name);
             if (loaded != null)
             {
-                System.Diagnostics.Debug.WriteLine($"[PluginManager] AssemblyResolve: {args.Name} -> {loaded.FullName}");
+                Log.Debug("PluginManager", $"[PluginManager] AssemblyResolve: {args.Name} -> {loaded.FullName}");
                 return loaded;
             }
         }
@@ -488,7 +488,7 @@ public class PluginManager : IPluginManager
         var fileBytes = File.ReadAllBytes(localPath);
         var assembly = Assembly.Load(fileBytes);
 
-        System.Diagnostics.Debug.WriteLine($"[PluginManager] Loaded assembly: {assembly.FullName}");
+        Log.Debug("PluginManager", $"[PluginManager] Loaded assembly: {assembly.FullName}");
 
         // 提取程序集中的所有类型，处理部分类型加载失败的情况
         Type[] allTypes;
@@ -500,7 +500,7 @@ public class PluginManager : IPluginManager
         {
             // 当某些类型无法加载时，只取成功加载的类型
             allTypes = rtle.Types.Where(t => t != null).ToArray()!;
-            System.Diagnostics.Debug.WriteLine($"[PluginManager] ReflectionTypeLoadException: {rtle.LoaderExceptions.Length} type(s) failed to load");
+            Log.Debug("PluginManager", $"[PluginManager] ReflectionTypeLoadException: {rtle.LoaderExceptions.Length} type(s) failed to load");
         }
 
         // 使用两级匹配策略创建插件实例
@@ -607,7 +607,7 @@ public class PluginManager : IPluginManager
         if (nameMatchedTypes.Count == 0)
             return new List<IPlugin>();
 
-        System.Diagnostics.Debug.WriteLine($"[PluginManager] Using reflection adapter for {nameMatchedTypes.Count} plugin type(s) with embedded types");
+        Log.Debug("PluginManager", $"[PluginManager] Using reflection adapter for {nameMatchedTypes.Count} plugin type(s) with embedded types");
 
         // 根据接口类型选择对应的反射适配器进行包装
         List<IPlugin> instances2 = new();
@@ -640,7 +640,7 @@ public class PluginManager : IPluginManager
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[PluginManager] Failed to create wrapper for {type.FullName}: {ex.Message}");
+                Log.Debug("PluginManager", $"[PluginManager] Failed to create wrapper for {type.FullName}: {ex.Message}");
             }
         }
         return instances2;

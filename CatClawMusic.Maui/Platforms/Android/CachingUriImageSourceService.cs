@@ -7,6 +7,7 @@ using Microsoft.Maui.Controls;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -124,7 +125,7 @@ public class CachingUriImageSourceService : IImageSourceService<UriImageSource>
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CachingUriImageSourceService] Resolve failed: {url} - {ex.Message}");
+                Log.Debug("CachingUriImageSourceService", $"[CachingUriImageSourceService] Resolve failed: {url} - {ex.Message}");
                 return null;
             }
             finally

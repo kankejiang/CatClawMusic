@@ -312,7 +312,7 @@ public partial class NowPlayingViewModel : ObservableObject
             _queue.Next();
             await LoadCurrentSongAsync();
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifNext: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("AppViewModels", $"[NowPlayingVM] NotifNext: {ex.Message}"); }
     }
 
     /// <summary>通知栏"上一首"回调：切到上一首并加载</summary>
@@ -323,7 +323,7 @@ public partial class NowPlayingViewModel : ObservableObject
             _queue.Previous();
             await LoadCurrentSongAsync();
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifPrev: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("AppViewModels", $"[NowPlayingVM] NotifPrev: {ex.Message}"); }
     }
 
     /// <summary>通知栏"收藏"回调：将目标收藏状态持久化并同步 UI（不再回传通知栏，避免循环）</summary>
@@ -342,7 +342,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 LikeIconSource = ImageSourceHelper.FromNameThemed(isFavorite ? "ic_favorite" : "ic_favorite_border");
                 LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(isFavorite ? "ic_favorite_white" : "ic_favorite_border_white");
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] NotifFav: {ex.Message}"); }
+            catch (Exception ex) { Log.Debug("AppViewModels", $"[NowPlayingVM] NotifFav: {ex.Message}"); }
         });
     }
 
@@ -641,12 +641,12 @@ public partial class NowPlayingViewModel : ObservableObject
                     song = _queue.CurrentSong;
                     // 标记启动恢复，避免自动播放
                     _isStartupRestore = true;
-                    System.Diagnostics.Debug.WriteLine($"[NowPlaying] 恢复播放队列: {restoredSongs.Count} 首, 当前歌曲ID={restoredCurrentId}");
+                    Log.Debug("AppViewModels", $"[NowPlaying] 恢复播放队列: {restoredSongs.Count} 首, 当前歌曲ID={restoredCurrentId}");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[NowPlaying] 恢复播放队列失败: {ex.Message}");
+                Log.Debug("AppViewModels", $"[NowPlaying] 恢复播放队列失败: {ex.Message}");
             }
         }
 
@@ -735,7 +735,7 @@ public partial class NowPlayingViewModel : ObservableObject
                         _ = RecordPlayAsync(song.Id);
                     }
                 }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Play error: {ex.Message}"); }
+                catch (Exception ex) { Log.Debug("AppViewModels", $"Play error: {ex.Message}"); }
             }
 
             // 换歌时重新加载封面、歌词，网络歌曲先缓存到本地再处理
@@ -769,7 +769,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Load cover/lyrics error: {ex.Message}");
+                    Log.Debug("AppViewModels", $"Load cover/lyrics error: {ex.Message}");
                 }
             }, ct);
         }
@@ -803,7 +803,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Load cover/lyrics error: {ex.Message}");
+                    Log.Debug("AppViewModels", $"Load cover/lyrics error: {ex.Message}");
                 }
             }, ct);
         }
@@ -839,7 +839,7 @@ public partial class NowPlayingViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NowPlaying] 保存队列状态失败: {ex.Message}");
+            Log.Debug("AppViewModels", $"[NowPlaying] 保存队列状态失败: {ex.Message}");
         }
     }
 
@@ -889,7 +889,7 @@ public partial class NowPlayingViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NowPlaying] 恢复队列状态失败: {ex.Message}");
+            Log.Debug("AppViewModels", $"[NowPlaying] 恢复队列状态失败: {ex.Message}");
             return (new List<Song>(), -1);
         }
     }
@@ -905,7 +905,7 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private async Task LoadCoverAsync(Song song, CancellationToken ct)
     {
-        System.Diagnostics.Debug.WriteLine($"[CoverArt] 开始加载封面: {song.Title} (Id={song.Id}, Protocol={song.Protocol}, CoverArtPath={song.CoverArtPath?[..Math.Min(60, song.CoverArtPath?.Length ?? 0)] ?? "null"})");
+        Log.Debug("AppViewModels", $"[CoverArt] 开始加载封面: {song.Title} (Id={song.Id}, Protocol={song.Protocol}, CoverArtPath={song.CoverArtPath?[..Math.Min(60, song.CoverArtPath?.Length ?? 0)] ?? "null"})");
         string? coverPath = null;
 
         // 1. Check existing CoverArtPath
@@ -937,7 +937,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[CoverArt] URL下载失败: {ex.Message}");
+                    Log.Debug("AppViewModels", $"[CoverArt] URL下载失败: {ex.Message}");
                 }
             }
             if (File.Exists(cachedPath))
@@ -1064,7 +1064,7 @@ public partial class NowPlayingViewModel : ObservableObject
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CoverArt] Navidrome旧数据封面获取失败: {ex.Message}");
+                Log.Debug("AppViewModels", $"[CoverArt] Navidrome旧数据封面获取失败: {ex.Message}");
             }
         }
 
@@ -1074,7 +1074,7 @@ public partial class NowPlayingViewModel : ObservableObject
             && (song.Protocol == ProtocolType.WebDAV || song.Protocol == ProtocolType.SMB)
             && !string.IsNullOrEmpty(song.RemoteId))
         {
-            System.Diagnostics.Debug.WriteLine($"[CoverArt] 步骤6: 尝试 {song.Protocol} 封面提取 (RemoteId={song.RemoteId?[..Math.Min(40, song.RemoteId?.Length ?? 0)]})");
+            Log.Debug("AppViewModels", $"[CoverArt] 步骤6: 尝试 {song.Protocol} 封面提取 (RemoteId={song.RemoteId?[..Math.Min(40, song.RemoteId?.Length ?? 0)]})");
             try
             {
                 ct.ThrowIfCancellationRequested();
@@ -1085,7 +1085,7 @@ public partial class NowPlayingViewModel : ObservableObject
                     var profile = profiles.FirstOrDefault(p => p.Protocol == song.Protocol && p.IsEnabled);
                     if (profile != null)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[CoverArt] 步骤6: 找到配置 {profile.Name}, 调用 GetCoverAsync...");
+                        Log.Debug("AppViewModels", $"[CoverArt] 步骤6: 找到配置 {profile.Name}, 调用 GetCoverAsync...");
                         var stream = await networkSvc.GetCoverAsync(song.RemoteId, profile);
                         if (stream != null)
                         {
@@ -1094,29 +1094,29 @@ public partial class NowPlayingViewModel : ObservableObject
                                 await stream.CopyToAsync(fs, ct);
                             stream.Dispose();
                             coverPath = cachedPath;
-                            System.Diagnostics.Debug.WriteLine($"[CoverArt] 步骤6: 封面提取成功 -> {cachedPath}");
+                            Log.Debug("AppViewModels", $"[CoverArt] 步骤6: 封面提取成功 -> {cachedPath}");
                         }
                         else
                         {
-                            System.Diagnostics.Debug.WriteLine($"[CoverArt] 步骤6: GetCoverAsync 返回 null");
+                            Log.Debug("AppViewModels", $"[CoverArt] 步骤6: GetCoverAsync 返回 null");
                         }
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"[CoverArt] 步骤6: 未找到 {song.Protocol} 配置");
+                        Log.Debug("AppViewModels", $"[CoverArt] 步骤6: 未找到 {song.Protocol} 配置");
                     }
                 }
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CoverArt] WebDAV/SMB 封面获取失败: {ex.Message}");
+                Log.Debug("AppViewModels", $"[CoverArt] WebDAV/SMB 封面获取失败: {ex.Message}");
             }
         }
 
         ct.ThrowIfCancellationRequested();
 
-        System.Diagnostics.Debug.WriteLine($"[CoverArt] 封面加载完成: {song.Title}, coverPath={(coverPath != null ? "找到" : "未找到")}");
+        Log.Debug("AppViewModels", $"[CoverArt] 封面加载完成: {song.Title}, coverPath={(coverPath != null ? "找到" : "未找到")}");
 
         if (coverPath != null)
         {
@@ -1181,7 +1181,7 @@ public partial class NowPlayingViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CoverArt] content:// 提取失败: {ex.Message}");
+            Log.Debug("AppViewModels", $"[CoverArt] content:// 提取失败: {ex.Message}");
             return null;
         }
     }
@@ -1196,16 +1196,16 @@ public partial class NowPlayingViewModel : ObservableObject
         LrcLyrics? lyrics = null;
         try
         {
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] 开始加载歌词: {song.Title} (Id={song.Id}, Path={song.FilePath?.Substring(0, Math.Min(60, song.FilePath?.Length ?? 0))}...)");
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] LyricsPath={song.LyricsPath ?? "null"}");
+            Log.Debug("AppViewModels", $"[Lyrics] 开始加载歌词: {song.Title} (Id={song.Id}, Path={song.FilePath?.Substring(0, Math.Min(60, song.FilePath?.Length ?? 0))}...)");
+            Log.Debug("AppViewModels", $"[Lyrics] LyricsPath={song.LyricsPath ?? "null"}");
 
             lyrics = await _lyrics.GetLyricsAsync(song);
 
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] 结果: {(lyrics != null ? $"{lyrics.Lines.Count} 行" : "null")}");
+            Log.Debug("AppViewModels", $"[Lyrics] 结果: {(lyrics != null ? $"{lyrics.Lines.Count} 行" : "null")}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] 加载异常: {ex.GetType().Name}: {ex.Message}");
+            Log.Debug("AppViewModels", $"[Lyrics] 加载异常: {ex.GetType().Name}: {ex.Message}");
         }
 
         ct.ThrowIfCancellationRequested();
@@ -1224,7 +1224,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 OnPropertyChanged(nameof(AllLyricLines));
             });
             _desktopLyricManager?.SetLyrics(lyrics);
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] 歌词已加载，首行: {lyrics.Lines[0].Text}");
+            Log.Debug("AppViewModels", $"[Lyrics] 歌词已加载，首行: {lyrics.Lines[0].Text}");
         }
         else
         {
@@ -1240,7 +1240,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 OnPropertyChanged(nameof(AllLyricLines));
             });
             _desktopLyricManager?.SetLyrics(null);
-            System.Diagnostics.Debug.WriteLine("[Lyrics] 未找到歌词");
+            Log.Debug("AppViewModels", "[Lyrics] 未找到歌词");
         }
     }
 
@@ -1427,7 +1427,7 @@ public partial class NowPlayingViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NowPlayingViewModel] 记录播放失败: {ex.Message}");
+            Log.Debug("AppViewModels", $"[NowPlayingViewModel] 记录播放失败: {ex.Message}");
         }
     }
 
@@ -1452,7 +1452,7 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"[PreBuffer] 开始预缓冲: {nextSong.Title}");
+            Log.Debug("AppViewModels", $"[PreBuffer] 开始预缓冲: {nextSong.Title}");
 
             // 1. 下载音频到本地缓存（仅网络歌曲）
             if (nextSong.Source != SongSource.Local && !AudioCacheService.Instance.IsCached(nextSong.FilePath))
@@ -1479,11 +1479,11 @@ public partial class NowPlayingViewModel : ObservableObject
                 await FetchAndUpdateSongMetadataAsync(nextSong);
             }
 
-            System.Diagnostics.Debug.WriteLine($"[PreBuffer] 预缓冲完成: {nextSong.Title}");
+            Log.Debug("AppViewModels", $"[PreBuffer] 预缓冲完成: {nextSong.Title}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PreBuffer] 预缓冲失败: {nextSong.Title}, {ex.Message}");
+            Log.Debug("AppViewModels", $"[PreBuffer] 预缓冲失败: {nextSong.Title}, {ex.Message}");
         }
     }
 
@@ -1563,7 +1563,7 @@ public partial class NowPlayingViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NowPlayingVM] 元数据获取失败: {song.Title}, {ex.Message}");
+            Log.Debug("AppViewModels", $"[NowPlayingVM] 元数据获取失败: {song.Title}, {ex.Message}");
         }
     }
 
@@ -1583,7 +1583,7 @@ public partial class NowPlayingViewModel : ObservableObject
         string? downloadUrl = AudioPlayerService.UrlTransformer?.Invoke(song.FilePath);
         if (string.IsNullOrEmpty(downloadUrl)) return null;
 
-        System.Diagnostics.Debug.WriteLine($"[Resolve] 开始缓存: {song.Title}");
+        Log.Debug("AppViewModels", $"[Resolve] 开始缓存: {song.Title}");
         try
         {
             var localPath = await AudioCacheService.Instance.CacheAsync(
@@ -1594,12 +1594,12 @@ public partial class NowPlayingViewModel : ObservableObject
                     return await http.GetByteArrayAsync(downloadUrl, ct);
                 },
                 ct);
-            System.Diagnostics.Debug.WriteLine($"[Resolve] 缓存完成: {song.Title}, {(localPath != null ? "成功" : "失败")}");
+            Log.Debug("AppViewModels", $"[Resolve] 缓存完成: {song.Title}, {(localPath != null ? "成功" : "失败")}");
             return localPath;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Resolve] 缓存失败: {song.Title}, {ex.Message}");
+            Log.Debug("AppViewModels", $"[Resolve] 缓存失败: {song.Title}, {ex.Message}");
             return null;
         }
     }
@@ -1671,7 +1671,7 @@ public partial class NowPlayingViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Resolve] 元数据提取失败: {song.Title}, {ex.Message}");
+            Log.Debug("AppViewModels", $"[Resolve] 元数据提取失败: {song.Title}, {ex.Message}");
         }
     }
 
@@ -1699,7 +1699,7 @@ public partial class NowPlayingViewModel : ObservableObject
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Resolve] 封面提取失败: {song.Title}, {ex.Message}");
+            Log.Debug("AppViewModels", $"[Resolve] 封面提取失败: {song.Title}, {ex.Message}");
         }
     }
 
@@ -1761,7 +1761,7 @@ public partial class NowPlayingViewModel : ObservableObject
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Resolve] 歌词加载失败: {song.Title}, {ex.Message}");
+            Log.Debug("AppViewModels", $"[Resolve] 歌词加载失败: {song.Title}, {ex.Message}");
         }
     }
 }

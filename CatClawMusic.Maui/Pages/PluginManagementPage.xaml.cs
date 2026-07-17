@@ -1,4 +1,5 @@
 using CatClawMusic.Maui.ViewModels;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -21,6 +22,6 @@ public partial class PluginManagementPage : ContentPage
     {
         base.OnAppearing();
         try { await _vm.OnAppearingAsync(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[PluginPage] OnAppearing: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("PluginManagementPage.xaml", $"[PluginPage] OnAppearing: {ex.Message}"); }
     }
 }

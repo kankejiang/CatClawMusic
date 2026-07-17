@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services.AI;
+using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Data;
 
@@ -98,7 +99,7 @@ public class AiArtistScraper : IArtistMetadataScraper
 
             if (!response.IsSuccessStatusCode)
             {
-                System.Diagnostics.Debug.WriteLine($"[AiArtistScraper] API 请求失败 ({(int)response.StatusCode})");
+                Log.Debug("AiArtistScraper", $"[AiArtistScraper] API 请求失败 ({(int)response.StatusCode})");
                 return results;
             }
 
@@ -129,7 +130,7 @@ public class AiArtistScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiArtistScraper] 搜索失败: {ex.Message}");
+            Log.Debug("AiArtistScraper", $"[AiArtistScraper] 搜索失败: {ex.Message}");
         }
 
         return results;
@@ -159,7 +160,7 @@ public class AiArtistScraper : IArtistMetadataScraper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[AiArtistScraper] 下载封面失败: {ex.Message}");
+            Log.Debug("AiArtistScraper", $"[AiArtistScraper] 下载封面失败: {ex.Message}");
         }
 
         return null;

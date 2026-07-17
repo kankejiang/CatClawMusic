@@ -48,7 +48,7 @@ public class LyricsService : ILyricsService
             fpPreview = "http://...";
         else
             fpPreview = song.FilePath.Length <= 40 ? song.FilePath : song.FilePath[..40];
-        System.Diagnostics.Debug.WriteLine($"[Lyrics] GetLyricsAsync: Protocol={song.Protocol}, RemoteId={song.RemoteId ?? "null"}, FilePath={fpPreview}");
+        Log.Debug("LyricsService", $"[Lyrics] GetLyricsAsync: Protocol={song.Protocol}, RemoteId={song.RemoteId ?? "null"}, FilePath={fpPreview}");
 
         // Navidrome/Subsonic: 优先通过 API 获取歌词（避免下载整个音频文件读内嵌歌词）
         if (song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
@@ -73,7 +73,7 @@ public class LyricsService : ILyricsService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] Navidrome API 获取失败: {ex.Message}");
+                Log.Debug("LyricsService", $"[Lyrics] Navidrome API 获取失败: {ex.Message}");
             }
         }
 
@@ -118,18 +118,18 @@ public class LyricsService : ILyricsService
         // 远程 URL 不支持本地同名 .lrc 文件查找，直接尝试内嵌歌词（通过网络流）
         if (isRemoteUrl)
         {
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] isRemoteUrl=true, Protocol={song.Protocol}, skipEmbedded={skipEmbedded}");
+            Log.Debug("LyricsService", $"[Lyrics] isRemoteUrl=true, Protocol={song.Protocol}, skipEmbedded={skipEmbedded}");
             if (skipEmbedded) return null;
             // Navidrome: 内嵌歌词需要下载整个音频文件（最大 10MB）到 LOS 堆，
             // 代价过高且 API 已是规范来源，跳过。WebDAV/SMB 的直链 stream URL 仍尝试。
             if (song.Protocol == ProtocolType.Navidrome)
             {
-                System.Diagnostics.Debug.WriteLine("[Lyrics] 跳过 Navidrome 内嵌歌词");
+                Log.Debug("LyricsService", "[Lyrics] 跳过 Navidrome 内嵌歌词");
                 return null;
             }
-            System.Diagnostics.Debug.WriteLine("[Lyrics] 调用 ReadEmbeddedLyrics (isRemoteUrl=true)");
+            Log.Debug("LyricsService", "[Lyrics] 调用 ReadEmbeddedLyrics (isRemoteUrl=true)");
             var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri: false, isRemoteUrl: true));
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] ReadEmbeddedLyrics 返回: {(embeddedLyrics != null ? $"{embeddedLyrics.Length} 字符" : "null")}");
+            Log.Debug("LyricsService", $"[Lyrics] ReadEmbeddedLyrics 返回: {(embeddedLyrics != null ? $"{embeddedLyrics.Length} 字符" : "null")}");
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
                 var parsed = await Task.Run(() => TryParseLyrics(embeddedLyrics));
@@ -324,28 +324,28 @@ public class LyricsService : ILyricsService
 
         if (isRemoteUrl)
         {
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] ReadEmbeddedLyrics isRemoteUrl, RemoteUrlStreamOpener={(RemoteUrlStreamOpener != null ? "已设置" : "null")}");
+            Log.Debug("LyricsService", $"[Lyrics] ReadEmbeddedLyrics isRemoteUrl, RemoteUrlStreamOpener={(RemoteUrlStreamOpener != null ? "已设置" : "null")}");
             if (RemoteUrlStreamOpener != null)
             {
                 try
                 {
                     var spPreview = songPath?[..Math.Min(60, songPath?.Length ?? 0)] ?? "";
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] 调用 RemoteUrlStreamOpener: {spPreview}...");
+                    Log.Debug("LyricsService", $"[Lyrics] 调用 RemoteUrlStreamOpener: {spPreview}...");
                     using var stream = RemoteUrlStreamOpener(songPath);
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 返回: {(stream != null ? $"{stream.Length} bytes" : "null")}");
+                    Log.Debug("LyricsService", $"[Lyrics] RemoteUrlStreamOpener 返回: {(stream != null ? $"{stream.Length} bytes" : "null")}");
                     if (stream != null)
                     {
                         var remoteLyrics = TagReader.ReadEmbeddedLyricsFromStream(stream, GetFileNameFromUrl(songPath));
                         if (!string.IsNullOrWhiteSpace(remoteLyrics))
                         {
-                            System.Diagnostics.Debug.WriteLine($"[Lyrics] 远程流内嵌歌词读取成功 (长度={remoteLyrics.Length})");
+                            Log.Debug("LyricsService", $"[Lyrics] 远程流内嵌歌词读取成功 (长度={remoteLyrics.Length})");
                             return remoteLyrics;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[Lyrics] RemoteUrlStreamOpener 读取异常: {ex.Message}");
+                    Log.Debug("LyricsService", $"[Lyrics] RemoteUrlStreamOpener 读取异常: {ex.Message}");
                 }
             }
             return null;
@@ -354,10 +354,10 @@ public class LyricsService : ILyricsService
         var lyrics = TagReader.ReadEmbeddedLyrics(songPath);
         if (!string.IsNullOrWhiteSpace(lyrics))
         {
-            System.Diagnostics.Debug.WriteLine($"[Lyrics] 内嵌歌词读取成功: {songPath} (长度={lyrics.Length})");
+            Log.Debug("LyricsService", $"[Lyrics] 内嵌歌词读取成功: {songPath} (长度={lyrics.Length})");
             return lyrics;
         }
-        System.Diagnostics.Debug.WriteLine($"[Lyrics] 内嵌歌词为空: {songPath}");
+        Log.Debug("LyricsService", $"[Lyrics] 内嵌歌词为空: {songPath}");
 
         if (AndroidFileStreamOpener != null)
         {
@@ -371,7 +371,7 @@ public class LyricsService : ILyricsService
                         lyrics = TagReader.ReadEmbeddedLyricsFromStream(stream, Path.GetFileName(songPath));
                         if (!string.IsNullOrWhiteSpace(lyrics))
                         {
-                            System.Diagnostics.Debug.WriteLine($"[Lyrics] 流内嵌歌词读取成功 (长度={lyrics.Length})");
+                            Log.Debug("LyricsService", $"[Lyrics] 流内嵌歌词读取成功 (长度={lyrics.Length})");
                             return lyrics;
                         }
                     }
@@ -379,7 +379,7 @@ public class LyricsService : ILyricsService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Lyrics] AndroidFileStreamOpener 读取异常: {ex.Message}");
+                Log.Debug("LyricsService", $"[Lyrics] AndroidFileStreamOpener 读取异常: {ex.Message}");
             }
         }
 
@@ -486,7 +486,7 @@ public class LyricsService : ILyricsService
                     var fileInfo = new FileInfo(filePath);
                     if (fileInfo.Length > MaxLyricsFileSize)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[LyricsService] 跳过超大歌词文件: {filePath} ({fileInfo.Length / 1024}KB)");
+                        Log.Debug("LyricsService", $"[LyricsService] 跳过超大歌词文件: {filePath} ({fileInfo.Length / 1024}KB)");
                         continue;
                     }
                     content = await ReadLyricsFileWithEncodingDetection(filePath);
@@ -505,7 +505,7 @@ public class LyricsService : ILyricsService
                         // 检查文件大小，避免解析超大 TTML 文件
                         if (bytes.Length > MaxLyricsFileSize)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[LyricsService] 跳过超大歌词文件: {filePath} ({bytes.Length / 1024}KB)");
+                            Log.Debug("LyricsService", $"[LyricsService] 跳过超大歌词文件: {filePath} ({bytes.Length / 1024}KB)");
                             continue;
                         }
                         content = EncodingDetectAndDecode(bytes);
@@ -1189,7 +1189,7 @@ public class LyricsService : ILyricsService
             || trimmed.Contains("<html", StringComparison.OrdinalIgnoreCase)
             || trimmed.Contains("<body", StringComparison.OrdinalIgnoreCase))
         {
-            System.Diagnostics.Debug.WriteLine("[LyricsService] 检测到非歌词内容，已过滤");
+            Log.Debug("LyricsService", "[LyricsService] 检测到非歌词内容，已过滤");
             return null;
         }
 
@@ -1218,7 +1218,7 @@ public class LyricsService : ILyricsService
             // 文件过大时直接跳过，避免解析阻塞播放
             if (ttmlContent.Length > MaxLyricsParseSize)
             {
-                System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML 文件过大（{ttmlContent.Length / 1024}KB），跳过解析");
+                Log.Debug("LyricsService", $"[LyricsService] TTML 文件过大（{ttmlContent.Length / 1024}KB），跳过解析");
                 return null;
             }
 
@@ -1242,7 +1242,7 @@ public class LyricsService : ILyricsService
 
             if (body == null)
             {
-                System.Diagnostics.Debug.WriteLine("[LyricsService] TTML: 未找到 <body> 元素");
+                Log.Debug("LyricsService", "[LyricsService] TTML: 未找到 <body> 元素");
                 return null;
             }
 
@@ -1276,7 +1276,7 @@ public class LyricsService : ILyricsService
                 if (!string.IsNullOrWhiteSpace(joinedName))
                     agentSingerName[agentId] = joinedName;
 
-                System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML: 发现 agent '{agentId}' -> 对齐{agentAlign}, 和声={isBacking}, 歌手={joinedName}");
+                Log.Debug("LyricsService", $"[LyricsService] TTML: 发现 agent '{agentId}' -> 对齐{agentAlign}, 和声={isBacking}, 歌手={joinedName}");
             }
 
             var lyrics = new LrcLyrics();
@@ -1289,7 +1289,7 @@ public class LyricsService : ILyricsService
                              .Where(p => p != null)
                              .ToList();
 
-            System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML: 找到 {paragraphs.Count} 个 <p> 元素");
+            Log.Debug("LyricsService", $"[LyricsService] TTML: 找到 {paragraphs.Count} 个 <p> 元素");
 
             int skippedEmpty = 0;
             foreach (var p in paragraphs)
@@ -1301,14 +1301,14 @@ public class LyricsService : ILyricsService
 
                 if (string.IsNullOrEmpty(beginAttr))
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML: 跳过无 begin 属性的 <p> 元素");
+                    Log.Debug("LyricsService", $"[LyricsService] TTML: 跳过无 begin 属性的 <p> 元素");
                     continue;
                 }
 
                 var timestamp = ParseTtmlTimestamp(beginAttr);
                 if (timestamp == null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML: 无法解析时间戳: {beginAttr}");
+                    Log.Debug("LyricsService", $"[LyricsService] TTML: 无法解析时间戳: {beginAttr}");
                     continue;
                 }
 
@@ -1318,7 +1318,7 @@ public class LyricsService : ILyricsService
                 if (string.IsNullOrWhiteSpace(text))
                 {
                     skippedEmpty++;
-                    System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML: 跳过空文本行 (begin={beginAttr})");
+                    Log.Debug("LyricsService", $"[LyricsService] TTML: 跳过空文本行 (begin={beginAttr})");
                     continue;
                 }
 
@@ -1334,7 +1334,7 @@ public class LyricsService : ILyricsService
                              ?? p.Attribute("agent")?.Value;
                 agentSingerName.TryGetValue(agentAttr ?? string.Empty, out var singerName);
 
-                System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML: 解析行 '{orig}' (时间={timestamp}, 对齐={alignment}, 和声={isBacking}, 角色={agentAttr}, 歌手={singerName})");
+                Log.Debug("LyricsService", $"[LyricsService] TTML: 解析行 '{orig}' (时间={timestamp}, 对齐={alignment}, 和声={isBacking}, 角色={agentAttr}, 歌手={singerName})");
 
                 lines.Add(new LrcLyricLine
                 {
@@ -1349,7 +1349,7 @@ public class LyricsService : ILyricsService
                 });
             }
 
-            System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML: 解析完成，共 {lines.Count} 行有效歌词，跳过 {skippedEmpty} 行空文本");
+            Log.Debug("LyricsService", $"[LyricsService] TTML: 解析完成，共 {lines.Count} 行有效歌词，跳过 {skippedEmpty} 行空文本");
 
             if (lines.Count == 0) return null;
 
@@ -1369,7 +1369,7 @@ public class LyricsService : ILyricsService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[LyricsService] TTML 解析异常: {ex.Message}");
+            Log.Debug("LyricsService", $"[LyricsService] TTML 解析异常: {ex.Message}");
             return null;
         }
     }
@@ -2004,7 +2004,7 @@ public class LyricsService : ILyricsService
         {
             if (amllContent.Length > MaxLyricsParseSize)
             {
-                System.Diagnostics.Debug.WriteLine($"[LyricsService] AMLL 文件过大（{amllContent.Length / 1024}KB），跳过解析");
+                Log.Debug("LyricsService", $"[LyricsService] AMLL 文件过大（{amllContent.Length / 1024}KB），跳过解析");
                 return null;
             }
 

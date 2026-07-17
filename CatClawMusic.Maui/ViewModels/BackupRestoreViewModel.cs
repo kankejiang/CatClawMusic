@@ -218,7 +218,7 @@ public partial class BackupRestoreViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BackupVM] LoadBackupFiles failed: {ex}");
+            Log.Debug("BackupRestoreViewModel", $"[BackupVM] LoadBackupFiles failed: {ex}");
             StatusText = "加载失败";
         }
         finally { IsLoading = false; }
@@ -266,7 +266,7 @@ public partial class BackupRestoreViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BackupVM] Backup failed: {ex}");
+            Log.Debug("BackupRestoreViewModel", $"[BackupVM] Backup failed: {ex}");
             StatusText = $"备份失败: {ex.Message}";
         }
         finally
@@ -317,7 +317,7 @@ public partial class BackupRestoreViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[BackupVM] Restore failed: {ex}");
+            Log.Debug("BackupRestoreViewModel", $"[BackupVM] Restore failed: {ex}");
             StatusText = $"恢复失败: {ex.Message}";
         }
         finally

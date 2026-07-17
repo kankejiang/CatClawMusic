@@ -62,7 +62,7 @@ public partial class PluginManagementViewModel : ObservableObject
         catch (Exception ex)
         {
             Summary = $"加载失败：{ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"[PluginManagement] Refresh 失败: {ex.Message}");
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] Refresh 失败: {ex.Message}");
         }
         finally
         {
@@ -84,7 +84,7 @@ public partial class PluginManagementViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PluginManagement] Toggle 失败: {ex.Message}");
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] Toggle 失败: {ex.Message}");
         }
     }
 
