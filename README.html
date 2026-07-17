@@ -71,7 +71,15 @@
     padding:11px 20px;border-radius:14px;font-size:14px;box-shadow:var(--shadow-s);transition:transform .14s}
   .qq a:active{transform:scale(.96)}
 
-  /* 截图 */
+  /* 截图（默认收起） */
+  .shots-head{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+  .shots-head .chev{margin-left:auto;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+    background:#fff;border:1px solid var(--line);color:var(--lav-d);font-size:15px;transition:transform .25s ease;box-shadow:var(--shadow-s)}
+  .shots-head.open .chev{transform:rotate(180deg)}
+  .shots-sub{color:var(--ink3);font-size:13.5px;margin:0 0 0 34px;transition:.25s}
+  .shots-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s ease;margin-top:0}
+  .shots-wrap.open{grid-template-rows:1fr;margin-top:20px}
+  .shots-inner{overflow:hidden}
   .shots{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
   .shot{background:#fff;border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--shadow-s);transition:transform .2s,box-shadow .2s}
   .shot:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
@@ -173,18 +181,25 @@
     </div>
   </section>
 
-  <!-- 截图 -->
+  <!-- 截图（默认收起） -->
   <section id="screens" class="reveal">
-    <div class="sec-title">📱 应用截图</div>
-    <div class="sec-sub">点一下小图可放大看细节喵～</div>
-    <div class="shots">
-      <div class="shot"><img loading="lazy" src="images/213D14E63AAD1FD2FB2431EBDE73589C.jpg" alt="播放页面"/><div class="cap">▶️ 播放页面</div></div>
-      <div class="shot"><img loading="lazy" src="images/e4fc2f068444f8a1e1b82338bf5fa380.jpg" alt="歌词页面"/><div class="cap">🎶 歌词页面</div></div>
-      <div class="shot"><img loading="lazy" src="images/10847a3c0f88f601a4522567ce77888b.jpg" alt="歌曲详情"/><div class="cap">💿 歌曲详情</div></div>
-      <div class="shot"><img loading="lazy" src="images/714ab1a33c755ee2066e232b640ec131.jpg" alt="歌单"/><div class="cap">📜 歌单</div></div>
-      <div class="shot"><img loading="lazy" src="images/a62d0758c743118ed18ef74234f1f7b3.jpg" alt="每日推荐"/><div class="cap">✨ 探索 · 每日推荐</div></div>
-      <div class="shot"><img loading="lazy" src="images/a9bcd724c3a3ba7668b0c29e473b2151.jpg" alt="艺术家"/><div class="cap">🎤 探索 · 艺术家</div></div>
-      <div class="shot"><img loading="lazy" src="images/c618969189f5baec852f3186c4852e3b.jpg" alt="音乐库"/><div class="cap">📚 音乐库</div></div>
+    <div class="shots-head" id="shotsHead">
+      <span class="sec-title" style="margin:0">📱 应用截图</span>
+      <span class="chev">▾</span>
+    </div>
+    <div class="shots-sub">点击标题展开 7 张截图，点小图可放大看细节喵～</div>
+    <div class="shots-wrap" id="shotsWrap">
+      <div class="shots-inner">
+        <div class="shots">
+          <div class="shot"><img loading="lazy" src="images/213D14E63AAD1FD2FB2431EBDE73589C.jpg" alt="播放页面"/><div class="cap">▶️ 播放页面</div></div>
+          <div class="shot"><img loading="lazy" src="images/e4fc2f068444f8a1e1b82338bf5fa380.jpg" alt="歌词页面"/><div class="cap">🎶 歌词页面</div></div>
+          <div class="shot"><img loading="lazy" src="images/10847a3c0f88f601a4522567ce77888b.jpg" alt="歌曲详情"/><div class="cap">💿 歌曲详情</div></div>
+          <div class="shot"><img loading="lazy" src="images/714ab1a33c755ee2066e232b640ec131.jpg" alt="歌单"/><div class="cap">📜 歌单</div></div>
+          <div class="shot"><img loading="lazy" src="images/a62d0758c743118ed18ef74234f1f7b3.jpg" alt="每日推荐"/><div class="cap">✨ 探索 · 每日推荐</div></div>
+          <div class="shot"><img loading="lazy" src="images/a9bcd724c3a3ba7668b0c29e473b2151.jpg" alt="艺术家"/><div class="cap">🎤 探索 · 艺术家</div></div>
+          <div class="shot"><img loading="lazy" src="images/c618969189f5baec852f3186c4852e3b.jpg" alt="音乐库"/><div class="cap">📚 音乐库</div></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -425,6 +440,15 @@
       const w=window.open(img.src,'_blank');
       if(!w) location.href=img.src;
     });
+  });
+
+  // 截图区默认收起，点击标题展开/收起
+  const shotsHead=document.getElementById('shotsHead');
+  const shotsWrap=document.getElementById('shotsWrap');
+  shotsHead.addEventListener('click',()=>{
+    const open=shotsWrap.classList.toggle('open');
+    shotsHead.classList.toggle('open',open);
+    shotsHead.setAttribute('aria-expanded',open);
   });
 </script>
 </body>
