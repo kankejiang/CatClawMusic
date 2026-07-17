@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:sys="clr-namespace:System;assembly=netstandard"
+             x:Class="CatClawMusic.Maui.Pages.LogPage"
+             Title="诊断日志"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             Shell.NavBarIsVisible="False">
+
+    <Grid Background="{DynamicResource PageBackgroundBrush}">
+
+        <ScrollView>
+            <VerticalStackLayout Padding="0,0,0,30" Spacing="14">
+
+                <!-- 顶部标题栏（自定义返回 + 标题 + 刷新） -->
+                <Grid ColumnDefinitions="Auto,*,Auto"
+                      ColumnSpacing="12"
+                      Padding="16,16,16,12"
+                      Background="{DynamicResource HeaderBackgroundBrush}">
+                    <Border Grid.Column="0"
+                            Style="{StaticResource GlassIconContainerStyle}"
+                            BackgroundColor="#24FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnBackClicked" />
+                        </Border.GestureRecognizers>
+                        <Image Source="{AppThemeBinding Light=ic_back_light, Dark=ic_back}"
+                               WidthRequest="22" HeightRequest="22"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                        <Label Text="诊断日志" FontSize="18" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="导出应用日志，协助开发者排查问题" FontSize="11" TextColor="{DynamicResource TextTertiaryColor}" />
+                    </VerticalStackLayout>
+                    <Border Grid.Column="2"
+                            Style="{StaticResource GlassIconContainerStyle}"
+                            BackgroundColor="#24FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnRefreshClicked" />
+                        </Border.GestureRecognizers>
+                        <Image Source="{AppThemeBinding Light=ic_refresh_light, Dark=ic_refresh}"
+                               WidthRequest="20" HeightRequest="20"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+
+                <VerticalStackLayout Padding="16,0" Spacing="14">
+
+                    <!-- 设备报告卡 -->
+                    <Border Style="{StaticResource GlassCardStrongStyle}"
+                            Background="linear-gradient(135deg, rgba(140,123,255,0.18), rgba(85,214,255,0.10))">
+                        <VerticalStackLayout Spacing="14">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                <Border Grid.Column="0"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 13"
+                                        WidthRequest="44" HeightRequest="44"
+                                        BackgroundColor="{DynamicResource PrimaryColor}">
+                                    <Label Text="🐾" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                    <HorizontalStackLayout Spacing="8">
+                                        <Label Text="猫爪音乐" FontSize="16" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                                        <Border StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="{DynamicResource PrimaryColor}" Padding="9,2">
+                                            <Label Text="{Binding AppVersion}" FontSize="12" FontFamily="OpenSansSemibold" TextColor="White" />
+                                        </Border>
+                                    </HorizontalStackLayout>
+                                    <Label FontSize="11" TextColor="{DynamicResource TextSecondaryColor}">
+                                        <Label.Text>
+                                            <MultiBinding StringFormat="当前版本 · build {0} · {1}">
+                                                <Binding Path="BuildNumber" />
+                                                <Binding Path="DeviceOs" />
+                                            </MultiBinding>
+                                        </Label.Text>
+                                    </Label>
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                    <Label Text="设备型号" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" />
+                                    <Label Text="{Binding DeviceModel}" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                    <Label Text="系统版本" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" />
+                                    <Label Text="{Binding DeviceOs}" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="2" Spacing="2">
+                                    <Label Text="首次安装" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" />
+                                    <Label Text="{Binding InstallDate}" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="3" Spacing="2">
+                                    <Label Text="日志路径" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" />
+                                    <Label Text="{Binding LogPath}" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- 概览统计 -->
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
+                        <Border Style="{StaticResource GlassCardStyle}" Grid.Column="0" Padding="12,8">
+                            <VerticalStackLayout Spacing="3" HorizontalOptions="Center">
+                                <Label Text="{Binding TotalCount}" FontSize="18" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
+                                <Label Text="总条数" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <Border Style="{StaticResource GlassCardStyle}" Grid.Column="1" Padding="12,8">
+                            <VerticalStackLayout Spacing="3" HorizontalOptions="Center">
+                                <Label Text="{Binding ErrorCount}" FontSize="18" FontFamily="OpenSansSemibold" TextColor="{DynamicResource ErrorColor}" HorizontalOptions="Center" />
+                                <Label Text="错误" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <Border Style="{StaticResource GlassCardStyle}" Grid.Column="2" Padding="12,8">
+                            <VerticalStackLayout Spacing="3" HorizontalOptions="Center">
+                                <Label Text="{Binding WarnCount}" FontSize="18" FontFamily="OpenSansSemibold" TextColor="{DynamicResource WarningColor}" HorizontalOptions="Center" />
+                                <Label Text="警告" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <Border Style="{StaticResource GlassCardStyle}" Grid.Column="3" Padding="12,8">
+                            <VerticalStackLayout Spacing="3" HorizontalOptions="Center">
+                                <Label Text="{Binding SizeKb}" FontSize="18" FontFamily="OpenSansSemibold" TextColor="{DynamicResource InfoColor}" HorizontalOptions="Center" />
+                                <Label Text="KB 大小" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </Grid>
+
+                    <!-- 工具栏：搜索 + 滚动顶部 -->
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Border Grid.Column="0" Style="{StaticResource GlassCardStyle}" Padding="12,9">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <Image Source="{AppThemeBinding Light=ic_search_light, Dark=ic_search}"
+                                       WidthRequest="16" HeightRequest="16"
+                                       VerticalOptions="Center" Opacity="0.6" />
+                                <Entry Grid.Column="1"
+                                       Text="{Binding SearchQuery}"
+                                       Placeholder="搜索日志内容或标签…"
+                                       PlaceholderColor="{DynamicResource TextTertiaryColor}"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       FontSize="13"
+                                       ClearButtonVisibility="WhileEditing"
+                                       BackgroundColor="Transparent" />
+                            </Grid>
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource GlassIconContainerStyle}" Padding="0"
+                                WidthRequest="38" HeightRequest="38">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnScrollToTopClicked" />
+                            </Border.GestureRecognizers>
+                            <Image Source="{AppThemeBinding Light=ic_arrow_up_light, Dark=ic_arrow_up}"
+                                   WidthRequest="18" HeightRequest="18"
+                                   HorizontalOptions="Center" VerticalOptions="Center" Opacity="0.7" />
+                        </Border>
+                    </Grid>
+
+                    <!-- 级别筛选 chips -->
+                    <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never" HeightRequest="40">
+                        <HorizontalStackLayout x:Name="LevelChips" Spacing="8" />
+                    </ScrollView>
+
+                    <!-- 标签筛选 chips -->
+                    <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never" HeightRequest="40">
+                        <HorizontalStackLayout x:Name="TagChips" Spacing="8" />
+                    </ScrollView>
+
+                    <!-- 日志列表 -->
+                    <CollectionView x:Name="LogListView"
+                                    ItemsSource="{Binding FilteredEntries}"
+                                    SelectionMode="None"
+                                    VerticalScrollBarVisibility="Never"
+                                    HeightRequest="460">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LogEntryViewModel">
+                                <Border Style="{StaticResource GlassCardStyle}"
+                                        Padding="13,11"
+                                        Margin="0,0,0,8"
+                                        StrokeShape="RoundRectangle 14">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding LevelCode}" Value="e">
+                                            <Setter Property="Stroke" Value="{DynamicResource ErrorColor}" />
+                                            <Setter Property="StrokeThickness" Value="0,0,0,3" />
+                                        </DataTrigger>
+                                        <DataTrigger TargetType="Border" Binding="{Binding LevelCode}" Value="w">
+                                            <Setter Property="Stroke" Value="{DynamicResource WarningColor}" />
+                                            <Setter Property="StrokeThickness" Value="0,0,0,3" />
+                                        </DataTrigger>
+                                        <DataTrigger TargetType="Border" Binding="{Binding LevelCode}" Value="i">
+                                            <Setter Property="Stroke" Value="{DynamicResource InfoColor}" />
+                                            <Setter Property="StrokeThickness" Value="0,0,0,3" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <VerticalStackLayout Spacing="7">
+                                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                                            <Border Grid.Column="0" StrokeThickness="0" StrokeShape="RoundRectangle 6" Padding="7,2"
+                                                    BackgroundColor="{Binding LevelCode, Converter={StaticResource LogLevelBackgroundConverter}}">
+                                                <Label Text="{Binding LevelText}" FontSize="9" FontFamily="OpenSansSemibold" TextColor="{Binding LevelCode, Converter={StaticResource LogLevelForegroundConverter}}" />
+                                            </Border>
+                                            <Border Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 6" Padding="8,2"
+                                                    BackgroundColor="#24828AB8">
+                                                <Label Text="{Binding Tag}" FontSize="10" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextSecondaryColor}" />
+                                            </Border>
+                                            <Label Grid.Column="2" Text="{Binding Timestamp}" FontSize="10"
+                                                   TextColor="{DynamicResource TextTertiaryColor}"
+                                                   FontFamily="OpenSansSemibold"
+                                                   HorizontalOptions="End" VerticalOptions="Center" />
+                                        </Grid>
+                                        <Label Text="{Binding Message}" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}"
+                                               LineBreakMode="WordWrap" LineHeight="1.5" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <!-- 空状态 -->
+                    <Label Text="没有匹配的日志"
+                           IsVisible="{Binding IsEmpty}"
+                           FontSize="13"
+                           TextColor="{DynamicResource TextTertiaryColor}"
+                           HorizontalOptions="Center"
+                           Margin="0,40" />
+
+                    <!-- 导出区 -->
+                    <Border Style="{StaticResource GlassCardStrongStyle}" Padding="16">
+                        <VerticalStackLayout Spacing="13">
+                            <HorizontalStackLayout Spacing="8">
+                                <Image Source="{AppThemeBinding Light=ic_share_light, Dark=ic_share}"
+                                       WidthRequest="17" HeightRequest="17"
+                                       VerticalOptions="Center" />
+                                <Label Text="导出给开发者" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+
+                            <!-- 选项1：设备信息 -->
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" x:Name="OptDeviceRow">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnToggleDeviceOption" />
+                                </Grid.GestureRecognizers>
+                                <Border Grid.Column="0" StrokeShape="RoundRectangle 6" StrokeThickness="1.5"
+                                        WidthRequest="20" HeightRequest="20" VerticalOptions="Center"
+                                        Stroke="{DynamicResource GlassStrokeColor}" x:Name="OptDeviceBox">
+                                    <Image Source="ic_check" WidthRequest="13" HeightRequest="13"
+                                           HorizontalOptions="Center" VerticalOptions="Center"
+                                           IsVisible="{Binding IncludeDeviceInfo}" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label Text="附加设备与版本信息" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" />
+                                    <Label Text="包含型号/系统/版本/安装时间，便于复现" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <!-- 选项2：启动日志 -->
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" x:Name="OptStartupRow">
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnToggleStartupOption" />
+                                </Grid.GestureRecognizers>
+                                <Border Grid.Column="0" StrokeShape="RoundRectangle 6" StrokeThickness="1.5"
+                                        WidthRequest="20" HeightRequest="20" VerticalOptions="Center"
+                                        Stroke="{DynamicResource GlassStrokeColor}" x:Name="OptStartupBox">
+                                    <Image Source="ic_check" WidthRequest="13" HeightRequest="13"
+                                           HorizontalOptions="Center" VerticalOptions="Center"
+                                           IsVisible="{Binding IncludeStartupLog}" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label Text="包含启动日志" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" />
+                                    <Label Text="catclaw_startup.log（初始化诊断）" FontSize="10" TextColor="{DynamicResource TextTertiaryColor}" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <!-- 操作按钮 -->
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
+                                <Button Grid.Column="0" Grid.ColumnSpan="2"
+                                        Text="生成诊断包并分享"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Command="{Binding ShareDiagnosticPackageCommand}" />
+                                <Button Grid.Column="0" Grid.Row="1"
+                                        Text="复制日志"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Command="{Binding CopyLogsCommand}" />
+                                <Button Grid.Column="1" Grid.Row="1"
+                                        Text="清空日志"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Command="{Binding ClearLogsCommand}" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Label Text="日志仅保存在本机，不会自动上传 · 生成诊断包后可手动通过系统分享发送给开发者"
+                           FontSize="11" TextColor="{DynamicResource TextTertiaryColor}"
+                           HorizontalOptions="Center" HorizontalTextAlignment="Center"
+                           LineHeight="1.5" Margin="0,14,0,0" />
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

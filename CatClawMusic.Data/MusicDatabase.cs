@@ -108,6 +108,7 @@ public class MusicDatabase
             // PlayHistory 迁移必须在 CreateTableAsync 之前，否则旧表缺少主键列会导致 "Cannot add a PRIMARY KEY column"
             await MigratePlayHistoryTableAsync();
             await _database.CreateTableAsync<PlayHistory>();
+            await _database.CreateTableAsync<PlaySession>();
             await _database.CreateTableAsync<Favorite>();
             await _database.CreateTableAsync<Lyric>();
             await _database.CreateTableAsync<ConnectionProfile>();
@@ -419,6 +420,19 @@ public class MusicDatabase
     /// <returns>歌曲对象，未找到时返回 null</returns>
     public Task<Song?> GetSongByIdAsync(int id) =>
         _database.Table<Song>().Where(s => s.Id == id).FirstOrDefaultAsync();
+
+    /// <summary>获取指定歌曲的累计播放次数（聚合 PlayHistory 表中同一 SongId 的所有记录）</summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <returns>累计播放次数；无记录时返回 0</returns>
+    public async Task<int> GetPlayCountForSongAsync(int songId)
+    {
+        try
+        {
+            var rows = await _database.Table<PlayHistory>().Where(h => h.SongId == songId).ToListAsync();
+            return rows.Sum(h => h.PlayCount);
+        }
+        catch { return 0; }
+    }
 
     /// <summary>根据 ID 查找艺术家</summary>
     public Task<Artist?> FindArtistByIdAsync(int id) =>
@@ -1011,10 +1025,12 @@ public class MusicDatabase
     // ═══════════ Play History ═══════════
 
     /// <summary>
-    /// 记录播放历史，已存在的记录会更新播放时间和次数
+    /// 记录播放历史，已存在的记录会更新播放时间和次数。
+    /// 同时写入 PlaySession 逐次日志（用于趋势/时段分布等统计）。
     /// </summary>
     /// <param name="songId">歌曲 ID</param>
-    public async Task RecordPlayAsync(int songId)
+    /// <param name="durationMs">本次实际聆听时长（毫秒），&lt;=0 时按歌曲全长兜底</param>
+    public async Task RecordPlayAsync(int songId, long durationMs = 0)
     {
         if (songId <= 0) return;
         try
@@ -1038,7 +1054,23 @@ public class MusicDatabase
                 {
                     await _database.InsertAsync(new PlayHistory { SongId = songId, PlayedAt = now });
                 }
+
+                // 写入逐次日志：若未传入时长，尝试用歌曲全长兜底
+                var sessionMs = durationMs;
+                if (sessionMs <= 0)
+                {
+                    var song = await _database.Table<Song>().Where(s => s.Id == songId).FirstOrDefaultAsync();
+                    if (song != null) sessionMs = Math.Max(0, song.Duration);
+                }
+                await _database.InsertAsync(new PlaySession
+                {
+                    SongId = songId,
+                    PlayedAt = now,
+                    DurationMs = sessionMs
+                });
+
                 await TrimHistoryAsync(200);
+                await TrimPlaySessionAsync(2000);
             }
             finally
             {
@@ -1049,6 +1081,23 @@ public class MusicDatabase
         {
             System.Diagnostics.Debug.WriteLine($"[CatClaw] RecordPlayAsync 失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 裁剪 PlaySession 表，仅保留最近指定数量的会话记录，避免无限增长。
+    /// </summary>
+    /// <param name="keepCount">保留记录数量上限</param>
+    private async Task TrimPlaySessionAsync(int keepCount)
+    {
+        try
+        {
+            var count = await _database.Table<PlaySession>().CountAsync();
+            if (count <= keepCount) return;
+            await _database.ExecuteAsync(
+                "DELETE FROM PlaySession WHERE Id IN (SELECT Id FROM PlaySession ORDER BY PlayedAt ASC LIMIT ?)",
+                count - keepCount);
+        }
+        catch { }
     }
 
     /// <summary>
@@ -1184,6 +1233,73 @@ public class MusicDatabase
             s.AllArtists = allArtistsDict3.TryGetValue(s.Id, out var aa) ? aa : s.Artist;
 
         return songs.OrderByDescending(s => playCountDict.TryGetValue(s.Id, out var c) ? c : 0).ToList();
+    }
+
+    /// <summary>获取播放次数最多的艺术家（按 PlayHistory 聚合，合并多艺术家分隔）。
+    /// 返回元组列表：(艺术家名, 总播放次数)。</summary>
+    /// <param name="limit">最大返回数量</param>
+    public async Task<List<(string Artist, int PlayCount)>> GetTopPlayedArtistsAsync(int limit = 10)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var history = await _database.Table<PlayHistory>().ToListAsync();
+        if (history.Count == 0) return new List<(string, int)>();
+
+        var songIds = history.Select(h => h.SongId).ToHashSet();
+        var allSongs = (await _database.Table<Song>().ToListAsync()).Where(s => songIds.Contains(s.Id)).ToList();
+        if (allSongs.Count == 0) return new List<(string, int)>();
+
+        // 歌曲ID → 主艺术家名
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+
+        // 多艺术家映射：SongId → " / " 分隔的全部艺术家名
+        var allArtistsDict = await GetAllArtistsForSongsAsync(allSongs.Select(s => s.Id));
+
+        // 按歌曲聚合播放次数
+        var songPlayDict = history.GroupBy(h => h.SongId)
+                                  .ToDictionary(g => g.Key, g => g.Sum(h => h.PlayCount));
+
+        // 按艺术家聚合：用 AllArtists（含合作艺术家），以 " / " 拆分后单独计入
+        var artistPlayDict = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var s in allSongs)
+        {
+            if (!songPlayDict.TryGetValue(s.Id, out var pc) || pc <= 0) continue;
+            var names = allArtistsDict.TryGetValue(s.Id, out var aa) && !string.IsNullOrWhiteSpace(aa)
+                ? aa
+                : (artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家");
+            foreach (var n in names.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (string.IsNullOrWhiteSpace(n)) continue;
+                artistPlayDict.TryGetValue(n, out var cur);
+                artistPlayDict[n] = cur + pc;
+            }
+        }
+
+        return artistPlayDict.OrderByDescending(kv => kv.Value)
+                             .Take(limit)
+                             .Select(kv => (kv.Key, kv.Value))
+                             .ToList();
+    }
+
+    /// <summary>
+    /// 获取指定时间范围内的播放会话日志，用于趋势/时段分布/连续听歌等逐次统计。
+    /// </summary>
+    /// <param name="sinceUnix">起始 Unix 时间戳（秒），&lt;=0 表示不限</param>
+    /// <param name="limit">最大返回数量</param>
+    /// <returns>按时间升序排列的播放会话列表</returns>
+    public async Task<List<PlaySession>> GetPlaySessionsAsync(long sinceUnix = 0, int limit = 5000)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var q = _database.Table<PlaySession>();
+        if (sinceUnix > 0) q = q.Where(s => s.PlayedAt >= sinceUnix);
+        return await q.OrderByDescending(s => s.PlayedAt).Take(limit).ToListAsync();
+    }
+
+    /// <summary>获取全部播放会话（不受时间范围限制，用于"全部"时间范围的统计）。</summary>
+    public async Task<List<PlaySession>> GetAllPlaySessionsAsync()
+    {
+        await EnsureMaintenanceCompletedAsync();
+        return await _database.Table<PlaySession>().ToListAsync();
     }
 
     // ═══════════ Favorites ═══════════

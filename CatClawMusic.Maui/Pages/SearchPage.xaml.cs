@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
@@ -16,6 +17,7 @@ public partial class SearchPage : ContentPage
     private readonly IAudioPlayerService _audioPlayer;
     private readonly IServiceProvider _services;
     private readonly NowPlayingViewModel _nowPlayingVm;
+    private readonly ListeningStatsView _statsView;
     private SettingsPage? _settingsPage;
     private bool _isSettingsPanelOpen;
     private IDispatcherTimer? _heroAutoScrollTimer;
@@ -28,7 +30,8 @@ public partial class SearchPage : ContentPage
     /// <param name="audioPlayer">音频播放服务。</param>
     /// <param name="services">服务提供程序，用于解析设置页面。</param>
     /// <param name="nowPlayingVm">当前播放视图模型，用于驱动聊天模式下的迷你播放器。</param>
-    public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer, IServiceProvider services, NowPlayingViewModel nowPlayingVm)
+    /// <param name="statsView">听歌统计视图，嵌入到"报告"Tab。</param>
+    public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer, IServiceProvider services, NowPlayingViewModel nowPlayingVm, ListeningStatsView statsView)
     {
         InitializeComponent();
         _db = db;
@@ -37,9 +40,13 @@ public partial class SearchPage : ContentPage
         _audioPlayer = audioPlayer;
         _services = services;
         _nowPlayingVm = nowPlayingVm;
+        _statsView = statsView;
         BindingContext = _vm;
         UpdateTabVisualState(0);
         SetupHeroAutoScroll();
+
+        // 将听歌统计视图添加到"报告"面板
+        PanelStats.Children.Add(_statsView);
 
         ChatBackButton.Clicked += OnChatBackClicked;
 
@@ -625,6 +632,11 @@ public partial class SearchPage : ContentPage
         {
             _vm.CurrentCategory = index;
             UpdateTabVisualState(index);
+            // 切换到"报告"Tab 时触发统计数据加载
+            if (index == 4)
+            {
+                _ = _statsView.LoadAsync();
+            }
         }
     }
 
@@ -646,6 +658,9 @@ public partial class SearchPage : ContentPage
 
         TabAlbum.BackgroundColor = selectedIndex == 3 ? primaryColor : cardBg;
         TabAlbumLabel.TextColor = selectedIndex == 3 ? white : textSecondary;
+
+        TabStats.BackgroundColor = selectedIndex == 4 ? primaryColor : cardBg;
+        TabStatsLabel.TextColor = selectedIndex == 4 ? white : textSecondary;
     }
 
     private async void OnHeroPlayTapped(object? sender, EventArgs e)

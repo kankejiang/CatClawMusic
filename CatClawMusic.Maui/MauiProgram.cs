@@ -367,6 +367,7 @@ public static class MauiProgram
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AlbumDetailViewModel>();
         services.AddTransient<ArtistDetailViewModel>();
+        services.AddTransient<SongDetailViewModel>();
         services.AddTransient<AlbumsViewModel>();
         services.AddTransient<ArtistsViewModel>();
         services.AddTransient<PlaylistDetailViewModel>();
@@ -374,6 +375,7 @@ public static class MauiProgram
         services.AddTransient<GeneralSettingsViewModel>();
         services.AddTransient<BackupRestoreViewModel>();
         services.AddTransient<AboutViewModel>();
+        services.AddTransient<LogViewModel>();
         services.AddTransient<LocalMusicSettingsViewModel>();
         services.AddTransient<MusicFolderSettingsViewModel>();
         services.AddTransient<AiSettingsViewModel>();
@@ -382,6 +384,7 @@ public static class MauiProgram
         services.AddTransient<RemoteMusicSettingsViewModel>();
         services.AddTransient<PluginManagementViewModel>();
         services.AddTransient<FolderBrowserViewModel>();
+        services.AddTransient<ListeningStatsViewModel>();
 
         // ═══════════════════════════════════════════════════
         // App Shell
@@ -427,6 +430,7 @@ public static class MauiProgram
         services.AddTransient<Pages.ServerSettingsPage>();
         services.AddTransient<Pages.P2PSettingsPage>();
         services.AddTransient<Pages.SongDetailPage>();
+        services.AddTransient<Controls.ListeningStatsView>();
 
 #if DEBUG
         builder.Logging.AddDebug();

@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.LibraryPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -45,23 +46,20 @@
                             Stroke="{DynamicResource GlassStrokeColor}"
                             HorizontalOptions="End"
                             Padding="10,4">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnDiscoverSourceClicked" />
+                        </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,Auto"
                               ColumnSpacing="4">
-                            <Button Grid.ColumnSpan="2"
-                                    BackgroundColor="Transparent"
-                                    Clicked="OnDiscoverSourceClicked"
-                                    InputTransparent="False" />
                             <Label Grid.Column="0"
                                    Text="发现页来源"
                                    FontSize="11"
-                                   TextColor="#E6FFFFFF"
-                                   InputTransparent="True" />
+                                   TextColor="#E6FFFFFF" />
                             <Label Grid.Column="1"
                                    Text="{Binding DiscoverSourceDisplayText}"
                                    FontSize="11"
                                    FontFamily="OpenSansSemibold"
-                                   TextColor="White"
-                                   InputTransparent="True" />
+                                   TextColor="White" />
                         </Grid>
                     </Border>
                 </VerticalStackLayout>
@@ -241,5 +239,10 @@
                    FontSize="12"
                    TextColor="{DynamicResource TextSecondaryColor}" />
         </Border>
+
+        <!-- 发现页来源选择弹窗（替代 DisplayActionSheet，避免 MAUI 11 Android 兼容性问题） -->
+        <controls:AppPopup x:Name="DiscoverSourcePopup"
+                           Title="发现页来源"
+                           CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

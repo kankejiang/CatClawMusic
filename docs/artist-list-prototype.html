@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>艺术家列表 · 原型</title>
+<style>
+  :root{
+    --bg:#080B1A; --bg2:#0E1330;
+    --glass:rgba(18,24,52,.55); --glass2:rgba(28,36,74,.5);
+    --stroke:rgba(42,56,112,.55); --stroke-strong:rgba(70,90,160,.7);
+    --text-1:#F2F4FF; --text-2:#C7CEE8; --text-3:#7A85B0;
+    --accent:#8C7BFF; --accent2:#55D6FF; --chip-active:#8C7BFF;
+    --like:#FF6C8E;
+    --display:"SF Pro Display","PingFang SC","Segoe UI",system-ui,sans-serif;
+    --body:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:radial-gradient(1200px 700px at 70% -10%,#1b2350 0%,transparent 55%),var(--bg);font-family:var(--body);color:var(--text-1)}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px 12px}
+  .phone{width:392px;height:842px;border-radius:46px;background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--stroke-strong);
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.8),inset 0 0 0 6px #05060f,inset 0 0 0 7px rgba(120,140,220,.18);overflow:hidden;position:relative}
+  .notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#05060f;border-radius:0 0 16px 16px;z-index:30}
+  .screen{height:100%;overflow-y:auto;overflow-x:hidden;padding:0 0 18px;scrollbar-width:none}
+  .screen::-webkit-scrollbar{display:none}
+  .sb{display:flex;justify-content:space-between;align-items:center;padding:14px 26px 4px;font-family:var(--display);font-size:13px;font-weight:600;color:var(--text-1)}
+  .sb .ico{opacity:.85}
+  /* app bar */
+  .appbar{display:flex;align-items:center;gap:12px;padding:6px 18px 4px}
+  .back{width:34px;height:34px;border-radius:50%;background:var(--glass);border:1px solid var(--stroke);display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+  .back svg{width:18px;height:18px;fill:var(--text-1)}
+  .appbar h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:.5px}
+  .appbar .spacer{flex:1}
+  .search-ico{width:34px;height:34px;border-radius:50%;background:var(--glass);border:1px solid var(--stroke);display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+  .search-ico svg{width:17px;height:17px;stroke:var(--text-2);fill:none;stroke-width:2}
+  /* hero */
+  .hero{padding:8px 20px 4px}
+  .hero .sub{font-size:12px;color:var(--text-3);margin-top:2px}
+  .hero .crown{font-family:var(--display);font-weight:700;color:var(--accent2)}
+  /* search */
+  .search{margin:12px 18px 10px;display:flex;align-items:center;gap:10px;background:var(--glass);border:1px solid var(--stroke);
+    border-radius:14px;padding:11px 14px;transition:border-color .2s}
+  .search:focus-within{border-color:var(--accent)}
+  .search svg{width:16px;height:16px;stroke:var(--text-3);fill:none;stroke-width:2;flex:0 0 auto}
+  .search input{flex:1;background:none;border:0;outline:none;color:var(--text-1);font-size:14px;font-family:var(--body)}
+  .search input::placeholder{color:var(--text-3)}
+  /* filter chips */
+  .chips{display:flex;gap:8px;padding:2px 18px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;padding:7px 14px;border-radius:999px;background:var(--glass);border:1px solid var(--stroke);
+    color:var(--text-3);font-size:12.5px;cursor:pointer;transition:all .18s;white-space:nowrap}
+  .chip.active{background:linear-gradient(135deg,var(--chip-active),#6C5CF6);color:#fff;border-color:transparent;box-shadow:0 8px 18px -8px rgba(140,123,255,.7)}
+  /* toolbar: sort + view */
+  .toolbar{display:flex;align-items:center;gap:10px;padding:12px 18px 6px}
+  .toolbar .label{font-size:12px;color:var(--text-3)}
+  .sort{flex:1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  .sort::-webkit-scrollbar{display:none}
+  .sort-btn{flex:0 0 auto;padding:6px 11px;border-radius:9px;background:var(--glass2);border:1px solid var(--stroke);color:var(--text-2);font-size:12px;cursor:pointer;transition:all .18s}
+  .sort-btn.active{color:#fff;border-color:var(--accent)}
+  .viewtoggle{display:flex;background:var(--glass);border:1px solid var(--stroke);border-radius:10px;overflow:hidden;flex:0 0 auto}
+  .viewtoggle button{width:34px;height:30px;background:none;border:0;cursor:pointer;display:grid;place-items:center;color:var(--text-3)}
+  .viewtoggle button svg{width:16px;height:16px;fill:currentColor}
+  .viewtoggle button.active{background:linear-gradient(135deg,var(--chip-active),#6C5CF6);color:#fff}
+  /* index rail */
+  .rail{position:absolute;right:6px;top:230px;bottom:30px;display:flex;flex-direction:column;justify-content:center;gap:1px;z-index:15}
+  .rail span{font-size:9.5px;font-weight:700;color:var(--text-3);width:18px;text-align:center;padding:1px 0;border-radius:5px;cursor:pointer;opacity:.6;transition:all .15s}
+  .rail span:hover,.rail span.on{opacity:1;color:#fff;background:rgba(140,123,255,.25)}
+  /* grid */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;padding:8px 18px 8px 18px}
+  .card{display:flex;flex-direction:column;align-items:center;text-align:center;cursor:pointer;transition:transform .15s}
+  .card:active{transform:scale(.95)}
+  .cov{width:100%;aspect-ratio:1;border-radius:18px;position:relative;box-shadow:0 12px 26px -12px rgba(0,0,0,.7),inset 0 0 0 1px rgba(255,255,255,.08);overflow:hidden;display:grid;place-items:center}
+  .cov .ini{font-family:var(--display);font-weight:800;font-size:30px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.4)}
+  .cov::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(0,0,0,.35))}
+  .nm{font-size:12.5px;font-weight:600;color:var(--text-1);margin-top:8px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sc{font-size:10.5px;color:var(--text-3);margin-top:1px}
+  /* list view */
+  .list{display:none;flex-direction:column;padding:6px 18px}
+  .list.show{display:flex}
+  .grid.hide{display:none}
+  .lrow{display:flex;align-items:center;gap:13px;padding:9px 4px;cursor:pointer;border-radius:14px;transition:background .15s}
+  .lrow:hover{background:var(--glass)}
+  .lcov{width:50px;height:50px;border-radius:14px;flex:0 0 auto;display:grid;place-items:center;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+  .lcov .ini{font-family:var(--display);font-weight:800;font-size:20px;color:#fff}
+  .lmeta{flex:1;min-width:0}
+  .lmeta .ln{font-size:14px;font-weight:600;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lmeta .ls{font-size:11.5px;color:var(--text-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lplay{font-family:var(--display);font-size:11px;font-weight:700;color:var(--accent2);flex:0 0 auto}
+  .empty{text-align:center;color:var(--text-3);font-size:13px;padding:50px 20px}
+  .hint{text-align:center;font-size:11px;color:var(--text-3);margin-top:18px;padding:0 20px}
+  .best{margin:4px 18px 6px;background:linear-gradient(135deg,rgba(140,123,255,.16),rgba(85,214,255,.1));border:1px solid var(--stroke);border-radius:18px;padding:13px 15px;display:flex;align-items:center;gap:13px}
+  .best .bcov{width:46px;height:46px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:18px;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+  .best .bt{font-size:12px;color:var(--text-3)}
+  .best .bn{font-size:14px;font-weight:700;color:var(--text-1);margin-top:1px}
+  .best .bs{font-size:11px;color:var(--accent2);margin-top:1px}
+  .toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:rgba(20,26,56,.95);border:1px solid var(--stroke-strong);color:var(--text-1);padding:11px 20px;border-radius:999px;
+    font-size:13px;box-shadow:0 12px 30px -10px rgba(0,0,0,.6);transition:opacity .25s,transform .25s;z-index:40}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="sb"><span>9:41</span><span class="ico">●●●  Wi-Fi  🔋</span></div>
+
+      <div class="appbar">
+        <div class="back" title="返回">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+        </div>
+        <h1>艺术家</h1>
+        <div class="spacer"></div>
+        <div class="search-ico" title="搜索">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        </div>
+      </div>
+
+      <div class="hero">
+        <div class="sub">共 <span class="crown" id="count">24</span> 位艺术家 · 收录于你的音乐库</div>
+      </div>
+
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input id="q" placeholder="搜索艺术家、按地区筛选…" />
+      </div>
+
+      <div class="chips" id="filters">
+        <div class="chip active" data-f="all">全部</div>
+        <div class="chip" data-f="本地">本地</div>
+        <div class="chip" data-f="网络">网络</div>
+      </div>
+
+      <div class="toolbar">
+        <div class="sort" id="sorts">
+          <div class="sort-btn active" data-s="default">默认</div>
+          <div class="sort-btn" data-s="songs">歌曲数</div>
+          <div class="sort-btn" data-s="plays">最常听</div>
+          <div class="sort-btn" data-s="name">名称 A-Z</div>
+        </div>
+        <div class="viewtoggle" id="viewToggle">
+          <button class="active" data-v="grid" title="网格">
+            <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+          </button>
+          <button data-v="list" title="列表">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="best" id="best">
+        <div class="bcov" id="bestCov" style="background:linear-gradient(135deg,#8C7BFF,#55D6FF)">周</div>
+        <div>
+          <div class="bt">最常聆听</div>
+          <div class="bn" id="bestName">周杰伦</div>
+          <div class="bs" id="bestSub">142 首 · 播放 1,284 次</div>
+        </div>
+      </div>
+
+      <div class="grid" id="grid"></div>
+      <div class="list" id="list"></div>
+      <div class="empty" id="empty" style="display:none">没有匹配的艺术家，换个关键词试试 🎧</div>
+
+      <p class="hint">网格 / 列表切换 · 来源筛选(本地/网络) · 排序 · 右侧 A-Z 字母索引进路（原型仅供确认视觉）</p>
+    </div>
+    <div class="rail" id="rail"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+  // —— 模拟艺术家数据（字段对齐 Artist / ArtistWithCount / GetTopPlayedArtistsAsync）——
+  const pal = [
+    ["#8C7BFF","#55D6FF"],["#FF7AAE","#FFB36B"],["#55D6FF","#7AF0C8"],["#A78BFA","#F0ABFC"],
+    ["#5EEAD4","#60A5FA"],["#FBBF24","#FB7185"],["#34D399","#22D3EE"],["#C084FC","#818CF8"],
+    ["#FB923C","#F472B6"],["#2DD4BF","#A78BFA"],["#60A5FA","#34D399"],["#F472B6","#C084FC"]
+  ];
+  function grad(i){ const p=pal[i%pal.length]; return `linear-gradient(135deg, ${p[0]}, ${p[1]})`; }
+  function initial(n){ return (n||"♪").trim().charAt(0); }
+  const data = [
+    {n:"周杰伦",src:"本地",s:142,p:1284}, {n:"陈奕迅",src:"本地",s:96,p:902},
+    {n:"薛之谦",src:"本地",s:74,p:610}, {n:"Taylor Swift",src:"网络",s:61,p:540},
+    {n:"李荣浩",src:"本地",s:53,p:480}, {n:"邓紫棋",src:"本地",s:48,p:455},
+    {n:"五月天",src:"本地",s:45,p:430}, {n:"Adele",src:"网络",s:40,p:390},
+    {n:"林俊杰",src:"本地",s:38,p:360}, {n:"王菲",src:"本地",s:35,p:330},
+    {n:"Ed Sheeran",src:"网络",s:32,p:300}, {n:"毛不易",src:"本地",s:30,p:280},
+    {n:"张惠妹",src:"本地",s:28,p:255}, {n:"Bruno Mars",src:"网络",s:25,p:230},
+    {n:"李健",src:"本地",s:22,p:205}, {n:"孙燕姿",src:"本地",s:20,p:190},
+    {n:"坂本龙一",src:"网络",s:18,p:170}, {n:"久石让",src:"网络",s:16,p:150},
+    {n:"BTS",src:"网络",s:15,p:140}, {n:"BLACKPINK",src:"网络",s:14,p:130},
+    {n:"窦唯",src:"本地",s:12,p:110}, {n:"朴树",src:"本地",s:10,p:95},
+    {n:"Coldplay",src:"网络",s:9,p:80}, {n:"张国荣",src:"本地",s:8,p:70}
+  ];
+  // 给每个艺术家一个索引字母（中文取拼音首字母，英文取首字母），用于 A-Z rail
+  function pinyinInitial(n){
+    const map = {"周":"Z","陈":"C","薛":"X","李":"L","邓":"D","五":"W","林":"L","王":"W","孙":"S","张":"Z","毛":"M","窦":"D","朴":"P","久":"J","坂":"S","国":"Z","布":"B","泰":"T","艾":"A","埃":"E","冷":"C","B":"B","T":"T","E":"E","A":"A","S":"S","B":"B","C":"C","B":"B","L":"L","W":"W","X":"X","Z":"Z"};
+    const c = n.charAt(0).toUpperCase();
+    if (/[A-Z]/.test(c)) return c;
+    return map[c] || "#";
+  }
+  data.forEach((d,i)=>{ d.i=i; d.ini=pinyinInitial(d.n); d.cov=grad(i); });
+
+  const grid = document.getElementById("grid");
+  const list = document.getElementById("list");
+  const empty = document.getElementById("empty");
+  const rail = document.getElementById("rail");
+  const toast = document.getElementById("toast");
+
+  let state = { f:"all", s:"default", v:"grid", q:"", ini:"" };
+
+  function norm(s){ return (s||"").toLowerCase(); }
+
+  function filtered(){
+    let arr = data.slice();
+    if (state.f !== "all") arr = arr.filter(d => d.src === state.f);
+    if (state.ini) arr = arr.filter(d => d.ini === state.ini);
+    if (state.q){
+      const q = norm(state.q);
+      arr = arr.filter(d => norm(d.n).includes(q) || norm(d.src).includes(q));
+    }
+    if (state.s === "songs") arr.sort((a,b)=> b.s - a.s);
+    else if (state.s === "plays") arr.sort((a,b)=> b.p - a.p);
+    else if (state.s === "name") arr.sort((a,b)=> a.n.localeCompare(b.n));
+    return arr;
+  }
+
+  function cardHTML(d){
+    return `<div class="card" data-i="${d.i}">
+      <div class="cov" style="background:${d.cov}">
+        <span class="ini">${initial(d.n)}</span>
+      </div>
+      <div class="nm">${d.n}</div>
+      <div class="sc">${d.s} 首 · ${d.src}</div>
+    </div>`;
+  }
+  function rowHTML(d){
+    return `<div class="lrow" data-i="${d.i}">
+      <div class="lcov" style="background:${d.cov}"><span class="ini">${initial(d.n)}</span></div>
+      <div class="lmeta">
+        <div class="ln">${d.n}</div>
+        <div class="ls">${d.src} · ${d.s} 首 · 播放 ${d.p} 次</div>
+      </div>
+      <div class="lplay">${d.ini}</div>
+    </div>`;
+  }
+
+  function render(){
+    const arr = filtered();
+    document.getElementById("count").textContent = data.length;
+    grid.innerHTML = arr.map(cardHTML).join("");
+    list.innerHTML = arr.map(rowHTML).join("");
+    const none = arr.length === 0;
+    empty.style.display = none ? "block" : "none";
+    // view toggle：用内联 display 直接控制，CSS 类仅作兜底
+    grid.style.display = (state.v === "grid" && !none) ? "grid" : "none";
+    list.style.display = (state.v === "list" && !none) ? "flex" : "none";
+  }
+
+  function buildRail(){
+    const letters = Array.from(new Set(data.map(d=>d.ini))).sort();
+    rail.innerHTML = letters.map(L => `<span data-ini="${L}">${L}</span>`).join("");
+  }
+
+  // —— 事件 ——
+  document.getElementById("filters").addEventListener("click", e=>{
+    const c = e.target.closest(".chip"); if(!c) return;
+    document.querySelectorAll("#filters .chip").forEach(x=>x.classList.remove("active"));
+    c.classList.add("active");
+    state.f = c.dataset.f; render();
+  });
+  document.getElementById("sorts").addEventListener("click", e=>{
+    const b = e.target.closest(".sort-btn"); if(!b) return;
+    document.querySelectorAll("#sorts .sort-btn").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    state.s = b.dataset.s; render();
+  });
+  document.getElementById("viewToggle").addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    document.querySelectorAll("#viewToggle button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    state.v = b.dataset.v; render();
+  });
+  document.getElementById("q").addEventListener("input", e=>{ state.q = e.target.value.trim(); render(); });
+  rail.addEventListener("click", e=>{
+    const s = e.target.closest("span"); if(!s) return;
+    const ini = s.dataset.ini;
+    if (state.ini === ini){ state.ini = ""; s.classList.remove("on"); }
+    else { state.ini = ini; rail.querySelectorAll("span").forEach(x=>x.classList.remove("on")); s.classList.add("on"); }
+    render();
+  });
+  function tap(name){ toast.textContent = `打开「${name}」详情`; toast.classList.add("show"); setTimeout(()=>toast.classList.remove("show"),1500); }
+  grid.addEventListener("click", e=>{ const c=e.target.closest(".card"); if(c) tap(data[+c.dataset.i].n); });
+  list.addEventListener("click", e=>{ const r=e.target.closest(".lrow"); if(r) tap(data[+r.dataset.i].n); });
+
+  buildRail();
+  render();
+</script>
+</body>
+</html>

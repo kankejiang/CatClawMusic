@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.PlaylistPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -34,7 +35,7 @@
                             <TapGestureRecognizer Tapped="OnCreatePlaylistClicked" />
                         </Border.GestureRecognizers>
                         <Image Source="ic_add"
-                               WidthRequest="40" HeightRequest="40"
+                               WidthRequest="22" HeightRequest="22"
                                HorizontalOptions="Center"
                                VerticalOptions="Center" />
                     </Border>
@@ -109,5 +110,10 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
         </Grid>
+
+        <!-- 新建歌单输入弹窗（替代 DisplayPromptAsync，避免 MAUI 11 兼容性问题） -->
+        <controls:AppPopup x:Name="CreatePlaylistPopup"
+                           Title="新建歌单"
+                           CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

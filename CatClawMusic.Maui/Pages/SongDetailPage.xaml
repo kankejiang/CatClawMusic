@@ -1,20 +1,397 @@
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.SongDetailPage"
-             Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleSongDetail]}"
+             Title="歌曲详情"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
-        <controls:HeroCard>
-            <controls:HeroCard.CardContent>
-                <VerticalStackLayout Spacing="12" HorizontalOptions="Center" Padding="44,0,0,0">
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleSongDetail]}" Style="{StaticResource PageTitleStyle}" />
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[FeatureInDev]}"
-                           Style="{StaticResource PageSubtitleStyle}"
-                           HorizontalTextAlignment="Center" />
-                </VerticalStackLayout>
-            </controls:HeroCard.CardContent>
-        </controls:HeroCard>
-</Grid>
+
+    <!-- 双层 Grid：背景层 + 内容层 -->
+    <Grid>
+        <!-- 雾面动态背景层（与 NowPlayingPage 一致的沉浸式背景） -->
+        <controls:FrostedBackground x:Name="FrostedBg"
+                                    Source="{Binding CoverImage}"
+                                    CacheKey="{Binding Song.CoverArtPath}"
+                                    IsActive="False"
+                                    IsVisible="{DynamicResource FrostedBackgroundEnabled}"
+                                    TintColor="{DynamicResource PrimaryColor}"
+                                    TintOpacity="0.25"
+                                    DimAmount="0.30"
+                                    InputTransparent="True"
+                                    Aspect="AspectFill" />
+        <BoxView Color="#70000000" InputTransparent="True" />
+
+        <!-- 内容层 ScrollView -->
+        <ScrollView Padding="0,0,0,32">
+            <VerticalStackLayout Padding="18,12,18,0"
+                                 Spacing="0">
+
+                <!-- ═══ 顶栏：返回 + 标题 + 更多 ═══ -->
+                <Grid ColumnDefinitions="Auto,*,Auto"
+                      ColumnSpacing="10"
+                      Margin="0,4,0,8">
+                    <Border Grid.Column="0"
+                            WidthRequest="38" HeightRequest="38"
+                            StrokeShape="RoundRectangle 12"
+                            BackgroundColor="#22FFFFFF"
+                            Stroke="#2AFFFFFF"
+                            HorizontalOptions="Start">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnBackClicked" />
+                        </Border.GestureRecognizers>
+                        <Image Source="ic_back.svg"
+                               WidthRequest="18" HeightRequest="18"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <Label Grid.Column="1"
+                           Text="歌曲详情"
+                           FontSize="11"
+                           TextColor="{DynamicResource TextSecondaryColor}"
+                           HorizontalTextAlignment="Center"
+                           VerticalOptions="Center"
+                           Margin="0,2,0,0" />
+                    <Border Grid.Column="2"
+                            WidthRequest="38" HeightRequest="38"
+                            StrokeShape="RoundRectangle 12"
+                            BackgroundColor="#22FFFFFF"
+                            Stroke="#2AFFFFFF"
+                            HorizontalOptions="End">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnMoreClicked" />
+                        </Border.GestureRecognizers>
+                        <Label Text="···"
+                               FontSize="18"
+                               TextColor="White"
+                               HorizontalTextAlignment="Center"
+                               VerticalOptions="Center"
+                               Margin="0,-4,0,0" />
+                    </Border>
+                </Grid>
+
+                <!-- ═══ 封面（圆形大封面，无封面时显示标题首字） ═══ -->
+                <Border WidthRequest="210"
+                        HeightRequest="210"
+                        Margin="0,4,0,2"
+                        StrokeShape="RoundRectangle 26"
+                        StrokeThickness="0"
+                        BackgroundColor="{DynamicResource SurfaceColor}"
+                        HorizontalOptions="Center">
+                    <Grid>
+                        <Image Source="{Binding CoverImage}"
+                               Aspect="AspectFill"
+                               WidthRequest="210"
+                               HeightRequest="210"
+                               IsVisible="{Binding HasCover}" />
+                        <Label x:Name="CoverPlaceholderLabel"
+                               Text=""
+                               FontSize="70"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="White"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center"
+                               IsVisible="{Binding HasCover, Converter={StaticResource InvertedBoolConverter}}" />
+                    </Grid>
+                </Border>
+
+                <!-- ═══ 歌曲信息 ═══ -->
+                <Label Text="{Binding Song.Title}"
+                       FontSize="23"
+                       FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource TextPrimaryColor}"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,16,0,5"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="2" />
+                <HorizontalStackLayout Spacing="4"
+                                       HorizontalOptions="Center"
+                                       Margin="0,0,0,0">
+                    <Label Text="演唱 "
+                           FontSize="14"
+                           TextColor="{DynamicResource TextSecondaryColor}" />
+                    <Label Text="{Binding ArtistName}"
+                           FontSize="14"
+                           TextColor="{DynamicResource PrimaryColor}" />
+                </HorizontalStackLayout>
+
+                <!-- 专辑信息芯片 -->
+                <Border IsVisible="{Binding AlbumChip, Converter={StaticResource StringToBoolConverter}}"
+                        StrokeShape="RoundRectangle 999"
+                        BackgroundColor="#14FFFFFF"
+                        Stroke="{DynamicResource GlassStrokeColor}"
+                        Padding="14,6"
+                        Margin="0,12,0,0"
+                        HorizontalOptions="Center">
+                    <HorizontalStackLayout Spacing="6">
+                        <Image Source="ic_album.svg"
+                               WidthRequest="13" HeightRequest="13"
+                               Opacity="0.8"
+                               VerticalOptions="Center" />
+                        <Label Text="{Binding AlbumChip}"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+
+                <!-- ═══ 歌词卡片 ═══ -->
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        StrokeShape="RoundRectangle 22"
+                        Stroke="{DynamicResource GlassStrokeColor}"
+                        BackgroundColor="#B31A2040">
+                    <VerticalStackLayout Spacing="14">
+                        <HorizontalStackLayout Spacing="8">
+                            <Label Text="歌词"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                            <Border IsVisible="{Binding HasLyrics}"
+                                    StrokeShape="RoundRectangle 999"
+                                    BackgroundColor="#1F55D6FF"
+                                    Stroke="#4D55D6FF"
+                                    Padding="8,2">
+                                <Label Text="可滚动"
+                                       FontSize="10"
+                                       TextColor="{DynamicResource PrimaryColor}" />
+                            </Border>
+                        </HorizontalStackLayout>
+
+                        <CollectionView ItemsSource="{Binding LyricLines}"
+                                        SelectionMode="None"
+                                        VerticalScrollBarVisibility="Never"
+                                        HeightRequest="230"
+                                        IsVisible="{Binding HasLyrics}">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Label Text="{Binding}"
+                                           FontSize="14"
+                                           TextColor="{DynamicResource TextHintColor}"
+                                           HorizontalTextAlignment="Center"
+                                           Padding="14,7"
+                                           LineBreakMode="WordWrap" />
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                        <Label Text="暂无歌词"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextHintColor}"
+                               HorizontalTextAlignment="Center"
+                               Margin="0,30,0,30"
+                               IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ═══ 基本信息卡片 ═══ -->
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        StrokeShape="RoundRectangle 22"
+                        Stroke="{DynamicResource GlassStrokeColor}"
+                        BackgroundColor="#B31A2040">
+                    <VerticalStackLayout Spacing="14">
+                        <Label Text="基本信息"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Grid ColumnDefinitions="*,*"
+                              RowDefinitions="Auto,Auto,Auto"
+                              ColumnSpacing="10"
+                              RowSpacing="14">
+                            <!-- 行 0 -->
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="0">
+                                <Label Text="专辑"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding AlbumName}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="1">
+                                <Label Text="艺术家"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding ArtistName}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1" />
+                            </VerticalStackLayout>
+                            <!-- 行 1 -->
+                            <VerticalStackLayout Grid.Row="1" Grid.Column="0">
+                                <Label Text="流派"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding Genre}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="1" Grid.Column="1">
+                                <Label Text="发行年份"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding Year}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <!-- 行 2 -->
+                            <VerticalStackLayout Grid.Row="2" Grid.Column="0">
+                                <Label Text="曲目"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding Track}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="2" Grid.Column="1">
+                                <Label Text="时长"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding Duration}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ═══ 文件与音质卡片 ═══ -->
+                <Border Margin="0,18,0,0"
+                        Padding="16"
+                        StrokeShape="RoundRectangle 22"
+                        Stroke="{DynamicResource GlassStrokeColor}"
+                        BackgroundColor="#B31A2040">
+                    <VerticalStackLayout Spacing="14">
+                        <Label Text="文件与音质"
+                               FontSize="16"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Grid ColumnDefinitions="*,*"
+                              RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="10"
+                              RowSpacing="14">
+                            <!-- 行 0 -->
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="0">
+                                <Label Text="音质"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding Bitrate}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="0" Grid.Column="1">
+                                <Label Text="文件格式"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding FileFormat}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <!-- 行 1 -->
+                            <VerticalStackLayout Grid.Row="1" Grid.Column="0">
+                                <Label Text="文件大小"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding FileSize}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="1" Grid.Column="1">
+                                <Label Text="来源"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding Source}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <!-- 行 2 -->
+                            <VerticalStackLayout Grid.Row="2" Grid.Column="0">
+                                <Label Text="播放次数"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding PlayCount}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="2" Grid.Column="1">
+                                <Label Text="歌词"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding LyricsStatus}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <!-- 行 3：添加时间 + 修改时间 -->
+                            <VerticalStackLayout Grid.Row="3" Grid.Column="0">
+                                <Label Text="添加时间"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding DateAdded}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Row="3" Grid.Column="1">
+                                <Label Text="修改时间"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding DateModified}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       Margin="0,3,0,0" />
+                            </VerticalStackLayout>
+                            <!-- 行 4：文件路径（跨整行） -->
+                            <VerticalStackLayout Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2">
+                                <Label Text="文件路径"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                                <Label Text="{Binding FilePath}"
+                                       FontSize="12"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource TextSecondaryColor}"
+                                       Margin="0,3,0,0"
+                                       LineBreakMode="CharacterWrap" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- 底部提示 -->
+                <Label Text="不含播放控制，仅展示歌曲信息"
+                       FontSize="11.5"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,22,0,0" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- 加载指示器 -->
+        <Border IsVisible="{Binding IsLoading}"
+                BackgroundColor="#99000000"
+                StrokeThickness="0"
+                HorizontalOptions="Fill"
+                VerticalOptions="Fill">
+            <Label Text="加载中..."
+                   FontSize="13"
+                   TextColor="White"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center" />
+        </Border>
+    </Grid>
 </ContentPage>

@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>听歌统计 · CatClaw Music 原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* 品牌色（与 App Colors.xaml 对齐） */
+    --bg-0: #080B1A;
+    --bg-1: #0B0D20;
+    --bg-2: #15132E;
+    --surface: #1A2040;
+    --card: #182244;
+    --card-strong: #1E2A52;
+    --stroke: #2A3870;
+    --stroke-strong: #3A4A8C;
+    --primary: #8C7BFF;
+    --primary-deep: #6250F6;
+    --accent: #55D6FF;
+    --like: #FF7AAE;
+    --text-1: #F7F8FF;
+    --text-2: #C2C6E4;
+    --text-3: #8D93B7;
+    --chip-bg: #1C2850;
+    --chip-active: #FF6C5CE7;
+    --display: "Space Grotesk", "Noto Sans SC", system-ui, sans-serif;
+    --body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    font-family: var(--body);
+    color: var(--text-1);
+    background: var(--bg-0);
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 28px 16px 56px;
+    background:
+      radial-gradient(1100px 700px at 18% -8%, rgba(140,123,255,.22), transparent 60%),
+      radial-gradient(900px 620px at 92% 8%, rgba(85,214,255,.16), transparent 58%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-2) 38%, var(--bg-0) 100%);
+  }
+
+  /* 设备外框：桌面端呈现为手机屏，移动端铺满 */
+  .device {
+    position: relative;
+    width: 100%;
+    max-width: 430px;
+    border-radius: 38px;
+    padding: 10px;
+    background: linear-gradient(160deg, rgba(58,74,140,.55), rgba(26,32,64,.35));
+    border: 1px solid rgba(120,135,200,.30);
+    box-shadow:
+      0 40px 90px -30px rgba(0,0,0,.75),
+      inset 0 1px 0 rgba(255,255,255,.06);
+    overflow: hidden;
+  }
+  @media (max-width: 480px) {
+    body { padding: 0; }
+    .device { max-width: 100%; border-radius: 0; border: none; box-shadow: none; padding: 0; }
+  }
+
+  .screen {
+    position: relative;
+    border-radius: 30px;
+    overflow: hidden;
+    background:
+      radial-gradient(700px 480px at 50% -10%, rgba(140,123,255,.10), transparent 60%),
+      linear-gradient(180deg, #0B0D20 0%, #15132E 32%, #0A0C1C 72%, #080914 100%);
+    min-height: 860px;
+  }
+  @media (max-width: 480px) { .screen { border-radius: 0; min-height: 100vh; } }
+
+  .scroll { padding: 0 16px 28px; }
+
+  /* 顶部 Hero */
+  .hero {
+    position: relative;
+    margin: 0 -16px 14px;
+    padding: 18px 18px 22px;
+    background: linear-gradient(135deg, rgba(124,140,255,.55), rgba(77,85,255,.30));
+    border-bottom: 1px solid rgba(120,135,200,.25);
+    overflow: hidden;
+  }
+  .hero::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(420px 220px at 88% -20%, rgba(85,214,255,.45), transparent 60%);
+    pointer-events: none;
+  }
+  .hero-top { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; }
+  .icon-btn {
+    width: 38px; height: 38px; flex: 0 0 auto;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    background: rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.18);
+    color: #fff; cursor: pointer;
+    transition: transform .18s ease, background .18s ease;
+  }
+  .icon-btn:active { transform: scale(.92); background: rgba(255,255,255,.20); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .hero h1 {
+    font-family: var(--display);
+    font-size: 22px; font-weight: 700; letter-spacing: .5px;
+    color: #fff; margin-right: auto;
+  }
+  .hero-sub {
+    position: relative; z-index: 2;
+    margin-top: 10px; font-size: 12.5px; color: rgba(255,255,255,.82);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .paw { font-size: 15px; }
+
+  /* 统计卡 */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: linear-gradient(180deg, rgba(30,42,82,.85), rgba(24,34,68,.85));
+    border: 1px solid var(--stroke);
+    border-radius: 20px;
+    padding: 16px 12px;
+    text-align: center;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .stat-value {
+    font-family: var(--display);
+    font-size: clamp(22px, 7vw, 28px);
+    font-weight: 700; line-height: 1;
+    color: var(--text-1);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.5px;
+  }
+  .stat-value .unit { font-size: 12px; font-weight: 500; color: var(--text-3); margin-left: 3px; }
+  .stat-label { margin-top: 8px; font-size: 11.5px; color: var(--text-2); }
+
+  /* 时间范围 Chips */
+  .chips {
+    display: inline-flex; gap: 8px; padding: 4px;
+    background: rgba(20,28,58,.7);
+    border: 1px solid var(--stroke);
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
+  .chip {
+    border: 0; cursor: pointer;
+    font-family: var(--body); font-size: 13px; font-weight: 500;
+    color: var(--text-2);
+    padding: 8px 16px; border-radius: 999px;
+    background: transparent;
+    transition: color .2s ease, background .25s ease, box-shadow .25s ease;
+  }
+  .chip.active {
+    color: #fff;
+    background: linear-gradient(180deg, var(--chip-active), #8C5CF6);
+    box-shadow: 0 6px 16px -6px rgba(255,108,92,231,.7);
+  }
+
+  /* 通用卡片 */
+  .card {
+    background: linear-gradient(180deg, rgba(30,42,82,.72), rgba(24,34,68,.72));
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    padding: 16px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .card-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .card-title { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text-1); }
+  .card-cap { font-size: 12px; color: var(--text-3); margin-left: auto; }
+
+  /* 趋势图 */
+  .chart {
+    position: relative;
+    height: 188px;
+    display: flex; align-items: flex-end; gap: 4px;
+    padding-top: 22px;
+  }
+  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .bar-val {
+    font-family: var(--display); font-size: 10px; font-weight: 600;
+    color: var(--accent); margin-bottom: 4px; opacity: 0;
+    transform: translateY(4px); transition: opacity .3s ease .25s, transform .3s ease .25s;
+  }
+  .bar-wrap.show .bar-val { opacity: 1; transform: none; }
+  .bar {
+    width: 100%; max-width: 22px;
+    border-radius: 7px 7px 3px 3px;
+    background: linear-gradient(180deg, var(--accent), var(--primary) 70%, var(--primary-deep));
+    height: 0;
+    transition: height .7s cubic-bezier(.16,1,.3,1);
+    box-shadow: 0 0 14px -2px rgba(140,123,255,.55);
+  }
+  .bar-lbl { font-size: 9px; color: var(--text-3); margin-top: 6px; white-space: nowrap; }
+
+  /* 列表行 */
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+  .row + .row { border-top: 1px solid rgba(42,56,112,.5); }
+  .rank {
+    width: 26px; flex: 0 0 auto; text-align: center;
+    font-family: var(--display); font-weight: 700; font-size: 16px;
+    color: var(--primary);
+  }
+  .cover {
+    width: 48px; height: 48px; flex: 0 0 auto; border-radius: 13px;
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 18px; color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  }
+  .meta { flex: 1; min-width: 0; }
+  .title { font-size: 14px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .plays { font-family: var(--display); font-size: 12px; font-weight: 600; color: var(--text-2); flex: 0 0 auto; }
+  .progress { height: 5px; border-radius: 999px; background: rgba(42,56,112,.6); overflow: hidden; margin-top: 7px; }
+  .progress > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--accent)); width: 0; transition: width .8s cubic-bezier(.16,1,.3,1); }
+
+  /* 歌手横向卡 */
+  .artists { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .artists::-webkit-scrollbar { display: none; }
+  .artist-card { flex: 0 0 116px; text-align: center; }
+  .avatar {
+    width: 84px; height: 84px; margin: 0 auto 9px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 30px; color: #fff;
+    box-shadow: 0 8px 22px -8px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.12);
+  }
+  .artist-name { font-size: 13px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist-plays { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  .section-title { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text-1); margin: 4px 2px 12px; }
+
+  /* 入场动画 */
+  .reveal { opacity: 0; transform: translateY(14px); animation: rise .6s cubic-bezier(.16,1,.3,1) forwards; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  .hint { text-align: center; font-size: 11.5px; color: var(--text-3); margin-top: 6px; }
+
+  /* —— 听歌时长大卡 —— */
+  .duration-hero {
+    background:
+      radial-gradient(420px 160px at 90% -20%, rgba(85,214,255,.30), transparent 60%),
+      linear-gradient(135deg, rgba(140,123,255,.30), rgba(85,214,255,.14));
+    border: 1px solid var(--stroke-strong);
+    border-radius: 24px;
+    padding: 18px 18px 16px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  .duration-head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .duration-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .duration-big { font-family: var(--display); font-weight: 700; line-height: 1.05; color: #fff; letter-spacing: -.5px; margin-top: 10px; }
+  .duration-big .num { font-size: clamp(32px, 10.5vw, 44px); }
+  .duration-big .u { font-size: 14px; font-weight: 500; color: var(--text-2); margin-left: 6px; }
+  .mini-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+  .mini { text-align: center; background: rgba(10,14,30,.28); border: 1px solid rgba(120,135,200,.18); border-radius: 14px; padding: 10px 6px; }
+  .mini .v { font-family: var(--display); font-size: 18px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+  .mini .v .u { font-size: 11px; font-weight: 500; color: var(--text-3); margin-left: 2px; }
+  .mini .l { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+  /* 趋势图 次数/时长 切换 */
+  .seg { display: inline-flex; gap: 4px; padding: 3px; background: rgba(20,28,58,.7); border: 1px solid var(--stroke); border-radius: 999px; margin-left: auto; }
+  .seg button { border: 0; cursor: pointer; font-family: var(--body); font-size: 12px; font-weight: 500; color: var(--text-2); padding: 5px 12px; border-radius: 999px; background: transparent; transition: color .2s ease, background .25s ease; }
+  .seg button.active { color: #fff; background: linear-gradient(180deg, var(--chip-active), #8C5CF6); box-shadow: 0 6px 16px -6px rgba(255,108,92,231,.6); }
+  .trend-cap { font-size: 12px; color: var(--text-3); margin: -6px 0 14px; }
+
+  /* 时段分布 */
+  .timebars { display: flex; flex-direction: column; gap: 13px; }
+  .time-row { display: grid; grid-template-columns: 78px 1fr 46px; align-items: center; gap: 10px; }
+  .time-name { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .time-track { height: 9px; border-radius: 999px; background: rgba(42,56,112,.5); overflow: hidden; }
+  .time-track > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--primary)); width: 0; transition: width .9s cubic-bezier(.16,1,.3,1); }
+  .time-val { font-family: var(--display); font-size: 12px; font-weight: 600; color: var(--text-1); text-align: right; }
+  .night-note { margin-top: 14px; font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 7px; }
+  .night-note b { color: var(--accent); font-weight: 600; }
+
+  /* —— 环比对比 —— */
+  .compare-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .cmp-item { text-align: center; background: rgba(10,14,30,.25); border: 1px solid rgba(120,135,200,.18); border-radius: 14px; padding: 12px 6px; }
+  .cmp-label { font-size: 11px; color: var(--text-3); }
+  .cmp-val { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--text-1); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .cmp-delta { font-family: var(--display); font-size: 12px; font-weight: 600; margin-top: 5px; display: inline-flex; align-items: center; gap: 3px; }
+  .cmp-delta.up { color: #5EEAD4; }
+  .cmp-delta.down { color: #FF9AAE; }
+  .cmp-delta.flat { color: var(--text-3); }
+
+  /* —— 年度回顾分享卡 —— */
+  .year-card {
+    background: linear-gradient(135deg, rgba(140,123,255,.35), rgba(255,122,174,.18));
+    border: 1px solid var(--stroke-strong);
+    border-radius: 24px; padding: 20px; margin-bottom: 16px; text-align: center;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .year-title { font-family: var(--display); font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .5px; }
+  .year-kw { display: inline-block; margin-top: 10px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); font-size: 13px; color: #fff; }
+  .year-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 16px 0; }
+  .year-stat { background: rgba(10,14,30,.30); border-radius: 16px; padding: 14px; }
+  .year-stat .v { font-family: var(--display); font-size: 19px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+  .year-stat .l { font-size: 11px; color: rgba(255,255,255,.75); margin-top: 4px; }
+  .share-btn { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; padding: 12px 22px; border-radius: 999px; border: 0; cursor: pointer; font-family: var(--body); font-size: 14px; font-weight: 600; color: #fff; background: linear-gradient(180deg, var(--chip-active), #8C5CF6); box-shadow: 0 10px 24px -8px rgba(255,108,92,231,.7); transition: transform .18s ease; }
+  .share-btn:active { transform: scale(.96); }
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="screen">
+      <div class="scroll">
+
+        <!-- Hero -->
+        <header class="hero">
+          <div class="hero-top">
+            <button class="icon-btn" title="返回" aria-label="返回">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <h1>听歌统计</h1>
+            <button class="icon-btn" title="刷新" aria-label="刷新">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+            </button>
+          </div>
+          <div class="hero-sub"><span class="paw">🐾</span> 你的音乐足迹 · 已陪伴你聆听 96 天</div>
+        </header>
+
+        <!-- 统计卡 -->
+        <section class="stats-row reveal" style="animation-delay:.05s">
+          <div class="stat-card">
+            <div class="stat-value"><span id="statPlays">1,284</span><span class="unit">次</span></div>
+            <div class="stat-label">总播放</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value"><span id="statSongs">213</span><span class="unit">首</span></div>
+            <div class="stat-label">听过的歌</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value"><span id="statDays">96</span><span class="unit">天</span></div>
+            <div class="stat-label">听歌天数</div>
+          </div>
+        </section>
+
+        <!-- 听歌时长大卡 -->
+        <section class="duration-hero reveal" style="animation-delay:.09s" id="durHero">
+          <div class="duration-head"><span class="dot"></span> 累计听歌时长</div>
+          <div class="duration-big"><span class="num" id="durTotal">21 小时 24 分</span></div>
+          <div class="mini-row">
+            <div class="mini"><div class="v"><span id="durAvg">43</span><span class="u">分</span></div><div class="l">日均时长</div></div>
+            <div class="mini"><div class="v" id="durLong">5:11</div><div class="l">最长单曲</div></div>
+            <div class="mini"><div class="v"><span id="durNight">38</span><span class="u">%</span></div><div class="l">深夜听歌</div></div>
+          </div>
+        </section>
+
+        <!-- 连续打卡 -->
+        <section class="card reveal" style="animation-delay:.1s">
+          <div class="card-head">
+            <span class="card-title">🔥 连续听歌</span>
+            <span class="card-cap" id="streakCap">已坚持 12 天</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:18px; justify-content:center;">
+            <div style="text-align:center;">
+              <div class="stat-value"><span id="streakCur">12</span><span class="unit">天</span></div>
+              <div class="stat-label">当前连续</div>
+            </div>
+            <div style="width:1px; height:46px; background:var(--stroke);"></div>
+            <div style="text-align:center;">
+              <div class="stat-value"><span id="streakBest">38</span><span class="unit">天</span></div>
+              <div class="stat-label">最长连续</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 环比对比 -->
+        <section class="card reveal" style="animation-delay:.12s">
+          <div class="card-head">
+            <span class="card-title">对比上一周期</span>
+            <span class="card-cap" id="cmpCap">近 30 天 vs 前 30 天</span>
+          </div>
+          <div class="compare-grid" id="compareGrid"></div>
+        </section>
+
+        <!-- 时间范围 -->
+        <div class="reveal" style="animation-delay:.14s">
+          <div class="chips" id="chips">
+            <button class="chip" data-range="7">近 7 天</button>
+            <button class="chip active" data-range="30">近 30 天</button>
+            <button class="chip" data-range="all">全部</button>
+          </div>
+        </div>
+
+        <!-- 趋势图 -->
+        <section class="card reveal" style="animation-delay:.15s">
+          <div class="card-head">
+            <span class="card-title">听歌趋势</span>
+            <div class="seg" id="metricSeg">
+              <button class="active" data-metric="count">次数</button>
+              <button data-metric="duration">时长</button>
+            </div>
+          </div>
+          <div class="trend-cap" id="trendCap">近 30 天 · 有 18 天在听歌</div>
+          <div class="chart" id="chart"></div>
+        </section>
+
+        <!-- 听歌时段分布 -->
+        <h2 class="section-title reveal" style="animation-delay:.2s">听歌时段分布</h2>
+        <section class="card reveal" style="animation-delay:.22s">
+          <div class="card-head">
+            <span class="card-title">一天中，你更常在什么时候听歌</span>
+          </div>
+          <div class="timebars" id="timebars"></div>
+          <div class="night-note" id="nightNote">🌙 深夜 + 凌晨共占 <b>46%</b>，你是个不折不扣的夜猫子</div>
+        </section>
+
+        <!-- 流派/语种分布 -->
+        <h2 class="section-title reveal" style="animation-delay:.24s">流派 / 语种分布</h2>
+        <section class="card reveal" style="animation-delay:.26s">
+          <div class="card-head">
+            <span class="card-title">你都在听什么类型的歌</span>
+          </div>
+          <div class="timebars" id="genres"></div>
+        </section>
+
+        <!-- 最爱歌曲 -->
+        <h2 class="section-title reveal" style="animation-delay:.2s">最爱歌曲 · Top 10</h2>
+        <section class="card reveal" style="animation-delay:.22s" id="topSongs"></section>
+
+        <!-- 最爱歌手 -->
+        <h2 class="section-title reveal" style="animation-delay:.26s">最爱歌手 · Top 5</h2>
+        <section class="card reveal" style="animation-delay:.28s">
+          <div class="artists" id="topArtists"></div>
+        </section>
+
+        <!-- 最近在听 -->
+        <h2 class="section-title reveal" style="animation-delay:.3s">最近在听</h2>
+        <section class="card reveal" style="animation-delay:.32s" id="recent"></section>
+
+        <!-- 年度回顾分享卡 -->
+        <section class="year-card reveal" style="animation-delay:.34s">
+          <div class="year-title">2026 你的听歌年报</div>
+          <div class="year-kw" id="yearKw">🎧 深夜诗人 · 华语控</div>
+          <div class="year-stats">
+            <div class="year-stat"><div class="v" id="yearSong">晴天</div><div class="l">年度歌曲</div></div>
+            <div class="year-stat"><div class="v" id="yearArtist">周杰伦</div><div class="l">年度歌手</div></div>
+            <div class="year-stat"><div class="v" id="yearDur">390 小时</div><div class="l">累计听歌时长</div></div>
+            <div class="year-stat"><div class="v" id="yearDays">96 天</div><div class="l">听歌天数</div></div>
+          </div>
+          <button class="share-btn" id="shareBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/></svg>
+            保存分享卡片
+          </button>
+        </section>
+
+        <p class="hint reveal" style="animation-delay:.38s">点击时间范围或「次数 / 时长」可切换趋势图 · 原型仅供确认视觉</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // —— 模拟数据 ——
+  const palettes = [
+    ["#8C7BFF","#55D6FF"], ["#FF7AAE","#FFB36B"], ["#55D6FF","#7AF0C8"],
+    ["#A78BFA","#F0ABFC"], ["#5EEAD4","#60A5FA"], ["#FCA5A5","#FDBA74"],
+    ["#818CF8","#C084FC"], ["#38BDF8","#34D399"]
+  ];
+  function grad(i){ const p = palettes[i % palettes.length]; return `linear-gradient(135deg, ${p[0]}, ${p[1]})`; }
+  function initial(name){ return (name || "♪").trim().charAt(0).toUpperCase(); }
+
+  // 趋势：每个范围一组「次数」与「时长(分钟)」
+  function gen(base, n, min, max){
+    const arr = []; let v = base;
+    for (let i=0;i<n;i++){ v = Math.max(min, Math.min(max, v + (Math.random()*2-1)* (max-min)*0.35)); arr.push(Math.round(v)); }
+    return arr;
+  }
+  const ranges = {
+    "7": {
+      labels: ["7/10","7/11","7/12","7/13","7/14","7/15","7/16"],
+      countData: [3,5,2,0,6,4,7],
+      durData:   [42,68,21,0,95,51,88],
+      stats: { plays: 286, songs: 64, days: 6 },
+      dur:   { totalMin: 365, avgMin: 52, longest: "5:11", nightPct: 41 },
+      capPrefix: "近 7 天", activeDays: 6
+    },
+    "30": {
+      labels: Array.from({length:30},(_,i)=> (i%5===0? `${i+1}`:"")),
+      countData: gen(4,30,0,9),
+      durData:   gen(45,30,0,120),
+      stats: { plays: 1284, songs: 213, days: 18 },
+      dur:   { totalMin: 1284, avgMin: 43, longest: "5:11", nightPct: 38 },
+      capPrefix: "近 30 天", activeDays: 18
+    },
+    "all": {
+      labels: ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+      countData: gen(5,12,1,11),
+      durData:   gen(300,12,60,520),
+      stats: { plays: 5120, songs: 642, days: 96 },
+      dur:   { totalMin: 23400, avgMin: 244, longest: "6:48", nightPct: 35 },
+      capPrefix: "全部时间", activeDays: 96
+    }
+  };
+
+  // 分钟 → 可读时长
+  function fmtDur(min){
+    min = Math.round(min);
+    if (min >= 1440){ const d = Math.floor(min/1440); const h = Math.round((min - d*1440)/60); return `${d} 天 ${h} 小时`; }
+    if (min >= 60){ const h = Math.floor(min/60); const m = Math.round(min - h*60); return `${h} 小时 ${m} 分`; }
+    return `${min} 分`;
+  }
+
+  const topSongs = [
+    ["夜曲","周杰伦",142],["晴天","周杰伦",128],["起风了","买辣椒也用券",119],
+    ["孤勇者","陈奕迅",104],["稻香","周杰伦",97],["海阔天空","Beyond",88],
+    ["平凡之路","朴树",76],["成都","赵雷",71],["光年之外","邓紫棋",64],["演员","薛之谦",58]
+  ];
+  const topArtists = [
+    ["周杰伦",367],["陈奕迅",221],["邓紫棋",198],["朴树",154],["Beyond",131]
+  ];
+  const recent = [
+    ["晴天","周杰伦","3:29"],["起风了","买辣椒也用券","5:11"],["孤勇者","陈奕迅","4:16"],
+    ["成都","赵雷","5:28"],["光年之外","邓紫棋","3:55"],["演员","薛之谦","4:20"]
+  ];
+
+  // —— 渲染趋势图（支持 count / duration 两种指标）——
+  let currentMetric = "count";
+  const chart = document.getElementById("chart");
+  function renderChart(range){
+    const r = ranges[range];
+    const data = currentMetric === "count" ? r.countData : r.durData;
+    chart.innerHTML = "";
+    const max = Math.max(...data, 1);
+    data.forEach((v, i) => {
+      const wrap = document.createElement("div");
+      wrap.className = "bar-wrap";
+      const val = document.createElement("div");
+      val.className = "bar-val"; val.textContent = v || "";
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const lbl = document.createElement("div");
+      lbl.className = "bar-lbl"; lbl.textContent = r.labels[i] || "";
+      wrap.append(val, bar, lbl);
+      chart.appendChild(wrap);
+      // 触发高度动画
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        bar.style.height = (v / max * 100) + "%";
+        if (v > 0) wrap.classList.add("show");
+      }));
+    });
+    const cap = document.getElementById("trendCap");
+    cap.textContent = currentMetric === "count"
+      ? `${r.capPrefix} · 有 ${r.activeDays} 天在听歌`
+      : `${r.capPrefix} · 共 ${fmtDur(r.dur.totalMin)}`;
+  }
+
+  // —— 更新顶部统计卡 + 听歌时长大卡 ——
+  function updateSummary(range){
+    const r = ranges[range];
+    document.getElementById("statPlays").textContent = r.stats.plays.toLocaleString();
+    document.getElementById("statSongs").textContent = r.stats.songs.toLocaleString();
+    document.getElementById("statDays").textContent = r.stats.days;
+    document.getElementById("durTotal").textContent = fmtDur(r.dur.totalMin);
+    document.getElementById("durAvg").textContent = Math.round(r.dur.avgMin);
+    document.getElementById("durLong").textContent = r.dur.longest;
+    document.getElementById("durNight").textContent = r.dur.nightPct;
+  }
+
+  // —— 渲染最爱歌曲 ——
+  const topSongsEl = document.getElementById("topSongs");
+  const maxSong = Math.max(...topSongs.map(s=>s[2]));
+  topSongs.forEach((s, i) => {
+    const ratio = s[2] / maxSong * 100;
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="rank">${i+1}</div>
+      <div class="cover" style="background:${grad(i)}">${initial(s[0])}</div>
+      <div class="meta">
+        <div class="title">${s[0]}</div>
+        <div class="artist">${s[1]}</div>
+        <div class="progress"><i style="width:${ratio}%"></i></div>
+      </div>
+      <div class="plays">${s[2]} 次</div>`;
+    topSongsEl.appendChild(row);
+  });
+
+  // —— 渲染最爱歌手 ——
+  const topArtistsEl = document.getElementById("topArtists");
+  topArtists.forEach((a, i) => {
+    const card = document.createElement("div");
+    card.className = "artist-card";
+    card.innerHTML = `
+      <div class="avatar" style="background:${grad(i+2)}">${initial(a[0])}</div>
+      <div class="artist-name">${a[0]}</div>
+      <div class="artist-plays">${a[1]} 次播放</div>`;
+    topArtistsEl.appendChild(card);
+  });
+
+  // —— 渲染最近在听 ——
+  const recentEl = document.getElementById("recent");
+  recent.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <div class="cover" style="background:${grad(i+4)};width:48px;height:48px;border-radius:13px">${initial(s[0])}</div>
+      <div class="meta">
+        <div class="title">${s[0]}</div>
+        <div class="artist">${s[1]}</div>
+      </div>
+      <div class="plays">${s[2]}</div>`;
+    recentEl.appendChild(row);
+  });
+
+  // —— 听歌时段分布（一天中不同时段的听歌时长占比）——
+  const timeSlots = [
+    ["清晨 5–9", 6], ["上午 9–12", 11], ["午后 12–17", 16],
+    ["傍晚 17–21", 21], ["夜晚 21–24", 24], ["凌晨 0–5", 22]
+  ];
+  function renderTimebars(){
+    const el = document.getElementById("timebars");
+    timeSlots.forEach((t) => {
+      const row = document.createElement("div");
+      row.className = "time-row";
+      row.innerHTML = `
+        <div class="time-name">${t[0]}</div>
+        <div class="time-track"><i style="width:0"></i></div>
+        <div class="time-val">${t[1]}%</div>`;
+      el.appendChild(row);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        row.querySelector("i").style.width = t[1] + "%";
+      }));
+    });
+    const night = timeSlots[4][1] + timeSlots[5][1];
+    document.getElementById("nightNote").innerHTML = `🌙 深夜 + 凌晨共占 <b>${night}%</b>，你是个不折不扣的夜猫子`;
+  }
+
+  // —— 环比对比（各指标 vs 上一周期，百分比）——
+  const deltas = {
+    "7":   { plays: 8,  dur: -4, days: 0 },
+    "30":  { plays: 12, dur: 5,  days: -3 },
+    "all": { plays: null, dur: null, days: null }
+  };
+  const cmpItemsDef = [
+    { label: "播放次数", get: r => r.stats.plays.toLocaleString(), delta: d => d.plays },
+    { label: "听歌时长", get: r => fmtDur(r.dur.totalMin),         delta: d => d.dur },
+    { label: "听歌天数", get: r => r.stats.days,                   delta: d => d.days }
+  ];
+  function deltaHtml(v){
+    if (v === null || v === undefined) return `<div class="cmp-delta flat">—</div>`;
+    if (v === 0) return `<div class="cmp-delta flat">持平</div>`;
+    const up = v > 0, arrow = up ? "▲" : "▼";
+    return `<div class="cmp-delta ${up ? "up" : "down"}">${arrow} ${Math.abs(v)}%</div>`;
+  }
+  function renderCompare(range){
+    const r = ranges[range], d = deltas[range];
+    const el = document.getElementById("compareGrid");
+    el.innerHTML = "";
+    cmpItemsDef.forEach(def => {
+      const item = document.createElement("div");
+      item.className = "cmp-item";
+      item.innerHTML = `<div class="cmp-label">${def.label}</div><div class="cmp-val">${def.get(r)}</div>${deltaHtml(def.delta(d))}`;
+      el.appendChild(item);
+    });
+    document.getElementById("cmpCap").textContent = range === "all" ? "全部时间 · 无对比" : `近 ${range} 天 vs 前 ${range} 天`;
+  }
+
+  // —— 流派 / 语种分布 ——
+  const genres = [
+    ["华语", 48], ["欧美", 22], ["日语", 14], ["韩语", 10], ["其他", 6]
+  ];
+  function renderGenres(){
+    const el = document.getElementById("genres");
+    genres.forEach(g => {
+      const row = document.createElement("div");
+      row.className = "time-row";
+      row.innerHTML = `<div class="time-name">${g[0]}</div><div class="time-track"><i style="width:0"></i></div><div class="time-val">${g[1]}%</div>`;
+      el.appendChild(row);
+      requestAnimationFrame(() => requestAnimationFrame(() => { row.querySelector("i").style.width = g[1] + "%"; }));
+    });
+  }
+
+  // —— 时间范围 Chips 交互 ——
+  const chips = document.getElementById("chips");
+  chips.addEventListener("click", e => {
+    const btn = e.target.closest(".chip");
+    if (!btn) return;
+    chips.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+    const range = btn.dataset.range;
+    updateSummary(range);
+    renderChart(range);
+    renderCompare(range);
+  });
+
+  // —— 次数 / 时长 切换 ——
+  const metricSeg = document.getElementById("metricSeg");
+  metricSeg.addEventListener("click", e => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    metricSeg.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentMetric = btn.dataset.metric;
+    const activeRange = document.querySelector("#chips .chip.active").dataset.range;
+    renderChart(activeRange);
+  });
+
+  // 初始
+  updateSummary("30");
+  renderChart("30");
+  renderTimebars();
+  renderGenres();
+  renderCompare("30");
+  document.getElementById("shareBtn").addEventListener("click", () => {
+    const b = document.getElementById("shareBtn");
+    const txt = b.lastChild, prev = txt.textContent;
+    txt.textContent = " 已生成图片 ✓";
+    setTimeout(() => { txt.textContent = prev; }, 1600);
+  });
+</script>
+</body>
+</html>
