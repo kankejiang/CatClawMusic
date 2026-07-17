@@ -12,7 +12,8 @@
 - **签名密码**: storepass=keypass=catclaw123，alias=catclaw，keystore=../catclaw.keystore
 - **产出路径**: `CatClawMusic.Maui/bin/Release/net11.0-android/publish/*-Signed.apk`（Maui csproj 无自动复制 target，与 UI csproj 不同）
 - **规则**: 每次有较大代码改动后，自动构建 **Release 签名 APK**（默认目标，见上方 Release 命令）
-- **版本**: v1.6.1（ApplicationVersion 38，见 csproj）
+- **版本**: v1.6.4（ApplicationDisplayVersion 1.6.4 / ApplicationVersion 41，见 csproj）
+- ⚠️ **README 约定（重要）**：仓库公开于 GitHub（github.com/kankejiang/CatClawMusic）。`README.md` 必须是 **GitHub 友好的纯 markdown**——不能用 `<style>`/`<script>`（GitHub 会过滤，线上变成裸标签）。截图用 `<details>` 默认收起；徽章用 shields.io 图片链接；功能用 markdown 表格；可爱感只靠 emoji + 排版。本地花哨版保留为 `README.html`（仅供本地浏览器预览，不要提交覆盖 README.md）。版本号以 csproj 为准（当前 1.6.4），勿写死旧值。
 
 ## 艺术家元数据（MAUI 主线真实情况，2026-07-16 核实）
 - ⚠️ 下方旧记录描述的是已非主线的 Xamarin 项目 `CatClawMusic.UI`（含 `ArtistMetadataSaver.cs`/`artist_info.json`/`ArtistDetailFragment.cs`）。**当前主线 `CatClawMusic.Maui` 现状不同，见下。**
