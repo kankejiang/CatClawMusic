@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
+using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.Maui;
@@ -54,6 +55,36 @@ public partial class App : Application
         });
 
         StartupLog("App.ctor: done");
+    }
+
+    /// <summary>应用进入后台时调用：flush 听歌时长，避免被系统杀死时丢失数据</summary>
+    protected override void OnSleep()
+    {
+        base.OnSleep();
+        try
+        {
+            var vm = MauiProgram.Services.GetService<NowPlayingViewModel>();
+            vm?.OnAppSleep();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("App.xaml", $"[OnSleep] flush 听歌时长失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>应用从后台恢复时调用：重启听歌时长计时</summary>
+    protected override void OnResume()
+    {
+        base.OnResume();
+        try
+        {
+            var vm = MauiProgram.Services.GetService<NowPlayingViewModel>();
+            vm?.OnAppResume();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("App.xaml", $"[OnResume] 重启听歌计时失败: {ex.Message}");
+        }
     }
 
     private static void StartupLog(string msg)

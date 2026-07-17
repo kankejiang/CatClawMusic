@@ -39,6 +39,18 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>已触发预缓冲的歌曲ID，避免重复触发</summary>
     private int _preBufferedSongId = -1;
 
+    // === 听歌时长追踪 ===
+    /// <summary>当前正在追踪时长的歌曲ID</summary>
+    private int _trackedSongId = -1;
+    /// <summary>本次连续播放开始时间（UTC），用于计算实时长</summary>
+    private DateTime _listeningStartUtc = DateTime.MinValue;
+    /// <summary>已累积但尚未写入数据库的聆听时长（毫秒）</summary>
+    private long _pendingListenMs;
+    /// <summary>上次定时 flush 的整数秒，用于 30 秒周期判断</summary>
+    private int _lastFlushSecond = -1;
+    /// <summary>听歌记录写入锁，避免并发重复写入</summary>
+    private readonly object _listenRecordLock = new();
+
     // === Basic Song Info ===
 
     /// <summary>当前歌曲标题</summary>
@@ -396,6 +408,38 @@ public partial class NowPlayingViewModel : ObservableObject
             PlayPauseIconSource = ImageSourceHelper.FromNameThemed(isPlaying ? "ic_pause" : "ic_play");
             PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(isPlaying ? "ic_pause" : "ic_play");
 
+            // 听歌时长追踪：播放开始时记录起点，暂停时累积时长
+            lock (_listenRecordLock)
+            {
+                if (isPlaying)
+                {
+                    var currentSongId = _queue.CurrentSong?.Id ?? 0;
+                    if (currentSongId > 0)
+                    {
+                        if (_trackedSongId != currentSongId)
+                        {
+                            // 换歌后首次播放：重置追踪状态
+                            _trackedSongId = currentSongId;
+                            _pendingListenMs = 0;
+                        }
+                        _listeningStartUtc = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    // 暂停：把已播放时长累加到 pending
+                    if (_trackedSongId > 0 && _listeningStartUtc != DateTime.MinValue)
+                    {
+                        var elapsed = (long)(DateTime.UtcNow - _listeningStartUtc).TotalMilliseconds;
+                        if (elapsed > 0)
+                        {
+                            _pendingListenMs += elapsed;
+                        }
+                        _listeningStartUtc = DateTime.MinValue;
+                    }
+                }
+            }
+
             // 检测队列当前歌曲是否变化（外部页面播放时触发）
             // 此时 _loadedSongId 还是旧值，需要加载新歌信息更新迷你播放器
             var queueSong = _queue.CurrentSong;
@@ -450,6 +494,13 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             _lastDisplayedSecond = currentSecond;
             CurrentTimeDisplay = FormatTime(currentSecond);
+
+            // 每 30 秒定时 flush 聆听时长，防止应用被系统杀死时数据丢失
+            if (_lastFlushSecond < 0 || (currentSecond - _lastFlushSecond) >= 30)
+            {
+                _lastFlushSecond = currentSecond;
+                _ = FlushListeningAsync(isFinalFlush: false);
+            }
         }
 
         UpdateLyricPosition(position);
@@ -471,6 +522,8 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         MainThread.BeginInvokeOnMainThread(async () =>
         {
+            // 播放完成：先 flush 当前歌曲的聆听时长，再切下一首
+            await FlushListeningAsync(isFinalFlush: true);
             _queue.Next();
             await LoadCurrentSongAsync();
         });
@@ -626,6 +679,13 @@ public partial class NowPlayingViewModel : ObservableObject
     public async Task LoadCurrentSongAsync(bool autoPlay = true)
     {
         var song = _queue.CurrentSong;
+        var oldSongId = _loadedSongId;
+
+        // 换歌前先 flush 上一首的聆听时长
+        if (oldSongId > 0 && song != null && song.Id != oldSongId)
+        {
+            await FlushListeningAsync(isFinalFlush: true);
+        }
 
         // 启动恢复：如果队列为空，尝试从 Preferences 恢复上次的整个播放队列
         if (song == null)
@@ -776,6 +836,14 @@ public partial class NowPlayingViewModel : ObservableObject
         else if (!isSameSong && (!autoPlay || _isStartupRestore))
         {
             // 首次加载或启动恢复：加载封面、歌词和元数据，但不播放
+            // 外部页面（音乐库、发现页）触发播放时 autoPlay=false，走此分支；
+            // 启动恢复时不记录（避免记录上次未完成的播放），其他情况记录播放会话
+            if (!_isStartupRestore && _lastRecordedSongId != song.Id)
+            {
+                _lastRecordedSongId = song.Id;
+                _ = RecordPlayAsync(song.Id);
+            }
+
             _ = Task.Run(async () =>
             {
                 try
@@ -1418,16 +1486,90 @@ public partial class NowPlayingViewModel : ObservableObject
         OnPropertyChanged(nameof(AllLyricLines));
     }
 
-    private async Task RecordPlayAsync(int songId)
+    private async Task RecordPlayAsync(int songId, long durationMs = 0)
     {
         try
         {
             await _db.EnsureInitializedAsync();
-            await _db.RecordPlayAsync(songId);
+            await _db.RecordPlayAsync(songId, durationMs);
         }
         catch (Exception ex)
         {
             Log.Debug("AppViewModels", $"[NowPlayingViewModel] 记录播放失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 将当前累积的聆听时长写入数据库。
+    /// 调用时机：切歌前、播放完成时、应用挂起时、每 30 秒定时。
+    /// </summary>
+    /// <param name="isFinalFlush">是否最终 flush（切歌/完成时），为 true 时重置追踪状态</param>
+    public async Task FlushListeningAsync(bool isFinalFlush = false)
+    {
+        int songId;
+        long elapsedMs;
+
+        lock (_listenRecordLock)
+        {
+            songId = _trackedSongId;
+            if (songId <= 0) return;
+
+            // 计算从本次播放开始到现在的时长，累加到 pending
+            if (_listeningStartUtc != DateTime.MinValue)
+            {
+                var elapsed = (long)(DateTime.UtcNow - _listeningStartUtc).TotalMilliseconds;
+                if (elapsed > 0)
+                {
+                    _pendingListenMs += elapsed;
+                    _listeningStartUtc = DateTime.UtcNow; // 重置起点，避免重复累加
+                }
+            }
+
+            elapsedMs = _pendingListenMs;
+            if (elapsedMs <= 0) return;
+
+            if (isFinalFlush)
+            {
+                _trackedSongId = -1;
+                _listeningStartUtc = DateTime.MinValue;
+                _pendingListenMs = 0;
+            }
+            else
+            {
+                // 定时 flush：保留 pending 计数避免丢失，仅清零用于下一轮累加
+                // 实际写入后不清零，因为 RecordPlayAsync 是插入新记录而非更新
+                // 所以这里不需要清零，pending 会持续累积
+                _pendingListenMs = 0;
+            }
+        }
+
+        if (elapsedMs > 0 && songId > 0)
+        {
+            await RecordPlayAsync(songId, elapsedMs);
+        }
+    }
+
+    /// <summary>
+    /// 外部调用入口：应用挂起时 flush 聆听时长。
+    /// 供 App.xaml.cs 的 OnSleep 调用。
+    /// </summary>
+    public void OnAppSleep()
+    {
+        _ = FlushListeningAsync(isFinalFlush: false);
+    }
+
+    /// <summary>
+    /// 外部调用入口：应用恢复时重启计时。
+    /// 供 App.xaml.cs 的 OnResume 调用。
+    /// </summary>
+    public void OnAppResume()
+    {
+        lock (_listenRecordLock)
+        {
+            if (_trackedSongId > 0 && _audioService.IsPlaying)
+            {
+                _listeningStartUtc = DateTime.UtcNow;
+            }
         }
     }
 

@@ -113,7 +113,24 @@ public partial class LibraryPage : ContentPage
             await _vm.RefreshProtocolsAsync();
             await LoadInitialDataAsync();
         }
-        // 非首次切回：不重新加载数据，避免切页时全量重建 CollectionView 导致大量 GC
+        else if (Services.LocalScanService.NeedsReload)
+        {
+            // 扫描后切回音乐库页面：刷新本地音乐列表与协议
+            // 不消费 NeedsReload 标记，让发现页 OnAppearing 也能各自刷新
+            try
+            {
+                if (_vm.CurrentTab == "Local")
+                {
+                    await _vm.LoadLocalAsync();
+                }
+                await _vm.RefreshProtocolsAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("LibraryPage.xaml", $"[LibraryPage] 扫描后刷新本地音乐失败: {ex.Message}");
+            }
+        }
+        // 其他情况非首次切回：不重新加载数据，避免切页时全量重建 CollectionView 导致大量 GC
     }
 
     /// <summary>首次加载时根据当前 Tab 加载对应数据</summary>
