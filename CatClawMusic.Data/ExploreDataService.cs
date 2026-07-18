@@ -1,5 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace CatClawMusic.Data;
 
@@ -26,6 +28,10 @@ public class ExploreDataService
     private List<ArtistWithCount>? _dailyArtistsCache;
     /// <summary>每日推荐专辑缓存（每天随机10个）</summary>
     private List<AlbumWithCount>? _dailyAlbumsCache;
+    /// <summary>全部艺术家聚合结果缓存（按其来源严格过滤后），避免每次进入艺术家页重复聚合+封面解析</summary>
+    private List<ArtistWithCount>? _allArtistsCache;
+    /// <summary>全部专辑聚合结果缓存，避免每次进入专辑页重复聚合</summary>
+    private List<AlbumWithCount>? _allAlbumsCache;
 
     /// <summary>来源筛选：all, local, network</summary>
     private string _sourceFilter = "all";
@@ -64,6 +70,8 @@ public class ExploreDataService
         _dailyRecommendCache = null;
         _dailyArtistsCache = null;
         _dailyAlbumsCache = null;
+        _allArtistsCache = null;
+        _allAlbumsCache = null;
         _dailyRecommendDate = null;
         try
         {
@@ -450,13 +458,19 @@ public class ExploreDataService
     /// <summary>获取所有专辑列表（含歌曲数量）</summary>
     public async Task<List<AlbumWithCount>> GetAllAlbumsAsync()
     {
-        return await GetAllAlbumsWithCountInternalAsync();
+        if (_allAlbumsCache != null) return _allAlbumsCache;
+        var list = await GetAllAlbumsWithCountInternalAsync();
+        _allAlbumsCache = list;
+        return list;
     }
 
     /// <summary>获取所有艺术家列表（含歌曲数量）</summary>
     public async Task<List<ArtistWithCount>> GetAllArtistsAsync()
     {
-        return await GetAllArtistsWithCountInternalAsync();
+        if (_allArtistsCache != null) return _allArtistsCache;
+        var list = await GetAllArtistsWithCountInternalAsync();
+        _allArtistsCache = list;
+        return list;
     }
 
     /// <summary>获取经过来源筛选和协议过滤的全部歌曲（含 PlayCount）</summary>
@@ -520,14 +534,26 @@ public class ExploreDataService
 }
 
 /// <summary>艺术家及其歌曲数量</summary>
-public class ArtistWithCount
+public class ArtistWithCount : INotifyPropertyChanged
 {
+    /// <summary>属性变更事件，用于封面在后台解析完成后通知绑定刷新</summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>触发属性变更通知</summary>
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
     /// <summary>艺术家数据库 ID</summary>
     public int Id { get; set; }
     /// <summary>艺术家名称</summary>
     public string Name { get; set; } = "";
-    /// <summary>艺术家封面 URL（来自元数据刮削）</summary>
-    public string? Cover { get; set; }
+    /// <summary>艺术家封面 URL / 本地缓存路径（来自元数据刮削或内嵌封面提取）</summary>
+    public string? Cover
+    {
+        get => _cover;
+        set { if (_cover != value) { _cover = value; OnPropertyChanged(); } }
+    }
+    private string? _cover;
     /// <summary>该艺术家的歌曲总数（含合作歌曲）</summary>
     public int SongCount { get; set; }
     /// <summary>从该艺术家第一首歌曲获取的封面路径，用于列表页快速显示</summary>
@@ -541,14 +567,26 @@ public class ArtistWithCount
 }
 
 /// <summary>专辑及其歌曲数量</summary>
-public class AlbumWithCount
+public class AlbumWithCount : INotifyPropertyChanged
 {
+    /// <summary>属性变更事件，用于封面在后台解析完成后通知绑定刷新</summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>触发属性变更通知</summary>
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
     /// <summary>专辑数据库 ID</summary>
     public int Id { get; set; }
     /// <summary>专辑标题</summary>
     public string Title { get; set; } = "";
-    /// <summary>专辑封面图本地路径</summary>
-    public string? CoverArtPath { get; set; }
+    /// <summary>专辑封面图本地路径（内嵌封面提取后写入缓存）</summary>
+    public string? CoverArtPath
+    {
+        get => _coverArtPath;
+        set { if (_coverArtPath != value) { _coverArtPath = value; OnPropertyChanged(); } }
+    }
+    private string? _coverArtPath;
     /// <summary>专辑封面 URL</summary>
     public string? Cover { get; set; }
     /// <summary>专辑所属艺术家名称</summary>

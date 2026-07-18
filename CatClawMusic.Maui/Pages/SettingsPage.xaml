@@ -2,12 +2,16 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.SettingsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}"
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
+        <Grid.Behaviors>
+            <controls:SafeAreaPaddingBehavior />
+        </Grid.Behaviors>
 
         <ScrollView>
             <VerticalStackLayout Padding="16,18,16,22" Spacing="12">

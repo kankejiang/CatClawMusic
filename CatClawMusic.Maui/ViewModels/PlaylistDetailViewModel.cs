@@ -5,6 +5,7 @@ using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using Microsoft.Maui.ApplicationModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -103,26 +104,38 @@ public partial class PlaylistDetailViewModel : ObservableObject
             var enabledProtocols = await _db.GetEnabledProtocolsAsync();
             _allSongsRaw = _db.FilterByEnabledProtocols(songs, enabledProtocols);
 
-            // 批量解析封面：从音频文件提取嵌入封面到磁盘缓存，回写 Song.CoverArtPath
-            if (_allSongsRaw.Count > 0)
-                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(_allSongsRaw));
-
-            // 用第一首已解析封面的歌曲作为歌单封面
-            PlaylistCover = _allSongsRaw.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath))?.CoverArtPath;
-
+            // 先渲染列表（占位封面），不阻塞等待封面提取
             Songs.Clear();
             foreach (var s in _allSongsRaw)
                 Songs.Add(s);
 
-            // 同步更新 Playlist 对象，让顶部"共 X 首歌曲"显示正确
             Playlist = new Playlist
             {
                 Id = playlistId,
                 Name = name,
                 SongCount = Songs.Count
             };
-
             StatusText = Songs.Count > 0 ? $"共 {Songs.Count} 首" : "暂无歌曲";
+
+            // 后台分块解析封面（不阻塞 UI）；封面就绪经 Song.CoverArtPath(INPC) 自动刷新单元格。
+            // 提取逻辑与原先一致（音频文件内嵌封面 → 1024px 下采样缓存），画质零损失。
+            if (_allSongsRaw.Count > 0)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Services.CoverHelper.BatchResolveCoversAsync(_allSongsRaw);
+                        var cover = _allSongsRaw.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath))?.CoverArtPath;
+                        if (!string.IsNullOrEmpty(cover))
+                            await MainThread.InvokeOnMainThreadAsync(() => PlaylistCover = cover);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("PlaylistDetailViewModel", $"[PlaylistDetailVM] 后台封面解析失败: {ex.Message}");
+                    }
+                });
+            }
         }
         catch (Exception ex)
         {

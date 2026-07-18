@@ -267,7 +267,26 @@ public class MusicDatabase
     /// 获取所有本地歌曲（含艺术家和专辑详情）
     /// </summary>
     /// <returns>本地歌曲列表</returns>
-    public Task<List<Song>> GetSongsAsync() => GetSongsWithDetailsAsync();
+    /// <summary>
+    /// 获取本地歌曲列表（轻量版）：仅加载基础信息和艺术家/专辑名称，
+    /// 跳过 PlayHistory 聚合和多艺术家关联（这两项是性能瓶颈）。
+    /// 用于列表页面展示，播放详情页再用 GetSongByIdAsync 加载完整信息。
+    /// </summary>
+    public async Task<List<Song>> GetSongsAsync()
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var songs = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).ToListAsync();
+        var artists = await _database.Table<Artist>().ToListAsync();
+        var albums = await _database.Table<Album>().ToListAsync();
+        var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
+        var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
+        foreach (var s in songs)
+        {
+            s.Artist = artistDict.TryGetValue(s.ArtistId, out var an) ? an : "未知艺术家";
+            s.Album = albumDict.TryGetValue(s.AlbumId, out var al) ? al : "未知专辑";
+        }
+        return songs;
+    }
 
     /// <summary>
     /// 获取本地歌曲总数

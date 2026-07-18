@@ -8,34 +8,9 @@
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <ContentPage.Resources>
-        <converters:AutoScanToggleColorConverter x:Key="AutoScanToggleColorConverter" />
-        <converters:ToggleKnobPositionConverter x:Key="ToggleKnobPositionConverter" />
-        <converters:ProgressToWidthConverter x:Key="ProgressToWidthConverter" />
-    </ContentPage.Resources>
-
-    <ScrollView Background="{DynamicResource PageBackgroundBrush}">
-        <VerticalStackLayout Padding="18,8,18,132" Spacing="0">
-            <!-- 顶栏 -->
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="0,6,0,6">
-                <Border Grid.Column="0" WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 12" StrokeThickness="1"
-                        Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource GlassButtonColor}"
-                        Opacity="0" IsVisible="False">
-                    <Image Source="ic_settings.svg" WidthRequest="18" HeightRequest="18" Aspect="AspectFit"
-                           VerticalOptions="Center" HorizontalOptions="Center" />
-                </Border>
-                <Label Grid.Column="1" Text="音乐库" FontSize="11" TextColor="{DynamicResource TextHintColor}"
-                       HorizontalOptions="Center" VerticalOptions="Center" CharacterSpacing="2" />
-                <Border Grid.Column="2" WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 12" StrokeThickness="1"
-                        Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource GlassButtonColor}">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnScanTapped" />
-                    </Border.GestureRecognizers>
-                    <Image Source="ic_search.svg" WidthRequest="18" HeightRequest="18" Aspect="AspectFit"
-                           VerticalOptions="Center" HorizontalOptions="Center" />
-                </Border>
-            </Grid>
-
+    <Grid Background="Transparent">
+        <ScrollView Background="{DynamicResource PageBackgroundBrush}">
+            <VerticalStackLayout Padding="18,8,18,132" Spacing="0">
             <!-- Hero 区域 -->
             <Border Padding="0" StrokeShape="RoundRectangle 24" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" Margin="0,6,0,0">
                 <Border.Background>
@@ -45,49 +20,73 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <Grid>
+                    <!-- 右上角刷新图标 -->
+                    <Border HorizontalOptions="End" VerticalOptions="Start"
+                            Margin="0,14,14,0"
+                            WidthRequest="32" HeightRequest="32"
+                            StrokeShape="RoundRectangle 10"
+                            StrokeThickness="0"
+                            BackgroundColor="#33FFFFFF">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnScanTapped" />
+                        </Border.GestureRecognizers>
+                        <Image Source="ic_refresh.svg"
+                               WidthRequest="16" HeightRequest="16"
+                               Aspect="AspectFit"
+                               VerticalOptions="Center" HorizontalOptions="Center" />
+                    </Border>
+
                     <VerticalStackLayout Padding="22,20" Spacing="0">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                            <VerticalStackLayout>
-                                <Label Text="我的音乐库" FontSize="22" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="{Binding LibraryCount, StringFormat='本地 + 网络 · 共 {0} 个资料库'}"
-                                       FontSize="12.5" TextColor="{DynamicResource TextSecondaryColor}" Margin="0,3,0,0" />
-                            </VerticalStackLayout>
-                            <Border Padding="15,10" StrokeShape="RoundRectangle 13" StrokeThickness="0"
-                                    BackgroundColor="#8C7BFF" VerticalOptions="Start">
+                        <VerticalStackLayout>
+                            <Label Text="我的音乐库" FontSize="22" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding LibraryCount, StringFormat='本地 + 网络 · 共 {0} 个资料库'}"
+                                   FontSize="12.5" TextColor="{DynamicResource TextSecondaryColor}" Margin="0,3,0,0" />
+                        </VerticalStackLayout>
+                        <Grid ColumnDefinitions="*,*,*,*" Margin="0,18,0,0" ColumnSpacing="8">
+                            <Border Grid.Column="0" BackgroundColor="{DynamicResource GlassButtonColor}" Stroke="{DynamicResource GlassStrokeColor}" StrokeThickness="1" StrokeShape="RoundRectangle 16" Padding="12,10" HorizontalOptions="Fill" VerticalOptions="Center">
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnScanTapped" />
+                                    <TapGestureRecognizer Tapped="OnStatSongsTapped" />
                                 </Border.GestureRecognizers>
-                                <HorizontalStackLayout Spacing="7">
-                                    <Image Source="ic_refresh.svg" WidthRequest="15" HeightRequest="15" Aspect="AspectFit" VerticalOptions="Center" />
-                                    <Label Text="立即扫描" FontSize="13" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
-                                </HorizontalStackLayout>
+                                <VerticalStackLayout HorizontalOptions="Center">
+                                    <Label Text="{Binding TotalSongCount, StringFormat='{0:N0}'}" FontSize="19" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
+                                    <Label Text="歌曲" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                           HorizontalOptions="Center" Margin="0,2,0,0" />
+                                </VerticalStackLayout>
                             </Border>
-                        </Grid>
-                        <Grid ColumnDefinitions="*,*,*,*" Margin="0,18,0,0">
-                            <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center">
-                                <Label Text="{Binding TotalSongCount, StringFormat='{0:N0}'}" FontSize="19" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
-                                <Label Text="歌曲" FontSize="11" TextColor="{DynamicResource TextHintColor}"
-                                       HorizontalOptions="Center" Margin="0,2,0,0" />
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Grid.Column="1" HorizontalOptions="Center">
-                                <Label Text="{Binding TotalArtistCount, StringFormat='{0:N0}'}" FontSize="19" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
-                                <Label Text="艺术家" FontSize="11" TextColor="{DynamicResource TextHintColor}"
-                                       HorizontalOptions="Center" Margin="0,2,0,0" />
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center">
-                                <Label Text="{Binding TotalAlbumCount, StringFormat='{0:N0}'}" FontSize="19" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
-                                <Label Text="专辑" FontSize="11" TextColor="{DynamicResource TextHintColor}"
-                                       HorizontalOptions="Center" Margin="0,2,0,0" />
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Grid.Column="3" HorizontalOptions="Center">
-                                <Label Text="{Binding TotalHours, StringFormat='{0:F1}'}" FontSize="19" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
-                                <Label Text="小时" FontSize="11" TextColor="{DynamicResource TextHintColor}"
-                                       HorizontalOptions="Center" Margin="0,2,0,0" />
-                            </VerticalStackLayout>
+                            <Border Grid.Column="1" BackgroundColor="{DynamicResource GlassButtonColor}" Stroke="{DynamicResource GlassStrokeColor}" StrokeThickness="1" StrokeShape="RoundRectangle 16" Padding="12,10" HorizontalOptions="Fill" VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnStatArtistsTapped" />
+                                </Border.GestureRecognizers>
+                                <VerticalStackLayout HorizontalOptions="Center">
+                                    <Label Text="{Binding TotalArtistCount, StringFormat='{0:N0}'}" FontSize="19" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
+                                    <Label Text="艺术家" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                           HorizontalOptions="Center" Margin="0,2,0,0" />
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="2" BackgroundColor="{DynamicResource GlassButtonColor}" Stroke="{DynamicResource GlassStrokeColor}" StrokeThickness="1" StrokeShape="RoundRectangle 16" Padding="12,10" HorizontalOptions="Fill" VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnStatAlbumsTapped" />
+                                </Border.GestureRecognizers>
+                                <VerticalStackLayout HorizontalOptions="Center">
+                                    <Label Text="{Binding TotalAlbumCount, StringFormat='{0:N0}'}" FontSize="19" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
+                                    <Label Text="专辑" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                           HorizontalOptions="Center" Margin="0,2,0,0" />
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="3" BackgroundColor="{DynamicResource GlassButtonColor}" Stroke="{DynamicResource GlassStrokeColor}" StrokeThickness="1" StrokeShape="RoundRectangle 16" Padding="12,10" HorizontalOptions="Fill" VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnStatRecentTapped" />
+                                </Border.GestureRecognizers>
+                                <VerticalStackLayout HorizontalOptions="Center">
+                                    <Label Text="{Binding TotalHours, StringFormat='{0:F1}'}" FontSize="19" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
+                                    <Label Text="小时" FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                           HorizontalOptions="Center" Margin="0,2,0,0" />
+                                </VerticalStackLayout>
+                            </Border>
                         </Grid>
                     </VerticalStackLayout>
                 </Grid>
@@ -112,94 +111,49 @@
                 </VerticalStackLayout>
             </Border>
 
-            <!-- 扫描管理 -->
+            <!-- 数据洞察 -->
             <Border Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
                     Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundColor}">
                 <VerticalStackLayout Spacing="0">
-                    <Label Text="扫描管理" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" Margin="0,0,0,14" />
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                        <Border Grid.Column="0" WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 11" StrokeThickness="0">
-                            <Border.Background>
-                                <LinearGradientBrush EndPoint="1,1">
-                                    <GradientStop Offset="0" Color="#6250F6" />
-                                    <GradientStop Offset="1" Color="#8C7BFF" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <Image Source="ic_refresh.svg" WidthRequest="17" HeightRequest="17" Aspect="AspectFit"
-                                   VerticalOptions="Center" HorizontalOptions="Center" />
-                        </Border>
-                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                            <Label Text="自动扫描" FontSize="13.5" TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="打开 App 时检查新音乐" FontSize="11.5" TextColor="{DynamicResource TextHintColor}" Margin="0,2,0,0" />
-                        </VerticalStackLayout>
-                        <Border Grid.Column="2" WidthRequest="46" HeightRequest="27" StrokeShape="RoundRectangle 999" StrokeThickness="0"
-                                BackgroundColor="{Binding AutoScanEnabled, Converter={StaticResource AutoScanToggleColorConverter}}" VerticalOptions="Center">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding ToggleAutoScanCommand}" />
-                            </Border.GestureRecognizers>
-                            <Ellipse WidthRequest="21" HeightRequest="21" Fill="White" Margin="2,0"
-                                     HorizontalOptions="{Binding AutoScanEnabled, Converter={StaticResource ToggleKnobPositionConverter}}" />
-                        </Border>
-                    </Grid>
-                    <BoxView HeightRequest="1" Color="{DynamicResource DividerColor}" Margin="0,11" />
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                        <Border Grid.Column="0" WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 11" StrokeThickness="0">
-                            <Border.Background>
-                                <LinearGradientBrush EndPoint="1,1">
-                                    <GradientStop Offset="0" Color="#1E9FE0" />
-                                    <GradientStop Offset="1" Color="#55D6FF" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <Image Source="ic_clock.svg" WidthRequest="17" HeightRequest="17" Aspect="AspectFit"
-                                   VerticalOptions="Center" HorizontalOptions="Center" />
-                        </Border>
-                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                            <Label Text="上次扫描" FontSize="13.5" TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="{Binding LastScanText}" FontSize="11.5" TextColor="{DynamicResource TextHintColor}" Margin="0,2,0,0" />
-                        </VerticalStackLayout>
-                    </Grid>
-                    <BoxView HeightRequest="1" Color="{DynamicResource DividerColor}" Margin="0,11" />
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                        <Border Grid.Column="0" WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 11" StrokeThickness="0">
-                            <Border.Background>
-                                <LinearGradientBrush EndPoint="1,1">
-                                    <GradientStop Offset="0" Color="#FF5C8A" />
-                                    <GradientStop Offset="1" Color="#FF7AAE" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <Image Source="ic_folder.svg" WidthRequest="17" HeightRequest="17" Aspect="AspectFit"
-                                   VerticalOptions="Center" HorizontalOptions="Center" />
-                        </Border>
-                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                            <Label Text="排除文件夹" FontSize="13.5" TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="{Binding ExcludeFoldersText}" FontSize="11.5" TextColor="{DynamicResource TextHintColor}" Margin="0,2,0,0" />
-                        </VerticalStackLayout>
-                        <Label Grid.Column="2" Text="编辑" FontSize="13" TextColor="{DynamicResource AccentColor}" FontAttributes="Bold"
-                               VerticalOptions="Center">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnEditExcludeTapped" />
-                            </Label.GestureRecognizers>
-                        </Label>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+                        <HorizontalStackLayout Spacing="8">
+                            <Label Text="数据洞察" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Border StrokeShape="RoundRectangle 999" StrokeThickness="1"
+                                    Stroke="{DynamicResource BadgeStrokeColor}"
+                                    BackgroundColor="{DynamicResource BadgeBackgroundColor}"
+                                    Padding="8,2" VerticalOptions="Center">
+                                <Label x:Name="PieNameBadge" Text="音频格式" FontSize="10" TextColor="{DynamicResource AccentColor}" />
+                            </Border>
+                        </HorizontalStackLayout>
+                        <Label x:Name="PieCounter" Grid.Column="1" Text="1 / 3" FontSize="12" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
                     </Grid>
 
-                    <!-- 扫描进度条 -->
-                    <Grid IsVisible="{Binding IsScanning}" Margin="0,12,0,0">
-                        <Border HeightRequest="8" StrokeShape="RoundRectangle 99" StrokeThickness="0"
-                                BackgroundColor="{DynamicResource ChipInactiveColor}">
-                            <Border StrokeShape="RoundRectangle 99" StrokeThickness="0" HorizontalOptions="Start"
-                                    WidthRequest="{Binding ScanProgress, Converter={StaticResource ProgressToWidthConverter}}">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Offset="0" Color="#8C7BFF" />
-                                        <GradientStop Offset="1" Color="#55D6FF" />
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                            </Border>
-                        </Border>
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+                        <controls:DonutView x:Name="PieDonut" Grid.Column="0" />
+                        <VerticalStackLayout x:Name="PieLegend" Grid.Column="1" Spacing="0" VerticalOptions="Center" />
                     </Grid>
-                    <Grid IsVisible="{Binding IsScanning}" ColumnDefinitions="*,*" Margin="0,7,0,0">
-                        <Label Grid.Column="0" Text="{Binding ScanStatusText}" FontSize="11.5" TextColor="{DynamicResource TextHintColor}" />
-                        <Label Grid.Column="1" Text="{Binding ScanCountText}" FontSize="11.5" TextColor="{DynamicResource TextHintColor}" HorizontalOptions="End" />
+
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16" Margin="0,14,0,0">
+                        <Border x:Name="PiePrev" Grid.Column="0" WidthRequest="30" HeightRequest="30"
+                                StrokeShape="RoundRectangle 999" StrokeThickness="1"
+                                Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource GlassButtonColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnPiePrevTapped" />
+                            </Border.GestureRecognizers>
+                            <Label Text="‹" FontSize="20" TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" HorizontalOptions="Center" />
+                        </Border>
+                        <HorizontalStackLayout x:Name="PieDots" Grid.Column="1" HorizontalOptions="Center" Spacing="7" VerticalOptions="Center" />
+                        <Border x:Name="PieNext" Grid.Column="2" WidthRequest="30" HeightRequest="30"
+                                StrokeShape="RoundRectangle 999" StrokeThickness="1"
+                                Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource GlassButtonColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnPieNextTapped" />
+                            </Border.GestureRecognizers>
+                            <Label Text="›" FontSize="20" TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" HorizontalOptions="Center" />
+                        </Border>
                     </Grid>
                 </VerticalStackLayout>
             </Border>
@@ -257,5 +211,6 @@
 
             <controls:AppPopup x:Name="DiscoverSourcePopup" Title="发现页来源" CloseOnMaskTapped="True" />
         </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+    </Grid>
 </ContentPage>

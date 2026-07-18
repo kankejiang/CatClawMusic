@@ -318,7 +318,8 @@ public partial class AudioPlayerService
     {
         var ext = Path.GetExtension(filePath)?.ToLowerInvariant();
         return ext is ".m4a" or ".m4b" or ".mp4" or ".mov" or ".wma"
-            or ".ogg" or ".opus" or ".ape" or ".wv" or ".aiff" or ".aif" or ".alac";
+            or ".ogg" or ".opus" or ".ape" or ".wv" or ".aiff" or ".aif" or ".alac"
+            or ".flac";
     }
 
     // ═══════════════════════════════════════
@@ -566,6 +567,34 @@ public partial class AudioPlayerService
 
         // 其余 IPlayerListener 方法使用接口默认实现（Java default methods）
         // .NET 绑定会将未实现的方法自动路由到默认实现
+        // 但是 OnPlayerError 必须显式重写：当 ExoPlayer 内部 MediaCodec 解码器失败时
+        // （如 logcat 中 flac 解码器 59/60 帧被丢弃），系统不会自动回退，导致：
+        //   - 解码器反复重试 → BufferPool 耗尽（1857/1862）
+        //   - 堆内存暴涨（7MB → 99MB）→ GC 暂停飙升至 165ms
+        //   - 最终触发 Android LMK 杀进程
+        public void OnPlayerError(PlaybackException error)
+        {
+            Log.Debug("AudioPlayerService.Android",
+                $"[ExoPlayer] OnPlayerError: {error.ErrorCodeName} — {error.Message}");
+            try
+            {
+                // 通知上层播放失败，让 PlayAsync 中的 catch 块回退到 FFmpeg 转码路径
+                _owner._player?.Stop();
+                _owner._player?.ClearMediaItems();
+                _owner._isActuallyPlaying = false;
+                _owner._mainHandler.Post(() =>
+                {
+                    try
+                    {
+                        _owner.PlaybackCompleted?.Invoke(_owner, EventArgs.Empty);
+                        _owner.PlaybackStateChanged?.Invoke(_owner, false);
+                        _owner.StopPositionTimer();
+                    }
+                    catch { }
+                });
+            }
+            catch { }
+        }
     }
 
     // ═══════════════════════════════════════

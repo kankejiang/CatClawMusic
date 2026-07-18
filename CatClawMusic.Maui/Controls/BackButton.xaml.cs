@@ -48,6 +48,13 @@ public partial class BackButton : ContentView
 
             if (Shell.Current != null && Shell.Current.CurrentState?.Location != null)
             {
+                // 若当前处于某 overlay PagerNavigator（如设置/音乐库的二级页）内，
+                // 优先用原生 ViewPager2 平滑滑出，而非 Shell 默认 push/pop 动画。
+                if (PagerNavigator.Active is { CanPop: true } nav)
+                {
+                    nav.PopAsync();
+                    return;
+                }
                 await Shell.Current.GoToAsync("..");
                 return;
             }

@@ -20,6 +20,28 @@ public partial class ListeningStatsView : ContentView
     private const int BarTrackHeight = 100;
     private const int BarTopPadding = 20;
 
+    // 缓存趋势图刷子，避免每次 RebuildTrendChart 重新分配 GradientStopCollection 等对象
+    private static readonly LinearGradientBrush BarBrush = new()
+    {
+        StartPoint = new Point(0, 0),
+        EndPoint = new Point(0, 1),
+        GradientStops = new GradientStopCollection
+        {
+            new GradientStop(Color.FromArgb("#55D6FF"), 0),
+            new GradientStop(Color.FromArgb("#8C7BFF"), 1),
+        }
+    };
+    private static readonly LinearGradientBrush GlowBrush = new()
+    {
+        StartPoint = new Point(0, 0),
+        EndPoint = new Point(0, 1),
+        GradientStops = new GradientStopCollection
+        {
+            new GradientStop(Color.FromArgb("#6655D6FF"), 0),
+            new GradientStop(Color.FromArgb("#338C7BFF"), 1),
+        }
+    };
+
     public ListeningStatsView(ListeningStatsViewModel vm, PlayQueue queue, IAudioPlayerService audioPlayer)
     {
         InitializeComponent();
@@ -85,27 +107,7 @@ public partial class ListeningStatsView : ContentView
         double cornerRadius = count <= 7 ? 7 : 5;
         double cornerBottomRadius = count <= 7 ? 3 : 2;
 
-        var barBrush = new LinearGradientBrush
-        {
-            StartPoint = new Point(0, 0),
-            EndPoint = new Point(0, 1),
-            GradientStops = new GradientStopCollection
-            {
-                new GradientStop(BarTopColor, 0),
-                new GradientStop(BarBottomColor, 1),
-            }
-        };
-
-        var glowBrush = new LinearGradientBrush
-        {
-            StartPoint = new Point(0, 0),
-            EndPoint = new Point(0, 1),
-            GradientStops = new GradientStopCollection
-            {
-                new GradientStop(Color.FromArgb("#6655D6FF"), 0),
-                new GradientStop(Color.FromArgb("#338C7BFF"), 1),
-            }
-        };
+        // 使用静态缓存的刷子，避免每次重建分配新的 GradientStopCollection
 
         for (int i = 0; i < count; i++)
         {
@@ -144,7 +146,7 @@ public partial class ListeningStatsView : ContentView
                 VerticalOptions = LayoutOptions.End,
                 HorizontalOptions = LayoutOptions.Center,
                 StrokeThickness = 0,
-                Background = glowBrush,
+                Background = GlowBrush,
                 Opacity = 0.3,
             };
             trackGrid.Children.Add(glowBorder);
@@ -159,7 +161,7 @@ public partial class ListeningStatsView : ContentView
                 {
                     CornerRadius = new CornerRadius(cornerRadius, cornerRadius, cornerBottomRadius, cornerBottomRadius),
                 },
-                Background = barBrush,
+                Background = BarBrush,
             };
             trackGrid.Children.Add(barBorder);
 

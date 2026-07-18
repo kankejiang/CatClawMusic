@@ -569,12 +569,6 @@ public partial class SearchPage : ContentPage
         await CloseSettingsPanel();
     }
 
-    /// <summary>点击关闭按钮收起设置面板</summary>
-    private async void OnSettingsCloseClicked(object? sender, EventArgs e)
-    {
-        await CloseSettingsPanel();
-    }
-
     /// <summary>收起设置面板：面板滑出 + 背景淡出</summary>
     private async Task CloseSettingsPanel()
     {

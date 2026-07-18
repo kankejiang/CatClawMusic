@@ -5,6 +5,7 @@ using Android.OS;
 using Android.Runtime;
 using Android.Views;
 using AndroidX.Core.View;
+using CatClawMusic.Maui.Platforms.Android;
 using CatClawMusic.Maui.Services;
 
 namespace CatClawMusic.Maui;
@@ -37,6 +38,26 @@ public class MainActivity : MauiAppCompatActivity
         // 将 Android Context 传给 AudioPlayerService 用于启动前台服务
         var audioPlayer = MauiProgram.Services.GetService<AudioPlayerService>();
         audioPlayer?.SetAndroidContext(this);
+
+        // 全局未处理异常处理：记录日志并尝试释放资源，避免静默退出
+        AndroidEnvironment.UnhandledExceptionRaiser += (_, args) =>
+        {
+            try
+            {
+                Log.Debug("MainActivity", $"[UnhandledException] {args.Exception}");
+                BitmapMemoryCache.Clear();
+            }
+            catch { }
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            try
+            {
+                Log.Debug("MainActivity", $"[AppDomain.UnhandledException] {args.ExceptionObject}");
+                BitmapMemoryCache.Clear();
+            }
+            catch { }
+        };
     }
 
     /// <summary>Activity 创建完成（窗口已附加、MAUI 已完成首轮窗口搭建）后回调。
@@ -56,6 +77,30 @@ public class MainActivity : MauiAppCompatActivity
         SetupEdgeToEdge();
     }
 
+    /// <summary>Android 低内存警告回调：主动释放 Bitmap 缓存并触发 GC，避免被 LMK 杀进程。</summary>
+    public override void OnLowMemory()
+    {
+        base.OnLowMemory();
+        try { BitmapMemoryCache.Clear(); } catch { }
+        try { System.GC.Collect(); } catch { }
+    }
+
+    /// <summary>Android 内存裁剪回调：根据级别释放缓存，严重时清空 Bitmap 并触发 GC。
+    /// TRIM_MEMORY_RUNNING_CRITICAL(15) 或更低 = 进程即将被 LMK 杀死。</summary>
+    /// <param name="level">内存裁剪级别</param>
+    public override void OnTrimMemory(TrimMemory level)
+    {
+        base.OnTrimMemory(level);
+        if (level >= TrimMemory.RunningLow)
+        {
+            try { BitmapMemoryCache.Clear(); } catch { }
+        }
+        if (level >= TrimMemory.RunningCritical)
+        {
+            try { System.GC.Collect(); } catch { }
+        }
+    }
+
     /// <summary>挂载一次性（重复数次）全局布局监听：每次真实布局后都重新强制 Edge-to-Edge，
     /// 覆盖 Splash 关闭、主题切换等可能把窗口重置为「内容止于导航栏」的时机，确保启动即全屏。</summary>
     private void AttachEdgeToEdgeReassert()
@@ -65,7 +110,7 @@ public class MainActivity : MauiAppCompatActivity
             var rootView = Window?.DecorView?.FindViewById(Android.Resource.Id.Content);
             if (rootView?.ViewTreeObserver != null)
             {
-                var listener = new EdgeToEdgeGlobalLayoutListener(this, rootView, 4);
+                var listener = new EdgeToEdgeGlobalLayoutListener(this, rootView, 2);
                 rootView.ViewTreeObserver.AddOnGlobalLayoutListener(listener);
             }
         }
@@ -121,23 +166,53 @@ public class MainActivity : MauiAppCompatActivity
         var rootView = Window.DecorView.FindViewById(Android.Resource.Id.Content);
         if (rootView != null)
         {
-            ViewCompat.SetOnApplyWindowInsetsListener(rootView, new EdgeToEdgeInsets());
+            // 只在首次设置 listener，避免每次 SetupEdgeToEdge 替换掉正在排队的 insets 回调
+            if (_insetsListener == null)
+            {
+                _insetsListener = new EdgeToEdgeInsets();
+                ViewCompat.SetOnApplyWindowInsetsListener(rootView, _insetsListener);
+            }
             // 请求重新应用 insets
             ViewCompat.RequestApplyInsets(rootView);
 
-            // 关键修复：EdgeToEdgeInsets 通过 BeginInvokeOnMainThread 异步更新 SafeAreaHelper，
-            // 但 MainPage 的 OnAppearing 可能在此之前运行 → 启动时 BottomInset=0 →
-            // TabBar 高度 64、覆盖不了导航栏 → 下方露出空白。
-            // 导航到二级页面再返回时，异步回调已完成 → BottomInset=真实值 → 全屏。
-            // 这里同步读取系统栏高度，确保 SafeAreaHelper 在首帧布局前就有真实值。
+            // 同步读取当前窗口 insets（兜底：用于 EdgeToEdgeInsets 异步回调尚未到达时的首帧渲染）
             var density = Resources?.DisplayMetrics?.Density ?? 1f;
-            var statusHId = Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
-            var navHId = Resources?.GetIdentifier("navigation_bar_height", "dimen", "android") ?? 0;
-            var syncTop = (statusHId > 0 ? Resources?.GetDimensionPixelSize(statusHId) ?? 0 : 0) / density;
-            var syncBottom = (navHId > 0 ? Resources?.GetDimensionPixelSize(navHId) ?? 0 : 0) / density;
+            double syncTop = 0, syncBottom = 0;
+
+            // 优先尝试同步读取当前窗口 inset（Android 11+ / API 30+），
+            // 比 navigation_bar_height 资源更准确（后者在手势导航下可能为 0）。
+            var currentInsets = rootView.RootWindowInsets;
+            if (currentInsets != null)
+            {
+                var systemBars = currentInsets.GetInsets(WindowInsets.Type.SystemBars());
+                syncTop = systemBars.Top / density;
+                syncBottom = systemBars.Bottom / density;
+            }
+
+            // 回退：从系统维度资源读取（传统 3 键导航）
+            if (syncTop <= 0)
+            {
+                var statusHId = Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
+                syncTop = (statusHId > 0 ? Resources?.GetDimensionPixelSize(statusHId) ?? 0 : 0) / density;
+            }
+            if (syncBottom <= 0)
+            {
+                var navHId = Resources?.GetIdentifier("navigation_bar_height", "dimen", "android") ?? 0;
+                syncBottom = (navHId > 0 ? Resources?.GetDimensionPixelSize(navHId) ?? 0 : 0) / density;
+            }
+
+            // 全面屏手势兜底：navigation_bar_height 在手势导航下返回 0，
+            // 但 RootWindowInsets 在 OnCreate 阶段可能尚未就绪。
+            // 使用合理默认值防止 TabBar 完全紧贴屏幕底边。
+            if (syncBottom <= 0)
+                syncBottom = 16;
+
             SafeAreaHelper.UpdateInsets(syncTop, syncBottom);
         }
     }
+
+    /// <summary>EdgeToEdgeInsets 监听器实例（只创建一次，避免重复替换打断回调链）</summary>
+    private EdgeToEdgeInsets? _insetsListener;
 
     /// <summary>从应用资源读取 WindowBackgroundColor 并应用到 DecorView，同时根据亮度自动调整状态栏/导航栏图标颜色</summary>
     public void UpdateDecorViewBackground()

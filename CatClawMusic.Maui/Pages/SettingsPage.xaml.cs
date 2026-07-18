@@ -1,6 +1,10 @@
+using System;
+using System.Threading.Tasks;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.ViewModels;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Controls;
+using Microsoft.Maui.Controls;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -8,6 +12,10 @@ namespace CatClawMusic.Maui.Pages;
 public partial class SettingsPage : ContentPage
 {
     private readonly SettingsViewModel _vm;
+#if ANDROID
+    /// <summary>覆盖在 hub 之上的原生 ViewPager2 导航容器：二级页以原生水平滑动进出。</summary>
+    private PagerNavigator? _overlay;
+#endif
 
     /// <summary>初始化 <see cref="SettingsPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="db">音乐数据库访问对象。</param>
@@ -18,6 +26,12 @@ public partial class SettingsPage : ContentPage
         _vm = vm;
         BindingContext = _vm;
         _vm.NavigationRequested += OnNavigationRequested;
+#if ANDROID
+        // 在 hub 之上叠加原生 ViewPager2 覆盖层：二级页的进出转场由它承载（GPU 合成，丝滑）。
+        _overlay = new PagerNavigator();
+        if (this.Content is Grid root)
+            root.Children.Add(_overlay);
+#endif
     }
 
     /// <summary>当页面显示在屏幕上时触发，加载状态信息并检查应用更新。</summary>
@@ -36,85 +50,49 @@ public partial class SettingsPage : ContentPage
     }
 
     /// <summary>点击深色模式切换按钮时触发，切换深色与浅色主题。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private void OnDarkModeToggleClicked(object? sender, EventArgs e)
-    {
-        _vm.ToggleDarkModeCommand.Execute(null);
-    }
+        => _vm.ToggleDarkModeCommand.Execute(null);
 
-    /// <summary>点击外观设置项时触发，导航到外观设置页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnAppearanceSettingsClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("appearancesettings");
+        => await OpenSubPageAsync(typeof(AppearanceSettingsPage), "settings/appearancesettings");
 
-    /// <summary>点击桌面歌词设置项时触发，导航到桌面歌词设置页面。</summary>
     private async void OnDesktopLyricClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("desktoplyric");
+        => await OpenSubPageAsync(typeof(DesktopLyricPage), "desktoplyric");
 
-    /// <summary>点击本地音乐设置项时触发，导航到本地音乐设置页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnLocalMusicClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("localmusicsettings");
+        => await OpenSubPageAsync(typeof(LocalMusicSettingsPage), "settings/localmusicsettings");
 
-    /// <summary>点击远程音乐设置项时触发，导航到远程音乐设置页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnRemoteMusicClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("remotemusicsettings");
+        => await OpenSubPageAsync(typeof(RemoteMusicSettingsPage), "settings/remotemusicsettings");
 
-    /// <summary>点击插件管理项时触发，导航到插件管理页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnPluginManagementClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("pluginmanagement");
+        => await OpenSubPageAsync(typeof(PluginManagementPage), "settings/pluginmanagement");
 
-    /// <summary>点击 AI 设置项时触发，导航到 AI 设置页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnAiSettingsClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("aisettings");
+        => await OpenSubPageAsync(typeof(AiSettingsPage), "settings/aisettings");
 
-    /// <summary>点击猫爪圈设置项时触发，导航到猫爪圈设置页面。</summary>
     private async void OnClawCircleClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("clawcirclesettings");
+        => await OpenSubPageAsync(typeof(ClawCircleSettingsPage), "settings/clawcirclesettings");
 
-    /// <summary>点击权限管理项时触发，导航到权限管理页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnPermissionManagementClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("permissionmanagement");
+        => await OpenSubPageAsync(typeof(PermissionManagementPage), "settings/permissionmanagement");
 
-    /// <summary>点击通用设置项时触发，导航到通用设置页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnGeneralSettingsClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("generalsettings");
+        => await OpenSubPageAsync(typeof(GeneralSettingsPage), "settings/generalsettings");
 
-    /// <summary>点击备份与恢复项时触发，导航到备份恢复页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnBackupRestoreClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("backuprestore");
+        => await OpenSubPageAsync(typeof(BackupRestorePage), "settings/backuprestore");
 
-    /// <summary>点击诊断日志项时触发，导航到诊断日志页面。</summary>
     private async void OnDiagnosticLogClicked(object? sender, EventArgs e)
-        => await NavigateToSettingsAsync("diagnosticlog");
+        => await OpenSubPageAsync(typeof(LogPage), "settings/diagnosticlog");
 
-    /// <summary>点击关于项时触发，清除更新红点并导航到关于页面。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">事件参数。</param>
     private async void OnAboutClicked(object? sender, EventArgs e)
     {
         _vm.ClearUpdateRedDot();
-        await NavigateToSettingsAsync("about");
+        await OpenSubPageAsync(typeof(AboutPage), "settings/about");
     }
 
     /// <summary>当视图模型请求导航时触发，若为提示消息则弹出提示对话框。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="page">导航目标页面名称或提示消息标识。</param>
     private void OnNavigationRequested(object? sender, string page)
     {
         if (page.StartsWith("TOAST:"))
@@ -124,6 +102,26 @@ public partial class SettingsPage : ContentPage
         }
     }
 
-    private static Task NavigateToSettingsAsync(string leafRoute)
-        => Shell.Current.GoToAsync($"settings/{leafRoute}");
+    /// <summary>
+    /// 打开设置二级页：Android 上推入 overlay 的 <see cref="PagerNavigator"/>（原生 ViewPager2 平滑滑入），
+    /// 其余平台退回 Shell 默认导航。
+    /// </summary>
+    /// <param name="pageType">目标二级页类型（从 DI 解析）。</param>
+    /// <param name="fallbackRoute">非 Android 时的 Shell 路由回退。</param>
+#if ANDROID
+    private async Task OpenSubPageAsync(Type pageType, string fallbackRoute)
+    {
+        if (_overlay != null
+            && this.Handler?.MauiContext?.Services is { } sp
+            && sp.GetService(pageType) is ContentPage page)
+        {
+            _overlay.PushAsync(page);
+            return;
+        }
+        await Shell.Current.GoToAsync(fallbackRoute);
+    }
+#else
+    private Task OpenSubPageAsync(Type pageType, string fallbackRoute)
+        => Shell.Current.GoToAsync(fallbackRoute);
+#endif
 }

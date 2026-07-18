@@ -1,4 +1,5 @@
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
@@ -19,19 +20,22 @@ public partial class ArtistsPage : ContentPage
     }
 
     /// <summary>当页面显示在屏幕上时触发，首次出现时加载艺术家列表数据。</summary>
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
         if (_isFirstAppearing)
         {
             _isFirstAppearing = false;
-            await _viewModel.LoadAsync();
+            // 立即加载，页面先以占位图显示，封面后台补足（与 AllSongsPage 行为一致）
+            _ = _viewModel.LoadAsync();
         }
     }
 
     /// <summary>返回按钮点击事件</summary>
     private async void OnBackTapped(object? sender, EventArgs e)
     {
+        if (PagerNavigator.TryPopOverlay())
+            return;
         await Shell.Current.GoToAsync("..");
     }
 

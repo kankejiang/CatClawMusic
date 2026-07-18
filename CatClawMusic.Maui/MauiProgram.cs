@@ -56,6 +56,12 @@ public static class MauiProgram
                     typeof(CatClawMusic.Maui.Platforms.Android.FrostedBackgroundHandler));
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.KaraokeLabel),
                     typeof(CatClawMusic.Maui.Platforms.Android.KaraokeLabelHandler));
+                // 原生 ViewPager2 分页容器（承载 5 个 MAUI 页，GPU 合成水平滑动）
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.NativeTabPager),
+                    typeof(CatClawMusic.Maui.Platforms.Android.NativeTabPagerHandler));
+                // 栈式原生 ViewPager2 导航容器（给 Shell 子页的进出也套上原生水平滑动转场）
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.PagerNavigator),
+                    typeof(CatClawMusic.Maui.Platforms.Android.PagerNavigatorHandler));
 #endif
 #if WINDOWS
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),
@@ -367,6 +373,8 @@ public static class MauiProgram
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AlbumDetailViewModel>();
         services.AddTransient<ArtistDetailViewModel>();
+        services.AddTransient<AllSongsViewModel>();
+        services.AddTransient<Pages.AllSongsPage>();
         services.AddTransient<SongDetailViewModel>();
         services.AddTransient<AlbumsViewModel>();
         services.AddTransient<ArtistsViewModel>();
@@ -721,6 +729,12 @@ public static class SafeAreaHelper
     /// <param name="bottomDp">导航栏高度（dp）</param>
     public static void UpdateInsets(double topDp, double bottomDp)
     {
+        // 防止手势导航模式下同步读取为 0 覆盖掉 EdgeToEdgeInsets 异步回调的正确值
+        // （EdgeToEdgeGlobalLayoutListener 每次布局后调用 SetupEdgeToEdge，其内同步读
+        // navigation_bar_height 在全面屏手势下返回 0，会错误覆盖已设置的非零 BottomInset）
+        if (bottomDp <= 0 && BottomInset > 0) bottomDp = BottomInset;
+        if (topDp <= 0 && TopInset > 0) topDp = TopInset;
+
         bool changed = Math.Abs(topDp - TopInset) > 0.5 || Math.Abs(bottomDp - BottomInset) > 0.5;
         TopInset = topDp;
         BottomInset = bottomDp;

@@ -4,3 +4,8 @@ global using CatClawMusic.Core.Models;
 global using CatClawMusic.Core.Interfaces;
 global using CatClawMusic.Core.Services;
 global using CatClawMusic.Data;
+global using Microsoft.Maui;
+global using Microsoft.Maui.Controls;
+global using Microsoft.Maui.Dispatching;
+global using Microsoft.Maui.Graphics;
+global using Microsoft.Maui.Hosting;

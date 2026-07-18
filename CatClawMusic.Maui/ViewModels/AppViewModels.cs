@@ -7,6 +7,7 @@ using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Controls;
 using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
@@ -282,6 +283,12 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private void OnInteractionStateChanged(object? sender, bool isInteracting)
     {
+        // Tab 滑动等交互也暂停 FrostedBackground 动画（通过 IsUserScrolling 绑定）。
+        // MainPage 的 Pan 手势使用 BeginInteraction 而非 NotifyScrollStarted，
+        // 避免与 CollectionView 的滚动状态共享 _scrollRefCount 导致抽搐。
+        MainThread.BeginInvokeOnMainThread(() =>
+            IsUserScrolling = isInteracting || (_interactionState?.IsUserScrolling ?? false));
+
         if (!isInteracting && _audioService.IsPlaying && !_isSeeking)
         {
             // 使用播放器实时位置而非 Progress，因为用户滚动期间 Progress 未被更新
@@ -295,7 +302,10 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>滚动状态变化：更新 IsUserScrolling，FrostedBackground 绑定此属性以暂停/恢复动画</summary>
     private void OnScrollStateChanged(object? sender, bool isScrolling)
     {
-        MainThread.BeginInvokeOnMainThread(() => IsUserScrolling = isScrolling);
+        // 同时检查交互状态：Tab 滑动使用 BeginInteraction，不触发 ScrollStateChanged，
+        // 但 CollectionView 滚动停止时不应恢复动画如果用户正在 Tab 滑动
+        MainThread.BeginInvokeOnMainThread(() =>
+            IsUserScrolling = isScrolling || (_interactionState?.IsUserInteracting ?? false));
     }
 
     /// <summary>主题切换时刷新播放控制图标，使其使用对应深浅色变体</summary>

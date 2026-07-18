@@ -2,6 +2,8 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Collections;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
@@ -61,7 +63,7 @@ public partial class AlbumsViewModel : ObservableObject
     // === 筛选与排序 ===
     [ObservableProperty] private string _currentFilter = "all";
     [ObservableProperty] private string _currentEra = "all";
-    [ObservableProperty] private string _currentSort = "default";
+    [ObservableProperty] private string _currentSort = "name";
 
     /// <summary>来源筛选选项</summary>
     [ObservableProperty]
@@ -83,6 +85,16 @@ public partial class AlbumsViewModel : ObservableObject
     private static readonly string[] EraOrder = { "2020s", "2010s", "2000s", "1990s", "1980s", "1970s", "更早", "未知" };
     private static readonly Color AccentColor = Color.FromArgb("#8C7BFF");
     private static readonly Color TransparentColor = Colors.Transparent;
+
+    // === 跨实例静态缓存：进入页面时若底层数据未变，直接复用已处理好的集合，实现"秒开" ===
+    private static readonly object _cacheLock = new();
+    private static List<AlbumWithCount>? _cachedAllAlbums;
+    private static ObservableCollection<EraGroup>? _cachedEraGroups;
+    private static ObservableCollection<AlbumWithCount>? _cachedFilteredAlbums;
+    private static ObservableCollection<EraRailItem>? _cachedEraRailItems;
+    private static int _cachedTotalAlbums;
+    private static int _cachedTotalSongs;
+    private static int _cachedTotalArtists;
 
     /// <summary>
     /// 初始化 <see cref="AlbumsViewModel"/> 实例。
@@ -112,9 +124,7 @@ public partial class AlbumsViewModel : ObservableObject
     {
         SortOptions = new ObservableCollection<SortOption>
         {
-            new("default", "默认", true),
-            new("year", "年份新→旧", false),
-            new("name", "名称 A-Z", false),
+            new("name", "名称 A-Z", true),
             new("count", "歌曲数", false),
             new("play", "最常听", false),
         };
@@ -129,68 +139,129 @@ public partial class AlbumsViewModel : ObservableObject
             IsLoading = true;
             StatusText = "正在加载专辑...";
 
-            var albums = await _exploreData.GetAllAlbumsAsync();
+            // 1) 快速路径：仅做 SQL 查询 + 聚合（无文件 IO），在后台线程完成
+            var albums = await Task.Run(() => _exploreData.GetAllAlbumsAsync());
             _allAlbums = albums;
 
-            // 批量解析封面
-            await Task.Run(() =>
+            // 2) 若底层数据未变化（ExploreDataService 命中缓存，返回同一实例），
+            //    直接复用已处理好的分组/列表集合，主线程零重建 → 进入页面秒开。
+            bool instant;
+            lock (_cacheLock)
+                instant = ReferenceEquals(albums, _cachedAllAlbums)
+                          && _cachedEraGroups != null
+                          && _cachedFilteredAlbums != null
+                          && _cachedEraRailItems != null;
+
+            if (instant)
             {
-                var pending = new Dictionary<int, Song>();
-                foreach (var album in _allAlbums)
+                await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    if (album.SampleSongId > 0)
-                    {
-                        var cachedPath = Services.CoverHelper.GetCachedPath(album.SampleSongId);
-                        if (File.Exists(cachedPath))
-                        {
-                            album.CoverArtPath = cachedPath;
-                            continue;
-                        }
-                    }
-
-                    if (album.SampleSongId > 0 && !string.IsNullOrEmpty(album.SampleFilePath)
-                        && !pending.ContainsKey(album.SampleSongId))
-                    {
-                        pending[album.SampleSongId] = new Song { Id = album.SampleSongId, FilePath = album.SampleFilePath };
-                    }
-                }
-
-                if (pending.Count > 0)
+                    TotalAlbums = _cachedTotalAlbums;
+                    TotalSongs = _cachedTotalSongs;
+                    TotalArtists = _cachedTotalArtists;
+                    EraRailItems = _cachedEraRailItems!;
+                    EraGroups = _cachedEraGroups!;
+                    FilteredAlbums = _cachedFilteredAlbums!;
+                    StatusText = $"共 {TotalAlbums} 张专辑";
+                    IsLoading = false;
+                });
+            }
+            else
+            {
+                // 3) 立即渲染列表（占位图），不让封面解析阻塞首屏
+                await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    Services.CoverHelper.BatchResolveCovers(pending.Values);
-                    foreach (var album in _allAlbums)
-                    {
-                        if (string.IsNullOrEmpty(album.CoverArtPath) && album.SampleSongId > 0
-                            && pending.TryGetValue(album.SampleSongId, out var s)
-                            && !string.IsNullOrEmpty(s.CoverArtPath))
-                        {
-                            album.CoverArtPath = s.CoverArtPath;
-                        }
-                    }
+                    TotalAlbums = _allAlbums.Count;
+                    TotalSongs = _allAlbums.Sum(a => a.SongCount);
+                    TotalArtists = _allAlbums.Select(a => a.ArtistName).Distinct().Count();
+                    BuildEraRail();
+                    ApplyFiltersAndSort();
+                    StatusText = $"共 {TotalAlbums} 张专辑";
+                    IsLoading = false;
+                });
+
+                // 缓存本次处理好的集合，供下次进入复用
+                lock (_cacheLock)
+                {
+                    _cachedAllAlbums = albums;
+                    _cachedEraGroups = EraGroups;
+                    _cachedFilteredAlbums = FilteredAlbums;
+                    _cachedEraRailItems = EraRailItems;
+                    _cachedTotalAlbums = TotalAlbums;
+                    _cachedTotalSongs = TotalSongs;
+                    _cachedTotalArtists = TotalArtists;
                 }
-            });
+            }
 
-            // 更新统计
-            TotalAlbums = _allAlbums.Count;
-            TotalSongs = _allAlbums.Sum(a => a.SongCount);
-            TotalArtists = _allAlbums.Select(a => a.ArtistName).Distinct().Count();
-
-            // 构建年代 rail
-            BuildEraRail();
-
-            // 应用筛选和排序
-            ApplyFiltersAndSort();
-
-            StatusText = $"共 {TotalAlbums} 张专辑";
+            // 4) 后台渐进式解析封面（不阻塞列表渲染），封面就绪后通过 INPC 自动刷新可见 cell
+            _ = Task.Run(async () => await ResolveCoversInBackground(_allAlbums));
         }
         catch (Exception ex)
         {
             StatusText = $"加载失败: {ex.Message}";
-        }
-        finally
-        {
             IsLoading = false;
         }
+    }
+
+    /// <summary>使静态缓存失效：扫描后数据变化，下次进入重新构建。</summary>
+    public static void InvalidateCache()
+    {
+        lock (_cacheLock)
+        {
+            _cachedAllAlbums = null;
+            _cachedEraGroups = null;
+            _cachedFilteredAlbums = null;
+            _cachedEraRailItems = null;
+        }
+    }
+
+    /// <summary>
+    /// 后台渐进式解析专辑封面：先把磁盘已缓存的封面直接赋值（即时显示），
+    /// 其余未缓存的再分批提取内嵌封面并写入缓存，全程不阻塞 UI 线程。
+    /// </summary>
+    private async Task ResolveCoversInBackground(List<AlbumWithCount> albums)
+    {
+        try
+        {
+            // SongId -> Album 映射，便于解析完成后回填封面并触发 INPC
+            var bySongId = albums
+                .Where(a => a.SampleSongId > 0)
+                .GroupBy(a => a.SampleSongId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var pending = new List<Song>();
+            foreach (var album in albums)
+            {
+                if (album.SampleSongId <= 0) continue;
+
+                // 磁盘缓存命中：直接赋值，立刻可见
+                var cachedPath = Services.CoverHelper.GetCachedPath(album.SampleSongId);
+                if (File.Exists(cachedPath))
+                {
+                    album.CoverArtPath = cachedPath;
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(album.SampleFilePath)
+                    && !pending.Exists(s => s.Id == album.SampleSongId))
+                {
+                    pending.Add(new Song { Id = album.SampleSongId, FilePath = album.SampleFilePath });
+                }
+            }
+
+            if (pending.Count == 0) return;
+
+            // 分块异步提取，避免一次性并行解码成千上万个音频文件导致主线程被拖垮
+            await Services.CoverHelper.BatchResolveCoversAsync(pending);
+
+            // 回填封面（INPC 让可见 cell 自动刷新）
+            foreach (var s in pending)
+            {
+                if (!string.IsNullOrEmpty(s.CoverArtPath) && bySongId.TryGetValue(s.Id, out var a))
+                    a.CoverArtPath = s.CoverArtPath;
+            }
+        }
+        catch { /* 封面解析失败不应影响列表展示 */ }
     }
 
     /// <summary>构建年代 rail 数据</summary>
@@ -303,11 +374,10 @@ public partial class AlbumsViewModel : ObservableObject
         // 4. 排序
         result = CurrentSort switch
         {
-            "year" => result.OrderByDescending(a => a.Year ?? 0),
             "name" => result.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase),
             "count" => result.OrderByDescending(a => a.SongCount),
             "play" => result.OrderByDescending(a => 0), // TODO: 添加播放次数
-            _ => result.OrderByDescending(a => a.Year ?? 0).ThenBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase)
+            _ => result.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase)
         };
 
         var filtered = result.ToList();
@@ -374,6 +444,13 @@ public partial class AlbumsViewModel : ObservableObject
         public Color BackgroundColor => IsActive ? AccentColor : TransparentColor;
         public Color TextColor => IsActive ? Colors.White : Color.FromArgb("#A8B4D8");
         public Color BorderColor => IsActive ? TransparentColor : Color.FromArgb("#33FFFFFF");
+
+        partial void OnIsActiveChanged(bool value)
+        {
+            OnPropertyChanged(nameof(BackgroundColor));
+            OnPropertyChanged(nameof(TextColor));
+            OnPropertyChanged(nameof(BorderColor));
+        }
     }
 
     /// <summary>排序选项模型</summary>
@@ -395,6 +472,13 @@ public partial class AlbumsViewModel : ObservableObject
         public Color TextColor => IsActive ? Color.FromArgb("#EAF0FF") : Color.FromArgb("#67729B");
         public Color BackgroundColor => IsActive ? Color.FromArgb("#1AFFFFFF") : TransparentColor;
         public Color BorderColor => IsActive ? Color.FromArgb("#4DFFFFFF") : TransparentColor;
+
+        partial void OnIsActiveChanged(bool value)
+        {
+            OnPropertyChanged(nameof(BackgroundColor));
+            OnPropertyChanged(nameof(TextColor));
+            OnPropertyChanged(nameof(BorderColor));
+        }
     }
 
     /// <summary>年代 rail 选项模型</summary>
@@ -415,10 +499,16 @@ public partial class AlbumsViewModel : ObservableObject
 
         public Color BackgroundColor => IsActive ? AccentColor : TransparentColor;
         public Color TextColor => IsActive ? Colors.White : Color.FromArgb("#67729B");
+
+        partial void OnIsActiveChanged(bool value)
+        {
+            OnPropertyChanged(nameof(BackgroundColor));
+            OnPropertyChanged(nameof(TextColor));
+        }
     }
 
-    /// <summary>年代分组（网格视图）</summary>
-    public class EraGroup
+    /// <summary>年代分组（网格视图）。实现 IEnumerable 以便 MAUI 分组 CollectionView 能枚举子项。</summary>
+    public class EraGroup : IEnumerable<AlbumWithCount>
     {
         public string Era { get; }
         public int Count { get; }
@@ -430,6 +520,9 @@ public partial class AlbumsViewModel : ObservableObject
             Count = count;
             Items = items;
         }
+
+        public IEnumerator<AlbumWithCount> GetEnumerator() => Items.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => Items.GetEnumerator();
     }
 }
 

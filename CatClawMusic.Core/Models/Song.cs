@@ -1,4 +1,5 @@
 using SQLite;
+using System.ComponentModel;
 
 namespace CatClawMusic.Core.Models;
 
@@ -6,7 +7,7 @@ namespace CatClawMusic.Core.Models;
 /// 歌曲模型，对应数据库 Songs 表
 /// </summary>
 [Table("Songs")]
-public class Song
+public class Song : INotifyPropertyChanged
 {
     /// <summary>主键，自增</summary>
     [PrimaryKey, AutoIncrement]
@@ -52,8 +53,25 @@ public class Song
     /// <summary>文件最后修改时间（Unix 时间戳）</summary>
     public long DateModified { get; set; }
 
+    private string? _coverArtPath;
+
     /// <summary>专辑封面路径（本地缓存）</summary>
-    public string? CoverArtPath { get; set; }
+    public string? CoverArtPath
+    {
+        get => _coverArtPath;
+        set
+        {
+            if (_coverArtPath == value) return;
+            _coverArtPath = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>属性变更通知：封面在后台解析完成后可自动刷新已绑定的单元格</summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     /// <summary>歌词文件路径</summary>
     public string? LyricsPath { get; set; }

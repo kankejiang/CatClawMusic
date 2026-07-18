@@ -416,35 +416,44 @@
                             HorizontalOptions="End" VerticalOptions="Center" />
                 </Grid>
 
-                <!-- ═══ 歌曲详情入口（竖屏） ═══ -->
-                <ImageButton Grid.Row="3"
-                             x:Name="SongDetailEntryPhone"
-                             IsVisible="True"
-                             WidthRequest="40" HeightRequest="40"
-                             CornerRadius="20" Padding="8"
-                             Aspect="AspectFit"
-                             BackgroundColor="Transparent"
-                             Clicked="OnSongDetailTapped"
-                             HorizontalOptions="Center" VerticalOptions="Center">
-                    <ImageButton.Source>
-                        <AppThemeBinding Light="ic_info_light" Dark="ic_info" />
-                    </ImageButton.Source>
-                </ImageButton>
-
-                <!-- ═══ 歌曲详情入口（横屏） ═══ -->
-                <ImageButton Grid.Row="3"
-                             x:Name="SongDetailEntryDesktop"
-                             IsVisible="False"
-                             WidthRequest="40" HeightRequest="40"
-                             CornerRadius="20" Padding="8"
-                             Aspect="AspectFit"
-                             BackgroundColor="Transparent"
-                             Clicked="OnSongDetailTapped"
-                             HorizontalOptions="Center" VerticalOptions="Center">
-                    <ImageButton.Source>
-                        <AppThemeBinding Light="ic_info_light" Dark="ic_info" />
-                    </ImageButton.Source>
-                </ImageButton>
+                <!-- ═══ 底部操作栏：歌词 / 定时关闭 / 歌曲详情 / 音效 / 横屏 / 更多（占位图标，均布屏幕底部，暂未接功能） ═══ -->
+                <Grid Grid.Row="3"
+                      x:Name="BottomActionBar"
+                      ColumnDefinitions="*,*,*,*,*,*"
+                      Margin="8,6,8,2">
+                    <!-- 进入歌词页面 -->
+                    <ImageButton Grid.Column="0" WidthRequest="44" HeightRequest="44"
+                                 CornerRadius="22" Padding="10"
+                                 Aspect="AspectFit" BackgroundColor="Transparent"
+                                 Source="ic_lyrics_full"
+                                 Clicked="OnOpenLyricsClicked" />
+                    <!-- 定时关闭（占位） -->
+                    <ImageButton Grid.Column="1" WidthRequest="44" HeightRequest="44"
+                                 CornerRadius="22" Padding="10"
+                                 Aspect="AspectFit" BackgroundColor="Transparent"
+                                 Source="ic_timer" />
+                    <!-- 歌曲详情（白色图标） -->
+                    <ImageButton Grid.Column="2" WidthRequest="44" HeightRequest="44"
+                                 CornerRadius="22" Padding="10"
+                                 Aspect="AspectFit" BackgroundColor="Transparent"
+                                 Source="ic_info"
+                                 Clicked="OnSongDetailTapped" />
+                    <!-- 音效/均衡器（占位） -->
+                    <ImageButton Grid.Column="3" WidthRequest="44" HeightRequest="44"
+                                 CornerRadius="22" Padding="10"
+                                 Aspect="AspectFit" BackgroundColor="Transparent"
+                                 Source="ic_equalizer" />
+                    <!-- 切换横屏（占位） -->
+                    <ImageButton Grid.Column="4" WidthRequest="44" HeightRequest="44"
+                                 CornerRadius="22" Padding="10"
+                                 Aspect="AspectFit" BackgroundColor="Transparent"
+                                 Source="ic_rotate" />
+                    <!-- 更多（占位） -->
+                    <ImageButton Grid.Column="5" WidthRequest="44" HeightRequest="44"
+                                 CornerRadius="22" Padding="10"
+                                 Aspect="AspectFit" BackgroundColor="Transparent"
+                                 Source="ic_more" />
+                </Grid>
             </Grid>
         </Grid>
 

@@ -256,24 +256,34 @@ public partial class LibraryViewModel : ObservableObject
     {
         try
         {
-            IsLoading = true;
-            StatusText = "正在加载本地音乐...";
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                IsLoading = true;
+                StatusText = "正在加载本地音乐...";
+            });
 
             var songs = await _db.GetSongsWithDetailsAsync();
-            await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
 
-            _allNetworkSongs = new List<Song>();
-            Songs = new ObservableCollection<Song>(songs);
-            FilterSongs();
-            StatusText = $"已加载 {Songs.Count} 首歌曲";
+            // 先渲染列表（占位封面），封面在后台分块解析，不再阻塞首屏显示
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                _allNetworkSongs = new List<Song>();
+                Songs = new ObservableCollection<Song>(songs);
+                FilterSongs();
+                StatusText = $"已加载 {Songs.Count} 首歌曲";
+                IsLoading = false;
+            });
+
+            // 后台分块解析封面（不阻塞 UI；封面就绪后通过 Song.CoverArtPath 的 INPC 自动刷新单元格）
+            _ = Task.Run(async () => await Services.CoverHelper.BatchResolveCoversAsync(songs));
         }
         catch (Exception ex)
         {
-            StatusText = $"加载失败: {ex.Message}";
-        }
-        finally
-        {
-            IsLoading = false;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                StatusText = $"加载失败: {ex.Message}";
+                IsLoading = false;
+            });
         }
     }
 
@@ -285,12 +295,14 @@ public partial class LibraryViewModel : ObservableObject
             StatusText = "正在加载网络音乐...";
 
             var songs = await _db.GetCachedNetworkSongsAsync();
-            await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
 
             _allNetworkSongs = songs;
             IsNetworkTabVisible = ProtocolOptions.Count > 2;
             ApplyProtocolFilter();
             StatusText = $"已加载 {Songs.Count} 首网络歌曲";
+
+            // 封面在后台分块解析，不阻塞列表显示
+            _ = Task.Run(async () => await Services.CoverHelper.BatchResolveCoversAsync(songs));
         }
         catch (Exception ex)
         {
@@ -516,6 +528,10 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<RecentAddItem> _recentAddItems = new();
 
+    /// <summary>数据洞察：环形图数据集（音频格式 / 音频音质 / 艺术家歌曲）。</summary>
+    [ObservableProperty]
+    private ObservableCollection<PieDataset> _pieDatasets = new();
+
     [ObservableProperty]
     private int _localSongCount;
 
@@ -552,97 +568,120 @@ public partial class LibraryViewModel : ObservableObject
     {
         try
         {
-            var allSongs = await _db.GetSongsWithDetailsAsync();
-            var localSongs = allSongs.Where(s => s.Source == SongSource.Local).ToList();
-            var networkSongs = allSongs.Where(s => s.Source != SongSource.Local).ToList();
-
-            LocalSongCount = localSongs.Count;
-            NetworkSongCount = networkSongs.Count;
-            FavoriteCount = await _db.GetFavoriteCountAsync();
-            RecentPlayCount = await _db.GetRecentPlayCountAsync();
-            TrashCount = 0;
-
-            TotalSongCount = allSongs.Count;
-            TotalAlbumCount = allSongs.Select(s => s.AlbumId).Distinct().Count();
-            TotalArtistCount = allSongs.Select(s => s.ArtistId).Distinct().Count();
-            TotalHours = allSongs.Sum(s => s.Duration) / 3600000.0;
-            LibraryCount = 4 + (TrashCount > 0 ? 1 : 0);
-
-            var totalBytes = localSongs.Sum(s => s.FileSize);
-            TotalMusicSizeText = FormatSize(totalBytes);
-
-            FolderCount = localSongs.Select(s => GetTopFolder(s.FilePath)).Distinct().Count();
-
-            FreeSpaceText = GetFreeSpaceText();
-
-            var formatGroups = localSongs
-                .GroupBy(s => GetFileExtension(s.FilePath))
-                .Select(g => new FormatSizeItem(
-                    g.Key,
-                    g.Sum(s => s.FileSize),
-                    GetFormatColor(g.Key)))
-                .OrderByDescending(x => x.SizeBytes)
-                .ToList();
-
-            if (formatGroups.Count > 0)
+            // 阶段1：全部聚合移到后台线程执行，避免主线程做大量 LINQ/字符串统计（GetTopFolder 等）
+            // 导致进入音乐库时主线程被拖垮、触发 ANR（日志：seq=4887 阻塞约 11s）。
+            var (localSongCount, networkSongCount, favoriteCount, recentPlayCount,
+                 totalSongCount, totalAlbumCount, totalArtistCount, totalHours,
+                 totalMusicSizeText, folderCount, freeSpaceText,
+                 formatGroups, recent, libraryCards, pieDatasets) = await Task.Run(async () =>
             {
-                var maxSize = formatGroups.Max(x => x.SizeBytes);
-                foreach (var item in formatGroups)
+                var allSongs = await _db.GetSongsWithDetailsAsync();
+                var localSongs = allSongs.Where(s => s.Source == SongSource.Local).ToList();
+                var netSongs = allSongs.Where(s => s.Source != SongSource.Local).ToList();
+
+                var locCount = localSongs.Count;
+                var netCount = netSongs.Count;
+                var favCount = await _db.GetFavoriteCountAsync();
+                var recCount = await _db.GetRecentPlayCountAsync();
+
+                var tSong = allSongs.Count;
+                var tAlbum = allSongs.Select(s => s.AlbumId).Distinct().Count();
+                var tArtist = allSongs.Select(s => s.ArtistId).Distinct().Count();
+                var tHours = allSongs.Sum(s => s.Duration) / 3600.0;
+
+                var totalBytes = localSongs.Sum(s => s.FileSize);
+                var musicSizeText = FormatSize(totalBytes);
+
+                var fCount = localSongs.Select(s => GetTopFolder(s.FilePath)).Distinct().Count();
+                var freeTxt = GetFreeSpaceText();
+
+                var fGroups = localSongs
+                    .GroupBy(s => GetFileExtension(s.FilePath))
+                    .Select(g => new FormatSizeItem(
+                        g.Key,
+                        g.Sum(s => s.FileSize),
+                        GetFormatColor(g.Key)))
+                    .OrderByDescending(x => x.SizeBytes)
+                    .ToList();
+
+                if (fGroups.Count > 0)
                 {
-                    item.MaxSizeBytes = maxSize;
+                    var maxSize = fGroups.Max(x => x.SizeBytes);
+                    foreach (var item in fGroups)
+                        item.MaxSizeBytes = maxSize;
                 }
-            }
-            FormatSizeItems = new ObservableCollection<FormatSizeItem>(formatGroups);
 
-            var recent = localSongs
-                .OrderByDescending(s => s.DateAdded)
-                .Take(8)
-                .Select((s, i) =>
-                {
-                    var (c1, c2) = GetGradientColors(i);
-                    return new RecentAddItem(
-                        s.Title ?? "未知歌曲",
-                        s.Artist ?? "未知艺术家",
-                        c1, c2);
-                })
-                .ToList();
-            RecentAddItems = new ObservableCollection<RecentAddItem>(recent);
+                var recItems = localSongs
+                    .OrderByDescending(s => s.DateAdded)
+                    .Take(8)
+                    .Select((s, i) =>
+                    {
+                        var (c1, c2) = GetGradientColors(i);
+                        return new RecentAddItem(
+                            s.Title ?? "未知歌曲",
+                            s.Artist ?? "未知艺术家",
+                            c1, c2);
+                    })
+                    .ToList();
 
-            var networkOnline = HasNetworkProtocols && NetworkSongCount > 0;
-            var lastSync = "今天 09:14";
-            try
-            {
-                var lastScan = Preferences.Default.Get("last_scan_time", 0L);
-                if (lastScan > 0)
+                var networkOnline = HasNetworkProtocols && netCount > 0;
+                var lastSync = "今天 09:14";
+                try
                 {
-                    var dt = DateTimeOffset.FromUnixTimeSeconds(lastScan).LocalDateTime;
-                    lastSync = dt.ToString("HH:mm");
+                    var lastScan = Preferences.Default.Get("last_scan_time", 0L);
+                    if (lastScan > 0)
+                    {
+                        var dt = DateTimeOffset.FromUnixTimeSeconds(lastScan).LocalDateTime;
+                        lastSync = dt.ToString("HH:mm");
+                    }
                 }
-            }
-            catch { }
+                catch { }
 
-            LibraryCards = new ObservableCollection<LibraryCardItem>
+                var cards = new ObservableCollection<LibraryCardItem>
+                {
+                    new("本地音乐库", $"{locCount} 首 · {fCount} 个文件夹 · 今天 {lastSync} 扫描", "已同步", "ok",
+                        "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder.svg", "local"),
+                    new("网络音乐库", networkOnline ? $"{netCount} 首 · 已连接" : "未配置",
+                        networkOnline ? "在线" : "离线", networkOnline ? "on" : "off",
+                        "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi.svg", "network"),
+                    new("我喜欢的", $"{favCount} 首 · 智能歌单", "", "",
+                        "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite.svg", "favorite"),
+                    new("最近播放", $"{recCount} 首 · 自动记录", "", "",
+                        "linear-gradient(135deg,#7A6CF0,#A78BFA)", "ic_history.svg", "recent"),
+                };
+
+                return (localSongCount: locCount, networkSongCount: netCount, favoriteCount: favCount,
+                        recentPlayCount: recCount, totalSongCount: tSong, totalAlbumCount: tAlbum,
+                        totalArtistCount: tArtist, totalHours: tHours, totalMusicSizeText: musicSizeText,
+                        folderCount: fCount, freeSpaceText: freeTxt, formatGroups: fGroups,
+                        recent: recItems, libraryCards: cards, pieDatasets: ComputePieDatasets(localSongs));
+            });
+
+            // 阶段2：主线程更新 UI 属性
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                new("本地音乐库", $"{LocalSongCount} 首 · {FolderCount} 个文件夹 · 今天 {lastSync} 扫描", "已同步", "ok",
-                    "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder.svg", "local"),
-                new("网络音乐库", networkOnline ? $"{NetworkSongCount} 首 · 已连接" : "未配置",
-                    networkOnline ? "在线" : "离线", networkOnline ? "on" : "off",
-                    "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi.svg", "network"),
-                new("我喜欢的", $"{FavoriteCount} 首 · 智能歌单", "", "",
-                    "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite.svg", "favorite"),
-                new("最近播放", $"{RecentPlayCount} 首 · 自动记录", "", "",
-                    "linear-gradient(135deg,#7A6CF0,#A78BFA)", "ic_history.svg", "recent"),
-            };
+                LocalSongCount = localSongCount;
+                NetworkSongCount = networkSongCount;
+                FavoriteCount = favoriteCount;
+                RecentPlayCount = recentPlayCount;
+                TrashCount = 0;
 
-            if (TrashCount > 0)
-            {
-                LibraryCards.Add(new LibraryCardItem(
-                    "回收站", $"{TrashCount} 首 · 可恢复", "7 天前清理", "sync",
-                    "linear-gradient(135deg,#5A6280,#8D93B7)", "ic_trash.svg", "trash"));
-            }
+                TotalSongCount = totalSongCount;
+                TotalAlbumCount = totalAlbumCount;
+                TotalArtistCount = totalArtistCount;
+                TotalHours = totalHours;
 
-            LibraryCount = LibraryCards.Count;
-            LoadScanInfo();
+                TotalMusicSizeText = totalMusicSizeText;
+                FolderCount = folderCount;
+                FreeSpaceText = freeSpaceText;
+
+                FormatSizeItems = new ObservableCollection<FormatSizeItem>(formatGroups);
+                RecentAddItems = new ObservableCollection<RecentAddItem>(recent);
+                LibraryCards = libraryCards;
+                LibraryCount = libraryCards.Count;
+                PieDatasets = new ObservableCollection<PieDataset>(pieDatasets);
+                LoadScanInfo();
+            });
         }
         catch (Exception ex)
         {
@@ -659,7 +698,8 @@ public partial class LibraryViewModel : ObservableObject
             if (!string.IsNullOrEmpty(path))
             {
                 var statFs = new StatFs(path);
-                var availableBytes = statFs.AvailableBlocks * statFs.BlockSize;
+                // 必须用 Long 属性：AvailableBlocks/BlockSize 是 int，大容量下会溢出成负数。
+                var availableBytes = statFs.AvailableBlocksLong * statFs.BlockSizeLong;
                 return FormatSize(availableBytes);
             }
         }
@@ -750,6 +790,88 @@ public partial class LibraryViewModel : ObservableObject
 
     private static (Color C1, Color C2) GetGradientColors(int index) =>
         CoverPalettes[Math.Abs(index) % CoverPalettes.Length];
+
+    // ═══════════════════════════════════════════════════════
+    // 数据洞察：环形图数据集聚合
+    // ═══════════════════════════════════════════════════════
+
+    private static readonly Color[] PiePalette = {
+        Color.FromArgb("#8C7BFF"), Color.FromArgb("#55D6FF"), Color.FromArgb("#FF7AAE"),
+        Color.FromArgb("#7AF0C8"), Color.FromArgb("#FFB36B"), Color.FromArgb("#F0ABFC"),
+        Color.FromArgb("#5EEAD4"), Color.FromArgb("#A78BFA")
+    };
+
+    /// <summary>音频音质分桶的稳定配色，避免按哈希取色导致撞色/每次刷新颜色跳变。</summary>
+    private static readonly Dictionary<string, Color> QualityColorMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["无损"] = Color.FromArgb("#7AF0C8"),
+        ["320 kbps"] = Color.FromArgb("#8C7BFF"),
+        ["256 kbps"] = Color.FromArgb("#55D6FF"),
+        ["192 kbps"] = Color.FromArgb("#FF7AAE"),
+        ["128 kbps"] = Color.FromArgb("#FFB36B"),
+        ["未知"] = Color.FromArgb("#8D93B7"),
+        ["其他"] = Color.FromArgb("#A78BFA")
+    };
+
+    private static List<PieDataset> ComputePieDatasets(List<Song> localSongs)
+    {
+        var datasets = new List<PieDataset>();
+
+        // 1) 音频格式（按歌曲数量，颜色与存储占用卡一致）
+        var fmtSegs = localSongs
+            .GroupBy(s => GetFileExtension(s.FilePath))
+            .Select(g => new PieSegmentData(g.Key, g.Count(), GetFormatColor(g.Key)))
+            .OrderByDescending(x => x.Count)
+            .ToList();
+        datasets.Add(new PieDataset("音频格式", fmtSegs.Sum(x => x.Count), fmtSegs));
+
+        // 2) 音频音质（按比特率分桶，颜色用稳定映射，不随刷新跳变）
+        var qualitySegs = localSongs
+            .GroupBy(s => QualityBucket(s))
+            .Select(g => new PieSegmentData(g.Key, g.Count(),
+                QualityColorMap.TryGetValue(g.Key, out var c) ? c : PiePalette[Math.Abs(g.Key.GetHashCode()) % PiePalette.Length]))
+            .OrderByDescending(x => x.Count)
+            .ToList();
+        datasets.Add(new PieDataset("音频音质", qualitySegs.Sum(x => x.Count), qualitySegs));
+
+        // 3) 艺术家歌曲（Top5 + 其他）
+        var artistGroups = localSongs
+            .GroupBy(s => string.IsNullOrEmpty(s.Artist) ? "未知艺术家" : s.Artist)
+            .Select(g => new { Name = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+        int artistTotal = artistGroups.Sum(x => x.Count);
+        var topArtists = artistGroups.Take(5).ToList();
+        int topSum = topArtists.Sum(x => x.Count);
+        var artistSegs = topArtists
+            .Select((a, i) => new PieSegmentData(a.Name, a.Count, PiePalette[i % PiePalette.Length]))
+            .ToList();
+        int other = artistTotal - topSum;
+        if (other > 0)
+            artistSegs.Add(new PieSegmentData("其他", other, Color.FromArgb("#8D93B7")));
+        datasets.Add(new PieDataset("艺术家歌曲", artistTotal, artistSegs));
+
+        return datasets;
+    }
+
+    private static string QualityBucket(Song s)
+    {
+        var ext = GetFileExtension(s.FilePath);
+        if (IsLossless(ext)) return "无损";
+        var b = s.Bitrate;
+        if (b <= 0) return "未知";
+        if (b >= 300) return "320 kbps";
+        if (b >= 240) return "256 kbps";
+        if (b >= 160) return "192 kbps";
+        if (b >= 100) return "128 kbps";
+        return "其他";
+    }
+
+    private static bool IsLossless(string ext) => ext.ToUpperInvariant() switch
+    {
+        "FLAC" or "APE" or "WAV" or "AIFF" or "DSD" or "TTA" or "WV" => true,
+        _ => false
+    };
 }
 
 public class LibraryCardItem
@@ -899,5 +1021,20 @@ public class PieSegmentData
         Name = name;
         Count = count;
         Color = color;
+    }
+}
+
+/// <summary>数据洞察环形图的一个数据集（如「音频格式」），含若干分段与总计。</summary>
+public class PieDataset
+{
+    public string Name { get; }
+    public int Total { get; }
+    public IReadOnlyList<PieSegmentData> Segments { get; }
+
+    public PieDataset(string name, int total, IEnumerable<PieSegmentData> segments)
+    {
+        Name = name;
+        Total = total;
+        Segments = segments.ToList();
     }
 }

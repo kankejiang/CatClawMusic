@@ -662,34 +662,8 @@
                   HorizontalOptions="Start"
                   TranslationX="-9999"
                   BackgroundColor="{DynamicResource WindowBackgroundColor}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <!-- 面板顶部标题栏 -->
-                <Grid Grid.Row="0"
-                      ColumnDefinitions="*,Auto"
-                      Padding="20,16,16,12">
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}"
-                           FontSize="22"
-                           FontFamily="OpenSansSemibold"
-                           TextColor="{DynamicResource TextPrimaryColor}"
-                           VerticalOptions="Center" />
-                    <Border Grid.Column="1"
-                            Padding="8"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 16"
-                            Background="{DynamicResource BadgeBackgroundColor}">
-                        <ImageButton Source="ic_close"
-                                     WidthRequest="20" HeightRequest="20"
-                                     BackgroundColor="Transparent"
-                                     Clicked="OnSettingsCloseClicked" />
-                    </Border>
-                </Grid>
-
-                <!-- 设置内容容器 -->
-                <ScrollView Grid.Row="1">
+                <!-- 设置内容容器（按需求移除顶部“设置”标题栏与关闭 X；点击遮罩仍可收起面板） -->
+                <ScrollView>
                     <ContentView x:Name="SettingsPanelContent" />
                 </ScrollView>
             </Grid>

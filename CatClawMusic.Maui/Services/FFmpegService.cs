@@ -26,7 +26,7 @@ public class FFmpegService : IDisposable
 
     /// <summary>需要 FFmpeg 软解的扩展名集合</summary>
     private static readonly string[] TranscodeExtensions =
-        { ".m4a", ".m4b", ".mp4", ".mov", ".wma", ".ogg", ".opus", ".ape", ".wv", ".aiff", ".aif", ".alac" };
+        { ".m4a", ".m4b", ".mp4", ".mov", ".wma", ".ogg", ".opus", ".ape", ".wv", ".aiff", ".aif", ".alac", ".flac" };
 
     /// <summary>获取 FFmpeg 是否可用（已成功定位 libffmpeg.so）</summary>
     public bool IsAvailable => _ffmpegPath != null;

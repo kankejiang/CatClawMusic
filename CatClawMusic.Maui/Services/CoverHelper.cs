@@ -45,10 +45,38 @@ public static class CoverHelper
             return;
         }
 
-        // 并行度：上限 8，避免在核心数较少的设备上过度调度
+        // 并行度：上限 8（八核设备满负载解码），封顶避免过多线程争抢；下限 2 避免双核设备过慢。
+        // 该解析运行在后台线程（BatchResolveCoversAsync 内 Task.Run），不阻塞 UI 渲染与输入。
         var degree = Math.Min(8, Math.Max(2, Environment.ProcessorCount));
         var options = new ParallelOptions { MaxDegreeOfParallelism = degree };
         Parallel.ForEach(songList, options, ResolveOneInline);
+    }
+
+    /// <summary>
+    /// 分块异步解析封面，每处理一小批后让出 CPU/主线程，避免一次性并行解码成千上万个
+    /// 音频文件内嵌封面导致设备整体卡顿、GC 压力剧增（表现为进入音乐库各页面时主线程被拖垮）。
+    /// 用于进入"歌曲/艺术家/专辑"页面时的后台封面填充：列表先以占位图即时渲染，
+    /// 封面在后台分批就绪后通过绑定（INotifyPropertyChanged）自动刷新。
+    /// </summary>
+    /// <param name="songs">待解析封面的歌曲集合</param>
+    /// <param name="chunkSize">每批处理的歌曲数</param>
+    /// <param name="yieldDelayMs">每批之间的让出间隔（毫秒），给渲染/输入让路</param>
+    /// <param name="ct">取消令牌</param>
+    public static async Task BatchResolveCoversAsync(IEnumerable<Song> songs, int chunkSize = 64, int yieldDelayMs = 6, CancellationToken ct = default)
+    {
+        var list = songs as List<Song> ?? songs.ToList();
+        if (list.Count == 0) return;
+
+        for (int i = 0; i < list.Count; i += chunkSize)
+        {
+            ct.ThrowIfCancellationRequested();
+            var chunk = i + chunkSize >= list.Count
+                ? list.Skip(i).ToList()
+                : list.GetRange(i, chunkSize);
+            await Task.Run(() => BatchResolveCovers(chunk), ct);
+            if (yieldDelayMs > 0)
+                await Task.Delay(yieldDelayMs, ct);
+        }
     }
 
     /// <summary>单首歌曲封面解析的内联方法（线程安全，无共享状态）</summary>

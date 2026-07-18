@@ -5,6 +5,7 @@ using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using Microsoft.Maui.ApplicationModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -101,89 +102,88 @@ public partial class ArtistDetailViewModel : ObservableObject
             // 加载该艺术家的歌曲
             var songs = await _db.GetSongsByArtistAsync(artistName);
 
-            // 批量解析封面：从音频文件提取嵌入封面到磁盘缓存，回写 Song.CoverArtPath
-            if (songs.Count > 0)
-                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(songs));
+            var albums = await _db.GetAlbumsByArtistAsync(artistName);
 
-            // 用第一首已解析封面的歌曲回填艺术家封面（Artist.Cover 在 DB 中通常为空）
-            if (string.IsNullOrEmpty(Artist.Cover))
-            {
-                var firstWithCover = songs.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath));
-                if (firstWithCover != null)
-                    Artist.Cover = firstWithCover.CoverArtPath;
-            }
-            // 同步到可观察属性以触发 UI 刷新（Artist 模型未实现 INPC）
-            ArtistCoverPath = Artist.Cover;
-
+            // 先渲染（占位封面），不阻塞等待封面提取
             Songs.Clear();
             foreach (var s in songs)
                 Songs.Add(s);
-
-            // 从数据库直接查询该艺术家的所有专辑（比从歌曲聚合更可靠，包含所有专辑记录）
-            var albums = await _db.GetAlbumsByArtistAsync(artistName);
-
-            // 用歌曲封面回填专辑封面（Album.CoverArtPath 在 DB 中通常为空）
-            // 优先按 AlbumId 匹配，其次按专辑名称匹配（处理 AlbumId=0 的情况）
-            var coverById = new Dictionary<int, string>();
-            var coverByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var s in songs)
-            {
-                if (string.IsNullOrEmpty(s.CoverArtPath)) continue;
-                if (s.AlbumId > 0 && !coverById.ContainsKey(s.AlbumId))
-                    coverById[s.AlbumId] = s.CoverArtPath;
-                if (!string.IsNullOrEmpty(s.Album) && !coverByName.ContainsKey(s.Album))
-                    coverByName[s.Album] = s.CoverArtPath;
-            }
-
-            // 第一轮：从已加载歌曲的封面中按 ID/名称匹配回填
-            var pendingExtractions = new Dictionary<int, Song>();
-            foreach (var a in albums)
-            {
-                if (!string.IsNullOrEmpty(a.CoverArtPath)) continue;
-                if (a.Id > 0 && coverById.TryGetValue(a.Id, out var coverByIdVal))
-                {
-                    a.CoverArtPath = coverByIdVal;
-                    continue;
-                }
-                if (!string.IsNullOrEmpty(a.Title) && coverByName.TryGetValue(a.Title, out var coverByNameVal))
-                {
-                    a.CoverArtPath = coverByNameVal;
-                    continue;
-                }
-            }
-
-            // 第二轮：仍无封面的专辑，从数据库查询采样歌曲来提取封面
-            var albumsNeedingCover = albums.Where(a => string.IsNullOrEmpty(a.CoverArtPath) && a.Id > 0).ToList();
-            if (albumsNeedingCover.Count > 0)
-            {
-                var sampleSongs = await _db.GetSampleSongsForAlbumsAsync(albumsNeedingCover.Select(a => a.Id));
-                foreach (var s in sampleSongs)
-                {
-                    if (!string.IsNullOrEmpty(s.FilePath) && !pendingExtractions.ContainsKey(s.AlbumId))
-                        pendingExtractions[s.AlbumId] = s;
-                }
-            }
-
-            // 批量提取采样歌曲封面并回填
-            if (pendingExtractions.Count > 0)
-            {
-                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(pendingExtractions.Values));
-                foreach (var a in albums)
-                {
-                    if (!string.IsNullOrEmpty(a.CoverArtPath)) continue;
-                    if (a.Id > 0 && pendingExtractions.TryGetValue(a.Id, out var s)
-                        && !string.IsNullOrEmpty(s.CoverArtPath))
-                    {
-                        a.CoverArtPath = s.CoverArtPath;
-                    }
-                }
-            }
-
             Albums.Clear();
             foreach (var a in albums)
                 Albums.Add(a);
+            StatusText = $"共 {albums.Count} 张专辑 · {songs.Count} 首歌曲";
 
-            StatusText = $"共 {Albums.Count} 张专辑 · {Songs.Count} 首歌曲";
+            // 后台分块解析封面并回填（不阻塞 UI）；画质零损失（与原提取逻辑一致）
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (songs.Count > 0)
+                        await Services.CoverHelper.BatchResolveCoversAsync(songs);
+
+                    // 用歌曲封面回填艺术家封面与专辑封面
+                    var coverById = new Dictionary<int, string>();
+                    var coverByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var s in songs)
+                    {
+                        if (string.IsNullOrEmpty(s.CoverArtPath)) continue;
+                        if (s.AlbumId > 0 && !coverById.ContainsKey(s.AlbumId))
+                            coverById[s.AlbumId] = s.CoverArtPath;
+                        if (!string.IsNullOrEmpty(s.Album) && !coverByName.ContainsKey(s.Album))
+                            coverByName[s.Album] = s.CoverArtPath;
+                    }
+
+                    var firstWithCover = songs.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath));
+                    await MainThread.InvokeOnMainThreadAsync(() =>
+                    {
+                        // 回填艺术家顶部封面（Artist 模型未 INPC，用可观察属性 ArtistCoverPath 触发刷新）
+                        if (firstWithCover != null)
+                        {
+                            if (string.IsNullOrEmpty(Artist.Cover))
+                                Artist.Cover = firstWithCover.CoverArtPath;
+                            ArtistCoverPath = Artist.Cover;
+                        }
+                        // 第一轮：按 ID/名称匹配回填专辑封面（Album 已实现 INPC，自动刷新）
+                        foreach (var a in albums)
+                        {
+                            if (!string.IsNullOrEmpty(a.CoverArtPath)) continue;
+                            if (a.Id > 0 && coverById.TryGetValue(a.Id, out var v1)) a.CoverArtPath = v1;
+                            else if (!string.IsNullOrEmpty(a.Title) && coverByName.TryGetValue(a.Title, out var v2)) a.CoverArtPath = v2;
+                        }
+                    });
+
+                    // 第二轮：仍无封面的专辑，查采样歌曲提取（后台 DB 查询）
+                    var albumsNeedingCover = albums.Where(a => string.IsNullOrEmpty(a.CoverArtPath) && a.Id > 0).ToList();
+                    if (albumsNeedingCover.Count > 0)
+                    {
+                        var sampleSongs = await _db.GetSampleSongsForAlbumsAsync(albumsNeedingCover.Select(a => a.Id));
+                        var pendingExtractions = new Dictionary<int, Song>();
+                        foreach (var s in sampleSongs)
+                        {
+                            if (!string.IsNullOrEmpty(s.FilePath) && !pendingExtractions.ContainsKey(s.AlbumId))
+                                pendingExtractions[s.AlbumId] = s;
+                        }
+                        if (pendingExtractions.Count > 0)
+                        {
+                            await Services.CoverHelper.BatchResolveCoversAsync(pendingExtractions.Values);
+                            await MainThread.InvokeOnMainThreadAsync(() =>
+                            {
+                                foreach (var a in albums)
+                                {
+                                    if (!string.IsNullOrEmpty(a.CoverArtPath)) continue;
+                                    if (a.Id > 0 && pendingExtractions.TryGetValue(a.Id, out var s)
+                                        && !string.IsNullOrEmpty(s.CoverArtPath))
+                                        a.CoverArtPath = s.CoverArtPath;
+                                }
+                            });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("ArtistDetailViewModel", $"[ArtistDetailVM] 后台封面解析失败: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {

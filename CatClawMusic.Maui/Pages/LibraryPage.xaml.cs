@@ -1,11 +1,15 @@
+using System;
+using System.Threading;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Storage;
 using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.Pages;
@@ -19,7 +23,15 @@ public partial class LibraryPage : ContentPage
     private readonly INetworkMusicService? _networkMusicService;
     private readonly SearchViewModel? _searchVm;
     private readonly ExploreDataService? _exploreDataService;
+    private readonly LocalScanService? _scanService;
+    private readonly IServiceProvider _sp;
+    private CancellationTokenSource? _refreshCts;
     private bool _isFirstAppearing = true;
+
+    // 数据洞察环形图导航状态
+    private List<PieDataset>? _pieDatasets;
+    private int _pieIndex;
+    private readonly List<Border> _pieDotViews = new();
 
     public LibraryPage(MusicDatabase db, PlayQueue queue, LibraryViewModel vm, IServiceProvider sp)
     {
@@ -31,6 +43,8 @@ public partial class LibraryPage : ContentPage
         _networkMusicService = sp.GetService<INetworkMusicService>();
         _searchVm = sp.GetService<SearchViewModel>();
         _exploreDataService = sp.GetService<ExploreDataService>();
+        _scanService = sp.GetService<LocalScanService>();
+        _sp = sp;
         BindingContext = _vm;
 
         _vm.DiscoverSourceChanged += OnDiscoverSourceChanged;
@@ -47,6 +61,8 @@ public partial class LibraryPage : ContentPage
             RenderFormatBars();
         else if (e.PropertyName == nameof(LibraryViewModel.RecentAddItems))
             RenderRecentAdd();
+        else if (e.PropertyName == nameof(LibraryViewModel.PieDatasets))
+            RenderDataInsight();
     }
 
     private void RenderLibraryCards()
@@ -362,39 +378,62 @@ public partial class LibraryPage : ContentPage
         switch (target)
         {
             case "local":
-                _vm.SwitchTab("Local");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=local", p => ((AllSongsPage)p).Source = "local");
                 break;
             case "network":
-                if (_vm.HasNetworkProtocols)
-                    _vm.SwitchTab("Network");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=network", p => ((AllSongsPage)p).Source = "network");
                 break;
             case "favorite":
-                _ = Shell.Current.GoToAsync("library/favorites");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=favorites", p => ((AllSongsPage)p).Source = "favorites");
                 break;
             case "recent":
-                _ = Shell.Current.GoToAsync("library/recent");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", p => ((AllSongsPage)p).Source = "recent");
                 break;
             case "trash":
                 break;
         }
     }
 
+    // === Hero 统计数字点击导航 ===
+
+    private void OnStatSongsTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=local", p => ((AllSongsPage)p).Source = "local");
+
+    private void OnStatArtistsTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(ArtistsPage), "library/artists");
+
+    private void OnStatAlbumsTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(AlbumsPage), "library/albums");
+
+    private void OnStatRecentTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", p => ((AllSongsPage)p).Source = "recent");
+
     private void OnScanCompleted(object? sender, int importedCount)
     {
-        _ = MainThread.InvokeOnMainThreadAsync(async () =>
+        // 扫描后歌曲/专辑/艺术家列表可能变化：清空各列表页缓存，下次进入重新拉取最新列表
+        AllSongsViewModel.InvalidateCache();
+        AlbumsViewModel.InvalidateCache();
+        ArtistsViewModel.InvalidateCache();
+        // 立即清空 ExploreDataService 的内存聚合缓存，确保扫描后进入列表页拿到最新数据
+        _exploreDataService?.InvalidateDailyRecommendCache();
+
+        // 所有重型操作并行跑在后台线程，避免阻塞 UI
+        _ = Task.Run(async () =>
         {
             try
             {
+                var tasks = new List<Task>();
+
                 if (_vm.CurrentTab == "Local")
-                {
-                    await _vm.LoadLocalAsync();
-                }
-                await _vm.RefreshProtocolsAsync();
-                await _vm.LoadOverviewDataAsync();
+                    tasks.Add(_vm.LoadLocalAsync());
+
+                tasks.Add(_vm.RefreshProtocolsAsync());
+                tasks.Add(_vm.LoadOverviewDataAsync());
+
                 if (_searchVm != null)
-                {
-                    await _searchVm.ReloadAfterScanAsync();
-                }
+                    tasks.Add(_searchVm.ReloadAfterScanAsync());
+
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
@@ -434,6 +473,10 @@ public partial class LibraryPage : ContentPage
     {
         base.OnAppearing();
 
+        // 后台预热专辑/艺术家聚合缓存：让用户点击"专辑"/"艺术家"前，重聚合已完成，
+        // 进入列表页时直接命中缓存 → 进入即显示内容（与"全部歌曲"一致的秒开体验）。
+        WarmExploreCaches();
+
         if (_isFirstAppearing)
         {
             _isFirstAppearing = false;
@@ -457,6 +500,14 @@ public partial class LibraryPage : ContentPage
                 Log.Debug("LibraryPage.xaml", $"[LibraryPage] 扫描后刷新本地音乐失败: {ex.Message}");
             }
         }
+
+        // 兜底重渲染：确保三类数据容器始终反映 VM 最新状态。
+        // 离屏预加载阶段（NativeTabPager 常驻全部 tab 页）可能错过 LibraryCards 等的
+        // PropertyChanged 通知，导致切换回本页时内容空白；此处显式重绘以消除该时序隐患。
+        RenderLibraryCards();
+        RenderFormatBars();
+        RenderRecentAdd();
+        RenderDataInsight();
     }
 
     private async Task LoadInitialDataAsync()
@@ -472,6 +523,35 @@ public partial class LibraryPage : ContentPage
         {
             await DisplayAlert("错误", $"加载失败: {ex.Message}", "确定");
         }
+    }
+
+    /// <summary>
+    /// 后台预热专辑/艺术家聚合缓存：重聚合（按歌曲分组统计）耗时较长，提前在 hub 页
+    /// 进行时执行，用户点击"专辑"/"艺术家"时 GetAllAlbumsAsync/GetAllArtistsAsync 直接
+    /// 命中内存缓存返回，列表页进入即显示内容（避免进入后才慢慢聚合的卡顿感）。
+    /// 此外顺带预热两个列表 VM 的静态缓存（分组/筛选/字母索引集合），使首次进入列表页时
+    /// 命中 VM 的 instant 路径 → 主线程零重建，与"全部歌曲"一致的秒开体验。
+    /// 缓存已热时调用几乎零成本，可安全在每次 OnAppearing 调用。
+    /// </summary>
+    private void WarmExploreCaches()
+    {
+        if (_exploreDataService == null) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _exploreDataService.GetAllAlbumsAsync();
+                await _exploreDataService.GetAllArtistsAsync();
+
+                // 预热 VM 静态缓存：让首次进入列表页时直接复用已构建好的集合，
+                // 主线程不再做 BuildLetterRail/BuildEraRail/ApplyFiltersAndSort 等重活。
+                var albumsVm = _sp.GetService<AlbumsViewModel>();
+                var artistsVm = _sp.GetService<ArtistsViewModel>();
+                if (albumsVm != null) await albumsVm.LoadAsync();
+                if (artistsVm != null) await artistsVm.LoadAsync();
+            }
+            catch { }
+        });
     }
 
     private async Task PlaySongAsync(Song song)
@@ -587,16 +667,173 @@ public partial class LibraryPage : ContentPage
 
     private async void OnScanTapped(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("musicfoldersettings");
-    }
+        if (_scanService == null) return;
+        if (_vm.IsScanning) return; // 防止并发扫描
 
-    private async void OnEditExcludeTapped(object? sender, EventArgs e)
-    {
-        await Shell.Current.GoToAsync("musicfoldersettings");
+        _refreshCts?.Cancel();
+        _refreshCts = new CancellationTokenSource();
+        var ct = _refreshCts.Token;
+
+        try
+        {
+            MainThread.BeginInvokeOnMainThread(() => _vm.IsScanning = true);
+
+            var useMediaStore = Preferences.Default.Get("use_media_store", false);
+            var useSafScan = Preferences.Default.Get("use_saf_scan", false);
+
+            var imported = await _scanService.ScanAsync(null, ct, useMediaStore, useSafScan);
+
+            // ScanCompleted 事件仅在 imported>0 时触发并刷新；无新增（如仅清理已删文件）时
+            // 这里手动刷新总览，确保音乐库数据始终最新。
+            if (imported <= 0)
+            {
+                OnScanCompleted(null, imported);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 用户取消，忽略
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("LibraryPage.xaml", $"[LibraryPage] 手动刷新音乐库失败: {ex.Message}");
+        }
+        finally
+        {
+            MainThread.BeginInvokeOnMainThread(() => _vm.IsScanning = false);
+        }
     }
 
     private async void OnAlbumsClicked(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("library/albums");
+        OpenLibrarySubPage(typeof(AlbumsPage), "library/albums");
     }
+
+    // === 数据洞察：环形图渲染与导航 ===
+
+    private void RenderDataInsight()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_vm.PieDatasets == null || _vm.PieDatasets.Count == 0) return;
+
+            // 数据集数量变化（或首次）时重建圆点导航
+            if (_pieDatasets == null || _pieDatasets.Count != _vm.PieDatasets.Count)
+            {
+                _pieDatasets = _vm.PieDatasets.ToList();
+                PieDots.Children.Clear();
+                _pieDotViews.Clear();
+                for (int i = 0; i < _pieDatasets.Count; i++)
+                {
+                    var dot = new Border
+                    {
+                        WidthRequest = 7,
+                        HeightRequest = 7,
+                        StrokeShape = new RoundRectangle { CornerRadius = 99 },
+                        StrokeThickness = 0,
+                        BackgroundColor = Color.FromArgb("#8D93B7")
+                    };
+                    var idx = i;
+                    var tap = new TapGestureRecognizer();
+                    tap.Tapped += (s, e) => GoToPie(idx);
+                    dot.GestureRecognizers.Add(tap);
+                    PieDots.Children.Add(dot);
+                    _pieDotViews.Add(dot);
+                }
+                _pieIndex = 0;
+            }
+
+            UpdatePieSelection();
+        });
+    }
+
+    private void UpdatePieSelection()
+    {
+        if (_pieDatasets == null || _pieDatasets.Count == 0) return;
+        var ds = _pieDatasets[_pieIndex];
+
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
+
+        PieDonut.Dataset = ds;
+
+        PieLegend.Children.Clear();
+        foreach (var seg in ds.Segments)
+        {
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new() { Width = GridLength.Auto },
+                    new() { Width = GridLength.Star },
+                    new() { Width = GridLength.Auto }
+                },
+                ColumnSpacing = 9,
+                Padding = new Thickness(0, 5.5, 0, 5.5)
+            };
+
+            row.Add(new BoxView
+            {
+                WidthRequest = 10,
+                HeightRequest = 10,
+                CornerRadius = 3,
+                Color = seg.Color,
+                VerticalOptions = LayoutOptions.Center
+            }, 0);
+
+            row.Add(new Label
+            {
+                Text = seg.Name,
+                FontSize = 12.5,
+                TextColor = textSecondary,
+                VerticalOptions = LayoutOptions.Center,
+                LineBreakMode = LineBreakMode.TailTruncation
+            }, 1);
+
+            var pct = ds.Total > 0 ? seg.Count * 100.0 / ds.Total : 0;
+            row.Add(new Label
+            {
+                Text = $"{seg.Count}  {pct:F1}%",
+                FontSize = 12.5,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = textPrimary,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalTextAlignment = TextAlignment.End
+            }, 2);
+
+            PieLegend.Children.Add(row);
+        }
+
+        PieNameBadge.Text = ds.Name;
+        PieCounter.Text = $"{_pieIndex + 1} / {_pieDatasets.Count}";
+
+        for (int i = 0; i < _pieDotViews.Count; i++)
+        {
+            var active = i == _pieIndex;
+            _pieDotViews[i].BackgroundColor = active ? Color.FromArgb("#8C7BFF") : Color.FromArgb("#8D93B7");
+            _pieDotViews[i].WidthRequest = active ? 18 : 7;
+        }
+
+        PiePrev.Opacity = _pieIndex == 0 ? 0.3 : 1;
+        PieNext.Opacity = _pieIndex == _pieDatasets.Count - 1 ? 0.3 : 1;
+    }
+
+    private void GoToPie(int index)
+    {
+        if (_pieDatasets == null || _pieDatasets.Count == 0) return;
+        _pieIndex = Math.Max(0, Math.Min(_pieDatasets.Count - 1, index));
+        UpdatePieSelection();
+    }
+
+    private void OnPiePrevTapped(object? sender, EventArgs e) => GoToPie(_pieIndex - 1);
+    private void OnPieNextTapped(object? sender, EventArgs e) => GoToPie(_pieIndex + 1);
+
+    /// <summary>
+    /// 打开音乐库二级页：统一走 Shell 标准导航（路由已注册于 AppShell）。
+    /// 二级页的滚动与返回语义由 Shell 稳定托管，避免原生 ViewPager2 overlay 在部分
+    /// 布局下遮挡底层 hub 或内部列表无法滚动的问题。fallbackRoute 已编码查询参数
+    /// （如 AllSongsPage.Source），由 [QueryProperty] 自动注入。
+    /// </summary>
+    private void OpenLibrarySubPage(Type pageType, string fallbackRoute, Action<ContentPage>? configure = null)
+        => _ = Shell.Current.GoToAsync(fallbackRoute);
 }

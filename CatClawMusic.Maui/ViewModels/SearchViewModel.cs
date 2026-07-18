@@ -8,6 +8,8 @@ using System.Collections.ObjectModel;
 using System.Text;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
+using Microsoft.Maui.ApplicationModel;
+using System.ComponentModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -418,22 +420,34 @@ public partial class SearchViewModel : ObservableObject
                 var artistsResult = artistsTask.Result;
                 var albumsResult = albumsTask.Result;
 
-                // 批量解析新加载歌曲的封面
+                // 先以占位（无封面）构建并显示，不阻塞等待封面提取
                 var newSongs = _allTopPlayedSongs.Concat(_allRecentAddedSongs).ToList();
-                if (newSongs.Count > 0)
-                    await Task.Run(() => Services.CoverHelper.BatchResolveCovers(newSongs));
-
-                // 为艺人/专辑解析采样封面（SampleCoverPath 在扫描后为空，需从音频文件提取）
-                await Task.Run(() => ResolveSampleCovers(artistsResult, albumsResult, newSongs));
-
-                _allArtists = artistsResult.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover)) }).ToList();
-                _allAlbums = albumsResult.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover)) }).ToList();
+                _allArtists = artistsResult.Select(a => new SearchArtistItem { Id = a.Id, Name = a.Name, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = null }).ToList();
+                _allAlbums = albumsResult.Select(a => new SearchAlbumItem { Id = a.Id, Title = a.Title, ArtistName = a.ArtistName, Subtitle = $"{a.SongCount} 首歌曲", CoverSource = null }).ToList();
 
                 ApplyFilters();
-                await LoadFavoritesAndGenerateHeroCards();
+                _ = LoadFavoritesAndGenerateHeroCards();
 
                 // 后台加载全部艺术家/专辑用于搜索栏匹配（不阻塞主流程）
                 _ = LoadAllArtistsAndAlbumsForSearchAsync();
+
+                // 后台分块解析封面 + 采样封面，完成后刷新 UI（画质零损失，提取逻辑不变）
+                if (newSongs.Count > 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Services.CoverHelper.BatchResolveCoversAsync(newSongs);
+                            await ResolveSampleCoversAsync(artistsResult, albumsResult, newSongs);
+                            await MainThread.InvokeOnMainThreadAsync(() => RefreshSearchCovers(artistsResult, albumsResult, newSongs));
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Debug("SearchViewModel", $"[SearchVM] 后台封面解析失败: {ex.Message}");
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -462,23 +476,18 @@ public partial class SearchViewModel : ObservableObject
             _allTopPlayedSongs = topPlayedTask.Result;
             _allRecentAddedSongs = recentTask.Result;
 
-            // 批量解析所有歌曲的封面
+            // 先以占位（无封面）构建并显示，不阻塞等待封面提取
             var allSongs = _allDailyRecommendSongs
                 .Concat(_allTopPlayedSongs)
                 .Concat(_allRecentAddedSongs)
                 .ToList();
-            await Task.Run(() => Services.CoverHelper.BatchResolveCovers(allSongs));
-
-            // 为艺人/专辑解析采样封面（SampleCoverPath 在扫描后为空，需从音频文件提取）
-            await Task.Run(() => ResolveSampleCovers(artistsResult, albumsResult, allSongs));
-
             _allArtists = artistsResult
                 .Select(a => new SearchArtistItem
                 {
                     Id = a.Id,
                     Name = a.Name,
                     Subtitle = $"{a.SongCount} 首歌曲",
-                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover))
+                    CoverSource = null
                 })
                 .ToList();
             _allAlbums = albumsResult
@@ -488,21 +497,11 @@ public partial class SearchViewModel : ObservableObject
                     Title = a.Title,
                     ArtistName = a.ArtistName,
                     Subtitle = $"{a.SongCount} 首歌曲",
-                    CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover))
+                    CoverSource = null
                 })
                 .ToList();
 
-            // 为专辑卡片补充封面（从专辑内歌曲封面获取，作为采样封面未命中时的回退）
-            foreach (var album in _allAlbums)
-            {
-                if (album.CoverSource != null) continue;
-                var sampleSong = allSongs.FirstOrDefault(s =>
-                    s.Album?.Equals(album.Title, StringComparison.OrdinalIgnoreCase) == true);
-                if (sampleSong != null && !string.IsNullOrWhiteSpace(sampleSong.CoverArtPath))
-                    album.CoverSource = ImageSource.FromFile(sampleSong.CoverArtPath);
-            }
-
-            // 设置今日推荐英雄卡片（取每日推荐的第一首歌）
+            // 设置今日推荐英雄卡片（封面稍后后台回填）
             if (_allDailyRecommendSongs.Count > 0)
             {
                 var featured = _allDailyRecommendSongs[0];
@@ -510,8 +509,6 @@ public partial class SearchViewModel : ObservableObject
                 HasFeaturedSong = true;
                 FeaturedSongTitle = featured.Title ?? "";
                 FeaturedSongArtist = featured.Artist ?? "";
-                if (!string.IsNullOrEmpty(featured.CoverArtPath))
-                    FeaturedSongCover = ImageSource.FromFile(featured.CoverArtPath);
             }
             else
             {
@@ -522,10 +519,25 @@ public partial class SearchViewModel : ObservableObject
             Preferences.Default.Set("explore_last_load_date", today);
 
             ApplyFilters();
-            await LoadFavoritesAndGenerateHeroCards();
+            _ = LoadFavoritesAndGenerateHeroCards();
 
             // 后台加载全部艺术家/专辑用于搜索栏匹配（不阻塞主流程）
             _ = LoadAllArtistsAndAlbumsForSearchAsync();
+
+            // 后台分块解析封面 + 采样封面，完成后刷新 UI（画质零损失，提取逻辑不变）
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Services.CoverHelper.BatchResolveCoversAsync(allSongs);
+                    await ResolveSampleCoversAsync(artistsResult, albumsResult, allSongs);
+                    await MainThread.InvokeOnMainThreadAsync(() => RefreshSearchCovers(artistsResult, albumsResult, allSongs));
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("SearchViewModel", $"[SearchVM] 后台封面解析失败: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -622,7 +634,7 @@ public partial class SearchViewModel : ObservableObject
     /// <param name="artists">艺人列表（会被修改 SampleCoverPath）</param>
     /// <param name="albums">专辑列表（会被修改 SampleCoverPath）</param>
     /// <param name="alreadyResolved">已解析封面的歌曲集合，用于跳过重复解析</param>
-    private void ResolveSampleCovers(
+    private async Task ResolveSampleCoversAsync(
         List<Data.ArtistWithCount> artists,
         List<Data.AlbumWithCount> albums,
         List<Song> alreadyResolved)
@@ -656,7 +668,7 @@ public partial class SearchViewModel : ObservableObject
 
         if (pending.Count > 0)
         {
-            Services.CoverHelper.BatchResolveCovers(pending.Values);
+            await Services.CoverHelper.BatchResolveCoversAsync(pending.Values);
             foreach (var kv in pending)
                 resolvedMap[kv.Key] = kv.Value.CoverArtPath;
         }
@@ -676,6 +688,39 @@ public partial class SearchViewModel : ObservableObject
                 && !string.IsNullOrEmpty(path))
                 a.SampleCoverPath = path;
         }
+    }
+
+    /// <summary>
+    /// 后台封面解析完成后在主线程刷新搜索页封面：艺术家/专辑卡片 + 今日推荐大图。
+    /// 提取逻辑不变（音频内嵌封面 → 1024px 下采样缓存），画质零损失。
+    /// </summary>
+    private void RefreshSearchCovers(List<Data.ArtistWithCount> artists, List<Data.AlbumWithCount> albums, List<Song> allSongs)
+    {
+        var artistMap = artists.ToDictionary(a => a.Id, a => a);
+        foreach (var item in _allArtists)
+            if (artistMap.TryGetValue(item.Id, out var a))
+                item.CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.Cover));
+
+        var albumMap = albums.ToDictionary(a => a.Id, a => a);
+        foreach (var item in _allAlbums)
+        {
+            if (!albumMap.TryGetValue(item.Id, out var a)) continue;
+            var cover = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover));
+            if (cover == null)
+            {
+                // 回退：用专辑内第一首已解析封面的歌曲
+                var sampleSong = allSongs.FirstOrDefault(s =>
+                    s.Album?.Equals(a.Title, StringComparison.OrdinalIgnoreCase) == true
+                    && !string.IsNullOrWhiteSpace(s.CoverArtPath));
+                if (sampleSong != null)
+                    cover = ImageSource.FromFile(sampleSong.CoverArtPath);
+            }
+            item.CoverSource = cover;
+        }
+
+        // 今日推荐大图封面回填
+        if (HasFeaturedSong && _featuredSong != null && !string.IsNullOrEmpty(_featuredSong.CoverArtPath))
+            FeaturedSongCover = ImageSource.FromFile(_featuredSong.CoverArtPath);
     }
 
     /// <summary>获取指定 Tab 下的歌曲列表（用于列表页播放交互）</summary>
@@ -1455,18 +1500,26 @@ public partial class SearchViewModel : ObservableObject
         GenerateHeroCards();
     }
 
-    /// <summary>加载收藏歌曲并生成英雄卡片</summary>
+    /// <summary>加载收藏歌曲并生成英雄卡片（渲染优先：先显示收藏，封面后台分块解析）</summary>
     private async Task LoadFavoritesAndGenerateHeroCards()
     {
         try
         {
             var favoriteSongs = await _libraryService.GetFavoriteSongsAsync();
-            if (favoriteSongs.Count > 0)
-            {
-                await Task.Run(() => Services.CoverHelper.BatchResolveCovers(favoriteSongs));
-            }
+            // 先显示收藏（封面占位）；Song.CoverArtPath 已实现 INPC，封面就绪自动刷新
             FavoriteSongs = new ObservableCollection<Song>(favoriteSongs);
             GenerateHeroCards();
+            if (favoriteSongs.Count > 0)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await Services.CoverHelper.BatchResolveCoversAsync(favoriteSongs); }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("SearchViewModel", $"[SearchVM] 后台收藏封面解析失败: {ex.Message}");
+                    }
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -1477,7 +1530,7 @@ public partial class SearchViewModel : ObservableObject
 }
 
 /// <summary>搜索页艺术家展示项</summary>
-public class SearchArtistItem
+public class SearchArtistItem : INotifyPropertyChanged
 {
     /// <summary>艺术家 ID</summary>
     public int Id { get; set; }
@@ -1485,12 +1538,30 @@ public class SearchArtistItem
     public string Name { get; set; } = "";
     /// <summary>副标题（如歌曲数量）</summary>
     public string Subtitle { get; set; } = "";
-    /// <summary>封面图源</summary>
-    public ImageSource? CoverSource { get; set; }
+
+    private ImageSource? _coverSource;
+    /// <summary>封面图源（后台解析后刷新）</summary>
+    public ImageSource? CoverSource
+    {
+        get => _coverSource;
+        set
+        {
+            if (_coverSource != value)
+            {
+                _coverSource = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>属性变更通知</summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 /// <summary>搜索页专辑展示项</summary>
-public class SearchAlbumItem
+public class SearchAlbumItem : INotifyPropertyChanged
 {
     /// <summary>专辑 ID</summary>
     public int Id { get; set; }
@@ -1500,8 +1571,26 @@ public class SearchAlbumItem
     public string ArtistName { get; set; } = "";
     /// <summary>副标题（如歌曲数量）</summary>
     public string Subtitle { get; set; } = "";
-    /// <summary>封面图源</summary>
-    public ImageSource? CoverSource { get; set; }
+
+    private ImageSource? _coverSource;
+    /// <summary>封面图源（后台解析后刷新）</summary>
+    public ImageSource? CoverSource
+    {
+        get => _coverSource;
+        set
+        {
+            if (_coverSource != value)
+            {
+                _coverSource = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>属性变更通知</summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 /// <summary>首页英雄卡片项</summary>

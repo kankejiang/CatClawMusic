@@ -83,6 +83,21 @@ public partial class ArtistsViewModel : ObservableObject
     private static readonly Color AccentColor = Color.FromArgb("#8C7BFF");
     private static readonly Color TransparentColor = Colors.Transparent;
 
+    // === 跨实例静态缓存：进入页面时若底层数据未变，直接复用已处理好的集合，实现"秒开" ===
+    private static readonly object _cacheLock = new();
+    private static List<ArtistWithCount>? _cachedAllArtists;
+    private static ObservableCollection<ArtistWithCount>? _cachedFilteredArtists;
+    private static ObservableCollection<LetterRailItem>? _cachedLetterRailItems;
+    private static int _cachedTotalArtists;
+    private static ArtistWithCount? _cachedMostPlayedArtist;
+    private static bool _cachedHasMostPlayed;
+    private static string _cachedMostPlayedName = "";
+    private static string _cachedMostPlayedSubInfo = "";
+    private static string _cachedMostPlayedInitial = "";
+    private static bool _cachedMostPlayedHasCover;
+    private static Color _cachedMostPlayedPlaceholderColor = Colors.Transparent;
+    private static ImageSource? _cachedMostPlayedCover;
+
     /// <summary>
     /// 初始化 <see cref="ArtistsViewModel"/> 实例。
     /// </summary>
@@ -127,69 +142,149 @@ public partial class ArtistsViewModel : ObservableObject
             IsLoading = true;
             StatusText = "正在加载艺术家...";
 
-            var artists = await _exploreData.GetAllArtistsAsync();
+            // 1) 快速路径：仅做 SQL 查询 + 聚合（无文件 IO），在后台线程完成
+            var artists = await Task.Run(() => _exploreData.GetAllArtistsAsync());
             _allArtists = artists;
 
-            // 批量解析封面
-            await Task.Run(() =>
+            // 2) 若底层数据未变化（ExploreDataService 命中缓存，返回同一实例），
+            //    直接复用已处理好的列表/字母索引/最常聆听，主线程零重建 → 进入页面秒开。
+            bool instant;
+            lock (_cacheLock)
+                instant = ReferenceEquals(artists, _cachedAllArtists)
+                          && _cachedFilteredArtists != null
+                          && _cachedLetterRailItems != null;
+
+            if (instant)
             {
-                var pending = new Dictionary<int, Song>();
-                foreach (var artist in _allArtists)
+                await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    if (artist.SampleSongId > 0)
-                    {
-                        var cachedPath = Services.CoverHelper.GetCachedPath(artist.SampleSongId);
-                        if (File.Exists(cachedPath))
-                        {
-                            artist.Cover = cachedPath;
-                            continue;
-                        }
-                    }
-
-                    if (artist.SampleSongId > 0 && !string.IsNullOrEmpty(artist.SampleFilePath)
-                        && !pending.ContainsKey(artist.SampleSongId))
-                    {
-                        pending[artist.SampleSongId] = new Song { Id = artist.SampleSongId, FilePath = artist.SampleFilePath };
-                    }
-                }
-
-                if (pending.Count > 0)
+                    TotalArtists = _cachedTotalArtists;
+                    FilteredArtists = _cachedFilteredArtists!;
+                    LetterRailItems = _cachedLetterRailItems!;
+                    MostPlayedArtist = _cachedMostPlayedArtist;
+                    HasMostPlayed = _cachedHasMostPlayed;
+                    MostPlayedName = _cachedMostPlayedName;
+                    MostPlayedSubInfo = _cachedMostPlayedSubInfo;
+                    MostPlayedInitial = _cachedMostPlayedInitial;
+                    MostPlayedHasCover = _cachedMostPlayedHasCover;
+                    MostPlayedPlaceholderColor = _cachedMostPlayedPlaceholderColor;
+                    MostPlayedCover = _cachedMostPlayedCover;
+                    StatusText = $"共 {TotalArtists} 位艺术家";
+                    IsLoading = false;
+                });
+            }
+            else
+            {
+                // 3) 立即渲染列表（占位图），不让封面解析阻塞首屏
+                await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    Services.CoverHelper.BatchResolveCovers(pending.Values);
-                    foreach (var artist in _allArtists)
-                    {
-                        if (string.IsNullOrEmpty(artist.Cover) && artist.SampleSongId > 0
-                            && pending.TryGetValue(artist.SampleSongId, out var s)
-                            && !string.IsNullOrEmpty(s.CoverArtPath))
-                        {
-                            artist.Cover = s.CoverArtPath;
-                        }
-                    }
+                    TotalArtists = _allArtists.Count;
+                    SetMostPlayed();
+                    BuildLetterRail();
+                    ApplyFiltersAndSort();
+                    StatusText = $"共 {TotalArtists} 位艺术家";
+                    IsLoading = false;
+                });
+
+                // 缓存本次处理好的集合，供下次进入复用
+                lock (_cacheLock)
+                {
+                    _cachedAllArtists = artists;
+                    _cachedFilteredArtists = FilteredArtists;
+                    _cachedLetterRailItems = LetterRailItems;
+                    _cachedTotalArtists = TotalArtists;
+                    _cachedMostPlayedArtist = MostPlayedArtist;
+                    _cachedHasMostPlayed = HasMostPlayed;
+                    _cachedMostPlayedName = MostPlayedName;
+                    _cachedMostPlayedSubInfo = MostPlayedSubInfo;
+                    _cachedMostPlayedInitial = MostPlayedInitial;
+                    _cachedMostPlayedHasCover = MostPlayedHasCover;
+                    _cachedMostPlayedPlaceholderColor = MostPlayedPlaceholderColor;
+                    _cachedMostPlayedCover = MostPlayedCover;
                 }
-            });
+            }
 
-            // 更新统计
-            TotalArtists = _allArtists.Count;
-
-            // 设置最常聆听
-            SetMostPlayed();
-
-            // 构建字母 rail
-            BuildLetterRail();
-
-            // 应用筛选和排序
-            ApplyFiltersAndSort();
-
-            StatusText = $"共 {TotalArtists} 位艺术家";
+            // 4) 后台渐进式解析封面（不阻塞列表渲染），封面就绪后通过 INPC 自动刷新可见 cell
+            _ = Task.Run(async () => await ResolveCoversInBackground(_allArtists));
         }
         catch (Exception ex)
         {
             StatusText = $"加载失败: {ex.Message}";
-        }
-        finally
-        {
             IsLoading = false;
         }
+    }
+
+    /// <summary>使静态缓存失效：扫描后数据变化，下次进入重新构建。</summary>
+    public static void InvalidateCache()
+    {
+        lock (_cacheLock)
+        {
+            _cachedAllArtists = null;
+            _cachedFilteredArtists = null;
+            _cachedLetterRailItems = null;
+            _cachedMostPlayedCover = null;
+        }
+    }
+
+    /// <summary>
+    /// 后台渐进式解析艺术家封面：先把磁盘已缓存的封面直接赋值（即时显示），
+    /// 其余未缓存的再分批提取内嵌封面并写入缓存，全程不阻塞 UI 线程。
+    /// </summary>
+    private async Task ResolveCoversInBackground(List<ArtistWithCount> artists)
+    {
+        try
+        {
+            // SongId -> Artist 映射，便于解析完成后回填封面并触发 INPC
+            var bySongId = artists
+                .Where(a => a.SampleSongId > 0)
+                .GroupBy(a => a.SampleSongId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var pending = new List<Song>();
+            foreach (var artist in artists)
+            {
+                if (artist.SampleSongId <= 0) continue;
+
+                // 磁盘缓存命中：直接赋值，立刻可见
+                var cachedPath = Services.CoverHelper.GetCachedPath(artist.SampleSongId);
+                if (File.Exists(cachedPath))
+                {
+                    artist.Cover = cachedPath;
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(artist.SampleFilePath)
+                    && !pending.Exists(s => s.Id == artist.SampleSongId))
+                {
+                    pending.Add(new Song { Id = artist.SampleSongId, FilePath = artist.SampleFilePath });
+                }
+            }
+
+            if (pending.Count == 0) return;
+
+            // 分块异步提取，避免一次性并行解码成千上万个音频文件导致主线程被拖垮
+            await Services.CoverHelper.BatchResolveCoversAsync(pending);
+
+            // 回填封面（INPC 让可见 cell 自动刷新）
+            foreach (var s in pending)
+            {
+                if (!string.IsNullOrEmpty(s.CoverArtPath) && bySongId.TryGetValue(s.Id, out var a))
+                    a.Cover = s.CoverArtPath;
+            }
+
+            // 若"最常聆听"封面本轮才解析出来，补刷其大图
+            if (MostPlayedArtist != null && MostPlayedArtist.SampleSongId > 0
+                && bySongId.TryGetValue(MostPlayedArtist.SampleSongId, out var mp)
+                && !string.IsNullOrEmpty(mp.Cover) && !MostPlayedHasCover)
+            {
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    MostPlayedCover = ImageSource.FromFile(mp.Cover);
+                    MostPlayedHasCover = true;
+                });
+            }
+        }
+        catch { /* 封面解析失败不应影响列表展示 */ }
     }
 
     /// <summary>设置最常聆听艺术家</summary>
@@ -384,6 +479,13 @@ public partial class ArtistsViewModel : ObservableObject
         public Color BackgroundColor => IsActive ? AccentColor : TransparentColor;
         public Color TextColor => IsActive ? Colors.White : Color.FromArgb("#A8B4D8");
         public Color BorderColor => IsActive ? TransparentColor : Color.FromArgb("#33FFFFFF");
+
+        partial void OnIsActiveChanged(bool value)
+        {
+            OnPropertyChanged(nameof(BackgroundColor));
+            OnPropertyChanged(nameof(TextColor));
+            OnPropertyChanged(nameof(BorderColor));
+        }
     }
 
     /// <summary>排序选项模型</summary>
@@ -405,6 +507,13 @@ public partial class ArtistsViewModel : ObservableObject
         public Color TextColor => IsActive ? Color.FromArgb("#EAF0FF") : Color.FromArgb("#7A85B0");
         public Color BackgroundColor => IsActive ? Color.FromArgb("#33FFFFFF") : Color.FromArgb("#22FFFFFF");
         public Color BorderColor => IsActive ? AccentColor : TransparentColor;
+
+        partial void OnIsActiveChanged(bool value)
+        {
+            OnPropertyChanged(nameof(BackgroundColor));
+            OnPropertyChanged(nameof(TextColor));
+            OnPropertyChanged(nameof(BorderColor));
+        }
     }
 
     /// <summary>字母 rail 选项模型</summary>
@@ -425,6 +534,12 @@ public partial class ArtistsViewModel : ObservableObject
 
         public Color BackgroundColor => IsActive ? Color.FromArgb("#8C7BFF33") : TransparentColor;
         public Color TextColor => IsActive ? Colors.White : Color.FromArgb("#7A85B0");
+
+        partial void OnIsActiveChanged(bool value)
+        {
+            OnPropertyChanged(nameof(BackgroundColor));
+            OnPropertyChanged(nameof(TextColor));
+        }
     }
 }
 

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CatClaw Music · 夜空银河背景原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --a1: #8C7BFF;
+    --a2: #55D6FF;
+    --deep: #080B1A;
+    --ink: #1d2433;
+    --paper: #f4f6fb;
+    --card: #ffffff;
+    --muted: #5b6478;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family: "Noto Sans SC", "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper); color: var(--ink);
+    -webkit-font-smoothing: antialiased; padding: 40px 24px 72px;
+  }
+  .wrap{ max-width: 1180px; margin: 0 auto; }
+
+  header.page{ text-align:center; margin-bottom: 28px; }
+  header.page h1{ font-family:"Space Grotesk","Noto Sans SC",sans-serif; font-size: 26px; font-weight: 700; margin:0 0 8px; letter-spacing:.3px; }
+  header.page p{ margin:0; color: var(--muted); font-size: 14px; line-height:1.6; }
+  .hint{ display:inline-block; margin-top:12px; padding:6px 14px; border-radius:999px; background:#eef1f8; color:var(--muted); font-size:12.5px; }
+
+  /* 主题切换器 */
+  .themer{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; align-items:center; margin: 26px 0 34px; }
+  .swatch{ cursor:pointer; border:2px solid transparent; border-radius:14px; padding:6px; background:var(--card); box-shadow:0 4px 14px rgba(20,30,60,.08); transition: transform .15s ease, border-color .15s ease; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .swatch:hover{ transform: translateY(-2px); }
+  .swatch.active{ border-color: var(--ink); }
+  .swatch .chips{ display:flex; gap:3px; }
+  .swatch .chip{ width:18px; height:18px; border-radius:5px; }
+  .swatch .name{ font-size:11px; color:var(--muted); }
+
+  /* 手机网格 */
+  .grid{ display:grid; grid-template-columns: repeat(4, 1fr); gap:22px; justify-items:center; }
+  @media (max-width: 1080px){ .grid{ grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px){ .grid{ grid-template-columns: 1fr; } }
+
+  .phone{ width: 260px; border-radius: 38px; padding: 10px; background: linear-gradient(160deg,#2a2f3e,#0e1118); box-shadow: 0 18px 40px rgba(15,22,45,.28), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .screen{ position:relative; width:100%; height: 540px; border-radius: 30px; overflow:hidden; background: var(--deep); isolation:isolate; }
+  .screen .label{ position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:12px; color:rgba(255,255,255,.55); z-index:7; letter-spacing:.5px; }
+
+  /* ===== 背景层（夜空银河）===== */
+  .bg-base{ position:absolute; inset:0; z-index:0;
+    background:
+      radial-gradient(130% 90% at 50% -15%, color-mix(in srgb, var(--a1) 26%, transparent), transparent 60%),
+      linear-gradient(180deg, color-mix(in srgb, var(--deep) 82%, var(--a1) 18%), var(--deep) 72%);
+  }
+  /* 星云：主题色大团柔光，缓慢漂移 */
+  .bg-nebula{ position:absolute; inset:0; z-index:1; mix-blend-mode:screen; pointer-events:none; }
+  .bg-nebula::before, .bg-nebula::after{ content:""; position:absolute; border-radius:50%; filter:blur(42px); opacity:.55; }
+  .bg-nebula::before{ width:62%; height:52%; top:-12%; left:-12%; background: radial-gradient(circle at 40% 40%, color-mix(in srgb,var(--a1) 70%, transparent), transparent 70%); animation: drift1 22s ease-in-out infinite alternate; }
+  .bg-nebula::after{ width:58%; height:58%; bottom:-16%; right:-12%; background: radial-gradient(circle at 60% 60%, color-mix(in srgb,var(--a2) 65%, transparent), transparent 70%); animation: drift2 26s ease-in-out infinite alternate; }
+  @keyframes drift1{ from{ transform: translate(0,0) scale(1);} to{ transform: translate(14px,10px) scale(1.12);} }
+  @keyframes drift2{ from{ transform: translate(0,0) scale(1);} to{ transform: translate(-16px,-12px) scale(1.1);} }
+
+  /* 银河光带：斜贯屏幕的发光星河 */
+  .bg-galaxy{ position:absolute; left:-45%; right:-45%; top:18%; height:64%; z-index:1;
+    background: linear-gradient(100deg,
+      transparent 26%,
+      color-mix(in srgb, var(--a2) 22%, transparent) 40%,
+      color-mix(in srgb, var(--a1) 40%, transparent) 50%,
+      color-mix(in srgb, var(--a2) 22%, transparent) 60%,
+      transparent 74%);
+    filter: blur(24px); transform: rotate(-20deg); mix-blend-mode: screen; opacity:.9;
+    animation: galaxydrift 20s ease-in-out infinite alternate;
+  }
+  @keyframes galaxydrift{ from{ transform: rotate(-20deg) translateX(-12px);} to{ transform: rotate(-20deg) translateX(12px);} }
+
+  /* 角落强调辉光 */
+  .bg-glow{ position:absolute; inset:0; z-index:1; pointer-events:none; }
+  .bg-glow::before, .bg-glow::after{ content:""; position:absolute; border-radius:50%; filter:blur(50px); opacity:.5; }
+  .bg-glow::before{ width:240px; height:240px; top:-60px; left:-40px; background: radial-gradient(circle at 30% 30%, var(--a1), transparent 70%); }
+  .bg-glow::after{ width:280px; height:280px; bottom:-80px; right:-50px; background: radial-gradient(circle at 70% 70%, var(--a2), transparent 70%); }
+
+  /* 星点层（JS 生成密集星 + 偶尔流星）*/
+  .starfield{ position:absolute; inset:0; z-index:3; pointer-events:none; overflow:hidden; }
+  .star{ position:absolute; background:#fff; border-radius:50%; opacity:var(--o); animation-name:twinkle; animation-iteration-count:infinite; animation-timing-function:ease-in-out; }
+  @keyframes twinkle{ 0%,100%{opacity:var(--o);} 50%{opacity:calc(var(--o) * .18);} }
+  .shooting{ position:absolute; width:3px; height:3px; background:#fff; border-radius:50%; box-shadow:0 0 8px 2px #fff; opacity:0; transform:rotate(35deg); animation: shoot 9s linear infinite; }
+  .shooting::after{ content:""; position:absolute; top:50%; left:50%; width:130px; height:2px; background:linear-gradient(90deg, transparent, #fff); transform:translate(-100%,-50%); border-radius:2px; }
+  @keyframes shoot{ 0%{opacity:0; transform:translate(0,0) rotate(35deg);} 6%{opacity:1;} 18%{opacity:1;} 32%{opacity:0; transform:translate(230px,160px) rotate(35deg);} 100%{opacity:0; transform:translate(230px,160px) rotate(35deg);} }
+
+  /* 暗角，提升纵深 */
+  .bg-vignette{ position:absolute; inset:0; z-index:4; pointer-events:none; background: radial-gradient(125% 125% at 50% 38%, transparent 52%, rgba(0,0,0,.5) 100%); }
+
+  /* 玻璃面板 */
+  .glass{ background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%); border-radius:16px; }
+
+  /* ===== 各页面内容 ===== */
+  .splash{ display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; position:relative; z-index:6; gap:18px; }
+  .paw{ width:96px; height:96px; filter: drop-shadow(0 6px 22px color-mix(in srgb, var(--a1) 65%, transparent)); animation: float 4s ease-in-out infinite; }
+  @keyframes float{ 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-8px);} }
+  .splash .app{ color:#fff; font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:22px; letter-spacing:1px; text-shadow:0 2px 16px rgba(0,0,0,.4); }
+  .splash .tag{ color:rgba(255,255,255,.66); font-size:12px; }
+  .splash .ring{ position:absolute; width:170px; height:170px; border-radius:50%; border:1px solid color-mix(in srgb, var(--a2) 45%, transparent); top:50%; left:50%; transform:translate(-50%,-58%); opacity:.5; }
+
+  .np{ position:relative; z-index:6; height:100%; display:flex; flex-direction:column; padding:26px 18px 18px; }
+  .np .art{ width:100%; height:200px; border-radius:20px; margin-top:8px; background: linear-gradient(135deg, var(--a1), var(--a2)); box-shadow:0 16px 44px color-mix(in srgb, var(--a1) 50%, transparent); position:relative; overflow:hidden; }
+  .np .art::after{ content:""; position:absolute; inset:0; background:radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 70%); }
+  .np .title{ color:#fff; font-weight:600; font-size:17px; margin-top:18px; text-shadow:0 1px 10px rgba(0,0,0,.5); }
+  .np .artist{ color:rgba(255,255,255,.62); font-size:12.5px; margin-top:4px; }
+  .np .bar{ height:4px; border-radius:3px; background:rgba(255,255,255,.18); margin-top:auto; position:relative; }
+  .np .bar::after{ content:""; position:absolute; left:0; top:0; bottom:0; width:38%; border-radius:3px; background:linear-gradient(90deg,var(--a1),var(--a2)); }
+  .np .ctrl{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+  .np .ctrl .c{ width:38px; height:38px; border-radius:50%; }
+  .np .ctrl .c.mid{ width:52px; height:52px; background:linear-gradient(135deg,var(--a1),var(--a2)); box-shadow:0 8px 20px color-mix(in srgb,var(--a1) 50%,transparent); }
+
+  .lib{ position:relative; z-index:6; height:100%; padding:24px 16px 16px; display:flex; flex-direction:column; gap:12px; }
+  .lib .h{ color:#fff; font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:20px; text-shadow:0 1px 10px rgba(0,0,0,.5); }
+  .lib .search{ height:38px; border-radius:12px; display:flex; align-items:center; padding:0 12px; color:rgba(255,255,255,.5); font-size:12px; }
+  .lib .row{ height:54px; border-radius:14px; display:flex; align-items:center; padding:0 12px; gap:12px; }
+  .lib .row .ava{ width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--a1),var(--a2)); opacity:.85; }
+  .lib .row .t{ flex:1; }
+  .lib .row .t .a{ height:8px; width:60%; border-radius:4px; background:rgba(255,255,255,.55); }
+  .lib .row .t .b{ height:6px; width:40%; border-radius:4px; background:rgba(255,255,255,.25); margin-top:6px; }
+
+  .set{ position:relative; z-index:6; height:100%; padding:24px 16px 16px; display:flex; flex-direction:column; gap:10px; }
+  .set .h{ color:#fff; font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:20px; margin-bottom:4px; text-shadow:0 1px 10px rgba(0,0,0,.5); }
+  .set .group{ padding:8px; display:flex; flex-direction:column; gap:8px; }
+  .set .item{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; }
+  .set .item .l{ color:rgba(255,255,255,.85); font-size:13px; }
+  .set .item .tg{ width:38px; height:22px; border-radius:999px; background:linear-gradient(90deg,var(--a1),var(--a2)); position:relative; }
+  .set .item .tg::after{ content:""; position:absolute; right:3px; top:3px; width:16px; height:16px; border-radius:50%; background:#fff; }
+
+  /* 主题色系统说明 */
+  .system{ margin-top:48px; }
+  .system h2{ font-family:"Space Grotesk",sans-serif; font-size:18px; margin:0 0 6px; }
+  .system p{ color:var(--muted); font-size:13px; margin:0 0 18px; line-height:1.6; }
+  .palettes{ display:grid; grid-template-columns:repeat(5,1fr); gap:14px; }
+  @media (max-width: 760px){ .palettes{ grid-template-columns:repeat(2,1fr);} }
+  .pal{ border-radius:14px; overflow:hidden; box-shadow:0 6px 18px rgba(20,30,60,.1); background:var(--card); }
+  .pal .strip{ height:64px; display:flex; }
+  .pal .strip span{ flex:1; }
+  .pal .meta{ padding:10px 12px; }
+  .pal .meta .n{ font-size:13px; font-weight:600; }
+  .pal .meta .c{ font-size:11px; color:var(--muted); margin-top:3px; font-family:"Space Grotesk",monospace; }
+
+  footer.note{ margin-top:46px; padding:20px 22px; border-radius:16px; background:#eef1f8; color:var(--muted); font-size:12.5px; line-height:1.7; }
+  footer.note b{ color:var(--ink); }
+  footer.note code{ background:#dfe4ef; padding:1px 6px; border-radius:5px; font-family:"Space Grotesk",monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>CatClaw Music · 夜空银河背景原型</h1>
+    <p>四张页面功能背景升级为「夜空银河」质感：密集闪烁星点 + 斜贯银河光带 + 主题色星云 + 偶发流星。<br/>全部仍由同一套主题色变量驱动，<b>随主题色变化</b>。</p>
+    <span class="hint">点击下方任意色板，四张夜空会同步切换主题色 ✦</span>
+  </header>
+
+  <div class="themer" id="themer"></div>
+
+  <div class="grid">
+    <!-- 启动页 -->
+    <div class="phone">
+      <div class="screen" data-screen="splash">
+        <div class="bg-base"></div>
+        <div class="bg-nebula"></div>
+        <div class="bg-galaxy"></div>
+        <div class="bg-glow"></div>
+        <div class="starfield"></div>
+        <div class="bg-vignette"></div>
+        <div class="splash">
+          <div class="ring"></div>
+          <svg class="paw" viewBox="0 0 120 120" fill="none">
+            <g fill="#fff">
+              <ellipse cx="60" cy="74" rx="26" ry="22"/>
+              <circle cx="30" cy="44" r="11"/>
+              <circle cx="50" cy="30" r="12"/>
+              <circle cx="72" cy="30" r="12"/>
+              <circle cx="92" cy="46" r="11"/>
+            </g>
+          </svg>
+          <div class="app">CatClaw Music</div>
+          <div class="tag">让每只猫爪都踩准节拍</div>
+        </div>
+        <div class="label">启动页 Splash</div>
+      </div>
+    </div>
+
+    <!-- 正在播放 -->
+    <div class="phone">
+      <div class="screen" data-screen="nowplaying">
+        <div class="bg-base"></div>
+        <div class="bg-nebula"></div>
+        <div class="bg-galaxy"></div>
+        <div class="bg-glow"></div>
+        <div class="starfield"></div>
+        <div class="bg-vignette"></div>
+        <div class="np">
+          <div class="art"></div>
+          <div class="title">夜空中最亮的星</div>
+          <div class="artist">逃跑计划</div>
+          <div class="bar"></div>
+          <div class="ctrl">
+            <div class="c glass"></div>
+            <div class="c mid"></div>
+            <div class="c glass"></div>
+          </div>
+        </div>
+        <div class="label">正在播放 Now Playing</div>
+      </div>
+    </div>
+
+    <!-- 音乐库首页 -->
+    <div class="phone">
+      <div class="screen" data-screen="library">
+        <div class="bg-base"></div>
+        <div class="bg-nebula"></div>
+        <div class="bg-galaxy"></div>
+        <div class="bg-glow"></div>
+        <div class="starfield"></div>
+        <div class="bg-vignette"></div>
+        <div class="lib">
+          <div class="h">音乐库</div>
+          <div class="search glass">搜索歌曲、歌手、专辑…</div>
+          <div class="row glass"><div class="ava"></div><div class="t"><div class="a"></div><div class="b"></div></div></div>
+          <div class="row glass"><div class="ava"></div><div class="t"><div class="a"></div><div class="b"></div></div></div>
+          <div class="row glass"><div class="ava"></div><div class="t"><div class="a"></div><div class="b"></div></div></div>
+          <div class="row glass"><div class="ava"></div><div class="t"><div class="a"></div><div class="b"></div></div></div>
+        </div>
+        <div class="label">音乐库首页 Library</div>
+      </div>
+    </div>
+
+    <!-- 设置页 -->
+    <div class="phone">
+      <div class="screen" data-screen="settings">
+        <div class="bg-base"></div>
+        <div class="bg-nebula"></div>
+        <div class="bg-galaxy"></div>
+        <div class="bg-glow"></div>
+        <div class="starfield"></div>
+        <div class="bg-vignette"></div>
+        <div class="set">
+          <div class="h">设置</div>
+          <div class="group glass">
+            <div class="item"><div class="l">深色模式</div><div class="tg"></div></div>
+            <div class="item"><div class="l">随主题色变化背景</div><div class="tg"></div></div>
+            <div class="item"><div class="l">高画质封面</div><div class="tg"></div></div>
+          </div>
+          <div class="group glass">
+            <div class="item"><div class="l">关于 CatClaw</div><div class="tg" style="background:rgba(255,255,255,.18)"></div></div>
+            <div class="item"><div class="l">清理缓存</div><div class="tg" style="background:rgba(255,255,255,.18)"></div></div>
+          </div>
+        </div>
+        <div class="label">设置页 Settings</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主题色系统 -->
+  <section class="system">
+    <h2>主题色系统（随主题色变化）</h2>
+    <p>所有夜空共用同一组 <code>--a1 / --a2 / --deep</code> 变量。切换主题色即全局换肤，银河、星云、星点一并变色。下面五套为建议预设。</p>
+    <div class="palettes" id="palettes"></div>
+  </section>
+
+  <footer class="note">
+    <b>设计说明</b><br/>
+    1. 夜空由多层叠加：深空底色 <code>--deep</code> → 主题色星云（双团柔光，缓慢漂移）→ 斜贯<b>银河光带</b>（<code>--a1</code> 为核心、<code>--a2</code> 为两翼，<code>screen</code> 混合发光）→ 角落强调辉光 → <b>密集星点层</b>（JS 生成 ~150 颗/屏，随机大小与闪烁）→ 暗角。<br/>
+    2. <b>偶发流星</b>：每屏一颗，沿对角划过并拖出光尾，9s 循环、随机延迟，点缀而不喧宾夺主。<br/>
+    3. <b>随主题色变化</b>：星点保持纯白（夜空真实感），但银河/星云/辉光全部引用主题变量，换肤即整体变色。MAUI 落地可用 <code>RadialGradientBrush</code>+<code>LinearGradientBrush</code> 复刻星云与银河，星点用 <code>SkiaSharp</code> 离屏绘制或预渲染 PNG 资源，配合 <code>DynamicResource</code> 换肤。<br/>
+    4. 下阶段：确认视觉后，将四张夜空落地为 MAUI 渐变资源 + 主题字典，并在 <code>App.xaml</code> 暴露主题切换入口。
+  </footer>
+</div>
+
+<script>
+  const themes = {
+    brand:  { name:"品牌紫蓝", a1:"#8C7BFF", a2:"#55D6FF", deep:"#080B1A" },
+    cyan:   { name:"极光青",   a1:"#55D6FF", a2:"#5CFFC4", deep:"#04141A" },
+    warm:   { name:"魅紫粉",   a1:"#B07CFF", a2:"#FF7CB0", deep:"#14081A" },
+    sunset: { name:"日落橙",   a1:"#FFB07C", a2:"#FF7C9E", deep:"#1A0A08" },
+    emerald:{ name:"翡翠绿",   a1:"#7CFFB0", a2:"#55D6FF", deep:"#04140E" },
+  };
+
+  const root = document.documentElement;
+  const themer = document.getElementById("themer");
+  const palettes = document.getElementById("palettes");
+
+  function applyTheme(key){
+    const t = themes[key];
+    root.style.setProperty("--a1", t.a1);
+    root.style.setProperty("--a2", t.a2);
+    root.style.setProperty("--deep", t.deep);
+    document.querySelectorAll(".swatch").forEach(s=>s.classList.toggle("active", s.dataset.key===key));
+  }
+
+  Object.entries(themes).forEach(([key,t])=>{
+    const el = document.createElement("div");
+    el.className = "swatch"; el.dataset.key = key;
+    el.innerHTML = `<div class="chips">
+        <span class="chip" style="background:${t.a1}"></span>
+        <span class="chip" style="background:${t.a2}"></span>
+        <span class="chip" style="background:${t.deep}"></span>
+      </div><div class="name">${t.name}</div>`;
+    el.addEventListener("click", ()=>applyTheme(key));
+    themer.appendChild(el);
+
+    const p = document.createElement("div");
+    p.className = "pal";
+    p.innerHTML = `<div class="strip">
+        <span style="background:${t.deep}"></span>
+        <span style="background:${t.a1}"></span>
+        <span style="background:${t.a2}"></span>
+      </div><div class="meta"><div class="n">${t.name}</div>
+      <div class="c">${t.a1} · ${t.a2}</div></div>`;
+    palettes.appendChild(p);
+  });
+
+  // 生成夜空星点 + 流星
+  document.querySelectorAll('.starfield').forEach(sf=>{
+    const N = 150;
+    for(let i=0;i<N;i++){
+      const s = document.createElement('span');
+      s.className = 'star';
+      const size = (Math.random()*1.8 + 0.6);
+      const o = (Math.random()*0.6 + 0.4);
+      const dur = (Math.random()*4 + 2.4);
+      const delay = (Math.random()*6);
+      s.style.left = (Math.random()*100).toFixed(2)+'%';
+      s.style.top = (Math.random()*100).toFixed(2)+'%';
+      s.style.width = size.toFixed(2)+'px';
+      s.style.height = size.toFixed(2)+'px';
+      s.style.setProperty('--o', o.toFixed(2));
+      s.style.animationDuration = dur.toFixed(2)+'s';
+      s.style.animationDelay = delay.toFixed(2)+'s';
+      if(size > 1.7){ s.style.boxShadow = '0 0 4px 1px rgba(255,255,255,.7)'; }
+      sf.appendChild(s);
+    }
+    const sh = document.createElement('span');
+    sh.className = 'shooting';
+    sh.style.top = (Math.random()*28 + 4).toFixed(0)+'%';
+    sh.style.left = (Math.random()*18).toFixed(0)+'%';
+    sh.style.animationDelay = (Math.random()*8 + 3).toFixed(1)+'s';
+    sf.appendChild(sh);
+  });
+
+  applyTheme("brand");
+</script>
+</body>
+</html>

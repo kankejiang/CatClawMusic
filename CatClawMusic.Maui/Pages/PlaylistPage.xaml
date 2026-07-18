@@ -13,7 +13,7 @@
 
             <!-- Hero Card（与其他页面样式一致） -->
             <Border Grid.Row="0"
-                    Margin="16,8,16,8"
+                    Margin="16,16,16,8"
                     Style="{StaticResource GlassCardStrongStyle}"
                     Background="{DynamicResource HeroBrush}">
                 <Grid ColumnDefinitions="*,Auto"

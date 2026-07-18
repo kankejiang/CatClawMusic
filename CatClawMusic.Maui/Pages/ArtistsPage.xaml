@@ -203,17 +203,21 @@
               ColumnSpacing="0">
 
             <!-- 网格视图 -->
-            <ScrollView Grid.Column="0"
-                        x:Name="GridScrollView"
-                        IsVisible="{Binding IsGridView}">
-                <VerticalStackLayout Spacing="6">
+                        <!-- 网格视图（虚拟化：ScrollView+FlexLayout 会一次性创建所有 cell，数据量大时主线程卡死） -->
+            <CollectionView Grid.Column="0"
+                            x:Name="GridCollectionView"
+                            ItemsSource="{Binding FilteredArtists}"
+                            SelectionMode="None"
+                            IsVisible="{Binding IsGridView}"
+                            Margin="0,4,0,0">
+                <CollectionView.Header>
                     <!-- 最常聆听 -->
                     <Border Padding="13,15"
                             StrokeShape="RoundRectangle 18"
                             StrokeThickness="1"
                             Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                            Margin="0,0,0,8"
+                            Margin="0,0,8,0"
                             IsVisible="{Binding HasMostPlayed}">
                         <Grid ColumnDefinitions="Auto,*,Auto"
                               ColumnSpacing="13">
@@ -263,62 +267,55 @@
                             </Border>
                         </Grid>
                     </Border>
-
-                    <!-- 艺术家网格 -->
-                    <FlexLayout Direction="Row"
-                                Wrap="Wrap"
-                                JustifyContent="Start"
-                                AlignItems="Start"
-                                BindableLayout.ItemsSource="{Binding FilteredArtists}">
-                        <BindableLayout.ItemTemplate>
-                            <DataTemplate>
-                                <Border WidthRequest="100"
-                                        Margin="0,0,8,12"
+                </CollectionView.Header>
+                <CollectionView.ItemsLayout>
+                    <GridItemsLayout Orientation="Vertical" Span="3" HorizontalItemSpacing="8" VerticalItemSpacing="12" />
+                </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border StrokeThickness="0"
+                                BackgroundColor="Transparent">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnArtistTapped" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="8">
+                                <Border StrokeShape="RoundRectangle 18"
                                         StrokeThickness="0"
-                                        BackgroundColor="Transparent">
-                                    <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="OnArtistTapped" />
-                                    </Border.GestureRecognizers>
-                                    <VerticalStackLayout Spacing="8">
-                                        <Border StrokeShape="RoundRectangle 18"
-                                                StrokeThickness="0"
-                                                BackgroundColor="{Binding Id, Converter={StaticResource PlaceholderColorConverter}}">
-                                            <Grid>
-                                                <Image Source="{Binding Cover}"
-                                                       Aspect="AspectFill"
-                                                       IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}}" />
-                                                <Label Text="{Binding Name, Converter={StaticResource InitialConverter}}"
-                                                       FontSize="30"
-                                                       FontFamily="OpenSansSemibold"
-                                                       TextColor="#DDFFFFFF"
-                                                       HorizontalOptions="Center" VerticalOptions="Center"
-                                                       IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}, ConverterParameter=invert}" />
-                                            </Grid>
-                                        </Border>
-                                        <Label Text="{Binding Name}"
-                                               FontSize="12.5"
+                                        BackgroundColor="{Binding Id, Converter={StaticResource PlaceholderColorConverter}}">
+                                    <Grid>
+                                        <Image Source="{Binding Cover}"
+                                               Aspect="AspectFill"
+                                               IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}}" />
+                                        <Label Text="{Binding Name, Converter={StaticResource InitialConverter}}"
+                                               FontSize="30"
                                                FontFamily="OpenSansSemibold"
-                                               TextColor="{DynamicResource TextPrimaryColor}"
-                                               HorizontalOptions="Center"
-                                               LineBreakMode="TailTruncation" />
-                                        <Label Text="{Binding SongCount, StringFormat='{0} 首'}"
-                                               FontSize="10.5"
-                                               TextColor="{DynamicResource TextHintColor}"
-                                               HorizontalOptions="Center" />
-                                    </VerticalStackLayout>
+                                               TextColor="#DDFFFFFF"
+                                               HorizontalOptions="Center" VerticalOptions="Center"
+                                               IsVisible="{Binding Cover, Converter={StaticResource CoverArtConverter}, ConverterParameter=invert}" />
+                                    </Grid>
                                 </Border>
-                            </DataTemplate>
-                        </BindableLayout.ItemTemplate>
-                    </FlexLayout>
-                </VerticalStackLayout>
-            </ScrollView>
+                                <Label Text="{Binding Name}"
+                                       FontSize="12.5"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       HorizontalOptions="Center"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding SongCount, StringFormat='{0} 首'}"
+                                       FontSize="10.5"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
 
             <!-- 列表视图 -->
             <CollectionView Grid.Column="0"
                             x:Name="ListCollectionView"
                             ItemsSource="{Binding FilteredArtists}"
                             SelectionMode="None"
-                            IsVisible="{Binding IsListView}">
+                            IsVisible="{Binding IsGridView, Converter={StaticResource InvertedBoolConverter}}">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <Border Padding="9,6"

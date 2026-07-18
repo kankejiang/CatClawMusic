@@ -4,6 +4,7 @@ using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
+using Microsoft.Maui.ApplicationModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -82,19 +83,33 @@ public partial class AlbumDetailViewModel : ObservableObject
                 .ThenBy(s => s.Title)
                 .ToList();
 
-            await Task.Run(() => Services.CoverHelper.BatchResolveCovers(allSongs));
-
-            // 用第一首已解析封面的歌曲回填专辑封面（Album.CoverArtPath 在 DB 中通常为空）
-            if (string.IsNullOrEmpty(Album.CoverArtPath))
-            {
-                var firstWithCover = allSongs.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath));
-                if (firstWithCover != null)
-                    Album.CoverArtPath = firstWithCover.CoverArtPath;
-            }
-            // 同步到可观察属性以触发 UI 刷新（Album 模型未实现 INPC）
-            AlbumCoverPath = Album.CoverArtPath;
-
+            // 先渲染列表（占位封面），不阻塞等待封面提取
             Songs = new ObservableCollection<Song>(allSongs);
+
+            // 后台分块解析封面（不阻塞 UI）；封面就绪经 Song.CoverArtPath(INPC) 自动刷新单元格。
+            // 提取逻辑与原先一致（音频文件内嵌封面 → 1024px 下采样缓存），画质零损失。
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Services.CoverHelper.BatchResolveCoversAsync(allSongs);
+                    // 回填专辑顶部大图（Album 模型未 INPC，用可观察属性 AlbumCoverPath 触发刷新）
+                    var firstWithCover = allSongs.FirstOrDefault(s => !string.IsNullOrEmpty(s.CoverArtPath));
+                    if (firstWithCover != null)
+                    {
+                        await MainThread.InvokeOnMainThreadAsync(() =>
+                        {
+                            if (string.IsNullOrEmpty(Album?.CoverArtPath))
+                                Album.CoverArtPath = firstWithCover.CoverArtPath;
+                            AlbumCoverPath = Album?.CoverArtPath ?? firstWithCover.CoverArtPath;
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("AlbumDetailViewModel", $"[AlbumDetailVM] 后台封面解析失败: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {

@@ -144,9 +144,10 @@ public class DesktopLyricManager
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
         if (!_desktopLyricService.IsShowing) return;
-        // 滑动列表时暂停桌面歌词更新，避免主线程消息队列堆积影响滑动流畅度。
+        // 用户交互（Tab 滑动/列表滚动）时暂停桌面歌词更新，避免主线程消息队列堆积影响流畅度。
         // 滑动停止后会自动恢复（下一个 tick 即同步到当前位置）。
-        if (_interactionState?.IsUserScrolling == true) return;
+        // IsUserInteracting 同时覆盖 Tab 滑动（BeginInteraction）和列表滚动（NotifyScrollStarted）。
+        if (_interactionState?.IsUserInteracting == true) return;
         // PositionChanged 可能在后台线程触发，UI 操作需切回主线程
         var (text, progress) = ComputeLyricUpdate(position);
         if (text == null && progress < 0) return;

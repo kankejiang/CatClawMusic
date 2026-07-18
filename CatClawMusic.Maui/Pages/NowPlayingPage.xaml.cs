@@ -109,8 +109,7 @@ public partial class NowPlayingPage : ContentPage
 
                 PhoneControls.IsVisible = false;
                 DesktopControls.IsVisible = true;
-                SongDetailEntryPhone.IsVisible = false;
-                SongDetailEntryDesktop.IsVisible = true;
+                BottomActionBar.IsVisible = true;
             }
             RightHalf.ClearValue(HeightRequestProperty);
             MainContent.RowDefinitions = new RowDefinitionCollection
@@ -136,8 +135,7 @@ public partial class NowPlayingPage : ContentPage
 
                 PhoneControls.IsVisible = true;
                 DesktopControls.IsVisible = false;
-                SongDetailEntryPhone.IsVisible = true;
-                SongDetailEntryDesktop.IsVisible = false;
+                BottomActionBar.IsVisible = true;
             }
             // 5行歌词高度估算：约 200-220px
             RightHalf.HeightRequest = 200;
