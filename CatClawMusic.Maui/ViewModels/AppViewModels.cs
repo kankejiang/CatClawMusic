@@ -734,6 +734,21 @@ public partial class NowPlayingViewModel : ObservableObject
             _loadedSongId = -1;
             Duration = 0;
             Progress = 0;
+            IsPlaying = false;
+#if ANDROID
+            // 队列已无歌曲可播放：停止播放并移除前台通知（自然播放结束分支）。
+            // 正常切歌不走此分支，前台服务/MediaSession 会被复用（见 AudioPlayerService 的 STATE_ENDED 处理）。
+            try
+            {
+                if (_audioService is Services.AudioPlayerService androidAudio)
+                    androidAudio.StopAndHideNotification();
+                else
+                    await _audioService.StopAsync();
+            }
+            catch { }
+#else
+            try { await _audioService.StopAsync(); } catch { }
+#endif
             return;
         }
 
@@ -787,6 +802,11 @@ public partial class NowPlayingViewModel : ObservableObject
 
 #if ANDROID || WINDOWS
         // 更新前台播放通知 / Windows SMTC 显示
+#if ANDROID
+        // 先重置进度缓存，确保通知栏/锁屏立即显示新歌的 0 进度而非上一首旧进度
+        try { (_audioService as Services.AudioPlayerService)?.NotifySongSwitching(); }
+        catch { }
+#endif
         try { (_audioService as Services.AudioPlayerService)?.UpdateSongInfo(Title, Artist); }
         catch { }
         try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(IsLiked); }

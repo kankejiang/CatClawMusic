@@ -1033,33 +1033,40 @@ public partial class MainPage : ContentPage
 
     private static readonly string[] DarkIconSources = { "ic_play", "ic_home", "ic_playlist", "ic_library" };
 
+    /// <summary>将 Color 转为 #RRGGBB（大写），用于定位按主题色预生成的图标资源</summary>
+    private static string ToHex(Color c)
+    {
+        var r = (byte)Math.Round(c.Red * 255);
+        var g = (byte)Math.Round(c.Green * 255);
+        var b = (byte)Math.Round(c.Blue * 255);
+        return $"#{r:x2}{g:x2}{b:x2}";
+    }
+
     /// <summary>更新 TabBar 选中状态（Tab 0-3 对应 ViewPager index 1-4）</summary>
     private void UpdateTabBarSelection()
     {
-        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+        // TabActiveColor = 主题色（选中，按主题预生成 *_{hex}_active.svg）；
+        // TabInactiveColor = 深色白 / 浅色灰（未选中，分别用原白底 svg / *_gray.svg）
+        var activeColor = (Color)Application.Current!.Resources["TabActiveColor"];
         var inactiveColor = (Color)Application.Current!.Resources["TabInactiveColor"];
+        var isDark = Application.Current.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        var activeHex = ToHex(activeColor);
 
         var labels = new[] { TabLabel0, TabLabel1, TabLabel2, TabLabel3 };
         var icons = new[] { TabIcon0, TabIcon1, TabIcon2, TabIcon3 };
-        var contents = new[] { TabContent0, TabContent1, TabContent2, TabContent3 };
 
         for (int i = 0; i < 4; i++)
         {
             var isActive = (i + 1) == _currentIndex;
-            labels[i].TextColor = isActive ? primaryColor : inactiveColor;
+            labels[i].TextColor = isActive ? activeColor : inactiveColor;
 
             if (isActive)
-            {
-                icons[i].Source = DarkIconSources[i];
-                icons[i].Scale = 1.15;
-                labels[i].Scale = 1.1;
-            }
+                icons[i].Source = $"{DarkIconSources[i]}_{activeHex}_active";
             else
-            {
-                icons[i].Scale = 1.0;
-                labels[i].Scale = 1.0;
-                icons[i].SetAppTheme(Image.SourceProperty, $"{DarkIconSources[i]}_light", DarkIconSources[i]);
-            }
+                icons[i].Source = isDark ? DarkIconSources[i] : $"{DarkIconSources[i]}_gray";
+
+            icons[i].Scale = isActive ? 1.15 : 1.0;
+            labels[i].Scale = isActive ? 1.1 : 1.0;
         }
     }
 

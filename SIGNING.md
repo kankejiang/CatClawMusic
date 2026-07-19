@@ -10,18 +10,19 @@
 | 密码 | `catclaw123`（storepass = keypass） |
 | 有效期 | 至 2053 年（约 27 年） |
 
-## Release 编译命令
+## Release 编译命令（出签名包）
+
+> ⚠️ 项目已适配 MAUI 10，TargetFramework 为 `net10.0-android`（旧文档的 `net11` 已失效，本环境 net11 无法编译）。
 
 ```bash
-dotnet build CatClawMusic.Maui/CatClawMusic.Maui.csproj -f net11.0-android -c Release
+dotnet publish CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net10.0-android ^
+  -p:AndroidSdkDirectory="C:/Users/Administrator/AppData/Local/Android/Sdk" ^
+  -p:JavaSdkDirectory="C:/Program Files/Microsoft/jdk-21.0.11.10-hotspot/" ^
+  -p:CatClawStorePass="catclaw123" -p:CatClawKeyPass="catclaw123"
 ```
 
 csproj 中已配置签名引用 `..\catclaw.keystore`，密码通过 MSBuild 属性传入。
 
-若未设置环境变量，需显式指定密码：
+若未设置环境变量，需显式指定密码（同上）。
 
-```bash
-dotnet build CatClawMusic.Maui/CatClawMusic.Maui.csproj -f net11.0-android -c Release -p:CatClawStorePass="catclaw123" -p:CatClawKeyPass="catclaw123"
-```
-
-输出 APK 路径：`CatClawMusic.Maui\bin\Release\net11.0-android\com.catclaw.music-Signed.apk`
+输出 APK 路径：`CatClawMusic.Maui\bin\Release\net10.0-android\publish\com.catclaw.music-Signed.apk`

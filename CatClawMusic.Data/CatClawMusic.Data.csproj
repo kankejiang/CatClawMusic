@@ -11,6 +11,9 @@
   
   <ItemGroup>
     <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+    <!-- 覆盖 sqlite-net-pcl 传递依赖的 SQLitePCLRaw 2.1.2（libe_sqlite3.so 仅 4KB 对齐，
+         Android 16/16KB 页设备加载失败），锁定到 16KB 对齐且 DB 可正常打开的 2.1.11 -->
+    <PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
     <PackageReference Include="SMBLibrary" Version="1.5.7" />
   </ItemGroup>
 </Project>

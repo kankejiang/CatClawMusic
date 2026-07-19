@@ -9,7 +9,7 @@ namespace CatClawMusic.Maui.Services;
 
 /// <summary>
 /// MAUI 主题管理服务，支持 10 种颜色主题和明/暗/跟随系统三种模式。
-/// 通过 MAUI ResourceDictionary 动态切换主题色。
+/// 通过 MAUI ResourceDictionary 动态切换主题色与背景图（5 套主题内置星空/天空静态背景）。
 /// </summary>
 public class ThemeService : IThemeService
 {
@@ -38,6 +38,19 @@ public class ThemeService : IThemeService
         [CoreAppTheme.Yellow] = new ThemeColors("#FFC107", "#FFF8D6", "#FFB300"),
         [CoreAppTheme.Indigo] = new ThemeColors("#5C6BC0", "#E0E4FF", "#3949AB"),
         [CoreAppTheme.Cyan] = new ThemeColors("#00BCD4", "#D6F7FB", "#00ACC1"),
+    };
+
+    /// <summary>
+    /// 5 套主题内置静态背景图映射（深色模式用星空，浅色模式用天空）。
+    /// 仅橙/粉/紫/蓝/青 5 个主题有内置背景图；其余主题回退到渐变笔刷。
+    /// </summary>
+    private static readonly Dictionary<CoreAppTheme, (string Starry, string Sky)> BackgroundImageMap = new()
+    {
+        [CoreAppTheme.Orange] = ("bg_orange_starry", "bg_orange_sky"),
+        [CoreAppTheme.Pink]   = ("bg_pink_starry", "bg_pink_sky"),
+        [CoreAppTheme.Purple] = ("bg_purple_starry", "bg_purple_sky"),
+        [CoreAppTheme.Blue]   = ("bg_blue_starry", "bg_blue_sky"),
+        [CoreAppTheme.Teal]   = ("bg_teal_starry", "bg_teal_sky"),
     };
 
     /// <summary>获取当前主题色枚举</summary>
@@ -170,6 +183,9 @@ public class ThemeService : IThemeService
                 ApplyLightPalette(app.Resources, colors);
             }
 
+            // 设置主题内置背景图（5 个主题有静态星空/天空图，其余回退渐变）
+            ApplyThemeBackgroundImage(app.Resources, _currentTheme, isDark);
+
             ApplyCustomBackground(app.Resources, isDark);
 
             UpdatePlatformStatusBar();
@@ -191,6 +207,27 @@ public class ThemeService : IThemeService
             }
 #endif
         });
+    }
+
+    /// <summary>
+    /// 根据当前主题色与深/浅模式，设置 ThemeBackgroundImage 资源。
+    /// 5 个有内置图的主题（橙/粉/紫/蓝/青）→ 对应的星空(暗)或天空(亮)静态图；
+    /// 其余主题 → 不设置（保留渐变 PageBackgroundBrush 作为 fallback）。
+    /// </summary>
+    private static void ApplyThemeBackgroundImage(ResourceDictionary resources, CoreAppTheme theme, bool isDark)
+    {
+        if (BackgroundImageMap.TryGetValue(theme, out var pair))
+        {
+            string resName = isDark ? pair.Starry : pair.Sky;
+            resources["ThemeBackgroundImage"] = ImageSource.FromFile(resName);
+            resources["ThemeBackgroundEnabled"] = true;
+        }
+        else
+        {
+            // 无内置背景图的主题：禁用主题图片层，回退到渐变笔刷
+            resources["ThemeBackgroundEnabled"] = false;
+            resources["ThemeBackgroundImage"] = null;
+        }
     }
 
     /// <summary>获取系统当前是否处于暗黑模式</summary>
@@ -276,18 +313,14 @@ public class ThemeService : IThemeService
         resources["TextSecondaryColor"] = Color.FromArgb("#BCC0DD");
         resources["TextHintColor"] = Color.FromArgb("#868CAE");
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
-        resources["TabInactiveColor"] = Color.FromArgb("#868CAE");
+        resources["TabInactiveColor"] = Color.FromArgb("#FFFFFF"); // 深色模式：未选中图标/文字为白色
         resources["TabBarBackgroundColor"] = Color.FromArgb("#D80A0D1E");
 
-        // 增强饱和度的iOS风格渐变背景
-        resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
-        {
-            new(Color.FromArgb("#0B0D20"), 0f),
-            new(Blend(darkBase, primaryTint), 0.2f),
-            new(Blend(midTone, primaryTint.WithAlpha(0.6f)), 0.45f),
-            new(Blend(midTone, accentTint), 0.75f),
-            new(darkBase, 1f),
-        }, new Point(0.5, 0), new Point(0.5, 1));
+        // 深色模式基底：纯色 fallback（主题图片层在其之上；无图片时此色直接可见）
+        resources["PageBackgroundBrush"] = new SolidColorBrush(darkBase);
+
+        // 主题背景图遮罩：深色模式下用半透明黑色压暗图片，确保文字可读
+        resources["CustomBackgroundMaskColor"] = Colors.Black.WithAlpha(0.45f);
 
         resources["HeroBrush"] = BuildLinearBrush(colors.Primary, GetAccentColorHex(colors.Primary), 0.0f, 1.0f);
         resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x5A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
@@ -327,18 +360,14 @@ public class ThemeService : IThemeService
         resources["TextSecondaryColor"] = Color.FromArgb("#4A5278");
         resources["TextHintColor"] = Color.FromArgb("#6B7399");
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
-        resources["TabInactiveColor"] = Color.FromArgb("#5C648F");
+        resources["TabInactiveColor"] = Color.FromArgb("#9AA0B4"); // 浅色模式：未选中图标/文字为灰色
         resources["TabBarBackgroundColor"] = Color.FromArgb("#F5F8FF");
 
-        // 增强饱和度的iOS风格浅色渐变
-        resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
-        {
-            new(Blend(lightBase, primaryWash), 0f),
-            new(Blend(lightBase, primaryWash.WithAlpha(0.35f)), 0.35f),
-            new(lightBase, 0.6f),
-            new(Blend(lightBase, accent), 0.85f),
-            new(lightBase, 1f),
-        }, new Point(0.5, 0), new Point(0.5, 1));
+        // 浅色模式基底：纯色 fallback（主题图片层在其之上；无图片时此色直接可见）
+        resources["PageBackgroundBrush"] = new SolidColorBrush(lightBase);
+
+        // 主题背景图遮罩：浅色模式下用半透明白色提亮图片，确保文字可读
+        resources["CustomBackgroundMaskColor"] = Colors.White.WithAlpha(0.40f);
 
         resources["HeroBrush"] = BuildLinearBrush(colors.Primary, colors.Dark, 0.0f, 1.0f);
         resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x4A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
@@ -368,12 +397,18 @@ public class ThemeService : IThemeService
             try
             {
                 byte[] bgBytes = File.ReadAllBytes(_customBackgroundPath!);
-                resources["CustomBackgroundImage"] = ImageSource.FromStream(() => new MemoryStream(bgBytes));
+                var customImg = ImageSource.FromStream(() => new MemoryStream(bgBytes));
+                resources["CustomBackgroundImage"] = customImg;
+                // 用户自定义背景优先级最高：覆盖主题内置背景图
+                resources["ThemeBackgroundImage"] = customImg;
+                resources["ThemeBackgroundEnabled"] = true;
             }
             catch
             {
                 resources["CustomBackgroundEnabled"] = false;
                 resources["CustomBackgroundImage"] = null;
+                // 加载失败时恢复主题背景图
+                ApplyThemeBackgroundImage(resources, _currentTheme, isDark);
                 RestorePageBackground(resources, isDark);
                 return;
             }
@@ -391,6 +426,11 @@ public class ThemeService : IThemeService
         else
         {
             resources["CustomBackgroundImage"] = null;
+            // 无自定义背景时确保主题图片恢复（ApplyTheme 中已设置，此处为防御性恢复）
+            if (!resources.ContainsKey("ThemeBackgroundEnabled") || !(bool)resources["ThemeBackgroundEnabled"])
+            {
+                ApplyThemeBackgroundImage(resources, _currentTheme, isDark);
+            }
         }
     }
 

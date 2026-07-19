@@ -84,7 +84,7 @@
 
     <!-- Shell / 控件 -->
     <Color x:Key="TabActiveColor">#F7F8FF</Color>
-    <Color x:Key="TabInactiveColor">#8D93B7</Color>
+    <Color x:Key="TabInactiveColor">#9AA0B4</Color>
     <Color x:Key="TabBarBackgroundColor">#E6101838</Color>
 
     <!-- 功能色 -->
@@ -135,6 +135,9 @@
     <x:Boolean x:Key="CustomBackgroundEnabled">False</x:Boolean>
     <x:Double x:Key="CustomBackgroundOpacity">0.5</x:Double>
     <Color x:Key="CustomBackgroundMaskColor">#80000000</Color>
+
+    <!-- 主题内置静态背景图（ThemeService 运行时覆盖；5 套主题有星空/天空图） -->
+    <x:Boolean x:Key="ThemeBackgroundEnabled">False</x:Boolean>
 
     <!-- Converters -->
     <converters:StringToBoolConverter x:Key="StringToBoolConverter" />

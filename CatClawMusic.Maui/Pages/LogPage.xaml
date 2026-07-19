@@ -51,8 +51,13 @@
                 <VerticalStackLayout Padding="16,0" Spacing="14">
 
                     <!-- 设备报告卡 -->
-                    <Border Style="{StaticResource GlassCardStrongStyle}"
-                            Background="linear-gradient(135deg, rgba(140,123,255,0.18), rgba(85,214,255,0.10))">
+                    <Border Style="{StaticResource GlassCardStrongStyle}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#2E8C7BFF" Offset="0" />
+                                <GradientStop Color="#1A55D6FF" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
                         <VerticalStackLayout Spacing="14">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                                 <Border Grid.Column="0"

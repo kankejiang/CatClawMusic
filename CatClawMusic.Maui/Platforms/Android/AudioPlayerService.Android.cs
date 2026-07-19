@@ -154,6 +154,10 @@ public partial class AudioPlayerService
     /// <param name="source">音频源 URI</param>
     partial void PlatformPlay(Uri source)
     {
+        // 标记未准备，使 GetPlatformCurrentPositionSeconds/Duration 在切歌间隙返回 0，
+        // 避免把上一首的实时进度/时长透传到通知栏与 MediaSession（锁屏旧时间）。
+        _isPrepared = false;
+        _cachedPositionMs = 0;
         _ = PlayInternalAsync(source, autoPlay: true);
     }
 
@@ -395,6 +399,10 @@ public partial class AudioPlayerService
     /// <returns>当前播放位置（秒）</returns>
     private partial double GetPlatformCurrentPositionSeconds()
     {
+        // 未准备完成时（切歌间隙），返回缓存值（已被 PlayInternalAsync / PlatformPlay 重置为 0），
+        // 避免把上一首的实时位置透传到通知栏与 MediaSession，导致锁屏显示旧进度。
+        if (!_isPrepared)
+            return _cachedPositionMs / 1000.0;
         try
         {
             if (_player != null)
@@ -411,6 +419,9 @@ public partial class AudioPlayerService
     /// <returns>音频总时长（秒），无法获取时返回 0</returns>
     private partial double GetPlatformDurationSeconds()
     {
+        // 未准备完成时返回 0，避免切歌间隙把上一首时长泄露到通知栏与 MediaSession。
+        if (!_isPrepared)
+            return 0;
         try
         {
             if (_player != null)
@@ -502,7 +513,13 @@ public partial class AudioPlayerService
                     _owner.PlaybackCompleted?.Invoke(_owner, EventArgs.Empty);
                     _owner.PlaybackStateChanged?.Invoke(_owner, false);
                     _owner.StopPositionTimer();
-                    _owner.StopForegroundService();
+                    // 注意：【不】在此停止前台服务 / 释放 MediaSession。
+                    // 自然播放下一曲时若立即停止前台服务，会销毁 MediaSession 并随后重建，
+                    // 导致锁屏媒体控件"先暂停再出现"的闪烁，且锁屏会短暂回显上一首的
+                    // 旧标题与旧进度（"时间特别旧"）。下一首 PlayInternalAsync 会复用同一
+                    // MediaSession 并刷新元数据/进度，实现无缝切歌、加快切歌速度。
+                    // 仅当确实无下一首可播时，才在 LoadCurrentSongAsync 的 song==null 分支调用
+                    // StopAndHideNotification() 真正停止前台服务。
                     _owner.ReleaseWakeLock();
                     _owner.AbandonAudioFocus();
                 });
@@ -805,6 +822,34 @@ public partial class AudioPlayerService
     {
         var ctx = _androidContext ?? global::Android.App.Application.Context;
         try { ForegroundPlayerService.Stop(ctx); } catch { }
+    }
+
+    /// <summary>
+    /// 在确实没有下一首可播放（队列结束）时由上层调用：
+    /// 停止播放并移除前台通知 / 释放 MediaSession，避免通知栏常驻。
+    /// 自然播放下一曲的正常切歌【不】应调用此方法（见 OnPlaybackStateChanged 的 STATE_ENDED 处理）。
+    /// </summary>
+    public void StopAndHideNotification()
+    {
+        try { PlatformStop(); } catch { }
+        try { StopForegroundService(); } catch { }
+        _mainHandler.Post(() =>
+        {
+            ReleaseWakeLock();
+            AbandonAudioFocus();
+            try { PlaybackStateChanged?.Invoke(this, false); } catch { }
+        });
+    }
+
+    /// <summary>
+    /// 在加载新歌、刷新通知元数据前由上层调用：重置准备/进度缓存，
+    /// 使 GetPlatformCurrentPositionSeconds/Duration 立即返回 0，
+    /// 避免通知栏与 MediaSession 在切歌间隙回显上一首的旧进度（锁屏"时间特别旧"）。
+    /// </summary>
+    public void NotifySongSwitching()
+    {
+        _isPrepared = false;
+        _cachedPositionMs = 0;
     }
 
     /// <summary>更新前台通知的播放状态与歌曲信息</summary>

@@ -6,8 +6,19 @@
 - 默认出 **Release 签名包**: `dotnet publish CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory="C:/Users/Administrator/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Microsoft/jdk-21.0.11.10-hotspot/" -p:CatClawStorePass=catclaw123 -p:CatClawKeyPass=catclaw123`
 - Debug 仅快速验证编译: `dotnet build CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Debug -f net10.0-android -p:AndroidSdkDirectory="C:/Users/Administrator/AppData/Local/Android/Sdk" -p:JavaSdkDirectory="C:/Program Files/Microsoft/jdk-21.0.11.10-hotspot/"`。
 - 产出: `CatClawMusic.Maui/bin/Release/net10.0-android/publish/*-Signed.apk` (csproj 无自动复制 target)。
-- keystore: 已创建于 `catclaw.keystore`(解决方案根, PKCS12, 2026-07-18 17:57)。alias=catclaw, storepass=keypass=catclaw123, dname CN=CatClaw/OU=CatClaw/O=CatClaw/C=CN, 有效期~27年(至2053)。csproj Release 引用 `..\catclaw.keystore` 自动签名。
-- ⚠️ 历史: 此前 release/CatClawMusic-v1.6.5-android.apk 是 **Android debug 证书**签名(CN=Android Debug, SHA1 5B:07:3A:...), 因自定义 keystore 当时未创建、构建回退 debug 签名; 现已补正为正式 keystore。注意: 换正式签名后, 已侧载 debug 版 apk 的用户无法覆盖升级(需卸载重装)。务必备份 keystore 文件与密码(丢失则旧用户无法增量升级)。
+- keystore: 已创建于 `catclaw.keystore`(解决方案根, PKCS12, 2026-07-18 17:57)。alias=catclaw, storepass=keypass=catclaw123, dname CN=CatClaw/OU=CatClaw/O=CatClaw/C=CN, 有效期~27年(至2053)。SHA1=9F:D0:61:3A:7C:76:1E:A8:5A:48:89:4F:4D:35:66:65:8A:89:24:69。
+- ✅ **正确 csproj 签名写法(2026-07-20 修过)**: 必须在 `<PropertyGroup Condition="...Release...android...">` 内写属性, **且必须显式 `<AndroidKeyStore>true</AndroidKeyStore>`**:
+  `<AndroidKeyStore>true</AndroidKeyStore>` + `<AndroidSigningKeyStore>..\catclaw.keystore</AndroidSigningKeyStore>` + `<AndroidSigningKeyAlias>catclaw</AndroidSigningKeyAlias>` + `<AndroidSigningKeyPass>$(CatClawKeyPass)</AndroidSigningKeyPass>` + `<AndroidSigningStorePass>$(CatClawStorePass)</AndroidSigningStorePass>`。
+- ⚠️ **签名回退 debug 的坑(2026-07-20 用户反馈"签名不同无法安装"定位)**: 旧写法把签名项塞进 `<ItemGroup><AndroidSigningKeyStore Include=...>` 且**漏了 `AndroidKeyStore>true`** → MAUI 签名 target 不读 Item、且 AndroidKeyStore 默认 false → **静默回退 Android Debug 密钥**(签名者 `CN=Android Debug`), 与 keystore 证书不一致, 已侧载旧版用户无法覆盖安装。修正为上方 PropertyGroup 写法后, `apksigner verify --print-certs` 确认 APK 签名者 DN=CN=CatClaw 且 SHA1 与 keystore 完全一致。
+- ⚠️ 换正式签名后, 若用户之前装的是 debug 版 apk, 仍无法覆盖升级(需卸载重装)。务必备份 keystore 文件与密码(丢失则旧用户无法增量升级)。
+
+## Android 16 / 16KB 内存页兼容(2026-07-20)
+- **症状**: 三星 One UI 8.5 (Android 16) 启动闪屏后闪退(其他设备正常)。根因 = **原生 `.so` 未做 16KB 页对齐**。Android 15/16 新机(三星旗舰/Pixel 9)默认 16KB 内存页, `dlopen` 4KB 对齐的 `.so` 直接 `dlopen failed: not 16 KB aligned` → SIGABRT。
+- **诊断法**: 拆 APK 检查每个 `lib/*/*.so` 的 ELF PT_LOAD `p_align`, 须 ≥ `0x4000`(16KB); `0x1000`(4KB)=会崩。合格库(libcoreclr/libmonodroid 等 .NET10 运行时)先加载→闪屏能显示; `libe_sqlite3` 稍后 DB 初始化时加载才崩→表现为"闪屏后闪退"。
+- **元凶**: `sqlite-net-pcl 1.9.172` 传递依赖 `SQLitePCLRaw 2.1.2` 的 `libe_sqlite3.so` 是 4KB 对齐。
+- **修复(已做)**: 三个 csproj (Maui/Data/Core) 顶层显式 `<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />` 覆盖传递依赖(Maui 另加 `SQLitePCLRaw.lib.e_sqlite3.android` 2.1.11 仅 Android)。⚠️ **必须 2.1.11, 不能只到 2.1.10**——2.1.10 仅消除 XA0141 警告但 16KB 设备上 DB 仍打不开(见 ericsink/SQLitePCL.raw#621)。已验证 2.1.11 的 arm64-v8a libe_sqlite3.so = 0x4000。
+- **遗留**: `Assets/ffmpeg/arm64-v8a/libffmpeg.so`(自编译, 20MB) 也是 4KB 对齐, 但它经 `linker64`/`exec` 当独立程序运行、**非 dlopen 进进程**, 故只会导致 16KB 设备上 m4a/flac/ape 等**转码失败**, 不会崩启动。要彻底修需用 NDK r27+ 加 `-Wl,-z,max-page-size=16384` 重新编译 ffmpeg。
+- **JNI 隐患(顺带记)**: `MainActivity.SetupHighRefreshRate` 用 `GetFieldID(...,"preferredDisplayRefreshRate","I")` 签名错误(该字段是 `float`, 应为 `"F"`), 故 120Hz hack 其实一直没生效(被 try/catch 吞), 非崩溃源, 但可择机修正。
 
 ## MAUI 已知坑(高频)
 - **Android `LayerType` 命名遮蔽**: 嵌套枚举 vs 同名实例属性冲突，唯一正确是在 `Android.Views.View` 子类体内用简单名 `LayerType`(见 `Platforms/Android/HardwareLayerExtensions.cs` 的 `LayerTypeProbe`)。`Platforms/Android` 下 .cs 必须 `using View = Android.Views.View;` 消解与 MAUI `Controls.View` 歧义。

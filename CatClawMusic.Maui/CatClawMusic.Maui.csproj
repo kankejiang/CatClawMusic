@@ -15,8 +15,8 @@
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
 		<ApplicationId>com.catclaw.music</ApplicationId>
-		<ApplicationDisplayVersion>1.6.5</ApplicationDisplayVersion>
-		<ApplicationVersion>42</ApplicationVersion>
+		<ApplicationDisplayVersion>1.6.6</ApplicationDisplayVersion>
+		<ApplicationVersion>43</ApplicationVersion>
 
 		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>
@@ -66,6 +66,12 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.9" />
+		<!-- Android 16（16KB 内存页）：sqlite-net-pcl 1.9.172 传递引入的 SQLitePCLRaw 2.1.2 中
+		     libe_sqlite3.so 为 4KB 对齐，在三星 One UI 8.5/Android 16 等 16KB 页设备上 dlopen 失败
+		     导致启动后（DB 初始化时）闪退。顶层锁定 2.1.11（16KB 对齐且数据库可正常打开，
+		     注意 2.1.10 仅消除警告但 DB 仍打不开，见 ericsink/SQLitePCL.raw#621）。 -->
+		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
+		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3.android" Version="2.1.11" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
 	</ItemGroup>
 
 	<!-- Android-specific: Media3 ExoPlayer -->
@@ -77,12 +83,13 @@
 		<PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0.10" />
 	</ItemGroup>
 
-	<!-- Android release signing -->
-	<ItemGroup Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-		<AndroidSigningKeyStore Include="..\catclaw.keystore" />
-		<AndroidSigningKeyAlias Include="catclaw" />
-		<AndroidSigningKeyPass Include="$(CatClawKeyPass)" />
-		<AndroidSigningStorePass Include="$(CatClawStorePass)" />
-	</ItemGroup>
+	<!-- Android release signing：必须显式 AndroidKeyStore=true，且用 PropertyGroup 属性（非 ItemGroup） -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<AndroidKeyStore>true</AndroidKeyStore>
+		<AndroidSigningKeyStore>..\catclaw.keystore</AndroidSigningKeyStore>
+		<AndroidSigningKeyAlias>catclaw</AndroidSigningKeyAlias>
+		<AndroidSigningKeyPass>$(CatClawKeyPass)</AndroidSigningKeyPass>
+		<AndroidSigningStorePass>$(CatClawStorePass)</AndroidSigningStorePass>
+	</PropertyGroup>
 
 </Project>

@@ -12,18 +12,18 @@
           Background="{DynamicResource PageBackgroundBrush}"
           SafeAreaEdges="None">
 
-        <!-- 自定义背景图片层（用户可选，覆盖在渐变背景之上、内容之下） -->
-        <Image x:Name="CustomBackgroundImage"
+        <!-- 主题内置背景图片层（星空/天空静态图，跟随主题色与深浅模式自动切换） -->
+        <Image x:Name="ThemeBackgroundImage"
                Aspect="AspectFill"
-               Source="{DynamicResource CustomBackgroundImage}"
-               IsVisible="{DynamicResource CustomBackgroundEnabled}"
-               Opacity="{DynamicResource CustomBackgroundOpacity}"
+               Source="{DynamicResource ThemeBackgroundImage}"
+               IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+               Opacity="1.0"
                InputTransparent="True" />
 
-        <!-- 背景遮罩层：在自定义背景图上加半透明暗色/亮色，确保文字可读 -->
+        <!-- 背景遮罩层：在主题背景图上加半透明暗色/亮色，确保文字可读 -->
         <BoxView x:Name="BackgroundMask"
                  Color="{DynamicResource CustomBackgroundMaskColor}"
-                 IsVisible="{DynamicResource CustomBackgroundEnabled}"
+                 IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                  InputTransparent="True" />
 
         <!-- ViewPager 区域：所有 tab 页面水平排列，滑动时同时移动 -->
@@ -124,12 +124,13 @@
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent0" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon0">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_play_light" Dark="ic_play" />
-                        </Image.Source>
-                    </Image>
+                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                 x:Name="TabIcon0"
+                                 Source="ic_play"
+                                 BackgroundColor="Transparent"
+                                 BorderWidth="0"
+                                 Padding="0"
+                                 InputTransparent="True" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaying]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
                 </VerticalStackLayout>
             </Grid>
@@ -140,12 +141,13 @@
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent1" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon1">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_home_light" Dark="ic_home" />
-                        </Image.Source>
-                    </Image>
+                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                 x:Name="TabIcon1"
+                                 Source="ic_home"
+                                 BackgroundColor="Transparent"
+                                 BorderWidth="0"
+                                 Padding="0"
+                                 InputTransparent="True" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
                 </VerticalStackLayout>
             </Grid>
@@ -156,12 +158,13 @@
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent2" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon2">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_playlist_light" Dark="ic_playlist" />
-                        </Image.Source>
-                    </Image>
+                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                 x:Name="TabIcon2"
+                                 Source="ic_playlist"
+                                 BackgroundColor="Transparent"
+                                 BorderWidth="0"
+                                 Padding="0"
+                                 InputTransparent="True" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
                 </VerticalStackLayout>
             </Grid>
@@ -172,12 +175,13 @@
                     <TapGestureRecognizer Tapped="OnTabTapped" />
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent3" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon3">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_library_light" Dark="ic_library" />
-                        </Image.Source>
-                    </Image>
+                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                 x:Name="TabIcon3"
+                                 Source="ic_library"
+                                 BackgroundColor="Transparent"
+                                 BorderWidth="0"
+                                 Padding="0"
+                                 InputTransparent="True" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
                 </VerticalStackLayout>
             </Grid>
