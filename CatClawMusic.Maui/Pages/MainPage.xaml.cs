@@ -25,6 +25,7 @@ public partial class MainPage : ContentPage
     private readonly List<ContentPage> _tabPages = new();
     private readonly NowPlayingViewModel _nowPlayingVm;
     private readonly Services.IInteractionStateService? _interactionState;
+    private readonly IThemeService _themeService;
     // ViewPager 布局: [FullLyrics(0), NowPlaying(1), Search(2), Playlist(3), Library(4)]
     // TabBar 的 4 个按钮对应 index 1-4，index 0 是全屏歌词（无 Tab 按钮）
     private int _currentIndex = 1;
@@ -76,6 +77,7 @@ public partial class MainPage : ContentPage
         ApplyEdgeToEdgeSafeArea();
         _nowPlayingVm = nowPlayingVm;
         _interactionState = services.GetService<Services.IInteractionStateService>();
+        _themeService = services.GetRequiredService<IThemeService>();
         Instance = this;
 
         // 迷你播放器绑定到 NowPlayingViewModel
@@ -100,6 +102,9 @@ public partial class MainPage : ContentPage
 
         // 订阅系统栏高度变化，更新 SafeArea padding
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+
+        // 初始化银河背景暂停状态（默认不在播放页播放，正常动画）
+        UpdateGalaxyPauseState();
 
     }
 
@@ -184,6 +189,8 @@ public partial class MainPage : ContentPage
         InvokeLifecycle(_tabPages[_currentIndex], "OnAppearing");
         UpdateTabBarVisibility();
         UpdateTabBarSelection();
+        // 切页后重新评估银河背景暂停状态（离开/进入播放页会改变条件）
+        UpdateGalaxyPauseState();
     }
 
     /// <summary>原生 ViewPager2 滑动状态变化：拖拽/归位期间暂停 FrostedBackground 动画，空闲恢复。</summary>
@@ -194,10 +201,13 @@ public partial class MainPage : ContentPage
             case NativeTabPager.ScrollState.Dragging:
             case NativeTabPager.ScrollState.Settling:
                 _swipeInteractionToken ??= _interactionState?.BeginInteraction("TabSwipe");
+                // 滑动期间暂停银河背景动画，释放 GPU 合成压力
+                GalaxyBg.IsInteractionActive = true;
                 break;
             case NativeTabPager.ScrollState.Idle:
                 _swipeInteractionToken?.Dispose();
                 _swipeInteractionToken = null;
+                GalaxyBg.IsInteractionActive = false;
                 break;
         }
     }
@@ -310,6 +320,8 @@ public partial class MainPage : ContentPage
         }
         catch { }
 
+        UpdateGalaxyPauseState();
+
         Log.Debug("MainPage.xaml", $"[MainPage] OnAppearing, currentIndex={_currentIndex}, ViewPagerGrid.Width={ViewPagerGrid.Width}");
         UpdatePagePositions(0);
         UpdateTabBarVisibility();
@@ -368,6 +380,9 @@ public partial class MainPage : ContentPage
     /// <summary>预加载所有 Tab 页面的 ViewModel 数据，加载完成后隐藏遮罩</summary>
     private async Task PreloadTabDataAsync()
     {
+        // 显示 LoadingOverlay（不透明背景覆盖底层页面），仅隐藏非原生控件
+        MiniPlayer.IsVisible = false;
+        TabBar.IsVisible = false;
         LoadingOverlay.IsVisible = true;
 
         try
@@ -391,6 +406,8 @@ public partial class MainPage : ContentPage
         }
         finally
         {
+            UpdateTabBarVisibility();
+            UpdateMiniPlayerVisibility();
             LoadingOverlay.IsVisible = false;
         }
     }
@@ -535,6 +552,8 @@ public partial class MainPage : ContentPage
                 // 暂停歌词更新、FrostedBackground 动画等耗时操作，减轻主线程负担
                 _panInteractionToken?.Dispose();
                 _panInteractionToken = _interactionState?.BeginInteraction("TabSwipe");
+                // 滑动期间暂停银河背景动画（与雾面背景一致），释放 GPU 合成压力
+                GalaxyBg.IsInteractionActive = true;
                 break;
 
             case GestureStatus.Running:
@@ -603,6 +622,7 @@ public partial class MainPage : ContentPage
                 // 动画结束后释放交互令牌，恢复正常更新
                 _panInteractionToken?.Dispose();
                 _panInteractionToken = null;
+                GalaxyBg.IsInteractionActive = false;
                 break;
 
             case GestureStatus.Canceled:
@@ -611,6 +631,7 @@ public partial class MainPage : ContentPage
                 await BounceBack();
                 _panInteractionToken?.Dispose();
                 _panInteractionToken = null;
+                GalaxyBg.IsInteractionActive = false;
                 break;
         }
     }
@@ -1023,6 +1044,23 @@ public partial class MainPage : ContentPage
         {
             MainThread.BeginInvokeOnMainThread(UpdateMiniPlayerVisibility);
         }
+        if (e.PropertyName == nameof(NowPlayingViewModel.IsPlaying))
+        {
+            // 播放状态变化：重新评估银河背景是否应暂停（播放页播放时雾面背景覆盖全屏，银河冻结）
+            UpdateGalaxyPauseState();
+        }
+    }
+
+    /// <summary>根据当前所在页与播放状态决定银河背景是否暂停：
+    /// 当位于播放页(index 1)且正在播放、且雾面动态背景启用时，播放页的雾面背景已铺满全屏，
+    /// 底层银河无需继续动画，冻结当前帧以节省主线程/GPU 资源。</summary>
+    private void UpdateGalaxyPauseState()
+    {
+        var shouldPause = _currentIndex == 1
+                          && _nowPlayingVm.IsPlaying
+                          && _themeService.FrostedBackgroundEnabled;
+        if (GalaxyBg != null)
+            GalaxyBg.IsPaused = shouldPause;
     }
 
     /// <summary>点击迷你播放器非按钮区域（封面/标题）跳转到播放页</summary>

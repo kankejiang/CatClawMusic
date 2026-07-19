@@ -5,9 +5,9 @@
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.PlaylistPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="Transparent">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid Background="Transparent">
 
         <Grid RowDefinitions="Auto,Auto,*">
 

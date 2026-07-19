@@ -25,19 +25,14 @@ public class ThemeService : IThemeService
     private double _customBackgroundOpacity = 0.5;
     private bool _frostedBackgroundEnabled = true;
 
-    /// <summary>主题色定义（10种主题：紫、粉、蓝、绿、橙、红、青、黄、靛蓝、青蓝）</summary>
+    /// <summary>主题色定义（5 套夜空银河原型色板）</summary>
     private static readonly Dictionary<CoreAppTheme, ThemeColors> ThemeMap = new()
     {
-        [CoreAppTheme.Purple] = new ThemeColors("#9B7ED8", "#E8E0FF", "#7C5DCE"),
-        [CoreAppTheme.Pink] = new ThemeColors("#EC407A", "#FFE0EB", "#D81B60"),
-        [CoreAppTheme.Blue] = new ThemeColors("#42A5F5", "#D6E8FF", "#1E88E5"),
-        [CoreAppTheme.Green] = new ThemeColors("#66BB6A", "#D6F5D8", "#43A047"),
-        [CoreAppTheme.Orange] = new ThemeColors("#FF7043", "#FFE0D6", "#F4511E"),
-        [CoreAppTheme.Red] = new ThemeColors("#EF5350", "#FFE0E0", "#E53935"),
-        [CoreAppTheme.Teal] = new ThemeColors("#26A69A", "#D6F5F0", "#00897B"),
-        [CoreAppTheme.Yellow] = new ThemeColors("#FFC107", "#FFF8D6", "#FFB300"),
-        [CoreAppTheme.Indigo] = new ThemeColors("#5C6BC0", "#E0E4FF", "#3949AB"),
-        [CoreAppTheme.Cyan] = new ThemeColors("#00BCD4", "#D6F7FB", "#00ACC1"),
+        [CoreAppTheme.BrandPurpleBlue] = new ThemeColors("#8C7BFF", "#E8E0FF", "#6B5DCC"),
+        [CoreAppTheme.AuroraCyan]      = new ThemeColors("#55D6FF", "#D6F7FF", "#3FA8CC"),
+        [CoreAppTheme.WarmPurplePink]  = new ThemeColors("#B07CFF", "#F0E0FF", "#8A5ECC"),
+        [CoreAppTheme.SunsetOrange]    = new ThemeColors("#FFB07C", "#FFE8D6", "#CC8A5E"),
+        [CoreAppTheme.EmeraldGreen]    = new ThemeColors("#7CFFB0", "#D6FFEA", "#5ECC8A"),
     };
 
     /// <summary>获取当前主题色枚举</summary>
@@ -226,12 +221,13 @@ public class ThemeService : IThemeService
             if (_customBackgroundPath != null && !File.Exists(_customBackgroundPath))
                 _customBackgroundPath = null;
 
+            // 旧版保存了 10 种主题，新版仅保留 5 套原型色板；非法值重置为默认
             if (!ThemeMap.ContainsKey(_currentTheme))
-                _currentTheme = CoreAppTheme.Purple;
+                _currentTheme = CoreAppTheme.BrandPurpleBlue;
         }
         catch
         {
-            _currentTheme = CoreAppTheme.Purple;
+            _currentTheme = CoreAppTheme.BrandPurpleBlue;
             _darkModeSetting = DarkModeSetting.FollowSystem;
             _customBackgroundPath = null;
             _customBackgroundOpacity = 0.5;
@@ -254,6 +250,7 @@ public class ThemeService : IThemeService
         var accentTint = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.1f);
 
         resources["WindowBackgroundColor"] = darkBase;
+        resources["GalaxyDeepColor"] = Blend(darkBase, primary.WithAlpha(0.12f));
         resources["WindowBackgroundAltColor"] = Color.FromArgb("#131735");
         resources["SurfaceColor"] = Color.FromArgb("#171B33");
         resources["CardBackgroundColor"] = Color.FromArgb("#1AFFFFFF");
@@ -305,6 +302,9 @@ public class ThemeService : IThemeService
         var accent = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.22f);
 
         resources["WindowBackgroundColor"] = lightBase;
+        // 夜空银河底色：保持深空质感（即便浅色模式也以深空夜空为底，符合「夜空银河」品牌），
+        // 仅做轻微主题色染色，避免与星点（白色）对比丢失。
+        resources["GalaxyDeepColor"] = Blend(Color.FromArgb("#0C0E1C"), primary.WithAlpha(0.14f));
         resources["WindowBackgroundAltColor"] = Color.FromArgb("#EEEBFF");
         resources["SurfaceColor"] = Color.FromArgb("#FFFFFFFF");
         resources["CardBackgroundColor"] = Color.FromArgb("#FFFFFFFF");
@@ -431,49 +431,34 @@ public class ThemeService : IThemeService
 
     private static string GetAccentColor(CoreAppTheme theme) => theme switch
     {
-        CoreAppTheme.Purple => "#55D6FF",
-        CoreAppTheme.Pink => "#FFB86E",
-        CoreAppTheme.Blue => "#5AE4FF",
-        CoreAppTheme.Green => "#67E5C1",
-        CoreAppTheme.Orange => "#FFD36E",
-        CoreAppTheme.Red => "#FF8A65",
-        CoreAppTheme.Teal => "#80CBC4",
-        CoreAppTheme.Yellow => "#FFAB40",
-        CoreAppTheme.Indigo => "#7C4DFF",
-        CoreAppTheme.Cyan => "#84FFFF",
+        CoreAppTheme.BrandPurpleBlue => "#55D6FF",
+        CoreAppTheme.AuroraCyan      => "#5CFFC4",
+        CoreAppTheme.WarmPurplePink  => "#FF7CB0",
+        CoreAppTheme.SunsetOrange    => "#FF7C9E",
+        CoreAppTheme.EmeraldGreen    => "#55D6FF",
         _ => "#55D6FF"
     };
 
     private static string GetAccentColorHex(string primaryHex)
         => primaryHex switch
         {
-            "#9B7ED8" => "#55D6FF",
-            "#EC407A" => "#FFB86E",
-            "#42A5F5" => "#5AE4FF",
-            "#66BB6A" => "#67E5C1",
-            "#FF7043" => "#FFD36E",
-            "#EF5350" => "#FF8A65",
-            "#26A69A" => "#80CBC4",
-            "#FFC107" => "#FFAB40",
-            "#5C6BC0" => "#7C4DFF",
-            "#00BCD4" => "#84FFFF",
+            "#8C7BFF" => "#55D6FF",
+            "#55D6FF" => "#5CFFC4",
+            "#B07CFF" => "#FF7CB0",
+            "#FFB07C" => "#FF7C9E",
+            "#7CFFB0" => "#55D6FF",
             _ => "#55D6FF"
         };
 
     private static CoreAppTheme _currentThemeStatic(string primaryHex)
         => primaryHex switch
         {
-            "#9B7ED8" => CoreAppTheme.Purple,
-            "#EC407A" => CoreAppTheme.Pink,
-            "#42A5F5" => CoreAppTheme.Blue,
-            "#66BB6A" => CoreAppTheme.Green,
-            "#FF7043" => CoreAppTheme.Orange,
-            "#EF5350" => CoreAppTheme.Red,
-            "#26A69A" => CoreAppTheme.Teal,
-            "#FFC107" => CoreAppTheme.Yellow,
-            "#5C6BC0" => CoreAppTheme.Indigo,
-            "#00BCD4" => CoreAppTheme.Cyan,
-            _ => CoreAppTheme.Purple
+            "#8C7BFF" => CoreAppTheme.BrandPurpleBlue,
+            "#55D6FF" => CoreAppTheme.AuroraCyan,
+            "#B07CFF" => CoreAppTheme.WarmPurplePink,
+            "#FFB07C" => CoreAppTheme.SunsetOrange,
+            "#7CFFB0" => CoreAppTheme.EmeraldGreen,
+            _ => CoreAppTheme.BrandPurpleBlue
         };
 
     private static string AlphaHex(byte alpha) => alpha.ToString("X2");

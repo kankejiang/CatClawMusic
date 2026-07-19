@@ -61,30 +61,20 @@ public interface IThemeService
 }
 
 /// <summary>
-/// 应用主题枚举
+/// 应用主题枚举（5 套夜空银河原型色板）
 /// </summary>
 public enum AppTheme
 {
-    /// <summary>紫色主题</summary>
-    Purple = 0,
-    /// <summary>粉色主题</summary>
-    Pink = 1,
-    /// <summary>蓝色主题</summary>
-    Blue = 2,
-    /// <summary>绿色主题</summary>
-    Green = 3,
-    /// <summary>橙色主题</summary>
-    Orange = 4,
-    /// <summary>红色主题</summary>
-    Red = 5,
-    /// <summary>青色主题</summary>
-    Teal = 6,
-    /// <summary>黄色主题</summary>
-    Yellow = 7,
-    /// <summary>靛蓝主题</summary>
-    Indigo = 8,
-    /// <summary>蓝绿主题</summary>
-    Cyan = 9
+    /// <summary>品牌紫蓝</summary>
+    BrandPurpleBlue = 0,
+    /// <summary>极光青</summary>
+    AuroraCyan = 1,
+    /// <summary>魅紫粉</summary>
+    WarmPurplePink = 2,
+    /// <summary>日落橙</summary>
+    SunsetOrange = 3,
+    /// <summary>翡翠绿</summary>
+    EmeraldGreen = 4
 }
 
 /// <summary>

@@ -21,7 +21,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
 
     /// <summary>当前选中的主题色（十六进制）</summary>
     [ObservableProperty]
-    private string _selectedThemeColor = "#9B7ED8";
+    private string _selectedThemeColor = "#8C7BFF";
 
     /// <summary>启动页可选项列表</summary>
     [ObservableProperty]
@@ -54,16 +54,11 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     /// <summary>可选主题色列表（名称 + 十六进制颜色）</summary>
     public static readonly (string Name, string Color)[] ThemeColors = new[]
     {
-        ("紫色", "#9B7ED8"),
-        ("粉色", "#EC407A"),
-        ("蓝色", "#42A5F5"),
-        ("绿色", "#66BB6A"),
-        ("橙色", "#FF7043"),
-        ("红色", "#EF5350"),
-        ("青色", "#26A69A"),
-        ("黄色", "#FFC107"),
-        ("靛蓝", "#5C6BC0"),
-        ("青蓝", "#00BCD4"),
+        ("品牌紫蓝", "#8C7BFF"),
+        ("极光青",   "#55D6FF"),
+        ("魅紫粉",   "#B07CFF"),
+        ("日落橙",   "#FFB07C"),
+        ("翡翠绿",   "#7CFFB0"),
     };
 
     /// <summary>
@@ -87,17 +82,12 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         {
             var theme = colorHex switch
             {
-                "#9B7ED8" => AppTheme.Purple,
-                "#EC407A" => AppTheme.Pink,
-                "#42A5F5" => AppTheme.Blue,
-                "#66BB6A" => AppTheme.Green,
-                "#FF7043" => AppTheme.Orange,
-                "#EF5350" => AppTheme.Red,
-                "#26A69A" => AppTheme.Teal,
-                "#FFC107" => AppTheme.Yellow,
-                "#5C6BC0" => AppTheme.Indigo,
-                "#00BCD4" => AppTheme.Cyan,
-                _ => AppTheme.Purple
+                "#8C7BFF" => AppTheme.BrandPurpleBlue,
+                "#55D6FF" => AppTheme.AuroraCyan,
+                "#B07CFF" => AppTheme.WarmPurplePink,
+                "#FFB07C" => AppTheme.SunsetOrange,
+                "#7CFFB0" => AppTheme.EmeraldGreen,
+                _ => AppTheme.BrandPurpleBlue
             };
             _themeService.SetTheme(theme);
         }
@@ -194,17 +184,12 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         IsDarkMode = _themeService.DarkModeSetting == DarkModeSetting.Dark;
         SelectedThemeColor = currentTheme switch
         {
-            AppTheme.Purple => "#9B7ED8",
-            AppTheme.Pink => "#EC407A",
-            AppTheme.Blue => "#42A5F5",
-            AppTheme.Green => "#66BB6A",
-            AppTheme.Orange => "#FF7043",
-            AppTheme.Red => "#EF5350",
-            AppTheme.Teal => "#26A69A",
-            AppTheme.Yellow => "#FFC107",
-            AppTheme.Indigo => "#5C6BC0",
-            AppTheme.Cyan => "#00BCD4",
-            _ => "#9B7ED8"
+            AppTheme.BrandPurpleBlue => "#8C7BFF",
+            AppTheme.AuroraCyan      => "#55D6FF",
+            AppTheme.WarmPurplePink  => "#B07CFF",
+            AppTheme.SunsetOrange    => "#FFB07C",
+            AppTheme.EmeraldGreen    => "#7CFFB0",
+            _ => "#8C7BFF"
         };
         SelectedStartupPageIndex = Preferences.Default.Get("StartupPageIndex", 2);
 

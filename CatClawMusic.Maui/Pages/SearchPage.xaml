@@ -5,9 +5,9 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.SearchPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="Transparent">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid Background="Transparent">
 
         <CollectionView x:Name="DiscoverCollection"
                         IsVisible="{Binding IsChatMode, Converter={StaticResource InvertedBoolConverter}}"
@@ -25,25 +25,16 @@
                         </VerticalStackLayout>
                         <HorizontalStackLayout Grid.Column="1" Spacing="10" VerticalOptions="Center">
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked">
-                                    <ImageButton.Source>
-                                        <AppThemeBinding Light="ic_search_light" Dark="ic_search" />
-                                    </ImageButton.Source>
-                                </ImageButton>
+                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked"
+                                             Source="{AppThemeBinding Light=ic_search_light, Dark=ic_search}" />
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked">
-                                    <ImageButton.Source>
-                                        <AppThemeBinding Light="ic_refresh_light" Dark="ic_refresh" />
-                                    </ImageButton.Source>
-                                </ImageButton>
+                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked"
+                                             Source="{AppThemeBinding Light=ic_refresh_light, Dark=ic_refresh}" />
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked">
-                                    <ImageButton.Source>
-                                        <AppThemeBinding Light="ic_settings_light" Dark="ic_settings" />
-                                    </ImageButton.Source>
-                                </ImageButton>
+                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked"
+                                             Source="{AppThemeBinding Light=ic_settings_light, Dark=ic_settings}" />
                             </Border>
                         </HorizontalStackLayout>
                     </Grid>
@@ -414,7 +405,7 @@
         <!-- Chat Overlay -->
         <Grid x:Name="ChatOverlay"
               IsVisible="{Binding IsChatMode}"
-              Background="{DynamicResource PageBackgroundBrush}"
+              Background="Transparent"
               RowDefinitions="Auto,*,Auto,Auto">
 
             <Grid Grid.Row="0" Margin="16,10,16,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
@@ -661,7 +652,7 @@
                   WidthRequest="300"
                   HorizontalOptions="Start"
                   TranslationX="-9999"
-                  BackgroundColor="{DynamicResource WindowBackgroundColor}">
+                  BackgroundColor="Transparent">
                 <!-- 设置内容容器（按需求移除顶部“设置”标题栏与关闭 X；点击遮罩仍可收起面板） -->
                 <ScrollView>
                     <ContentView x:Name="SettingsPanelContent" />

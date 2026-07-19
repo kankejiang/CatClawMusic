@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.MainPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
@@ -11,6 +12,14 @@
     <Grid RowDefinitions="*,Auto,Auto"
           Background="{DynamicResource PageBackgroundBrush}"
           SafeAreaEdges="None">
+
+        <!-- 夜空银河动态背景（全局底层，位于自定义背景图与内容之下） -->
+        <controls:GalaxyBackground x:Name="GalaxyBg"
+                                   Grid.RowSpan="3"
+                                   PrimaryColor="{DynamicResource PrimaryColor}"
+                                   AccentColor="{DynamicResource AccentColor}"
+                                   DeepColor="{DynamicResource GalaxyDeepColor}"
+                                   InputTransparent="True" />
 
         <!-- 自定义背景图片层（用户可选，覆盖在渐变背景之上、内容之下） -->
         <Image x:Name="CustomBackgroundImage"
@@ -125,11 +134,8 @@
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent0" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
                     <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon0">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_play_light" Dark="ic_play" />
-                        </Image.Source>
-                    </Image>
+                           x:Name="TabIcon0"
+                           Source="{AppThemeBinding Light=ic_play_light, Dark=ic_play}" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaying]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
                 </VerticalStackLayout>
             </Grid>
@@ -141,11 +147,8 @@
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent1" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
                     <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon1">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_home_light" Dark="ic_home" />
-                        </Image.Source>
-                    </Image>
+                           x:Name="TabIcon1"
+                           Source="{AppThemeBinding Light=ic_home_light, Dark=ic_home}" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
                 </VerticalStackLayout>
             </Grid>
@@ -157,11 +160,8 @@
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent2" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
                     <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon2">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_playlist_light" Dark="ic_playlist" />
-                        </Image.Source>
-                    </Image>
+                           x:Name="TabIcon2"
+                           Source="{AppThemeBinding Light=ic_playlist_light, Dark=ic_playlist}" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
                 </VerticalStackLayout>
             </Grid>
@@ -173,11 +173,8 @@
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="TabContent3" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
                     <Image WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                           x:Name="TabIcon3">
-                        <Image.Source>
-                            <AppThemeBinding Light="ic_library_light" Dark="ic_library" />
-                        </Image.Source>
-                    </Image>
+                           x:Name="TabIcon3"
+                           Source="{AppThemeBinding Light=ic_library_light, Dark=ic_library}" />
                     <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
                 </VerticalStackLayout>
             </Grid>
@@ -186,7 +183,7 @@
         <!-- 启动加载页：纯文字品牌 Splash Screen -->
         <Grid x:Name="LoadingOverlay"
               Grid.RowSpan="3"
-              Background="{DynamicResource PageBackgroundBrush}"
+              Background="#080B1A"
               IsVisible="False"
               InputTransparent="False"
               ZIndex="999">

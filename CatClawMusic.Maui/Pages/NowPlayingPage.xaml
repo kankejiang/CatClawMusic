@@ -5,7 +5,7 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.NowPlayingPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleNowPlaying]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             BackgroundColor="Transparent"
              Shell.NavBarIsVisible="False">
 
     <Shell.BackButtonBehavior>
@@ -281,48 +281,48 @@
                     </Grid>
                 </Grid>
 
-                <!-- ═══ 竖屏播放控件：5个按钮等分居中 ═══ -->
+                <!-- ═══ 竖屏播放控件：5个按钮等分居中（播放控件放大 50%） ═══ -->
                 <Grid Grid.Row="2"
                       x:Name="PhoneControls"
                       IsVisible="True"
                       ColumnDefinitions="*,*,*,*,*"
-                      HeightRequest="56"
+                      HeightRequest="92"
                       VerticalOptions="End">
                     <!-- 播放模式 -->
-                    <ImageButton Grid.Column="0" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="8"
+                    <ImageButton Grid.Column="0" WidthRequest="60" HeightRequest="60"
+                            CornerRadius="30" Padding="12"
                             Aspect="AspectFit"
                             BackgroundColor="Transparent"
                             Source="{Binding PlayModeIconSourceWhite}"
                             Command="{Binding CyclePlayModeCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 上一首 -->
-                    <ImageButton Grid.Column="1" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="8"
+                    <ImageButton Grid.Column="1" WidthRequest="60" HeightRequest="60"
+                            CornerRadius="30" Padding="12"
                             Aspect="AspectFit"
                             BackgroundColor="Transparent"
                             Source="{Binding PlayPreviousIconSourceWhite}"
                             Command="{Binding PlayPreviousCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 播放/暂停 -->
-                    <ImageButton Grid.Column="2" WidthRequest="56" HeightRequest="56"
-                            CornerRadius="28" Padding="12"
+                    <ImageButton Grid.Column="2" WidthRequest="84" HeightRequest="84"
+                            CornerRadius="42" Padding="18"
                             Aspect="AspectFit"
                             BackgroundColor="Transparent"
                             Source="{Binding PlayPauseIconSourceWhite}"
                             Command="{Binding TogglePlayPauseCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 下一首 -->
-                    <ImageButton Grid.Column="3" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="8"
+                    <ImageButton Grid.Column="3" WidthRequest="60" HeightRequest="60"
+                            CornerRadius="30" Padding="12"
                             Aspect="AspectFit"
                             BackgroundColor="Transparent"
                             Source="{Binding PlayNextIconSourceWhite}"
                             Command="{Binding PlayNextCommand}"
                             HorizontalOptions="Center" VerticalOptions="Center" />
                     <!-- 播放列表 -->
-                    <ImageButton Grid.Column="4" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="8"
+                    <ImageButton Grid.Column="4" WidthRequest="60" HeightRequest="60"
+                            CornerRadius="30" Padding="12"
                             Aspect="AspectFit"
                             BackgroundColor="Transparent"
                             Source="{Binding PlaylistIconSource}"
@@ -330,12 +330,12 @@
                             HorizontalOptions="Center" VerticalOptions="Center" />
                 </Grid>
 
-                <!-- ═══ 横屏播放控件：左/中/右三栏 ═══ -->
+                <!-- ═══ 横屏播放控件：左/中/右三栏（播放控件放大 50%） ═══ -->
                 <Grid Grid.Row="2"
                       x:Name="DesktopControls"
                       IsVisible="False"
                       ColumnDefinitions="*,Auto,*"
-                      HeightRequest="56"
+                      HeightRequest="92"
                       VerticalOptions="End">
 
                     <!-- 左侧：歌曲信息 + 收藏 -->
@@ -359,46 +359,46 @@
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                     </Grid>
 
-                    <!-- 中间：播放控制按钮紧凑排列 -->
+                    <!-- 中间：播放控制按钮紧凑排列（放大 50%） -->
                     <Grid Grid.Column="1"
                           ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
                           ColumnSpacing="16"
                           HorizontalOptions="Center" VerticalOptions="Center">
                         <!-- 播放模式 -->
-                        <ImageButton Grid.Column="0" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="8"
+                        <ImageButton Grid.Column="0" WidthRequest="60" HeightRequest="60"
+                                CornerRadius="30" Padding="12"
                                 Aspect="AspectFit"
                                 BackgroundColor="Transparent"
                                 Source="{Binding PlayModeIconSourceWhite}"
                                 Command="{Binding CyclePlayModeCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 上一首 -->
-                        <ImageButton Grid.Column="1" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="8"
+                        <ImageButton Grid.Column="1" WidthRequest="60" HeightRequest="60"
+                                CornerRadius="30" Padding="12"
                                 Aspect="AspectFit"
                                 BackgroundColor="Transparent"
                                 Source="{Binding PlayPreviousIconSourceWhite}"
                                 Command="{Binding PlayPreviousCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 播放/暂停 -->
-                        <ImageButton Grid.Column="2" WidthRequest="56" HeightRequest="56"
-                                CornerRadius="28" Padding="12"
+                        <ImageButton Grid.Column="2" WidthRequest="84" HeightRequest="84"
+                                CornerRadius="42" Padding="18"
                                 Aspect="AspectFit"
                                 BackgroundColor="Transparent"
                                 Source="{Binding PlayPauseIconSourceWhite}"
                                 Command="{Binding TogglePlayPauseCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 下一首 -->
-                        <ImageButton Grid.Column="3" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="8"
+                        <ImageButton Grid.Column="3" WidthRequest="60" HeightRequest="60"
+                                CornerRadius="30" Padding="12"
                                 Aspect="AspectFit"
                                 BackgroundColor="Transparent"
                                 Source="{Binding PlayNextIconSourceWhite}"
                                 Command="{Binding PlayNextCommand}"
                                 HorizontalOptions="Center" VerticalOptions="Center" />
                         <!-- 播放列表 -->
-                        <ImageButton Grid.Column="4" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="8"
+                        <ImageButton Grid.Column="4" WidthRequest="60" HeightRequest="60"
+                                CornerRadius="30" Padding="12"
                                 Aspect="AspectFit"
                                 BackgroundColor="Transparent"
                                 Source="{Binding PlaylistIconSource}"
@@ -407,8 +407,8 @@
                     </Grid>
 
                     <!-- 右侧：歌词 -->
-                    <ImageButton Grid.Column="2" WidthRequest="40" HeightRequest="40"
-                            CornerRadius="20" Padding="8"
+                    <ImageButton Grid.Column="2" WidthRequest="60" HeightRequest="60"
+                            CornerRadius="30" Padding="12"
                             Aspect="AspectFit"
                             BackgroundColor="Transparent"
                             Source="{Binding LyricsIconSource}"
@@ -416,41 +416,41 @@
                             HorizontalOptions="End" VerticalOptions="Center" />
                 </Grid>
 
-                <!-- ═══ 底部操作栏：歌词 / 定时关闭 / 歌曲详情 / 音效 / 横屏 / 更多（占位图标，均布屏幕底部，暂未接功能） ═══ -->
+                <!-- ═══ 底部操作栏：歌词 / 定时关闭 / 歌曲详情 / 音效 / 横屏 / 更多（占位图标，均布屏幕底部，暂未接功能；图标缩小 30%） ═══ -->
                 <Grid Grid.Row="3"
                       x:Name="BottomActionBar"
                       ColumnDefinitions="*,*,*,*,*,*"
                       Margin="8,6,8,2">
                     <!-- 进入歌词页面 -->
-                    <ImageButton Grid.Column="0" WidthRequest="44" HeightRequest="44"
-                                 CornerRadius="22" Padding="10"
+                    <ImageButton Grid.Column="0" WidthRequest="31" HeightRequest="31"
+                                 CornerRadius="15" Padding="7"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_lyrics_full"
                                  Clicked="OnOpenLyricsClicked" />
                     <!-- 定时关闭（占位） -->
-                    <ImageButton Grid.Column="1" WidthRequest="44" HeightRequest="44"
-                                 CornerRadius="22" Padding="10"
+                    <ImageButton Grid.Column="1" WidthRequest="31" HeightRequest="31"
+                                 CornerRadius="15" Padding="7"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_timer" />
                     <!-- 歌曲详情（白色图标） -->
-                    <ImageButton Grid.Column="2" WidthRequest="44" HeightRequest="44"
-                                 CornerRadius="22" Padding="10"
+                    <ImageButton Grid.Column="2" WidthRequest="31" HeightRequest="31"
+                                 CornerRadius="15" Padding="7"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_info"
                                  Clicked="OnSongDetailTapped" />
                     <!-- 音效/均衡器（占位） -->
-                    <ImageButton Grid.Column="3" WidthRequest="44" HeightRequest="44"
-                                 CornerRadius="22" Padding="10"
+                    <ImageButton Grid.Column="3" WidthRequest="31" HeightRequest="31"
+                                 CornerRadius="15" Padding="7"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_equalizer" />
                     <!-- 切换横屏（占位） -->
-                    <ImageButton Grid.Column="4" WidthRequest="44" HeightRequest="44"
-                                 CornerRadius="22" Padding="10"
+                    <ImageButton Grid.Column="4" WidthRequest="31" HeightRequest="31"
+                                 CornerRadius="15" Padding="7"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_rotate" />
                     <!-- 更多（占位） -->
-                    <ImageButton Grid.Column="5" WidthRequest="44" HeightRequest="44"
-                                 CornerRadius="22" Padding="10"
+                    <ImageButton Grid.Column="5" WidthRequest="31" HeightRequest="31"
+                                 CornerRadius="15" Padding="7"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_more" />
                 </Grid>

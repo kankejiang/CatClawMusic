@@ -4,7 +4,7 @@
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
-             xmlns:models="clr-namespace:CatClawMusic.Core.Models"
+             xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              x:Class="CatClawMusic.Maui.Pages.ClawCircleSettingsPage"
              Title="猫爪圈"
              Shell.NavBarIsVisible="False"

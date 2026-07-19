@@ -32,22 +32,16 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSearchToggleClicked" />
                         </Border.GestureRecognizers>
-                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.Source>
-                                <AppThemeBinding Light="ic_search_light" Dark="ic_search" />
-                            </Image.Source>
-                        </Image>
+                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center"
+                               Source="{AppThemeBinding Light=ic_search_light, Dark=ic_search}" />
                     </Border>
                     <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRefreshClicked" />
                         </Border.GestureRecognizers>
-                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.Source>
-                                <AppThemeBinding Light="ic_refresh_light" Dark="ic_refresh" />
-                            </Image.Source>
-                        </Image>
+                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center"
+                               Source="{AppThemeBinding Light=ic_refresh_light, Dark=ic_refresh}" />
                     </Border>
                     <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
