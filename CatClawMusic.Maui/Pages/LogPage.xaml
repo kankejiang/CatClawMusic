@@ -64,13 +64,13 @@
                                         StrokeThickness="0"
                                         StrokeShape="RoundRectangle 13"
                                         WidthRequest="44" HeightRequest="44"
-                                        BackgroundColor="{DynamicResource PrimaryColor}">
+                                        BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}">
                                     <Label Text="🐾" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
                                 </Border>
                                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                                     <HorizontalStackLayout Spacing="8">
                                         <Label Text="猫爪音乐" FontSize="16" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
-                                        <Border StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="{DynamicResource PrimaryColor}" Padding="9,2">
+                                        <Border StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" Padding="9,2">
                                             <Label Text="{Binding AppVersion}" FontSize="12" FontFamily="OpenSansSemibold" TextColor="White" />
                                         </Border>
                                     </HorizontalStackLayout>

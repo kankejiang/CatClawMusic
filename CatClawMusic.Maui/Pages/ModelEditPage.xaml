@@ -173,7 +173,7 @@
                                                 Padding="10,4"
                                                 StrokeThickness="0"
                                                 StrokeShape="RoundRectangle 12"
-                                                BackgroundColor="{DynamicResource PrimaryColor}">
+                                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnFetchedModelTapped"
                                                                       CommandParameter="{Binding .}" />
@@ -411,7 +411,7 @@
             <Button Grid.Column="1"
                     x:Name="SaveButton"
                     Text="保存"
-                    BackgroundColor="{DynamicResource PrimaryColor}"
+                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                     TextColor="White"
                     CornerRadius="18"
                     HeightRequest="46"

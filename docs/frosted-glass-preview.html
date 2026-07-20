@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CatClawMusic · 透明毛玻璃改造预览</title>
+<style>
+  :root { --primary:#9B7ED8; --accent:#55D6FF; }
+  * { box-sizing:border-box; margin:0; padding:0; font-family:"Segoe UI","Noto Sans SC",system-ui,sans-serif; }
+  body { background:#0c0f1c; color:#e8eaf5; padding:28px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  h1 { font-size:20px; font-weight:600; }
+  .sub { color:#9aa0c0; font-size:13px; margin-bottom:18px; text-align:center; line-height:1.7; }
+  .stage { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; }
+  .phone { width:330px; border-radius:30px; overflow:hidden; position:relative; box-shadow:0 18px 50px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.08); }
+  .label { position:absolute; top:12px; left:0; right:0; text-align:center; z-index:9; font-size:12px; letter-spacing:2px; color:rgba(255,255,255,.75); text-transform:uppercase; }
+  .label.dark-lbl{ color:rgba(255,255,255,.8);} .label.light-lbl{ color:rgba(20,25,55,.7);}
+  .bg { position:absolute; inset:0; background-size:cover; background-position:center; }
+  .bg.dark { background:
+      radial-gradient(1px 1px at 30px 40px,#fff,transparent),
+      radial-gradient(1px 1px at 120px 90px,#cfe,transparent),
+      radial-gradient(1.5px 1.5px at 220px 160px,#fff,transparent),
+      radial-gradient(1px 1px at 280px 260px,#dfe,transparent),
+      radial-gradient(1px 1px at 60px 300px,#fff,transparent),
+      radial-gradient(1px 1px at 190px 380px,#eef,transparent),
+      linear-gradient(160deg,#241b4a 0%,#15173a 40%,#0c1030 100%); }
+  .bg.light { background:linear-gradient(160deg,#cbd8ff 0%,#e7dcff 45%,#ffe6f0 100%); }
+  .mask { position:absolute; inset:0; }
+  .mask.dark { background:rgba(0,0,0,.45); }
+  .mask.light { background:rgba(255,255,255,.40); }
+  .screen { position:relative; z-index:2; height:660px; padding:46px 16px 20px; display:flex; flex-direction:column; gap:14px; overflow:hidden; }
+
+  /* ---- 毛玻璃通用 ---- */
+  .glass { -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); border-radius:22px; border:1px solid; }
+  /* Hero 卡：主题色低透明渐变 */
+  .hero.dark  { background:linear-gradient(135deg,rgba(155,126,216,.35),rgba(85,214,255,.14)); border-color:rgba(255,255,255,.29); }
+  .hero.light { background:linear-gradient(135deg,rgba(155,126,216,.40),rgba(183,174,255,.20)); border-color:rgba(0,0,0,.31); }
+  .hero { padding:18px; }
+  .hero .row { display:flex; gap:14px; align-items:center; }
+  .cover { width:76px; height:76px; border-radius:16px; background:linear-gradient(135deg,#9B7ED8,#55D6FF); flex:none; box-shadow:0 6px 16px rgba(0,0,0,.35); }
+  .htitle { font-size:20px; font-weight:700; }
+  .hsub { font-size:12.5px; margin-top:4px; }
+  .light-txt { color:#171b3a; } .light-txt2 { color:#4a5278; }
+  .dark-txt { color:#f5f6ff; } .dark-txt2 { color:#bcc0dd; }
+
+  /* 顶部卡片 + 玻璃按钮组 */
+  .topcard { padding:14px; }
+  .topcard.dark  { background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.28); }
+  .topcard.light { background:rgba(255,255,255,.70); border-color:rgba(0,0,0,.14); }
+  .qbtns { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .qbtn { border-radius:16px; padding:12px 4px; text-align:center; font-size:11.5px; border:1px solid; }
+  .qbtn.dark  { background:rgba(255,255,255,.15); border-color:rgba(255,255,255,.28); color:#eef; }
+  .qbtn.light { background:rgba(255,255,255,.60); border-color:rgba(0,0,0,.12); color:#2a2f52; }
+  .qico { font-size:19px; display:block; margin-bottom:5px; }
+
+  /* 主/次按钮 */
+  .btnrow { display:flex; gap:10px; }
+  .btn { flex:1; border-radius:14px; padding:13px 0; text-align:center; font-size:14px; font-weight:700; border:1px solid; -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); }
+  .btn-primary.dark  { background:rgba(155,126,216,.55); border-color:rgba(255,255,255,.30); color:#fff; }
+  .btn-primary.light { background:rgba(155,126,216,.55); border-color:rgba(255,255,255,.5); color:#fff; }
+  .btn-second.dark  { background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.28); color:#f5f6ff; }
+  .btn-second.light { background:rgba(255,255,255,.70); border-color:rgba(0,0,0,.14); color:#171b3a; }
+
+  .sec-title { font-size:15px; font-weight:600; margin:4px 2px -2px; }
+  .listcard { padding:12px 14px; display:flex; align-items:center; gap:12px; }
+  .listcard.dark  { background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.28); }
+  .listcard.light { background:rgba(255,255,255,.70); border-color:rgba(0,0,0,.14); }
+  .lthumb { width:44px; height:44px; border-radius:10px; background:linear-gradient(135deg,#55D6FF,#9B7ED8); flex:none; }
+  .playdot { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; border:1px solid; margin-left:auto; }
+  .playdot.dark { background:rgba(155,126,216,.55); border-color:rgba(255,255,255,.3); color:#fff; }
+  .playdot.light { background:rgba(155,126,216,.55); border-color:rgba(255,255,255,.5); color:#fff; }
+  .note { max-width:720px; font-size:12.5px; color:#9aa0c0; line-height:1.8; margin-top:22px; }
+  .note b{ color:#c9cdf0; }
+</style>
+</head>
+<body>
+  <h1>透明毛玻璃改造预览</h1>
+  <div class="sub">除播放页外，所有页面的「英雄卡 / 顶部卡片 / 按钮」改为半透明毛玻璃，透出主题背景图。<br/>左：深色模式（默认）　右：浅色模式</div>
+
+  <div class="stage">
+    <!-- DARK -->
+    <div class="phone">
+      <div class="label dark-lbl">深色模式</div>
+      <div class="bg dark"></div><div class="mask dark"></div>
+      <div class="screen">
+        <div class="hero glass dark">
+          <div class="row">
+            <div class="cover"></div>
+            <div>
+              <div class="htitle dark-txt">深空歌单</div>
+              <div class="hsub dark-txt2">42 首 · 星海漫游</div>
+            </div>
+          </div>
+          <div class="btnrow" style="margin-top:16px;">
+            <div class="btn btn-primary dark">▶ 播放全部</div>
+            <div class="btn btn-second dark">＋ 收藏</div>
+          </div>
+        </div>
+
+        <div class="topcard glass dark">
+          <div class="qbtns">
+            <div class="qbtn dark"><span class="qico">♪</span>歌曲</div>
+            <div class="qbtn dark"><span class="qico">◎</span>专辑</div>
+            <div class="qbtn dark"><span class="qico">♥</span>收藏</div>
+            <div class="qbtn dark"><span class="qico">☰</span>歌单</div>
+          </div>
+        </div>
+
+        <div class="sec-title dark-txt">最近播放</div>
+        <div class="listcard glass dark">
+          <div class="lthumb"></div>
+          <div><div class="dark-txt" style="font-size:14px;font-weight:600;">午夜航线</div><div class="dark-txt2" style="font-size:12px;">Nova</div></div>
+          <div class="playdot dark">▶</div>
+        </div>
+        <div class="listcard glass dark">
+          <div class="lthumb"></div>
+          <div><div class="dark-txt" style="font-size:14px;font-weight:600;">霓虹回声</div><div class="dark-txt2" style="font-size:12px;">Lumen</div></div>
+          <div class="playdot dark">▶</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIGHT -->
+    <div class="phone">
+      <div class="label light-lbl">浅色模式</div>
+      <div class="bg light"></div><div class="mask light"></div>
+      <div class="screen">
+        <div class="hero glass light">
+          <div class="row">
+            <div class="cover"></div>
+            <div>
+              <div class="htitle light-txt">深空歌单</div>
+              <div class="hsub light-txt2">42 首 · 星海漫游</div>
+            </div>
+          </div>
+          <div class="btnrow" style="margin-top:16px;">
+            <div class="btn btn-primary light">▶ 播放全部</div>
+            <div class="btn btn-second light">＋ 收藏</div>
+          </div>
+        </div>
+
+        <div class="topcard glass light">
+          <div class="qbtns">
+            <div class="qbtn light"><span class="qico">♪</span>歌曲</div>
+            <div class="qbtn light"><span class="qico">◎</span>专辑</div>
+            <div class="qbtn light"><span class="qico">♥</span>收藏</div>
+            <div class="qbtn light"><span class="qico">☰</span>歌单</div>
+          </div>
+        </div>
+
+        <div class="sec-title light-txt">最近播放</div>
+        <div class="listcard glass light">
+          <div class="lthumb"></div>
+          <div><div class="light-txt" style="font-size:14px;font-weight:600;">午夜航线</div><div class="light-txt2" style="font-size:12px;">Nova</div></div>
+          <div class="playdot light">▶</div>
+        </div>
+        <div class="listcard glass light">
+          <div class="lthumb"></div>
+          <div><div class="light-txt" style="font-size:14px;font-weight:600;">霓虹回声</div><div class="light-txt2" style="font-size:12px;">Lumen</div></div>
+          <div class="playdot light">▶</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>对应的实现改动：</b><br/>
+    · 英雄卡 / 顶部卡片：<b>HeroBrush</b> 从「不透明主题色渐变」改为「主题色低透明渐变」（深色 35%→14%，浅色 40%→20%）。<br/>
+    · 主操作按钮：所有 <b>PrimaryColor</b> 实心按钮改用新增的 <b>PrimaryButtonBackgroundColor</b>（主题色 55% 透明，白字仍可读）。<br/>
+    · 顶部卡片次级按钮：修复了 LibraryPage 未定义的 <b>GlassButtonColor</b>，定义为毛玻璃白（深色 15%、浅色 60%）。<br/>
+    · 浅色模式卡片：<b>CardBackground</b> 从纯白改为半透明白，与深色一致透出背景图。<br/>
+    · <b>播放页（NowPlaying）保持原样</b>，未改动。<br/>
+    透明度数值都集中在 <b>ThemeService.cs</b>，如觉得偏透/偏实，可一处微调。
+  </div>
+</body>
+</html>

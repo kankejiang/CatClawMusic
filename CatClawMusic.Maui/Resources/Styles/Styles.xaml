@@ -127,9 +127,9 @@
         <Setter Property="Padding" Value="12,6" />
     </Style>
 
-    <!-- 主操作按钮：主题色渐变，白字 -->
+    <!-- 主操作按钮：半透明毛玻璃底，白字 -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-        <Setter Property="BackgroundColor" Value="{DynamicResource PrimaryColor}" />
+        <Setter Property="BackgroundColor" Value="{DynamicResource PrimaryButtonBackgroundColor}" />
         <Setter Property="TextColor" Value="White" />
         <Setter Property="CornerRadius" Value="14" />
         <Setter Property="HeightRequest" Value="46" />

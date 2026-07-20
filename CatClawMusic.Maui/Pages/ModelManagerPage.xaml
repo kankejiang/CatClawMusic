@@ -123,7 +123,7 @@
                                         <Border StrokeThickness="0"
                                                 StrokeShape="RoundRectangle 10"
                                                 Padding="8,3"
-                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                                 IsVisible="{Binding IsActive}">
                                             <Label Text="主"
                                                    FontSize="11"

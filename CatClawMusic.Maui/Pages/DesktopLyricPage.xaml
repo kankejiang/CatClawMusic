@@ -41,7 +41,7 @@
                                 Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RequestPermission]}"
                                 Command="{Binding RequestPermissionCommand}"
                                 IsVisible="{Binding HasPermission, Converter={StaticResource InvertedBoolConverter}}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                 TextColor="White"
                                 CornerRadius="16"
                                 HeightRequest="36"

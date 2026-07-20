@@ -172,7 +172,7 @@
                                             Command="{Binding SelectBackgroundCommand}"
                                             FontSize="13"
                                             Padding="12,6"
-                                            BackgroundColor="{DynamicResource PrimaryColor}"
+                                            BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                             TextColor="White"
                                             CornerRadius="16" />
                                     <Button Text="默认"
@@ -213,7 +213,7 @@
                                     Command="{Binding SelectBackgroundCommand}"
                                     FontSize="13"
                                     Padding="14,7"
-                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                     TextColor="White"
                                     CornerRadius="16" />
                         </Grid>

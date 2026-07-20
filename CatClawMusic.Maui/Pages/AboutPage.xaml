@@ -84,7 +84,7 @@
                                 FontSize="14" />
                         <Button Text="检查更新"
                                 Command="{Binding CheckUpdateCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                 TextColor="White"
                                 CornerRadius="16"
                                 HeightRequest="48"

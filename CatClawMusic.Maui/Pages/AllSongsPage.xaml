@@ -57,18 +57,15 @@
         <Grid Grid.Row="2" Padding="16,4" ColumnDefinitions="*,*" ColumnSpacing="10">
             <!-- 播放全部 -->
             <Border Grid.Column="0" Padding="0,13"
-                    StrokeShape="RoundRectangle 14" StrokeThickness="0">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
-                        <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
-                    </LinearGradientBrush>
-                </Border.Background>
+                    StrokeShape="RoundRectangle 14"
+                    StrokeThickness="1"
+                    Stroke="{DynamicResource GlassStrokeStrongColor}"
+                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding PlayAllCommand}" />
                 </Border.GestureRecognizers>
                 <Label Text="▶ 播放全部" FontSize="14" FontAttributes="Bold"
-                       TextColor="#0A0D1F" HorizontalOptions="Center" VerticalOptions="Center" />
+                       TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
             <!-- 随机播放 -->
             <Border Grid.Column="1" Padding="0,13"

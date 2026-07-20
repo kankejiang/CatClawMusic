@@ -305,7 +305,7 @@
                                                 </VerticalStackLayout>
                                                 <Grid Grid.Column="3" VerticalOptions="Center" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                                     <Label Text="{Binding PlayCount, StringFormat='{0}次'}" FontSize="10" TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" IsVisible="{Binding PlayCount, Converter={StaticResource CountToBoolConverter}}" />
-                                                    <Border WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17" BackgroundColor="{DynamicResource PrimaryColor}" VerticalOptions="Center">
+                                                    <Border WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17" BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
                                                         <ImageButton Source="ic_play" WidthRequest="16" HeightRequest="16" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRankPlayTapped" />
                                                     </Border>
                                                 </Grid>
@@ -338,7 +338,7 @@
                                                 </VerticalStackLayout>
                                                 <Grid Grid.Column="3" VerticalOptions="Center" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                                     <Label Text="已收藏" FontSize="10" TextColor="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
-                                                    <Border WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17" BackgroundColor="{DynamicResource PrimaryColor}" VerticalOptions="Center">
+                                                    <Border WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17" BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
                                                         <ImageButton Source="ic_play" WidthRequest="16" HeightRequest="16" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnFavPlayTapped" />
                                                     </Border>
                                                 </Grid>
@@ -539,7 +539,7 @@
                             <Border Grid.Column="2"
                                     WidthRequest="36" HeightRequest="36"
                                     StrokeThickness="0" StrokeShape="RoundRectangle 18"
-                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                     IsVisible="{Binding Role, Converter={StaticResource IsUserConverter}}"
                                     VerticalOptions="Start">
                                 <Label Text="👤"

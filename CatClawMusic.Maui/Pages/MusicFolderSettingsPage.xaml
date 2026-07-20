@@ -64,7 +64,7 @@
 
                         <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AddFolder]}"
                                 Command="{Binding AddFolderCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                 TextColor="White"
                                 CornerRadius="16"
                                 HeightRequest="40"
@@ -73,7 +73,7 @@
 
                         <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ScanAllFolders]}"
                                 Command="{Binding ScanAllFoldersCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                 TextColor="White"
                                 CornerRadius="16"
                                 HeightRequest="42"

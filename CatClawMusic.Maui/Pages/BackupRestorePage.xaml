@@ -39,7 +39,7 @@
                                TextColor="{DynamicResource TextHintColor}" />
                         <Button Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[CreateBackup]}"
                                 Command="{Binding ShowBackupOptionsCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                 TextColor="White"
                                 CornerRadius="16"
                                 HeightRequest="42"
@@ -108,7 +108,7 @@
                                                 Text="恢复"
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ShowRestoreOptionsCommand}"
                                                 CommandParameter="{Binding .}"
-                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                                 TextColor="White"
                                                 CornerRadius="12"
                                                 HeightRequest="30"
@@ -182,7 +182,7 @@
                                 BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}"
                                 CornerRadius="0" HeightRequest="46" FontSize="14" />
                         <Button Grid.Column="1" Text="开始备份" Command="{Binding ConfirmBackupCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}" TextColor="White"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" TextColor="White"
                                 CornerRadius="0" HeightRequest="46" FontSize="14" />
                     </Grid>
                 </VerticalStackLayout>
@@ -238,7 +238,7 @@
                                 BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}"
                                 CornerRadius="0" HeightRequest="46" FontSize="14" />
                         <Button Grid.Column="1" Text="开始恢复" Command="{Binding ConfirmRestoreCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}" TextColor="White"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" TextColor="White"
                                 CornerRadius="0" HeightRequest="46" FontSize="14" />
                     </Grid>
                 </VerticalStackLayout>

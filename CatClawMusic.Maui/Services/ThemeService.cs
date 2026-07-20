@@ -292,6 +292,7 @@ public class ThemeService : IThemeService
         resources["SurfaceColor"] = Color.FromArgb("#171B33");
         resources["CardBackgroundColor"] = Color.FromArgb("#1AFFFFFF");
         resources["CardBackgroundStrongColor"] = Color.FromArgb("#2DFFFFFF");
+        resources["GlassButtonColor"] = Color.FromArgb("#26FFFFFF");
         resources["InputBackgroundColor"] = Color.FromArgb("#15FFFFFF");
         resources["InputBorderColor"] = Color.FromArgb("#2BFFFFFF");
         resources["DividerColor"] = Color.FromArgb("#1FFFFFFF");
@@ -321,7 +322,10 @@ public class ThemeService : IThemeService
         // 主题背景图遮罩：深色模式下用半透明黑色压暗图片，确保文字可读
         resources["CustomBackgroundMaskColor"] = Colors.Black.WithAlpha(0.45f);
 
-        resources["HeroBrush"] = BuildLinearBrush(colors.Primary, GetAccentColorHex(colors.Primary), 0.0f, 1.0f);
+        // 英雄卡/顶部卡片：半透明毛玻璃（主题色低透明渐变，透出背景图）
+        resources["HeroBrush"] = BuildLinearBrush($"{AlphaHex(0x59)}{colors.Primary[1..]}", $"{AlphaHex(0x24)}{GetAccentColorHex(colors.Primary)[1..]}", 0.0f, 1.0f);
+        // 主操作按钮：半透明毛玻璃底（保留主题色调，白字仍可读）
+        resources["PrimaryButtonBackgroundColor"] = primary.WithAlpha(0.55f);
         resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x5A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
         var accent = GetAccentColor(_currentThemeStatic(colors.Primary));
         resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x45)}{accent[1..]}", $"{AlphaHex(0x00)}{accent[1..]}");
@@ -339,8 +343,10 @@ public class ThemeService : IThemeService
         resources["WindowBackgroundColor"] = lightBase;
         resources["WindowBackgroundAltColor"] = Color.FromArgb("#EEEBFF");
         resources["SurfaceColor"] = Color.FromArgb("#FFFFFFFF");
-        resources["CardBackgroundColor"] = Color.FromArgb("#FFFFFFFF");
-        resources["CardBackgroundStrongColor"] = Color.FromArgb("#F5F7FF");
+        // 浅色模式卡片改为半透明毛玻璃（透出背景图，与深色模式一致）
+        resources["CardBackgroundColor"] = Color.FromArgb("#8CFFFFFF");
+        resources["CardBackgroundStrongColor"] = Color.FromArgb("#B3FFFFFF");
+        resources["GlassButtonColor"] = Color.FromArgb("#99FFFFFF");
         resources["InputBackgroundColor"] = Color.FromArgb("#F0F2FF");
         resources["InputBorderColor"] = Color.FromArgb("#30000000");
         resources["DividerColor"] = Color.FromArgb("#1A000000");
@@ -370,7 +376,10 @@ public class ThemeService : IThemeService
         // 主题背景图遮罩：浅色模式下用半透明白色提亮图片，确保文字可读
         resources["CustomBackgroundMaskColor"] = Colors.White.WithAlpha(0.40f);
 
-        resources["HeroBrush"] = BuildLinearBrush(colors.Primary, colors.Dark, 0.0f, 1.0f);
+        // 英雄卡/顶部卡片：半透明毛玻璃（主题色低透明渐变，透出背景图）
+        resources["HeroBrush"] = BuildLinearBrush($"{AlphaHex(0x66)}{colors.Primary[1..]}", $"{AlphaHex(0x33)}{colors.Light[1..]}", 0.0f, 1.0f);
+        // 主操作按钮：半透明毛玻璃底（保留主题色调，白字仍可读）
+        resources["PrimaryButtonBackgroundColor"] = primary.WithAlpha(0.55f);
         resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x4A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
         var accentCol = GetAccentColor(_currentThemeStatic(colors.Primary));
         resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x35)}{accentCol[1..]}", $"{AlphaHex(0x00)}{accentCol[1..]}");

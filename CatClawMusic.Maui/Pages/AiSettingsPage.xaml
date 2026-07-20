@@ -63,7 +63,7 @@
                             <Button Grid.Column="1"
                                     Text="管理"
                                     Command="{Binding ManageModelsCommand}"
-                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                     TextColor="White"
                                     CornerRadius="14"
                                     HeightRequest="32"
@@ -185,7 +185,7 @@
                         <HorizontalStackLayout Spacing="8">
                             <Button Text="添加记忆"
                                     Command="{Binding AddMemoryCommand}"
-                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                     TextColor="White"
                                     CornerRadius="16"
                                     HeightRequest="38"

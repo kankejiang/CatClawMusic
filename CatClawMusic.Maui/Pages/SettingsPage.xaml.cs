@@ -38,6 +38,9 @@ public partial class SettingsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+#if ANDROID
+        ApplyBottomBarSafeArea();
+#endif
         try
         {
             await _vm.LoadStatusCommand.ExecuteAsync(null);
@@ -120,5 +123,17 @@ public partial class SettingsPage : ContentPage
 #else
     private Task OpenSubPageAsync(Type pageType, string fallbackRoute)
         => Shell.Current.GoToAsync(fallbackRoute);
+#endif
+
+#if ANDROID
+    /// <summary>根据系统导航栏高度（安全区底部 inset）调整底部毛玻璃底栏高度，
+    /// 让磨砂条完整显示在系统导航条之上、并延伸其背后，保持与主 TabBar 一致。</summary>
+    private void ApplyBottomBarSafeArea()
+    {
+        if (BottomGlassBar == null) return;
+        var bottom = CatClawMusic.Maui.SafeAreaHelper.BottomInset;
+        if (bottom < 1) bottom = 16;
+        BottomGlassBar.HeightRequest = 52 + bottom;
+    }
 #endif
 }

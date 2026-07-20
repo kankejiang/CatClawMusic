@@ -69,7 +69,7 @@
                                             Text="{Binding ActionText}"
                                             Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RequestPermissionCommand}"
                                             CommandParameter="{Binding .}"
-                                            BackgroundColor="{DynamicResource PrimaryColor}"
+                                            BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                             TextColor="White"
                                             CornerRadius="14"
                                             HeightRequest="36"

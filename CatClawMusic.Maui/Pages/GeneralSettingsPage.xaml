@@ -58,7 +58,7 @@
                         <Button Grid.Column="1"
                                 Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ClearCache]}"
                                 Command="{Binding ClearCacheCommand}"
-                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                 TextColor="White"
                                 CornerRadius="16"
                                 HeightRequest="38"

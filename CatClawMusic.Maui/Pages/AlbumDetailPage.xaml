@@ -45,7 +45,7 @@
                               Margin="0,2,0,0">
                             <Button Text="▶ 播放"
                                     Command="{Binding PlayAllCommand}"
-                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                     TextColor="White"
                                     CornerRadius="18"
                                     HeightRequest="32"

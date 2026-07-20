@@ -54,6 +54,10 @@
     <Color x:Key="PrimaryLightColor">#B7AEFF</Color>
     <Color x:Key="PrimaryDarkColor">#6250F6</Color>
     <Color x:Key="AccentColor">#55D6FF</Color>
+    <!-- 主操作按钮毛玻璃底（ThemeService 运行时按主题色覆盖为 55% 透明） -->
+    <Color x:Key="PrimaryButtonBackgroundColor">#8C8C7BFF</Color>
+    <!-- 玻璃按钮底（顶部卡片次级按钮，ThemeService 运行时覆盖） -->
+    <Color x:Key="GlassButtonColor">#33FFFFFF</Color>
     <Color x:Key="LikeColor">#FF7AAE</Color>
 
     <!-- 页面背景与层次 — 深色基底 + 可见卡片层次 -->
