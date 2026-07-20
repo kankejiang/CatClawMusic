@@ -6,10 +6,10 @@
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
              x:Class="CatClawMusic.Maui.Pages.LibraryPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="Transparent">
 
     <Grid Background="Transparent">
-        <ScrollView Background="{DynamicResource PageBackgroundBrush}">
+        <ScrollView Background="Transparent">
             <VerticalStackLayout Padding="18,8,18,132" Spacing="0">
             <!-- Hero 区域 -->
             <Border Padding="0" StrokeShape="RoundRectangle 24" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" Margin="0,6,0,0">

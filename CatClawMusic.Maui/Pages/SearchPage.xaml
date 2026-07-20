@@ -5,9 +5,9 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.SearchPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="Transparent">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}">
+    <Grid Background="Transparent">
 
         <CollectionView x:Name="DiscoverCollection"
                         IsVisible="{Binding IsChatMode, Converter={StaticResource InvertedBoolConverter}}"

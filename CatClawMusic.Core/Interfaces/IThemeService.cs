@@ -71,20 +71,10 @@ public enum AppTheme
     Pink = 1,
     /// <summary>蓝色主题</summary>
     Blue = 2,
-    /// <summary>绿色主题</summary>
-    Green = 3,
     /// <summary>橙色主题</summary>
     Orange = 4,
-    /// <summary>红色主题</summary>
-    Red = 5,
     /// <summary>青色主题</summary>
     Teal = 6,
-    /// <summary>黄色主题</summary>
-    Yellow = 7,
-    /// <summary>靛蓝主题</summary>
-    Indigo = 8,
-    /// <summary>蓝绿主题</summary>
-    Cyan = 9
 }
 
 /// <summary>

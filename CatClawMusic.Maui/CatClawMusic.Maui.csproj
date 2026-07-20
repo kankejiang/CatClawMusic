@@ -57,6 +57,7 @@
 		<MauiIcon Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher.png" />
 		<MauiSplashScreen Include="Resources\Images\splash_transparent.svg" Color="#0B0D20" BaseSize="128,128" />
 		<MauiImage Include="Resources\Images\*" />
+		<MauiImage Include="Resources\Images\Backgrounds\*" />
 		<MauiFont Include="Resources\Fonts\*" />
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>

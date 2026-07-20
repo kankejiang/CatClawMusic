@@ -5,7 +5,7 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.FullLyricsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleFullLyrics]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             BackgroundColor="Transparent"
              Shell.NavBarIsVisible="False">
 
     <Grid>

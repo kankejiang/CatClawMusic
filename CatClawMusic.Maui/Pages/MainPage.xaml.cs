@@ -1061,7 +1061,7 @@ public partial class MainPage : ContentPage
             labels[i].TextColor = isActive ? activeColor : inactiveColor;
 
             if (isActive)
-                icons[i].Source = $"{DarkIconSources[i]}_{activeHex}_active";
+                icons[i].Source = $"{DarkIconSources[i]}_{activeHex.TrimStart('#')}_active";
             else
                 icons[i].Source = isDark ? DarkIconSources[i] : $"{DarkIconSources[i]}_gray";
 

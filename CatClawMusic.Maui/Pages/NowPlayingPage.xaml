@@ -5,7 +5,7 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.NowPlayingPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleNowPlaying]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             BackgroundColor="Transparent"
              Shell.NavBarIsVisible="False">
 
     <Shell.BackButtonBehavior>

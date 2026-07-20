@@ -43,6 +43,15 @@
   - **第八轮（2026-07-19，用户选"跟手+懒加载"）新增的懒加载相邻页逻辑现仅用于 Windows 端**：`UpdatePageVisibility()`/`SetTransitionVisibility()`/`UpdatePagePositions±1`/`SetHardwareLayersEnabled`(按可见性开层) 在 Android 原生路径不再调用。
 - **状态栏 SafeArea**: 非全屏 Tab 页(发现/歌单/音乐库, ViewPager index>1)在 `MainPage.SetupPages` 各自挂 `SafeAreaPaddingBehavior`(行为基类是 `Behavior<Layout>`，本 MAUI 版 `Padding` 在 `Layout`/`ScrollView` 上、`View` 基类无 `Padding` 属性！)；`LibraryPage` 根由 `ScrollView` 包了一层 `Grid` 以便挂行为。`SettingsPage`(独立 Shell 页)XAML 根 `Grid` 挂同行为。ViewPagerGrid 不再加顶部 padding(改由各页自理，更健壮)。全屏页(歌词/播放页 index 0/1)不挂，保持边缘到边。
 
+## 主题与背景图(2026-07-20)
+- **主题精简为 5 套**(橙/粉/紫/蓝/青, 对应 hex FF7043/EC407A/9B7ED8/42A5F5/26A69A): 改了 `IThemeService.AppTheme` 枚举(删除 Green/Red/Yellow/Indigo/Cyan, 保留值 Purple=0/Pink=1/Blue=2/Orange=4/Teal=6 以兼容旧偏好)、`ThemeService.ThemeMap`+3 个 color map、`AppearanceSettingsViewModel` 两处 switch、`AppearanceSettingsPage.xaml` 色块、`BackgroundImageMap`(橙/粉/紫/蓝/青 → `bg_{color}_{starry|sky}`)。旧保存的绿/红/黄等 int 在 `LoadSettings` 因不在 ThemeMap 被重置为 Purple(安全)。
+- **背景图层结构**: MainPage 根 Grid 底层 = `ThemeBackgroundImage`(Image) + `BackgroundMask`(BoxView, 深色 45%黑/浅色 40%白), 其上是原生 `ViewPager2` 承载的 5 个 tab 页。**遮罩在 MainPage、内容页之下**——内容页必须透明才能透出图+遮罩。
+- **黑屏三大根因(均已修)**:
+  1. **csproj 未打包背景图**: 顶层 `<MauiImage Include="Resources\Images\*" />` 不递归子目录 → `Backgrounds/` 下 10 张 jpg 不进 APK。修复: 新增 `<MauiImage Include="Resources\Images\Backgrounds\*" />`。
+  2. **`ImageSource.FromFile` 解析失败**: `ThemeService.ApplyThemeBackgroundImage` 原用 `ImageSource.FromFile("bg_orange_starry")`, 但 MauiImage jpg 在 APK 是 `res/drawable/bg_orange_starry.jpg`(带扩展名), FileImageSource 按名找 drawable 不补 `.jpg` → 找不到→空白→黑屏。⚠️ **必须用纯字符串** `"bg_orange_starry"` 存入字典, 让 `Image.Source` 经 `ImageSourceConverter` 查 MauiImage 注册表(它知道真实 drawable 名)。这与 Tab 图标 `Source="ic_play"` 同一机制。
+  3. **tab 内容页不透明背景盖住图**: FullLyrics/NowPlaying/Search/Playlist/Library 5 页根 `BackgroundColor=WindowBackgroundColor` + 内层 `PageBackgroundBrush` 不透明, 正好盖在 MainPage 背景图上。已改为 `Transparent`(图不可用时回退到 MainPage 根 Grid 的 `PageBackgroundBrush`, 不会变黑)。
+- **验证**: 解包 APK `unzip -l ...-Signed.apk | grep bg_` 可见 `res/drawable/bg_{orange,pink,purple,blue,teal}_{starry,sky}.jpg` 共 10 张。
+
 ## 歌词
 - LRC(标准) + TTML(W3C, v1.5.1+, 逐字时间戳, 支持 .lrc/.ttml/.xml 自动检测)。解析 `LyricsService.cs` / 文件查找 `MusicUtility.cs` / 接口 `ILyricsService.cs`。匹配: 精确 `歌曲名.lrc` → 模糊 `歌曲名*.lrc`。
 

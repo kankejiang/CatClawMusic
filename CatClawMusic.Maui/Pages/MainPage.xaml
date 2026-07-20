@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              x:Class="CatClawMusic.Maui.Pages.MainPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
@@ -111,12 +112,31 @@
                     VerticalOptions="Center" HorizontalOptions="Center" />
         </Grid>
 
-        <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库） -->
+        <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库），透明 + 毛玻璃 -->
         <Grid Grid.Row="2" x:Name="TabBar"
               ColumnDefinitions="*,*,*,*"
-              BackgroundColor="{DynamicResource TabBarBackgroundColor}"
+              BackgroundColor="Transparent"
               Padding="0,4,0,4"
               SafeAreaEdges="None">
+
+            <!-- 毛玻璃层：复用同一张主题背景图做模糊磨砂，跟随深浅模式压暗/提亮 -->
+            <controls:FrostedBackground Grid.ColumnSpan="4"
+                                        Source="{DynamicResource ThemeBackgroundImage}"
+                                        IsActive="{DynamicResource ThemeBackgroundEnabled}"
+                                        IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+                                        TintColor="{DynamicResource TabBarGlassTint}"
+                                        TintOpacity="0.42"
+                                        DimAmount="0"
+                                        Aspect="AspectFill"
+                                        InputTransparent="True" />
+
+            <!-- 顶部分隔细线，增强与内容区的视觉区分 -->
+            <BoxView Grid.ColumnSpan="4"
+                     HeightRequest="1"
+                     VerticalOptions="Start"
+                     BackgroundColor="{DynamicResource TabInactiveColor}"
+                     Opacity="0.22"
+                     InputTransparent="True" />
 
             <Grid Grid.Column="0" x:Name="TabItem0"
                   HorizontalOptions="Fill" VerticalOptions="Fill">

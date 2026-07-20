@@ -25,19 +25,14 @@ public class ThemeService : IThemeService
     private double _customBackgroundOpacity = 0.5;
     private bool _frostedBackgroundEnabled = true;
 
-    /// <summary>主题色定义（10种主题：紫、粉、蓝、绿、橙、红、青、黄、靛蓝、青蓝）</summary>
+    /// <summary>主题色定义（5 种主题：紫、粉、蓝、橙、青）</summary>
     private static readonly Dictionary<CoreAppTheme, ThemeColors> ThemeMap = new()
     {
         [CoreAppTheme.Purple] = new ThemeColors("#9B7ED8", "#E8E0FF", "#7C5DCE"),
         [CoreAppTheme.Pink] = new ThemeColors("#EC407A", "#FFE0EB", "#D81B60"),
         [CoreAppTheme.Blue] = new ThemeColors("#42A5F5", "#D6E8FF", "#1E88E5"),
-        [CoreAppTheme.Green] = new ThemeColors("#66BB6A", "#D6F5D8", "#43A047"),
         [CoreAppTheme.Orange] = new ThemeColors("#FF7043", "#FFE0D6", "#F4511E"),
-        [CoreAppTheme.Red] = new ThemeColors("#EF5350", "#FFE0E0", "#E53935"),
         [CoreAppTheme.Teal] = new ThemeColors("#26A69A", "#D6F5F0", "#00897B"),
-        [CoreAppTheme.Yellow] = new ThemeColors("#FFC107", "#FFF8D6", "#FFB300"),
-        [CoreAppTheme.Indigo] = new ThemeColors("#5C6BC0", "#E0E4FF", "#3949AB"),
-        [CoreAppTheme.Cyan] = new ThemeColors("#00BCD4", "#D6F7FB", "#00ACC1"),
     };
 
     /// <summary>
@@ -219,7 +214,9 @@ public class ThemeService : IThemeService
         if (BackgroundImageMap.TryGetValue(theme, out var pair))
         {
             string resName = isDark ? pair.Starry : pair.Sky;
-            resources["ThemeBackgroundImage"] = ImageSource.FromFile(resName);
+            // 注意：必须用纯字符串，让 Image.Source 经 ImageSourceConverter 从 MauiImage 资源目录按名解析。
+            // ImageSource.FromFile(resName) 会按“设备文件系统路径”查找，MauiImage 不在文件系统中，会返回空白→黑屏。
+            resources["ThemeBackgroundImage"] = resName;
             resources["ThemeBackgroundEnabled"] = true;
         }
         else
@@ -315,6 +312,8 @@ public class ThemeService : IThemeService
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
         resources["TabInactiveColor"] = Color.FromArgb("#FFFFFF"); // 深色模式：未选中图标/文字为白色
         resources["TabBarBackgroundColor"] = Color.FromArgb("#D80A0D1E");
+        // 导航栏毛玻璃色调：深色模式压暗（与页面遮罩同为黑色），浅色模式提亮（白色）
+        resources["TabBarGlassTint"] = Colors.Black;
 
         // 深色模式基底：纯色 fallback（主题图片层在其之上；无图片时此色直接可见）
         resources["PageBackgroundBrush"] = new SolidColorBrush(darkBase);
@@ -362,6 +361,8 @@ public class ThemeService : IThemeService
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
         resources["TabInactiveColor"] = Color.FromArgb("#9AA0B4"); // 浅色模式：未选中图标/文字为灰色
         resources["TabBarBackgroundColor"] = Color.FromArgb("#F5F8FF");
+        // 导航栏毛玻璃色调：浅色模式提亮（与页面遮罩同为白色），深色模式压暗（黑色）
+        resources["TabBarGlassTint"] = Colors.White;
 
         // 浅色模式基底：纯色 fallback（主题图片层在其之上；无图片时此色直接可见）
         resources["PageBackgroundBrush"] = new SolidColorBrush(lightBase);
@@ -474,13 +475,8 @@ public class ThemeService : IThemeService
         CoreAppTheme.Purple => "#55D6FF",
         CoreAppTheme.Pink => "#FFB86E",
         CoreAppTheme.Blue => "#5AE4FF",
-        CoreAppTheme.Green => "#67E5C1",
         CoreAppTheme.Orange => "#FFD36E",
-        CoreAppTheme.Red => "#FF8A65",
         CoreAppTheme.Teal => "#80CBC4",
-        CoreAppTheme.Yellow => "#FFAB40",
-        CoreAppTheme.Indigo => "#7C4DFF",
-        CoreAppTheme.Cyan => "#84FFFF",
         _ => "#55D6FF"
     };
 
@@ -490,13 +486,8 @@ public class ThemeService : IThemeService
             "#9B7ED8" => "#55D6FF",
             "#EC407A" => "#FFB86E",
             "#42A5F5" => "#5AE4FF",
-            "#66BB6A" => "#67E5C1",
             "#FF7043" => "#FFD36E",
-            "#EF5350" => "#FF8A65",
             "#26A69A" => "#80CBC4",
-            "#FFC107" => "#FFAB40",
-            "#5C6BC0" => "#7C4DFF",
-            "#00BCD4" => "#84FFFF",
             _ => "#55D6FF"
         };
 
@@ -506,13 +497,8 @@ public class ThemeService : IThemeService
             "#9B7ED8" => CoreAppTheme.Purple,
             "#EC407A" => CoreAppTheme.Pink,
             "#42A5F5" => CoreAppTheme.Blue,
-            "#66BB6A" => CoreAppTheme.Green,
             "#FF7043" => CoreAppTheme.Orange,
-            "#EF5350" => CoreAppTheme.Red,
             "#26A69A" => CoreAppTheme.Teal,
-            "#FFC107" => CoreAppTheme.Yellow,
-            "#5C6BC0" => CoreAppTheme.Indigo,
-            "#00BCD4" => CoreAppTheme.Cyan,
             _ => CoreAppTheme.Purple
         };
 
