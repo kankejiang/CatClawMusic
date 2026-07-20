@@ -28,11 +28,9 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("settings/remotemusicsettings", typeof(Pages.RemoteMusicSettingsPage));
         Routing.RegisterRoute("settings/pluginmanagement", typeof(Pages.PluginManagementPage));
         Routing.RegisterRoute("settings/aisettings", typeof(Pages.AiSettingsPage));
-        Routing.RegisterRoute("settings/clawcirclesettings", typeof(Pages.ClawCircleSettingsPage));
         Routing.RegisterRoute("settings/permissionmanagement", typeof(Pages.PermissionManagementPage));
         Routing.RegisterRoute("settings/splashsettings", typeof(Pages.SplashSettingsPage));
         Routing.RegisterRoute("settings/serversettings", typeof(Pages.ServerSettingsPage));
-        Routing.RegisterRoute("settings/p2psettings", typeof(Pages.P2PSettingsPage));
 
         // ── 歌单 Tab 子页面 ──
         Routing.RegisterRoute("playlists/playlistdetail", typeof(Pages.PlaylistDetailPage));
@@ -77,7 +75,6 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("remotemusicsettings", typeof(Pages.RemoteMusicSettingsPage));
         Routing.RegisterRoute("pluginmanagement", typeof(Pages.PluginManagementPage));
         Routing.RegisterRoute("aisettings", typeof(Pages.AiSettingsPage));
-        Routing.RegisterRoute("clawcirclesettings", typeof(Pages.ClawCircleSettingsPage));
         Routing.RegisterRoute("permissionmanagement", typeof(Pages.PermissionManagementPage));
         Routing.RegisterRoute("albumdetail", typeof(Pages.AlbumDetailPage));
         Routing.RegisterRoute("artistdetail", typeof(Pages.ArtistDetailPage));

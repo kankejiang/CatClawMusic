@@ -213,27 +213,4 @@
   <data name="RestoreDataDesc" xml:space="preserve"><value>Restore app data from a backup file</value></data>
   <data name="SelectBackupFile" xml:space="preserve"><value>Select Backup File</value></data>
   <data name="BackupRestoreSubtitle" xml:space="preserve"><value>Backup app data locally or restore from a backup.</value></data>
-
-  <!-- CatClaw Circle (LAN P2P) -->
-  <data name="ClawCircle" xml:space="preserve"><value>CatClaw Circle</value></data>
-  <data name="ClawCircleEntryDesc" xml:space="preserve"><value>Discover friends on LAN, see what they play, share songs</value></data>
-  <data name="ClawCircleEnable" xml:space="preserve"><value>Enable CatClaw Circle</value></data>
-  <data name="ClawCircleEnableDesc" xml:space="preserve"><value>Broadcasts presence and discovers other devices on the LAN</value></data>
-  <data name="ClawCircleDeviceName" xml:space="preserve"><value>Device name</value></data>
-  <data name="ClawCircleDeviceNameHint" xml:space="preserve"><value>Name shown in the circle</value></data>
-  <data name="ClawCircleShare" xml:space="preserve"><value>Share my library</value></data>
-  <data name="ClawCircleShareDesc" xml:space="preserve"><value>Let circle friends browse and pull my songs</value></data>
-  <data name="ClawCircleAutoStart" xml:space="preserve"><value>Auto-start on launch</value></data>
-  <data name="ClawCircleAutoStartDesc" xml:space="preserve"><value>Enable CatClaw Circle automatically when the app opens</value></data>
-  <data name="ClawCircleScan" xml:space="preserve"><value>Scan nearby devices</value></data>
-  <data name="ClawCircleDevices" xml:space="preserve"><value>Discovered devices</value></data>
-  <data name="ClawCircleNoDevices" xml:space="preserve"><value>No other CatClaw Music devices nearby yet. Wait a moment after enabling or tap scan.</value></data>
-  <data name="ClawCircleBrowse" xml:space="preserve"><value>Browse</value></data>
-  <data name="ClawCirclePeerSongs" xml:space="preserve"><value>Songs shared by peer</value></data>
-  <data name="ClawCircleDownload" xml:space="preserve"><value>Pull</value></data>
-  <data name="ClawCircleTrackerUrl" xml:space="preserve"><value>Tracker URL</value></data>
-  <data name="ClawCircleTrackerUrlHint" xml:space="preserve"><value>ws://LAN-IP:37823/ws/clawcircle (empty=LAN only)</value></data>
-  <data name="ClawCircleTrackerToken" xml:space="preserve"><value>Tracker Token</value></data>
-  <data name="ClawCircleTrackerTokenHint" xml:space="preserve"><value>Same as media center AccessToken</value></data>
-  <data name="ClawCircleTrackerSection" xml:space="preserve"><value>Cross-network P2P (ClawCircle Tracker)</value></data>
 </root>

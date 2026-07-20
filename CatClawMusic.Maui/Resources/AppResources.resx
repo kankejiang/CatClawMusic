@@ -214,26 +214,4 @@
   <data name="SelectBackupFile" xml:space="preserve"><value>选择备份文件</value></data>
   <data name="BackupRestoreSubtitle" xml:space="preserve"><value>将应用数据备份到本地，或从备份恢复。</value></data>
 
-  <!-- 猫爪圈（局域网 P2P 直传） -->
-  <data name="ClawCircle" xml:space="preserve"><value>猫爪圈</value></data>
-  <data name="ClawCircleEntryDesc" xml:space="preserve"><value>局域网内发现好友、互看在听、直传歌曲</value></data>
-  <data name="ClawCircleEnable" xml:space="preserve"><value>开启猫爪圈</value></data>
-  <data name="ClawCircleEnableDesc" xml:space="preserve"><value>开启后会在局域网内广播存在并发现其他设备</value></data>
-  <data name="ClawCircleDeviceName" xml:space="preserve"><value>设备名</value></data>
-  <data name="ClawCircleDeviceNameHint" xml:space="preserve"><value>在圈内显示的名称</value></data>
-  <data name="ClawCircleShare" xml:space="preserve"><value>共享我的曲库</value></data>
-  <data name="ClawCircleShareDesc" xml:space="preserve"><value>允许圈内好友浏览并拉取我的歌曲</value></data>
-  <data name="ClawCircleAutoStart" xml:space="preserve"><value>启动时自动开启</value></data>
-  <data name="ClawCircleAutoStartDesc" xml:space="preserve"><value>进入应用后自动启用猫爪圈</value></data>
-  <data name="ClawCircleScan" xml:space="preserve"><value>扫描附近设备</value></data>
-  <data name="ClawCircleDevices" xml:space="preserve"><value>发现的设备</value></data>
-  <data name="ClawCircleNoDevices" xml:space="preserve"><value>附近还没有其他猫爪音乐设备，开启后稍等片刻或点击扫描。</value></data>
-  <data name="ClawCircleBrowse" xml:space="preserve"><value>浏览</value></data>
-  <data name="ClawCirclePeerSongs" xml:space="preserve"><value>对方共享的歌曲</value></data>
-  <data name="ClawCircleDownload" xml:space="preserve"><value>拉取</value></data>
-  <data name="ClawCircleTrackerUrl" xml:space="preserve"><value>Tracker 地址</value></data>
-  <data name="ClawCircleTrackerUrlHint" xml:space="preserve"><value>ws://内网IP:37823/ws/clawcircle（空=仅局域网）</value></data>
-  <data name="ClawCircleTrackerToken" xml:space="preserve"><value>Tracker 令牌</value></data>
-  <data name="ClawCircleTrackerTokenHint" xml:space="preserve"><value>与媒体中心 AccessToken 一致</value></data>
-  <data name="ClawCircleTrackerSection" xml:space="preserve"><value>跨网 P2P 服务端（猫爪圈 tracker）</value></data>
 </root>

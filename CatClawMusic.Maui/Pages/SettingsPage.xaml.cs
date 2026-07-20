@@ -71,9 +71,6 @@ public partial class SettingsPage : ContentPage
     private async void OnAiSettingsClicked(object? sender, EventArgs e)
         => await OpenSubPageAsync(typeof(AiSettingsPage), "settings/aisettings");
 
-    private async void OnClawCircleClicked(object? sender, EventArgs e)
-        => await OpenSubPageAsync(typeof(ClawCircleSettingsPage), "settings/clawcirclesettings");
-
     private async void OnPermissionManagementClicked(object? sender, EventArgs e)
         => await OpenSubPageAsync(typeof(PermissionManagementPage), "settings/permissionmanagement");
 
