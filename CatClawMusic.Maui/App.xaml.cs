@@ -32,6 +32,11 @@ public partial class App : Application
         {
             var themeService = MauiProgram.Services.GetRequiredService<IThemeService>();
             themeService.ApplyTheme();
+            // 系统深浅色变化（跟随系统模式）时实时重应用主题，避免需重启才生效
+            this.RequestedThemeChanged += (s, e) =>
+            {
+                MainThread.BeginInvokeOnMainThread(() => themeService.ApplyTheme());
+            };
             StartupLog("App.ctor: Theme applied");
         }
         catch (Exception ex) { StartupLog($"App.ctor: Theme failed - {ex.Message}"); }

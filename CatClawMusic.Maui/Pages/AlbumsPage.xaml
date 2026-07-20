@@ -19,6 +19,19 @@
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
+        <!-- Frosted glass background: blurred theme image, semi-transparent -->
+        <controls:FrostedBackground Grid.RowSpan="5"
+            Source="{DynamicResource ThemeBackgroundImage}"
+            IsActive="{DynamicResource ThemeBackgroundEnabled}"
+            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+            TintColor="{DynamicResource TabBarGlassTint}"
+            TintOpacity="0.45"
+            DimAmount="0.25"
+            Opacity="0.8"
+            Aspect="AspectFill"
+            UseNativeBlur="True"
+            InputTransparent="True" />
+
         <!-- 顶栏 -->
         <Grid Grid.Row="0"
               ColumnDefinitions="Auto,*,Auto"

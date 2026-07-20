@@ -656,14 +656,14 @@
                      Opacity="0"
                      InputTransparent="False" />
 
-            <!-- 设置面板容器（85%宽度，从左侧滑入）：实毛玻璃面板，对齐播放列表弹窗样式（玻璃底 + 描边 + 圆角 + 投影） -->
+            <!-- 设置面板容器（85%宽度，从左侧滑入）：半透明毛玻璃面板（玻璃底 + 描边 + 圆角 + 投影） -->
             <Grid x:Name="SettingsPanel"
                   WidthRequest="300"
                   HorizontalOptions="Start"
                   TranslationX="-9999"
-                  BackgroundColor="{DynamicResource WindowBackgroundColor}">
+                  BackgroundColor="Transparent">
 
-                <!-- 毛玻璃模糊层：模糊主题背景图并压暗，形成明显的磨砂质感（完全不透明，保证设置选项可读） -->
+                <!-- 毛玻璃模糊层：模糊主题背景图并压暗；半透明，透出下方被遮罩压暗的发现页，形成通透的磨砂质感 -->
                 <controls:FrostedBackground
                     Source="{DynamicResource ThemeBackgroundImage}"
                     IsActive="{DynamicResource ThemeBackgroundEnabled}"
@@ -671,7 +671,7 @@
                     TintColor="{DynamicResource TabBarGlassTint}"
                     TintOpacity="0.45"
                     DimAmount="0.25"
-                    Opacity="1.0"
+                    Opacity="0.8"
                     Aspect="AspectFill"
                     UseNativeBlur="True"
                     InputTransparent="True" />

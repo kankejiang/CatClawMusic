@@ -6,6 +6,19 @@
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleSplashSettings]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
     <Grid RowDefinitions="Auto,*" Background="{DynamicResource PageBackgroundBrush}">
+
+        <!-- Frosted glass background: blurred theme image, semi-transparent -->
+        <controls:FrostedBackground Grid.RowSpan="2"
+            Source="{DynamicResource ThemeBackgroundImage}"
+            IsActive="{DynamicResource ThemeBackgroundEnabled}"
+            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+            TintColor="{DynamicResource TabBarGlassTint}"
+            TintOpacity="0.45"
+            DimAmount="0.25"
+            Opacity="0.8"
+            Aspect="AspectFill"
+            UseNativeBlur="True"
+            InputTransparent="True" />
         <controls:HeroCard Grid.Row="0">
             <controls:HeroCard.CardContent>
                 <VerticalStackLayout Spacing="12" HorizontalOptions="Center" Padding="44,0,0,0">

@@ -92,6 +92,9 @@
     <Color x:Key="TabInactiveColor">#9AA0B4</Color>
     <!-- 底部导航栏毛玻璃底：半透明白色叠加（ThemeService 运行时按深浅模式覆盖） -->
     <Color x:Key="TabBarBackgroundColor">#3DFFFFFF</Color>
+    <!-- 导航栏毛玻璃色调：深色压暗/浅色提亮（ThemeService 运行时覆盖）。
+         必须在 XAML 中先定义，深浅色切换时 DynamicResource 才能实时刷新 -->
+    <Color x:Key="TabBarGlassTint">Black</Color>
 
     <!-- 功能色 -->
     <Color x:Key="SuccessColor">#63D39E</Color>
@@ -144,6 +147,14 @@
 
     <!-- 主题内置静态背景图（ThemeService 运行时覆盖；5 套主题有星空/天空图） -->
     <x:Boolean x:Key="ThemeBackgroundEnabled">False</x:Boolean>
+    <!-- 背景图资源名（ThemeService 运行时按主题/深浅色覆盖为对应星空或天空图，自定义背景时为 ImageSource）。
+         必须在 XAML 中先定义，切换主题/深浅色时各页面的 DynamicResource 才能实时刷新背景 -->
+    <x:String x:Key="ThemeBackgroundImage">bg_purple_starry</x:String>
+
+    <!-- 雾面动态背景开关（ThemeService 运行时覆盖）。
+         必须在 XAML 中先定义，DynamicResource 才能订阅到运行时变更并实时刷新；
+         若只在代码里 Add，播放页等已创建页面的绑定不会实时生效（需重启）。 -->
+    <x:Boolean x:Key="FrostedBackgroundEnabled">True</x:Boolean>
 
     <!-- Converters -->
     <converters:StringToBoolConverter x:Key="StringToBoolConverter" />

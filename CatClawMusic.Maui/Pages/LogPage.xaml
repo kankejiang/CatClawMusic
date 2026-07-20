@@ -12,6 +12,19 @@
 
     <Grid Background="{DynamicResource PageBackgroundBrush}">
 
+        <!-- 毛玻璃背景层：模糊主题背景图，半透明磨砂质感 -->
+        <controls:FrostedBackground
+            Source="{DynamicResource ThemeBackgroundImage}"
+            IsActive="{DynamicResource ThemeBackgroundEnabled}"
+            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+            TintColor="{DynamicResource TabBarGlassTint}"
+            TintOpacity="0.45"
+            DimAmount="0.25"
+            Opacity="0.8"
+            Aspect="AspectFill"
+            UseNativeBlur="True"
+            InputTransparent="True" />
+
         <ScrollView>
             <VerticalStackLayout Padding="0,0,0,30" Spacing="14">
 
