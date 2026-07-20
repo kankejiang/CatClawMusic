@@ -14,8 +14,11 @@ public static class CoverHelper
     private static readonly string _coverCacheDir;
     private static readonly ConcurrentDictionary<int, byte> _resolvedSongIds = new();
 
-    /// <summary>下采样后的封面最大边长（像素）。播放页大图需高分辨率，1024 覆盖大多数场景。</summary>
-    private const int MaxCoverSize = 1024;
+    /// <summary>封面尺寸分级（最大边长，像素）——按使用场景限制，减少内存与解码开销。</summary>
+    public const int NowPlayingSize = 1000;   // 播放页大图
+    public const int DiscoverSize = 800;      // 发现页卡片 / 精选大图
+    public const int ThumbnailSize = 300;     // 歌单 / 列表 / 缩略图
+    private const int DefaultMaxSize = 1000;
 
     static CoverHelper()
     {
@@ -32,7 +35,7 @@ public static class CoverHelper
     /// 使用并行处理（最多 8 线程）以充分利用八核 CPU。
     /// </summary>
     /// <param name="songs">待解析封面的歌曲集合</param>
-    public static void BatchResolveCovers(IEnumerable<Song> songs)
+    public static void BatchResolveCovers(IEnumerable<Song> songs, int maxSize = ThumbnailSize)
     {
         var songList = songs as IList<Song> ?? songs.ToList();
         if (songList.Count == 0) return;
@@ -41,7 +44,7 @@ public static class CoverHelper
         if (songList.Count <= 2)
         {
             foreach (var song in songList)
-                ResolveOneInline(song);
+                ResolveOneInline(song, maxSize);
             return;
         }
 
@@ -49,7 +52,7 @@ public static class CoverHelper
         // 该解析运行在后台线程（BatchResolveCoversAsync 内 Task.Run），不阻塞 UI 渲染与输入。
         var degree = Math.Min(8, Math.Max(2, Environment.ProcessorCount));
         var options = new ParallelOptions { MaxDegreeOfParallelism = degree };
-        Parallel.ForEach(songList, options, ResolveOneInline);
+        Parallel.ForEach(songList, options, s => ResolveOneInline(s, maxSize));
     }
 
     /// <summary>
@@ -80,20 +83,20 @@ public static class CoverHelper
     }
 
     /// <summary>单首歌曲封面解析的内联方法（线程安全，无共享状态）</summary>
-    private static void ResolveOneInline(Song song)
+    private static void ResolveOneInline(Song song, int maxSize = ThumbnailSize)
     {
         if (song.Id <= 0) return;
 
         // 跳过已解析过的（同一会话内）
         if (_resolvedSongIds.ContainsKey(song.Id))
         {
-            var cachedPath = GetCachedPath(song.Id);
+            var cachedPath = GetCachedPath(song.Id, maxSize);
             if (File.Exists(cachedPath))
                 song.CoverArtPath = cachedPath;
             return;
         }
 
-        var path = ResolveSingleCover(song);
+        var path = ResolveSingleCover(song, maxSize);
         if (path != null)
             song.CoverArtPath = path;
 
@@ -107,61 +110,62 @@ public static class CoverHelper
     /// </summary>
     /// <param name="song">待解析封面的歌曲对象</param>
     /// <returns>封面文件路径；无可用封面时返回 null</returns>
-    public static string? ResolveSingleCover(Song song)
+    public static string? ResolveSingleCover(Song song, int maxSize = DefaultMaxSize)
     {
         if (song.Id <= 0) return null;
 
-        // 1. 检查磁盘缓存（已下采样）
-        var cachedPath = GetCachedPath(song.Id);
+        // 1. 命中尺寸分桶缓存
+        var cachedPath = GetCachedPath(song.Id, maxSize);
         if (File.Exists(cachedPath))
             return cachedPath;
 
-        // 2. 检查 CoverArtPath 是否已指向一个有效文件
-        if (!string.IsNullOrEmpty(song.CoverArtPath) && File.Exists(song.CoverArtPath))
+        // 2. 选择可用源：优先使用 >= maxSize 的已有文件，否则从音频文件重新提取全分辨率
+        string? source = null;
+        if (!string.IsNullOrEmpty(song.CoverArtPath) && File.Exists(song.CoverArtPath)
+            && MaxDimension(song.CoverArtPath) >= maxSize)
         {
-            // 下采样到缓存路径
-            if (DownsampleToCache(song.CoverArtPath, cachedPath))
-            {
-                TryDeleteSource(song.CoverArtPath);
-                return cachedPath;
-            }
-            return song.CoverArtPath;
+            source = song.CoverArtPath;
         }
 
-        // 3. 从嵌入封面提取
-        if (!string.IsNullOrEmpty(song.FilePath)
+        if (source == null
+            && !string.IsNullOrEmpty(song.FilePath)
             && !song.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)
+            && !song.FilePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !song.FilePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            && !song.FilePath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase)
             && File.Exists(song.FilePath))
         {
             try
             {
-                var extracted = TagReader.ExtractCoverArtToFile(song.FilePath, _coverCacheDir);
-                if (extracted != null)
-                {
-                    // 下采样到标准缓存路径
-                    if (DownsampleToCache(extracted, cachedPath))
-                    {
-                        TryDeleteSource(extracted);
-                        return cachedPath;
-                    }
-                    // 下采样失败则直接使用原始文件
-                    if (extracted != cachedPath && File.Exists(extracted))
-                    {
-                        try
-                        {
-                            File.Copy(extracted, cachedPath, overwrite: true);
-                            File.Delete(extracted);
-                        }
-                        catch { /* 复制失败就用原路径 */ }
-                        return File.Exists(cachedPath) ? cachedPath : extracted;
-                    }
-                    return extracted;
-                }
+                source = TagReader.ExtractCoverArtToFile(song.FilePath, _coverCacheDir);
             }
             catch (Exception ex)
             {
                 Log.Debug("CoverHelper", $"[CoverHelper] Extract cover failed for {song.Title}: {ex.Message}");
             }
+        }
+
+        // 3. 兜底：退而求其次使用任意已有的封面文件（可能小于 maxSize，但不至于无图）
+        if (source == null && !string.IsNullOrEmpty(song.CoverArtPath) && File.Exists(song.CoverArtPath))
+            source = song.CoverArtPath;
+
+        if (source != null)
+        {
+            if (DownsampleToCache(source, cachedPath, maxSize))
+            {
+                // 仅清理临时提取文件；song.CoverArtPath 是列表/歌单缩略图，不能删
+                if (source != song.CoverArtPath && source != cachedPath)
+                    TryDeleteSource(source);
+                return cachedPath;
+            }
+            // 下采样失败则直接使用源文件
+            if (source != cachedPath && File.Exists(source))
+            {
+                try { File.Copy(source, cachedPath, overwrite: true); } catch { }
+                if (source != song.CoverArtPath) TryDeleteSource(source);
+                return File.Exists(cachedPath) ? cachedPath : source;
+            }
+            return source;
         }
 
         return null;
@@ -174,7 +178,7 @@ public static class CoverHelper
     /// <param name="sourcePath">原始图片路径</param>
     /// <param name="destPath">目标缓存路径</param>
     /// <returns>下采样成功返回 true；失败返回 false</returns>
-    public static bool DownsampleToCache(string sourcePath, string destPath)
+    public static bool DownsampleToCache(string sourcePath, string destPath, int maxSize = DefaultMaxSize)
     {
         try
         {
@@ -189,7 +193,7 @@ public static class CoverHelper
             if (width <= 0 || height <= 0) return false;
 
             // 已足够小，无需下采样
-            if (width <= MaxCoverSize && height <= MaxCoverSize)
+            if (width <= maxSize && height <= maxSize)
             {
                 if (sourcePath != destPath)
                 {
@@ -199,7 +203,7 @@ public static class CoverHelper
             }
 
             // 等比缩放
-            var ratio = Math.Min((double)MaxCoverSize / width, (double)MaxCoverSize / height);
+            var ratio = Math.Min((double)maxSize / width, (double)maxSize / height);
             var newWidth = (int)(width * ratio);
             var newHeight = (int)(height * ratio);
 
@@ -226,12 +230,51 @@ public static class CoverHelper
         catch { /* 忽略删除失败 */ }
     }
 
+    /// <summary>快速读取图片最大边长（像素），用于判断是否需要重新提取更高分辨率源。</summary>
+    private static int MaxDimension(string path)
+    {
+        try
+        {
+            using var s = File.OpenRead(path);
+            using var img = Microsoft.Maui.Graphics.Platform.PlatformImage.FromStream(s);
+            if (img == null) return 0;
+            return (int)Math.Max(img.Width, img.Height);
+        }
+        catch { return 0; }
+    }
+
+    /// <summary>将原始封面字节下采样并保存到 outputPath（用于 SAF 扫描期写入封面）。</summary>
+    public static string? SaveCoverBytes(byte[] art, string outputPath, int maxSize = ThumbnailSize)
+    {
+        try
+        {
+            var tmp = outputPath + ".tmp";
+            File.WriteAllBytes(tmp, art);
+            if (DownsampleToCache(tmp, outputPath, maxSize))
+            {
+                TryDeleteSource(tmp);
+                return outputPath;
+            }
+            if (File.Exists(tmp))
+            {
+                File.Move(tmp, outputPath, overwrite: true);
+                return outputPath;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("CoverHelper", $"[CoverHelper] SaveCoverBytes failed: {ex.Message}");
+        }
+        return null;
+    }
+
     /// <summary>获取歌曲封面的标准缓存路径</summary>
     /// <param name="songId">歌曲唯一标识</param>
     /// <returns>封面缓存文件绝对路径</returns>
-    public static string GetCachedPath(int songId)
+    /// <summary>获取歌曲封面的标准缓存路径（按尺寸分桶，避免不同尺寸互相覆盖）。</summary>
+    public static string GetCachedPath(int songId, int maxSize = DefaultMaxSize)
     {
-        return Path.Combine(_coverCacheDir, $"cover_{songId}.jpg");
+        return Path.Combine(_coverCacheDir, $"cover_{songId}_{maxSize}.jpg");
     }
 
     /// <summary>
@@ -245,8 +288,8 @@ public static class CoverHelper
     }
 
     /// <summary>
-    /// 迁移旧版缓存封面：不做任何操作，旧缓存继续使用。
-    /// 新提取的封面自动使用新的 MaxCoverSize（1024px）。
+        /// 迁移旧版缓存封面：不做任何操作，旧缓存继续使用。
+        /// 新提取的封面按尺寸分桶（播放页 1000 / 发现页 800 / 缩略图 300）。
     /// </summary>
     public static Task MigrateLegacyCoversAsync()
     {

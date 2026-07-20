@@ -127,7 +127,7 @@ public partial class PlaylistViewModel : ObservableObject
                 foreach (var pl in Playlists)
                 {
                     if (pl.CoverSongId <= 0) continue;
-                    pl.CoverPath = Services.CoverHelper.GetCachedPath(pl.CoverSongId);
+                    pl.CoverPath = Services.CoverHelper.GetCachedPath(pl.CoverSongId, Services.CoverHelper.ThumbnailSize);
                     if (!File.Exists(pl.CoverPath))
                     {
                         // 缓存未命中，需要从数据库取歌曲文件路径来提取封面
@@ -136,7 +136,7 @@ public partial class PlaylistViewModel : ObservableObject
                             var song = _db.GetSongByIdAsync(pl.CoverSongId).GetAwaiter().GetResult();
                             if (song != null)
                             {
-                                var resolved = Services.CoverHelper.ResolveSingleCover(song);
+                                var resolved = Services.CoverHelper.ResolveSingleCover(song, Services.CoverHelper.ThumbnailSize);
                                 pl.CoverPath = resolved;
                             }
                         }
@@ -202,14 +202,14 @@ public partial class PlaylistViewModel : ObservableObject
         string? coverPath = null;
         if (coverSongId > 0)
         {
-            coverPath = Services.CoverHelper.GetCachedPath(coverSongId);
+            coverPath = Services.CoverHelper.GetCachedPath(coverSongId, Services.CoverHelper.ThumbnailSize);
             if (!File.Exists(coverPath))
             {
                 try
                 {
                     var song = _db.GetSongByIdAsync(coverSongId).GetAwaiter().GetResult();
                     if (song != null)
-                        coverPath = Services.CoverHelper.ResolveSingleCover(song);
+                        coverPath = Services.CoverHelper.ResolveSingleCover(song, Services.CoverHelper.ThumbnailSize);
                 }
                 catch { }
             }

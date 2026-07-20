@@ -1023,6 +1023,22 @@ public partial class NowPlayingViewModel : ObservableObject
         Log.Debug("AppViewModels", $"[CoverArt] 开始加载封面: {song.Title} (Id={song.Id}, Protocol={song.Protocol}, CoverArtPath={song.CoverArtPath?[..Math.Min(60, song.CoverArtPath?.Length ?? 0)] ?? "null"})");
         string? coverPath = null;
 
+        // 缓存命中：已下采样到播放页尺寸（1000px）的封面文件，直接复用避免重复解码大图
+        var npCached = Services.CoverHelper.GetCachedPath(song.Id, Services.CoverHelper.NowPlayingSize);
+        if (File.Exists(npCached))
+        {
+            CurrentCoverPath = npCached;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                CoverImage = ImageSource.FromFile(npCached);
+                HasCover = true;
+            });
+#if ANDROID || WINDOWS
+            try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(npCached); } catch { }
+#endif
+            return;
+        }
+
         // 1. Check existing CoverArtPath
         if (!string.IsNullOrEmpty(song.CoverArtPath) && File.Exists(song.CoverArtPath))
         {
@@ -1235,19 +1251,45 @@ public partial class NowPlayingViewModel : ObservableObject
 
         if (coverPath != null)
         {
-            var path = coverPath;
-            CurrentCoverPath = path;
+            // 限制播放页封面最大边长 1000px：
+            // - 网络封面（http/https）保持原 URL 直显（Android 解码期会按显示尺寸再降采样）；
+            // - 本方法各分支刚提取出的原始文件：直接下采样到 1000 并清理临时文件；
+            // - 已是 song.CoverArtPath 缩略图等情况：按播放页尺寸重新解析（源太小会自动从音频重新提取全分辨率）。
+            string finalPath;
+            if (coverPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || coverPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                finalPath = coverPath;
+            }
+            else if (coverPath != song.CoverArtPath && File.Exists(coverPath))
+            {
+                var bucketed = Services.CoverHelper.GetCachedPath(song.Id, Services.CoverHelper.NowPlayingSize);
+                finalPath = Services.CoverHelper.DownsampleToCache(coverPath, bucketed, Services.CoverHelper.NowPlayingSize)
+                    ? bucketed
+                    : coverPath;
+                if (finalPath == bucketed && coverPath != bucketed)
+                {
+                    try { File.Delete(coverPath); } catch { }
+                }
+            }
+            else
+            {
+                var resolved = Services.CoverHelper.ResolveSingleCover(song, Services.CoverHelper.NowPlayingSize);
+                finalPath = resolved ?? coverPath;
+            }
+
+            CurrentCoverPath = finalPath;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 // 使用 FileImageSource 而非 StreamImageSource：
                 // 1. 避免 StreamImageSource 内部取消机制导致 FrostedBackground 加载失败
                 // 2. 让 CachingFileImageSourceService 命中内存缓存，减少重复解码
-                CoverImage = ImageSource.FromFile(path);
+                CoverImage = ImageSource.FromFile(finalPath);
                 HasCover = true;
             });
 
 #if ANDROID || WINDOWS
-            try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(path); }
+            try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(finalPath); }
             catch { }
 #endif
         }

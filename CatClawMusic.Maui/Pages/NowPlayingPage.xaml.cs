@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
+using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
@@ -162,11 +163,13 @@ public partial class NowPlayingPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        CrashReporter.MarkStage("NowPlayingPage.OnAppearing: 开始");
 #if WINDOWS
         Shell.SetNavBarIsVisible(this, false);
 #endif
         ApplySafeArea();
         await _viewModel.LoadCurrentSongAsync();
+        CrashReporter.MarkStage("NowPlayingPage.OnAppearing: LoadCurrentSongAsync 完成");
 
         if (_viewModel.Duration > 0)
             ProgressSlider.Maximum = _viewModel.Duration;
@@ -179,6 +182,7 @@ public partial class NowPlayingPage : ContentPage
             BuildLyricViews();
         else if (_viewModel.CurrentLyricIndexObservable >= 0 && _lyricLabels.Count > 0)
             HighlightLine(_viewModel.CurrentLyricIndexObservable);
+        CrashReporter.MarkStage("NowPlayingPage.OnAppearing: 歌词视图构建完成");
 
         // 延迟滚动到当前歌词行，确保布局完成后再定位
         if (_lyricLabels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
@@ -187,6 +191,9 @@ public partial class NowPlayingPage : ContentPage
                 MainThread.BeginInvokeOnMainThread(() =>
                     HighlightLine(_viewModel.CurrentLyricIndexObservable)));
         }
+
+        // 整个进入播放页流程无异常完成，清除阶段标记（若此后再崩，说明是后续交互，非进入阶段）
+        CrashReporter.ClearStage();
     }
 
     /// <summary>当页面从屏幕上消失时触发，取消订阅主题变更事件。</summary>

@@ -4,6 +4,8 @@ using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 
 namespace CatClawMusic.Maui;
 
@@ -60,6 +62,52 @@ public partial class App : Application
         });
 
         StartupLog("App.ctor: done");
+    }
+
+    /// <summary>应用启动完成后调用：若上次运行发生过崩溃，弹出提示让用户复制崩溃日志（无需连接电脑）。</summary>
+    protected override void OnStart()
+    {
+        base.OnStart();
+        try
+        {
+            var crash = CrashReporter.LastCrash;
+            var stage = CrashReporter.LastStage;
+            if (string.IsNullOrWhiteSpace(crash) && string.IsNullOrWhiteSpace(stage)) return;
+
+            var report = string.Empty;
+            if (!string.IsNullOrWhiteSpace(crash))
+                report += crash;
+            if (!string.IsNullOrWhiteSpace(stage))
+                report += (report.Length > 0 ? "\n" : string.Empty)
+                          + "[崩溃时所在的执行阶段]\n" + stage
+                          + "（若上方无托管堆栈，说明是 native 崩溃，此阶段即死亡位置）\n";
+
+            _ = MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                // 延迟到首屏布局完成后再弹窗，避免与启动页/导航抢焦点
+                await Task.Delay(800);
+                var page = Application.Current?.MainPage;
+                if (page == null) return;
+
+                var display = report.Length > 3500
+                    ? report.Substring(0, 3500) + "\n...(日志过长已截断，完整内容见下方文件)"
+                    : report;
+
+                bool copy = await page.DisplayAlert(
+                    "检测到上次崩溃",
+                    "已记录崩溃信息，可复制后发我定位问题：\n\n" + display,
+                    "复制到剪贴板", "关闭");
+
+                if (copy)
+                {
+                    await Clipboard.SetTextAsync(report);
+                    await page.DisplayAlert("已复制",
+                        "崩溃日志已复制到剪贴板。\n也可在文件管理器访问：Android/data/com.catclaw.music/files/catclaw_crash.log",
+                        "好的");
+                }
+            });
+        }
+        catch { }
     }
 
     /// <summary>应用进入后台时调用：flush 听歌时长，避免被系统杀死时丢失数据</summary>

@@ -340,6 +340,10 @@ public static class SafeContentScanner
                 // 用 filePath 的哈希值作为文件名
                 var hash = filePath.GetHashCode().ToString("X");
                 var outputPath = System.IO.Path.Combine(cacheDir, $"cover_{hash}.jpg");
+                // 扫描期即下采样到缩略图尺寸（300px），列表/歌单直接复用，减少内存与磁盘占用
+                var saved = CatClawMusic.Maui.Services.CoverHelper.SaveCoverBytes(art, outputPath, CatClawMusic.Maui.Services.CoverHelper.ThumbnailSize);
+                if (saved != null) return saved;
+                // 降级：直接写原始字节
                 System.IO.File.WriteAllBytes(outputPath, art);
                 return outputPath;
             }

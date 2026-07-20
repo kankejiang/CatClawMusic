@@ -159,7 +159,7 @@ public partial class SongDetailViewModel : ObservableObject
             // 解析封面
             try
             {
-                var coverPath = Services.CoverHelper.ResolveSingleCover(song);
+                var coverPath = Services.CoverHelper.ResolveSingleCover(song, Services.CoverHelper.ThumbnailSize);
                 if (!string.IsNullOrEmpty(coverPath))
                 {
                     song.CoverArtPath = coverPath;

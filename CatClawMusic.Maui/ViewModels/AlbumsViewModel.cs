@@ -235,7 +235,7 @@ public partial class AlbumsViewModel : ObservableObject
                 if (album.SampleSongId <= 0) continue;
 
                 // 磁盘缓存命中：直接赋值，立刻可见
-                var cachedPath = Services.CoverHelper.GetCachedPath(album.SampleSongId);
+                var cachedPath = Services.CoverHelper.GetCachedPath(album.SampleSongId, Services.CoverHelper.ThumbnailSize);
                 if (File.Exists(cachedPath))
                 {
                     album.CoverArtPath = cachedPath;

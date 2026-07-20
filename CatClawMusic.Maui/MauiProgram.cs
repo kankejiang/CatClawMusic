@@ -430,6 +430,8 @@ public static class MauiProgram
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
+        // 崩溃前日志轨迹记录（内存环形缓冲，崩溃时由 CrashReporter 落盘，无 adb 也能定位）
+        builder.Logging.AddProvider(new CatClawMusic.Maui.Services.FileLoggerProvider());
 
         StartupLog("Step 50: Build");
         var app = builder.Build();

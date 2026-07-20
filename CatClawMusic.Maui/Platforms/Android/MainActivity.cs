@@ -39,12 +39,13 @@ public class MainActivity : MauiAppCompatActivity
         var audioPlayer = MauiProgram.Services.GetService<AudioPlayerService>();
         audioPlayer?.SetAndroidContext(this);
 
-        // 全局未处理异常处理：记录日志并尝试释放资源，避免静默退出
+        // 全局未处理异常处理：把堆栈与崩溃前日志轨迹落盘，无设备也能定位
         AndroidEnvironment.UnhandledExceptionRaiser += (_, args) =>
         {
             try
             {
-                Log.Debug("MainActivity", $"[UnhandledException] {args.Exception}");
+                FileLoggerProvider.DumpToCrashFile();
+                CrashReporter.RecordJava("AndroidEnvironment.UnhandledExceptionRaiser", args.Exception);
                 BitmapMemoryCache.Clear();
             }
             catch { }
@@ -53,7 +54,8 @@ public class MainActivity : MauiAppCompatActivity
         {
             try
             {
-                Log.Debug("MainActivity", $"[AppDomain.UnhandledException] {args.ExceptionObject}");
+                FileLoggerProvider.DumpToCrashFile();
+                CrashReporter.RecordManaged("AppDomain.UnhandledException", args.ExceptionObject as Exception, args.IsTerminating);
                 BitmapMemoryCache.Clear();
             }
             catch { }

@@ -668,9 +668,13 @@ public partial class SearchViewModel : ObservableObject
 
         if (pending.Count > 0)
         {
+            // 缩略图（默认 300）供列表/卡片秒显；发现页卡片需更大尺寸（800）单独再解析一次
             await Services.CoverHelper.BatchResolveCoversAsync(pending.Values);
             foreach (var kv in pending)
-                resolvedMap[kv.Key] = kv.Value.CoverArtPath;
+            {
+                var discoverPath = Services.CoverHelper.ResolveSingleCover(kv.Value, Services.CoverHelper.DiscoverSize);
+                resolvedMap[kv.Key] = discoverPath ?? kv.Value.CoverArtPath;
+            }
         }
 
         // 回填 SampleCoverPath

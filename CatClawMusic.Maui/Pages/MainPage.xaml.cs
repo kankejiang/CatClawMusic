@@ -968,9 +968,10 @@ public partial class MainPage : ContentPage
             _lastViewPagerPadding = viewPagerPadding;
         }
 
-        // TabBar 底部留出导航栏高度（全屏页面或聊天模式 TabBar 已隐藏）
-        var tabBarHeight = hideTabBar ? 0 : 64 + bottom;
-        var tabBarBottomPad = hideTabBar ? 8 : bottom + 8;
+        // TabBar 贴紧屏幕底部：不叠加系统导航栏高度，仅用固定小间距防止图标过于贴边。
+        // 用户要求无空白间隙（Edge-to-Edge 全屏延伸）。
+        var tabBarHeight = hideTabBar ? 0 : 56;
+        var tabBarBottomPad = hideTabBar ? 0 : 4;
         var tabBarPadding = new Thickness(0, 6, 0, tabBarBottomPad);
 
         bool tabBarChanged = TabBar.Padding != _lastTabBarPadding || Math.Abs(TabBar.HeightRequest - tabBarHeight) > 0.01;

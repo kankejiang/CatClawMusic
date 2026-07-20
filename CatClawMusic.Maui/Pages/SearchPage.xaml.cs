@@ -21,6 +21,10 @@ public partial class SearchPage : ContentPage
     private readonly ListeningStatsView _statsView;
     private SettingsPage? _settingsPage;
     private bool _isSettingsPanelOpen;
+
+#if ANDROID
+    private readonly List<global::Android.Views.View> _settingsBlurredViews = new();
+#endif
     private IDispatcherTimer? _heroAutoScrollTimer;
     private int _heroCurrentPosition;
 
@@ -556,6 +560,10 @@ public partial class SearchPage : ContentPage
         _isSettingsPanelOpen = true;
         SettingsPanelOverlay.IsVisible = true;
 
+#if ANDROID
+        ApplyBlurToSettingsSiblings();
+#endif
+
         // 确保布局已计算完成
         await Task.Delay(16);
 
@@ -585,8 +593,46 @@ public partial class SearchPage : ContentPage
             SettingsPanel.TranslateTo(-panelWidth, 0, 280, Easing.CubicIn)
         );
 
+#if ANDROID
+        RemoveBlurFromSettingsSiblings();
+#endif
+
         SettingsPanelOverlay.IsVisible = false;
     }
+
+#if ANDROID
+    /// <summary>对设置面板背后的兄弟视图（发现页主内容）应用高斯模糊 RenderEffect，形成与播放列表弹窗一致的全屏磨砂遮罩</summary>
+    private void ApplyBlurToSettingsSiblings()
+    {
+        _settingsBlurredViews.Clear();
+
+        if (SettingsPanelOverlay.Parent is Microsoft.Maui.Controls.Layout layout)
+        {
+            foreach (var child in layout.Children)
+            {
+                if (child == SettingsPanelOverlay) continue;
+                if (child is Microsoft.Maui.Controls.View view &&
+                    view.Handler?.PlatformView is global::Android.Views.View nativeView)
+                {
+                    nativeView.SetRenderEffect(
+                        global::Android.Graphics.RenderEffect.CreateBlurEffect(
+                            24, 24, global::Android.Graphics.Shader.TileMode.Clamp));
+                    _settingsBlurredViews.Add(nativeView);
+                }
+            }
+        }
+    }
+
+    /// <summary>移除设置面板背后兄弟视图上的高斯模糊</summary>
+    private void RemoveBlurFromSettingsSiblings()
+    {
+        foreach (var view in _settingsBlurredViews)
+        {
+            try { view.SetRenderEffect(null); } catch { }
+        }
+        _settingsBlurredViews.Clear();
+    }
+#endif
 
     private void OnSearchToggleClicked(object? sender, EventArgs e)
     {

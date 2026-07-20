@@ -20,6 +20,7 @@ using Matrix = Android.Graphics.Matrix;
 using View = Android.Views.View;
 using Aspect = Microsoft.Maui.Aspect;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Services;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -211,9 +212,21 @@ public class FrostedBackgroundView : View
     private void ApplyNativeBlur()
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.S) return;
-        var density = Resources?.DisplayMetrics?.Density ?? 2f;
-        var radius = 22f * density;
-        SetRenderEffect(RenderEffect.CreateBlurEffect(radius, radius, Shader.TileMode.Mirror)!);
+        try
+        {
+            CrashReporter.MarkStage("FrostedBackground.Android: ApplyNativeBlur 开始");
+            var density = Resources?.DisplayMetrics?.Density ?? 2f;
+            var radius = 22f * density;
+            SetRenderEffect(RenderEffect.CreateBlurEffect(radius, radius, Shader.TileMode.Mirror)!);
+            CrashReporter.MarkStage("FrostedBackground.Android: ApplyNativeBlur 完成");
+        }
+        catch (Exception ex)
+        {
+            // 任意 Android 版本/设备对 RenderEffect 的兼容性问题都不应导致崩溃，降级为不使用原生模糊
+            Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] 原生模糊失败（已降级为流光溢彩管线）: {ex.Message}");
+            try { SetRenderEffect(null); } catch { }
+            _useNativeBlur = false;
+        }
     }
 
     /// <summary>根据启用状态、播放状态、滑动状态更新动画运行状态</summary>
