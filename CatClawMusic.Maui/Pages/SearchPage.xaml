@@ -660,9 +660,10 @@
             <Grid x:Name="SettingsPanel"
                   WidthRequest="300"
                   HorizontalOptions="Start"
-                  TranslationX="-9999">
+                  TranslationX="-9999"
+                  BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-                <!-- 毛玻璃模糊层：模糊主题背景图并压暗，形成明显的磨砂质感 -->
+                <!-- 毛玻璃模糊层：模糊主题背景图并压暗，形成明显的磨砂质感（完全不透明，保证设置选项可读） -->
                 <controls:FrostedBackground
                     Source="{DynamicResource ThemeBackgroundImage}"
                     IsActive="{DynamicResource ThemeBackgroundEnabled}"
@@ -670,7 +671,7 @@
                     TintColor="{DynamicResource TabBarGlassTint}"
                     TintOpacity="0.45"
                     DimAmount="0.25"
-                    Opacity="0.9"
+                    Opacity="1.0"
                     Aspect="AspectFill"
                     UseNativeBlur="True"
                     InputTransparent="True" />

@@ -107,18 +107,6 @@
                 </Border>
 
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <Label Grid.Column="0"
-                               Text="深色模式"
-                               FontSize="16"
-                               TextColor="{DynamicResource TextPrimaryColor}"
-                               VerticalOptions="Center" />
-                        <Switch Grid.Column="1"
-                                IsToggled="{Binding IsDarkMode}" />
-                    </Grid>
-                </Border>
-
-                <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
                         <Label Text="启动页"
                                FontSize="16"

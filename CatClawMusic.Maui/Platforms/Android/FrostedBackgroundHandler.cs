@@ -1007,6 +1007,9 @@ public class FrostedBackgroundHandler : ViewHandler<FrostedBackground, FrostedBa
             [nameof(FrostedBackground.Aspect)] = MapAspect,
             [nameof(FrostedBackground.IsScrolling)] = MapIsScrolling,
             [nameof(FrostedBackground.UseNativeBlur)] = MapUseNativeBlur,
+            [nameof(FrostedBackground.IsVisible)] = MapIsVisible,
+            // IsVisible 的变更通过 IView.Visibility 键下发，需一并覆盖，否则开关切换不生效
+            [nameof(Microsoft.Maui.IView.Visibility)] = MapIsVisible,
         };
 
     public FrostedBackgroundHandler() : base(PropertyMapper) { }
@@ -1041,6 +1044,12 @@ public class FrostedBackgroundHandler : ViewHandler<FrostedBackground, FrostedBa
     private static void MapUseNativeBlur(FrostedBackgroundHandler handler, FrostedBackground view)
     {
         handler.PlatformView.SetUseNativeBlur(view.UseNativeBlur);
+    }
+
+    private static void MapIsVisible(FrostedBackgroundHandler handler, FrostedBackground view)
+    {
+        // 平台视图构造函数强制 Visibility=Visible，需显式同步 IsVisible，否则关闭雾面背景开关后仍显示
+        handler.PlatformView.SetEnabled(view.IsVisible);
     }
 }
 
