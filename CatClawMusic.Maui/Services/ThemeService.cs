@@ -312,12 +312,18 @@ public class ThemeService : IThemeService
         resources["TextHintColor"] = Color.FromArgb("#868CAE");
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
         resources["TabInactiveColor"] = Color.FromArgb("#FFFFFF"); // 深色模式：未选中图标/文字为白色
-        resources["TabBarBackgroundColor"] = Color.FromArgb("#D80A0D1E");
+        // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
+        resources["TabBarBackgroundColor"] = Color.FromArgb("#3DFFFFFF");
         // 导航栏毛玻璃色调：深色模式压暗（与页面遮罩同为黑色），浅色模式提亮（白色）
         resources["TabBarGlassTint"] = Colors.Black;
 
-        // 深色模式基底：纯色 fallback（主题图片层在其之上；无图片时此色直接可见）
-        resources["PageBackgroundBrush"] = new SolidColorBrush(darkBase);
+        // 深色模式基底：垂直氛围渐变（顶部主题色调 → 深色基底），让半透明毛玻璃卡片有层次可循
+        resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
+        {
+            new(Color.FromArgb($"#26{colors.Primary[1..]}"), 0f),
+            new(Color.FromArgb("#0B0D20"), 0.45f),
+            new(darkBase, 1f)
+        }, new Point(0.5, 0), new Point(0.5, 1));
 
         // 主题背景图遮罩：深色模式下用半透明黑色压暗图片，确保文字可读
         resources["CustomBackgroundMaskColor"] = Colors.Black.WithAlpha(0.45f);
@@ -366,12 +372,18 @@ public class ThemeService : IThemeService
         resources["TextHintColor"] = Color.FromArgb("#6B7399");
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
         resources["TabInactiveColor"] = Color.FromArgb("#9AA0B4"); // 浅色模式：未选中图标/文字为灰色
-        resources["TabBarBackgroundColor"] = Color.FromArgb("#F5F8FF");
+        // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
+        resources["TabBarBackgroundColor"] = Color.FromArgb("#A6FFFFFF");
         // 导航栏毛玻璃色调：浅色模式提亮（与页面遮罩同为白色），深色模式压暗（黑色）
         resources["TabBarGlassTint"] = Colors.White;
 
-        // 浅色模式基底：纯色 fallback（主题图片层在其之上；无图片时此色直接可见）
-        resources["PageBackgroundBrush"] = new SolidColorBrush(lightBase);
+        // 浅色模式基底：垂直氛围渐变（顶部主题浅色调 → 浅色基底），让半透明毛玻璃卡片有层次可循
+        resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
+        {
+            new(primaryLight.WithAlpha(0.45f), 0f),
+            new(Color.FromArgb("#F3F1FC"), 0.5f),
+            new(lightBase, 1f)
+        }, new Point(0.5, 0), new Point(0.5, 1));
 
         // 主题背景图遮罩：浅色模式下用半透明白色提亮图片，确保文字可读
         resources["CustomBackgroundMaskColor"] = Colors.White.WithAlpha(0.40f);

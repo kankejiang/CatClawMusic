@@ -112,6 +112,22 @@ public class FrostedBackground : View
         set => SetValue(IsScrollingProperty, value);
     }
 
+    /// <summary>
+    /// 是否使用原生 GPU 模糊（Android 12+ RenderEffect，静态磨砂、无流体动画），
+    /// 适用于设置抽屉/底栏等静态毛玻璃面板，比 CPU 流光管线更轻量。
+    /// 默认 false：保持流光溢彩流体效果（播放页/全屏歌词页使用）。
+    /// </summary>
+    public static readonly BindableProperty UseNativeBlurProperty =
+        BindableProperty.Create(nameof(UseNativeBlur), typeof(bool), typeof(FrostedBackground), false,
+            propertyChanged: OnUseNativeBlurChanged);
+
+    /// <summary>是否使用原生 GPU 模糊（静态磨砂）</summary>
+    public bool UseNativeBlur
+    {
+        get => (bool)GetValue(UseNativeBlurProperty);
+        set => SetValue(UseNativeBlurProperty, value);
+    }
+
     private static void OnSourceChanged(BindableObject bindable, object oldValue, object newValue)
     {
         if (bindable is FrostedBackground fb)
@@ -151,5 +167,11 @@ public class FrostedBackground : View
     {
         if (bindable is FrostedBackground fb)
             fb.Handler?.UpdateValue(nameof(IsScrolling));
+    }
+
+    private static void OnUseNativeBlurChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        if (bindable is FrostedBackground fb)
+            fb.Handler?.UpdateValue(nameof(UseNativeBlur));
     }
 }

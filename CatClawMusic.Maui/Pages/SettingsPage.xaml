@@ -273,7 +273,7 @@
         <!-- 底部毛玻璃底栏（纯视觉，与主 TabBar 同款）：覆盖 Android 系统导航条区域，保持底部磨砂一致性 -->
         <Grid Grid.Row="1" x:Name="BottomGlassBar"
               HeightRequest="52"
-              BackgroundColor="Transparent"
+              BackgroundColor="{DynamicResource TabBarBackgroundColor}"
               IsVisible="{OnPlatform Default=false, Android=true}"
               InputTransparent="True">
             <controls:FrostedBackground
@@ -281,9 +281,11 @@
                 IsActive="{DynamicResource ThemeBackgroundEnabled}"
                 IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                 TintColor="{DynamicResource TabBarGlassTint}"
-                TintOpacity="0.42"
+                TintOpacity="0.28"
                 DimAmount="0"
+                Opacity="0.45"
                 Aspect="AspectFill"
+                UseNativeBlur="True"
                 InputTransparent="True" />
             <BoxView HeightRequest="1"
                      VerticalOptions="Start"

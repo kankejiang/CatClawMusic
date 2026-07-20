@@ -536,6 +536,9 @@ public partial class SearchPage : ContentPage
             var settingsContent = _settingsPage.Content;
             _settingsPage.Content = null;
             settingsContent.BindingContext = _settingsPage.BindingContext;
+            // 抽屉自身是半透明毛玻璃（透出下方发现页），需清掉内容自带的页面背景，避免 opaque 渐变盖住玻璃
+            if (settingsContent is Grid settingsGrid)
+                settingsGrid.Background = null;
             SettingsPanelContent.Content = settingsContent;
         }
 

@@ -149,6 +149,7 @@ public class FrostedBackgroundView : View
     private bool _isEnabled = true;  // 用户开关（控制背景是否显示）
     private bool _isPlaying = false; // 播放状态（控制动画是否运行）
     private volatile bool _isScrolling = false;  // 用户正在滑动列表（暂停动画以释放主线程）
+    private bool _useNativeBlur = false;  // 原生 GPU 模糊（RenderEffect，静态磨砂，无流体动画）
 
     /// <summary>更新激活状态（仅控制动画，不隐藏背景）</summary>
     public void SetActive(bool active)
@@ -172,6 +173,47 @@ public class FrostedBackgroundView : View
         if (_isScrolling == scrolling) return;
         _isScrolling = scrolling;
         UpdateAnimationState();
+    }
+
+    /// <summary>
+    /// 切换原生 GPU 模糊（Android 12+ 的 RenderEffect）。
+    /// 开启后：GPU 直接对绘制结果做高斯模糊，静态磨砂、无流体动画，省去 CPU 的 mesh/模糊/调色管线。
+    /// 系统版本不足时自动回退到原有流光溢彩管线。
+    /// </summary>
+    public void SetUseNativeBlur(bool useNative)
+    {
+        var supported = useNative && Build.VERSION.SdkInt >= BuildVersionCodes.S;
+        if (_useNativeBlur == supported) return;
+        _useNativeBlur = supported;
+
+        if (supported)
+        {
+            ApplyNativeBlur();
+            StopAnimation();  // 静态磨砂无需流体动画
+        }
+        else
+        {
+            SetRenderEffect(null);
+        }
+
+        // 重新生成位图：原生模式走轻量路径（仅缩放），流体模式走原管线
+        var captured = _sourceBitmap;
+        if (captured != null && !captured.IsRecycled)
+        {
+            Interlocked.Increment(ref _processingVersion);
+            var capturedKey = _cacheKey;
+            _ = Task.Run(() => RegenerateProcessedBitmap(captured, capturedKey));
+        }
+        Invalidate();
+    }
+
+    /// <summary>应用原生 RenderEffect 高斯模糊（GPU 加速，模糊半径约 22dp）</summary>
+    private void ApplyNativeBlur()
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.S) return;
+        var density = Resources?.DisplayMetrics?.Density ?? 2f;
+        var radius = 22f * density;
+        SetRenderEffect(RenderEffect.CreateBlurEffect(radius, radius, Shader.TileMode.Mirror)!);
     }
 
     /// <summary>根据启用状态、播放状态、滑动状态更新动画运行状态</summary>
@@ -224,6 +266,7 @@ public class FrostedBackgroundView : View
     /// </summary>
     private void StartAnimation()
     {
+        if (_useNativeBlur) return;  // 原生模式：静态磨砂，不跑流体动画
         StopAnimation();
         if (Width <= 0 || Height <= 0 || _processedBitmap == null) return;
 
@@ -396,7 +439,12 @@ public class FrostedBackgroundView : View
             // 使用捕获的本地引用而非 _sourceBitmap 字段，避免竞态访问已被回收的位图
             if (source != null && !source.IsRecycled && source.Width > 0 && source.Height > 0)
             {
-                if (!string.IsNullOrEmpty(cacheKey))
+                if (_useNativeBlur)
+                {
+                    // 原生模式：模糊交给 GPU 的 RenderEffect，这里仅缩小尺寸降低开销
+                    result = DownscaleForNativeBlur(source);
+                }
+                else if (!string.IsNullOrEmpty(cacheKey))
                 {
                     // 通过缓存获取：若另一个实例已处理过同一封面，直接复用
                     result = ProcessedBitmapCache.GetOrCreate(cacheKey, source, ProcessFlowingLightBitmap);
@@ -620,6 +668,21 @@ public class FrostedBackgroundView : View
         var result = Bitmap.CreateBitmap(src, 0, 0, src.Width, src.Height, matrix, true)!;
         matrix.Dispose();
         return result;
+    }
+
+    /// <summary>
+    /// 原生模糊模式的位图准备：仅缩小到长边 400（降低 GPU 模糊与绘制成本），
+    /// 不做 CPU 模糊/mesh/调色——真正的模糊由 View 上的 RenderEffect 在 GPU 完成。
+    /// 返回新位图（可安全回收），不复用源位图。
+    /// </summary>
+    private Bitmap DownscaleForNativeBlur(Bitmap src)
+    {
+        const int maxEdge = 400;
+        int w = src.Width, h = src.Height;
+        if (w <= maxEdge && h <= maxEdge)
+            return src.Copy(src.GetConfig() ?? Bitmap.Config.Argb8888, false)!;
+        float scale = maxEdge / (float)Math.Max(w, h);
+        return Zoom(src, (int)(w * scale), (int)(h * scale));
     }
 
     /// <summary>
@@ -943,6 +1006,7 @@ public class FrostedBackgroundHandler : ViewHandler<FrostedBackground, FrostedBa
             [nameof(FrostedBackground.DimAmount)] = MapTint,
             [nameof(FrostedBackground.Aspect)] = MapAspect,
             [nameof(FrostedBackground.IsScrolling)] = MapIsScrolling,
+            [nameof(FrostedBackground.UseNativeBlur)] = MapUseNativeBlur,
         };
 
     public FrostedBackgroundHandler() : base(PropertyMapper) { }
@@ -972,6 +1036,11 @@ public class FrostedBackgroundHandler : ViewHandler<FrostedBackground, FrostedBa
     private static void MapIsScrolling(FrostedBackgroundHandler handler, FrostedBackground view)
     {
         handler.PlatformView.SetScrolling(view.IsScrolling);
+    }
+
+    private static void MapUseNativeBlur(FrostedBackgroundHandler handler, FrostedBackground view)
+    {
+        handler.PlatformView.SetUseNativeBlur(view.UseNativeBlur);
     }
 }
 

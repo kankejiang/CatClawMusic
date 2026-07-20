@@ -656,12 +656,36 @@
                      Opacity="0"
                      InputTransparent="False" />
 
-            <!-- 设置面板容器（85%宽度，从左侧滑入） -->
+            <!-- 设置面板容器（85%宽度，从左侧滑入）：实毛玻璃面板，对齐播放列表弹窗样式（玻璃底 + 描边 + 圆角 + 投影） -->
             <Grid x:Name="SettingsPanel"
                   WidthRequest="300"
                   HorizontalOptions="Start"
-                  TranslationX="-9999"
-                  BackgroundColor="{DynamicResource WindowBackgroundColor}">
+                  TranslationX="-9999">
+
+                <!-- 毛玻璃模糊层：模糊主题背景图并压暗，形成明显的磨砂质感 -->
+                <controls:FrostedBackground
+                    Source="{DynamicResource ThemeBackgroundImage}"
+                    IsActive="{DynamicResource ThemeBackgroundEnabled}"
+                    IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+                    TintColor="{DynamicResource TabBarGlassTint}"
+                    TintOpacity="0.45"
+                    DimAmount="0.25"
+                    Opacity="0.9"
+                    Aspect="AspectFill"
+                    UseNativeBlur="True"
+                    InputTransparent="True" />
+
+                <!-- 玻璃面板描边层：实心玻璃底 + 描边 + 圆角 + 投影（无内容，纯视觉，避免与模糊层同置于带阴影 Border 内导致不渲染） -->
+                <Border BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                        Stroke="{DynamicResource GlassStrokeStrongColor}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 0,26,26,0"
+                        InputTransparent="True">
+                    <Border.Shadow>
+                        <Shadow Brush="Black" Radius="30" Offset="10,0" Opacity="0.5" />
+                    </Border.Shadow>
+                </Border>
+
                 <!-- 设置内容容器（按需求移除顶部“设置”标题栏与关闭 X；点击遮罩仍可收起面板） -->
                 <ScrollView>
                     <ContentView x:Name="SettingsPanelContent" />

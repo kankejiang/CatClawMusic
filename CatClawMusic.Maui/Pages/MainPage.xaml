@@ -14,7 +14,9 @@
           SafeAreaEdges="None">
 
         <!-- 主题内置背景图片层（星空/天空静态图，跟随主题色与深浅模式自动切换） -->
+        <!-- RowSpan 3：延伸到底部导航栏之后，让 TabBar 毛玻璃有背景可透 -->
         <Image x:Name="ThemeBackgroundImage"
+               Grid.RowSpan="3"
                Aspect="AspectFill"
                Source="{DynamicResource ThemeBackgroundImage}"
                IsVisible="{DynamicResource ThemeBackgroundEnabled}"
@@ -23,6 +25,7 @@
 
         <!-- 背景遮罩层：在主题背景图上加半透明暗色/亮色，确保文字可读 -->
         <BoxView x:Name="BackgroundMask"
+                 Grid.RowSpan="3"
                  Color="{DynamicResource CustomBackgroundMaskColor}"
                  IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                  InputTransparent="True" />
@@ -112,10 +115,10 @@
                     VerticalOptions="Center" HorizontalOptions="Center" />
         </Grid>
 
-        <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库），透明 + 毛玻璃 -->
+        <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库），半透明毛玻璃底 + 模糊层 -->
         <Grid Grid.Row="2" x:Name="TabBar"
               ColumnDefinitions="*,*,*,*"
-              BackgroundColor="Transparent"
+              BackgroundColor="{DynamicResource TabBarBackgroundColor}"
               Padding="0,4,0,4"
               SafeAreaEdges="None">
 
@@ -125,8 +128,9 @@
                                         IsActive="{DynamicResource ThemeBackgroundEnabled}"
                                         IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                                         TintColor="{DynamicResource TabBarGlassTint}"
-                                        TintOpacity="0.42"
+                                        TintOpacity="0.18"
                                         DimAmount="0"
+                                        Opacity="0.35"
                                         Aspect="AspectFill"
                                         InputTransparent="True" />
 
