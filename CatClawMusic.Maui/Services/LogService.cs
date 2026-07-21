@@ -41,6 +41,40 @@ public partial class LogService : ILogService
     /// <summary>静态单例，供插件通过 Core 接口访问</summary>
     public static LogService? Instance { get; private set; }
 
+    /// <summary>诊断日志文件完整路径（外部 CatClawMusic/debug.log，文件管理器可访问）。供 LogPage/导出复用。</summary>
+    public static string LogFilePath { get; private set; } = "";
+
+    /// <summary>解析诊断日志目录：优先外部存储 CatClawMusic 目录（文件管理器可访问），失败回退应用私有目录。</summary>
+    private static string ResolveLogDirectory()
+    {
+        try
+        {
+#if ANDROID
+            var externalRoot = Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath ?? "/sdcard";
+            var dir = Path.Combine(externalRoot, "CatClawMusic");
+            Directory.CreateDirectory(dir);
+            return dir;
+#endif
+        }
+        catch { }
+        return FileSystem.AppDataDirectory;
+    }
+
+    /// <summary>写入诊断开关标记文件（外部 CatClawMusic 目录）。</summary>
+    private static void WriteFlagFile(bool on)
+    {
+        try
+        {
+#if ANDROID
+            var externalRoot = Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath ?? "/sdcard";
+            var dir = Path.Combine(externalRoot, "CatClawMusic");
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "diagnostic_enabled.txt"), on ? "1" : "0");
+#endif
+        }
+        catch { }
+    }
+
     /// <summary>诊断日志是否开启。变更后立即持久化到 Preferences。</summary>
     public bool IsEnabled
     {
@@ -50,16 +84,7 @@ public partial class LogService : ILogService
             if (_enabled == value) return;
             _enabled = value;
             try { Preferences.Set(EnabledKey, value); } catch { }
-            try
-            {
-#if ANDROID
-                var externalRoot = Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath ?? "/sdcard";
-                var dir = Path.Combine(externalRoot, "CatClawMusic");
-                Directory.CreateDirectory(dir);
-                File.WriteAllText(Path.Combine(dir, "diagnostic_enabled.txt"), value ? "1" : "0");
-#endif
-            }
-            catch { }
+            WriteFlagFile(value);
             if (!value) Flush();
         }
     }
@@ -68,27 +93,15 @@ public partial class LogService : ILogService
     /// <summary>构造函数，初始化日志文件路径、开关状态并启动后台刷盘定时器。</summary>
     public LogService()
     {
-        _logFilePath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
-        _logDir = Path.GetDirectoryName(_logFilePath) ?? "";
-        if (!string.IsNullOrEmpty(_logDir))
-        {
-            try { Directory.CreateDirectory(_logDir); } catch { }
-        }
+        _logDir = ResolveLogDirectory();
+        _logFilePath = Path.Combine(_logDir, "debug.log");
+        LogFilePath = _logFilePath;
+        try { Directory.CreateDirectory(_logDir); } catch { }
 
-        try { _enabled = Preferences.Get(EnabledKey, false); } catch { _enabled = false; }
-        if (!_enabled)
-        {
-            try
-            {
-#if ANDROID
-                var externalRoot = Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath ?? "/sdcard";
-                var flagFile = Path.Combine(externalRoot, "CatClawMusic", "diagnostic_enabled.txt");
-                if (File.Exists(flagFile) && File.ReadAllText(flagFile).Trim() == "1")
-                    _enabled = true;
-#endif
-            }
-            catch { }
-        }
+        // 诊断日志默认关闭：由设置页开关控制，默认不写文件以降低开销与隐私顾虑。
+        // 若用户此前在设置页开启过（Preferences 持久化），则恢复为开启状态。
+        _enabled = Preferences.Get(EnabledKey, false);
+        WriteFlagFile(_enabled);
 
         Instance = this;
         Core.Interfaces.Log.SetProvider(this);

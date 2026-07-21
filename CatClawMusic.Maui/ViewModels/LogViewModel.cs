@@ -87,7 +87,9 @@ public partial class LogViewModel : ObservableObject
 
     public LogViewModel()
     {
-        _logFilePath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
+        _logFilePath = LogService.LogFilePath;
+        if (string.IsNullOrEmpty(_logFilePath))
+            _logFilePath = Path.Combine(FileSystem.AppDataDirectory, "debug.log");
         LoadDeviceInfo();
     }
 
@@ -130,7 +132,7 @@ public partial class LogViewModel : ObservableObject
         }
         catch { }
 
-        try { LogPath = _logFilePath.Replace(FileSystem.AppDataDirectory, "files"); }
+        try { LogPath = _logFilePath; }
         catch { }
     }
 

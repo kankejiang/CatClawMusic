@@ -227,20 +227,30 @@
 
                 <!-- 诊断日志 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
                         <Image Source="{AppThemeBinding Light=ic_info_light, Dark=ic_info}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
+                               VerticalOptions="Center" Opacity="0.8">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
+                            </Image.GestureRecognizers>
+                        </Image>
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
                             <Label Text="诊断日志" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="查看、搜索并导出应用日志，协助排查问题" Style="{StaticResource PageSubtitleStyle}" />
+                            <Label Text="开关开启后实时记录运行日志，可在文件管理器取 debug.log 发送" Style="{StaticResource PageSubtitleStyle}" />
+                            <VerticalStackLayout.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
+                            </VerticalStackLayout.GestureRecognizers>
                         </VerticalStackLayout>
-                        <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                        <Switch Grid.Column="2" x:Name="DiagnosticLogSwitch"
+                                Toggled="OnDiagnosticLogToggled" VerticalOptions="Center" />
+                        <Image Grid.Column="3" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               VerticalOptions="Center" Opacity="0.5">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
+                            </Image.GestureRecognizers>
+                        </Image>
                     </Grid>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
-                    </Border.GestureRecognizers>
                 </Border>
 
                 <!-- 关于 -->

@@ -44,8 +44,10 @@ public class MainActivity : MauiAppCompatActivity
         {
             try
             {
+                LogService.Instance?.Error("Crash", $"Unhandled (Android): {args.Exception}");
                 FileLoggerProvider.DumpToCrashFile();
                 CrashReporter.RecordJava("AndroidEnvironment.UnhandledExceptionRaiser", args.Exception);
+                LogService.Instance?.Flush();
                 BitmapMemoryCache.Clear();
             }
             catch { }
@@ -54,8 +56,11 @@ public class MainActivity : MauiAppCompatActivity
         {
             try
             {
+                var ex = args.ExceptionObject as Exception;
+                LogService.Instance?.Error("Crash", $"Unhandled (AppDomain, terminating={args.IsTerminating}): {ex}");
                 FileLoggerProvider.DumpToCrashFile();
-                CrashReporter.RecordManaged("AppDomain.UnhandledException", args.ExceptionObject as Exception, args.IsTerminating);
+                CrashReporter.RecordManaged("AppDomain.UnhandledException", ex, args.IsTerminating);
+                LogService.Instance?.Flush();
                 BitmapMemoryCache.Clear();
             }
             catch { }

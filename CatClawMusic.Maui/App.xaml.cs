@@ -5,7 +5,6 @@ using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.ApplicationModel.DataTransfer;
 
 namespace CatClawMusic.Maui;
 
@@ -64,51 +63,53 @@ public partial class App : Application
         StartupLog("App.ctor: done");
     }
 
-    /// <summary>应用启动完成后调用：若上次运行发生过崩溃，弹出提示让用户复制崩溃日志（无需连接电脑）。</summary>
+    /// <summary>应用启动：诊断日志默认关闭，仅由设置页开关控制。
+    /// 若用户此前已开启（按 Preferences 持久化恢复），则在后台恢复记录并弹一次非阻塞 Toast 提示。</summary>
     protected override void OnStart()
     {
         base.OnStart();
+
+        // 若上次已开启诊断日志：后台线程记录一条启动标记（构造时已按 Preferences 恢复 IsEnabled）
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                if (LogService.Instance is { } log && log.IsEnabled)
+                {
+                    log.Info("App", "诊断日志已开启（按上次设置恢复，崩溃堆栈将写入 debug.log）");
+                    log.Flush();
+                }
+            }
+            catch { }
+        });
+
+        // 仅当已开启时提示用户去哪个文件夹取文件（非阻塞 Toast，约 3.5 秒后自动消失）
+        _ = MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            await Task.Delay(700);
+            try
+            {
+                if (LogService.Instance is { } log && log.IsEnabled)
+                    ShowDiagnosticToast();
+            }
+            catch { }
+        });
+    }
+
+#if ANDROID
+    /// <summary>启动提示 Toast：告知用户诊断日志已开始记录、去哪个文件夹取文件。</summary>
+    private void ShowDiagnosticToast()
+    {
         try
         {
-            var crash = CrashReporter.LastCrash;
-            var stage = CrashReporter.LastStage;
-            if (string.IsNullOrWhiteSpace(crash) && string.IsNullOrWhiteSpace(stage)) return;
-
-            var report = string.Empty;
-            if (!string.IsNullOrWhiteSpace(crash))
-                report += crash;
-            if (!string.IsNullOrWhiteSpace(stage))
-                report += (report.Length > 0 ? "\n" : string.Empty)
-                          + "[崩溃时所在的执行阶段]\n" + stage
-                          + "（若上方无托管堆栈，说明是 native 崩溃，此阶段即死亡位置）\n";
-
-            _ = MainThread.InvokeOnMainThreadAsync(async () =>
-            {
-                // 延迟到首屏布局完成后再弹窗，避免与启动页/导航抢焦点
-                await Task.Delay(800);
-                var page = Application.Current?.MainPage;
-                if (page == null) return;
-
-                var display = report.Length > 3500
-                    ? report.Substring(0, 3500) + "\n...(日志过长已截断，完整内容见下方文件)"
-                    : report;
-
-                bool copy = await page.DisplayAlert(
-                    "检测到上次崩溃",
-                    "已记录崩溃信息，可复制后发我定位问题：\n\n" + display,
-                    "复制到剪贴板", "关闭");
-
-                if (copy)
-                {
-                    await Clipboard.SetTextAsync(report);
-                    await page.DisplayAlert("已复制",
-                        "崩溃日志已复制到剪贴板。\n也可在文件管理器访问：Android/data/com.catclaw.music/files/catclaw_crash.log",
-                        "好的");
-                }
-            });
+            var ctx = Android.App.Application.Context;
+            var msg = "已开始记录诊断日志\n用文件管理器打开 CatClawMusic 文件夹，取 debug.log 发我";
+            var toast = Android.Widget.Toast.MakeText(ctx, msg, Android.Widget.ToastLength.Long);
+            toast.Show();
         }
         catch { }
     }
+#endif
 
     /// <summary>应用进入后台时调用：flush 听歌时长，避免被系统杀死时丢失数据</summary>
     protected override void OnSleep()

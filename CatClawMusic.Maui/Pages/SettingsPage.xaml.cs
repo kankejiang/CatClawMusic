@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.ViewModels;
+using CatClawMusic.Maui.Services;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.Controls;
 using Microsoft.Maui.Controls;
@@ -38,6 +39,12 @@ public partial class SettingsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        try
+        {
+            if (DiagnosticLogSwitch != null)
+                DiagnosticLogSwitch.IsToggled = LogService.Instance?.IsEnabled ?? false;
+        }
+        catch { }
 #if ANDROID
         ApplyBottomBarSafeArea();
 #endif
@@ -91,6 +98,39 @@ public partial class SettingsPage : ContentPage
         _vm.ClearUpdateRedDot();
         await OpenSubPageAsync(typeof(AboutPage), "settings/about");
     }
+
+    /// <summary>诊断日志开关：开启时后台开始记录并提示；关闭时停止记录。默认关闭，状态经 Preferences 持久化。</summary>
+    private void OnDiagnosticLogToggled(object? sender, ToggledEventArgs e)
+    {
+        try
+        {
+            if (LogService.Instance is not { } log) return;
+            log.IsEnabled = e.Value;
+            if (e.Value)
+            {
+                log.Info("Settings", "诊断日志已开启");
+                log.Flush();
+#if ANDROID
+                ShowDiagnosticToast("已开始记录诊断日志\n用文件管理器打开 CatClawMusic 文件夹，取 debug.log 发我");
+#endif
+            }
+        }
+        catch { }
+    }
+
+#if ANDROID
+    /// <summary>非阻塞 Toast 提示（Android 原生，约 3.5 秒自动消失）。</summary>
+    private void ShowDiagnosticToast(string msg)
+    {
+        try
+        {
+            var ctx = Android.App.Application.Context;
+            var toast = Android.Widget.Toast.MakeText(ctx, msg, Android.Widget.ToastLength.Long);
+            toast.Show();
+        }
+        catch { }
+    }
+#endif
 
     /// <summary>当视图模型请求导航时触发，若为提示消息则弹出提示对话框。</summary>
     private void OnNavigationRequested(object? sender, string page)
