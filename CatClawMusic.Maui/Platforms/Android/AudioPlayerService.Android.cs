@@ -5,6 +5,7 @@ using Android.OS;
 using AndroidX.Media3.Common;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.Platforms.Android;
+using CatClawMusic.Maui.Services.Equalizer;
 using ALog = Android.Util.Log;
 using SimpleExoPlayer = AndroidX.Media3.ExoPlayer.SimpleExoPlayer;
 namespace CatClawMusic.Maui.Services;
@@ -54,6 +55,9 @@ public partial class AudioPlayerService
     // Audio focus listener
     /// <summary>音频焦点变化监听器实例</summary>
     private AudioFocusListener? _focusListener;
+
+    /// <summary>Android 原生均衡器/低音增强/响度增强服务</summary>
+    private AndroidEqualizerService? _eqService;
 
     /// <summary>平台特定的初始化逻辑：注册音频管理器、音频焦点监听器以及前台服务通知回调</summary>
     partial void InitializePlatform()
@@ -148,6 +152,18 @@ public partial class AudioPlayerService
         _playerListener = new ExoPlayerListener(this);
         _player.AddListener(_playerListener);
 
+        // 挂载原生均衡器到 ExoPlayer 音频会话（实时处理所有解码后音频）
+        try
+        {
+            _eqService ??= new AndroidEqualizerService();
+            var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+            _eqService.AttachToSession(sessionId);
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("AudioPlayerService.Android", $"[ExoPlayer] EQ 挂载失败: {ex.Message}");
+        }
+
         return _player;
     }
 
@@ -234,7 +250,9 @@ public partial class AudioPlayerService
                 if (_ffmpeg != null && _ffmpeg.IsAvailable)
                 {
                     Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 转码: {Path.GetFileName(localPath)}");
-                    var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath);
+                    // 原生 EQ 不可用时，将均衡器滤镜烘焙进转码管线（两方案配合：原生实时优先，FFmpeg 兜底）
+                    var eqFilter = _eqService?.IsAttached != true ? EqualizerSettings.BuildFFmpegFilterChain() : "";
+                    var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath, eqFilter);
                     if (wavPath != null)
                     {
                         playUri = new Uri("file://" + wavPath);
@@ -455,12 +473,33 @@ public partial class AudioPlayerService
         try { if (_player != null) _player.Volume = _volume; } catch { }
     }
 
+    /// <summary>将当前均衡器设置应用到原生音效引擎（Equalizer/BassBoost/LoudnessEnhancer）</summary>
+    partial void ApplyEqualizerPlatform()
+    {
+        try
+        {
+            if (_eqService == null && _player != null)
+            {
+                _eqService = new AndroidEqualizerService();
+                var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+                _eqService.AttachToSession(sessionId);
+            }
+            _eqService?.ApplySettings();
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("AudioPlayerService.Android", $"[ExoPlayer] ApplyEqualizer 失败: {ex.Message}");
+        }
+    }
+
     /// <summary>释放平台相关资源：停止前台服务、释放唤醒锁与音频焦点、释放 ExoPlayer 及监听器</summary>
     partial void DisposePlatform()
     {
         StopForegroundService();
         ReleaseWakeLock();
         AbandonAudioFocus();
+        _eqService?.Dispose();
+        _eqService = null;
         if (_notificationBitmap != null)
         {
             try { _notificationBitmap.Recycle(); } catch { }

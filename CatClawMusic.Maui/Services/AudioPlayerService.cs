@@ -246,6 +246,11 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         DisposePlatform();
     }
 
+    // ─── 均衡器 ───
+
+    /// <summary>将当前均衡器设置应用到平台音频引擎（Android 原生音效 / Windows AudioGraph DSP）</summary>
+    public void ApplyEqualizer() => ApplyEqualizerPlatform();
+
     // 平台实现由 partial class 文件提供
     partial void InitializePlatform();
     partial void PlatformPlay(Uri source);
@@ -260,4 +265,5 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private partial double GetPlatformVolume();
     partial void SetPlatformVolume(double volume);
     partial void DisposePlatform();
+    partial void ApplyEqualizerPlatform();
 }

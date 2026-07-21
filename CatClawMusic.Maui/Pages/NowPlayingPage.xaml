@@ -427,32 +427,36 @@
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_lyrics_full"
                                  Clicked="OnOpenLyricsClicked" />
-                    <!-- 定时关闭（占位） -->
+                    <!-- 定时关闭 -->
                     <ImageButton Grid.Column="1" WidthRequest="22" HeightRequest="22"
                                  CornerRadius="11" Padding="5"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
-                                 Source="ic_timer" />
+                                 Source="ic_timer"
+                                 Clicked="OnSleepTimerClicked" />
                     <!-- 歌曲详情（白色图标） -->
                     <ImageButton Grid.Column="2" WidthRequest="22" HeightRequest="22"
                                  CornerRadius="11" Padding="5"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_info"
                                  Clicked="OnSongDetailTapped" />
-                    <!-- 音效/均衡器（占位） -->
+                    <!-- 音效/均衡器 -->
                     <ImageButton Grid.Column="3" WidthRequest="22" HeightRequest="22"
                                  CornerRadius="11" Padding="5"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
-                                 Source="ic_equalizer" />
-                    <!-- 切换横屏（占位） -->
+                                 Source="ic_equalizer"
+                                 Clicked="OnEqualizerClicked" />
+                    <!-- 切换横屏 -->
                     <ImageButton Grid.Column="4" WidthRequest="22" HeightRequest="22"
                                  CornerRadius="11" Padding="5"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
-                                 Source="ic_rotate" />
-                    <!-- 更多（占位） -->
+                                 Source="ic_rotate"
+                                 Clicked="OnRotateClicked" />
+                    <!-- 更多 -->
                     <ImageButton Grid.Column="5" WidthRequest="22" HeightRequest="22"
                                  CornerRadius="11" Padding="5"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
-                                 Source="ic_more" />
+                                 Source="ic_more"
+                                 Clicked="OnMoreClicked" />
                 </Grid>
             </Grid>
         </Grid>
@@ -461,5 +465,14 @@
         <controls:AppPopup x:Name="PlaylistPopup"
                            Title="播放列表"
                            CloseOnMaskTapped="True" />
+
+        <!-- 定时停止音乐弹窗 -->
+        <controls:AppPopup x:Name="SleepTimerPopup"
+                           Title="定时停止音乐"
+                           CloseOnMaskTapped="True" />
+
+        <!-- 均衡器底部面板 -->
+        <controls:AppBottomSheet x:Name="EqualizerSheet"
+                                 CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

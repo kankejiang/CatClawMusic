@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.AppBottomSheet"
+             InputTransparent="False"
+             HorizontalOptions="Fill"
+             VerticalOptions="Fill"
+             IsVisible="False"
+             Opacity="0">
+    <Grid x:Name="RootGrid"
+          InputTransparent="False"
+          BackgroundColor="Transparent">
+        <BoxView x:Name="MaskLayer"
+                 Color="#99000000"
+                 InputTransparent="False"
+                 Opacity="0">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnMaskTapped" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
+        <Border x:Name="SheetCard"
+                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                Stroke="{DynamicResource GlassStrokeStrongColor}"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 26,26,14,14"
+                Padding="16,10,16,16"
+                HorizontalOptions="Fill"
+                VerticalOptions="End"
+                Margin="8,0,8,8"
+                TranslationY="600"
+                Opacity="0"
+                InputTransparent="False">
+            <Border.Shadow>
+                <Shadow Brush="Black"
+                        Radius="30"
+                        Offset="0,-8"
+                        Opacity="0.5" />
+            </Border.Shadow>
+            <Grid RowDefinitions="Auto,*">
+                <!-- 拖拽指示条 -->
+                <BoxView Grid.Row="0"
+                         WidthRequest="38" HeightRequest="4"
+                         CornerRadius="2"
+                         Color="{DynamicResource TextHintColor}"
+                         Opacity="0.4"
+                         HorizontalOptions="Center"
+                         Margin="0,2,0,12" />
+                <ScrollView Grid.Row="1"
+                            VerticalScrollBarVisibility="Never"
+                            MaximumHeightRequest="560">
+                    <VerticalStackLayout x:Name="SheetContent" Spacing="0"
+                                         x:FieldModifier="public" />
+                </ScrollView>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentView>

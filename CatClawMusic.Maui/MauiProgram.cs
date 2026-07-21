@@ -212,6 +212,7 @@ public static class MauiProgram
         // ═══════════════════════════════════════════════════
         services.AddSingleton<AudioPlayerService>();
         services.AddSingleton<IAudioPlayerService>(sp => sp.GetRequiredService<AudioPlayerService>());
+        services.AddSingleton<SleepTimerService>();
 #if ANDROID
         services.AddSingleton<Services.FFmpegService>();
 #endif

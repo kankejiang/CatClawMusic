@@ -15,8 +15,8 @@
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
 		<ApplicationId>com.catclaw.music</ApplicationId>
-		<ApplicationDisplayVersion>1.6.7</ApplicationDisplayVersion>
-		<ApplicationVersion>44</ApplicationVersion>
+		<ApplicationDisplayVersion>1.6.8</ApplicationDisplayVersion>
+		<ApplicationVersion>45</ApplicationVersion>
 
 		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>

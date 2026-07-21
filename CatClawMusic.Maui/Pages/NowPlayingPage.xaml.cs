@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
@@ -12,6 +13,9 @@ namespace CatClawMusic.Maui.Pages;
 public partial class NowPlayingPage : ContentPage
 {
     private readonly NowPlayingViewModel _viewModel;
+    private readonly SleepTimerService _sleepTimer;
+    private readonly IMusicLibraryService _musicLibrary;
+    private readonly AudioPlayerService _audioPlayer;
     private bool _isDragging;
     private readonly List<KaraokeLabel> _lyricLabels = new();
     private readonly List<Border> _lyricBorders = new();
@@ -21,10 +25,17 @@ public partial class NowPlayingPage : ContentPage
 
     /// <summary>初始化 <see cref="NowPlayingPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="viewModel">当前播放视图模型，提供歌曲、进度与歌词数据。</param>
-    public NowPlayingPage(NowPlayingViewModel viewModel)
+    /// <param name="sleepTimer">睡眠定时服务。</param>
+    /// <param name="musicLibrary">音乐库服务（歌单操作）。</param>
+    /// <param name="audioPlayer">音频播放服务（均衡器应用）。</param>
+    public NowPlayingPage(NowPlayingViewModel viewModel, SleepTimerService sleepTimer,
+        IMusicLibraryService musicLibrary, AudioPlayerService audioPlayer)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _sleepTimer = sleepTimer;
+        _musicLibrary = musicLibrary;
+        _audioPlayer = audioPlayer;
         BindingContext = _viewModel;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -48,6 +59,7 @@ public partial class NowPlayingPage : ContentPage
 
     private void OnPageLoaded(object? sender, EventArgs e)
     {
+        UpdateTimerButtonState();
 #if WINDOWS
         UpdateMaximizeIcon();
 #endif

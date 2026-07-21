@@ -59,18 +59,19 @@ public class FFmpegService : IDisposable
         return !string.IsNullOrEmpty(ext) && TranscodeExtensions.Contains(ext);
     }
 
-    /// <summary>用 FFmpeg 软解为 WAV（PCM 16bit / 44.1kHz / 双声道）</summary>
+    /// <summary>用 FFmpeg 软解为 WAV（PCM 16bit / 44.1kHz / 双声道），可选烘焙均衡器滤镜</summary>
     /// <param name="inputPath">输入文件路径</param>
+    /// <param name="audioFilter">FFmpeg -af 滤镜链（均衡器等），空串表示不应用</param>
     /// <param name="ct">取消令牌</param>
     /// <returns>生成的 WAV 临时文件路径；失败返回 null</returns>
-    public async Task<string?> TranscodeToWavAsync(string inputPath, CancellationToken ct = default)
+    public async Task<string?> TranscodeToWavAsync(string inputPath, string? audioFilter = null, CancellationToken ct = default)
     {
         if (_ffmpegPath == null && !await InitializeAsync())
             return null;
         if (_ffmpegPath == null || !File.Exists(inputPath)) return null;
 
-        // 缓存命中：基于源文件指纹（路径+长度+修改时间）查找已转码的 WAV
-        var cacheKey = BuildCacheKey(inputPath);
+        // 缓存命中：基于源文件指纹（路径+长度+修改时间+滤镜）查找已转码的 WAV
+        var cacheKey = BuildCacheKey(inputPath, audioFilter);
         if (TryGetCachedWav(cacheKey, out var cachedPath))
         {
             Log.Debug("FFmpegService", $"[FFmpeg] 缓存命中: {Path.GetFileName(inputPath)}");
@@ -79,7 +80,8 @@ public class FFmpegService : IDisposable
 
         var outputPath = Path.Combine(WavCacheDir, $"cc_ff_{cacheKey}.wav");
 
-        var args = $"-y -i \"{inputPath}\" -acodec pcm_s16le -ar 44100 -ac 2 \"{outputPath}\"";
+        var afPart = string.IsNullOrEmpty(audioFilter) ? "" : $" -af \"{audioFilter}\"";
+        var args = $"-y -i \"{inputPath}\"{afPart} -acodec pcm_s16le -ar 44100 -ac 2 \"{outputPath}\"";
         var result = await RunFFmpegAsync(args, ct);
 
         if (!result || !File.Exists(outputPath) || new FileInfo(outputPath).Length < 1024)
@@ -95,8 +97,8 @@ public class FFmpegService : IDisposable
         return outputPath;
     }
 
-    /// <summary>基于源文件路径+长度+修改时间生成稳定哈希，作为缓存键</summary>
-    private static string BuildCacheKey(string inputPath)
+    /// <summary>基于源文件路径+长度+修改时间+滤镜参数生成稳定哈希，作为缓存键</summary>
+    private static string BuildCacheKey(string inputPath, string? audioFilter = null)
     {
         long size = 0, mtime = 0;
         try
@@ -109,7 +111,7 @@ public class FFmpegService : IDisposable
             }
         }
         catch { }
-        var raw = $"{inputPath}|{size}|{mtime}";
+        var raw = $"{inputPath}|{size}|{mtime}|{audioFilter ?? ""}";
         // 简单稳定的字符串哈希（避免 SHA256 在 Android 上额外开销）
         ulong hash = 14695981039346656037UL;
         unchecked

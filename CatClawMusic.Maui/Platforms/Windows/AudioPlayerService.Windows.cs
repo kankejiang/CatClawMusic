@@ -4,6 +4,7 @@ using Windows.Media.Playback;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Services.Equalizer;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -12,6 +13,9 @@ public partial class AudioPlayerService
     private MediaPlayer? _winPlayer;
     private SystemMediaTransportControls? _smtc;
     private double _volume = 1.0;
+
+    /// <summary>均衡器开启时使用的 AudioGraph 实时 DSP 播放引擎</summary>
+    private WinEqualizerEngine? _eqEngine;
 
     // SMTC 显示用的当前歌曲信息
     private string _currentTitle = "";
@@ -85,6 +89,52 @@ public partial class AudioPlayerService
     partial void PlatformPlay(Uri source)
     {
         if (_winPlayer == null) InitializePlatform();
+
+        if (EqualizerSettings.Enabled)
+        {
+            // EQ 开启：走 AudioGraph DSP 管线（异步加载，失败回退 MediaPlayer）
+            _ = PlayWithEqEngineAsync(source);
+            return;
+        }
+
+        StopEqEngine();
+        PlayWithMediaPlayer(source);
+    }
+
+    private async Task PlayWithEqEngineAsync(Uri source)
+    {
+        try
+        {
+            _eqEngine ??= new WinEqualizerEngine();
+            _eqEngine.MediaEnded -= OnEqEngineEnded;
+            _eqEngine.MediaEnded += OnEqEngineEnded;
+
+            if (await _eqEngine.LoadAsync(source))
+            {
+                try { _winPlayer?.Pause(); } catch { }
+                _eqEngine.Volume = _volume;
+                _eqEngine.Play();
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    StartPositionTimer();
+                    UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Playing);
+                    PlaybackStateChanged?.Invoke(this, true);
+                });
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AudioPlayerService.Windows", $"[EQ-Win] 引擎加载失败: {ex.Message}");
+        }
+
+        // 回退到 MediaPlayer
+        StopEqEngine();
+        MainThread.BeginInvokeOnMainThread(() => PlayWithMediaPlayer(source));
+    }
+
+    private void PlayWithMediaPlayer(Uri source)
+    {
         try
         {
             _winPlayer!.Source = MediaSource.CreateFromUri(source);
@@ -98,22 +148,54 @@ public partial class AudioPlayerService
         }
     }
 
+    private void OnEqEngineEnded(object? sender, EventArgs e)
+    {
+        UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Stopped);
+        PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+        PlaybackStateChanged?.Invoke(this, false);
+        StopPositionTimer();
+    }
+
+    private void StopEqEngine()
+    {
+        if (_eqEngine != null)
+        {
+            _eqEngine.MediaEnded -= OnEqEngineEnded;
+            _eqEngine.Stop();
+        }
+    }
+
     partial void PlatformPause()
     {
-        try { _winPlayer?.Pause(); } catch { }
+        if (_eqEngine?.IsActive == true)
+        {
+            _eqEngine.Pause();
+        }
+        else
+        {
+            try { _winPlayer?.Pause(); } catch { }
+        }
         StopPositionTimer();
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Paused);
     }
 
     partial void PlatformResume()
     {
-        try { _winPlayer?.Play(); } catch { }
+        if (_eqEngine?.IsActive == true)
+        {
+            _eqEngine.Play();
+        }
+        else
+        {
+            try { _winPlayer?.Play(); } catch { }
+        }
         StartPositionTimer();
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Playing);
     }
 
     partial void PlatformStop()
     {
+        StopEqEngine();
         try { _winPlayer?.Pause(); _winPlayer!.Source = null; } catch { }
         StopPositionTimer();
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Stopped);
@@ -121,23 +203,36 @@ public partial class AudioPlayerService
 
     partial void PlatformSeek(TimeSpan position)
     {
-        try { _winPlayer!.Position = position; } catch { }
+        if (_eqEngine?.IsActive == true)
+        {
+            _eqEngine.Seek(position);
+        }
+        else
+        {
+            try { _winPlayer!.Position = position; } catch { }
+        }
     }
 
     private partial bool GetPlatformIsPlaying()
     {
+        if (_eqEngine?.IsActive == true)
+            return _eqEngine.IsPlaying;
         try { return _winPlayer?.PlaybackSession?.PlaybackState == MediaPlaybackState.Playing; }
         catch { return false; }
     }
 
     private partial double GetPlatformCurrentPositionSeconds()
     {
+        if (_eqEngine?.IsActive == true)
+            return _eqEngine.Position.TotalSeconds;
         try { return _winPlayer?.PlaybackSession?.Position.TotalSeconds ?? 0; }
         catch { return 0; }
     }
 
     private partial double GetPlatformDurationSeconds()
     {
+        if (_eqEngine?.IsActive == true)
+            return _eqEngine.Duration.TotalSeconds;
         try
         {
             var d = _winPlayer?.PlaybackSession?.NaturalDuration.TotalSeconds ?? 0;
@@ -151,11 +246,20 @@ public partial class AudioPlayerService
     partial void SetPlatformVolume(double volume)
     {
         _volume = volume;
+        if (_eqEngine != null) _eqEngine.Volume = volume;
         try { _winPlayer!.Volume = volume; } catch { }
+    }
+
+    /// <summary>将当前均衡器设置应用到 AudioGraph DSP 引擎（实时生效）</summary>
+    partial void ApplyEqualizerPlatform()
+    {
+        try { _eqEngine?.RebuildFilters(); } catch { }
     }
 
     partial void DisposePlatform()
     {
+        _eqEngine?.Dispose();
+        _eqEngine = null;
         if (_winPlayer != null)
         {
             try
