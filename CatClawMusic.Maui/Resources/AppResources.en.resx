@@ -83,6 +83,10 @@
   <data name="CacheSize" xml:space="preserve"><value>Cache Size</value></data>
   <data name="ClearCache" xml:space="preserve"><value>Clear Cache</value></data>
   <data name="ClearingCache" xml:space="preserve"><value>Clearing…</value></data>
+  <data name="ImageCache" xml:space="preserve"><value>Image Cache</value></data>
+  <data name="ClearImageCache" xml:space="preserve"><value>Clear Image Cache</value></data>
+  <data name="ImageCacheSizeLimit" xml:space="preserve"><value>Cache Limit</value></data>
+  <data name="ImageCacheAgeLimit" xml:space="preserve"><value>Cache Validity</value></data>
   <data name="ResetSettings" xml:space="preserve"><value>Reset Settings</value></data>
   <data name="ResetSettingsHint" xml:space="preserve"><value>Restore all settings to defaults</value></data>
   <data name="Reset" xml:space="preserve"><value>Reset</value></data>

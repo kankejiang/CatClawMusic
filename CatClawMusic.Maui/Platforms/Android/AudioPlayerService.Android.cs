@@ -83,7 +83,12 @@ public partial class AudioPlayerService
         var nowMs = System.Environment.TickCount64;
         if (nowMs - _lastNotifProgressMs < 1000) return;
         _lastNotifProgressMs = nowMs;
-        try { UpdateNotificationProgress(); } catch { }
+        // MediaSession.SetPlaybackState 是到 system_server 的 binder IPC，MIUI 上系统繁忙时
+        // 可阻塞主线程数百毫秒（logcat 里每秒一次的 PlatformDispatcher wall=300~500ms），
+        // 是播放页左右滑动掉帧的主因之一。MediaSession 本身线程安全，移到后台线程推送；
+        // 位置直接用事件参数，避免后台线程访问 ExoPlayer。
+        var posMs = (long)e.TotalMilliseconds;
+        Task.Run(() => { try { ForegroundPlayerService.UpdatePlayPosition(posMs); } catch { } });
     }
 
     /// <summary>播放状态变化时刷新前台通知</summary>
@@ -539,6 +544,11 @@ public partial class AudioPlayerService
                             _owner.DurationChanged?.Invoke(_owner, dur / 1000.0);
                             _owner.PositionChanged?.Invoke(_owner, TimeSpan.FromSeconds(pos / 1000.0));
                         }
+                        // 立即向通知栏/MediaSession 推送完整状态（含准确时长）。
+                        // 切歌时 UpdateSongInfo 先于 Prepare 完成执行，彼时 Duration=0，
+                        // 若等 OnIsPlayingChanged(true) 才刷新，主线程拥塞期间通知栏会显示
+                        // 00:00 数秒。STATE_READY 早于 IsPlaying 回调，在此推送可立即修正。
+                        _owner.UpdateForegroundNotification();
                     }
                     catch { }
                 });
@@ -759,6 +769,15 @@ public partial class AudioPlayerService
     private Android.Graphics.Bitmap? _notificationBitmap;
     /// <summary>上次用于通知栏的封面路径，用于判断是否需要重新解码</summary>
     private string? _lastNotifCoverPath;
+    /// <summary>切歌时由上层传入的数据库已知时长（毫秒）。ExoPlayer 尚未 Prepare 完成时
+    /// Duration 返回 0，用它兜底，避免通知栏进度条在切歌间隙显示 00:00。</summary>
+    private long _knownDurationMs;
+
+    /// <summary>设置数据库已知的歌曲时长（秒），用于 ExoPlayer 未就绪期间通知栏的时长兜底显示</summary>
+    public void UpdateKnownDuration(double seconds)
+    {
+        _knownDurationMs = seconds > 0 ? (long)(seconds * 1000) : 0;
+    }
 
     /// <summary>更新当前歌曲信息并刷新前台通知显示</summary>
     /// <param name="title">歌曲标题</param>
@@ -796,6 +815,11 @@ public partial class AudioPlayerService
 
         try { ForegroundPlayerService.Start(ctx, _currentTitle, _currentArtist); }
         catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[AudioPlayer] FG start: {ex.Message}"); }
+        // 重新（刷新）前台通知与 MediaSession 状态：被其他应用抢占音频焦点 / 媒体会话后，
+        // 回到本应用播放（Resume / 夺回焦点）时需立即重建通知栏与锁屏控件，
+        // 而不是等到下一首才开始。UpdateForegroundNotification 会 re-assert MediaSession.Active
+        // 并刷新 PlaybackState/Metadata，促使系统重新展示本应用的媒体通知。
+        try { UpdateForegroundNotification(); } catch { }
     }
 
     /// <summary>Android 13+ 申请通知权限（POST_NOTIFICATIONS），已授权则跳过；异常不影响播放</summary>
@@ -891,18 +915,11 @@ public partial class AudioPlayerService
                 durationMs = (long)(Duration * 1000);
             }
             catch { }
+            // ExoPlayer 未就绪时 Duration=0：用数据库已知时长兜底，
+            // 避免切歌间隙 MediaSession 收到 duration=0 导致进度条显示 00:00
+            if (durationMs <= 0 && _knownDurationMs > 0)
+                durationMs = _knownDurationMs;
             ForegroundPlayerService.UpdatePlayState(_currentTitle, _currentArtist, IsPlaying, _currentIsFavorite, albumArt, positionMs, durationMs);
-        }
-        catch { }
-    }
-
-    /// <summary>仅更新通知栏进度条位置，避免频繁重建通知</summary>
-    private void UpdateNotificationProgress()
-    {
-        try
-        {
-            long positionMs = (long)(CurrentPosition * 1000);
-            ForegroundPlayerService.UpdatePlayPosition(positionMs);
         }
         catch { }
     }

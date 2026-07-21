@@ -75,7 +75,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         try
         {
             var pos = svc.CurrentPosition;
-            // 10fps 下每 tick 约 0.1s 变化，阈值 0.05 确保不跳过有效更新但过滤抖动
+            // 5fps 下每 tick 约 0.2s 变化，阈值 0.05 确保不跳过有效更新但过滤抖动
             if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.05 && pos > 0)
                 return;
             svc._lastNotifiedPosition = pos;
@@ -202,11 +202,13 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 100ms 触发一次位置更新（10fps），平衡流畅度与主线程负载</summary>
+    /// <summary>启动进度定时器，每 200ms 触发一次位置更新（5fps）。
+    /// 进度条按秒显示、逐字填充 5fps 视觉上已足够，更低的频率显著减少
+    /// 主线程 dispatcher 投递与绑定求值开销，改善播放页左右滑动流畅度。</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 100, 100);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 200, 200);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>

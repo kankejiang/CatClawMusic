@@ -7,7 +7,9 @@ using Microsoft.Maui.Controls;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Services;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -21,8 +23,10 @@ public class CachingUriImageSourceService : IImageSourceService<UriImageSource>
 {
     private const int DefaultTargetPx = 512;
 
-    private static readonly string _diskCacheDir =
-        System.IO.Path.Combine(FileSystem.AppDataDirectory, "cover_url_cache");
+    /// <summary>并发解码/下载信号量：限制同时进行的封面解码数（默认 8），平滑设备负载。</summary>
+    private static readonly SemaphoreSlim _decodeSemaphore = new(8, 8);
+
+    private static readonly string _diskCacheDir = ImageCacheService.Instance.CoverCacheDirectory;
 
     /// <summary>按 URL 去重下载/解码任务，避免并发请求同一封面重复下载</summary>
     private static readonly ConcurrentDictionary<string, Task<Bitmap?>> _inflight = new();
@@ -107,16 +111,25 @@ public class CachingUriImageSourceService : IImageSourceService<UriImageSource>
                 var diskPath = GetDiskPath(url);
                 Bitmap? bmp = null;
 
-                // 磁盘缓存命中
-                if (File.Exists(diskPath))
+                // 限制并发解码/下载数，避免数百张同时发起打满线程池与带宽
+                await _decodeSemaphore.WaitAsync(ct);
+                try
                 {
-                    bmp = DecodeBitmapDownsampled(diskPath, bucket);
-                }
+                    // 磁盘缓存命中
+                    if (File.Exists(diskPath))
+                    {
+                        bmp = DecodeBitmapDownsampled(diskPath, bucket);
+                    }
 
-                // 磁盘未命中：下载并写文件
-                if (bmp == null)
+                    // 磁盘未命中：下载并写文件
+                    if (bmp == null)
+                    {
+                        bmp = await DownloadAndDecodeAsync(url, diskPath, bucket, ct).ConfigureAwait(false);
+                    }
+                }
+                finally
                 {
-                    bmp = await DownloadAndDecodeAsync(url, diskPath, bucket, ct).ConfigureAwait(false);
+                    _decodeSemaphore.Release();
                 }
 
                 if (bmp != null)
@@ -143,7 +156,12 @@ public class CachingUriImageSourceService : IImageSourceService<UriImageSource>
         if (bytes.Length == 0) return null;
 
         // 写磁盘缓存（后续命中即免下载）
-        try { await File.WriteAllBytesAsync(diskPath, bytes, ct).ConfigureAwait(false); } catch { }
+        try
+        {
+            await File.WriteAllBytesAsync(diskPath, bytes, ct).ConfigureAwait(false);
+            ImageCacheService.Instance.NotifyWritten(bytes.Length);
+        }
+        catch { }
 
         // 从 byte[] 解码（降采样），解码后 bytes 即可被 GC 回收
         return DecodeBitmapFromBytes(bytes, targetPx);

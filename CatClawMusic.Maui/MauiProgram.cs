@@ -78,6 +78,9 @@ public static class MauiProgram
                 // 注册自定义 UriImageSource 服务：为 Navidrome 等 http 封面 URL 提供 Bitmap 内存缓存 + 磁盘缓存，
                 // 避免滑动列表时每次都下载图片造成 LOS 堆 GC 风暴
                 images.AddService<Microsoft.Maui.Controls.UriImageSource, CatClawMusic.Maui.Platforms.Android.CachingUriImageSourceService>();
+                // 全局兜底：StreamImageSource 默认被 MAUI 原分辨率解码，超大图会触发
+                // "Canvas: trying to draw too large" 崩溃。本服务对一切 FromStream 图片做降采样解码。
+                images.AddService<Microsoft.Maui.Controls.StreamImageSource, CatClawMusic.Maui.Platforms.Android.CachingStreamImageSourceService>();
 #endif
             });
 

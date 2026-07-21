@@ -111,6 +111,16 @@ public static class CrashReporter
             }
         }
         catch { }
+
+        // 3) 外部 CatClawMusic 顶级目录（所有文件管理器可直接访问，与 debug.log 同目录）
+        try
+        {
+            var externalRoot = Android.OS.Environment.ExternalStorageDirectory?.AbsolutePath ?? "/sdcard";
+            var dir = Path.Combine(externalRoot, "CatClawMusic");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, ExternalName), content);
+        }
+        catch { }
 #endif
     }
 

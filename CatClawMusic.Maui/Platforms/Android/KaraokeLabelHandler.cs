@@ -64,6 +64,11 @@ public class KaraokePlatformView : AView
     private readonly APaint _paint = new() { AntiAlias = true };
     private TextPaint? _measurePaint;
     private StaticLayout? _layout;
+    // Typeface 缓存：OnDraw 每帧都会调 ConfigurePaint，Typeface.Create 每次都做
+    // JNI 字符串封送 + 字体查找，按 family+bold 缓存避免重复开销
+    private Typeface? _cachedTypeface;
+    private string? _cachedTypefaceFamily;
+    private bool _cachedTypefaceBold;
 
     public KaraokePlatformView(Context context) : base(context)
     {
@@ -230,14 +235,19 @@ public class KaraokePlatformView : AView
         var density = Density;
         paint.TextSize = (float)_view.FontSize * density;
         paint.AntiAlias = true;
-        paint.FakeBoldText = _view.FontAttributes.HasFlag(FontAttributes.Bold);
+        var bold = _view.FontAttributes.HasFlag(FontAttributes.Bold);
+        paint.FakeBoldText = bold;
 
         var family = _view.FontFamily;
         if (!string.IsNullOrEmpty(family))
         {
-            var typeface = Typeface.Create(family, _view.FontAttributes.HasFlag(FontAttributes.Bold)
-                ? TypefaceStyle.Bold : TypefaceStyle.Normal);
-            paint.SetTypeface(typeface);
+            if (_cachedTypeface == null || _cachedTypefaceFamily != family || _cachedTypefaceBold != bold)
+            {
+                _cachedTypeface = Typeface.Create(family, bold ? TypefaceStyle.Bold : TypefaceStyle.Normal);
+                _cachedTypefaceFamily = family;
+                _cachedTypefaceBold = bold;
+            }
+            paint.SetTypeface(_cachedTypeface);
         }
     }
 

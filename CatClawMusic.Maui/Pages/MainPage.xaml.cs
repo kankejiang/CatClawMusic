@@ -207,7 +207,7 @@ public partial class MainPage : ContentPage
     private void SwitchToVpIndex(int vpIndex, bool animate = true)
     {
 #if ANDROID
-        _nativePager?.SetCurrentItem(vpIndex, animate);
+        _nativePager?.GoToItem(vpIndex, animate);
 #else
         _ = AnimateToPage(vpIndex);
 #endif

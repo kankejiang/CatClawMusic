@@ -52,10 +52,10 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
         _adapter = new MauiPagerAdapter(VirtualView.Pages, MauiContext!);
         platformView.Adapter = _adapter;
 
-        // 离屏预加载所有页：仅 5 个，避免 RecyclerView 回收 MAUI 原生视图带来的重绑定风险；
-        // 同时去除懒加载后，ViewPager2 的 GPU 合成仍远快于手动 TranslationX。
+        // 离屏预加载默认仅相邻页常驻（1），远页由 ViewPager2 回收，降低启动图片解码/GC 压力；
+        // 跨多页跳转时由 NativeTabPager.GoToItem 临时扩大、Idle 回收（懒加载兜底）。
         VirtualView.PlatformSetOffscreen = limit => platformView.OffscreenPageLimit = limit;
-        VirtualView.SetOffscreenLimit(VirtualView.Pages.Count);
+        VirtualView.SetOffscreenLimit(1);
 
         // 选中/滑动状态回调 -> 回写控件并向上抛出事件
         _callback = new PageChangeCallback(VirtualView);

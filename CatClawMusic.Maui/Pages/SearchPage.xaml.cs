@@ -17,6 +17,7 @@ public partial class SearchPage : ContentPage
     private readonly MusicDatabase _db;
     private readonly IAudioPlayerService _audioPlayer;
     private readonly IServiceProvider _services;
+    private readonly Services.IInteractionStateService? _interactionState;
     private readonly NowPlayingViewModel _nowPlayingVm;
     private readonly ListeningStatsView _statsView;
     private SettingsPage? _settingsPage;
@@ -44,6 +45,9 @@ public partial class SearchPage : ContentPage
         _vm = vm;
         _audioPlayer = audioPlayer;
         _services = services;
+        _interactionState = services.GetService<Services.IInteractionStateService>();
+        if (_interactionState != null)
+            _interactionState.InteractionStateChanged += OnInteractionStateChangedForHero;
         _nowPlayingVm = nowPlayingVm;
         _statsView = statsView;
         BindingContext = _vm;
@@ -76,6 +80,21 @@ public partial class SearchPage : ContentPage
                 UpdateChatMiniPlayerVisibility();
             }
         };
+
+        // 空闲时预热设置抽屉内容：首次打开设置若在主线程即时 inflate 整个 SettingsPage
+        // 会卡顿数百毫秒。启动完成后的空闲时段提前创建，打开抽屉时就只剩纯动画。
+        Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () =>
+        {
+            try
+            {
+                if (!_isSettingsPanelOpen)
+                    EnsureSettingsContent();
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("SearchPage.xaml", $"Settings prewarm error: {ex.Message}");
+            }
+        });
     }
 
     private void OnNowPlayingPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -151,8 +170,27 @@ public partial class SearchPage : ContentPage
     {
         if (_vm.HeroCards.Count == 0) return;
         if (!IsVisible) return;
+        // 设置抽屉打开时轮播被遮挡、聊天模式下轮播被隐藏，均不做无用的滚动
+        if (_isSettingsPanelOpen || _vm.IsChatMode) return;
         _heroCurrentPosition = (_heroCurrentPosition + 1) % _vm.HeroCards.Count;
         HeroCarousel.ScrollTo(_heroCurrentPosition, position: ScrollToPosition.Center, animate: true);
+    }
+
+    /// <summary>用户交互（触摸/滚动/Tab 滑动）期间暂停英雄卡自动轮播，交互结束后恢复倒计时。
+    /// 避免轮播 ScrollTo 与用户手势争抢主线程，也避免手指停留时卡片在眼前自己滚走。</summary>
+    private void OnInteractionStateChangedForHero(object? sender, bool interacting)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (interacting)
+            {
+                _heroAutoScrollTimer?.Stop();
+            }
+            else if (IsVisible && !_isSettingsPanelOpen && !_vm.IsChatMode && _vm.HeroCards.Count > 0)
+            {
+                RestartHeroTimer();
+            }
+        });
     }
 
     private void RestartHeroTimer()
@@ -533,21 +571,11 @@ public partial class SearchPage : ContentPage
     {
         if (_isSettingsPanelOpen) return;
 
-        // 首次打开时创建设置页面内容
-        if (_settingsPage == null)
-        {
-            _settingsPage = _services.GetRequiredService<SettingsPage>();
-            var settingsContent = _settingsPage.Content;
-            _settingsPage.Content = null;
-            settingsContent.BindingContext = _settingsPage.BindingContext;
-            // 抽屉自身是半透明毛玻璃（透出下方发现页），需清掉内容自带的页面背景，避免 opaque 渐变盖住玻璃
-            if (settingsContent is Grid settingsGrid)
-                settingsGrid.Background = null;
-            SettingsPanelContent.Content = settingsContent;
-        }
+        // 首次打开时创建设置页面内容（正常情况下已在空闲时预热，见构造函数）
+        EnsureSettingsContent();
 
         // 每次打开面板时刷新设置状态（嵌入面板不会触发 OnAppearing）
-        if (_settingsPage.BindingContext is SettingsViewModel svm)
+        if (_settingsPage?.BindingContext is SettingsViewModel svm)
         {
             _ = svm.LoadStatusCommand.ExecuteAsync(null);
         }
@@ -559,19 +587,38 @@ public partial class SearchPage : ContentPage
 
         _isSettingsPanelOpen = true;
         SettingsPanelOverlay.IsVisible = true;
+        // 抽屉遮住了英雄卡，暂停自动轮播（关闭时恢复）
+        _heroAutoScrollTimer?.Stop();
+
+        // 确保布局已计算完成
+        await Task.Delay(16);
+
+        // 背景渐入 + 面板从左侧滑入。先启动动画再应用模糊，
+        // 让 RenderEffect 的设置开销与动画并行，而不是卡在动画开始前
+        var animationTask = Task.WhenAll(
+            SettingsBackdrop.FadeTo(0.5, 250, Easing.CubicOut),
+            SettingsPanel.TranslateTo(0, 0, 280, Easing.CubicOut)
+        );
 
 #if ANDROID
         ApplyBlurToSettingsSiblings();
 #endif
 
-        // 确保布局已计算完成
-        await Task.Delay(16);
+        await animationTask;
+    }
 
-        // 背景渐入 + 面板从左侧滑入
-        await Task.WhenAll(
-            SettingsBackdrop.FadeTo(0.5, 250, Easing.CubicOut),
-            SettingsPanel.TranslateTo(0, 0, 280, Easing.CubicOut)
-        );
+    /// <summary>创建并嵌入设置页面内容（幂等）。点击汉堡按钮与空闲预热时调用。</summary>
+    private void EnsureSettingsContent()
+    {
+        if (_settingsPage != null) return;
+        _settingsPage = _services.GetRequiredService<SettingsPage>();
+        var settingsContent = _settingsPage.Content;
+        _settingsPage.Content = null;
+        settingsContent.BindingContext = _settingsPage.BindingContext;
+        // 抽屉自身是半透明毛玻璃（透出下方发现页），需清掉内容自带的页面背景，避免 opaque 渐变盖住玻璃
+        if (settingsContent is Grid settingsGrid)
+            settingsGrid.Background = null;
+        SettingsPanelContent.Content = settingsContent;
     }
 
     /// <summary>点击背景遮罩收起设置面板</summary>
@@ -585,6 +632,9 @@ public partial class SearchPage : ContentPage
     {
         if (!_isSettingsPanelOpen) return;
         _isSettingsPanelOpen = false;
+        // 抽屉关闭后恢复英雄卡自动轮播
+        if (IsVisible && _vm.HeroCards.Count > 0)
+            RestartHeroTimer();
 
         var panelWidth = SettingsPanel.Width > 0 ? SettingsPanel.Width : Width * 0.85;
 

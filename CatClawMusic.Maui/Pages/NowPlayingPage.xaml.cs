@@ -174,6 +174,12 @@ public partial class NowPlayingPage : ContentPage
         if (_viewModel.Duration > 0)
             ProgressSlider.Maximum = _viewModel.Duration;
 
+        // 切页重建或滑块被重置后，立即把当前进度同步到滑块：
+        // 若 Progress 值恰与前值相同（未变化），不会触发 PropertyChanged，
+        // 滑块会停在 XAML 初始值 0，表现为「进度条归零」。这里强制同步一次。
+        if (_viewModel.Progress > 0)
+            ProgressSlider.Value = _viewModel.Progress;
+
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
 
         // 仅在歌词行数变化时重建视图，避免切页时大量控件销毁/重建

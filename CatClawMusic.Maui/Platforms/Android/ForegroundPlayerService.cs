@@ -241,6 +241,12 @@ public class ForegroundPlayerService : Service
     {
         if (_mediaSession == null) return;
 
+        // 重新激活 MediaSession：会话只在 InitMediaSession 激活一次，被其他应用抢占后本应用的
+        // 媒体通知会消失且不会为当前歌曲重建（要等下一首）。恢复播放/夺回焦点会走到这里
+        // （OnIsPlayingChanged→StartForegroundService→UpdateForegroundNotification→UpdateNotification），
+        // 重新置 Active=true 让系统重新展示本应用的媒体通知。
+        try { _mediaSession.Active = true; } catch { }
+
         var state = _isPlaying
             ? PlaybackStateCode.Playing
             : PlaybackStateCode.Paused;

@@ -83,6 +83,10 @@
   <data name="CacheSize" xml:space="preserve"><value>缓存大小</value></data>
   <data name="ClearCache" xml:space="preserve"><value>清除缓存</value></data>
   <data name="ClearingCache" xml:space="preserve"><value>清除中…</value></data>
+  <data name="ImageCache" xml:space="preserve"><value>图片缓存</value></data>
+  <data name="ClearImageCache" xml:space="preserve"><value>清除图片缓存</value></data>
+  <data name="ImageCacheSizeLimit" xml:space="preserve"><value>缓存上限</value></data>
+  <data name="ImageCacheAgeLimit" xml:space="preserve"><value>缓存有效期</value></data>
   <data name="ResetSettings" xml:space="preserve"><value>恢复默认设置</value></data>
   <data name="ResetSettingsHint" xml:space="preserve"><value>将所有设置恢复为默认值</value></data>
   <data name="Reset" xml:space="preserve"><value>恢复默认</value></data>

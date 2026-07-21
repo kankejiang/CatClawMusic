@@ -59,6 +59,10 @@ public partial class DesktopDiscoverPage : ContentPage
         UpdateThemeIcon();
         SetupHeroTimer();
 
+        // 用户交互（滚动列表等）期间暂停英雄卡自动轮播，与移动端发现页行为一致
+        if (_services.GetService(typeof(Services.IInteractionStateService)) is Services.IInteractionStateService interaction)
+            interaction.InteractionStateChanged += OnInteractionStateChangedForHero;
+
         _vm.PropertyChanged += OnViewModelPropertyChanged;
         _vm.ChatHistoryLoaded += OnChatHistoryLoaded;
         _vm.ScrollToLatestMessageRequested += (s, e) => ScrollToLatestMessage();
@@ -106,6 +110,22 @@ public partial class DesktopDiscoverPage : ContentPage
         if (_vm.HeroCards.Count == 0) return;
         if (!IsVisible || !PanelRecommend.IsVisible) return;
         _ = ScrollHeroTo(_heroIndex + 1);
+    }
+
+    /// <summary>用户交互期间暂停英雄卡自动轮播，交互结束后恢复</summary>
+    private void OnInteractionStateChangedForHero(object? sender, bool interacting)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (interacting)
+            {
+                _heroTimer?.Stop();
+            }
+            else if (IsVisible && PanelRecommend.IsVisible && _vm.HeroCards.Count > 0)
+            {
+                _heroTimer?.Start();
+            }
+        });
     }
 
     private void OnHeroSizeChanged(object? sender, EventArgs e)

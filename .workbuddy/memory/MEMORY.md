@@ -17,6 +17,11 @@
 - **ViewPager2 架构(2026-07-19)**: Android 用原生 `ViewPager2` 承载 5 个 MAUI 页(`Controls/NativeTabPager.cs` + `Platforms/Android/NativeTabPagerHandler.cs` + `MauiPagerAdapter`/`PageChangeCallback`, OffscreenPageLimit=全部常驻); Windows 保留 `TranslationX`+懒加载。`MainPage.xaml.cs` `SetupPages` 双端分支, `SwitchToVpIndex` 统一切页, `OnNativeScrollStateChanged` 在 Dragging/Settling 暂停 FrostedBackground。⚠️ net10 抽搐根因是 net10 渲染差异, 勿建议回 net11(本环境 net11 不可编译/调试)。`CollapseNowPlaying` Android 简化为切发现页。
 - **SafeArea**: 非全屏 tab 页挂 `SafeAreaPaddingBehavior`(基类 `Behavior<Layout>`, Padding 在 Layout/ScrollView 上); LibraryPage 由 ScrollView 包 Grid; 全屏页(歌词/播放页)不挂。
 
+## 启动性能(GC 风暴 / 主线程卡顿)
+- 现象:启动即大量 `Explicit concurrent copying GC`,backtrace 指向主线程 `Bitmap.compress`(MAUI 默认 ImageCache 写 PNG 到 `cache/images`),MIUI 报 `APP_SCOUT_SLOW/WARNING`(主线程 wall 2.5-3.8s)。堆不涨→非泄漏,高分配率。
+- 根因:5 个 tab 页 `ViewPager2.OffscreenPageLimit=Pages.Count(=5)` 全部常驻 + `MainPage.OnAppearing` 首屏 `PreloadTabDataAsync()` 全量预加载(本地歌/歌单/发现),几百封面同时解码;自定义 `Caching*ImageSourceService` 虽 `Task.Run` 后台 decode+降采样,但 `ConfigureAwait(true)` 使完成回调集中回主线程 `SetImageDrawable`。详见 `2026-07-21.md`。
+- 修复:OffscreenPageLimit→1~2 / 预加载按需分页 / `ConfigureAwait(false)`+`imageView.Post` / `SemaphoreSlim` 限流 / 关 MAUI 默认 ImageCache 写盘。
+
 ## 主题与背景图(2026-07-20)
 - 5 套主题(橙FF7043/粉EC407A/紫9B7ED8/蓝42A5F5/青26A69A)。枚举 `AppTheme` 删5色留值兼容旧偏好; ThemeMap/ViewModel/Settings页均改5套。
 - 背景图: csproj 加 `<MauiImage Include="Resources\Images\Backgrounds\*" />`; `ThemeService.ApplyThemeBackgroundImage` 必须存**纯字符串**(经 ImageSourceConverter 查 MauiImage 注册表), 不能 `ImageSource.FromFile`。5 个 tab 页根 BackgroundColor=Transparent 透出 MainPage 背景图+遮罩。

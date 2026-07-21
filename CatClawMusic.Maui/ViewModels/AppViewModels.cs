@@ -483,11 +483,10 @@ public partial class NowPlayingViewModel : ObservableObject
         // 滑动停止后由 OnInteractionStateChanged 补一次 UpdateLyricPosition 同步歌词，
         // Progress/CurrentTimeDisplay 会在下一个 tick 自动恢复。
         bool isUserInteracting = _interactionState?.IsUserInteracting ?? false;
-        if (isUserInteracting)
-        {
-            return;
-        }
 
+        // 进度条与时间显示必须实时更新，不能因列表滚动 / Tab 滑动等交互状态被冻结。
+        // 早期实现用「交互中直接 return」会卡死 Progress：一旦交互 refCount 没归零，
+        // Progress 永久停止推进，进度条彻底不走（只有切歌/切页等事件偶然解卡才恢复）。
         if (!_isSeeking)
         {
             Progress = position.TotalSeconds;
@@ -513,7 +512,12 @@ public partial class NowPlayingViewModel : ObservableObject
             }
         }
 
-        UpdateLyricPosition(position);
+        // 仅在不交互（未滚动列表 / 未滑动 Tab）时更新歌词逐字定位，避免滑动时歌词抖动；
+        // 滑动停止后会由 OnInteractionStateChanged 用播放器实时位置补一次同步。
+        if (!isUserInteracting)
+        {
+            UpdateLyricPosition(position);
+        }
 
         // 预缓冲：距歌曲结束 PreBufferSeconds 秒时，开始缓冲下一首 + 预取元数据
         if (Duration > 0 && (Duration - position.TotalSeconds) <= AudioCacheService.PreBufferSeconds
@@ -726,7 +730,7 @@ public partial class NowPlayingViewModel : ObservableObject
             Artist = "";
             Album = "";
             HasAlbum = false;
-            CoverImage = ImageSource.FromFile("cover_default.png");
+            CoverImage = ImageSource.FromFile(DefaultCoverService.GetDefaultCoverPath());
             HasCover = false;
             HasLyrics = false;
             ClearLyrics();
@@ -803,9 +807,18 @@ public partial class NowPlayingViewModel : ObservableObject
 #if ANDROID || WINDOWS
         // 更新前台播放通知 / Windows SMTC 显示
 #if ANDROID
-        // 先重置进度缓存，确保通知栏/锁屏立即显示新歌的 0 进度而非上一首旧进度
-        try { (_audioService as Services.AudioPlayerService)?.NotifySongSwitching(); }
-        catch { }
+        // 仅在实际切歌时重置进度缓存：确保通知栏/锁屏立即显示新歌的 0 进度而非上一首旧进度。
+        // 同一首歌（如进入播放页/响应式重载）绝不能调用——它会把已 STATE_READY 的 _isPrepared
+        // 清成 false 且无后续 READY 事件恢复，导致进度条永远卡在 0（歌单播放进度不走的元凶）。
+        if (!isSameSong)
+        {
+            try { (_audioService as Services.AudioPlayerService)?.NotifySongSwitching(); }
+            catch { }
+            // 把数据库已知时长传给通知栏兜底：ExoPlayer Prepare 完成前 Duration=0，
+            // 没有它通知栏进度条会在切歌间隙显示 00:00（Song.Duration 单位毫秒）
+            try { (_audioService as Services.AudioPlayerService)?.UpdateKnownDuration(song.Duration > 1000 ? song.Duration / 1000.0 : 0); }
+            catch { }
+        }
 #endif
         try { (_audioService as Services.AudioPlayerService)?.UpdateSongInfo(Title, Artist); }
         catch { }
@@ -1298,7 +1311,7 @@ public partial class NowPlayingViewModel : ObservableObject
             CurrentCoverPath = null;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                CoverImage = ImageSource.FromFile("cover_default.png");
+                CoverImage = ImageSource.FromFile(DefaultCoverService.GetDefaultCoverPath());
                 HasCover = false;
             });
 

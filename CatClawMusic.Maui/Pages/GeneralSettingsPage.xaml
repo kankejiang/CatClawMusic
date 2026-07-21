@@ -80,6 +80,60 @@
                 </Border>
 
                 <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="14">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0"
+                                                Spacing="4"
+                                                VerticalOptions="Center">
+                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ImageCache]}"
+                                       FontSize="16"
+                                       FontFamily="OpenSansSemibold"
+                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                <Label Text="{Binding ImageCacheSize}"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+                            <Button Grid.Column="1"
+                                    Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ClearImageCache]}"
+                                    Command="{Binding ClearImageCacheCommand}"
+                                    BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
+                                    TextColor="White"
+                                    CornerRadius="16"
+                                    HeightRequest="38"
+                                    FontSize="12" />
+                        </Grid>
+
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ImageCacheSizeLimit]}"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextSecondaryColor}" />
+                            <Label Text="{Binding ImageCacheLimitText}"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                            <Slider Value="{Binding ImageCacheSizeLimitMB, Mode=TwoWay}"
+                                    Minimum="50"
+                                    Maximum="2000"
+                                    ThumbColor="{DynamicResource PrimaryColor}"
+                                    MinimumTrackColor="{DynamicResource PrimaryColor}" />
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ImageCacheAgeLimit]}"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextSecondaryColor}" />
+                            <Label Text="{Binding ImageCacheAgeText}"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                            <Slider Value="{Binding ImageCacheAgeLimitDays, Mode=TwoWay}"
+                                    Minimum="1"
+                                    Maximum="365"
+                                    ThumbColor="{DynamicResource PrimaryColor}"
+                                    MinimumTrackColor="{DynamicResource PrimaryColor}" />
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
                         <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ResetSettings]}"
                                FontSize="16"

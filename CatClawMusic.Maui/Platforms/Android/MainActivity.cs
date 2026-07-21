@@ -23,6 +23,9 @@ namespace CatClawMusic.Maui;
         | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
+    /// <summary>交互状态服务：全局触摸事件上报，用于在手指操作期间暂停雾面动画、英雄卡轮播等持续工作</summary>
+    private IInteractionStateService? _interaction;
+
     /// <summary>Activity 创建时回调：执行基类创建、设置 Edge-to-Edge 并将自身注入到 AudioPlayerService</summary>
     /// <param name="savedInstanceState">保存的实例状态</param>
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -39,13 +42,17 @@ public class MainActivity : MauiAppCompatActivity
         var audioPlayer = MauiProgram.Services.GetService<AudioPlayerService>();
         audioPlayer?.SetAndroidContext(this);
 
+        _interaction = MauiProgram.Services.GetService<IInteractionStateService>();
+
         // 全局未处理异常处理：把堆栈与崩溃前日志轨迹落盘，无设备也能定位
         AndroidEnvironment.UnhandledExceptionRaiser += (_, args) =>
         {
             try
             {
+                LogService.Instance?.Error("Crash", $"Unhandled (Android): {args.Exception}");
                 FileLoggerProvider.DumpToCrashFile();
                 CrashReporter.RecordJava("AndroidEnvironment.UnhandledExceptionRaiser", args.Exception);
+                LogService.Instance?.Flush();
                 BitmapMemoryCache.Clear();
             }
             catch { }
@@ -54,8 +61,11 @@ public class MainActivity : MauiAppCompatActivity
         {
             try
             {
+                var ex = args.ExceptionObject as Exception;
+                LogService.Instance?.Error("Crash", $"Unhandled (AppDomain, terminating={args.IsTerminating}): {ex}");
                 FileLoggerProvider.DumpToCrashFile();
-                CrashReporter.RecordManaged("AppDomain.UnhandledException", args.ExceptionObject as Exception, args.IsTerminating);
+                CrashReporter.RecordManaged("AppDomain.UnhandledException", ex, args.IsTerminating);
+                LogService.Instance?.Flush();
                 BitmapMemoryCache.Clear();
             }
             catch { }
@@ -79,6 +89,38 @@ public class MainActivity : MauiAppCompatActivity
         SetupEdgeToEdge();
     }
 
+    /// <summary>全局触摸分发钩子：在任何视图处理之前上报手指按下/抬起。
+    /// 交互状态服务据此在手指停留在屏幕期间暂停雾面流体动画、英雄卡轮播等
+    /// 持续性工作（覆盖拖进度条、竖滑播放页、长按等所有手势，不限于列表滚动）。</summary>
+    public override bool DispatchTouchEvent(MotionEvent? e)
+    {
+        if (e != null)
+        {
+            switch (e.ActionMasked)
+            {
+                case MotionEventActions.Down:
+                case MotionEventActions.PointerDown:
+                    _interaction?.NotifyTouchStarted();
+                    break;
+                case MotionEventActions.Up:
+                case MotionEventActions.PointerUp:
+                case MotionEventActions.Cancel:
+                    _interaction?.NotifyTouchEnded();
+                    break;
+            }
+        }
+        return base.DispatchTouchEvent(e);
+    }
+
+    /// <summary>Activity 进入后台回调：强制清零触摸计数。
+    /// 手势进行中切走应用时 UP 事件可能丢失，不清零会让 IsUserInteracting
+    /// 永久为 true，导致歌词高亮/背景动画再也无法恢复。</summary>
+    protected override void OnPause()
+    {
+        base.OnPause();
+        try { _interaction?.ResetTouchState(); } catch { }
+    }
+
     /// <summary>Android 低内存警告回调：主动释放 Bitmap 缓存并触发 GC，避免被 LMK 杀进程。</summary>
     public override void OnLowMemory()
     {
@@ -87,18 +129,17 @@ public class MainActivity : MauiAppCompatActivity
         try { System.GC.Collect(); } catch { }
     }
 
-    /// <summary>Android 内存裁剪回调：根据级别释放缓存，严重时清空 Bitmap 并触发 GC。
-    /// TRIM_MEMORY_RUNNING_CRITICAL(15) 或更低 = 进程即将被 LMK 杀死。</summary>
+    /// <summary>Android 内存裁剪回调：仅在严重级别（RunningCritical 及以上）清空 Bitmap 缓存并触发 GC。
+    /// 注意：不要用 RunningLow 作为清空门槛——RunningLow(10) 在前台轻微内存压力下就会触发，
+    /// 会把 64MB 封面缓存整个清空，回前台时所有封面被迫重解码，引发解码风暴与主线程长冻结。
+    /// LRU 缓存本身已自限 64MB 并自动驱逐最旧条目，无需在轻度裁剪时全清。</summary>
     /// <param name="level">内存裁剪级别</param>
     public override void OnTrimMemory(TrimMemory level)
     {
         base.OnTrimMemory(level);
-        if (level >= TrimMemory.RunningLow)
-        {
-            try { BitmapMemoryCache.Clear(); } catch { }
-        }
         if (level >= TrimMemory.RunningCritical)
         {
+            try { BitmapMemoryCache.Clear(); } catch { }
             try { System.GC.Collect(); } catch { }
         }
     }

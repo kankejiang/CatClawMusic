@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>定时停止音乐 · 弹窗原型</title>
+<style>
+  :root{
+    --bg:#080B1A;
+    --c1:#8C7BFF;
+    --c2:#55D6FF;
+    --txt:#EAF0FF;
+    --sub:#9AA6C8;
+    --glass:rgba(255,255,255,0.06);
+    --glass-strong:rgba(255,255,255,0.10);
+    --stroke:rgba(255,255,255,0.14);
+    --stroke-soft:rgba(255,255,255,0.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    background:radial-gradient(120% 120% at 20% 0%, #161A33 0%, var(--bg) 55%);
+    color:var(--txt);height:100vh;display:flex;align-items:center;justify-content:center;
+  }
+
+  /* 手机外壳 */
+  .phone{position:relative;width:390px;height:844px;border-radius:46px;background:#05070F;
+    padding:14px;box-shadow:0 40px 90px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.05);}
+  .screen{position:relative;width:100%;height:100%;border-radius:34px;overflow:hidden;
+    background:linear-gradient(180deg,#0A0E20 0%, #080B1A 100%);}
+
+  /* ===== 底层：正在播放页（弹窗背后的界面） ===== */
+  .player{position:absolute;inset:0;
+    background:
+      radial-gradient(80% 50% at 50% 12%, rgba(140,123,255,.30), transparent 60%),
+      radial-gradient(70% 50% at 80% 80%, rgba(85,214,255,.18), transparent 60%),
+      linear-gradient(180deg,#0C1126,#080B1A);}
+  .player .cover{position:absolute;top:150px;left:55px;width:280px;height:280px;border-radius:26px;
+    background:linear-gradient(135deg,var(--c1),var(--c2));
+    box-shadow:0 30px 60px rgba(140,123,255,.35);}
+  .player .title{position:absolute;top:470px;left:0;right:0;text-align:center;font-size:22px;font-weight:700;}
+  .player .artist{position:absolute;top:504px;left:0;right:0;text-align:center;font-size:14px;color:var(--sub);}
+  .player .ctrls{position:absolute;bottom:120px;left:0;right:0;display:flex;justify-content:center;gap:40px;align-items:center;}
+  .player .ctrls .c{width:54px;height:54px;border-radius:50%;background:var(--glass);
+    border:1px solid var(--stroke);display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .player .ctrls .play{width:68px;height:68px;background:linear-gradient(135deg,var(--c1),var(--c2));color:#080B1A;border:none;font-size:26px;}
+  .player .topbar{position:absolute;top:54px;left:0;right:0;display:flex;justify-content:space-between;
+    padding:0 30px;font-size:13px;color:var(--sub);}
+  /* 底层在弹窗打开时压暗+模糊 */
+  .player.dim{filter:blur(6px) brightness(.55);transform:scale(1.04);transition:.25s;}
+  .player{transition:.25s;}
+
+  /* 遮罩 */
+  .scrim{position:absolute;inset:0;background:rgba(4,6,14,.55);opacity:0;pointer-events:none;transition:.25s;}
+  .scrim.show{opacity:1;pointer-events:auto;}
+
+  /* ===== 弹窗（玻璃拟态） ===== */
+  .popup{position:absolute;left:50%;top:50%;transform:translate(-50%,-46%) scale(.96);
+    width:332px;opacity:0;pointer-events:none;transition:.25s;
+    background:rgba(20,24,46,.66);border:1px solid var(--stroke);border-radius:26px;
+    backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+    box-shadow:0 30px 70px rgba(0,0,0,.55);padding:20px 18px 16px;}
+  .popup.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1);}
+
+  .popup .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .popup .ph .t{font-size:17px;font-weight:700;}
+  .popup .ph .x{width:28px;height:28px;border-radius:50%;background:var(--glass);
+    border:1px solid var(--stroke-soft);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;}
+
+  /* 当前播放小条 */
+  .now{display:flex;align-items:center;gap:10px;background:var(--glass);border:1px solid var(--stroke-soft);
+    border-radius:14px;padding:10px;margin-bottom:12px;}
+  .now .cov{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--c1),var(--c2));flex:0 0 auto;}
+  .now .meta{flex:1;min-width:0;}
+  .now .meta .n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .now .meta .a{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .label{font-size:12px;color:var(--sub);margin:2px 2px 6px;}
+  .chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+  .chip{padding:11px 0;text-align:center;border-radius:14px;font-size:13px;font-weight:600;
+    background:var(--glass);border:1px solid var(--stroke-soft);color:var(--txt);cursor:pointer;transition:.16s;}
+  .chip:hover{background:var(--glass-strong);}
+  .chip.active{background:linear-gradient(135deg,rgba(140,123,255,.35),rgba(85,214,255,.25));
+    border-color:rgba(140,123,255,.6);box-shadow:0 6px 18px rgba(140,123,255,.25);}
+
+  .opt{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--glass);border:1px solid var(--stroke-soft);border-radius:14px;padding:11px 12px;margin-bottom:8px;}
+  .opt .rt{font-size:13px;font-weight:600;}
+  .opt .rd{font-size:11px;color:var(--sub);margin-top:1px;}
+  .toggle{width:44px;height:26px;border-radius:18px;background:rgba(255,255,255,.12);
+    border:1px solid var(--stroke-soft);position:relative;cursor:pointer;flex:0 0 auto;transition:.2s;}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+    background:#cfd6ee;transition:.2s;}
+  .toggle.on{background:linear-gradient(135deg,var(--c1),var(--c2));border-color:transparent;}
+  .toggle.on::after{left:20px;background:#fff;}
+
+  .foot{display:flex;gap:10px;margin-top:14px;}
+  .btn{flex:1;height:48px;border-radius:14px;font-size:14px;font-weight:700;border:none;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;}
+  .btn.primary{background:linear-gradient(135deg,var(--c1),var(--c2));color:#080B1A;
+    box-shadow:0 10px 24px rgba(140,123,255,.4);}
+  .btn.ghost{background:var(--glass);color:var(--txt);border:1px solid var(--stroke);flex:0 0 96px;}
+
+  /* 弹窗·进行中态 */
+  .active{display:none;flex-direction:column;align-items:center;}
+  .ring{position:relative;width:170px;height:170px;margin:4px 0 10px;}
+  .ring svg{transform:rotate(-90deg);}
+  .ring .track{stroke:rgba(255,255,255,.12);}
+  .ring .prog{stroke:url(#grad);stroke-linecap:round;transition:stroke-dashoffset 1s linear;}
+  .ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .ring .time{font-size:34px;font-weight:700;}
+  .ring .cap{font-size:12px;color:var(--sub);margin-top:2px;}
+  .active .sub{font-size:12px;color:var(--sub);text-align:center;}
+  .active .opts{font-size:11px;color:var(--sub);text-align:center;line-height:1.7;margin-top:8px;}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="screen">
+      <!-- 底层播放页 -->
+      <div class="player" id="player">
+        <div class="topbar"><span>正在播放</span><span>9:41</span></div>
+        <div class="cover"></div>
+        <div class="title">夜空的彼岸</div>
+        <div class="artist">猫爪乐队</div>
+        <div class="ctrls">
+          <div class="c">‹‹</div>
+          <div class="c play">▶</div>
+          <div class="c">››</div>
+        </div>
+      </div>
+
+      <!-- 遮罩 -->
+      <div class="scrim" id="scrim" onclick="closePopup()"></div>
+
+      <!-- 弹窗 -->
+      <div class="popup" id="popup">
+        <!-- 选择态 -->
+        <div id="selView">
+          <div class="ph">
+            <div class="t">定时停止音乐</div>
+            <div class="x" onclick="closePopup()">✕</div>
+          </div>
+
+          <div class="now">
+            <div class="cov"></div>
+            <div class="meta">
+              <div class="n">夜空的彼岸</div>
+              <div class="a">猫爪乐队</div>
+            </div>
+          </div>
+
+          <div class="label">停止时间</div>
+          <div class="chips" id="chips">
+            <div class="chip" data-min="15">15 分钟</div>
+            <div class="chip active" data-min="30">30 分钟</div>
+            <div class="chip" data-min="45">45 分钟</div>
+            <div class="chip" data-min="60">60 分钟</div>
+            <div class="chip" data-min="90">90 分钟</div>
+            <div class="chip" data-min="0">自定义…</div>
+          </div>
+
+          <div class="opt">
+            <div><div class="rt">播完当前歌曲后停止</div><div class="rd">当前曲目结束再计时</div></div>
+            <div class="toggle on" data-opt="endSong" onclick="tg(this)"></div>
+          </div>
+          <div class="opt">
+            <div><div class="rt">结束时淡出音量</div><div class="rd">最后 20 秒渐弱</div></div>
+            <div class="toggle" data-opt="fade" onclick="tg(this)"></div>
+          </div>
+
+          <div class="foot">
+            <button class="btn ghost" onclick="closePopup()">取消</button>
+            <button class="btn primary" onclick="startTimer()">开始定时</button>
+          </div>
+        </div>
+
+        <!-- 进行中态 -->
+        <div class="active" id="actView">
+          <div class="ring">
+            <svg width="170" height="170" viewBox="0 0 170 170">
+              <defs>
+                <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#8C7BFF"/><stop offset="100%" stop-color="#55D6FF"/>
+                </linearGradient>
+              </defs>
+              <circle class="track" cx="85" cy="85" r="72" fill="none" stroke-width="10"/>
+              <circle class="prog" id="prog" cx="85" cy="85" r="72" fill="none" stroke-width="10"
+                stroke-dasharray="452" stroke-dashoffset="0"/>
+            </svg>
+            <div class="center">
+              <div class="time" id="timeText">29:58</div>
+              <div class="cap">后停止</div>
+            </div>
+          </div>
+          <div class="sub">将在《夜空的彼岸》结束后停止</div>
+          <div class="opts" id="optSummary"></div>
+          <div class="foot">
+            <button class="btn primary" style="flex:1" onclick="closePopup()">完成</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let selectedMin = 30;
+  const chips = document.querySelectorAll('#chips .chip');
+  chips.forEach(c=>c.addEventListener('click',()=>{
+    chips.forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+    selectedMin = parseInt(c.dataset.min,10);
+  }));
+  function tg(el){ el.classList.toggle('on'); }
+
+  // 弹窗默认打开（原型展示态）
+  openPopup();
+
+  function openPopup(){
+    document.getElementById('player').classList.add('dim');
+    document.getElementById('scrim').classList.add('show');
+    document.getElementById('popup').classList.add('show');
+  }
+  function closePopup(){
+    document.getElementById('player').classList.remove('dim');
+    document.getElementById('scrim').classList.remove('show');
+    document.getElementById('popup').classList.remove('show');
+    clearInterval(window._st);
+  }
+
+  function startTimer(){
+    if(selectedMin<=0){ alert('原型占位：自定义时长后续接输入控件'); selectedMin=30; }
+    document.getElementById('selView').style.display='none';
+    document.getElementById('actView').style.display='flex';
+
+    const endSong=document.querySelector('[data-opt=endSong]').classList.contains('on');
+    const fade=document.querySelector('[data-opt=fade]').classList.contains('on');
+    const sum=['已设置 '+selectedMin+' 分钟后停止'];
+    if(endSong) sum.push('· 播完当前歌曲');
+    if(fade) sum.push('· 结束时淡出');
+    document.getElementById('optSummary').innerHTML=sum.join('<br>');
+
+    let left=30, C=452; // 原型用 30s 演示一圈
+    const t=document.getElementById('timeText'), prog=document.getElementById('prog');
+    prog.style.strokeDashoffset=0;
+    clearInterval(window._st);
+    window._st=setInterval(()=>{
+      left--;
+      t.textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
+      prog.style.strokeDashoffset=C*(1-left/30);
+      if(left<=0){ clearInterval(window._st); t.textContent='00:00'; }
+    },1000);
+  }
+</script>
+</body>
+</html>

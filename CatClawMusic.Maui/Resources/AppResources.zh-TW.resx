@@ -83,6 +83,10 @@
   <data name="CacheSize" xml:space="preserve"><value>快取大小</value></data>
   <data name="ClearCache" xml:space="preserve"><value>清除快取</value></data>
   <data name="ClearingCache" xml:space="preserve"><value>清除中…</value></data>
+  <data name="ImageCache" xml:space="preserve"><value>圖片快取</value></data>
+  <data name="ClearImageCache" xml:space="preserve"><value>清除圖片快取</value></data>
+  <data name="ImageCacheSizeLimit" xml:space="preserve"><value>快取上限</value></data>
+  <data name="ImageCacheAgeLimit" xml:space="preserve"><value>快取有效期</value></data>
   <data name="ResetSettings" xml:space="preserve"><value>恢復預設</value></data>
   <data name="ResetSettingsHint" xml:space="preserve"><value>將所有設定恢復成預設值</value></data>
   <data name="Reset" xml:space="preserve"><value>重設</value></data>

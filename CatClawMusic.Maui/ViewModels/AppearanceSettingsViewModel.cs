@@ -201,13 +201,14 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         HasCustomBackground = _themeService.HasCustomBackground;
         BackgroundOpacity = _themeService.CustomBackgroundOpacity;
         FrostedBackgroundEnabled = _themeService.FrostedBackgroundEnabled;
-        if (HasCustomBackground && _themeService.CustomBackgroundPath != null)
-        {
-            try
+            if (HasCustomBackground && _themeService.CustomBackgroundPath != null)
             {
-                byte[] bytes = File.ReadAllBytes(_themeService.CustomBackgroundPath);
-                CustomBackgroundPreview = ImageSource.FromStream(() => new MemoryStream(bytes));
-                CustomBackgroundName = Path.GetFileName(_themeService.CustomBackgroundPath);
+                try
+                {
+                    // 关键修复：自定义背景预览同样不能走 FromStream 全分辨率解码（同 ThemeService 崩溃根因）。
+                    // 改用 FromFile 走 CachingFileImageSourceService 降采样，避免 196MB 大图在设置页绘制时崩溃。
+                    CustomBackgroundPreview = ImageSource.FromFile(_themeService.CustomBackgroundPath);
+                    CustomBackgroundName = Path.GetFileName(_themeService.CustomBackgroundPath);
             }
             catch
             {

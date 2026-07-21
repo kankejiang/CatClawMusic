@@ -1,10 +1,12 @@
 using Android.Content;
+using Android.Content.Res;
 using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.Widget;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
 using CatClawMusic.Core.Interfaces;
+using System.Threading;
 
 namespace CatClawMusic.Maui.Platforms.Android;
 
@@ -19,6 +21,9 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
 {
     /// <summary>无显式尺寸时（GetDrawableAsync）的默认解码上限</summary>
     private const int DefaultTargetPx = 1024;
+
+    /// <summary>并发解码信号量：限制同时解码的封面数（默认 8），避免数百张同时解码打满线程池造成设备级卡顿。</summary>
+    private static readonly SemaphoreSlim _decodeSemaphore = new(8, 8);
 
     /// <summary>将 FileImageSource 加载到指定 ImageView，优先命中内存缓存。
     /// 缓存命中时同步返回（零开销），缓存未命中时将解码移至后台线程避免阻塞 UI。</summary>
@@ -96,14 +101,26 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
             var cached = BitmapMemoryCache.Get(cacheKey);
             if (cached != null) return cached;
 
-            // 缓存未命中：在后台线程解码，避免阻塞 UI 线程
-            var decoded = await Task.Run(() => DecodeBitmapDownsampled(path, bucket)).ConfigureAwait(true);
+            // 缓存未命中：在后台线程解码，避免阻塞 UI 线程。
+            // 关键修复：用 ConfigureAwait(false) 让「解码完成 + 缓存 Put」回到线程池而非主线程同步上下文，
+            // 否则几百个封面的完成回调会排队冲垮主线程（表现为 49s 级冻结 / Choreographer Skipped 上千帧）。
+            // 并发解码数由 _decodeSemaphore 限制，避免数百张同时解码打满线程池。
+            await _decodeSemaphore.WaitAsync();
+            Bitmap? decoded;
+            try
+            {
+                decoded = await Task.Run(() => DecodeBitmapDownsampled(path, bucket)).ConfigureAwait(false);
+            }
+            finally
+            {
+                _decodeSemaphore.Release();
+            }
             if (decoded != null)
                 BitmapMemoryCache.Put(cacheKey, decoded);
             return decoded;
         }
 
-        // 资源名：从 Android drawable 资源加载
+        // 资源名：从 Android drawable 资源加载（带降采样，防止高密度设备密度放大后超 Canvas 绘制上限）
         if (context != null)
         {
             // 去掉可能的文件扩展名（avatar_yuki.png → avatar_yuki）
@@ -111,7 +128,7 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
             var resourceId = context.Resources?.GetIdentifier(resourceName, "drawable", context.PackageName) ?? 0;
             if (resourceId != 0)
             {
-                try { return BitmapFactory.DecodeResource(context.Resources, resourceId); }
+                try { return DecodeResourceDownsampled(context.Resources!, resourceId, targetPx); }
                 catch { return null; }
             }
         }
@@ -145,6 +162,26 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
             Log.Debug("CachingFileImageSourceService", $"[CachingFileImageSourceService] Decode failed: {path} - {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>降采样解码 Android drawable 资源：先读边界（含密度放大后的尺寸），再按 targetPx 计算 InSampleSize 解码</summary>
+    private static Bitmap? DecodeResourceDownsampled(Resources res, int resourceId, int targetPx)
+    {
+        // 第一遍：只读尺寸（DecodeResource 会报告密度放大后的 outWidth/outHeight）
+        var options = new BitmapFactory.Options { InJustDecodeBounds = true };
+        BitmapFactory.DecodeResource(res, resourceId, options);
+        if (options.OutWidth <= 0 || options.OutHeight <= 0) return null;
+
+        // 计算降采样倍数（长边目标 targetPx）
+        var maxDim = Math.Max(options.OutWidth, options.OutHeight);
+        var sampleSize = 1;
+        while (maxDim / sampleSize > targetPx) sampleSize *= 2;
+
+        // 第二遍真正解码
+        options.InJustDecodeBounds = false;
+        options.InSampleSize = sampleSize;
+        options.InPreferredConfig = Bitmap.Config.Argb8888;
+        return BitmapFactory.DecodeResource(res, resourceId, options);
     }
 
     /// <summary>

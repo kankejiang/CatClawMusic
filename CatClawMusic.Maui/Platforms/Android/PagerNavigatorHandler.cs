@@ -66,8 +66,8 @@ public class PagerNavigatorHandler : ViewHandler<PagerNavigator, ViewPager2>
         _adapter = new MauiPagerAdapter(VirtualView.Pages, MauiContext!);
         platformView.Adapter = _adapter;
 
-        // 全部常驻，规避 RecyclerView 回收 MAUI 原生视图带来的重绑定风险
-        platformView.OffscreenPageLimit = Math.Max(1, VirtualView.Pages.Count);
+        // 仅相邻页常驻，远页回收（降低常驻图片解码/GC 压力）
+        platformView.OffscreenPageLimit = 1;
 
         _callback = new PageChangeCallback(VirtualView);
         platformView.RegisterOnPageChangeCallback(_callback);
@@ -111,7 +111,7 @@ public class PagerNavigatorHandler : ViewHandler<PagerNavigator, ViewPager2>
     {
         var position = VirtualView.Pages.Count - 1; // 末尾即新页（占位在 0，真实页从 1 起）
         _adapter!.NotifyItemInserted(position);
-        PlatformView.OffscreenPageLimit = Math.Max(1, VirtualView.Pages.Count);
+        PlatformView.OffscreenPageLimit = 1; // 仅相邻页常驻
         // 平滑滑入到新页（从当前页滑到新页）
         PlatformView.SetCurrentItem(position, animate);
     }

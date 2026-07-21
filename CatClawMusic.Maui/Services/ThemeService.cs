@@ -414,17 +414,24 @@ public class ThemeService : IThemeService
         resources["CustomBackgroundEnabled"] = hasBg;
         resources["CustomBackgroundOpacity"] = _customBackgroundOpacity;
 
-        if (hasBg)
-        {
-            try
+            if (hasBg)
             {
-                byte[] bgBytes = File.ReadAllBytes(_customBackgroundPath!);
-                var customImg = ImageSource.FromStream(() => new MemoryStream(bgBytes));
-                resources["CustomBackgroundImage"] = customImg;
-                // 用户自定义背景优先级最高：覆盖主题内置背景图
-                resources["ThemeBackgroundImage"] = customImg;
-                resources["ThemeBackgroundEnabled"] = true;
-            }
+                try
+                {
+                    // 关键修复：用户自定义背景可能是一张超大图（如 7168×7168 ≈ 196MB）。
+                    // 原 ImageSource.FromStream 走 MAUI 默认 StreamImageSource 处理器，不进行下采样，
+                    // 整图全分辨率解码后交给 ImageView 绘制，触发
+                    // “Canvas: trying to draw too large bitmap” 崩溃（三星崩溃日志）。
+                    // 改用 FromFile 走自定义 CachingFileImageSourceService：按 ImageView 实际尺寸降采样（≤1024px），
+                    // 且 BitmapFactory 用 InSampleSize 局部解码，绝不分配整图内存，彻底规避崩溃与 OOM。
+                    // 同时不再 File.ReadAllBytes 把整张图读进 byte[]（196MB 瞬时分配）。
+                    // _customBackgroundPath 已在 LoadSettings 中校验存在且可读。
+                    var customImg = ImageSource.FromFile(_customBackgroundPath!);
+                    resources["CustomBackgroundImage"] = customImg;
+                    // 用户自定义背景优先级最高：覆盖主题内置背景图
+                    resources["ThemeBackgroundImage"] = customImg;
+                    resources["ThemeBackgroundEnabled"] = true;
+                }
             catch
             {
                 resources["CustomBackgroundEnabled"] = false;

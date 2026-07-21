@@ -47,6 +47,30 @@ public partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _cacheSizeLimitText = "";
 
+    /// <summary>当前图片缓存大小展示文本</summary>
+    [ObservableProperty]
+    private string _imageCacheSize = "计算中…";
+
+    /// <summary>图片缓存上限（MB），绑定到设置页 Slider</summary>
+    [ObservableProperty]
+    private double _imageCacheSizeLimitMB;
+
+    /// <summary>图片缓存上限展示文本</summary>
+    [ObservableProperty]
+    private string _imageCacheLimitText = "";
+
+    /// <summary>图片缓存有效期（天），绑定到设置页 Slider</summary>
+    [ObservableProperty]
+    private double _imageCacheAgeLimitDays;
+
+    /// <summary>图片缓存有效期展示文本</summary>
+    [ObservableProperty]
+    private string _imageCacheAgeText = "";
+
+    /// <summary>是否正在清除图片缓存</summary>
+    [ObservableProperty]
+    private bool _isClearingImageCache = false;
+
     /// <summary>
     /// 初始化 <see cref="GeneralSettingsViewModel"/> 实例，并立即刷新缓存大小。
     /// </summary>
@@ -56,6 +80,12 @@ public partial class GeneralSettingsViewModel : ObservableObject
         SelectedLanguageIndex = LocalizationService.GetSavedCultureIndex();
         CacheSizeLimitMB = Preferences.Default.Get("audio_cache_size_mb", AudioCacheService.DefaultCacheSizeMB);
         UpdateCacheSizeLimitText();
+
+        ImageCacheSizeLimitMB = ImageCacheService.Instance.CacheSizeLimitMB;
+        ImageCacheAgeLimitDays = ImageCacheService.Instance.CacheAgeDays;
+        UpdateImageCacheLimitText();
+        UpdateImageCacheAgeText();
+
         _ = RefreshCacheSizeAsync();
     }
 
@@ -68,7 +98,7 @@ public partial class GeneralSettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 清除应用缓存（音乐缓存目录）。
+    /// 清除应用缓存（音乐缓存 + 图片缓存）。
     /// </summary>
     [RelayCommand]
     public async Task ClearCacheAsync()
@@ -78,13 +108,14 @@ public partial class GeneralSettingsViewModel : ObservableObject
         try
         {
             await AudioCacheService.Instance.ClearAllAsync();
-            // 也清理旧的封面缓存目录
+            // 也清理旧的本地封面缓存目录
             var coverDir = Path.Combine(FileSystem.CacheDirectory, "covers");
             if (Directory.Exists(coverDir))
             {
                 Directory.Delete(coverDir, true);
                 Directory.CreateDirectory(coverDir);
             }
+            await ImageCacheService.Instance.ClearAllAsync();
             await RefreshCacheSizeAsync();
         }
         catch (Exception ex)
@@ -92,6 +123,26 @@ public partial class GeneralSettingsViewModel : ObservableObject
             Log.Debug("GeneralSettingsViewModel", $"[GeneralVM] ClearCache failed: {ex}");
         }
         finally { IsClearingCache = false; }
+    }
+
+    /// <summary>
+    /// 清除图片缓存（网络封面、艺术家/专辑封面）。
+    /// </summary>
+    [RelayCommand]
+    public async Task ClearImageCacheAsync()
+    {
+        if (IsClearingImageCache) return;
+        IsClearingImageCache = true;
+        try
+        {
+            await ImageCacheService.Instance.ClearAllAsync();
+            await RefreshCacheSizeAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("GeneralSettingsViewModel", $"[GeneralVM] ClearImageCache failed: {ex}");
+        }
+        finally { IsClearingImageCache = false; }
     }
 
     /// <summary>
@@ -108,6 +159,38 @@ public partial class GeneralSettingsViewModel : ObservableObject
         CacheSizeLimitText = CacheSizeLimitMB >= 1024
             ? $"{CacheSizeLimitMB / 1024.0:F1} GB"
             : $"{CacheSizeLimitMB} MB";
+    }
+
+    /// <summary>
+    /// 图片缓存上限变化时：保存到 Preferences 并触发清理。
+    /// </summary>
+    partial void OnImageCacheSizeLimitMBChanged(double value)
+    {
+        ImageCacheService.Instance.SetCacheSizeLimitMB((int)value);
+        UpdateImageCacheLimitText();
+    }
+
+    private void UpdateImageCacheLimitText()
+    {
+        var mb = (int)ImageCacheSizeLimitMB;
+        ImageCacheLimitText = mb >= 1024
+            ? $"{mb / 1024.0:F1} GB"
+            : $"{mb} MB";
+    }
+
+    /// <summary>
+    /// 图片缓存有效期变化时：保存到 Preferences 并触发清理。
+    /// </summary>
+    partial void OnImageCacheAgeLimitDaysChanged(double value)
+    {
+        ImageCacheService.Instance.SetCacheAgeDays((int)value);
+        UpdateImageCacheAgeText();
+    }
+
+    private void UpdateImageCacheAgeText()
+    {
+        var days = (int)ImageCacheAgeLimitDays;
+        ImageCacheAgeText = $"{days} 天";
     }
 
     /// <summary>
@@ -129,19 +212,26 @@ public partial class GeneralSettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 刷新缓存大小显示：扫描音乐缓存目录并格式化为可读字符串。
+    /// 刷新缓存大小显示：扫描音乐缓存与图片缓存目录并格式化为可读字符串。
     /// </summary>
     public async Task RefreshCacheSizeAsync()
     {
         try
         {
-            var cacheDir = Path.Combine(FileSystem.CacheDirectory, "music_cache");
-            long size = await Task.Run(() => GetDirectorySize(cacheDir));
-            CacheSize = FormatSize(size);
+            var (totalSize, imageSize) = await Task.Run(() =>
+            {
+                long audioSize = GetDirectorySize(Path.Combine(FileSystem.CacheDirectory, "music_cache"))
+                               + GetDirectorySize(Path.Combine(FileSystem.CacheDirectory, "covers"));
+                long imgSize = ImageCacheService.Instance.GetCacheSizeBytes();
+                return (audioSize + imgSize, imgSize);
+            });
+            CacheSize = FormatSize(totalSize);
+            ImageCacheSize = FormatSize(imageSize);
         }
         catch
         {
             CacheSize = "不可用";
+            ImageCacheSize = "不可用";
         }
     }
 

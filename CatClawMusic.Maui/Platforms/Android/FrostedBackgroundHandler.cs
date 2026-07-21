@@ -75,6 +75,7 @@ public class FrostedBackgroundView : View
     private Aspect _aspect = Aspect.AspectFill;
     private int _loadingVersion = 0;  // 实例级别的加载版本号（避免多实例间互相取消）
     private string? _cacheKey;  // 共享缓存键（如封面路径），用于跨实例共享处理后位图
+    private volatile bool _isDisposed = false;  // 视图已释放标记：后台任务完成后不再回主线程应用位图/启动动画
 
     // 有机运动参数（每个实例随机化，避免重复感）
     private readonly float _driftAX;
@@ -129,22 +130,18 @@ public class FrostedBackgroundView : View
     public void SetSource(Bitmap? bitmap, string? cacheKey)
     {
         if (ReferenceEquals(_sourceBitmap, bitmap) && _cacheKey == cacheKey) return;
-        var oldSource = _sourceBitmap;
         _sourceBitmap = bitmap;
         _cacheKey = cacheKey;
         // 递增处理版本号，让正在进行的旧任务完成后丢弃结果
         Interlocked.Increment(ref _processingVersion);
-        // 捕获当前 bitmap 引用到闭包，防止后续 SetSource 回收后后台线程访问已回收位图
+        // 捕获当前 bitmap 引用到闭包，防止后续 SetSource 替换字段后后台线程访问错对象
         var capturedSource = bitmap;
         var capturedCacheKey = cacheKey;
+        // 源位图的回收所有权移交给后台任务：每张源位图由 UpdateSourceFromImageSource 独立解码生成、
+        // 且只被一个任务使用，由该任务在处理结束后的 finally 中回收。
+        // 此处绝不能立即回收旧源位图——上一个后台任务可能仍在对它做原生像素操作，
+        // 边用边回收会访问已释放内存，触发 native SIGSEGV（进播放页闪退的元凶）。
         _ = Task.Run(() => RegenerateProcessedBitmap(capturedSource, capturedCacheKey));
-
-        // 回收旧源位图（每个实例独立加载，不共享）
-        if (oldSource != null && !oldSource.IsRecycled)
-        {
-            oldSource.Recycle();
-            oldSource.Dispose();
-        }
     }
 
     private bool _isEnabled = true;  // 用户开关（控制背景是否显示）
@@ -441,15 +438,16 @@ public class FrostedBackgroundView : View
     {
         var myVersion = Interlocked.Increment(ref _processingVersion);
 
-        // 早期版本检查：如果已有更新的请求在排队，直接放弃（避免无用的 CPU 处理）
-        if (myVersion != Volatile.Read(ref _processingVersion)) return;
-
         Bitmap? result = null;
         string? resultCacheKey = null;  // 非 null 表示来自缓存
 
         try
         {
-            // 使用捕获的本地引用而非 _sourceBitmap 字段，避免竞态访问已被回收的位图
+            // 早期版本检查：如果已有更新的请求在排队，直接放弃（避免无用的 CPU 处理）。
+            // 注意：提前返回也会走 finally 回收源位图——此时源位图已被更新的请求取代，不再被任何人使用。
+            if (myVersion != Volatile.Read(ref _processingVersion)) return;
+
+            // 使用捕获的本地引用而非 _sourceBitmap 字段，避免竞态访问已被替换的位图
             if (source != null && !source.IsRecycled && source.Width > 0 && source.Height > 0)
             {
                 if (_useNativeBlur)
@@ -474,6 +472,16 @@ public class FrostedBackgroundView : View
         {
             Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] Regenerate failed: {ex.Message}");
         }
+        finally
+        {
+            // 源位图由本任务独占使用（每张源位图独立解码、只交给一个任务），处理结束后立即回收。
+            // 无论成功/失败/被版本淘汰/提前返回都回收，保证"先用后收"，杜绝边用边回收的 native 崩溃，也不泄漏。
+            if (source != null && !source.IsRecycled)
+            {
+                source.Recycle();
+                source.Dispose();
+            }
+        }
 
         // 版本不匹配 → 释放引用
         if (myVersion != Volatile.Read(ref _processingVersion))
@@ -485,6 +493,13 @@ public class FrostedBackgroundView : View
         // 主线程应用新位图并启动交叉淡入淡出
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            // 视图已释放 → 释放本次结果并放弃应用，避免操作已释放视图/泄漏动画
+            if (_isDisposed)
+            {
+                ReleaseProcessedBitmap(result, resultCacheKey);
+                return;
+            }
+
             if (myVersion != Volatile.Read(ref _processingVersion))
             {
                 ReleaseProcessedBitmap(result, resultCacheKey);
@@ -537,12 +552,14 @@ public class FrostedBackgroundView : View
             StartAnimation();
     }
 
-    /// <summary>释放已处理的位图（cacheKey 非空则缓存 Release，否则直接回收）</summary>
+    /// <summary>释放已处理的位图（cacheKey 非空则缓存 Release，否则仅丢弃引用）</summary>
     private static void ReleaseProcessedBitmap(Bitmap? bitmap, string? cacheKey)
     {
         if (bitmap == null) return;
         if (cacheKey != null) ProcessedBitmapCache.Release(cacheKey, bitmap);
-        else if (!bitmap.IsRecycled) { bitmap.Recycle(); bitmap.Dispose(); }
+        // 非缓存位图不手动 Recycle：处理后的位图正在/可能仍在硬件 RenderThread 的渲染队列中，
+        // 手动 Recycle 会与其竞态，触发 "cannot access an invalid/free'd bitmap" native 崩溃。
+        // 交由 GC 安全回收（Bitmap finalizer 会与 RenderThread 同步后再释放原生内存）。
     }
 
     /// <summary>启动交叉淡入淡出动画（600ms 渐变过渡）</summary>
@@ -901,6 +918,7 @@ public class FrostedBackgroundView : View
     {
         if (disposing)
         {
+            _isDisposed = true;
             StopAnimation();
             StopCrossFadeAnimation();
             _bitmapPaint?.Dispose();
@@ -984,21 +1002,18 @@ internal static class ProcessedBitmapCache
             entry.RefCount--;
             if (entry.RefCount <= 0)
             {
-                if (!entry.Bitmap.IsRecycled) { entry.Bitmap.Recycle(); entry.Bitmap.Dispose(); }
+                // 不手动 Recycle：该位图可能仍在硬件 RenderThread 渲染队列中，
+                // 手动回收会竞态崩溃；仅移除缓存引用，交由 GC 安全回收。
                 _cache.Remove(cacheKey);
             }
         }
     }
 
-    /// <summary>清空所有缓存（如低内存时调用）</summary>
+    /// <summary>清空所有缓存（如低内存时调用）。仅丢弃引用，不手动 Recycle（避免与 RenderThread 竞态），由 GC 回收。</summary>
     public static void ClearAll()
     {
         lock (_lock)
         {
-            foreach (var entry in _cache.Values)
-            {
-                if (!entry.Bitmap.IsRecycled) { entry.Bitmap.Recycle(); entry.Bitmap.Dispose(); }
-            }
             _cache.Clear();
         }
     }
