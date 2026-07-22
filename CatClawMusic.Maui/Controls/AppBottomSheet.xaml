@@ -37,8 +37,9 @@
                         Opacity="0.5" />
             </Border.Shadow>
             <Grid RowDefinitions="Auto,*">
-                <!-- 拖拽指示条 -->
+                <!-- 拖拽指示条（仅底部抽屉模式显示，居中弹窗隐藏） -->
                 <BoxView Grid.Row="0"
+                         x:Name="GripBar"
                          WidthRequest="38" HeightRequest="4"
                          CornerRadius="2"
                          Color="{DynamicResource TextHintColor}"
@@ -46,6 +47,7 @@
                          HorizontalOptions="Center"
                          Margin="0,2,0,12" />
                 <ScrollView Grid.Row="1"
+                            x:Name="ContentScroll"
                             VerticalScrollBarVisibility="Never"
                             MaximumHeightRequest="560">
                     <VerticalStackLayout x:Name="SheetContent" Spacing="0"

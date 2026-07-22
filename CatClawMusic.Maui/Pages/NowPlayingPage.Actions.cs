@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
-using CatClawMusic.Maui.Services.Equalizer;
+using static CatClawMusic.Maui.Controls.PopupUiHelpers;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
@@ -20,12 +21,26 @@ public partial class NowPlayingPage
     private Label? _timerCountdownLabel;
     private TimerRingDrawable? _timerRingDrawable;
     private GraphicsView? _timerRingView;
+    // 自定义时长内联输入面板（替代 DisplayPromptAsync，避免 ViewPager2 承载页上弹模态崩溃）
+    private View? _timerCustomPanel;
+    private Entry? _timerCustomEntry;
+    private List<Border>? _timerChipBorders;
 
     /// <summary>点击定时关闭按钮</summary>
     private void OnSleepTimerClicked(object? sender, EventArgs e)
     {
         BuildSleepTimerContent();
         SleepTimerPopup.Open();
+    }
+
+    /// <summary>点击均衡器按钮：弹出独立全屏音效中心页面（从下往上滑入，关闭时从上往下滑出）。</summary>
+    private async void OnEqualizerClicked(object? sender, EventArgs e)
+    {
+        var eqPage = new EqualizerPage();
+        if (Shell.Current?.Navigation is { } nav)
+            await nav.PushModalAsync(eqPage);
+        else
+            await Navigation.PushModalAsync(eqPage);
     }
 
     private void BuildSleepTimerContent()
@@ -112,6 +127,7 @@ public partial class NowPlayingPage
             ("60 分钟", 60), ("90 分钟", 90), ("自定义…", 0)
         };
         var chipBorders = new List<Border>();
+        _timerChipBorders = chipBorders;
         for (int i = 0; i < options.Length; i++)
         {
             var (label, minutes) = options[i];
@@ -119,20 +135,17 @@ public partial class NowPlayingPage
             chipBorders.Add(chip);
             var tap = new TapGestureRecognizer();
             var capturedMinutes = minutes;
-            tap.Tapped += async (_, _) =>
+            tap.Tapped += (_, _) =>
             {
                 if (capturedMinutes == 0)
                 {
-                    // 自定义时长
-                    var input = await DisplayPromptAsync("自定义时长", "请输入分钟数（1-480）",
-                        initialValue: "30", keyboard: Keyboard.Numeric, accept: "确定", cancel: "取消");
-                    if (input != null && int.TryParse(input, out var custom) && custom is > 0 and <= 480)
-                    {
-                        _selectedTimerMinutes = custom;
-                        UpdateChipStates(chipBorders, -1); // 全部取消高亮
-                    }
+                    // 自定义时长：展开底部弹层内的内联输入（不再用 DisplayPromptAsync，
+                    // 避免 NowPlayingPage 被 ViewPager2 承载时弹模态找不到宿主窗口而崩溃）
+                    ShowCustomDurationPanel();
                     return;
                 }
+                // 选择预设：取消其他按钮高亮并收起自定义面板
+                if (_timerCustomPanel != null) _timerCustomPanel.IsVisible = false;
                 _selectedTimerMinutes = capturedMinutes;
                 UpdateChipStates(chipBorders, chipBorders.IndexOf(chip));
             };
@@ -140,6 +153,10 @@ public partial class NowPlayingPage
             chipsGrid.Add(chip, i % 3, i / 3);
         }
         SleepTimerPopup.AddContent(chipsGrid);
+
+        // 自定义时长内联面板（默认隐藏，点击“自定义…”展开）
+        _timerCustomPanel = BuildCustomDurationPanel();
+        SleepTimerPopup.AddContent(_timerCustomPanel);
 
         // 选项开关
         SleepTimerPopup.AddContent(CreateToggleRow("播完当前歌曲后停止", "时间到后等当前曲目播完", _timerStopAfterSong,
@@ -305,375 +322,95 @@ public partial class NowPlayingPage
         catch { }
     }
 
-    // ═══════════════════════════════════════
-    // 均衡器
-    // ═══════════════════════════════════════
-
-    private readonly double[] _eqLiveGains = new double[EqualizerSettings.BandFrequencies.Length];
-    private EqCurveDrawable? _eqCurveDrawable;
-    private GraphicsView? _eqCurveView;
-    private readonly List<(Label ValueLabel, BoxView Fill, Border Handle)> _eqBandControls = new();
-    private ScrollView? _eqPresetScroll;
-    private readonly List<Border> _eqPresetChips = new();
-
-    /// <summary>点击均衡器按钮</summary>
-    private void OnEqualizerClicked(object? sender, EventArgs e)
+    /// <summary>展开“自定义时长”内联面板，预填当前/默认分钟数，并取消预设高亮。</summary>
+    private void ShowCustomDurationPanel()
     {
-        BuildEqualizerContent();
-        EqualizerSheet.Open();
+        if (_timerChipBorders != null)
+            UpdateChipStates(_timerChipBorders, -1); // 进入自定义态：取消所有预设高亮
+        if (_timerCustomEntry != null)
+            _timerCustomEntry.Text = _selectedTimerMinutes > 0 ? _selectedTimerMinutes.ToString() : "30";
+        if (_timerCustomPanel != null)
+        {
+            _timerCustomPanel.IsVisible = true;
+            _timerCustomEntry?.Focus();
+        }
     }
 
-    private void BuildEqualizerContent()
+    /// <summary>构建“自定义时长”内联输入面板（隐藏态）：用弹层内 Entry 替代 DisplayPromptAsync 模态弹窗。</summary>
+    private View BuildCustomDurationPanel()
     {
-        EqualizerSheet.ClearContent();
-        _eqBandControls.Clear();
-        _eqPresetChips.Clear();
-
         var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
         var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
-        var textHint = (Color)Application.Current!.Resources["TextHintColor"];
-        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
 
-        // 标题行
-        var headGrid = new Grid
+        var panel = new Border
         {
-            ColumnDefinitions = new ColumnDefinitionCollection { new() { Width = GridLength.Star }, new() { Width = GridLength.Auto } },
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-        var titleStack = new VerticalStackLayout { Spacing = 1 };
-        titleStack.Add(new Label { Text = "均衡器", FontSize = 17, FontAttributes = FontAttributes.Bold, TextColor = textPrimary });
-        titleStack.Add(new Label { Text = "音效中心", FontSize = 11, TextColor = textHint });
-        headGrid.Add(titleStack, 0);
-
-        var closeBtn = new Border
-        {
-            BackgroundColor = new Color(1, 1, 1, 0.06f),
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
             StrokeThickness = 0,
-            WidthRequest = 30, HeightRequest = 30,
-            HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Center,
-            Content = new Label
-            {
-                Text = "\u2715", FontSize = 14, TextColor = textSecondary,
-                HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center
-            }
+            Background = new SolidColorBrush(new Color(1, 1, 1, 0.06f)),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 14),
+            IsVisible = false
         };
-        closeBtn.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => EqualizerSheet.Close()) });
-        headGrid.Add(closeBtn, 1);
-        EqualizerSheet.AddContent(headGrid);
+        var stack = new VerticalStackLayout { Spacing = 10 };
 
-        // 主开关
-        var masterEnabled = EqualizerSettings.Enabled;
-        EqualizerSheet.AddContent(CreateToggleRow("图形均衡器", "开启后按下方频段调节", masterEnabled, v =>
+        stack.Add(new Label
         {
-            EqualizerSettings.Enabled = v;
-            ApplyEqSettingsLive();
-#if WINDOWS
-            // Windows 端 EQ 切换需要更换播放管线（MediaPlayer ↔ AudioGraph），
-            // 正在播放时从当前位置重载当前歌曲使其立即生效
-            _ = RestartPlaybackForEqSwitchAsync();
-#endif
-        }, margin: new Thickness(0, 0, 0, 12)));
-
-        // 预设横向滚动
-        EqualizerSheet.AddContent(new Label
-        {
-            Text = "预设", FontSize = 12, TextColor = textHint, Margin = new Thickness(2, 0, 0, 8)
-        });
-        _eqPresetScroll = new ScrollView
-        {
-            Orientation = ScrollOrientation.Horizontal,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Never,
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        var presetStack = new HorizontalStackLayout { Spacing = 8 };
-        var currentPreset = EqualizerSettings.CurrentPreset;
-        foreach (var (key, name) in EqualizerSettings.PresetList)
-        {
-            var chip = CreateChip(name, key == currentPreset, compact: true);
-            _eqPresetChips.Add(chip);
-            var capturedKey = key;
-            chip.GestureRecognizers.Add(new TapGestureRecognizer
-            {
-                Command = new Command(() =>
-                {
-                    EqualizerSettings.ApplyPreset(capturedKey);
-                    var gains = EqualizerSettings.GetBandGains();
-                    Array.Copy(gains, _eqLiveGains, gains.Length);
-                    RefreshEqBandUI();
-                    HighlightPresetChip(_eqPresetChips.IndexOf(chip));
-                    ApplyEqSettingsLive();
-                })
-            });
-            presetStack.Add(chip);
-        }
-        _eqPresetScroll.Content = presetStack;
-        EqualizerSheet.AddContent(_eqPresetScroll);
-
-        // 频段增益区域（曲线 + 滑块）
-        EqualizerSheet.AddContent(new Label
-        {
-            Text = "频段增益    −12 ~ +12 dB", FontSize = 12, TextColor = textHint,
-            Margin = new Thickness(2, 0, 0, 6)
+            Text = "自定义时长（1 - 480 分钟）",
+            FontSize = 12, TextColor = textSecondary
         });
 
-        var gains = EqualizerSettings.GetBandGains();
-        Array.Copy(gains, _eqLiveGains, gains.Length);
-
-        _eqCurveDrawable = new EqCurveDrawable(_eqLiveGains);
-        var eqArea = new Grid { HeightRequest = 190, Margin = new Thickness(0, 0, 0, 8) };
-        _eqCurveView = new GraphicsView
+        _timerCustomEntry = new Entry
         {
-            Drawable = _eqCurveDrawable,
-            HorizontalOptions = LayoutOptions.Fill,
-            VerticalOptions = LayoutOptions.Fill,
-            InputTransparent = true
+            Keyboard = Keyboard.Numeric,
+            Text = _selectedTimerMinutes > 0 ? _selectedTimerMinutes.ToString() : "30",
+            TextColor = textPrimary,
+            Background = new SolidColorBrush(new Color(0, 0, 0, 0.28f)),
+            HorizontalTextAlignment = TextAlignment.Center
         };
-        eqArea.Add(_eqCurveView);
+        stack.Add(_timerCustomEntry);
 
-        var bandsGrid = new Grid { ColumnSpacing = 2 };
-        for (int i = 0; i < EqualizerSettings.BandFrequencies.Length; i++)
-            bandsGrid.ColumnDefinitions.Add(new ColumnDefinition());
-
-        for (int i = 0; i < EqualizerSettings.BandFrequencies.Length; i++)
+        var btnGrid = new Grid
         {
-            var bandView = CreateEqBandSlider(i, _eqLiveGains[i], textSecondary, primaryColor);
-            bandsGrid.Add(bandView, i);
-        }
-        eqArea.Add(bandsGrid);
-        EqualizerSheet.AddContent(eqArea);
-
-        // 音效增强
-        EqualizerSheet.AddContent(new Label
-        {
-            Text = "音效增强", FontSize = 12, TextColor = textHint, Margin = new Thickness(2, 4, 0, 8)
-        });
-        var enhFrame = new Border
-        {
-            BackgroundColor = new Color(1, 1, 1, 0.06f),
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
-            StrokeThickness = 0,
-            Padding = new Thickness(14, 6),
-            Margin = new Thickness(0, 0, 0, 14)
+            ColumnDefinitions = new ColumnDefinitionCollection { new() { Width = GridLength.Star }, new() { Width = 10 }, new() { Width = GridLength.Star } }
         };
-        var enhStack = new VerticalStackLayout { Spacing = 0 };
-
-        enhStack.Add(CreateHSliderRow("低音增强", 0, 100, EqualizerSettings.BassBoost,
-            v => { EqualizerSettings.BassBoost = (int)v; ApplyEqSettingsLive(); }, v => $"{(int)v}"));
-        enhStack.Add(CreateHSliderRow("响度增益", 0, 100, EqualizerSettings.Loudness,
-            v => { EqualizerSettings.Loudness = (int)v; ApplyEqSettingsLive(); }, v => $"{(int)v}"));
-        enhStack.Add(CreateHSliderRow("左右平衡", -100, 100, EqualizerSettings.Balance,
-            v => { EqualizerSettings.Balance = (int)v; },
-            v => v == 0 ? "居中" : (v < 0 ? $"L{-(int)v}" : $"R{(int)v}")));
-
-        enhFrame.Content = enhStack;
-        EqualizerSheet.AddContent(enhFrame);
-
-        // 底部按钮：重置 / 应用
-        var footGrid = new Grid
+        var confirm = CreatePopupButton("确定", true);
+        confirm.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(ConfirmCustomDuration) });
+        var cancel = CreatePopupButton("取消", false);
+        cancel.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() =>
         {
-            ColumnDefinitions = new ColumnDefinitionCollection { new() { Width = 110 }, new() { Width = GridLength.Star } },
-            ColumnSpacing = 10
-        };
-        var resetBtn = CreatePopupButton("重置", false);
-        resetBtn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(() =>
-            {
-                EqualizerSettings.ApplyPreset("flat");
-                var flatGains = EqualizerSettings.GetBandGains();
-                Array.Copy(flatGains, _eqLiveGains, flatGains.Length);
-                EqualizerSettings.BassBoost = 0;
-                EqualizerSettings.Loudness = 0;
-                EqualizerSettings.Balance = 0;
-                RefreshEqBandUI();
-                HighlightPresetChip(0);
-                ApplyEqSettingsLive();
-                BuildEqualizerContent(); // 刷新增强控件
-            })
-        });
-        footGrid.Add(resetBtn, 0);
+            if (_timerCustomPanel != null) _timerCustomPanel.IsVisible = false;
+        }) });
+        btnGrid.Add(confirm, 0);
+        btnGrid.Add(cancel, 2);
+        stack.Add(btnGrid);
 
-        var applyBtn = CreatePopupButton("应用", true);
-        applyBtn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(() =>
-            {
-                ApplyEqSettingsLive();
-                EqualizerSheet.Close();
-            })
-        });
-        footGrid.Add(applyBtn, 1);
-        EqualizerSheet.AddContent(footGrid);
+        panel.Content = stack;
+        return panel;
     }
 
-    /// <summary>创建单个频段竖向滑块</summary>
-    private View CreateEqBandSlider(int bandIndex, double initialGain, Color labelColor, Color accentColor)
+    /// <summary>确认自定义时长：校验 1-480，写入选中值并高亮“自定义…”芯片；非法输入仅收起面板保留原选择。</summary>
+    private void ConfirmCustomDuration()
     {
-        const double sliderHeight = 140;
-        var min = EqualizerSettings.MinGainDb;
-        var max = EqualizerSettings.MaxGainDb;
-
-        var stack = new VerticalStackLayout { Spacing = 0, HorizontalOptions = LayoutOptions.Center };
-
-        var sliderArea = new Grid
+        var raw = _timerCustomEntry?.Text?.Trim();
+        if (!int.TryParse(raw, out var custom) || custom is <= 0 or > 480)
         {
-            HeightRequest = sliderHeight,
-            WidthRequest = 36,
-            HorizontalOptions = LayoutOptions.Center
-        };
-
-        // 轨道
-        var track = new BoxView
-        {
-            WidthRequest = 5, CornerRadius = 3,
-            Color = new Color(1, 1, 1, 0.10f),
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Fill
-        };
-        sliderArea.Add(track);
-
-        // 填充（从底部向上）
-        var fill = new BoxView
-        {
-            WidthRequest = 5, CornerRadius = 3,
-            Color = accentColor,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.End
-        };
-        sliderArea.Add(fill);
-
-        // 手柄
-        var handle = new Border
-        {
-            WidthRequest = 20, HeightRequest = 20,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
-            BackgroundColor = Colors.White,
-            StrokeThickness = 0,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.End,
-            Shadow = new Shadow { Brush = new SolidColorBrush(Colors.Black), Radius = 6, Opacity = 0.4f, Offset = new Point(0, 2) }
-        };
-        sliderArea.Add(handle);
-
-        // 数值标签
-        var valLabel = new Label
-        {
-            FontSize = 10, FontAttributes = FontAttributes.Bold,
-            TextColor = accentColor,
-            HorizontalTextAlignment = TextAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 0)
-        };
-        // 频率标签
-        var hzLabel = new Label
-        {
-            Text = EqualizerSettings.BandLabels[bandIndex],
-            FontSize = 10, TextColor = labelColor,
-            HorizontalTextAlignment = TextAlignment.Center,
-            Margin = new Thickness(0, 1, 0, 0)
-        };
-
-        void UpdateVisual(double gain)
-        {
-            var frac = (gain - min) / (max - min);
-            fill.HeightRequest = frac * sliderHeight;
-            handle.TranslationY = -(frac * sliderHeight);
-            valLabel.Text = (gain > 0 ? "+" : "") + gain.ToString("0");
+            if (_timerCustomPanel != null) _timerCustomPanel.IsVisible = false;
+            if (_timerChipBorders != null)
+                UpdateChipStates(_timerChipBorders, IndexOfMinutes(_selectedTimerMinutes));
+            return;
         }
-
-        UpdateVisual(initialGain);
-        _eqBandControls.Add((valLabel, fill, handle));
-
-        // 拖拽手势
-        double gainAtStart = initialGain;
-        var pan = new PanGestureRecognizer();
-        pan.PanUpdated += (_, e) =>
-        {
-            switch (e.StatusType)
-            {
-                case GestureStatus.Started:
-                    gainAtStart = _eqLiveGains[bandIndex];
-                    break;
-                case GestureStatus.Running:
-                    var delta = -e.TotalY / sliderHeight * (max - min);
-                    var newGain = Math.Clamp(Math.Round(gainAtStart + delta), min, max);
-                    _eqLiveGains[bandIndex] = newGain;
-                    UpdateVisual(newGain);
-                    _eqCurveDrawable?.UpdateGains(_eqLiveGains);
-                    _eqCurveView?.Invalidate();
-                    break;
-                case GestureStatus.Completed:
-                case GestureStatus.Canceled:
-                    // 手动调整 → 标记为自定义预设
-                    EqualizerSettings.SetBandGains(_eqLiveGains);
-                    EqualizerSettings.CurrentPreset = "custom";
-                    HighlightPresetChip(-1);
-                    ApplyEqSettingsLive();
-                    break;
-            }
-        };
-        sliderArea.GestureRecognizers.Add(pan);
-
-        stack.Add(sliderArea);
-        stack.Add(valLabel);
-        stack.Add(hzLabel);
-        return stack;
+        _selectedTimerMinutes = custom;
+        if (_timerCustomPanel != null) _timerCustomPanel.IsVisible = false;
+        // 高亮最后一个（“自定义…”）芯片，表示当前为自定义时长
+        if (_timerChipBorders != null)
+            UpdateChipStates(_timerChipBorders, _timerChipBorders.Count - 1);
     }
 
-    /// <summary>刷新所有频段滑块 UI（预设切换时）</summary>
-    private void RefreshEqBandUI()
+    /// <summary>将分钟数映射回 options 数组下标（15,30,45,60,90,0）；自定义值返回 -1。</summary>
+    private static int IndexOfMinutes(int minutes) => minutes switch
     {
-        var min = EqualizerSettings.MinGainDb;
-        var max = EqualizerSettings.MaxGainDb;
-        const double sliderHeight = 140;
-
-        for (int i = 0; i < _eqBandControls.Count && i < _eqLiveGains.Length; i++)
-        {
-            var (valLabel, fill, handle) = _eqBandControls[i];
-            var gain = _eqLiveGains[i];
-            var frac = (gain - min) / (max - min);
-            fill.HeightRequest = frac * sliderHeight;
-            handle.TranslationY = -(frac * sliderHeight);
-            valLabel.Text = (gain > 0 ? "+" : "") + gain.ToString("0");
-        }
-        _eqCurveDrawable?.UpdateGains(_eqLiveGains);
-        _eqCurveView?.Invalidate();
-    }
-
-    private void HighlightPresetChip(int activeIndex)
-    {
-        for (int i = 0; i < _eqPresetChips.Count; i++)
-            SetChipActive(_eqPresetChips[i], i == activeIndex);
-    }
-
-    /// <summary>将当前设置应用到播放引擎（实时生效）</summary>
-    private void ApplyEqSettingsLive()
-    {
-        EqualizerSettings.SetBandGains(_eqLiveGains);
-        _audioPlayer.ApplyEqualizer();
-    }
-
-#if WINDOWS
-    /// <summary>Windows 端切换 EQ 开关后，从当前位置重载播放以切换音频管线</summary>
-    private async Task RestartPlaybackForEqSwitchAsync()
-    {
-        try
-        {
-            if (!_audioPlayer.IsPlaying) return;
-            var path = _audioPlayer.CurrentSongFilePath;
-            if (string.IsNullOrEmpty(path)) return;
-
-            var position = _audioPlayer.CurrentPosition;
-            await _audioPlayer.PlayAsync(path);
-            if (position > 1)
-                await _audioPlayer.SeekAsync(TimeSpan.FromSeconds(position));
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("NowPlayingPage", $"[EQ] Windows 管线切换失败: {ex.Message}");
-        }
-    }
-#endif
+        15 => 0, 30 => 1, 45 => 2, 60 => 3, 90 => 4, 0 => 5, _ => -1
+    };
 
     // ═══════════════════════════════════════
     // 切换横屏
@@ -787,187 +524,6 @@ public partial class NowPlayingPage
     // 通用 UI 构建辅助
     // ═══════════════════════════════════════
 
-    /// <summary>创建 Chip 按钮（圆角标签）</summary>
-    private static Border CreateChip(string text, bool active, bool compact = false)
-    {
-        var chip = new Border
-        {
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
-            Padding = new Thickness(compact ? 13 : 0, compact ? 8 : 11),
-            HorizontalOptions = LayoutOptions.Fill,
-            Content = new Label
-            {
-                Text = text,
-                FontSize = 13,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
-                HorizontalTextAlignment = TextAlignment.Center,
-                VerticalTextAlignment = TextAlignment.Center
-            }
-        };
-        SetChipActive(chip, active);
-        return chip;
-    }
-
-    private static void SetChipActive(Border chip, bool active)
-    {
-        var primary = (Color)Application.Current!.Resources["PrimaryColor"];
-        if (active)
-        {
-            chip.Background = new LinearGradientBrush
-            {
-                GradientStops = new GradientStopCollection
-                {
-                    new(primary.WithAlpha(0.35f), 0f),
-                    new(Color.FromArgb("#55D6FF").WithAlpha(0.25f), 1f)
-                }
-            };
-            chip.Stroke = new SolidColorBrush(primary.WithAlpha(0.6f));
-            chip.StrokeThickness = 1;
-        }
-        else
-        {
-            chip.BackgroundColor = new Color(1, 1, 1, 0.06f);
-            chip.Stroke = new SolidColorBrush(new Color(1, 1, 1, 0.08f));
-            chip.StrokeThickness = 1;
-        }
-    }
-
-    private static void UpdateChipStates(List<Border> chips, int activeIndex)
-    {
-        for (int i = 0; i < chips.Count; i++)
-            SetChipActive(chips[i], i == activeIndex);
-    }
-
-    /// <summary>创建开关选项行</summary>
-    private static View CreateToggleRow(string title, string description, bool initial, Action<bool> onChanged, Thickness? margin = null)
-    {
-        var grid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitionCollection { new() { Width = GridLength.Star }, new() { Width = GridLength.Auto } },
-            ColumnSpacing = 10
-        };
-
-        var textStack = new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center };
-        textStack.Add(new Label
-        {
-            Text = title, FontSize = 13, FontAttributes = FontAttributes.Bold,
-            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"]
-        });
-        textStack.Add(new Label
-        {
-            Text = description, FontSize = 11,
-            TextColor = (Color)Application.Current!.Resources["TextSecondaryColor"]
-        });
-        grid.Add(textStack, 0);
-
-        var toggle = new Switch
-        {
-            IsToggled = initial,
-            VerticalOptions = LayoutOptions.Center,
-            OnColor = (Color)Application.Current!.Resources["PrimaryColor"]
-        };
-        toggle.Toggled += (_, e) => onChanged(e.Value);
-        grid.Add(toggle, 1);
-
-        return new Border
-        {
-            BackgroundColor = new Color(1, 1, 1, 0.06f),
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
-            StrokeThickness = 0,
-            Padding = new Thickness(12, 11),
-            Margin = margin ?? new Thickness(0, 0, 0, 8),
-            Content = grid
-        };
-    }
-
-    /// <summary>创建弹窗底部按钮（渐变主按钮 / 玻璃幽灵按钮）</summary>
-    private static Border CreatePopupButton(string text, bool primary)
-    {
-        var btn = new Border
-        {
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
-            HeightRequest = 48,
-            HorizontalOptions = LayoutOptions.Fill,
-            Content = new Label
-            {
-                Text = text,
-                FontSize = 14,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = primary ? Color.FromArgb("#080B1A") : (Color)Application.Current!.Resources["TextPrimaryColor"],
-                HorizontalTextAlignment = TextAlignment.Center,
-                VerticalTextAlignment = TextAlignment.Center
-            }
-        };
-
-        if (primary)
-        {
-            var c1 = (Color)Application.Current!.Resources["PrimaryColor"];
-            btn.Background = new LinearGradientBrush
-            {
-                GradientStops = new GradientStopCollection
-                {
-                    new(c1, 0f),
-                    new(Color.FromArgb("#55D6FF"), 1f)
-                }
-            };
-            btn.StrokeThickness = 0;
-        }
-        else
-        {
-            btn.BackgroundColor = new Color(1, 1, 1, 0.06f);
-            btn.Stroke = new SolidColorBrush(new Color(1, 1, 1, 0.14f));
-            btn.StrokeThickness = 1;
-        }
-        return btn;
-    }
-
-    /// <summary>创建横向滑块行（音效增强用）</summary>
-    private static View CreateHSliderRow(string label, double min, double max, double initial,
-        Action<double> onChanged, Func<double, string> format)
-    {
-        var grid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitionCollection
-            {
-                new() { Width = 70 }, new() { Width = GridLength.Star }, new() { Width = 42 }
-            },
-            ColumnSpacing = 10,
-            Padding = new Thickness(0, 7)
-        };
-
-        grid.Add(new Label
-        {
-            Text = label, FontSize = 13, FontAttributes = FontAttributes.Bold,
-            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
-            VerticalTextAlignment = TextAlignment.Center
-        }, 0);
-
-        var valueLabel = new Label
-        {
-            Text = format(initial), FontSize = 12, FontAttributes = FontAttributes.Bold,
-            TextColor = (Color)Application.Current!.Resources["PrimaryColor"],
-            HorizontalTextAlignment = TextAlignment.End,
-            VerticalTextAlignment = TextAlignment.Center
-        };
-
-        var slider = new Slider
-        {
-            Minimum = min, Maximum = max, Value = initial,
-            MinimumTrackColor = (Color)Application.Current!.Resources["PrimaryColor"],
-            MaximumTrackColor = new Color(1, 1, 1, 0.12f),
-            ThumbColor = Colors.White,
-            VerticalOptions = LayoutOptions.Center
-        };
-        slider.ValueChanged += (_, e) =>
-        {
-            valueLabel.Text = format(e.NewValue);
-            onChanged(e.NewValue);
-        };
-        grid.Add(slider, 1);
-        grid.Add(valueLabel, 2);
-        return grid;
-    }
 }
 
 // ═══════════════════════════════════════
@@ -1005,51 +561,3 @@ public class TimerRingDrawable : IDrawable
     }
 }
 
-/// <summary>均衡器频段曲线</summary>
-public class EqCurveDrawable : IDrawable
-{
-    private readonly double[] _gains;
-
-    public EqCurveDrawable(double[] gains)
-    {
-        _gains = gains;
-    }
-
-    public void UpdateGains(double[] gains)
-    {
-        Array.Copy(gains, _gains, Math.Min(gains.Length, _gains.Length));
-    }
-
-    public void Draw(ICanvas canvas, RectF dirtyRect)
-    {
-        var w = dirtyRect.Width;
-        var h = dirtyRect.Height - 44; // 底部留出标签空间
-        var n = _gains.Length;
-        if (n == 0 || w <= 0) return;
-
-        var min = EqualizerSettings.MinGainDb;
-        var max = EqualizerSettings.MaxGainDb;
-
-        var points = new PointF[n];
-        for (int i = 0; i < n; i++)
-        {
-            var x = (i + 0.5f) / n * w;
-            var frac = (float)((_gains[i] - min) / (max - min));
-            var y = 8 + (1f - frac) * (h - 16);
-            points[i] = new PointF(x, y);
-        }
-
-        // 渐变曲线
-        canvas.StrokeSize = 2.5f;
-        canvas.StrokeLineCap = LineCap.Round;
-        canvas.StrokeLineJoin = LineJoin.Round;
-        canvas.StrokeColor = Color.FromArgb("#8C7BFF");
-        for (int i = 0; i < n - 1; i++)
-            canvas.DrawLine(points[i], points[i + 1]);
-
-        // 节点圆点
-        canvas.FillColor = Color.FromArgb("#55D6FF");
-        foreach (var p in points)
-            canvas.FillEllipse(p.X - 3, p.Y - 3, 6, 6);
-    }
-}

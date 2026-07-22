@@ -25,6 +25,7 @@ public partial class NowPlayingViewModel : ObservableObject
     private readonly IMusicLibraryService _musicLibrary;
     private readonly Services.DesktopLyricManager? _desktopLyricManager;
     private readonly IInteractionStateService? _interactionState;
+    private readonly Services.SleepTimerService? _sleepTimer;
 
     private string _coverCacheDir = "";
     private bool _isSeeking;
@@ -168,7 +169,7 @@ public partial class NowPlayingViewModel : ObservableObject
         get => _currentLineFillProgress;
         set
         {
-            if (Math.Abs(_currentLineFillProgress - value) < 0.003)
+            if (Math.Abs(_currentLineFillProgress - value) < 0.0015)
                 return;
             _currentLineFillProgress = value;
             OnPropertyChanged();
@@ -224,7 +225,8 @@ public partial class NowPlayingViewModel : ObservableObject
         IMusicLibraryService musicLibrary,
         Services.DesktopLyricManager? desktopLyricManager = null,
         IInteractionStateService? interactionState = null,
-        INetworkMusicService? networkMusic = null)
+        INetworkMusicService? networkMusic = null,
+        Services.SleepTimerService? sleepTimer = null)
     {
         _queue = queue;
         _lyrics = lyrics;
@@ -234,6 +236,7 @@ public partial class NowPlayingViewModel : ObservableObject
         _desktopLyricManager = desktopLyricManager;
         _interactionState = interactionState;
         _networkMusic = networkMusic;
+        _sleepTimer = sleepTimer;
 
         // Initialize cover cache directory
         _coverCacheDir = Path.Combine(FileSystem.CacheDirectory, "covers");
@@ -536,6 +539,14 @@ public partial class NowPlayingViewModel : ObservableObject
     {
         MainThread.BeginInvokeOnMainThread(async () =>
         {
+            // 睡眠定时：若处于“播完当前歌曲后停止”等待阶段，则暂停且不自动切下一首
+            if (_sleepTimer != null && _sleepTimer.IsWaitingForSongEnd)
+            {
+                await FlushListeningAsync(isFinalFlush: true);
+                _sleepTimer.StopOnSongCompleted();
+                return;
+            }
+
             // 播放完成：先 flush 当前歌曲的聆听时长，再切下一首
             await FlushListeningAsync(isFinalFlush: true);
             _queue.Next();

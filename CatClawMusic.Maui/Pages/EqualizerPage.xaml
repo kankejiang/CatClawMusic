@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.EqualizerPage"
+             BackgroundColor="#080B1A"
+             Shell.NavBarIsVisible="False">
+    <Grid RowDefinitions="Auto,*">
+        <!-- 头部：标题 + 关闭（关闭按钮在代码后台构建并接线） -->
+        <Grid Grid.Row="0" x:Name="HeaderGrid"
+              ColumnDefinitions="*,Auto"
+              Padding="18,18,18,12" />
+
+        <!-- 主体：可滚动的均衡器内容 -->
+        <ScrollView Grid.Row="1" x:Name="ContentScroll"
+                    Padding="18,0,18,20">
+            <VerticalStackLayout x:Name="BodyStack" Spacing="0" />
+        </ScrollView>
+    </Grid>
+</ContentPage>

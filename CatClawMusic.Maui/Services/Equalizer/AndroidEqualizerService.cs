@@ -10,6 +10,7 @@ public class AndroidEqualizerService : IDisposable
     private global::Android.Media.Audiofx.Equalizer? _equalizer;
     private BassBoost? _bassBoost;
     private LoudnessEnhancer? _loudness;
+    private Virtualizer? _virtualizer;
     private int _attachedSessionId = -1;
 
     /// <summary>设备均衡器频段数</summary>
@@ -51,6 +52,7 @@ public class AndroidEqualizerService : IDisposable
 
             _bassBoost = new BassBoost(0, audioSessionId);
             _loudness = new LoudnessEnhancer(audioSessionId);
+            _virtualizer = new Virtualizer(0, audioSessionId);
 
             ALog.Debug("EqualizerService", $"[EQ] 挂载会话 {audioSessionId}，设备频段数={DeviceBandCount}，频率=[{string.Join(",", DeviceBandFrequencies)}]");
         }
@@ -104,6 +106,21 @@ public class AndroidEqualizerService : IDisposable
                 if (loudOn)
                     _loudness.SetTargetGain(EqualizerSettings.Loudness * 10); // 0-100 → 0-1000 mB
             }
+
+            if (_virtualizer != null)
+            {
+                var spatialOn = EqualizerSettings.SpatialAudioEnabled;
+                try
+                {
+                    _virtualizer.SetEnabled(spatialOn);
+                    if (spatialOn)
+                        _virtualizer.SetStrength(800); // 0-1000，中等强度 3D 环绕
+                }
+                catch (Exception ex)
+                {
+                    ALog.Warn("EqualizerService", $"[EQ] 空间音频设置失败: {ex.Message}");
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -136,9 +153,11 @@ public class AndroidEqualizerService : IDisposable
         try { _equalizer?.Release(); } catch { }
         try { _bassBoost?.Release(); } catch { }
         try { _loudness?.Release(); } catch { }
+        try { _virtualizer?.Release(); } catch { }
         _equalizer = null;
         _bassBoost = null;
         _loudness = null;
+        _virtualizer = null;
         _attachedSessionId = -1;
     }
 

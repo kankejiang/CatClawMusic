@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Services.Equalizer;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -12,6 +13,15 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private string? _currentFilePath;
     private bool _disposed;
     private System.Threading.Timer? _positionTimer;
+
+    // ─── 淡入淡出（crossfade）状态机 ───
+    // 单播放器架构下用音量淡变模拟交叉淡变：当前曲尾段淡出 + 下一首开头淡入，避免硬切。
+    private const int XfadeIdle = 0;
+    private const int XfadeOut = 1; // 当前曲尾段正在淡出
+    private const int XfadeIn = 2;  // 下一首正在淡入
+    private int _xfadeState = XfadeIdle;
+    private double _xfadeCur = 1.0;
+    private long _xfadeInStartTicks;
     private double _lastNotifiedPosition = -1;
     // 缓存定时器回调委托，避免每次 tick 创建新闭包
     private static readonly TimerCallback _positionCallback = PositionTimerCallback;
@@ -80,6 +90,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
                 return;
             svc._lastNotifiedPosition = pos;
             svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
+            svc.UpdateCrossfade(pos, svc.Duration);
             svc.CheckPlatformCompletion();
         }
         catch (Exception ex)
@@ -202,13 +213,13 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 200ms 触发一次位置更新（5fps）。
-    /// 进度条按秒显示、逐字填充 5fps 视觉上已足够，更低的频率显著减少
-    /// 主线程 dispatcher 投递与绑定求值开销，改善播放页左右滑动流畅度。</summary>
+    /// <summary>启动进度定时器，每 50ms 触发一次位置更新（20fps）。
+    /// 提升逐字歌词（Karaoke）着色帧率，使 FillProgress 平滑过渡而非 5fps 跳变。
+    /// 50ms 在主流设备上对进度条/歌词绑定求值开销可控，不影响播放页滑动流畅度。</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 200, 200);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 50, 50);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>
@@ -251,6 +262,9 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>将当前均衡器设置应用到平台音频引擎（Android 原生音效 / Windows AudioGraph DSP）</summary>
     public void ApplyEqualizer() => ApplyEqualizerPlatform();
 
+    /// <summary>重新应用当前音量（用于左右平衡等设置变更后即时生效）</summary>
+    public void RefreshVolume() => SetPlatformVolume(Volume);
+
     // 平台实现由 partial class 文件提供
     partial void InitializePlatform();
     partial void PlatformPlay(Uri source);
@@ -266,4 +280,70 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     partial void SetPlatformVolume(double volume);
     partial void DisposePlatform();
     partial void ApplyEqualizerPlatform();
+    partial void ApplyCrossfadeVolume(double factor);
+
+    // ─── 淡入淡出（crossfade） ───
+
+    /// <summary>触发播放完成：若开启淡入淡出，先把音量降到 0 并标记下一首淡入，
+    /// 再抛出 PlaybackCompleted 事件交由上层加载下一首。自然结束/出错路径统一走这里。</summary>
+    internal void NotifyPlaybackCompleted()
+    {
+        if (EqualizerSettings.CrossfadeEnabled && EqualizerSettings.CrossfadeDuration > 0)
+        {
+            _xfadeState = XfadeIn;
+            _xfadeInStartTicks = DateTime.UtcNow.Ticks;
+            _xfadeCur = 0.0;
+            ApplyCrossfadeVolume(0.0);
+        }
+        else
+        {
+            _xfadeState = XfadeIdle;
+            _xfadeCur = 1.0;
+        }
+        PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>根据当前进度驱动淡入淡出音量（由进度定时器在主线程调用）。
+    /// 尾段淡出：remaining ≤ N 时按 remaining/N 降低音量；下一首淡入：从淡入起点按 wall-clock 线性升到 1。</summary>
+    private void UpdateCrossfade(double posSec, double durSec)
+    {
+        if (!EqualizerSettings.CrossfadeEnabled || durSec <= 0 || EqualizerSettings.CrossfadeDuration <= 0)
+        {
+            if (_xfadeCur != 1.0 || _xfadeState != XfadeIdle)
+            {
+                _xfadeState = XfadeIdle;
+                _xfadeCur = 1.0;
+                ApplyCrossfadeVolume(1.0);
+            }
+            return;
+        }
+
+        var n = EqualizerSettings.CrossfadeDuration; // 淡入淡出时长（秒）
+
+        if (_xfadeState == XfadeIn)
+        {
+            var elapsed = (DateTime.UtcNow.Ticks - _xfadeInStartTicks) / 1e7;
+            var f = Math.Min(1.0, elapsed / n);
+            _xfadeCur = f;
+            ApplyCrossfadeVolume(f);
+            if (f >= 1.0) { _xfadeState = XfadeIdle; _xfadeCur = 1.0; }
+            return;
+        }
+
+        var remaining = durSec - posSec;
+        if (remaining <= n && remaining > 0)
+        {
+            var f = Math.Max(0.0, remaining / n);
+            _xfadeCur = f;
+            _xfadeState = XfadeOut;
+            ApplyCrossfadeVolume(f);
+        }
+        else if (_xfadeState == XfadeOut && remaining > n)
+        {
+            // 用户回退进度 / 恢复播放 → 取消淡出
+            _xfadeState = XfadeIdle;
+            _xfadeCur = 1.0;
+            ApplyCrossfadeVolume(1.0);
+        }
+    }
 }

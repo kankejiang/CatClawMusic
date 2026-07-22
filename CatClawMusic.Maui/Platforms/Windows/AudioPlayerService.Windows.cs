@@ -13,6 +13,8 @@ public partial class AudioPlayerService
     private MediaPlayer? _winPlayer;
     private SystemMediaTransportControls? _smtc;
     private double _volume = 1.0;
+    /// <summary>淡入淡出当前系数（0.0 ~ 1.0），与 _volume 相乘得到实际播放音量</summary>
+    private float _xfadeFactor = 1.0f;
 
     /// <summary>均衡器开启时使用的 AudioGraph 实时 DSP 播放引擎</summary>
     private WinEqualizerEngine? _eqEngine;
@@ -54,7 +56,7 @@ public partial class AudioPlayerService
     private void OnMediaEnded(MediaPlayer sender, object args)
     {
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Stopped);
-        PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+        NotifyPlaybackCompleted();
         PlaybackStateChanged?.Invoke(this, false);
         StopPositionTimer();
     }
@@ -151,7 +153,7 @@ public partial class AudioPlayerService
     private void OnEqEngineEnded(object? sender, EventArgs e)
     {
         UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Stopped);
-        PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+        NotifyPlaybackCompleted();
         PlaybackStateChanged?.Invoke(this, false);
         StopPositionTimer();
     }
@@ -247,7 +249,15 @@ public partial class AudioPlayerService
     {
         _volume = volume;
         if (_eqEngine != null) _eqEngine.Volume = volume;
-        try { _winPlayer!.Volume = volume; } catch { }
+        try { if (_winPlayer != null) _winPlayer.Volume = _volume * _xfadeFactor; } catch { }
+    }
+
+    /// <summary>将淡入淡出系数应用到 MediaPlayer 实际音量（_volume × factor）</summary>
+    /// <param name="factor">淡入淡出系数 0.0 ~ 1.0</param>
+    partial void ApplyCrossfadeVolume(double factor)
+    {
+        _xfadeFactor = (float)factor;
+        try { if (_winPlayer != null) _winPlayer.Volume = _volume * _xfadeFactor; } catch { }
     }
 
     /// <summary>将当前均衡器设置应用到 AudioGraph DSP 引擎（实时生效）</summary>

@@ -14,6 +14,8 @@ public class SleepTimerService : IDisposable
     private bool _isRunning;
     private bool _waitingForSongEnd;
     private double _originalVolume = -1;
+    private double _fadeBaseVolume = -1;
+    private int _waitingFadeRemaining;
 
     /// <summary>淡出持续秒数</summary>
     public const int FadeOutSeconds = 20;
@@ -45,7 +47,9 @@ public class SleepTimerService : IDisposable
     public SleepTimerService(IAudioPlayerService player)
     {
         _player = player;
-        _player.PlaybackCompleted += OnPlaybackCompleted;
+        // 注意：歌曲播放完毕的“停止”逻辑由 AppViewModels.OnPlaybackCompleted 驱动
+        // （先判断本服务是否处于等待歌曲结束阶段，是则暂停且不切下一首），
+        // 此处不再订阅 PlaybackCompleted，避免与 AppViewModels 的自动下一曲逻辑产生竞态/重复处理。
     }
 
     /// <summary>启动定时</summary>
@@ -64,6 +68,8 @@ public class SleepTimerService : IDisposable
             StopAfterCurrentSong = stopAfterSong;
             FadeOutEnabled = fadeOut;
             _originalVolume = -1;
+            _fadeBaseVolume = -1;
+            _waitingFadeRemaining = 0;
 
             _timer = new System.Threading.Timer(OnTimerTick, null, 1000, 1000);
         }
@@ -93,42 +99,53 @@ public class SleepTimerService : IDisposable
     private void OnTimerTick(object? state)
     {
         int remaining;
-        bool waiting;
         lock (_lock)
         {
             if (!_isRunning) return;
 
             if (_waitingForSongEnd)
             {
-                // 等待歌曲结束阶段：检查歌曲剩余时间做淡出
+                // 等待歌曲结束阶段：从进入等待起做一段固定 20 秒淡出（与歌曲剩余时长无关，
+                // 保证音量单调下降，不再因“歌曲剩余>20s不动、最后20s跳回满音量”而失效）。
                 if (FadeOutEnabled)
-                    ApplySongEndFade();
+                {
+                    if (_fadeBaseVolume < 0)
+                        _fadeBaseVolume = _player.Volume;
+                    _waitingFadeRemaining = Math.Max(0, _waitingFadeRemaining - 1);
+                    var factor = FadeOutSeconds > 0 ? _waitingFadeRemaining / (double)FadeOutSeconds : 0;
+                    try { _player.Volume = _fadeBaseVolume * factor; } catch { }
+                }
                 return;
             }
 
             _remainingSeconds--;
             remaining = _remainingSeconds;
 
-            // 淡出：最后 N 秒按比例降低音量
+            // 淡出：最后 N 秒按比例降低音量（单调下降）
             if (FadeOutEnabled && remaining <= FadeOutSeconds && remaining > 0)
             {
                 if (_originalVolume < 0)
-                    _originalVolume = _player.Volume;
-                _player.Volume = _originalVolume * (remaining / (double)FadeOutSeconds);
+                    _originalVolume = _player.Volume;   // 用户真实音量，供停止后恢复
+                if (_fadeBaseVolume < 0)
+                    _fadeBaseVolume = _originalVolume;  // 淡出基准（与用户音量一致）
+                var factor = remaining / (double)FadeOutSeconds;
+                try { _player.Volume = _fadeBaseVolume * factor; } catch { }
             }
 
             if (remaining <= 0)
             {
                 if (StopAfterCurrentSong && _player.IsPlaying)
                 {
-                    // 时间到但歌曲未完：进入等待阶段
+                    // 时间到但歌曲未完：进入等待阶段，并从当前音量起重新做一段 20 秒淡出
                     _waitingForSongEnd = true;
-                    waiting = true;
+                    _waitingFadeRemaining = FadeOutSeconds;
+                    // 以当前实际音量作为后续淡出基准，避免与倒计时淡出衔接处音量跳变；
+                    // 注意：_originalVolume（用户真实音量）保持不变，供停止后恢复使用。
+                    _fadeBaseVolume = _player.Volume;
                 }
                 else
                 {
                     StopTimerInternal();
-                    waiting = false;
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         RestoreVolume();
@@ -143,42 +160,23 @@ public class SleepTimerService : IDisposable
         MainThread.BeginInvokeOnMainThread(() => Tick?.Invoke(this, remaining));
     }
 
-    /// <summary>等待歌曲结束阶段：根据歌曲剩余时长淡出</summary>
-    private void ApplySongEndFade()
+    /// <summary>由 AppViewModels 在歌曲播放完毕且本服务处于“等待歌曲结束”阶段时调用：
+    /// 暂停播放、恢复音量并结束定时（不再自动切下一首）。</summary>
+    public void StopOnSongCompleted()
     {
-        try
-        {
-            var duration = _player.Duration;
-            var position = _player.CurrentPosition;
-            if (duration <= 0) return;
-            var songRemaining = duration - position;
-
-            if (songRemaining <= FadeOutSeconds && songRemaining > 0)
-            {
-                if (_originalVolume < 0)
-                    _originalVolume = _player.Volume;
-                _player.Volume = _originalVolume * (songRemaining / FadeOutSeconds);
-            }
-        }
-        catch { }
-    }
-
-    /// <summary>歌曲播放完毕回调：若处于等待阶段则执行停止</summary>
-    private void OnPlaybackCompleted(object? sender, EventArgs e)
-    {
-        bool shouldStop;
+        bool handled;
         lock (_lock)
         {
-            shouldStop = _isRunning && _waitingForSongEnd;
-            if (shouldStop)
-                StopTimerInternal();
+            handled = _isRunning && _waitingForSongEnd;
+            if (handled) StopTimerInternal();
         }
 
-        if (shouldStop)
+        if (handled)
         {
-            MainThread.BeginInvokeOnMainThread(() =>
+            MainThread.BeginInvokeOnMainThread(async () =>
             {
                 RestoreVolume();
+                try { await _player.PauseAsync(); } catch { }
                 StateChanged?.Invoke(this, EventArgs.Empty);
             });
         }
@@ -190,12 +188,12 @@ public class SleepTimerService : IDisposable
         {
             _player.Volume = _originalVolume;
             _originalVolume = -1;
+            _fadeBaseVolume = -1;
         }
     }
 
     public void Dispose()
     {
-        _player.PlaybackCompleted -= OnPlaybackCompleted;
         lock (_lock) { StopTimerInternal(); }
     }
 }

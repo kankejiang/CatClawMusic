@@ -470,9 +470,5 @@
         <controls:AppPopup x:Name="SleepTimerPopup"
                            Title="定时停止音乐"
                            CloseOnMaskTapped="True" />
-
-        <!-- 均衡器底部面板 -->
-        <controls:AppBottomSheet x:Name="EqualizerSheet"
-                                 CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

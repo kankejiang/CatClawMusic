@@ -17,6 +17,8 @@ public partial class AudioPlayerService
     private SimpleExoPlayer? _player;
     /// <summary>当前音量（0.0 ~ 1.0）</summary>
     private float _volume = 1.0f;
+    /// <summary>淡入淡出当前系数（0.0 ~ 1.0），与 _volume 相乘得到实际播放音量</summary>
+    private float _xfadeFactor = 1.0f;
     /// <summary>标记全局 Authenticator 是否已注册（仅注册一次）</summary>
     private static bool _authenticatorRegistered;
     /// <summary>当前播放歌曲的 Basic Auth 用户名（从 URL userinfo 提取）</summary>
@@ -153,11 +155,15 @@ public partial class AudioPlayerService
         _player.AddListener(_playerListener);
 
         // 挂载原生均衡器到 ExoPlayer 音频会话（实时处理所有解码后音频）
+        // FFmpeg 模式（10 段）下不挂原生 EQ，改由 FFmpeg 把均衡器烘焙进音频，避免双重 EQ
         try
         {
-            _eqService ??= new AndroidEqualizerService();
-            var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
-            _eqService.AttachToSession(sessionId);
+            if (!EqualizerSettings.UseFFmpegEq)
+            {
+                _eqService ??= new AndroidEqualizerService();
+                var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+                _eqService.AttachToSession(sessionId);
+            }
         }
         catch (Exception ex)
         {
@@ -237,9 +243,11 @@ public partial class AudioPlayerService
                 source.Scheme == "file" ? source.AbsolutePath : null;
 
             var ffmpegEnabled = Preferences.Get("ffmpeg_enabled", true);
+            // FFmpeg 模式（10 段）：均衡器由 FFmpeg 烘焙进音频，需强制转码；此时不挂原生 EQ
+            var ffmpegEqMode = EqualizerSettings.UseFFmpegEq && EqualizerSettings.Enabled;
             // 对 m4a/mp4 等 ExoPlayer 原生解码不完整的格式强制走 FFmpeg 软解
             // 原因：MIUI/HyperOS 上 ExoPlayer 对 m4a (AAC-LC/ALAC) 可能 prepare 成功但实际无声
-            if (ffmpegEnabled && localPath != null && NeedsTranscoding(localPath))
+            if (ffmpegEnabled && localPath != null && (NeedsTranscoding(localPath) || ffmpegEqMode))
             {
                 // 确保 FFmpeg 已初始化（首次播放时 Task.Run 注入可能尚未完成）
                 if (_ffmpeg == null || !_ffmpeg.IsAvailable)
@@ -250,8 +258,10 @@ public partial class AudioPlayerService
                 if (_ffmpeg != null && _ffmpeg.IsAvailable)
                 {
                     Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 转码: {Path.GetFileName(localPath)}");
-                    // 原生 EQ 不可用时，将均衡器滤镜烘焙进转码管线（两方案配合：原生实时优先，FFmpeg 兜底）
-                    var eqFilter = _eqService?.IsAttached != true ? EqualizerSettings.BuildFFmpegFilterChain() : "";
+                    // FFmpeg 模式：始终把均衡器滤镜（10 段）烘焙进转码；否则仅原生 EQ 不可用时兜底烘焙
+                    var eqFilter = ffmpegEqMode || _eqService?.IsAttached != true
+                        ? EqualizerSettings.BuildFFmpegFilterChain()
+                        : "";
                     var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath, eqFilter);
                     if (wavPath != null)
                     {
@@ -265,7 +275,7 @@ public partial class AudioPlayerService
                 }
                 else
                 {
-                    Log.Debug("AudioPlayerService.Android", "[ExoPlayer] FFmpeg 不可用，回退原生播放 m4a");
+                    Log.Debug("AudioPlayerService.Android", "[ExoPlayer] FFmpeg 不可用，回退原生播放");
                 }
             }
 
@@ -465,17 +475,27 @@ public partial class AudioPlayerService
     /// <returns>当前音量</returns>
     private partial double GetPlatformVolume() => _volume;
 
-    /// <summary>设置当前音量，并同步到 ExoPlayer</summary>
+    /// <summary>设置当前音量，并同步到 ExoPlayer（叠加淡入淡出系数）</summary>
     /// <param name="volume">音量值（0.0 ~ 1.0）</param>
     partial void SetPlatformVolume(double volume)
     {
         _volume = (float)Math.Clamp(volume, 0.0, 1.0);
-        try { if (_player != null) _player.Volume = _volume; } catch { }
+        try { if (_player != null) _player.Volume = _volume * _xfadeFactor; } catch { }
+    }
+
+    /// <summary>将淡入淡出系数应用到 ExoPlayer 实际音量（_volume × factor）</summary>
+    /// <param name="factor">淡入淡出系数 0.0 ~ 1.0</param>
+    partial void ApplyCrossfadeVolume(double factor)
+    {
+        _xfadeFactor = (float)factor;
+        try { if (_player != null) _player.Volume = _volume * _xfadeFactor; } catch { }
     }
 
     /// <summary>将当前均衡器设置应用到原生音效引擎（Equalizer/BassBoost/LoudnessEnhancer）</summary>
     partial void ApplyEqualizerPlatform()
     {
+        // FFmpeg 模式（10 段）下均衡器由 FFmpeg 烘焙进音频，不挂原生 EQ
+        if (EqualizerSettings.UseFFmpegEq) return;
         try
         {
             if (_eqService == null && _player != null)
@@ -554,7 +574,7 @@ public partial class AudioPlayerService
                 // 立即触发 PlaybackCompleted，不等待定时器
                 _owner._mainHandler.Post(() =>
                 {
-                    _owner.PlaybackCompleted?.Invoke(_owner, EventArgs.Empty);
+                    _owner.NotifyPlaybackCompleted();
                     _owner.PlaybackStateChanged?.Invoke(_owner, false);
                     _owner.StopPositionTimer();
                     // 注意：【不】在此停止前台服务 / 释放 MediaSession。
@@ -652,7 +672,7 @@ public partial class AudioPlayerService
                 {
                     try
                     {
-                        _owner.PlaybackCompleted?.Invoke(_owner, EventArgs.Empty);
+                        _owner.NotifyPlaybackCompleted();
                         _owner.PlaybackStateChanged?.Invoke(_owner, false);
                         _owner.StopPositionTimer();
                     }
