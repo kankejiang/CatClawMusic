@@ -428,10 +428,12 @@ public partial class NowPlayingPage
         {
             // 恢复为跟随传感器（竖屏优先）
             activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Unspecified;
+            Controls.NativeTabPager.SetSwipeEnabled(true);
         }
         else
         {
             activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.SensorLandscape;
+            Controls.NativeTabPager.SetSwipeEnabled(false);
         }
 #else
         // Windows/桌面端无横屏切换需求

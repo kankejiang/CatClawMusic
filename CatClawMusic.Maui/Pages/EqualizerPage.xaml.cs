@@ -577,7 +577,7 @@ public class EqCurveDrawable : IDrawable
 
     public EqCurveDrawable(double[] gains)
     {
-        _gains = gains;
+        _gains = (double[])gains.Clone(); // 独立副本，避免共享引用被外部修改导致曲线与手柄脱节
     }
 
     public void UpdateGains(double[] gains)

@@ -47,6 +47,16 @@ public class NativeTabPager : View
     /// <summary>handler 在连接时注入：设置离屏预加载页数（OffscreenPageLimit）。</summary>
     internal Action<int>? PlatformSetOffscreen { get; set; }
 
+    /// <summary>
+    /// 静态事件：请求启用/禁用用户滑动翻页。
+    /// 横屏模式通过 RequestedOrientation 强制，不触发 DeviceDisplay.MainDisplayInfoChanged，
+    /// 因此由触发横屏的代码直接调用 <see cref="SetSwipeEnabled"/> 通知 handler。
+    /// </summary>
+    public static event Action<bool>? RequestUserInputEnabled;
+
+    /// <summary>请求启用/禁用用户左右滑动切换 tab（横屏进入时 false，退出时 true）。</summary>
+    public static void SetSwipeEnabled(bool enabled) => RequestUserInputEnabled?.Invoke(enabled);
+
     /// <summary>切换到指定页（程序化调用，如点击 TabBar、返回键、启动页）。</summary>
     /// <param name="index">目标页索引（0 基）。</param>
     /// <param name="smooth">是否平滑滚动（false 用于初始定位）。</param>

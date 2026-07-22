@@ -544,7 +544,7 @@
                             </VerticalStackLayout.GestureRecognizers>
                             <Label Text="当前歌词" FontSize="10"
                                    TextColor="{DynamicResource TextHintColor}"
-                                   LetterSpacing="2" />
+                                   CharacterSpacing="2" />
                             <Label Text="{Binding LyricCurrent}"
                                    FontSize="17" FontAttributes="Bold" TextColor="White"
                                    MaxLines="1" LineBreakMode="TailTruncation" />
