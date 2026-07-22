@@ -96,7 +96,7 @@ public partial class NowPlayingPage : ContentPage
         var isLandscape = width > height;
         // 封面尺寸：横屏根据高度计算（避免超出窗口），竖屏根据较短边计算
         var coverSize = isLandscape
-            ? Math.Clamp((int)(height * 0.75), 280, 560)
+            ? Math.Clamp((int)(height * 0.52), 220, 360)
             : Math.Clamp((int)(width - 60), 280, 560);
 
         if (_isLandscape == isLandscape && _lastCoverSize == coverSize)
@@ -107,22 +107,16 @@ public partial class NowPlayingPage : ContentPage
 
         if (isLandscape)
         {
-            // 横屏：封面左、歌词右
+            // 横屏：使用独立 LandscapeRoot 布局（左封面 + 右信息/控制），隐藏竖屏与三栏控件
             if (orientationChanged)
             {
-                Grid.SetRow(LeftHalf, 0);
-                Grid.SetColumn(LeftHalf, 0);
-                Grid.SetRowSpan(LeftHalf, 2);
-                Grid.SetColumnSpan(LeftHalf, 1);
-
-                Grid.SetRow(RightHalf, 0);
-                Grid.SetColumn(RightHalf, 2);
-                Grid.SetRowSpan(RightHalf, 2);
-                Grid.SetColumnSpan(RightHalf, 1);
-
+                LandscapeRoot.IsVisible = true;
+                MainContent.IsVisible = false;
+                BottomControlsRoot.IsVisible = false;
+                TopNavBar.IsVisible = false;
                 PhoneControls.IsVisible = false;
-                DesktopControls.IsVisible = true;
-                BottomActionBar.IsVisible = true;
+                DesktopControls.IsVisible = false;
+                BottomActionBar.IsVisible = false;
             }
             RightHalf.ClearValue(HeightRequestProperty);
             MainContent.RowDefinitions = new RowDefinitionCollection
@@ -133,19 +127,13 @@ public partial class NowPlayingPage : ContentPage
         }
         else
         {
-            // 竖屏：封面上、歌词下，歌词区域限制为5行高度
+            // 竖屏：封面上、歌词下，歌词区域限制为5行高度；恢复竖屏控件并隐藏横屏布局
             if (orientationChanged)
             {
-                Grid.SetRow(LeftHalf, 0);
-                Grid.SetColumn(LeftHalf, 0);
-                Grid.SetRowSpan(LeftHalf, 1);
-                Grid.SetColumnSpan(LeftHalf, 3);
-
-                Grid.SetRow(RightHalf, 1);
-                Grid.SetColumn(RightHalf, 0);
-                Grid.SetRowSpan(RightHalf, 1);
-                Grid.SetColumnSpan(RightHalf, 3);
-
+                LandscapeRoot.IsVisible = false;
+                MainContent.IsVisible = true;
+                BottomControlsRoot.IsVisible = true;
+                TopNavBar.IsVisible = true;
                 PhoneControls.IsVisible = true;
                 DesktopControls.IsVisible = false;
                 BottomActionBar.IsVisible = true;
@@ -168,6 +156,11 @@ public partial class NowPlayingPage : ContentPage
             CoverArea.HeightRequest = coverSize;
             ArtworkImage.WidthRequest = coverSize;
             ArtworkImage.HeightRequest = coverSize;
+            // 横屏布局封面同步尺寸（LandscapeRoot 隐藏时设置也无害）
+            LandscapeCover.WidthRequest = coverSize;
+            LandscapeCover.HeightRequest = coverSize;
+            LandscapeCoverImage.WidthRequest = coverSize;
+            LandscapeCoverImage.HeightRequest = coverSize;
         }
     }
 
@@ -191,6 +184,12 @@ public partial class NowPlayingPage : ContentPage
         // 滑块会停在 XAML 初始值 0，表现为「进度条归零」。这里强制同步一次。
         if (_viewModel.Progress > 0)
             ProgressSlider.Value = _viewModel.Progress;
+
+        // 横屏布局滑块同步（与竖屏 ProgressSlider 保持一致）
+        if (_viewModel.Duration > 0)
+            LandscapeProgressSlider.Maximum = _viewModel.Duration;
+        if (_viewModel.Progress > 0)
+            LandscapeProgressSlider.Value = _viewModel.Progress;
 
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
 
@@ -265,7 +264,10 @@ public partial class NowPlayingPage : ContentPage
         {
             var duration = _viewModel.Duration;
             if (duration > 1 && ProgressSlider.Maximum != duration)
+            {
                 ProgressSlider.Maximum = duration;
+                LandscapeProgressSlider.Maximum = duration;
+            }
         }
 
         if (e.PropertyName == nameof(NowPlayingViewModel.Progress) && !_isDragging)
@@ -273,7 +275,10 @@ public partial class NowPlayingPage : ContentPage
             var progress = _viewModel.Progress;
             var duration = _viewModel.Duration;
             if (duration > 1 && Math.Abs(ProgressSlider.Value - progress) > 0.5)
+            {
                 ProgressSlider.Value = progress;
+                LandscapeProgressSlider.Value = progress;
+            }
         }
     }
 
@@ -540,7 +545,9 @@ public partial class NowPlayingPage : ContentPage
     private async void OnSliderDragCompleted(object? sender, EventArgs e)
     {
         _isDragging = false;
-        await _viewModel.OnSeekCompleted(ProgressSlider.Value);
+        // 读取触发拖拽的滑块自身的值（竖屏/横屏共用同一处理程序）
+        var slider = sender as Slider ?? ProgressSlider;
+        await _viewModel.OnSeekCompleted(slider.Value);
     }
 
     private static string FormatTime(double seconds)

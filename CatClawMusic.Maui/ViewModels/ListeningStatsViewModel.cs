@@ -17,12 +17,15 @@ public partial class ListeningStatsViewModel : ObservableObject
     /// <summary>统计时间范围内的"第 0 天"（项目启动纪元，用于"陪伴你聆听 N 天"文案）</summary>
     private static readonly long _epoch = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
 
-    public ObservableCollection<TopSongItem> TopSongs { get; } = new();
-    public ObservableCollection<Song> RecentSongs { get; } = new();
-    public ObservableCollection<ArtistStatItem> TopArtists { get; } = new();
+    // 列表集合用 [ObservableProperty]：加载完成后整体替换实例（一次 PropertyChanged），
+    // 避免 Clear + 逐条 Add 触发 N 次 CollectionChanged → CollectionView 连续 diff/布局
+    [ObservableProperty] private ObservableCollection<TopSongItem> _topSongs = new();
+    [ObservableProperty] private ObservableCollection<Song> _recentSongs = new();
+    [ObservableProperty] private ObservableCollection<ArtistStatItem> _topArtists = new();
+    [ObservableProperty] private ObservableCollection<TimeSlotItem> _timeSlots = new();
+    [ObservableProperty] private ObservableCollection<CompareItem> _compareItems = new();
+    // 趋势图柱子集合：图表视图直接订阅 CollectionChanged 手动建图，保持单实例（视图侧已去抖）
     public ObservableCollection<TrendBar> TrendBars { get; } = new();
-    public ObservableCollection<TimeSlotItem> TimeSlots { get; } = new();
-    public ObservableCollection<CompareItem> CompareItems { get; } = new();
 
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private bool _hasData;
@@ -161,22 +164,18 @@ public partial class ListeningStatsViewModel : ObservableObject
             // —— 环比对比 ——
             await RenderCompareAsync();
 
-            // —— Top10 歌曲 ——
-            TopSongs.Clear();
+            // —— Top10 歌曲 ——（整体替换集合，一次 PropertyChanged）
             var maxPlays = topSongs.Count > 0 ? topSongs.Max(s => s.PlayCount) : 1;
             TopSongMax = Math.Max(1, maxPlays);
-            for (int i = 0; i < topSongs.Count; i++)
-            {
-                TopSongs.Add(new TopSongItem(topSongs[i], i + 1, TopSongMax));
-            }
+            TopSongs = new ObservableCollection<TopSongItem>(
+                topSongs.Select((s, i) => new TopSongItem(s, i + 1, TopSongMax)));
 
             // —— 最近在听 ——
-            RecentSongs.Clear();
-            foreach (var s in recentSongs.Take(10)) RecentSongs.Add(s);
+            RecentSongs = new ObservableCollection<Song>(recentSongs.Take(10));
 
             // —— Top5 歌手 ——
-            TopArtists.Clear();
-            foreach (var a in topArtists) TopArtists.Add(new ArtistStatItem(a.Artist, a.PlayCount));
+            TopArtists = new ObservableCollection<ArtistStatItem>(
+                topArtists.Select(a => new ArtistStatItem(a.Artist, a.PlayCount)));
 
             StatusText = HasData ? "" : "还没有听歌记录，去发现页听听吧";
         }
@@ -366,9 +365,9 @@ public partial class ListeningStatsViewModel : ObservableObject
     /// <summary>渲染时段分布：6 个固定时段。</summary>
     private void RenderTimeSlots(List<PlaySession> sessions)
     {
-        TimeSlots.Clear();
         if (sessions.Count == 0)
         {
+            TimeSlots = new ObservableCollection<TimeSlotItem>();
             NightNoteText = "";
             return;
         }
@@ -400,12 +399,14 @@ public partial class ListeningStatsViewModel : ObservableObject
         }
 
         var maxCount = counts.Max();
+        var items = new List<TimeSlotItem>(slots.Length);
         for (int i = 0; i < slots.Length; i++)
         {
             var pct = total > 0 ? (int)Math.Round(counts[i] * 100.0 / total) : 0;
             var ratio = maxCount > 0 ? (double)counts[i] / maxCount : 0;
-            TimeSlots.Add(new TimeSlotItem(slots[i].Item1, pct, ratio));
+            items.Add(new TimeSlotItem(slots[i].Item1, pct, ratio));
         }
+        TimeSlots = new ObservableCollection<TimeSlotItem>(items);
 
         var nightPct = total > 0 ? (int)Math.Round((counts[4] + counts[5]) * 100.0 / total) : 0;
         NightNoteText = nightPct >= 30

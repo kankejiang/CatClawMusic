@@ -7,9 +7,11 @@ using AndroidX.RecyclerView.Widget;
 using AndroidX.ViewPager2.Widget;
 using Microsoft.Maui.Controls;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Services;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
 using Microsoft.Maui;
+using Microsoft.Maui.Devices;
 
 // 类型别名：消解 Android.Views.View 与 MAUI Microsoft.Maui.Controls.View 的歧义
 using AView = Android.Views.View;
@@ -67,10 +69,24 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
 
         // 同步初始定位（MainPage 创建时已把 CurrentItem 设为启动页索引）
         platformView.SetCurrentItem(VirtualView.CurrentItem, false);
+
+        // 横屏模式下禁用左右滑动切换 tab（安卓端）：用户手势翻页关闭，
+        // 切页改由 TabBar / 返回键等程序化触发；竖屏恢复。订阅屏幕方向变化动态切换。
+        DeviceDisplay.Current.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
+        UpdateUserInputEnabled(DeviceDisplay.Current.MainDisplayInfo.Orientation);
     }
+
+    /// <summary>屏幕方向变化回调：横屏禁用 ViewPager2 用户滑动翻页，竖屏恢复。</summary>
+    private void OnMainDisplayInfoChanged(object? sender, DisplayInfoChangedEventArgs e) =>
+        UpdateUserInputEnabled(e.DisplayInfo.Orientation);
+
+    /// <summary>横屏禁用用户左右滑动翻页（tab 切换改由 TabBar / 返回键等程序化触发），竖屏恢复。</summary>
+    private void UpdateUserInputEnabled(DisplayOrientation orientation) =>
+        PlatformView.UserInputEnabled = orientation != DisplayOrientation.Landscape;
 
     protected override void DisconnectHandler(ViewPager2 platformView)
     {
+        DeviceDisplay.Current.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
         if (_callback != null)
             platformView.UnregisterOnPageChangeCallback(_callback);
         _callback = null;
@@ -120,17 +136,30 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
             var frame = (FrameLayout)holder.ItemView;
             var page = _pages[position];
 
-            // 将完整 MAUI 页渲染为原生视图（Page 的 ContentViewGroup 自带 measure，
-            // 因此即使其父不再是 MAUI 容器，也能被 ViewPager2 正确测量布局）。
-            var native = page.ToPlatform(_mauiContext);
+            try
+            {
+                // 将完整 MAUI 页渲染为原生视图（Page 的 ContentViewGroup 自带 measure，
+                // 因此即使其父不再是 MAUI 容器，也能被 ViewPager2 正确测量布局）。
+                var native = page.ToPlatform(_mauiContext);
 
-            // 若此前已挂到别的父容器（如被回收后重绑），先解除再重新加入
-            if (native.Parent is ViewGroup oldParent)
-                oldParent.RemoveView(native);
+                // 若此前已挂到别的父容器（如被回收后重绑），先解除再重新加入
+                if (native.Parent is ViewGroup oldParent)
+                    oldParent.RemoveView(native);
 
-            frame.AddView(native, new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MatchParent,
-                ViewGroup.LayoutParams.MatchParent));
+                frame.AddView(native, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent,
+                    ViewGroup.LayoutParams.MatchParent));
+            }
+            catch (Exception ex)
+            {
+                // 标记失败的是第几页（position）+ 页类型，并把拆包后的真实根因写入崩溃日志。
+                // 页面/控件经反射构造时抛出的异常会被包成 TargetInvocationException，
+                // 不拆包则内层真实异常被 JNI 边界吞掉、难以定位。
+                CrashReporter.RecordManaged(
+                    $"MauiPagerAdapter.OnBindViewHolder 失败 @ position={position} (page={page.GetType().Name})",
+                    ex, true);
+                throw;
+            }
         }
 
         public override void OnViewRecycled(Java.Lang.Object holderObj)

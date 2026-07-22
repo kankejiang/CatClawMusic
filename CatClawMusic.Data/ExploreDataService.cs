@@ -32,6 +32,10 @@ public class ExploreDataService
     private List<ArtistWithCount>? _allArtistsCache;
     /// <summary>全部专辑聚合结果缓存，避免每次进入专辑页重复聚合</summary>
     private List<AlbumWithCount>? _allAlbumsCache;
+    /// <summary>已筛选（来源过滤 + 填充 PlayCount）歌曲的内存缓存，避免探索页三路聚合重复整库加载与历史聚合（在 UI 线程造成卡顿）</summary>
+    private List<Song>? _filteredSongsCache;
+    /// <summary>筛选缓存对应的来源筛选键，来源切换时失效</summary>
+    private string? _filteredSongsCacheKey;
 
     /// <summary>来源筛选：all, local, network</summary>
     private string _sourceFilter = "all";
@@ -58,6 +62,8 @@ public class ExploreDataService
         {
             _sourceFilter = filter;
             _dailyRecommendCache = null; // 清除缓存以重新筛选
+            _filteredSongsCache = null;
+            _filteredSongsCacheKey = null;
         }
     }
 
@@ -73,6 +79,8 @@ public class ExploreDataService
         _allArtistsCache = null;
         _allAlbumsCache = null;
         _dailyRecommendDate = null;
+        _filteredSongsCache = null;
+        _filteredSongsCacheKey = null;
         try
         {
             if (File.Exists(_cacheFilePath))
@@ -102,7 +110,7 @@ public class ExploreDataService
             return _dailyRecommendCache;
 
         // 尝试从磁盘缓存恢复
-        var diskCache = await LoadDailyRecommendFromDiskAsync(today);
+        var diskCache = await LoadDailyRecommendFromDiskAsync(today).ConfigureAwait(false);
         if (diskCache != null)
         {
             _dailyRecommendCache = diskCache;
@@ -228,10 +236,10 @@ public class ExploreDataService
             return _dailyArtistsCache;
 
         // 获取全部艺术家
-        var allArtists = await GetAllArtistsWithCountInternalAsync();
+        var allArtists = await GetAllArtistsWithCountInternalAsync().ConfigureAwait(false);
 
         // 尝试从磁盘缓存恢复艺人 ID 列表
-        var diskCache = await LoadDailyCacheFromDiskAsync(today);
+        var diskCache = await LoadDailyCacheFromDiskAsync(today).ConfigureAwait(false);
         if (diskCache != null && diskCache.ArtistIds.Count > 0)
         {
             var cached = allArtists
@@ -252,7 +260,7 @@ public class ExploreDataService
         // 保存到磁盘缓存（合并到同一个 JSON 文件）
         await SaveArtistAlbumIdsToCacheAsync(today,
             selected.Select(a => a.Id).ToList(),
-            new List<int>());
+            new List<int>()).ConfigureAwait(false);
 
         return selected;
     }
@@ -260,11 +268,11 @@ public class ExploreDataService
     /// <summary>获取所有艺术家及其歌曲数量（内部方法，不缓存）</summary>
     private async Task<List<ArtistWithCount>> GetAllArtistsWithCountInternalAsync()
     {
-        await _db.EnsureInitializedAsync();
+        await _db.EnsureInitializedAsync().ConfigureAwait(false);
         // 并行执行两个独立查询
         var artistsTask = _db.GetAllArtistsAsync();
         var songsTask = GetFilteredSongsAsync();
-        await Task.WhenAll(artistsTask, songsTask);
+        await Task.WhenAll(artistsTask, songsTask).ConfigureAwait(false);
         var artists = artistsTask.Result;
         var songs = songsTask.Result;
 
@@ -286,7 +294,7 @@ public class ExploreDataService
             {
                 var songIdSet = new HashSet<int>(songIds);
                 // 批量查询 SongArtists，只取当前筛选出的歌曲
-                var allSongArtists = await _db.QuerySongArtistsBySongIdsAsync(songIdSet);
+                var allSongArtists = await _db.QuerySongArtistsBySongIdsAsync(songIdSet).ConfigureAwait(false);
                 foreach (var sa in allSongArtists)
                 {
                     // 避免重复计数：如果 ArtistId 和主 ArtistId 一致则已在上一步计入
@@ -342,10 +350,10 @@ public class ExploreDataService
             return _dailyAlbumsCache;
 
         // 获取全部专辑
-        var allAlbums = await GetAllAlbumsWithCountInternalAsync();
+        var allAlbums = await GetAllAlbumsWithCountInternalAsync().ConfigureAwait(false);
 
         // 尝试从磁盘缓存恢复专辑 ID 列表
-        var diskCache = await LoadDailyCacheFromDiskAsync(today);
+        var diskCache = await LoadDailyCacheFromDiskAsync(today).ConfigureAwait(false);
         if (diskCache != null && diskCache.AlbumIds.Count > 0)
         {
             var cached = allAlbums
@@ -366,7 +374,7 @@ public class ExploreDataService
         // 保存到磁盘缓存
         await SaveArtistAlbumIdsToCacheAsync(today,
             new List<int>(),
-            selected.Select(a => a.Id).ToList());
+            selected.Select(a => a.Id).ToList()).ConfigureAwait(false);
 
         return selected;
     }
@@ -374,12 +382,12 @@ public class ExploreDataService
     /// <summary>获取所有专辑及歌曲数量（内部方法，不缓存）</summary>
     private async Task<List<AlbumWithCount>> GetAllAlbumsWithCountInternalAsync()
     {
-        await _db.EnsureInitializedAsync();
+        await _db.EnsureInitializedAsync().ConfigureAwait(false);
         // 并行执行三个独立查询
         var albumsTask = _db.GetAllAlbumsAsync();
         var songsTask = GetFilteredSongsAsync();
         var artistsTask = _db.GetAllArtistsAsync();
-        await Task.WhenAll(albumsTask, songsTask, artistsTask);
+        await Task.WhenAll(albumsTask, songsTask, artistsTask).ConfigureAwait(false);
         var albums = albumsTask.Result;
         var songs = songsTask.Result;
         var artists = artistsTask.Result;
@@ -459,7 +467,7 @@ public class ExploreDataService
     public async Task<List<AlbumWithCount>> GetAllAlbumsAsync()
     {
         if (_allAlbumsCache != null) return _allAlbumsCache;
-        var list = await GetAllAlbumsWithCountInternalAsync();
+        var list = await GetAllAlbumsWithCountInternalAsync().ConfigureAwait(false);
         _allAlbumsCache = list;
         return list;
     }
@@ -468,21 +476,29 @@ public class ExploreDataService
     public async Task<List<ArtistWithCount>> GetAllArtistsAsync()
     {
         if (_allArtistsCache != null) return _allArtistsCache;
-        var list = await GetAllArtistsWithCountInternalAsync();
+        var list = await GetAllArtistsWithCountInternalAsync().ConfigureAwait(false);
         _allArtistsCache = list;
         return list;
     }
 
-    /// <summary>获取经过来源筛选和协议过滤的全部歌曲（含 PlayCount）</summary>
+    /// <summary>获取经过来源筛选和协议过滤的全部歌曲（含 PlayCount）。
+    /// 结果按来源筛选键实例级缓存：探索页三路聚合（每日推荐/艺人/专辑）共用一份，
+    /// 避免重复整库加载与万级历史聚合。ConfigureAwait(false) 使后续 LINQ 在后台线程执行，
+    /// 不占用 UI 线程（原实现在 UI 线程重复 3 次整库 LINQ，导致进入发现页 ~9s 冻结）。</summary>
     private async Task<List<Song>> GetFilteredSongsAsync()
     {
+        if (_filteredSongsCache != null && _filteredSongsCacheKey == _sourceFilter)
+            return _filteredSongsCache;
+
         // 使用 GetMergedSongsAsync 获取本地+网络歌曲（已去重、已过滤协议）
-        var allSongs = await _library.GetMergedSongsAsync();
+        var allSongs = await _library.GetMergedSongsAsync().ConfigureAwait(false);
         var filtered = ApplySourceFilter(allSongs);
 
         // 补充 PlayCount 数据
-        await FillPlayCountAsync(filtered);
+        await FillPlayCountAsync(filtered).ConfigureAwait(false);
 
+        _filteredSongsCache = filtered;
+        _filteredSongsCacheKey = _sourceFilter;
         return filtered;
     }
 
@@ -496,17 +512,15 @@ public class ExploreDataService
         return names.Count > 1;
     }
 
-    /// <summary>从 PlayHistory 表填充歌曲的播放次数</summary>
+    /// <summary>从 PlayHistory 表填充歌曲的播放次数（SQL 聚合，避免拉取万级历史行后在客户端 GroupBy）</summary>
     private async Task FillPlayCountAsync(List<Song> songs)
     {
         try
         {
-            await _db.EnsureInitializedAsync();
-            var history = await _db.GetRecentPlaysAsync(10000);
-            // 同一歌曲可能存在多条历史记录，按 SongId 聚合求和（用 GroupBy 避免重复键抛异常）
-            var dict = history
-                .GroupBy(h => h.SongId)
-                .ToDictionary(g => g.Key, g => g.Sum(h => h.PlayCount));
+            await _db.EnsureInitializedAsync().ConfigureAwait(false);
+            // 改用 SQL GROUP BY 聚合：不再把 1 万条 PlayHistory 行拉回客户端做 GroupBy/Sum，
+            // 既减少对象分配，也将工作留在数据库/后台线程，避免 UI 线程阻塞。
+            var dict = await _db.GetPlayCountTotalsAsync().ConfigureAwait(false);
             foreach (var s in songs)
             {
                 if (dict.TryGetValue(s.Id, out var count))

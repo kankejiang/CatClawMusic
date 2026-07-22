@@ -44,6 +44,8 @@ public partial class NowPlayingViewModel : ObservableObject
     // === 听歌时长追踪 ===
     /// <summary>当前正在追踪时长的歌曲ID</summary>
     private int _trackedSongId = -1;
+    /// <summary>当前聆听对应的 PlaySession 行 Id（-1 表示尚未建行），用于把累计时长写回同一行，避免每 30 秒新建一行</summary>
+    private int _currentSessionId = -1;
     /// <summary>本次连续播放开始时间（UTC），用于计算实时长</summary>
     private DateTime _listeningStartUtc = DateTime.MinValue;
     /// <summary>已累积但尚未写入数据库的聆听时长（毫秒）</summary>
@@ -431,9 +433,16 @@ public partial class NowPlayingViewModel : ObservableObject
                     {
                         if (_trackedSongId != currentSongId)
                         {
-                            // 换歌后首次播放：重置追踪状态
+                            // 换歌后首次播放：重置追踪状态，并为本次聆听建一行播放会话（趋势/时长统计用）
                             _trackedSongId = currentSongId;
                             _pendingListenMs = 0;
+                            _currentSessionId = -1;
+                            var sid = currentSongId;
+                            _ = Task.Run(async () =>
+                            {
+                                try { _currentSessionId = await _db.LogListenSessionAsync(sid, 0); }
+                                catch { }
+                            });
                         }
                         _listeningStartUtc = DateTime.UtcNow;
                     }
@@ -1646,19 +1655,23 @@ public partial class NowPlayingViewModel : ObservableObject
                 _trackedSongId = -1;
                 _listeningStartUtc = DateTime.MinValue;
                 _pendingListenMs = 0;
+                _currentSessionId = -1;
             }
             else
             {
-                // 定时 flush：保留 pending 计数避免丢失，仅清零用于下一轮累加
-                // 实际写入后不清零，因为 RecordPlayAsync 是插入新记录而非更新
-                // 所以这里不需要清零，pending 会持续累积
-                _pendingListenMs = 0;
+                // 定时 flush：保留 pending 累计时长（不清零），后续把累计总时长写回同一行会话；
+                // 若清零，播放会话时长只会记录最后一次 30 秒区间，丢失前面已听时长。
             }
         }
 
         if (elapsedMs > 0 && songId > 0)
         {
-            await RecordPlayAsync(songId, elapsedMs);
+            // 仅把本次聆听的累计时长写回同一行播放会话；绝不调用 RecordPlayAsync，
+            // 否则每 30 秒 flush 都会给 PlayHistory.PlayCount +1，导致发现页「最多播放」被放大。
+            if (_currentSessionId > 0)
+                await _db.UpdateListenSessionAsync(_currentSessionId, elapsedMs);
+            else
+                _currentSessionId = await _db.LogListenSessionAsync(songId, elapsedMs);
         }
     }
 

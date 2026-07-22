@@ -568,7 +568,9 @@ public partial class SearchViewModel : ObservableObject
         {
             var allArtistsTask = _exploreDataService.GetAllArtistsAsync();
             var allAlbumsTask = _exploreDataService.GetAllAlbumsAsync();
-            await Task.WhenAll(allArtistsTask, allAlbumsTask);
+            // ConfigureAwait(false)：全量艺术家/专辑列表的 materialize（含每条 PathToImageSource）
+            // 改在后台线程执行，避免在主线程构建上千条项造成进入发现页时的卡顿。
+            await Task.WhenAll(allArtistsTask, allAlbumsTask).ConfigureAwait(false);
 
             _allArtistsForSearch = allArtistsTask.Result
                 .Select(a => new SearchArtistItem

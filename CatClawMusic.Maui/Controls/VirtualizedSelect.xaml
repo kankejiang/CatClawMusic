@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.VirtualizedSelect"
+             InputTransparent="False"
+             HorizontalOptions="Fill"
+             VerticalOptions="Fill"
+             IsVisible="False"
+             Opacity="0">
+    <Grid x:Name="RootGrid"
+          InputTransparent="False"
+          BackgroundColor="Transparent">
+        <!-- 遮罩层：点击关闭 -->
+        <BoxView x:Name="MaskLayer"
+                 Color="#99000000"
+                 InputTransparent="False"
+                 Opacity="0">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnMaskTapped" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
+
+        <!-- 底部抽屉卡片 -->
+        <Border x:Name="SheetCard"
+                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                Stroke="{DynamicResource GlassStrokeStrongColor}"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 26,26,14,14"
+                Padding="10,6,10,14"
+                HorizontalOptions="Fill"
+                VerticalOptions="End"
+                Margin="8,0,8,8"
+                TranslationY="600"
+                Opacity="0"
+                InputTransparent="False">
+            <Border.Shadow>
+                <Shadow Brush="Black"
+                        Radius="30"
+                        Offset="0,-8"
+                        Opacity="0.5" />
+            </Border.Shadow>
+            <Grid RowDefinitions="Auto,Auto,*">
+                <!-- 拖拽指示条 -->
+                <BoxView Grid.Row="0"
+                         WidthRequest="38" HeightRequest="4"
+                         CornerRadius="2"
+                         Color="{DynamicResource TextHintColor}"
+                         Opacity="0.4"
+                         HorizontalOptions="Center"
+                         Margin="0,4,0,10" />
+
+                <!-- 标题栏：返回 / 标题 / 关闭 -->
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="36,*,36"
+                      Padding="6,0,6,10"
+                      x:Name="TitleBar">
+                    <Border Grid.Column="0"
+                            x:Name="BackButton"
+                            WidthRequest="32" HeightRequest="32"
+                            StrokeThickness="0"
+                            BackgroundColor="{DynamicResource ChipInactiveColor}"
+                            StrokeShape="RoundRectangle 16"
+                            HorizontalOptions="Start" VerticalOptions="Center"
+                            IsVisible="False">
+                        <Label Text="‹"
+                               FontSize="22"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnBackTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                    <Label Grid.Column="1"
+                           x:Name="TitleLabel"
+                           Text=""
+                           FontSize="17"
+                           FontAttributes="Bold"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           HorizontalTextAlignment="Center"
+                           VerticalOptions="Center" />
+
+                    <Border Grid.Column="2"
+                            x:Name="CloseButton"
+                            WidthRequest="32" HeightRequest="32"
+                            StrokeThickness="0"
+                            BackgroundColor="{DynamicResource ChipInactiveColor}"
+                            StrokeShape="RoundRectangle 16"
+                            HorizontalOptions="End" VerticalOptions="Center">
+                        <Label Text="✕"
+                               FontSize="15"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center" />
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCloseTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </Grid>
+
+                <!-- 虚拟化选择列表 -->
+                <CollectionView Grid.Row="2"
+                                x:Name="ItemsView"
+                                SelectionMode="None"
+                                VerticalScrollBarVisibility="Never" />
+            </Grid>
+        </Border>
+    </Grid>
+</ContentView>

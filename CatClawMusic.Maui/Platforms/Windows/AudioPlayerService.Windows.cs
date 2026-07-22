@@ -266,6 +266,10 @@ public partial class AudioPlayerService
         try { _eqEngine?.RebuildFilters(); } catch { }
     }
 
+    // Windows 端无 FFmpeg 烘焙式均衡器，EQ 为 AudioGraph 实时 DSP；
+    // 模式切换重载由 EqualizerPage.RestartPlaybackForEqSwitchAsync 处理，此处为空实现。
+    partial void ReapplyEqualizerLivePlatform() { }
+
     partial void DisposePlatform()
     {
         _eqEngine?.Dispose();

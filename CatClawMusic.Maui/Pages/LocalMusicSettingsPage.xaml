@@ -191,28 +191,6 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Border Style="{StaticResource GlassCardStyle}">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DecodeSettings]}"
-                               FontSize="16"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <CheckBox IsChecked="{Binding IsFfmpegEnabled}" />
-                            <VerticalStackLayout Grid.Column="1"
-                                                 VerticalOptions="Center"
-                                                 Spacing="2">
-                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[EnableFFmpeg]}"
-                                       FontSize="14"
-                                       TextColor="{DynamicResource TextPrimaryColor}" />
-                                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[EnableFFmpegDesc]}"
-                                       FontSize="11"
-                                       TextColor="{DynamicResource TextHintColor}" />
-                            </VerticalStackLayout>
-                        </Grid>
-                    </VerticalStackLayout>
-                </Border>
-
             </VerticalStackLayout>
         </ScrollView>
 </Grid>

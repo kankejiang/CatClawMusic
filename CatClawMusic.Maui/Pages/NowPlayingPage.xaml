@@ -38,7 +38,10 @@
             </Grid.GestureRecognizers>
 
             <!-- Row 0: 顶部导航栏（左上角收起按钮 + 歌曲信息 + 右上角窗口控件） -->
-            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" HeightRequest="40">
+            <Grid x:Name="TopNavBar"
+                  Grid.Row="0"
+                  ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                  HeightRequest="40">
                 <!-- 左上角收起按钮（向下箭头，点击收起播放页；Windows端同时承担返回功能） -->
                 <Border Grid.Column="0"
                         x:Name="CollapseButton"
@@ -246,7 +249,11 @@
             </Grid>
 
             <!-- Row 2: 收藏按钮 + 进度条 + 播放控件 + 歌曲详情 -->
-            <Grid Grid.Row="2" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6" Margin="0,4,0,0">
+            <Grid x:Name="BottomControlsRoot"
+                  Grid.Row="2"
+                  RowDefinitions="Auto,Auto,Auto,Auto"
+                  RowSpacing="6"
+                  Margin="0,4,0,0">
                 <!-- 收藏按钮（进度条右上方） -->
                 <ImageButton Grid.Row="0"
                         WidthRequest="36" HeightRequest="36"
@@ -459,6 +466,139 @@
                                  Clicked="OnMoreClicked" />
                 </Grid>
             </Grid>
+
+            <!-- ═══ 横屏 / Windows 布局：左封面 + 右信息/控制（覆盖主内容+底部区域） ═══ -->
+            <Grid x:Name="LandscapeRoot"
+                  Grid.Row="1" Grid.RowSpan="2"
+                  IsVisible="False"
+                  ColumnDefinitions="1*,1.15*"
+                  ColumnSpacing="40"
+                  Padding="54,8,54,24">
+
+                <!-- 左：封面 -->
+                <Grid Grid.Column="0"
+                      HorizontalOptions="Center" VerticalOptions="Center">
+                    <Border x:Name="LandscapeCover"
+                            StrokeThickness="0.5"
+                            Stroke="#30FFFFFF"
+                            StrokeShape="RoundRectangle 28"
+                            BackgroundColor="Transparent"
+                            WidthRequest="360" HeightRequest="360"
+                            HorizontalOptions="Center" VerticalOptions="Center">
+                        <Image x:Name="LandscapeCoverImage"
+                               Source="{Binding CoverImage}"
+                               Aspect="AspectFill"
+                               WidthRequest="360" HeightRequest="360" />
+                    </Border>
+                </Grid>
+
+                <!-- 右：信息 + 控制（ScrollView 兜底，短窗口不溢出） -->
+                <ScrollView Grid.Column="1"
+                            HorizontalOptions="Fill"
+                            VerticalOptions="Fill"
+                            VerticalScrollBarVisibility="Never">
+                    <VerticalStackLayout Spacing="12"
+                                         HorizontalOptions="Fill"
+                                         VerticalOptions="Center"
+                                         Padding="0,4">
+
+                        <!-- 标题 + 艺人 + 音质徽章 -->
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="{Binding Title}"
+                                   FontSize="34" FontFamily="OpenSansSemibold"
+                                   TextColor="White"
+                                   MaxLines="1" LineBreakMode="TailTruncation" />
+                            <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+                                <Label Text="{Binding Artist}"
+                                       FontSize="15" TextColor="{DynamicResource TextSecondaryColor}"
+                                       MaxLines="1" LineBreakMode="TailTruncation" />
+                                <Label Text="Hi-Res" FontSize="9" FontAttributes="Bold"
+                                       TextColor="{DynamicResource PrimaryColor}"
+                                       Padding="5,2" />
+                                <Label Text="无损" FontSize="9" FontAttributes="Bold"
+                                       TextColor="{DynamicResource PrimaryColor}"
+                                       Padding="5,2" />
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+
+                        <!-- 工具图标：播放列表 / 睡眠定时 / 竖屏切换（与 HTML 原型一致） -->
+                        <HorizontalStackLayout Spacing="14">
+                            <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="{Binding PlaylistIconSource}"
+                                         Clicked="OnOpenPlaylistClicked" />
+                            <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="ic_timer"
+                                         Clicked="OnSleepTimerClicked" />
+                            <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="ic_rotate"
+                                         Clicked="OnRotateClicked" />
+                        </HorizontalStackLayout>
+
+                        <!-- 当前歌词（点击进入歌词，与 HTML 原型点击当前行一致） -->
+                        <VerticalStackLayout Spacing="4">
+                            <VerticalStackLayout.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
+                            </VerticalStackLayout.GestureRecognizers>
+                            <Label Text="当前歌词" FontSize="10"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   LetterSpacing="2" />
+                            <Label Text="{Binding LyricCurrent}"
+                                   FontSize="17" FontAttributes="Bold" TextColor="White"
+                                   MaxLines="1" LineBreakMode="TailTruncation" />
+                        </VerticalStackLayout>
+
+                        <!-- 进度条（位于控制行上方，不再是最底部元素） -->
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="1">
+                            <Slider x:Name="LandscapeProgressSlider"
+                                    Minimum="0" Maximum="1" Value="0"
+                                    ThumbColor="White"
+                                    MinimumTrackColor="White"
+                                    MaximumTrackColor="#40FFFFFF"
+                                    HeightRequest="16"
+                                    DragStarted="OnSliderDragStarted"
+                                    DragCompleted="OnSliderDragCompleted" />
+                            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+                                <Label Text="{Binding CurrentTimeDisplay}" FontSize="10"
+                                       TextColor="White" Opacity="0.7" />
+                                <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}" FontSize="10"
+                                       TextColor="White" Opacity="0.7" />
+                            </Grid>
+                        </Grid>
+
+                        <!-- 播放控制行（上移至歌词/进度条下方，避免被截断） -->
+                        <HorizontalStackLayout Spacing="14" VerticalOptions="Center">
+                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="{Binding LikeIconSourceWhite}"
+                                         Command="{Binding ToggleLikeCommand}" />
+                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="{Binding PlayPreviousIconSourceWhite}"
+                                         Command="{Binding PlayPreviousCommand}" />
+                            <ImageButton WidthRequest="64" HeightRequest="64" CornerRadius="32" Padding="13"
+                                         Aspect="AspectFit" BackgroundColor="{DynamicResource PrimaryColor}"
+                                         Source="{Binding PlayPauseIconSourceWhite}"
+                                         Command="{Binding TogglePlayPauseCommand}" />
+                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="{Binding PlayNextIconSourceWhite}"
+                                         Command="{Binding PlayNextCommand}" />
+                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="{Binding PlayModeIconSourceWhite}"
+                                         Command="{Binding CyclePlayModeCommand}" />
+                            <ImageButton WidthRequest="40" HeightRequest="40" CornerRadius="20" Padding="8"
+                                         Aspect="AspectFit" BackgroundColor="Transparent"
+                                         Source="{Binding LyricsIconSource}"
+                                         Clicked="OnOpenLyricsClicked" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+
         </Grid>
 
         <!-- 播放列表弹窗（预定义，默认隐藏） -->
@@ -470,5 +610,8 @@
         <controls:AppPopup x:Name="SleepTimerPopup"
                            Title="定时停止音乐"
                            CloseOnMaskTapped="True" />
+
+        <!-- 更多操作：虚拟化选择器（替代居中弹窗，从底部滑入更自然，歌单子列表支持虚拟化） -->
+        <controls:VirtualizedSelect x:Name="VsMore" />
     </Grid>
 </ContentPage>

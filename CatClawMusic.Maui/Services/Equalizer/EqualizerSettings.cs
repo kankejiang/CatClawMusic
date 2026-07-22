@@ -15,23 +15,42 @@ public static class EqualizerSettings
     // ─── FFmpeg 模式频段（10 段，烘焙进转码音频） ───
     public static readonly int[] FFmpegFrequencies = { 31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000 };
 
-    /// <summary>是否使用 FFmpeg 烘焙式均衡器（10 段）。false=原生 5 段实时均衡。</summary>
-    public static bool UseFFmpegEq
+    // ─── FFmpeg 工作模式（合并了旧的"本地音乐→FFmpeg 软解码"与"FFmpeg 精确均衡"两个开关） ───
+    /// <summary>自动：仅 m4a 等 ExoPlayer 不兼容格式走 FFmpeg 软解，EQ 用原生 5 段实时处理（省电）</summary>
+    public const string FfmpegModeAuto = "auto";
+    /// <summary>开启：所有音频经 FFmpeg 转码并烘焙 10 段 EQ（最精确，耗电略高）</summary>
+    public const string FfmpegModeAlways = "always";
+
+    /// <summary>FFmpeg 工作模式。首次读取时从旧双开关迁移：软解码开 + FFmpeg 均衡开 → always，其余 → auto。</summary>
+    public static string FfmpegMode
     {
-        get => Preferences.Default.Get(KeyUseFFmpeg, false);
+        get
+        {
+            var mode = Preferences.Default.Get(KeyFfmpegMode, "");
+            if (mode == FfmpegModeAuto || mode == FfmpegModeAlways) return mode;
+            var legacyAlways = Preferences.Default.Get(KeyUseFFmpeg, false)
+                && Preferences.Default.Get("ffmpeg_enabled", true);
+            mode = legacyAlways ? FfmpegModeAlways : FfmpegModeAuto;
+            Preferences.Default.Set(KeyFfmpegMode, mode);
+            return mode;
+        }
         set
         {
-            if (value == UseFFmpegEq) return;
+            var newMode = value == FfmpegModeAlways ? FfmpegModeAlways : FfmpegModeAuto;
+            if (newMode == FfmpegMode) return;
             // 切换模式前，把当前增益在旧/新频段数之间重采样，保留曲线形状
-            var oldFreqs = UseFFmpegEq ? FFmpegFrequencies : NativeFrequencies;
-            var newFreqs = value ? FFmpegFrequencies : NativeFrequencies;
+            var oldFreqs = FfmpegMode == FfmpegModeAlways ? FFmpegFrequencies : NativeFrequencies;
+            var newFreqs = newMode == FfmpegModeAlways ? FFmpegFrequencies : NativeFrequencies;
             var oldGains = GetBandGains();
             if (oldGains.Length != oldFreqs.Length) oldGains = new double[oldFreqs.Length];
             var newGains = ResampleGains(oldGains, oldFreqs, newFreqs);
-            Preferences.Default.Set(KeyUseFFmpeg, value);
+            Preferences.Default.Set(KeyFfmpegMode, newMode);
             SetBandGains(newGains);
         }
     }
+
+    /// <summary>是否使用 FFmpeg 烘焙式均衡器（10 段）：等价于 FfmpegMode == always，供既有调用方使用</summary>
+    public static bool UseFFmpegEq => FfmpegMode == FfmpegModeAlways;
 
     /// <summary>当前激活的频段中心频率 (Hz)：FFmpeg 模式 10 段，否则原生 5 段</summary>
     public static int[] BandFrequencies => UseFFmpegEq ? FFmpegFrequencies : NativeFrequencies;
@@ -91,6 +110,7 @@ public static class EqualizerSettings
     private const string KeyCrossfade = "eq_crossfade";
     private const string KeyCrossfadeDur = "eq_crossfade_dur";
     private const string KeyUseFFmpeg = "eq_use_ffmpeg";
+    private const string KeyFfmpegMode = "eq_ffmpeg_mode";
 
     /// <summary>均衡器总开关</summary>
     public static bool Enabled

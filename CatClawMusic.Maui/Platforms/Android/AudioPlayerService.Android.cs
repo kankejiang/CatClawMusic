@@ -43,6 +43,10 @@ public partial class AudioPlayerService
     private long _cachedPositionMs;
     /// <summary>当前播放文件的 URI 字符串</summary>
     private string? _currentPath;
+    /// <summary>当前曲目的原始播放源 URI（file:// 或网络地址），用于 FFmpeg 模式重新烘焙时就地重载</summary>
+    private Uri? _currentSourceUri;
+    /// <summary>FFmpeg 实时均衡器防抖定时器：连续拖动滑块时合并为一次重新转码重载</summary>
+    private System.Threading.Timer? _eqReapplyTimer;
     /// <summary>FFmpeg 转码服务实例，用于处理 ExoPlayer 原生不支持的音频格式</summary>
     private FFmpegService? _ffmpeg;
     /// <summary>绑定到主线程 Looper 的 Handler，用于在主线程上回调 UI 相关事件</summary>
@@ -191,7 +195,8 @@ public partial class AudioPlayerService
     /// <summary>执行实际的播放流程：重置状态、必要时通过 FFmpeg 转码、设置媒体项、Prepare 并启动前台服务</summary>
     /// <param name="source">音频源 URI</param>
     /// <param name="autoPlay">是否在 Prepare 完成后立即开始播放</param>
-    private async Task PlayInternalAsync(Uri source, bool autoPlay)
+    /// <param name="startPositionSec">起始播放位置（秒），用于 FFmpeg 模式重新烘焙时从原进度无缝重载</param>
+    private async Task PlayInternalAsync(Uri source, bool autoPlay, double startPositionSec = 0)
     {
         // 重置状态：在切换歌曲期间，IsPlaying 应返回 false，
         // 防止 _positionTimer 在 Prepare 未完成时反复拉到 0 位置
@@ -200,6 +205,11 @@ public partial class AudioPlayerService
         _cachedPositionMs = 0;
         _lastSeekTicks = 0;
         _currentPath = source.ToString();
+        _currentSourceUri = source; // 记录原始源，供重新烘焙/重载使用
+        // 重新烘焙重载（startPositionSec>0）时，用续播位置填充缓存，
+        // 避免转码期间进度条回弹到 0（普通切歌则保持 0，不显示上一首旧进度）
+        if (startPositionSec > 0)
+            _cachedPositionMs = (long)(startPositionSec * 1000);
 
         // 从 URL userinfo (user:pass@host) 提取 Basic Auth 凭证，供全局 Authenticator 使用
         // ExoPlayer 的 DefaultHttpDataSource 不解析 URL userinfo，需通过 Authenticator 在 401 时提供
@@ -242,12 +252,13 @@ public partial class AudioPlayerService
             var localPath = source.IsFile ? source.LocalPath :
                 source.Scheme == "file" ? source.AbsolutePath : null;
 
-            var ffmpegEnabled = Preferences.Get("ffmpeg_enabled", true);
             // FFmpeg 模式（10 段）：均衡器由 FFmpeg 烘焙进音频，需强制转码；此时不挂原生 EQ
             var ffmpegEqMode = EqualizerSettings.UseFFmpegEq && EqualizerSettings.Enabled;
-            // 对 m4a/mp4 等 ExoPlayer 原生解码不完整的格式强制走 FFmpeg 软解
-            // 原因：MIUI/HyperOS 上 ExoPlayer 对 m4a (AAC-LC/ALAC) 可能 prepare 成功但实际无声
-            if (ffmpegEnabled && localPath != null && (NeedsTranscoding(localPath) || ffmpegEqMode))
+            // FFmpeg 工作模式（均衡器页统一配置）：
+            //  - 自动：仅 m4a/mp4 等 ExoPlayer 原生解码不完整的格式走 FFmpeg 软解
+            //    （MIUI/HyperOS 上 m4a 可能 prepare 成功但实际无声）
+            //  - 开启：ffmpegEqMode 为 true，所有本地音频强制转码并烘焙 10 段 EQ
+            if (localPath != null && (NeedsTranscoding(localPath) || ffmpegEqMode))
             {
                 // 确保 FFmpeg 已初始化（首次播放时 Task.Run 注入可能尚未完成）
                 if (_ffmpeg == null || !_ffmpeg.IsAvailable)
@@ -282,8 +293,34 @@ public partial class AudioPlayerService
             var mediaItem = MediaItem.FromUri(global::Android.Net.Uri.Parse(playUri.ToString()));
             player.SetMediaItem(mediaItem);
             player.Prepare();
+            // FFmpeg 模式重新烘焙时，从原进度无缝续播（startPositionSec>0 才跳转，0 表示从头播放）
+            if (startPositionSec > 0.3)
+            {
+                try { player.SeekTo((long)(startPositionSec * 1000)); } catch { }
+            }
             player.PlayWhenReady = autoPlay;
             if (autoPlay) player.Play();
+
+            // 原生（非 FFmpeg）模式：确保原生均衡器已挂载并对当前设置生效。
+            // 首次播放由 EnsurePlayer 挂载；此处覆盖「FFmpeg→原生」切换重载、以及重载后重新应用，
+            // 保证重新烘焙/重载后原生 EQ 立即生效。
+            if (!EqualizerSettings.UseFFmpegEq)
+            {
+                try
+                {
+                    if (_eqService == null && _player != null)
+                    {
+                        _eqService = new AndroidEqualizerService();
+                        var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+                        _eqService.AttachToSession(sessionId);
+                    }
+                    _eqService?.ApplySettings();
+                }
+                catch (Exception ex)
+                {
+                    ALog.Warn("AudioPlayerService.Android", $"[ExoPlayer] 重载后应用原生 EQ 失败: {ex.Message}");
+                }
+            }
 
             // 不在这里设置 _isPrepared，由 ExoPlayerListener.OnPlaybackStateChanged(STATE_READY) 触发
             AcquireWakeLock();
@@ -320,8 +357,8 @@ public partial class AudioPlayerService
     {
         var localPath = source.IsFile ? source.LocalPath :
             source.Scheme == "file" ? source.AbsolutePath : null;
-        var ffmpegEnabled = Preferences.Get("ffmpeg_enabled", true);
-        if (!ffmpegEnabled || localPath == null || _ffmpeg == null || !_ffmpeg.IsAvailable) return;
+        // FFmpeg 兜底不再受旧"软解码"开关限制：ExoPlayer 解码失败时总是尝试转码（自动模式的兜底语义）
+        if (localPath == null || _ffmpeg == null || !_ffmpeg.IsAvailable) return;
 
         try
         {
@@ -509,6 +546,56 @@ public partial class AudioPlayerService
         catch (Exception ex)
         {
             ALog.Warn("AudioPlayerService.Android", $"[ExoPlayer] ApplyEqualizer 失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// FFmpeg 模式均衡器实时生效：防抖后重新烘焙当前曲（新滤镜）并从原进度重载。
+    /// 防抖避免拖动滑块时每像素都触发一次重转码（重转码耗时数秒）。
+    /// 也用于 FFmpeg 开关切换时把当前曲在「原生 ↔ FFmpeg 烘焙」路径间重载。
+    /// </summary>
+    partial void ReapplyEqualizerLivePlatform()
+    {
+        _eqReapplyTimer?.Dispose();
+        _eqReapplyTimer = new System.Threading.Timer(_ =>
+        {
+            _eqReapplyTimer = null;
+            // 重新烘焙/重载涉及 ExoPlayer 操作，统一切到主线程执行
+            _mainHandler.Post(() => _ = ReapplyEqLiveAsync());
+        }, null, 500, System.Threading.Timeout.Infinite);
+    }
+
+    /// <summary>
+    /// 实际重载当前歌曲：捕获当前进度，重新计算 FFmpeg 滤镜并转码，
+    /// 用新音频从原进度续播。原生模式则直接重载原始源（原生 EQ 由 PlayInternalAsync 重新挂载应用）。
+    /// </summary>
+    private bool _isReapplyingEq;
+    private async Task ReapplyEqLiveAsync()
+    {
+        if (_isReapplyingEq) return; // 防止转码进行中重复触发导致状态错乱
+        _isReapplyingEq = true;
+        try
+        {
+            var src = _currentSourceUri;
+            if (src == null) return;
+            var wasPlaying = IsPlaying;
+            var posSec = CurrentPosition;
+            // 手动 EQ 调整属歌曲中途，重置淡入淡出状态，避免音量卡在低值
+            _xfadeState = XfadeIdle;
+            _xfadeCur = 1.0;
+            ApplyCrossfadeVolume(1.0);
+
+            Log.Debug("AudioPlayerService.Android",
+                $"[ExoPlayer] 重新应用均衡器: wasPlaying={wasPlaying}, pos={posSec:F1}s, ffmpeg={EqualizerSettings.UseFFmpegEq}");
+            await PlayInternalAsync(src, autoPlay: wasPlaying, startPositionSec: posSec);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] 重新应用均衡器失败: {ex.Message}");
+        }
+        finally
+        {
+            _isReapplyingEq = false;
         }
     }
 

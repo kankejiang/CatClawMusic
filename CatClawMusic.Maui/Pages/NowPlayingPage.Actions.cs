@@ -443,58 +443,126 @@ public partial class NowPlayingPage
     // 更多
     // ═══════════════════════════════════════
 
-    private async void OnMoreClicked(object? sender, EventArgs e)
+    private void OnMoreClicked(object? sender, EventArgs e)
     {
         var song = _viewModel.CurrentSong;
         if (song == null) return;
 
-        var action = await DisplayActionSheet(song.Title ?? "歌曲操作", "取消", null,
-            "加入歌单", "分享", "查看歌手", "查看专辑");
+        var items = new List<VirtualizedSelectItem>();
 
-        switch (action)
+        if (!string.IsNullOrEmpty(song.Artist))
+            items.Add(new VirtualizedSelectItem
+            {
+                Icon = "♪",
+                Text = "查看歌手",
+                OnSelected = _ => NavigateToArtist(song.Artist!)
+            });
+        if (!string.IsNullOrEmpty(song.Album))
+            items.Add(new VirtualizedSelectItem
+            {
+                Icon = "◉",
+                Text = "查看专辑",
+                OnSelected = _ => NavigateToAlbum(song.Album!)
+            });
+
+        // 加入歌单：进入子列表（KeepOpen 不关闭，可点返回）
+        items.Add(new VirtualizedSelectItem
         {
-            case "加入歌单":
-                await AddCurrentSongToPlaylistAsync(song);
-                break;
-            case "分享":
-                await ShareSongAsync(song);
-                break;
-            case "查看歌手":
-                if (!string.IsNullOrEmpty(song.Artist))
-                    await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(song.Artist)}");
-                break;
-            case "查看专辑":
-                if (!string.IsNullOrEmpty(song.Album))
-                    await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(song.Album)}");
-                break;
-        }
+            Icon = "＋",
+            Text = "加入歌单",
+            TrailingIcon = "›",
+            KeepOpen = true,
+            OnSelected = _ => OpenPlaylistPickerFor(song)
+        });
+
+        items.Add(new VirtualizedSelectItem
+        {
+            Icon = "↗",
+            Text = "分享",
+            OnSelected = _ => ShareCurrent(song)
+        });
+
+        VsMore.Show(items, song.Title ?? "歌曲操作");
     }
 
-    /// <summary>选择歌单并添加当前歌曲</summary>
-    private async Task AddCurrentSongToPlaylistAsync(Core.Models.Song song)
+    private void NavigateToArtist(string artist)
+        => _ = Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist)}");
+
+    private void NavigateToAlbum(string album)
+        => _ = Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album)}");
+
+    private void OpenPlaylistPickerFor(Core.Models.Song song)
+        => _ = ShowPlaylistPickerAsync(song);
+
+    private void ShareCurrent(Core.Models.Song song)
+        => _ = ShareSongAsync(song);
+
+    /// <summary>在虚拟化选择器中进入歌单子列表（保留主菜单可返回）。</summary>
+    private async Task ShowPlaylistPickerAsync(Core.Models.Song song)
     {
         try
         {
             var playlists = await _musicLibrary.GetAllPlaylistsAsync();
+
             if (playlists == null || playlists.Count == 0)
             {
-                await DisplayAlert("提示", "还没有歌单，请先在歌单页创建", "知道了");
+                VsMore.ReplaceItems(new List<VirtualizedSelectItem>
+                {
+                    new()
+                    {
+                        Icon = "♫",
+                        Text = "还没有歌单",
+                        Subtitle = "请先在歌单页创建歌单后再添加",
+                        KeepOpen = true
+                    }
+                }, "加入歌单");
                 return;
             }
 
-            var names = playlists.Select(p => p.Name ?? "未命名歌单").ToArray();
-            var choice = await DisplayActionSheet("加入歌单", "取消", null, names);
-            if (string.IsNullOrEmpty(choice) || choice == "取消") return;
+            var items = playlists.Select(p => new VirtualizedSelectItem
+            {
+                Icon = "♫",
+                Text = p.Name ?? "未命名歌单",
+                TrailingIcon = "＋",
+                KeepOpen = true,
+                OnSelected = _ => AddSongToPlaylist(p.Id, p.Name ?? "未命名歌单", song)
+            }).ToList();
 
-            var playlist = playlists.FirstOrDefault(p => (p.Name ?? "未命名歌单") == choice);
-            if (playlist == null) return;
+            VsMore.PushItems(items, "加入歌单");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NowPlayingPage", $"[More] 加载歌单失败: {ex.Message}");
+            VsMore.Close();
+        }
+    }
 
-            await _musicLibrary.AddSongToPlaylistAsync(playlist.Id, song.Id);
-            await DisplayAlert("成功", $"已添加到「{choice}」", "好的");
+    /// <summary>将当前歌曲加入指定歌单，并在选择器内显示成功态后自动收起。</summary>
+    private async void AddSongToPlaylist(int playlistId, string playlistName, Core.Models.Song song)
+    {
+        try
+        {
+            await _musicLibrary.AddSongToPlaylistAsync(playlistId, song.Id);
+            VsMore.ReplaceItems(new List<VirtualizedSelectItem>
+            {
+                new()
+                {
+                    Icon = "✓",
+                    Text = $"已添加到「{playlistName}」",
+                    KeepOpen = true
+                }
+            }, "添加成功");
+
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                await Task.Delay(900);
+                VsMore.Close();
+            });
         }
         catch (Exception ex)
         {
             Log.Debug("NowPlayingPage", $"[More] 加入歌单失败: {ex.Message}");
+            VsMore.Close();
         }
     }
 

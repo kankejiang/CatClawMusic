@@ -74,12 +74,21 @@ public partial class ListeningStatsView : ContentView
         }
     }
 
+    /// <summary>趋势图重建去抖标记：一批 CollectionChanged 只触发一次重建。
+    /// 填充 30 根柱子会连续触发 30 次事件，若每次都整体重建图表（清空+重建约 200 个视图），
+    /// 会在主线程形成 O(n²) 的视图创建风暴，是报告页加载卡顿的主因之一。</summary>
+    private bool _trendRebuildPending;
+
     private void OnTrendBarsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (_vm != null)
+        if (_vm == null || _trendRebuildPending) return;
+        _trendRebuildPending = true;
+        MainThread.BeginInvokeOnMainThread(() =>
         {
-            MainThread.BeginInvokeOnMainThread(() => RebuildTrendChart(_vm.TrendBars));
-        }
+            _trendRebuildPending = false;
+            if (_vm != null)
+                RebuildTrendChart(_vm.TrendBars);
+        });
     }
 
     private void RebuildTrendChart(ObservableCollection<TrendBar> bars)

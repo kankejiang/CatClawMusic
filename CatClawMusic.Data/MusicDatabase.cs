@@ -454,6 +454,29 @@ public class MusicDatabase
         catch { return 0; }
     }
 
+    /// <summary>聚合所有歌曲的累计播放次数（SQL GROUP BY，避免客户端拉取万级历史行后 GroupBy 造成的对象分配与 UI 阻塞）。</summary>
+    /// <returns>Key=SongId, Value=累计 PlayCount 的字典；异常时返回空字典。</returns>
+    public async Task<Dictionary<int, int>> GetPlayCountTotalsAsync()
+    {
+        try
+        {
+            await EnsureInitializedAsync();
+            var rows = await _database.QueryAsync<PlayCountTotal>(
+                "SELECT SongId, SUM(PlayCount) AS Total FROM PlayHistory GROUP BY SongId");
+            var dict = new Dictionary<int, int>(rows.Count);
+            foreach (var r in rows)
+                dict[r.SongId] = r.Total;
+            return dict;
+        }
+        catch { return new Dictionary<int, int>(); }
+    }
+
+    private sealed class PlayCountTotal
+    {
+        public int SongId { get; set; }
+        public int Total { get; set; }
+    }
+
     /// <summary>根据 ID 查找艺术家</summary>
     public Task<Artist?> FindArtistByIdAsync(int id) =>
         _database.Table<Artist>().Where(a => a.Id == id).FirstOrDefaultAsync();
@@ -1089,22 +1112,9 @@ public class MusicDatabase
                     await _database.InsertAsync(new PlayHistory { SongId = songId, PlayedAt = now });
                 }
 
-                // 写入逐次日志：若未传入时长，尝试用歌曲全长兜底
-                var sessionMs = durationMs;
-                if (sessionMs <= 0)
-                {
-                    var song = await _database.Table<Song>().Where(s => s.Id == songId).FirstOrDefaultAsync();
-                    if (song != null) sessionMs = Math.Max(0, song.Duration);
-                }
-                await _database.InsertAsync(new PlaySession
-                {
-                    SongId = songId,
-                    PlayedAt = now,
-                    DurationMs = sessionMs
-                });
-
+                // 仅累加「播放次数」。逐次聆听时长日志（PlaySession）由 LogListenSessionAsync /
+                // UpdateListenSessionAsync 单独管理，避免每次 flush 都额外插入一行导致统计被放大。
                 await TrimHistoryAsync(200);
-                await TrimPlaySessionAsync(2000);
             }
             finally
             {
@@ -1115,6 +1125,124 @@ public class MusicDatabase
         {
             Log.Debug("MusicDatabase", $"[CatClaw] RecordPlayAsync 失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 写入一条播放会话日志（仅用于听歌趋势/时段分布/累计时长等逐次统计），不影响 PlayHistory.PlayCount。
+    /// 每开始一次聆听调用一次，后续由 <see cref="UpdateListenSessionAsync"/> 把累计时长写回同一行。
+    /// </summary>
+    /// <param name="songId">歌曲 ID</param>
+    /// <param name="durationMs">本次聆听时长（毫秒），首次建行可传 0，由后续 flush 累加</param>
+    /// <returns>新建会话行的自增 Id，失败返回 -1</returns>
+    public async Task<int> LogListenSessionAsync(int songId, long durationMs = 0)
+    {
+        if (songId <= 0) return -1;
+        try
+        {
+            await EnsureMaintenanceCompletedAsync();
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var session = new PlaySession { SongId = songId, PlayedAt = now, DurationMs = Math.Max(0, durationMs) };
+            await _database.InsertAsync(session);
+            await TrimPlaySessionAsync(2000);
+            return session.Id;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("MusicDatabase", $"[CatClaw] LogListenSessionAsync 失败: {ex.Message}");
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// 更新某条播放会话的聆听时长与发生时间，用于把一次聆听的累计时长写回同一行，
+    /// 避免每 30 秒 flush 都新增一行，导致统计页「总播放次数」「听歌趋势」被放大。
+    /// </summary>
+    /// <param name="sessionId">由 <see cref="LogListenSessionAsync"/> 返回的自增 Id</param>
+    /// <param name="durationMs">本次聆听累计时长（毫秒）</param>
+    public async Task UpdateListenSessionAsync(int sessionId, long durationMs)
+    {
+        if (sessionId <= 0) return;
+        try
+        {
+            await EnsureMaintenanceCompletedAsync();
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            await _database.ExecuteAsync(
+                "UPDATE PlaySession SET DurationMs = ?, PlayedAt = ? WHERE Id = ?",
+                Math.Max(0, durationMs), now, sessionId);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("MusicDatabase", $"[CatClaw] UpdateListenSessionAsync 失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 一次性校准历史播放计数：旧版本每 30 秒 flush 都会给 PlayHistory.PlayCount +1 并多插一条 PlaySession，
+    /// 导致发现页「最多播放」与统计页「总播放次数」被放大。
+    /// 本方法按时间把同一首歌的 PlaySession 聚成「真实聆听次数」簇（簇内行间隔 ≤ 阈值，簇间间隔 ≥ 半首歌），
+    /// 将 PlayHistory.PlayCount 校正为簇数，并删除簇内冗余行（每簇仅留最早一行），使两套计数重新一致。
+    /// 对修复后的干净数据幂等（每聆听本就一行，簇数 = 聆听数）。
+    /// </summary>
+    /// <returns>被修正 PlayCount 的歌曲数量（0 表示无需修正）</returns>
+    public async Task<int> RecalibratePlayCountsAsync()
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var sessions = await _database.Table<PlaySession>().OrderBy(s => s.SongId).ThenBy(s => s.PlayedAt).ToListAsync();
+        if (sessions.Count == 0) return 0;
+
+        var durations = (await _database.Table<Song>().ToListAsync())
+            .ToDictionary(s => s.Id, s => Math.Max(1L, s.Duration));
+
+        int changed = 0;
+        foreach (var grp in sessions.GroupBy(s => s.SongId))
+        {
+            var songDurMs = durations.TryGetValue(grp.Key, out var d) ? d : 180_000L;
+            // 同一聆听内的逐次日志间隔 ≤ 30 秒；两聆听之间至少隔整首歌（或更久）。
+            // 用半首歌时长作阈值：既能区分连续重播（间隔≈整首歌 > 半首歌），又不会把一次聆听内的多行拆开。
+            var thresholdMs = Math.Max(120_000L, songDurMs / 2);
+
+            var rows = grp.OrderBy(s => s.PlayedAt).ToList();
+            var clusters = new List<List<PlaySession>>();
+            List<PlaySession>? cur = null;
+            long prev = 0;
+            foreach (var r in rows)
+            {
+                if (cur == null || (r.PlayedAt - prev) * 1000 > thresholdMs)
+                {
+                    cur = new List<PlaySession>();
+                    clusters.Add(cur);
+                }
+                cur.Add(r);
+                prev = r.PlayedAt;
+            }
+
+            // 删除簇内冗余行，仅保留最早一行（其 DurationMs 通常≈整首歌，最具代表性）
+            foreach (var c in clusters)
+                for (int i = 1; i < c.Count; i++)
+                    await _database.DeleteAsync(c[i]);
+
+            var listens = clusters.Count;
+            if (listens <= 0) continue; // 仅有 PlayHistory 无会话时不动，避免误清零
+
+            var maxPlayed = rows.Max(r => r.PlayedAt);
+            var hist = await _database.Table<PlayHistory>().Where(h => h.SongId == grp.Key).FirstOrDefaultAsync();
+            if (hist != null)
+            {
+                if (hist.PlayCount != listens)
+                {
+                    hist.PlayCount = listens;
+                    changed++;
+                }
+                if (maxPlayed > hist.PlayedAt) hist.PlayedAt = maxPlayed;
+                await _database.UpdateAsync(hist);
+            }
+            else
+            {
+                await _database.InsertAsync(new PlayHistory { SongId = grp.Key, PlayedAt = maxPlayed, PlayCount = listens });
+                changed++;
+            }
+        }
+        return changed;
     }
 
     /// <summary>

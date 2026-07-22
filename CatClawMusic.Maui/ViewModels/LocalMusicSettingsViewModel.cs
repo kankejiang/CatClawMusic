@@ -49,10 +49,6 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isScanning = false;
 
-    /// <summary>是否启用 FFmpeg 解码</summary>
-    [ObservableProperty]
-    private bool _isFfmpegEnabled = true;
-
     /// <summary>是否使用 Android MediaStore 进行扫描</summary>
     [ObservableProperty]
     private bool _useMediaStore = false;
@@ -90,14 +86,12 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
 
     private void LoadSettings()
     {
-        IsFfmpegEnabled = Preferences.Get("ffmpeg_enabled", true);
         UseMediaStore = Preferences.Get("use_media_store", false);
         UseSafScan = Preferences.Get("use_saf_scan", false);
     }
 
     private void SaveSettings()
     {
-        Preferences.Set("ffmpeg_enabled", IsFfmpegEnabled);
         Preferences.Set("use_media_store", UseMediaStore);
         Preferences.Set("use_saf_scan", UseSafScan);
     }
@@ -348,9 +342,4 @@ public partial class LocalMusicSettingsViewModel : ObservableObject
         catch { return uri; }
     }
 #endif
-
-    partial void OnIsFfmpegEnabledChanged(bool value)
-    {
-        Preferences.Set("ffmpeg_enabled", value);
-    }
 }

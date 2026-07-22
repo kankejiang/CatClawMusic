@@ -5,6 +5,8 @@ using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.ViewModels;
 using System.ComponentModel;
 using Microsoft.Maui.Storage;
+using Microsoft.Maui.Devices;
+using Microsoft.Maui.ApplicationModel;
 
 #if ANDROID
 // 类型别名，避免与 MAUI 的 Microsoft.Maui.Controls.View 命名冲突
@@ -407,6 +409,17 @@ public partial class MainPage : ContentPage
     /// </summary>
     protected override bool OnBackButtonPressed()
     {
+        // 安卓横屏模式：系统返回键直接回到竖屏（而非切换 tab）
+#if ANDROID
+        if (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Landscape)
+        {
+            var activity = Platform.CurrentActivity;
+            if (activity != null)
+                activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Portrait;
+            return true;
+        }
+#endif
+
         var searchVm = _services.GetService<SearchViewModel>();
         if (searchVm?.IsChatMode == true)
         {

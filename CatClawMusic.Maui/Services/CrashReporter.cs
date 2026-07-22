@@ -25,21 +25,72 @@ public static class CrashReporter
         sb.AppendLine($"Source: {source}");
         sb.AppendLine($"Terminating: {terminating}");
         if (ex != null)
-        {
-            sb.AppendLine($"Type: {ex.GetType().FullName}");
-            sb.AppendLine($"Message: {ex.Message}");
-            sb.AppendLine("StackTrace:");
-            sb.AppendLine(ex.StackTrace);
-            if (ex.InnerException != null)
-            {
-                sb.AppendLine("InnerException:");
-                sb.AppendLine(ex.InnerException.ToString());
-            }
-        }
+            sb.Append(FormatExceptionChain(ex));
         sb.AppendLine("============================================================");
         sb.AppendLine();
         Append(sb.ToString());
     }
+
+    /// <summary>
+    /// 递归拆包异常链：逐层写出 Type/Message/StackTrace，
+    /// 重点展开 <see cref="System.Reflection.TargetInvocationException"/>（XAML/页面经反射构造时抛出）
+    /// 与 <see cref="AggregateException"/>（Task 链），直到真正的根因。
+    /// 不展开则只能看到外层包装，内层真实异常对象会被 JNI 边界吞掉。
+    /// </summary>
+    private static string FormatExceptionChain(Exception? ex)
+    {
+        var sb = new StringBuilder();
+        int depth = 0;
+        var seen = new HashSet<Exception?>(ReferenceEqualityComparer.Instance);
+        var current = ex;
+        while (current != null && seen.Add(current))
+        {
+            var tag = depth == 0 ? "ROOT" : $"INNER#{depth}";
+            sb.AppendLine($"[{tag}] {current.GetType().FullName}");
+            sb.AppendLine($"  Message: {current.Message}");
+            sb.AppendLine("  StackTrace:");
+            var st = current.StackTrace;
+            sb.AppendLine(string.IsNullOrWhiteSpace(st) ? "    (no managed stack)" : "    " + st.Replace("\n", "\n    "));
+
+            if (current is AggregateException ae && ae.InnerExceptions.Count > 1)
+            {
+                for (int i = 0; i < ae.InnerExceptions.Count; i++)
+                    sb.AppendLine($"    Aggregate[{i}]: {ae.InnerExceptions[i]?.GetType().FullName}: {ae.InnerExceptions[i]?.Message}");
+            }
+
+            Exception? next = current is System.Reflection.TargetInvocationException tie ? tie.InnerException
+                : current is AggregateException ae2 ? (ae2.InnerExceptions.Count == 1 ? ae2.InnerExceptions[0] : ae2.InnerException)
+                : current.InnerException;
+            current = next;
+            depth++;
+            if (depth > 12) { sb.AppendLine("  (max depth reached)"); break; }
+        }
+        return sb.ToString();
+    }
+
+#if ANDROID
+    /// <summary>
+    /// 从 <see cref="Java.Lang.Throwable"/>（通常为 Android.Runtime.JavaProxyThrowable）中提取其包裹的托管异常。
+    /// JavaProxyThrowable 通过私有字段持有真正的 System.Exception，这里以兼容方式（字段名探测 + InnerException 属性）读取，失败则返回 null。
+    /// </summary>
+    private static Exception? ExtractManagedInner(Java.Lang.Throwable t)
+    {
+        try
+        {
+            var type = t.GetType();
+            foreach (var name in new[] { "inner", "_inner", "exception", "_exception", "m_innerException", "_innerException", "m_inner" })
+            {
+                var f = type.GetField(name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (f != null && typeof(Exception).IsAssignableFrom(f.FieldType))
+                    return (Exception?)f.GetValue(t);
+            }
+            var p = type.GetProperty("InnerException", typeof(Exception));
+            if (p != null) return (Exception?)p.GetValue(t);
+        }
+        catch { }
+        return null;
+    }
+#endif
 
 #if ANDROID
     /// <summary>记录一次 Android 原生（Java/Kotlin）未处理异常。入参兼容 Java.Lang.Throwable 与 System.Exception。</summary>
@@ -51,21 +102,25 @@ public static class CrashReporter
         if (t is Java.Lang.Throwable jt)
         {
             sb.AppendLine($"Type: {jt.GetType().FullName}");
-            sb.AppendLine($"Message: {jt.Message}");
-            sb.AppendLine("StackTrace:");
-            sb.AppendLine(jt.ToString());
+            sb.AppendLine($"Java Message: {jt.Message}");
+            // JavaProxyThrowable 包裹的通常是 TargetInvocationException（页面/控件经反射构造时抛出）。
+            // 提取其托管内层并递归拆包，否则只能看到外层包装、真实根因被 JNI 边界吞掉。
+            var managed = ExtractManagedInner(jt);
+            if (managed != null)
+            {
+                sb.AppendLine("--- 提取到的托管异常（已拆包 TargetInvocationException / AggregateException）---");
+                sb.Append(FormatExceptionChain(managed));
+            }
+            else
+            {
+                sb.AppendLine("Java StackTrace:");
+                sb.AppendLine(jt.ToString());
+            }
         }
         else if (t is Exception ex)
         {
             sb.AppendLine($"Type: {ex.GetType().FullName}");
-            sb.AppendLine($"Message: {ex.Message}");
-            sb.AppendLine("StackTrace:");
-            sb.AppendLine(ex.StackTrace);
-            if (ex.InnerException != null)
-            {
-                sb.AppendLine("InnerException:");
-                sb.AppendLine(ex.InnerException.ToString());
-            }
+            sb.Append(FormatExceptionChain(ex));
         }
         else if (t != null)
         {

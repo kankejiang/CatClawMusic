@@ -467,6 +467,27 @@ public static class MauiProgram
             }
         });
 
+        // 一次性校准旧版放大过的播放次数（PlayHistory.PlayCount 与 PlaySession 逐次日志）。
+        // 旧版本每 30 秒 flush 都给计数 +1，导致发现页「最多播放」/统计页「总播放次数」虚高。
+        // 用 Preferences 标记保证仅执行一次；对修复后的干净数据幂等。
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (!Preferences.Default.Get("playcount_recalibrated_v1", false))
+                {
+                    var db = Services.GetRequiredService<MusicDatabase>();
+                    var changed = await db.RecalibratePlayCountsAsync();
+                    Preferences.Default.Set("playcount_recalibrated_v1", true);
+                    Log.Debug("MauiProgram", $"[STARTUP] 播放次数校准完成，修正歌曲数={changed}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("MauiProgram", $"[STARTUP] 播放次数校准失败: {ex.Message}");
+            }
+        });
+
 #if ANDROID
         _ = Task.Run(async () =>
         {

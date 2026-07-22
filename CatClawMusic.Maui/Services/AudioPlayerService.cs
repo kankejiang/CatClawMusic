@@ -262,6 +262,15 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>将当前均衡器设置应用到平台音频引擎（Android 原生音效 / Windows AudioGraph DSP）</summary>
     public void ApplyEqualizer() => ApplyEqualizerPlatform();
 
+    /// <summary>
+    /// 均衡器设置变更后，对当前正在播放的歌曲即时重新应用。
+    /// 主要用于 FFmpeg 烘焙式（10 段）模式：改变 EQ 需重新烘焙当前曲音频并就地重载（进度不丢失）。
+    /// 也用于 FFmpeg 模式开关切换时把当前曲在「原生解码 ↔ FFmpeg 烘焙」两种路径间重载。
+    /// 原生 5 段实时模式由 ApplyEqualizer() 即时处理，无需重载。
+    /// Android 端实现防抖 + 重新转码重载；Windows 端为空实现（Windows 走 RestartPlaybackForEqSwitchAsync）。
+    /// </summary>
+    public void ReapplyEqualizerLive() => ReapplyEqualizerLivePlatform();
+
     /// <summary>重新应用当前音量（用于左右平衡等设置变更后即时生效）</summary>
     public void RefreshVolume() => SetPlatformVolume(Volume);
 
@@ -281,6 +290,7 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     partial void DisposePlatform();
     partial void ApplyEqualizerPlatform();
     partial void ApplyCrossfadeVolume(double factor);
+    partial void ReapplyEqualizerLivePlatform();
 
     // ─── 淡入淡出（crossfade） ───
 
