@@ -8,7 +8,8 @@
              BackgroundColor="Transparent"
              Shell.NavBarIsVisible="False">
 
-    <Grid>
+    <Grid x:Name="RootGrid">
+
         <!-- 雾面动态背景层（铺满整个页面） -->
         <controls:FrostedBackground x:Name="FrostedBg"
                                     Source="{Binding CoverImage}"
@@ -25,96 +26,97 @@
         <!-- 暗色遮罩层：确保歌词文字可读 -->
         <BoxView Color="#70000000" InputTransparent="True" />
 
-        <!-- 内容层 -->
+        <!-- 竖屏内容：顶部 HeroCard + 全宽歌词 -->
         <Grid x:Name="ContentGrid" RowDefinitions="Auto,*">
 
-        <controls:HeroCard Grid.Row="0"
-                           ShowBackButton="False">
-            <controls:HeroCard.CardContent>
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto"
-                      ColumnSpacing="12">
-                    <Border Grid.Column="0"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 10"
-                            WidthRequest="40" HeightRequest="40"
-                            VerticalOptions="Center">
-                        <ImageButton Source="{Binding CoverImage}"
-                                     Aspect="AspectFill"
-                                     BackgroundColor="Transparent"
-                                     CornerRadius="10"
-                                     HorizontalOptions="Fill" VerticalOptions="Fill"
-                                     Clicked="OnBackClicked" />
-                    </Border>
-                    <VerticalStackLayout Grid.Column="1"
-                                         Spacing="2"
-                                         VerticalOptions="Center">
-                        <Label Text="{Binding Title}"
-                               FontSize="16"
-                               FontFamily="OpenSansSemibold"
-                               TextColor="White"
-                               MaxLines="1" />
-                        <Label Text="{Binding Artist}"
-                               FontSize="12"
-                               TextColor="#F3F5FF"
-                               MaxLines="1" />
-                    </VerticalStackLayout>
-                    <Border Grid.Column="2"
-                            BackgroundColor="#24FFFFFF"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 8"
-                            Padding="8,4"
-                            VerticalOptions="Center">
-                        <Label Text="LRC"
-                               FontSize="10"
-                               TextColor="White" />
-                    </Border>
-                    <Button Grid.Column="3"
-                            Text="&#x2699;"
-                            FontSize="18"
-                            BackgroundColor="#24FFFFFF"
-                            TextColor="White"
-                            CornerRadius="18"
-                            WidthRequest="36" HeightRequest="36"
-                            Padding="0"
-                            VerticalOptions="Center"
-                            Clicked="OnLyricsSettingsClicked" />
-                </Grid>
-            </controls:HeroCard.CardContent>
-        </controls:HeroCard>
+            <controls:HeroCard Grid.Row="0"
+                               ShowBackButton="False">
+                <controls:HeroCard.CardContent>
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                          ColumnSpacing="12">
+                        <Border Grid.Column="0"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 10"
+                                WidthRequest="40" HeightRequest="40"
+                                VerticalOptions="Center">
+                            <ImageButton Source="{Binding CoverImage}"
+                                         Aspect="AspectFill"
+                                         BackgroundColor="Transparent"
+                                         CornerRadius="10"
+                                         HorizontalOptions="Fill" VerticalOptions="Fill"
+                                         Clicked="OnBackClicked" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1"
+                                             Spacing="2"
+                                             VerticalOptions="Center">
+                            <Label Text="{Binding Title}"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="White"
+                                   MaxLines="1" />
+                            <Label Text="{Binding Artist}"
+                                   FontSize="12"
+                                   TextColor="#F3F5FF"
+                                   MaxLines="1" />
+                        </VerticalStackLayout>
+                        <Border Grid.Column="2"
+                                BackgroundColor="#24FFFFFF"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="8,4"
+                                VerticalOptions="Center">
+                            <Label Text="LRC"
+                                   FontSize="10"
+                                   TextColor="White" />
+                        </Border>
+                        <Button Grid.Column="3"
+                                Text="&#x2699;"
+                                FontSize="18"
+                                BackgroundColor="#24FFFFFF"
+                                TextColor="White"
+                                CornerRadius="18"
+                                WidthRequest="36" HeightRequest="36"
+                                Padding="0"
+                                VerticalOptions="Center"
+                                Clicked="OnLyricsSettingsClicked" />
+                    </Grid>
+                </controls:HeroCard.CardContent>
+            </controls:HeroCard>
 
-        <CollectionView Grid.Row="1"
-                        x:Name="LyricCollectionView"
-                        ItemsSource="{Binding LyricPlaceholderItems}"
-                        SelectionMode="None"
-                        VerticalScrollBarVisibility="Never">
-            <CollectionView.Behaviors>
-                <controls:ScrollPerformanceBehavior />
-            </CollectionView.Behaviors>
-            <CollectionView.ItemsLayout>
-                <LinearItemsLayout Orientation="Vertical" />
-            </CollectionView.ItemsLayout>
-            <CollectionView.Header>
-                <VerticalStackLayout x:Name="LyricStack"
-                                     Padding="24,100,24,300"
-                                     Spacing="14" />
-            </CollectionView.Header>
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <BoxView HeightRequest="0" />
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+            <CollectionView Grid.Row="1"
+                            x:Name="LyricCollectionView"
+                            ItemsSource="{Binding LyricPlaceholderItems}"
+                            SelectionMode="None"
+                            VerticalScrollBarVisibility="Never">
+                <CollectionView.Behaviors>
+                    <controls:ScrollPerformanceBehavior />
+                </CollectionView.Behaviors>
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout Orientation="Vertical" />
+                </CollectionView.ItemsLayout>
+                <CollectionView.Header>
+                    <VerticalStackLayout x:Name="LyricStack"
+                                         Padding="24,100,24,300"
+                                         Spacing="14" />
+                </CollectionView.Header>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <BoxView HeightRequest="0" />
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
 
-        <Border Grid.Row="1"
-                Margin="20,0"
-                VerticalOptions="End"
-                Style="{StaticResource GlassBadgeStyle}"
-                IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}">
-            <Label Text="{Binding NoLyricsText}"
-                   FontSize="14"
-                   TextColor="{DynamicResource TextSecondaryColor}"
-                   HorizontalTextAlignment="Center" />
-        </Border>
+            <Border Grid.Row="1"
+                    x:Name="NoLyricsBadge"
+                    Margin="20,0"
+                    VerticalOptions="End"
+                    Style="{StaticResource GlassBadgeStyle}"
+                    IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}">
+                <Label Text="{Binding NoLyricsText}"
+                       FontSize="14"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       HorizontalTextAlignment="Center" />
+            </Border>
         </Grid>
 
         <!-- 歌词设置弹窗（预定义，默认隐藏） -->

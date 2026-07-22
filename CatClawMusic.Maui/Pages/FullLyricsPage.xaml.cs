@@ -6,7 +6,7 @@ using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>全屏歌词页面，以全屏方式展示当前播放歌曲的完整歌词并支持自动滚动与高亮。</summary>
+/// <summary>全屏歌词页面（竖屏），以全屏方式展示当前播放歌曲的完整歌词并支持自动滚动与高亮。</summary>
 public partial class FullLyricsPage : ContentPage
 {
     private readonly NowPlayingViewModel _viewModel;
@@ -35,7 +35,7 @@ public partial class FullLyricsPage : ContentPage
         MainThread.BeginInvokeOnMainThread(ApplySafeArea);
     }
 
-    /// <summary>给 ContentGrid 应用 SafeArea 顶部 padding（雾面背景不应用，保持延伸到状态栏）</summary>
+    /// <summary>给内容区域应用 SafeArea 顶部 padding（雾面背景不应用，保持延伸到状态栏）</summary>
     private void ApplySafeArea()
     {
         var top = SafeAreaHelper.TopInset;

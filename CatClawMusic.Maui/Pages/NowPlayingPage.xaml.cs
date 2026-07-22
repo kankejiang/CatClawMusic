@@ -22,6 +22,10 @@ public partial class NowPlayingPage : ContentPage
     private int _lastHighlightIndex = -1;
     private bool _isLandscape;
     private int _lastCoverSize;
+    private bool _landscapeLyricsMode;
+    private readonly List<KaraokeLabel> _landscapeLyricLabels = new();
+    private readonly List<Border> _landscapeLyricBorders = new();
+    private int _landscapeLastHighlight = -1;
 
     /// <summary>初始化 <see cref="NowPlayingPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="viewModel">当前播放视图模型，提供歌曲、进度与歌词数据。</param>
@@ -96,7 +100,9 @@ public partial class NowPlayingPage : ContentPage
         var isLandscape = width > height;
         // 封面尺寸：横屏根据高度计算（避免超出窗口），竖屏根据较短边计算
         var coverSize = isLandscape
-            ? Math.Clamp((int)(height * 0.52), 220, 360)
+            ? (_landscapeLyricsMode
+                ? Math.Clamp((int)(height * 0.82) - 40, 200, 520)
+                : Math.Clamp((int)(height * 0.52), 220, 360))
             : Math.Clamp((int)(width - 60), 280, 560);
 
         if (_isLandscape == isLandscape && _lastCoverSize == coverSize)
@@ -137,6 +143,12 @@ public partial class NowPlayingPage : ContentPage
                 PhoneControls.IsVisible = true;
                 DesktopControls.IsVisible = false;
                 BottomActionBar.IsVisible = true;
+                // 退出横屏时复位歌词模式，恢复信息区显示
+                LandscapeTitleBlock.IsVisible = true;
+                LandscapeToolsRow.IsVisible = true;
+                LandscapeCurrentLyric.IsVisible = true;
+                LandscapeLyricsScroll.IsVisible = false;
+                _landscapeLyricsMode = false;
             }
             // 5行歌词高度估算：约 200-220px
             RightHalf.HeightRequest = 200;
@@ -236,7 +248,13 @@ public partial class NowPlayingPage : ContentPage
         if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
             e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
         {
-            MainThread.BeginInvokeOnMainThread(BuildLyricViews);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (_isLandscape && _landscapeLyricsMode)
+                    BuildLandscapeLyricViews();
+                else
+                    BuildLyricViews();
+            });
             return;
         }
 
@@ -244,7 +262,10 @@ public partial class NowPlayingPage : ContentPage
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                HighlightLine(_viewModel.CurrentLyricIndexObservable);
+                if (_isLandscape && _landscapeLyricsMode)
+                    HighlightLandscapeLine(_viewModel.CurrentLyricIndexObservable);
+                else
+                    HighlightLine(_viewModel.CurrentLyricIndexObservable);
             });
             return;
         }
@@ -254,7 +275,12 @@ public partial class NowPlayingPage : ContentPage
         if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLineFillProgress))
         {
             var idx = _viewModel.CurrentLyricIndexObservable;
-            if (idx >= 0 && idx < _lyricLabels.Count)
+            if (_isLandscape && _landscapeLyricsMode)
+            {
+                if (idx >= 0 && idx < _landscapeLyricLabels.Count)
+                    _landscapeLyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
+            }
+            else if (idx >= 0 && idx < _lyricLabels.Count)
                 _lyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
             return;
         }
@@ -615,10 +641,229 @@ public partial class NowPlayingPage : ContentPage
 #endif
     }
 
-    /// <summary>点击歌词按钮：打开全屏歌词页</summary>
+    /// <summary>点击歌词按钮：横屏下就地切换歌词模式（收起右侧按钮显示多行歌词），竖屏下打开全屏歌词页</summary>
     private void OnOpenLyricsClicked(object? sender, EventArgs e)
     {
-        GoToFullLyrics();
+        if (_isLandscape)
+            ToggleLandscapeLyricsMode();
+        else
+            GoToFullLyrics();
+    }
+
+    // ═══════════════════════════════════════
+    // 横屏歌词模式（就地显示多行歌词，不跳独立页面）
+    // ═══════════════════════════════════════
+
+    /// <summary>切换横屏歌词模式：开 → 收起信息区、显示多行歌词、封面加大；关 → 恢复信息区</summary>
+    private void ToggleLandscapeLyricsMode()
+    {
+        _landscapeLyricsMode = !_landscapeLyricsMode;
+        ApplyLandscapeLyricsMode();
+        if (_landscapeLyricsMode)
+        {
+            BuildLandscapeLyricViews();
+            var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
+            HighlightLandscapeLineWithoutScroll(idx);
+            _ = Task.Delay(100).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() => HighlightLandscapeLine(idx)));
+        }
+    }
+
+    /// <summary>应用横屏歌词模式的可见性与封面尺寸</summary>
+    private void ApplyLandscapeLyricsMode()
+    {
+        LandscapeTitleBlock.IsVisible = !_landscapeLyricsMode;
+        LandscapeToolsRow.IsVisible = !_landscapeLyricsMode;
+        LandscapeCurrentLyric.IsVisible = !_landscapeLyricsMode;
+        LandscapeLyricsScroll.IsVisible = _landscapeLyricsMode;
+        // 重算封面尺寸（歌词模式封面更大，能多大就多大）
+        ApplyLayoutForOrientation(this.Width, this.Height);
+    }
+
+    /// <summary>构建横屏多行歌词视图（目标为 LandscapeLyricStack）</summary>
+    private void BuildLandscapeLyricViews()
+    {
+        LandscapeLyricStack.Children.Clear();
+        _landscapeLyricLabels.Clear();
+        _landscapeLyricBorders.Clear();
+        _landscapeLastHighlight = -1;
+
+        var lines = _viewModel.AllLyricLines;
+        if (lines == null || lines.Count == 0)
+        {
+            var label = new KaraokeLabel
+            {
+                Text = _viewModel.NoLyricsText,
+                FontSize = 16,
+                FontFamily = "OpenSansSemibold",
+                TextColor = (Color)Application.Current!.Resources["TextHintColor"],
+                OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
+                StrokeWidth = 1,
+                FillProgress = 1,
+                HorizontalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Center
+            };
+            LandscapeLyricStack.Children.Add(label);
+            return;
+        }
+
+        foreach (var line in lines)
+        {
+            var label = new KaraokeLabel
+            {
+                Text = line.Text,
+                FontSize = 16,
+                FontFamily = "OpenSansRegular",
+                FontAttributes = FontAttributes.None,
+                TextColor = Colors.White,
+                OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
+                StrokeWidth = 2,
+                FillProgress = 0,
+                HorizontalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Fill,
+                LineBreakMode = LineBreakMode.WordWrap,
+                Opacity = 0.2,
+                Padding = new Thickness(16, 6)
+            };
+
+            var border = new Border
+            {
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
+                StrokeThickness = 0,
+                BackgroundColor = Colors.Transparent,
+                Padding = new Thickness(22, 0),
+                HorizontalOptions = LayoutOptions.Fill
+            };
+            border.Content = label;
+
+            if (!string.IsNullOrEmpty(line.Translation))
+            {
+                var stack = new VerticalStackLayout { Spacing = 4, HorizontalOptions = LayoutOptions.Fill };
+                stack.Children.Add(border);
+
+                var transLabel = new KaraokeLabel
+                {
+                    Text = line.Translation,
+                    FontSize = 14,
+                    FontFamily = "OpenSansRegular",
+                    FontAttributes = FontAttributes.None,
+                    TextColor = Colors.White,
+                    OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
+                    StrokeWidth = 1.5,
+                    FillProgress = 0,
+                    HorizontalTextAlignment = TextAlignment.Center,
+                    HorizontalOptions = LayoutOptions.Fill,
+                    LineBreakMode = LineBreakMode.WordWrap,
+                    Opacity = 0.2,
+                    Padding = new Thickness(16, 6)
+                };
+                var transBorder = new Border
+                {
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
+                    StrokeThickness = 0,
+                    BackgroundColor = Colors.Transparent,
+                    Padding = new Thickness(22, 0),
+                    HorizontalOptions = LayoutOptions.Fill
+                };
+                transBorder.Content = transLabel;
+                stack.Children.Add(transBorder);
+                LandscapeLyricStack.Children.Add(stack);
+            }
+            else
+            {
+                LandscapeLyricStack.Children.Add(border);
+            }
+
+            _landscapeLyricLabels.Add(label);
+            _landscapeLyricBorders.Add(border);
+        }
+
+        var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
+        HighlightLandscapeLineWithoutScroll(idx);
+    }
+
+    private void HighlightLandscapeLineWithoutScroll(int index)
+    {
+        if (index < 0 || index >= _landscapeLyricLabels.Count) return;
+
+        for (int i = 0; i < _landscapeLyricLabels.Count; i++)
+        {
+            var lbl = _landscapeLyricLabels[i];
+
+            if (i == index)
+            {
+                lbl.FontSize = 19;
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = _viewModel.CurrentLineFillProgress;
+                lbl.Opacity = 1.0;
+            }
+            else
+            {
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = 0;
+                lbl.FontSize = 16;
+                lbl.Opacity = 0.35;
+            }
+        }
+
+        _landscapeLastHighlight = index;
+    }
+
+    private void HighlightLandscapeLine(int index)
+    {
+        if (index < 0 || index >= _landscapeLyricLabels.Count) return;
+
+        var affectedMin = Math.Max(0, Math.Min(index, _landscapeLastHighlight) - 5);
+        var affectedMax = Math.Min(_landscapeLyricLabels.Count - 1, Math.Max(index, _landscapeLastHighlight) + 5);
+
+        for (int i = affectedMin; i <= affectedMax; i++)
+        {
+            var lbl = _landscapeLyricLabels[i];
+
+            if (i == index)
+            {
+                lbl.FontSize = 19;
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = _viewModel.CurrentLineFillProgress;
+                lbl.Opacity = 1.0;
+            }
+            else
+            {
+                lbl.FontAttributes = FontAttributes.None;
+                lbl.FillProgress = 0;
+                lbl.FontSize = 16;
+                lbl.Opacity = 0.35;
+            }
+        }
+
+        _landscapeLastHighlight = index;
+
+        ScrollToLandscapeLine(index);
+    }
+
+    private void ScrollToLandscapeLine(int index)
+    {
+        if (index < 0 || index >= _landscapeLyricLabels.Count) return;
+
+        try
+        {
+            var label = _landscapeLyricLabels[index];
+            var y = GetRelativeYLandscape(label);
+            var targetScrollY = Math.Max(0, y - LandscapeLyricsScroll.Height * 0.3);
+            _ = LandscapeLyricsScroll.ScrollToAsync(0, targetScrollY, false);
+        }
+        catch { }
+    }
+
+    private double GetRelativeYLandscape(VisualElement element)
+    {
+        double y = element.Y + element.Height / 2;
+        var parent = element.Parent as VisualElement;
+        while (parent != null && parent != LandscapeLyricStack)
+        {
+            y += parent.Y;
+            parent = parent.Parent as VisualElement;
+        }
+        return y;
     }
 
     /// <summary>点击歌曲详情入口：跳转到歌曲详情页</summary>

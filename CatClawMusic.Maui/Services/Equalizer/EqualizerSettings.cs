@@ -73,16 +73,24 @@ public static class EqualizerSettings
         ["pop"]       = new double[] { -2, 5, 7, 7, 3, 0, -2, -2, -2, -2 },
         // VLC Rock: 8, 4.8, -5.6, -8, -3.2, 4, 8.8, 11.2, 11.2, 11.2
         ["rock"]      = new double[] { 8, 5, -6, -3, 0, 4, 9, 11, 11, 11 },
+        // 爵士：中频突出、高低频略收，温暖饱满
+        ["jazz"]      = new double[] { 0, 0, 2, 4, 3, 0, -2, -3, -2, 0 },
         // VLC Classical: 0,0,0,0,0,0,-7.2,-7.2,-7.2,-9.6
         ["classical"] = new double[] { 0, 0, 0, 0, 0, 0, -7, -7, -7, -10 },
         // 人声：中频突出
         ["vocal"]     = new double[] { -2, -1, 2, 5, 5, 3, 1, 0, -1, -2 },
+        // 嘻哈：低频饱满、高频明亮
+        ["hiphop"]    = new double[] { 6, 5, 2, 0, -2, -1, 2, 4, 5, 3 },
+        // 布鲁斯：温暖中低频、轻微高频衰减
+        ["blues"]     = new double[] { 2, 3, 4, 2, 1, 0, -1, -2, -1, 0 },
         // VLC Dance: 9.6, 7.2, 2.4, 0, 0, -5.6, -7.2, -7.2, 0, 0
         ["dance"]     = new double[] { 10, 7, 2, 0, 0, -6, -7, -7, -2, -2 },
         // 重低音：低频大幅抬升
         ["bass"]      = new double[] { 8, 10, 7, 4, 1, -2, -5, -7, -8, -9 },
         // VLC Techno: 8, 5.6, 0, -5.6, -4.8, 0, 8, 9.6, 9.6, 8.8
         ["electronic"] = new double[] { 8, 6, 0, -6, -5, 0, 8, 10, 10, 9 },
+        // 金属：高低频提升、中频下凹
+        ["metal"]     = new double[] { 9, 7, 0, -5, -3, 0, 7, 10, 11, 10 },
         // 钢琴：中高频明亮
         ["piano"]     = new double[] { -1, 0, 2, 5, 4, 2, 1, -1, -1, -2 },
         // 影院：整体轻微提升、环绕感
@@ -91,12 +99,12 @@ public static class EqualizerSettings
         ["car"]      = new double[] { 7, 6, 4, 2, 1, 1, 2, 3, 3, 3 },
     };
 
-    /// <summary>预设显示名称映射</summary>
+    /// <summary>预设显示名称映射（九宫格常见模式，顺序与 UI 网格一致）</summary>
     public static readonly (string Key, string Name)[] PresetList =
     {
-        ("flat", "原声"), ("pop", "流行"), ("rock", "摇滚"), ("classical", "古典"),
-        ("vocal", "人声"), ("dance", "舞曲"), ("bass", "重低音"), ("electronic", "电子"),
-        ("piano", "钢琴"), ("cinema", "影院"), ("car", "车载"),
+        ("custom", "自定义"), ("rock", "摇滚"), ("jazz", "爵士"),
+        ("pop", "流行"), ("classical", "古典"), ("hiphop", "嘻哈"),
+        ("blues", "布鲁斯"), ("electronic", "电子音乐"), ("metal", "金属"),
     };
 
     // ─── Preferences 键 ───

@@ -71,7 +71,11 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
         platformView.SetCurrentItem(VirtualView.CurrentItem, false);
 
         // 横屏模式下禁用左右滑动切换 tab（安卓端）：用户手势翻页关闭，
-        // 切页改由 TabBar / 返回键等程序化触发；竖屏恢复。订阅屏幕方向变化动态切换。
+        // 切页改由 TabBar / 返回键等程序化触发；竖屏恢复。
+        // 可靠路径：横屏由 RequestedOrientation 强制，不触发 MainDisplayInfoChanged，
+        // 因此由触发代码直接调用 NativeTabPager.SetSwipeEnabled → 静态事件 → 此处。
+        NativeTabPager.RequestUserInputEnabled += OnRequestUserInputEnabled;
+        // 兜底：物理旋转设备时 MainDisplayInfoChanged 仍会触发。
         DeviceDisplay.Current.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
         UpdateUserInputEnabled(DeviceDisplay.Current.MainDisplayInfo.Orientation);
     }
@@ -80,12 +84,17 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
     private void OnMainDisplayInfoChanged(object? sender, DisplayInfoChangedEventArgs e) =>
         UpdateUserInputEnabled(e.DisplayInfo.Orientation);
 
+    /// <summary>静态事件回调：横屏切换代码直接通知启用/禁用滑动（不依赖物理传感器事件）。</summary>
+    private void OnRequestUserInputEnabled(bool enabled) =>
+        PlatformView.UserInputEnabled = enabled;
+
     /// <summary>横屏禁用用户左右滑动翻页（tab 切换改由 TabBar / 返回键等程序化触发），竖屏恢复。</summary>
     private void UpdateUserInputEnabled(DisplayOrientation orientation) =>
         PlatformView.UserInputEnabled = orientation != DisplayOrientation.Landscape;
 
     protected override void DisconnectHandler(ViewPager2 platformView)
     {
+        NativeTabPager.RequestUserInputEnabled -= OnRequestUserInputEnabled;
         DeviceDisplay.Current.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
         if (_callback != null)
             platformView.UnregisterOnPageChangeCallback(_callback);

@@ -416,6 +416,7 @@ public partial class MainPage : ContentPage
             var activity = Platform.CurrentActivity;
             if (activity != null)
                 activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Portrait;
+            Controls.NativeTabPager.SetSwipeEnabled(true);
             return true;
         }
 #endif

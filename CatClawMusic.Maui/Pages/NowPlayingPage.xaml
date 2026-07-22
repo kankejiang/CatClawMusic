@@ -475,10 +475,23 @@
                   ColumnSpacing="40"
                   Padding="54,8,54,24">
 
-                <!-- 左：封面 -->
+                <!-- 左：封面（尽量大）+ 竖屏切换按钮 -->
                 <Grid Grid.Column="0"
                       HorizontalOptions="Center" VerticalOptions="Center">
-                    <Border x:Name="LandscapeCover"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <!-- 竖屏切换按钮（始终可见，便于退出横屏） -->
+                    <ImageButton Grid.Row="0"
+                                 Source="ic_rotate"
+                                 WidthRequest="34" HeightRequest="34" CornerRadius="17" Padding="7"
+                                 BackgroundColor="#20FFFFFF" Aspect="AspectFit"
+                                 HorizontalOptions="End" VerticalOptions="Center"
+                                 Margin="0,0,0,12"
+                                 Clicked="OnRotateClicked" />
+                    <Border Grid.Row="1"
+                            x:Name="LandscapeCover"
                             StrokeThickness="0.5"
                             Stroke="#30FFFFFF"
                             StrokeShape="RoundRectangle 28"
@@ -492,111 +505,116 @@
                     </Border>
                 </Grid>
 
-                <!-- 右：信息 + 控制（ScrollView 兜底，短窗口不溢出） -->
-                <ScrollView Grid.Column="1"
-                            HorizontalOptions="Fill"
-                            VerticalOptions="Fill"
-                            VerticalScrollBarVisibility="Never">
-                    <VerticalStackLayout Spacing="12"
-                                         HorizontalOptions="Fill"
-                                         VerticalOptions="Center"
-                                         Padding="0,4">
+                <!-- 右：信息 + 控制 + 歌词（Grid 行布局，歌词面板占满剩余高度） -->
+                <Grid Grid.Column="1"
+                      RowDefinitions="Auto,Auto,Auto,*,Auto,Auto"
+                      RowSpacing="14"
+                      ColumnDefinitions="*"
+                      VerticalOptions="Fill"
+                      HorizontalOptions="Fill"
+                      Padding="0,4">
 
-                        <!-- 标题 + 艺人 + 音质徽章 -->
-                        <VerticalStackLayout Spacing="3">
-                            <Label Text="{Binding Title}"
-                                   FontSize="34" FontFamily="OpenSansSemibold"
-                                   TextColor="White"
+                    <!-- 标题 + 艺人 + 音质徽章 -->
+                    <VerticalStackLayout x:Name="LandscapeTitleBlock" Grid.Row="0" Spacing="3">
+                        <Label Text="{Binding Title}"
+                               FontSize="34" FontFamily="OpenSansSemibold"
+                               TextColor="White"
+                               MaxLines="1" LineBreakMode="TailTruncation" />
+                        <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+                            <Label Text="{Binding Artist}"
+                                   FontSize="15" TextColor="{DynamicResource TextSecondaryColor}"
                                    MaxLines="1" LineBreakMode="TailTruncation" />
-                            <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
-                                <Label Text="{Binding Artist}"
-                                       FontSize="15" TextColor="{DynamicResource TextSecondaryColor}"
-                                       MaxLines="1" LineBreakMode="TailTruncation" />
-                                <Label Text="Hi-Res" FontSize="9" FontAttributes="Bold"
-                                       TextColor="{DynamicResource PrimaryColor}"
-                                       Padding="5,2" />
-                                <Label Text="无损" FontSize="9" FontAttributes="Bold"
-                                       TextColor="{DynamicResource PrimaryColor}"
-                                       Padding="5,2" />
-                            </HorizontalStackLayout>
-                        </VerticalStackLayout>
-
-                        <!-- 工具图标：播放列表 / 睡眠定时 / 竖屏切换（与 HTML 原型一致） -->
-                        <HorizontalStackLayout Spacing="14">
-                            <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="{Binding PlaylistIconSource}"
-                                         Clicked="OnOpenPlaylistClicked" />
-                            <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="ic_timer"
-                                         Clicked="OnSleepTimerClicked" />
-                            <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="ic_rotate"
-                                         Clicked="OnRotateClicked" />
-                        </HorizontalStackLayout>
-
-                        <!-- 当前歌词（点击进入歌词，与 HTML 原型点击当前行一致） -->
-                        <VerticalStackLayout Spacing="4">
-                            <VerticalStackLayout.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
-                            </VerticalStackLayout.GestureRecognizers>
-                            <Label Text="当前歌词" FontSize="10"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   LetterSpacing="2" />
-                            <Label Text="{Binding LyricCurrent}"
-                                   FontSize="17" FontAttributes="Bold" TextColor="White"
-                                   MaxLines="1" LineBreakMode="TailTruncation" />
-                        </VerticalStackLayout>
-
-                        <!-- 进度条（位于控制行上方，不再是最底部元素） -->
-                        <Grid RowDefinitions="Auto,Auto" RowSpacing="1">
-                            <Slider x:Name="LandscapeProgressSlider"
-                                    Minimum="0" Maximum="1" Value="0"
-                                    ThumbColor="White"
-                                    MinimumTrackColor="White"
-                                    MaximumTrackColor="#40FFFFFF"
-                                    HeightRequest="16"
-                                    DragStarted="OnSliderDragStarted"
-                                    DragCompleted="OnSliderDragCompleted" />
-                            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
-                                <Label Text="{Binding CurrentTimeDisplay}" FontSize="10"
-                                       TextColor="White" Opacity="0.7" />
-                                <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}" FontSize="10"
-                                       TextColor="White" Opacity="0.7" />
-                            </Grid>
-                        </Grid>
-
-                        <!-- 播放控制行（上移至歌词/进度条下方，避免被截断） -->
-                        <HorizontalStackLayout Spacing="14" VerticalOptions="Center">
-                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="{Binding LikeIconSourceWhite}"
-                                         Command="{Binding ToggleLikeCommand}" />
-                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="{Binding PlayPreviousIconSourceWhite}"
-                                         Command="{Binding PlayPreviousCommand}" />
-                            <ImageButton WidthRequest="64" HeightRequest="64" CornerRadius="32" Padding="13"
-                                         Aspect="AspectFit" BackgroundColor="{DynamicResource PrimaryColor}"
-                                         Source="{Binding PlayPauseIconSourceWhite}"
-                                         Command="{Binding TogglePlayPauseCommand}" />
-                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="{Binding PlayNextIconSourceWhite}"
-                                         Command="{Binding PlayNextCommand}" />
-                            <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="{Binding PlayModeIconSourceWhite}"
-                                         Command="{Binding CyclePlayModeCommand}" />
-                            <ImageButton WidthRequest="40" HeightRequest="40" CornerRadius="20" Padding="8"
-                                         Aspect="AspectFit" BackgroundColor="Transparent"
-                                         Source="{Binding LyricsIconSource}"
-                                         Clicked="OnOpenLyricsClicked" />
+                            <Label Text="Hi-Res" FontSize="9" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryColor}"
+                                   Padding="5,2" />
+                            <Label Text="无损" FontSize="9" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryColor}"
+                                   Padding="5,2" />
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
-                </ScrollView>
+
+                    <!-- 工具图标：播放列表 / 睡眠定时（竖屏切换已移到封面角） -->
+                    <HorizontalStackLayout x:Name="LandscapeToolsRow" Grid.Row="1" Spacing="14">
+                        <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlaylistIconSource}"
+                                     Clicked="OnOpenPlaylistClicked" />
+                        <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="ic_timer"
+                                     Clicked="OnSleepTimerClicked" />
+                    </HorizontalStackLayout>
+
+                    <!-- 当前歌词（点击进入歌词模式，横屏就地显示多行歌词） -->
+                    <VerticalStackLayout x:Name="LandscapeCurrentLyric" Grid.Row="2" Spacing="4">
+                        <VerticalStackLayout.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
+                        </VerticalStackLayout.GestureRecognizers>
+                        <Label Text="当前歌词" FontSize="10"
+                               TextColor="{DynamicResource TextHintColor}"
+                               CharacterSpacing="2" />
+                        <Label Text="{Binding LyricCurrent}"
+                               FontSize="17" FontAttributes="Bold" TextColor="White"
+                               MaxLines="1" LineBreakMode="TailTruncation" />
+                    </VerticalStackLayout>
+
+                    <!-- 多行歌词面板（歌词模式显示，占满右栏剩余高度） -->
+                    <ScrollView x:Name="LandscapeLyricsScroll" Grid.Row="3"
+                                IsVisible="False"
+                                VerticalScrollBarVisibility="Never"
+                                HorizontalOptions="Fill" VerticalOptions="Fill">
+                        <VerticalStackLayout x:Name="LandscapeLyricStack"
+                                             Spacing="14"
+                                             Padding="0,16,0,60"
+                                             HorizontalOptions="Fill" />
+                    </ScrollView>
+
+                    <!-- 进度条 -->
+                    <Grid Grid.Row="4" RowDefinitions="Auto,Auto" RowSpacing="1">
+                        <Slider x:Name="LandscapeProgressSlider"
+                                Minimum="0" Maximum="1" Value="0"
+                                ThumbColor="White"
+                                MinimumTrackColor="White"
+                                MaximumTrackColor="#40FFFFFF"
+                                HeightRequest="16"
+                                DragStarted="OnSliderDragStarted"
+                                DragCompleted="OnSliderDragCompleted" />
+                        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+                            <Label Text="{Binding CurrentTimeDisplay}" FontSize="10"
+                                   TextColor="White" Opacity="0.7" />
+                            <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}" FontSize="10"
+                                   TextColor="White" Opacity="0.7" />
+                        </Grid>
+                    </Grid>
+
+                    <!-- 播放控制行 -->
+                    <HorizontalStackLayout Grid.Row="5" Spacing="14" VerticalOptions="Center">
+                        <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding LikeIconSourceWhite}"
+                                     Command="{Binding ToggleLikeCommand}" />
+                        <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlayPreviousIconSourceWhite}"
+                                     Command="{Binding PlayPreviousCommand}" />
+                        <ImageButton WidthRequest="64" HeightRequest="64" CornerRadius="32" Padding="13"
+                                     Aspect="AspectFit" BackgroundColor="{DynamicResource PrimaryColor}"
+                                     Source="{Binding PlayPauseIconSourceWhite}"
+                                     Command="{Binding TogglePlayPauseCommand}" />
+                        <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlayNextIconSourceWhite}"
+                                     Command="{Binding PlayNextCommand}" />
+                        <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlayModeIconSourceWhite}"
+                                     Command="{Binding CyclePlayModeCommand}" />
+                        <ImageButton WidthRequest="40" HeightRequest="40" CornerRadius="20" Padding="8"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding LyricsIconSource}"
+                                     Clicked="OnOpenLyricsClicked" />
+                    </HorizontalStackLayout>
+                </Grid>
             </Grid>
 
         </Grid>

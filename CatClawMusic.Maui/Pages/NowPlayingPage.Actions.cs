@@ -33,14 +33,14 @@ public partial class NowPlayingPage
         SleepTimerPopup.Open();
     }
 
-    /// <summary>点击均衡器按钮：弹出独立全屏音效中心页面（从下往上滑入，关闭时从上往下滑出）。</summary>
+    /// <summary>点击音效按钮：弹出独立全屏音效页面（虚拟环绕声/低音/响度/淡入淡出等，内含均衡器入口）。</summary>
     private async void OnEqualizerClicked(object? sender, EventArgs e)
     {
-        var eqPage = new EqualizerPage();
+        var fxPage = new SoundEffectsPage();
         if (Shell.Current?.Navigation is { } nav)
-            await nav.PushModalAsync(eqPage);
+            await nav.PushModalAsync(fxPage);
         else
-            await Navigation.PushModalAsync(eqPage);
+            await Navigation.PushModalAsync(fxPage);
     }
 
     private void BuildSleepTimerContent()
@@ -428,10 +428,12 @@ public partial class NowPlayingPage
         {
             // 恢复为跟随传感器（竖屏优先）
             activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Unspecified;
+            Controls.NativeTabPager.SetSwipeEnabled(true);
         }
         else
         {
             activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.SensorLandscape;
+            Controls.NativeTabPager.SetSwipeEnabled(false);
         }
 #else
         // Windows/桌面端无横屏切换需求
