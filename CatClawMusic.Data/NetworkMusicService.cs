@@ -276,11 +276,18 @@ public class NetworkMusicService : INetworkMusicService
     private const int TagHeadSize = 256 * 1024;
 
     /// <summary>
+    /// 自适应重试时使用的较大标签头大小（2MB）：当小头解析不出有效元数据
+    /// （如 FLAC 内嵌大封面 / 长 vorbis comment 使标签头超过 256KB）时，用此大小重读一次，
+    /// 避免直接回退到整文件下载。
+    /// </summary>
+    private const int TagHeadSizeLarge = 2 * 1024 * 1024;
+
+    /// <summary>
     /// 下载远程文件的头部数据用于标签解析，失败时回退到完整下载
     /// </summary>
-    private async Task<MemoryStream?> DownloadHeadAsync(string remotePath)
+    private async Task<MemoryStream?> DownloadHeadAsync(string remotePath, int headSize = TagHeadSize)
     {
-        var head = await _webDav.OpenReadRangeAsync(remotePath, 0, TagHeadSize);
+        var head = await _webDav.OpenReadRangeAsync(remotePath, 0, headSize);
         if (head.Length > 0)
             return new MemoryStream(head);
 
@@ -301,10 +308,10 @@ public class NetworkMusicService : INetworkMusicService
     /// <param name="remotePath">SMB 远程文件路径。</param>
     /// <param name="profile">连接配置，用于初始化 SMB 客户端。</param>
     /// <returns>包含文件头数据的内存流，失败时返回 null。</returns>
-    private async Task<MemoryStream?> DownloadSmbHeadAsync(string remotePath, ConnectionProfile profile)
+    private async Task<MemoryStream?> DownloadSmbHeadAsync(string remotePath, ConnectionProfile profile, int headSize = TagHeadSize)
     {
         _smb.Configure(profile);
-        var head = await _smb.OpenReadRangeAsync(remotePath, 0, TagHeadSize);
+        var head = await _smb.OpenReadRangeAsync(remotePath, 0, headSize);
         if (head.Length > 0)
             return new MemoryStream(head);
 
@@ -364,7 +371,13 @@ public class NetworkMusicService : INetworkMusicService
                         {
                             SslOptions = new System.Net.Security.SslClientAuthenticationOptions
                             {
-                                RemoteCertificateValidationCallback = (_, _, _, _) => true
+                                RemoteCertificateValidationCallback = (_, _, _, sslErrors) =>
+                                {
+                                    if (sslErrors == System.Net.Security.SslPolicyErrors.None)
+                                        return true;
+                                    Log.Warn("NetworkMusicService", $"[OpenList] 已接受无效 TLS 证书（{sslErrors}），存在中间人攻击风险。");
+                                    return true;
+                                }
                             },
                             ConnectTimeout = TimeSpan.FromSeconds(10),
                             AllowAutoRedirect = true
@@ -620,6 +633,55 @@ public class NetworkMusicService : INetworkMusicService
         progress?.Report((total, total, $"元数据补全完成，共 {total} 首"));
     }
 
+    /// <summary>判断解析出的标签是否含有效元数据（自适应标签头重试的判定依据）。</summary>
+    private static bool HasUsefulMetadata(Song tagSong)
+    {
+        return (!string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家")
+            || (!string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑")
+            || tagSong.Duration > 0;
+    }
+
+    /// <summary>这些格式的标签头可能很大（内嵌封面/长注释），小头解析失败时需用大头重试。</summary>
+    private static bool MayHaveLargeTagHeader(string path)
+    {
+        var ext = Path.GetExtension(path)?.ToLowerInvariant();
+        return ext is ".flac" or ".ape" or ".wav" or ".aiff" or ".aif" or ".dsf" or ".wv";
+    }
+
+    /// <summary>
+    /// 将解析出的标签字段应用到目标歌曲（ consolidates 原 WebDAV/SMB 两处重复逻辑）。
+    /// decodeTitle 为 true 时对标题做 URL 解码（WebDAV 远程标题可能带百分号编码）。
+    /// </summary>
+    private static void ApplyTagToSong(Song song, Song tagSong, bool decodeTitle)
+    {
+        if (!string.IsNullOrWhiteSpace(tagSong.Title) && tagSong.Title != song.Title)
+        {
+            if (decodeTitle)
+            {
+                var decoded = Uri.UnescapeDataString(tagSong.Title);
+                song.Title = decoded != song.Title ? decoded : song.Title;
+            }
+            else
+            {
+                song.Title = tagSong.Title;
+            }
+        }
+        song.Artist = !string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家" ? tagSong.Artist : song.Artist;
+        // 规范化艺术家名：拆分多值字符串，取第一位作为主艺术家
+        if (!string.IsNullOrWhiteSpace(song.Artist))
+        {
+            var artistNames = MusicUtility.SplitArtistNames(song.Artist);
+            if (artistNames.Count > 0)
+                song.Artist = artistNames[0];
+        }
+        song.Album = !string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑" ? tagSong.Album : song.Album;
+        song.Duration = tagSong.Duration > 0 ? tagSong.Duration : song.Duration;
+        song.Bitrate = tagSong.Bitrate > 0 ? tagSong.Bitrate : song.Bitrate;
+        song.Year = tagSong.Year > 0 ? tagSong.Year : song.Year;
+        song.TrackNumber = tagSong.TrackNumber > 0 ? tagSong.TrackNumber : song.TrackNumber;
+        song.Genre = tagSong.Genre;
+    }
+
     /// <summary>
     /// 从 WebDAV 远程文件头部数据中解析歌曲元数据（标题、艺术家、专辑、时长等）并更新歌曲对象。
     /// 内部会自动处理 OpenList 服务器类型检测与缓存。
@@ -635,45 +697,40 @@ public class NetworkMusicService : INetworkMusicService
         _webDav.Configure(profile);
         if (_webDav is WebDavService wdsMeta) await wdsMeta.EnsureDetectedAsync();
 
-        try
+        var decodedRemotePath = Uri.UnescapeDataString(remotePath);
+        // 自适应标签头：易有大标签头的格式（FLAC 等）先小头快读，无有效元数据再用大头重试。
+        var headSizes = MayHaveLargeTagHeader(remotePath)
+            ? new[] { TagHeadSize, TagHeadSizeLarge }
+            : new[] { TagHeadSize };
+
+        Song? bestTag = null;
+        foreach (var headSize in headSizes)
         {
-            var ms = await DownloadHeadAsync(remotePath);
-            if (ms != null)
+            try
             {
+                var ms = await DownloadHeadAsync(remotePath, headSize);
+                if (ms == null) continue;
                 try
                 {
-                    var decodedRemotePath = Uri.UnescapeDataString(remotePath);
                     var tagSong = TagReader.ReadFromStream(ms, song.FilePath, decodedRemotePath, song.FileSize);
                     if (tagSong != null)
                     {
-                        if (!string.IsNullOrWhiteSpace(tagSong.Title) && tagSong.Title != song.Title)
-                        {
-                            var tagTitleDecoded = Uri.UnescapeDataString(tagSong.Title);
-                            song.Title = tagTitleDecoded != song.Title ? tagTitleDecoded : song.Title;
-                        }
-                        song.Artist = !string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家" ? tagSong.Artist : song.Artist;
-                        // 规范化艺术家名：拆分多值字符串，取第一位作为主艺术家
-                        if (!string.IsNullOrWhiteSpace(song.Artist))
-                        {
-                            var artistNames = MusicUtility.SplitArtistNames(song.Artist);
-                            if (artistNames.Count > 0)
-                                song.Artist = artistNames[0];
-                        }
-                        song.Album = !string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑" ? tagSong.Album : song.Album;
-                        song.Duration = tagSong.Duration > 0 ? tagSong.Duration : song.Duration;
-                        song.Bitrate = tagSong.Bitrate > 0 ? tagSong.Bitrate : song.Bitrate;
-                        song.Year = tagSong.Year > 0 ? tagSong.Year : song.Year;
-                        song.TrackNumber = tagSong.TrackNumber > 0 ? tagSong.TrackNumber : song.TrackNumber;
-                        song.Genre = tagSong.Genre;
-                        return song;
+                        bestTag = tagSong;
+                        if (HasUsefulMetadata(tagSong)) break; // 已拿到有效元数据，无需更大头
                     }
                 }
                 finally { ms.Dispose(); }
             }
+            catch (Exception ex)
+            {
+                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 元数据获取失败(head={headSize}): {ex.Message}");
+            }
         }
-        catch (Exception ex)
+
+        if (bestTag != null)
         {
-            Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 元数据获取失败: {ex.Message}");
+            ApplyTagToSong(song, bestTag, decodeTitle: true);
+            return song;
         }
         return null;
     }
@@ -690,41 +747,39 @@ public class NetworkMusicService : INetworkMusicService
         if (string.IsNullOrEmpty(remotePath)) return null;
 
         _smb.Configure(profile);
-        try
+        // 自适应标签头：易有大标签头的格式（FLAC 等）先小头快读，无有效元数据再用大头重试。
+        var headSizes = MayHaveLargeTagHeader(remotePath)
+            ? new[] { TagHeadSize, TagHeadSizeLarge }
+            : new[] { TagHeadSize };
+
+        Song? bestTag = null;
+        foreach (var headSize in headSizes)
         {
-            var ms = await DownloadSmbHeadAsync(remotePath, profile);
-            if (ms != null)
+            try
             {
+                var ms = await DownloadSmbHeadAsync(remotePath, profile, headSize);
+                if (ms == null) continue;
                 try
                 {
                     var tagSong = TagReader.ReadFromStream(ms, song.FilePath, remotePath, song.FileSize);
                     if (tagSong != null)
                     {
-                        if (!string.IsNullOrWhiteSpace(tagSong.Title) && tagSong.Title != song.Title)
-                            song.Title = tagSong.Title;
-                        song.Artist = !string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家" ? tagSong.Artist : song.Artist;
-                        // 规范化艺术家名：拆分多值字符串，取第一位作为主艺术家
-                        if (!string.IsNullOrWhiteSpace(song.Artist))
-                        {
-                            var artistNames = MusicUtility.SplitArtistNames(song.Artist);
-                            if (artistNames.Count > 0)
-                                song.Artist = artistNames[0];
-                        }
-                        song.Album = !string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑" ? tagSong.Album : song.Album;
-                        song.Duration = tagSong.Duration > 0 ? tagSong.Duration : song.Duration;
-                        song.Bitrate = tagSong.Bitrate > 0 ? tagSong.Bitrate : song.Bitrate;
-                        song.Year = tagSong.Year > 0 ? tagSong.Year : song.Year;
-                        song.TrackNumber = tagSong.TrackNumber > 0 ? tagSong.TrackNumber : song.TrackNumber;
-                        song.Genre = tagSong.Genre;
-                        return song;
+                        bestTag = tagSong;
+                        if (HasUsefulMetadata(tagSong)) break; // 已拿到有效元数据，无需更大头
                     }
                 }
                 finally { ms.Dispose(); }
             }
+            catch (Exception ex)
+            {
+                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 元数据获取失败(head={headSize}): {ex.Message}");
+            }
         }
-        catch (Exception ex)
+
+        if (bestTag != null)
         {
-            Log.Debug("NetworkMusicService", $"[CatClaw] SMB 元数据获取失败: {ex.Message}");
+            ApplyTagToSong(song, bestTag, decodeTitle: false);
+            return song;
         }
         return null;
     }
@@ -863,7 +918,26 @@ public class NetworkMusicService : INetworkMusicService
         // OpenList/Alist：先快速扫描入库（不下载元数据），再后台补齐元数据
         var quickScan = serverType == WebDavServerType.OpenList;
 
-        var allFiles = await _webDav.ListAllFilesAsync(basePath, serverType);
+        // 已存在但元数据缺失（艺术家/专辑为"未知"或空）的歌曲，需在完整扫描时补齐
+        var metadataRefreshMap = new System.Collections.Concurrent.ConcurrentDictionary<string, Song>();
+
+        // 标准 WebDAV 默认用 depth=1 递归扫描：避免大库 depth=infinity 一次 PROPFIND 返回巨量 XML 导致超时/OOM。
+        // 仅 OpenList/Alist（走 REST，无此问题）或递归结果为空时才回退到 depth=infinity。
+        List<RemoteFile> allFiles = new();
+        bool scannedRecursively = false;
+        if (serverType != WebDavServerType.OpenList)
+        {
+            Log.Debug("NetworkMusicService", "[WebDAV Scan] 标准服务器：优先 depth=1 递归扫描");
+            var visitedDirs = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+            await ScanWebDavDirectoryAsync(basePath, profile, songs, foundIds, existingIds, scanner, visitedDirs, quickScan, metadataRefreshMap, 0, progress);
+            scannedRecursively = true;
+            if (songs.Count == 0)
+                allFiles = await _webDav.ListAllFilesAsync(basePath, serverType); // 递归无果 → 兜底 depth=infinity
+        }
+        else
+        {
+            allFiles = await _webDav.ListAllFilesAsync(basePath, serverType);
+        }
 
         // 自动检测：如果 ListAllFiles 内部切换了 ServerType，同步到 profile 并保存
         if (_webDav is WebDavService wds && wds.CurrentServerType == WebDavServerType.OpenList
@@ -876,8 +950,6 @@ public class NetworkMusicService : INetworkMusicService
             quickScan = true;
         }
 
-        // 已存在但元数据缺失（艺术家/专辑为"未知"或空）的歌曲，需在完整扫描时补齐
-        var metadataRefreshMap = new System.Collections.Concurrent.ConcurrentDictionary<string, Song>();
         try
         {
             var existingSongs = await _db.GetCachedNetworkSongsAsync();
@@ -895,7 +967,12 @@ public class NetworkMusicService : INetworkMusicService
         }
         catch { }
 
-        if (allFiles.Count > 0)
+        if (scannedRecursively)
+        {
+            // 已通过 depth=1 递归扫描入库，无需再次处理
+            Log.Debug("NetworkMusicService", $"[WebDAV Scan] 递归扫描完成，已入库 {songs.Count} 首歌曲");
+        }
+        else if (allFiles.Count > 0)
         {
             Log.Debug("NetworkMusicService", $"[WebDAV Scan] 深度 PROPFIND 成功，找到 {allFiles.Count} 个文件，并发处理中...");
             progress?.Report((0, allFiles.Count, $"发现 {allFiles.Count} 个文件，正在扫描..."));

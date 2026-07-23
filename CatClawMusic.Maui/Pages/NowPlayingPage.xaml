@@ -428,11 +428,11 @@
                       x:Name="BottomActionBar"
                       ColumnDefinitions="*,*,*,*,*,*"
                       Margin="8,6,8,2">
-                    <!-- 进入歌词页面 -->
+                    <!-- 进入歌词页面（使用通知栏媒体控件图标） -->
                     <ImageButton Grid.Column="0" WidthRequest="22" HeightRequest="22"
                                  CornerRadius="11" Padding="5"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
-                                 Source="ic_lyrics_full"
+                                 Source="ic_notif_lyric_on"
                                  Clicked="OnOpenLyricsClicked" />
                     <!-- 定时关闭 -->
                     <ImageButton Grid.Column="1" WidthRequest="22" HeightRequest="22"

@@ -22,6 +22,14 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     /// <summary>无显式尺寸时（GetDrawableAsync）的默认解码上限</summary>
     private const int DefaultTargetPx = 1024;
 
+    /// <summary>播放页封面（ArtworkImage / LandscapeCoverImage）固定解码的目标边长。
+    /// 播放页封面源文件本身即 1000px，1024 桶等同于全尺寸采样；该值高于列表缩略图，
+    /// 用于避免封面在隐藏态（测量尺寸为 0）被预解码成 256px 低清图。</summary>
+    private const int PlayerCoverTargetPx = 1024;
+
+    /// <summary>打在播放页封面原生 ImageView.Tag 上的标记，供 GetTargetPx 识别并强制高分辨率解码。</summary>
+    internal const string PlayerCoverTag = "catclaw_player_cover";
+
     /// <summary>并发解码信号量：限制同时解码的封面数（默认 8），避免数百张同时解码打满线程池造成设备级卡顿。</summary>
     private static readonly SemaphoreSlim _decodeSemaphore = new(8, 8);
 
@@ -67,6 +75,11 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     {
         try
         {
+            // 播放页封面：无论当前测量尺寸如何（含隐藏态 0 尺寸），一律按高分辨率解码，
+            // 保证横屏/竖屏首次加载即为满分辨率，避免低清图被缓存后跨方向显示发虚。
+            if (imageView.Tag?.ToString() == PlayerCoverTag)
+                return PlayerCoverTargetPx;
+
             if (imageView.Width > 0 && imageView.Height > 0)
             {
                 var density = imageView.Resources?.DisplayMetrics?.Density ?? 1f;

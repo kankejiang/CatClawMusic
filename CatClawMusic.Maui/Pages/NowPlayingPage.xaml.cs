@@ -51,6 +51,11 @@ public partial class NowPlayingPage : ContentPage
 
         // 设置收起图标（使用 ImageSourceHelper 确保 Windows 端正确加载）
         CollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
+
+        // 播放页封面原生 ImageView 懒创建（尤其横屏 LandscapeCoverImage 在首次显示时才建 Handler），
+        // 在其 Handler 就绪后立即打标记，确保自定义图像服务对封面一律高分辨率解码（横竖屏一致）。
+        ArtworkImage.HandlerChanged += (_, _) => TagPlayerCoverViews();
+        LandscapeCoverImage.HandlerChanged += (_, _) => TagPlayerCoverViews();
     }
 
     private void OnRootSizeChanged(object? sender, EventArgs e)
@@ -174,10 +179,31 @@ public partial class NowPlayingPage : ContentPage
         }
     }
 
+    /// <summary>
+    /// 给播放页两张封面（ArtworkImage / LandscapeCoverImage）的原生 ImageView 打上标记，
+    /// 使 Android 自定义图像服务（CachingFileImageSourceService）对它们一律按高分辨率桶解码，
+    /// 避免隐藏态 0 尺寸预解码成 256px 低清图，从而让横屏与竖屏封面分辨率一致（源文件 1000px）。
+    /// 该调用幂等，每次 OnAppearing 执行一次即可；Handler 未就绪时跳过，下次出现再补。
+    /// </summary>
+    private void TagPlayerCoverViews()
+    {
+#if ANDROID
+        try
+        {
+            if (ArtworkImage.Handler?.PlatformView is Android.Widget.ImageView v1)
+                v1.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
+            if (LandscapeCoverImage.Handler?.PlatformView is Android.Widget.ImageView v2)
+                v2.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
+        }
+        catch { /* Handler 未就绪时忽略，下次 OnAppearing 再补 */ }
+#endif
+    }
+
     /// <summary>当页面显示在屏幕上时触发，加载当前歌曲、构建歌词视图并启动进度定时器。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        TagPlayerCoverViews();
         CrashReporter.MarkStage("NowPlayingPage.OnAppearing: 开始");
 #if WINDOWS
         Shell.SetNavBarIsVisible(this, false);

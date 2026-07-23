@@ -129,8 +129,8 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private ImageSource? _playNextIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_next");
     /// <summary>播放列表按钮图标 ImageSource</summary>
     [ObservableProperty] private ImageSource? _playlistIconSource = ImageSourceHelper.FromNameOriginal("ic_playlist");
-    /// <summary>歌词按钮白色图标 ImageSource</summary>
-    [ObservableProperty] private ImageSource? _lyricsIconSource = ImageSourceHelper.FromNameOriginal("ic_lyrics_white");
+    /// <summary>歌词按钮图标 ImageSource（与通知栏媒体控件一致，使用 ic_notif_lyric_on）</summary>
+    [ObservableProperty] private ImageSource? _lyricsIconSource = ImageSourceHelper.FromNameOriginal("ic_notif_lyric_on");
 
     // === Lyrics ===
     /// <summary>是否存在可用歌词</summary>

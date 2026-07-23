@@ -31,9 +31,13 @@ public partial class SearchViewModel : ObservableObject
     private List<Song> _allTopPlayedSongs = [];
     private List<Song> _allRecentAddedSongs = [];
 
-    // 搜索专用：包含全部艺术家/专辑（非每日推荐10个），确保搜索栏能匹配到库内任意艺术家/专辑
+    /// <summary>LoadDataAsync 重入守卫（Interlocked 用）：启动时多处会并发触发加载，只让第一个真正执行。</summary>
+    private int _loadInProgress;
+
+    // 搜索专用：包含全部艺术家/专辑/歌曲（非每日推荐10个），确保搜索栏能匹配到库内任意艺术家/专辑/歌曲
     private List<SearchArtistItem> _allArtistsForSearch = [];
     private List<SearchAlbumItem> _allAlbumsForSearch = [];
+    private List<Song> _allSongsForSearch = [];
 
     /// <summary>每日推荐歌曲集合（已应用筛选）</summary>
     [ObservableProperty]
@@ -396,6 +400,10 @@ public partial class SearchViewModel : ObservableObject
     /// </summary>
     public async Task LoadDataAsync()
     {
+        // 重入保护：启动时构造函数/PreloadTabData/OnAppearing 可能并发触发同一加载，
+        // 只让第一个真正执行，避免重复整库加载与万级历史聚合叠加拖垮主线程。
+        if (System.Threading.Interlocked.CompareExchange(ref _loadInProgress, 1, 0) != 0)
+            return;
         var today = DateTime.Today.ToString("yyyy-MM-dd");
         var savedDate = Preferences.Default.Get("explore_last_load_date", "");
         var isSameDay = savedDate == today;
@@ -429,7 +437,7 @@ public partial class SearchViewModel : ObservableObject
                 _ = LoadFavoritesAndGenerateHeroCards();
 
                 // 后台加载全部艺术家/专辑用于搜索栏匹配（不阻塞主流程）
-                _ = LoadAllArtistsAndAlbumsForSearchAsync();
+                _ = LoadAllLibraryForSearchAsync();
 
                 // 后台分块解析封面 + 采样封面，完成后刷新 UI（画质零损失，提取逻辑不变）
                 if (newSongs.Count > 0)
@@ -453,7 +461,7 @@ public partial class SearchViewModel : ObservableObject
             {
                 Log.Debug("SearchViewModel", $"[SearchVM] LoadDataAsync(refresh) failed: {ex.Message}");
             }
-            finally { IsLoading = false; }
+            finally { IsLoading = false; System.Threading.Interlocked.Exchange(ref _loadInProgress, 0); }
             return;
         }
 
@@ -522,7 +530,7 @@ public partial class SearchViewModel : ObservableObject
             _ = LoadFavoritesAndGenerateHeroCards();
 
             // 后台加载全部艺术家/专辑用于搜索栏匹配（不阻塞主流程）
-            _ = LoadAllArtistsAndAlbumsForSearchAsync();
+            _ = LoadAllLibraryForSearchAsync();
 
             // 后台分块解析封面 + 采样封面，完成后刷新 UI（画质零损失，提取逻辑不变）
             _ = Task.Run(async () =>
@@ -548,6 +556,7 @@ public partial class SearchViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+            System.Threading.Interlocked.Exchange(ref _loadInProgress, 0);
         }
     }
 
@@ -562,15 +571,16 @@ public partial class SearchViewModel : ObservableObject
     /// 每日推荐只随机展示 10 个艺术家/专辑，但搜索栏需要能匹配到库内任意艺术家/专辑，
     /// 因此单独加载全量列表供 <see cref="UpdateSearchDropdownAsync"/> 使用。
     /// </summary>
-    private async Task LoadAllArtistsAndAlbumsForSearchAsync()
+    private async Task LoadAllLibraryForSearchAsync()
     {
         try
         {
             var allArtistsTask = _exploreDataService.GetAllArtistsAsync();
             var allAlbumsTask = _exploreDataService.GetAllAlbumsAsync();
-            // ConfigureAwait(false)：全量艺术家/专辑列表的 materialize（含每条 PathToImageSource）
+            var allSongsTask = _libraryService.GetMergedSongsAsync();
+            // ConfigureAwait(false)：全量艺术家/专辑/歌曲列表的 materialize（含每条 PathToImageSource）
             // 改在后台线程执行，避免在主线程构建上千条项造成进入发现页时的卡顿。
-            await Task.WhenAll(allArtistsTask, allAlbumsTask).ConfigureAwait(false);
+            await Task.WhenAll(allArtistsTask, allAlbumsTask, allSongsTask).ConfigureAwait(false);
 
             _allArtistsForSearch = allArtistsTask.Result
                 .Select(a => new SearchArtistItem
@@ -591,10 +601,12 @@ public partial class SearchViewModel : ObservableObject
                     CoverSource = PathToImageSource(FirstNonEmpty(a.SampleCoverPath, a.CoverArtPath, a.Cover))
                 })
                 .ToList();
+            // 全量歌曲（本地+网络，已按启用协议过滤、含艺术家/专辑名），供搜索匹配库内任意歌曲
+            _allSongsForSearch = allSongsTask.Result;
         }
         catch (Exception ex)
         {
-            Log.Debug("SearchViewModel", $"[SearchVM] LoadAllArtistsAndAlbumsForSearch failed: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] LoadAllLibraryForSearch failed: {ex.Message}");
         }
     }
 
@@ -617,6 +629,7 @@ public partial class SearchViewModel : ObservableObject
             _allAlbums = [];
             _allArtistsForSearch = [];
             _allAlbumsForSearch = [];
+            _allSongsForSearch = [];
             _allRecentAddedSongs = [];
             ApplyFilters();
 
@@ -779,9 +792,12 @@ public partial class SearchViewModel : ObservableObject
             // 而非每日推荐的 10 个，确保能匹配到库内任意艺术家/专辑
             var (songs, artists, albums) = await Task.Run(() =>
             {
-                var songs = _allDailyRecommendSongs
-                    .Concat(_allTopPlayedSongs)
-                    .Concat(_allRecentAddedSongs)
+                // 歌曲搜索用全量库（_allSongsForSearch）；尚未加载完成时回退到发现页子集，保证尽早可用。
+                // 修复原只搜每日推荐/最多播放/最近添加三个子集（共约60首）、库内大多数歌曲搜不到的问题。
+                IEnumerable<Song> songSource = _allSongsForSearch.Count > 0
+                    ? _allSongsForSearch
+                    : _allDailyRecommendSongs.Concat(_allTopPlayedSongs).Concat(_allRecentAddedSongs);
+                var songs = songSource
                     .Where(s =>
                         (s.Title?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
                         (s.Artist?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
@@ -1512,14 +1528,21 @@ public partial class SearchViewModel : ObservableObject
         try
         {
             var favoriteSongs = await _libraryService.GetFavoriteSongsAsync();
+            // 发现页"我的最爱"是预览区块（"查看全部"跳独立歌单页 playlistId=-2），只展示最近 N 首。
+            // FavoriteList 是嵌在 VerticalStackLayout 里的 CollectionView，失去虚拟化，
+            // 无界列表会一次性物化全部行 + 封面 Image 拖垮主线程；限量后与"最多播放"(20)保持一致。
+            const int favoritePreviewCount = 20;
+            var previewFavorites = favoriteSongs.Count > favoritePreviewCount
+                ? favoriteSongs.Take(favoritePreviewCount).ToList()
+                : favoriteSongs;
             // 先显示收藏（封面占位）；Song.CoverArtPath 已实现 INPC，封面就绪自动刷新
-            FavoriteSongs = new ObservableCollection<Song>(favoriteSongs);
+            FavoriteSongs = new ObservableCollection<Song>(previewFavorites);
             GenerateHeroCards();
-            if (favoriteSongs.Count > 0)
+            if (previewFavorites.Count > 0)
             {
                 _ = Task.Run(async () =>
                 {
-                    try { await Services.CoverHelper.BatchResolveCoversAsync(favoriteSongs); }
+                    try { await Services.CoverHelper.BatchResolveCoversAsync(previewFavorites); }
                     catch (Exception ex)
                     {
                         Log.Debug("SearchViewModel", $"[SearchVM] 后台收藏封面解析失败: {ex.Message}");

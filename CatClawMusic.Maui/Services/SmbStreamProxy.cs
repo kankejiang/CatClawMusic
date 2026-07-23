@@ -1,4 +1,5 @@
 using System.Net;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Threading;
 using CatClawMusic.Data;
@@ -17,11 +18,13 @@ namespace CatClawMusic.Maui.Services;
 public class SmbStreamProxy : IDisposable
 {
     private HttpListener? _listener;
-    private readonly SmbService _smb;
+    private readonly SmbService _smb; // 兜底实例（profile 缺失 host/share 时使用）
     private int _port;
     private bool _disposed;
     private CancellationTokenSource? _cts;
-    private readonly SemaphoreSlim _smbLock = new(1, 1);
+    // 按 主机|端口|共享|用户 池化 SmbService：每个共享独立连接与内部锁，
+    // 不同共享可并发、同共享复用连接，不再每次请求都重连重挂载，也不再互相打断。
+    private readonly ConcurrentDictionary<string, SmbService> _smbPool = new();
 
     /// <summary>全局静态实例（由 MauiProgram 设置）</summary>
     public static SmbStreamProxy? Current { get; set; }
@@ -115,6 +118,19 @@ public class SmbStreamProxy : IDisposable
         return $"http://127.0.0.1:{_port}/smb/{encoded}";
     }
 
+    /// <summary>
+    /// 取得与给定共享对应的 <see cref="SmbService"/> 实例。
+    /// 按 主机|端口|共享|用户 维度池化：同一共享复用一条连接（内部自带锁），
+    /// 不同共享各自独立，从而支持并发播放/封面/歌词而互不打断。
+    /// </summary>
+    private SmbService GetService(ConnectionProfile profile)
+    {
+        if (string.IsNullOrEmpty(profile.Host) || string.IsNullOrEmpty(profile.ShareName))
+            return _smb; // 异常 profile 兜底到注入的默认实例
+        var key = $"{profile.Host}|{profile.Port}|{profile.ShareName}|{profile.UserName}";
+        return _smbPool.GetOrAdd(key, _ => new SmbService());
+    }
+
     private async void HandleRequest(HttpListenerContext context)
     {
         var request = context.Request;
@@ -152,18 +168,13 @@ public class SmbStreamProxy : IDisposable
                 return;
             }
 
+            // 取该共享对应的池化 SmbService（独立连接与内部锁，多共享可并发、同共享复用连接）
+            var svc = GetService(profile);
+
             // 配置 SMB 连接并获取文件信息
             RemoteFile? fileInfo;
-            await _smbLock.WaitAsync();
-            try
-            {
-                _smb.Configure(profile);
-                fileInfo = await _smb.GetFileInfoAsync(remotePath);
-            }
-            finally
-            {
-                _smbLock.Release();
-            }
+            svc.Configure(profile);
+            fileInfo = await svc.GetFileInfoAsync(remotePath);
 
             bool unknownLength = false;
             long fileSize;
@@ -176,23 +187,15 @@ public class SmbStreamProxy : IDisposable
                 // 兜底：GetFileInfoAsync 取不到元数据时，直接探测首字节确认文件存在。
                 // 探测成功则按“未知长度”整文件分块传输（不设置 Content-Length，
                 // HttpListener 自动使用分块编码），保证 SMB 歌曲仍可播放（仅不支持拖动）。
-                await _smbLock.WaitAsync();
-                try
+                svc.Configure(profile);
+                var probe = await svc.OpenReadRangeAsync(remotePath, 0, 1);
+                if (probe == null || probe.Length == 0)
                 {
-                    _smb.Configure(profile);
-                    var probe = await _smb.OpenReadRangeAsync(remotePath, 0, 1);
-                    if (probe == null || probe.Length == 0)
-                    {
-                        response.StatusCode = 404;
-                        response.Close();
-                        return;
-                    }
-                    unknownLength = true;
+                    response.StatusCode = 404;
+                    response.Close();
+                    return;
                 }
-                finally
-                {
-                    _smbLock.Release();
-                }
+                unknownLength = true;
                 fileSize = 0;
             }
 
@@ -232,8 +235,9 @@ public class SmbStreamProxy : IDisposable
                     response.Headers["Content-Range"] = $"bytes {start}-{end}/{fileSize}";
             }
 
-            // 从 SMB 按范围读取并发送
-            const int chunkSize = 128 * 1024; // 128KB
+            // 从 SMB 按范围读取并发送。分块越大，SMB 句柄开/关往返越少（OpenReadRangeAsync 每次调用都开关句柄），
+            // 512KB 在减少句柄 churn 与控制单块内存之间取得平衡。
+            const int chunkSize = 512 * 1024; // 512KB
             var output = response.OutputStream;
             long bytesRemaining = unknownLength ? long.MaxValue : contentLength;
             long currentOffset = start;
@@ -245,17 +249,7 @@ public class SmbStreamProxy : IDisposable
                     var toRead = unknownLength
                         ? chunkSize
                         : (int)Math.Min(chunkSize, bytesRemaining);
-                    byte[] chunk;
-                    await _smbLock.WaitAsync();
-                    try
-                    {
-                        _smb.Configure(profile);
-                        chunk = await _smb.OpenReadRangeAsync(remotePath, currentOffset, toRead);
-                    }
-                    finally
-                    {
-                        _smbLock.Release();
-                    }
+                    byte[] chunk = await svc.OpenReadRangeAsync(remotePath, currentOffset, toRead);
 
                     if (chunk == null || chunk.Length == 0) break;
 
@@ -346,6 +340,11 @@ public class SmbStreamProxy : IDisposable
         try { _cts?.Dispose(); } catch { }
         try { _listener?.Stop(); } catch { }
         try { _listener?.Close(); } catch { }
-        _smbLock.Dispose();
+        // 释放所有池化的 SmbService（注入的兜底实例 _smb 为 DI 单例，不在此释放）
+        foreach (var svc in _smbPool.Values)
+        {
+            try { svc.Dispose(); } catch { }
+        }
+        _smbPool.Clear();
     }
 }

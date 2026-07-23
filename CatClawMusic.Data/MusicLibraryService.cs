@@ -275,11 +275,11 @@ public class MusicLibraryService : IMusicLibraryService
     /// <returns>合并后的歌曲列表</returns>
     public async Task<List<Song>> GetMergedSongsAsync()
     {
-        var allSongs = await GetAllSongsAsync();
-        var networkSongs = await _db.GetCachedNetworkSongsAsync();
+        var allSongs = await GetAllSongsAsync().ConfigureAwait(false);
+        var networkSongs = await _db.GetCachedNetworkSongsAsync().ConfigureAwait(false);
         allSongs.AddRange(networkSongs);
 
-        var enabledProtocols = await _db.GetEnabledProtocolsAsync();
+        var enabledProtocols = await _db.GetEnabledProtocolsAsync().ConfigureAwait(false);
         allSongs = _db.FilterByEnabledProtocols(allSongs, enabledProtocols);
 
         return allSongs.OrderBy(s => s.Title).ToList();

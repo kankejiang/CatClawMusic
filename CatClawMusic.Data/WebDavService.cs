@@ -75,7 +75,7 @@ public class WebDavService : INetworkFileService, IDisposable
             {
                 SslOptions = new SslClientAuthenticationOptions
                 {
-                    RemoteCertificateValidationCallback = (_, _, _, _) => true
+                    RemoteCertificateValidationCallback = CreateCertValidationCallback("WebDAV")
                 },
                 ConnectTimeout = TimeSpan.FromSeconds(5),
                 AllowAutoRedirect = false
@@ -290,6 +290,35 @@ public class WebDavService : INetworkFileService, IDisposable
     }
 
     /// <summary>
+    /// 是否信任所有 TLS 证书（默认 true，保持局域网/自签 NAS 的可用性）。
+    /// 可由上层（如设置页）设为 false 启用严格证书校验。集中管理本服务所有 HttpClient 的证书策略。
+    /// </summary>
+    public static bool TrustAllCertificates { get; set; } = true;
+
+    /// <summary>
+    /// 创建统一的 TLS 证书校验回调：有效证书直接通过；无效证书按 <see cref="TrustAllCertificates"/>
+    /// 决定接受（记录中间人风险告警）或拒绝（严格模式）。
+    /// </summary>
+    /// <param name="host">服务器主机名，仅用于日志定位。</param>
+    private static System.Net.Security.RemoteCertificateValidationCallback CreateCertValidationCallback(string host)
+    {
+        return (_, _, _, sslErrors) =>
+        {
+            if (sslErrors == System.Net.Security.SslPolicyErrors.None)
+                return true;
+            if (!TrustAllCertificates)
+            {
+                Log.Warn("WebDavService", $"[WebDAV] 严格校验：拒绝服务器 {host} 的无效 TLS 证书（{sslErrors}）。");
+                return false;
+            }
+            Log.Warn("WebDavService",
+                $"[WebDAV] 已接受服务器 {host} 的无效 TLS 证书（{sslErrors}），存在中间人攻击风险。" +
+                $"建议配置可信证书；如需强制校验请关闭“忽略证书错误”。");
+            return true;
+        };
+    }
+
+    /// <summary>
     /// 确保 HttpClient 已按 profile 完成初始化。
     /// 当 host/port/账号密码/协议变化时重新创建 HttpClient，避免复用旧连接。
     /// </summary>
@@ -310,7 +339,10 @@ public class WebDavService : INetworkFileService, IDisposable
         {
             SslOptions = new SslClientAuthenticationOptions
             {
-                RemoteCertificateValidationCallback = (_, _, _, _) => true
+                // 默认仍接受无效证书以保持局域网/自签 NAS 的可用性，
+                // 但证书确实无效时记录明确的中间人风险告警（仅无效时打日志，正常链路零开销）。
+                // 后续可接入连接配置中的“忽略证书错误”开关做严格校验。
+                RemoteCertificateValidationCallback = CreateCertValidationCallback(profile.Host)
             },
             ConnectTimeout = TimeSpan.FromSeconds(30),
             AllowAutoRedirect = false
@@ -425,7 +457,10 @@ public class WebDavService : INetworkFileService, IDisposable
         {
             SslOptions = new SslClientAuthenticationOptions
             {
-                RemoteCertificateValidationCallback = (_, _, _, _) => true
+                // 默认仍接受无效证书以保持局域网/自签 NAS 的可用性，
+                // 但证书确实无效时记录明确的中间人风险告警（仅无效时打日志，正常链路零开销）。
+                // 后续可接入连接配置中的“忽略证书错误”开关做严格校验。
+                RemoteCertificateValidationCallback = CreateCertValidationCallback(profile.Host)
             },
             ConnectTimeout = TimeSpan.FromSeconds(30),
             AllowAutoRedirect = false
@@ -967,7 +1002,7 @@ public class WebDavService : INetworkFileService, IDisposable
             {
                 SslOptions = new SslClientAuthenticationOptions
                 {
-                    RemoteCertificateValidationCallback = (_, _, _, _) => true
+                    RemoteCertificateValidationCallback = CreateCertValidationCallback("WebDAV")
                 },
                 ConnectTimeout = TimeSpan.FromSeconds(30),
                 AllowAutoRedirect = false
@@ -1018,8 +1053,10 @@ public class WebDavService : INetworkFileService, IDisposable
             {
                 // 重定向后：使用无 Auth 头的 HttpClient 访问 CDN
                 // （OpenList 的 CDN 收到 Basic Auth 头会返回 400）
-                if (i > 1)
-                    customizeRequest = null; // 仅首次重定向保留 Range 等自定义头
+                // 首次重定向（i==1，即跳到 CDN）保留 Range 等自定义头，使 seek 在 CDN 跳转后仍生效；
+                // 后续重定向（i>1）丢弃自定义头，避免多级 CDN 链对 Range 的兼容问题。
+                if (i == 1)
+                    customizeRequest?.Invoke(request);
 
                 var redirectClient = GetRedirectClient();
                 var redirectResponse = await redirectClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
@@ -1271,7 +1308,7 @@ public class WebDavService : INetworkFileService, IDisposable
             {
                 SslOptions = new SslClientAuthenticationOptions
                 {
-                    RemoteCertificateValidationCallback = (_, _, _, _) => true
+                    RemoteCertificateValidationCallback = CreateCertValidationCallback("WebDAV")
                 },
                 ConnectTimeout = TimeSpan.FromSeconds(15),
                 AllowAutoRedirect = false
@@ -1647,7 +1684,7 @@ public class WebDavService : INetworkFileService, IDisposable
         {
             SslOptions = new SslClientAuthenticationOptions
             {
-                RemoteCertificateValidationCallback = (_, _, _, _) => true
+                RemoteCertificateValidationCallback = CreateCertValidationCallback("OpenList")
             },
             ConnectTimeout = TimeSpan.FromSeconds(15),
             AllowAutoRedirect = true
@@ -1670,7 +1707,7 @@ public class WebDavService : INetworkFileService, IDisposable
         {
             SslOptions = new SslClientAuthenticationOptions
             {
-                RemoteCertificateValidationCallback = (_, _, _, _) => true
+                RemoteCertificateValidationCallback = CreateCertValidationCallback("OpenList")
             },
             ConnectTimeout = TimeSpan.FromSeconds(15),
             AllowAutoRedirect = true

@@ -178,6 +178,74 @@ public partial class AudioPlayerService
     }
 
     // ═══════════════════════════════════════
+    // Media3 流式磁盘缓存（仅网络音频）
+    // ═══════════════════════════════════════
+
+    /// <summary>Media3 流式缓存实例（懒加载、线程安全）。仅缓存网络音频的播放流，本地文件不走此缓存。</summary>
+    private static AndroidX.Media3.DataSource.Cache.SimpleCache? _mediaCache;
+    private static readonly object _mediaCacheLock = new();
+
+    /// <summary>
+    /// 懒加载 Media3 SimpleCache（LRU 淘汰）。须在后台线程首次触发以避免主线程 I/O；
+    /// 这里在播放线程（PlayInternalAsync 已 Task.Run 化）调用，SimpleCache 构造本身很快。
+    /// </summary>
+    private static AndroidX.Media3.DataSource.Cache.SimpleCache EnsureMediaCache()
+    {
+        if (_mediaCache != null) return _mediaCache;
+        lock (_mediaCacheLock)
+        {
+            if (_mediaCache != null) return _mediaCache;
+            var ctx = global::Android.App.Application.Context;
+            var cacheDir = new Java.IO.File(ctx.CacheDir, "media3_stream");
+            // 复用 AudioCacheService 的用户可配置上限，避免额外设置项
+            long maxBytes;
+            try { maxBytes = AudioCacheService.Instance.CacheSizeLimitBytes; }
+            catch { maxBytes = (long)AudioCacheService.DefaultCacheSizeMB * 1024 * 1024; }
+            var evictor = new AndroidX.Media3.DataSource.Cache.LeastRecentlyUsedCacheEvictor(maxBytes);
+            var dbProvider = new AndroidX.Media3.Database.StandaloneDatabaseProvider(ctx);
+            _mediaCache = new AndroidX.Media3.DataSource.Cache.SimpleCache(cacheDir, evictor, dbProvider);
+            return _mediaCache;
+        }
+    }
+
+    /// <summary>
+    /// 为网络音频（http/https，含 SMB 本地代理与 WebDAV/Alist）创建带渐进式磁盘缓存的 ProgressiveMediaSource。
+    /// 上游用 DefaultHttpDataSource（其内部 HttpURLConnection 仍受全局 WebDavAuthenticator 处理 Basic Auth）；
+    /// FLAG_IGNORE_CACHE_ON_ERROR 保证缓存读写异常时自动回退网络，不阻断播放。失败返回 null（调用方回退默认源）。
+    /// </summary>
+    private static AndroidX.Media3.ExoPlayer.Source.IMediaSource? CreateNetworkMediaSource(global::Android.Net.Uri uri)
+    {
+        try
+        {
+            var cache = EnsureMediaCache();
+            var upstream = new AndroidX.Media3.DataSource.DefaultHttpDataSource.Factory();
+            var cacheFactory = new AndroidX.Media3.DataSource.Cache.CacheDataSource.Factory()
+                .SetCache(cache)
+                .SetUpstreamDataSourceFactory(upstream)
+                .SetFlags(AndroidX.Media3.DataSource.Cache.CacheDataSource.FlagIgnoreCacheOnError);
+            // 自定义缓存键：去掉查询串（Alist 的 sign/token 会过期），使同一首歌的不同签名 URL 共享缓存条目
+            var mediaItem = new MediaItem.Builder()
+                .SetUri(uri)
+                .SetCustomCacheKey(BuildCacheKey(uri.ToString() ?? ""))
+                .Build();
+            return new AndroidX.Media3.ExoPlayer.Source.ProgressiveMediaSource.Factory(cacheFactory)
+                .CreateMediaSource(mediaItem);
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("AudioPlayerService.Android", $"[ExoPlayer] 缓存源创建失败，回退默认: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>从 URL 派生稳定缓存键：剥离查询串（sign/token 等易变参数），保留 scheme+host+path（含 userinfo）。</summary>
+    private static string BuildCacheKey(string url)
+    {
+        var q = url.IndexOf('?');
+        return q >= 0 ? url.Substring(0, q) : url;
+    }
+
+    // ═══════════════════════════════════════
     // 播放核心
     // ═══════════════════════════════════════
 
@@ -290,8 +358,17 @@ public partial class AudioPlayerService
                 }
             }
 
-            var mediaItem = MediaItem.FromUri(global::Android.Net.Uri.Parse(playUri.ToString()));
-            player.SetMediaItem(mediaItem);
+            var androidUri = global::Android.Net.Uri.Parse(playUri.ToString());
+            // 网络音频（http/https，含 SMB 本地代理与 WebDAV/Alist）走 Media3 渐进式磁盘缓存，
+            // 实现边下边播 + seek 命中缓存；本地文件（file:///content://）保持默认直读，不写入流缓存。
+            AndroidX.Media3.ExoPlayer.Source.IMediaSource? cachedSource = null;
+            if (playUri.Scheme == "http" || playUri.Scheme == "https")
+                cachedSource = CreateNetworkMediaSource(androidUri);
+
+            if (cachedSource != null)
+                player.SetMediaSource(cachedSource);
+            else
+                player.SetMediaItem(MediaItem.FromUri(androidUri));
             player.Prepare();
             // FFmpeg 模式重新烘焙时，从原进度无缝续播（startPositionSec>0 才跳转，0 表示从头播放）
             if (startPositionSec > 0.3)

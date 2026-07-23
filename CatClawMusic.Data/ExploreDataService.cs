@@ -119,7 +119,7 @@ public class ExploreDataService
         }
 
         // 生成新的推荐
-        var allSongs = await GetFilteredSongsAsync();
+        var allSongs = await GetFilteredSongsAsync().ConfigureAwait(false);
         var random = new Random();
         var shuffled = allSongs.OrderBy(_ => random.Next()).Take(20).ToList();
 
@@ -148,16 +148,19 @@ public class ExploreDataService
         try
         {
             if (!File.Exists(_cacheFilePath)) return null;
-            var json = File.ReadAllText(_cacheFilePath);
+            var json = await File.ReadAllTextAsync(_cacheFilePath).ConfigureAwait(false);
             var cache = System.Text.Json.JsonSerializer.Deserialize<DailyRecommendCache>(json);
             if (cache?.Date != date) return null;
-            var allSongs = await _db.GetSongsAsync();
+            var allSongs = await _db.GetSongsAsync().ConfigureAwait(false);
             var filtered = ApplySourceFilter(allSongs);
+            // 用字典 O(1) 查找替代原 O(ids × 全库) 的 FirstOrDefault 循环（TryAdd 保留首个、容错重复 ID）
+            var byId = new Dictionary<int, Song>(filtered.Count);
+            foreach (var s in filtered)
+                byId.TryAdd(s.Id, s);
             var result = new List<Song>();
             foreach (var id in cache.Ids)
             {
-                var song = filtered.FirstOrDefault(s => s.Id == id);
-                if (song != null) result.Add(song);
+                if (byId.TryGetValue(id, out var song)) result.Add(song);
             }
             return result.Count > 0 ? result : null;
         }
@@ -433,14 +436,14 @@ public class ExploreDataService
     /// <summary>获取最多播放的歌曲（含播放次数）</summary>
     public async Task<List<Song>> GetTopPlayedSongsAsync(int limit = 50)
     {
-        var songs = await _db.GetTopPlayedSongsAsync(limit);
+        var songs = await _db.GetTopPlayedSongsAsync(limit).ConfigureAwait(false);
         return ApplySourceFilter(songs);
     }
 
     /// <summary>获取最近7天内入库的歌曲</summary>
     public async Task<List<Song>> GetRecentlyAddedSongsAsync(int limit = 50)
     {
-        var allSongs = await GetFilteredSongsAsync();
+        var allSongs = await GetFilteredSongsAsync().ConfigureAwait(false);
         var sevenDaysAgo = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
         return allSongs
             .Where(s => s.DateAdded >= sevenDaysAgo)
