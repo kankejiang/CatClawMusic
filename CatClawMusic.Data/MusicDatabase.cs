@@ -299,14 +299,14 @@ public class MusicDatabase
     }
 
     /// <summary>
-    /// 获取网络歌曲总数（WebDAV + SMB）
+    /// 获取网络歌曲总数（WebDAV + SMB + 缓存的网络歌曲）
     /// </summary>
     /// <returns>网络歌曲数量</returns>
     public async Task<int> GetNetworkSongCountAsync()
     {
         await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Song>()
-            .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
+            .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB || s.Source == SongSource.Cache)
             .CountAsync();
     }
 
@@ -390,6 +390,25 @@ public class MusicDatabase
     public async Task<List<Song>> GetSongsWithDetailsAsync()
     {
         var songs = await _database.Table<Song>().Where(s => s.Source == SongSource.Local).ToListAsync();
+        return await FillSongDetailsAsync(songs);
+    }
+
+    /// <summary>
+    /// 获取所有歌曲（本地 + 网络缓存），并预加载艺术家和专辑名称。
+    /// 用于 Library 总览等需要同时统计本地与网络歌曲的场景。
+    /// </summary>
+    /// <returns>包含艺术家和专辑信息的所有歌曲列表</returns>
+    public async Task<List<Song>> GetAllSongsWithDetailsAsync()
+    {
+        var songs = await _database.Table<Song>().ToListAsync();
+        return await FillSongDetailsAsync(songs);
+    }
+
+    /// <summary>
+    /// 为歌曲列表统一填充艺术家、专辑、播放次数及多艺术家信息
+    /// </summary>
+    private async Task<List<Song>> FillSongDetailsAsync(List<Song> songs)
+    {
         // 批量预加载艺术家和专辑，避免 N+1 查询
         var artists = await _database.Table<Artist>().ToListAsync();
         var albums = await _database.Table<Album>().ToListAsync();
@@ -2162,13 +2181,13 @@ public class MusicDatabase
         }
     }
 
-    /// <summary>获取缓存的网络歌曲（不去重，保留同歌名不同版本）</summary>
+    /// <summary>获取缓存的网络歌曲（WebDAV/SMB/Cache，不去重，保留同歌名不同版本）</summary>
     /// <returns>网络歌曲列表</returns>
     public async Task<List<Song>> GetCachedNetworkSongsAsync()
     {
         await EnsureMaintenanceCompletedAsync();
         var songs = await _database.Table<Song>()
-            .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
+            .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB || s.Source == SongSource.Cache)
             .ToListAsync();
         // 填充 Artist/Album 名称
         var artists = await _database.Table<Artist>().ToListAsync();
@@ -2188,10 +2207,10 @@ public class MusicDatabase
         return songs;
     }
 
-    /// <summary>缓存网络歌曲数量</summary>
+    /// <summary>缓存网络歌曲数量（WebDAV/SMB/Cache）</summary>
     /// <returns>网络歌曲总数</returns>
     public async Task<int> GetCachedNetworkSongCountAsync()
-        => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB).CountAsync();
+        => await _database.Table<Song>().Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB || s.Source == SongSource.Cache).CountAsync();
 
     /// <summary>
     /// 开始替换网络歌曲：先保存现有网络歌曲的收藏引用，再清空 WebDAV 歌曲数据。

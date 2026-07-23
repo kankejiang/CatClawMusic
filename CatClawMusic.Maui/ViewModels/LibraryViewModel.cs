@@ -575,7 +575,7 @@ public partial class LibraryViewModel : ObservableObject
                  totalMusicSizeText, folderCount, freeSpaceText,
                  formatGroups, recent, libraryCards, pieDatasets) = await Task.Run(async () =>
             {
-                var allSongs = await _db.GetSongsWithDetailsAsync();
+                var allSongs = await _db.GetAllSongsWithDetailsAsync();
                 var localSongs = allSongs.Where(s => s.Source == SongSource.Local).ToList();
                 var netSongs = allSongs.Where(s => s.Source != SongSource.Local).ToList();
 
