@@ -39,6 +39,30 @@ public class LocalScanService
     /// </summary>
     public static event EventHandler<int>? ScanCompleted;
 
+    /// <summary>
+    /// 静态标记：网络音乐库（WebDAV/SMB/Navidrome）同步后库内容已变更，
+    /// 网络音乐库卡片、网络 tab 及合并列表需要重新加载。页面在 OnAppearing 时检查并消费此标记。
+    /// </summary>
+    public static bool NetworkNeedsReload { get; set; }
+
+    /// <summary>
+    /// 网络音乐库同步完成事件，当远程连接扫描导入/元数据回填完成后触发。
+    /// 参数为本次同步的歌曲数量。供 LibraryPage 据此刷新网络音乐库视图，
+    /// 解决"网络音乐有缓存但网络音乐库未同步"的问题。
+    /// </summary>
+    public static event EventHandler<int>? NetworkSyncCompleted;
+
+    /// <summary>
+    /// 标记网络音乐库已变更并触发 <see cref="NetworkSyncCompleted"/> 事件。
+    /// 因 C# 事件仅能在声明类型内部引发，故提供此静态方法供外部（如同步页）调用。
+    /// </summary>
+    /// <param name="count">本次同步的歌曲数量</param>
+    public static void NotifyNetworkSyncCompleted(int count)
+    {
+        NetworkNeedsReload = true;
+        NetworkSyncCompleted?.Invoke(null, count);
+    }
+
     /// <summary>支持的音频文件扩展名集合</summary>
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {

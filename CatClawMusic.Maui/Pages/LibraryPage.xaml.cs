@@ -49,6 +49,7 @@ public partial class LibraryPage : ContentPage
 
         _vm.DiscoverSourceChanged += OnDiscoverSourceChanged;
         Services.LocalScanService.ScanCompleted += OnScanCompleted;
+        Services.LocalScanService.NetworkSyncCompleted += OnNetworkSyncCompleted;
 
         _vm.PropertyChanged += OnViewModelPropertyChanged;
     }
@@ -410,11 +411,28 @@ public partial class LibraryPage : ContentPage
 
     private void OnScanCompleted(object? sender, int importedCount)
     {
-        // 扫描后歌曲/专辑/艺术家列表可能变化：清空各列表页缓存，下次进入重新拉取最新列表
+        // 本地扫描后刷新音乐库（列表/总览/当前 tab 同步）
+        RefreshLibraryAfterDataChangedAsync();
+    }
+
+    private void OnNetworkSyncCompleted(object? sender, int importedCount)
+    {
+        // 网络音乐库（WebDAV/SMB/Navidrome）同步后，网络音乐库卡片与网络 tab 需重新同步，
+        // 避免"网络音乐有缓存但网络音乐库未同步"的问题。
+        RefreshLibraryAfterDataChangedAsync();
+    }
+
+    /// <summary>
+    /// 本地扫描或网络音乐库同步完成后统一刷新：清空各列表页缓存、刷新协议、
+    /// 总览与当前 tab（本地加载本地、网络加载网络），确保音乐库视图即时同步。
+    /// </summary>
+    private void RefreshLibraryAfterDataChangedAsync()
+    {
+        // 扫描/同步后歌曲/专辑/艺术家列表可能变化：清空各列表页缓存，下次进入重新拉取最新列表
         AllSongsViewModel.InvalidateCache();
         AlbumsViewModel.InvalidateCache();
         ArtistsViewModel.InvalidateCache();
-        // 立即清空 ExploreDataService 的内存聚合缓存，确保扫描后进入列表页拿到最新数据
+        // 立即清空 ExploreDataService 的内存聚合缓存，确保扫描/同步后进入列表页拿到最新数据
         _exploreDataService?.InvalidateDailyRecommendCache();
 
         // 所有重型操作并行跑在后台线程，避免阻塞 UI
@@ -426,6 +444,8 @@ public partial class LibraryPage : ContentPage
 
                 if (_vm.CurrentTab == "Local")
                     tasks.Add(_vm.LoadLocalAsync());
+                else if (_vm.CurrentTab == "Network")
+                    tasks.Add(_vm.LoadNetworkAsync());
 
                 tasks.Add(_vm.RefreshProtocolsAsync());
                 tasks.Add(_vm.LoadOverviewDataAsync());
@@ -437,7 +457,7 @@ public partial class LibraryPage : ContentPage
             }
             catch (Exception ex)
             {
-                Log.Debug("LibraryPage.xaml", $"[LibraryPage] 扫描完成后刷新失败: {ex.Message}");
+                Log.Debug("LibraryPage.xaml", $"[LibraryPage] 数据变更后刷新失败: {ex.Message}");
             }
         });
     }
@@ -466,6 +486,7 @@ public partial class LibraryPage : ContentPage
         base.OnHandlerChanging(args);
         _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
         Services.LocalScanService.ScanCompleted -= OnScanCompleted;
+        Services.LocalScanService.NetworkSyncCompleted -= OnNetworkSyncCompleted;
         _vm.PropertyChanged -= OnViewModelPropertyChanged;
     }
 
@@ -484,7 +505,7 @@ public partial class LibraryPage : ContentPage
             await LoadInitialDataAsync();
             await _vm.LoadOverviewDataAsync();
         }
-        else if (Services.LocalScanService.NeedsReload)
+        else if (Services.LocalScanService.NeedsReload || Services.LocalScanService.NetworkNeedsReload)
         {
             try
             {
@@ -492,12 +513,21 @@ public partial class LibraryPage : ContentPage
                 {
                     await _vm.LoadLocalAsync();
                 }
+                else if (_vm.CurrentTab == "Network")
+                {
+                    await _vm.LoadNetworkAsync();
+                }
                 await _vm.RefreshProtocolsAsync();
                 await _vm.LoadOverviewDataAsync();
             }
             catch (Exception ex)
             {
-                Log.Debug("LibraryPage.xaml", $"[LibraryPage] 扫描后刷新本地音乐失败: {ex.Message}");
+                Log.Debug("LibraryPage.xaml", $"[LibraryPage] 扫描/同步后刷新音乐库失败: {ex.Message}");
+            }
+            finally
+            {
+                // 消费标记：网络同步标记始终重置，避免反复刷新；本地标记沿用既有行为
+                Services.LocalScanService.NetworkNeedsReload = false;
             }
         }
 

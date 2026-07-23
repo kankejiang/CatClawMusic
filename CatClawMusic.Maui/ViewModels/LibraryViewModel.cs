@@ -624,7 +624,12 @@ public partial class LibraryViewModel : ObservableObject
                     })
                     .ToList();
 
-                var networkOnline = HasNetworkProtocols && netCount > 0;
+                // 直接查数据库判断网络协议是否启用，避免依赖 HasNetworkProtocols 属性。
+                // 该属性由 RefreshProtocolsAsync 在主线程设置，与 LoadOverviewDataAsync 并行或
+                // 跨线程读取时可能读到旧值 false，导致已有网络歌曲缓存仍显示"未配置"。
+                var enabledProtocols = await _db.GetEnabledProtocolsAsync();
+                var hasNetworkProtocols = enabledProtocols.Count > 0;
+                var networkOnline = hasNetworkProtocols && netCount > 0;
                 var lastSync = "今天 09:14";
                 try
                 {
@@ -637,12 +642,24 @@ public partial class LibraryViewModel : ObservableObject
                 }
                 catch { }
 
+                // 网络音乐库卡片文案：优先反映实际缓存数量，避免"有缓存却显示未配置"。
+                // - 有启用协议且有歌曲：在线 / 已连接
+                // - 有歌曲但协议未启用：离线 / 已缓存（歌曲仍在本地数据库）
+                // - 有启用协议但无歌曲：在线 / 0 首 · 已连接
+                // - 无协议且无歌曲：离线 / 未配置
+                var (netSubtitle, netStatusText, netStatusType) = (netCount, hasNetworkProtocols) switch
+                {
+                    (> 0, true)  => ($"{netCount} 首 · 已连接", "在线", "on"),
+                    (> 0, false) => ($"{netCount} 首 · 已缓存", "离线", "off"),
+                    (0, true)    => ("0 首 · 已连接", "在线", "on"),
+                    _            => ("未配置", "离线", "off")
+                };
+
                 var cards = new ObservableCollection<LibraryCardItem>
                 {
                     new("本地音乐库", $"{locCount} 首 · {fCount} 个文件夹 · 今天 {lastSync} 扫描", "已同步", "ok",
                         "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder.svg", "local"),
-                    new("网络音乐库", networkOnline ? $"{netCount} 首 · 已连接" : "未配置",
-                        networkOnline ? "在线" : "离线", networkOnline ? "on" : "off",
+                    new("网络音乐库", netSubtitle, netStatusText, netStatusType,
                         "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi.svg", "network"),
                     new("我喜欢的", $"{favCount} 首 · 智能歌单", "", "",
                         "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite.svg", "favorite"),

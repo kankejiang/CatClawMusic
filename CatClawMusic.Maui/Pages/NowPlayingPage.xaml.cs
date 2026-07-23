@@ -98,11 +98,9 @@ public partial class NowPlayingPage : ContentPage
         if (width <= 0 || height <= 0) return;
 
         var isLandscape = width > height;
-        // 封面尺寸：横屏根据高度计算（避免超出窗口），竖屏根据较短边计算
+        // 封面尺寸：竖屏根据较短边计算；横屏尽量占满左栏（取左栏宽与可用高的最小值），上限与竖屏一致 560
         var coverSize = isLandscape
-            ? (_landscapeLyricsMode
-                ? Math.Clamp((int)(height * 0.82) - 40, 200, 520)
-                : Math.Clamp((int)(height * 0.52), 220, 360))
+            ? Math.Clamp((int)Math.Min(height - 32, (width - 148) / 2.15), 240, 560)
             : Math.Clamp((int)(width - 60), 280, 560);
 
         if (_isLandscape == isLandscape && _lastCoverSize == coverSize)
@@ -675,6 +673,9 @@ public partial class NowPlayingPage : ContentPage
         LandscapeToolsRow.IsVisible = !_landscapeLyricsMode;
         LandscapeCurrentLyric.IsVisible = !_landscapeLyricsMode;
         LandscapeLyricsScroll.IsVisible = _landscapeLyricsMode;
+        // 歌词模式下隐藏进度条与播放控件，呈现纯净歌词页；再次点击歌词恢复横屏模式
+        LandscapeProgressRow.IsVisible = !_landscapeLyricsMode;
+        LandscapeControlsRow.IsVisible = !_landscapeLyricsMode;
         // 重算封面尺寸（歌词模式封面更大，能多大就多大）
         ApplyLayoutForOrientation(this.Width, this.Height);
     }

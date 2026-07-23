@@ -2,6 +2,7 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Maui.ApplicationModel;
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
 
@@ -115,15 +116,28 @@ public partial class ListeningStatsViewModel : ObservableObject
         await LoadAsync();
     }
 
-    /// <summary>切换趋势图指标：true=次数, false=时长。</summary>
+    /// <summary>切换趋势图指标：true=次数, false=时长。
+    /// 聚合在后台线程完成，仅最终赋值回 UI 线程，避免大范围（全部）下对上万条会话做
+    /// LINQ 时阻塞主线程导致 ANR（发现页切次数时主线程卡死）。</summary>
     [RelayCommand]
-    public void SwitchMetric(bool isCount)
+    public async Task SwitchMetricAsync(bool isCount)
     {
-        IsCountMetric = isCount;
-        RenderTrendChart();
+        IsCountMetric = isCount; // 命令起始于 UI 线程，指标 chip 颜色即时切换
+        var sessions = _lastSessions;
+        if (sessions == null) return;
+        var (bars, cap) = await Task.Run(() => BuildTrendBars(sessions, isCount, _currentRange))
+            .ConfigureAwait(false);
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            TrendCapText = cap;
+            TrendBars.Clear();
+            foreach (var b in bars) TrendBars.Add(b);
+        }).ConfigureAwait(false);
     }
 
-    /// <summary>加载统计数据（含趋势/时段/环比等所有区块）</summary>
+    /// <summary>加载统计数据（含趋势/时段/环比等所有区块）。
+    /// 所有统计 LINQ（可能遍历上万条会话）在后台线程执行，仅最后一步把结果一次性回 UI 线程赋值，
+    /// 避免切换范围/次数时主线程被阻塞触发 ANR。</summary>
     [RelayCommand]
     public async Task LoadAsync()
     {
@@ -132,14 +146,15 @@ public partial class ListeningStatsViewModel : ObservableObject
         StatusText = "加载中…";
         try
         {
-            // 并行拉取所有需要的数据
+            // 并行拉取所有需要的数据（DB 查询本身在后台线程）
             var recentPlaysTask = _db.GetRecentPlaysAsync(200);
             var topSongsTask = _db.GetTopPlayedSongsAsync(10);
             var recentSongsTask = _db.GetRecentSongsAsync();
             var topArtistsTask = _db.GetTopPlayedArtistsAsync(5);
             var sessionsTask = LoadSessionsForCurrentRangeAsync();
 
-            await Task.WhenAll(recentPlaysTask, topSongsTask, recentSongsTask, topArtistsTask, sessionsTask);
+            await Task.WhenAll(recentPlaysTask, topSongsTask, recentSongsTask, topArtistsTask, sessionsTask)
+                .ConfigureAwait(false);
 
             var recentPlays = recentPlaysTask.Result;
             var topSongs = topSongsTask.Result;
@@ -147,47 +162,105 @@ public partial class ListeningStatsViewModel : ObservableObject
             var topArtists = topArtistsTask.Result;
             var sessions = sessionsTask.Result;
 
-            HasData = recentPlays.Count > 0;
+            // —— 所有 CPU 密集聚合在后台线程完成 ——
+            var result = await Task.Run(async () =>
+            {
+                var r = new StatsResult();
+                r.HasData = recentPlays.Count > 0;
 
-            // —— 顶部统计卡 + 听歌时长大卡（基于 sessions 而非 recentPlays，支持时间范围）——
-            ComputeSummary(sessions, topSongs, recentSongs);
+                ComputeSummary(r, sessions, topSongs, recentSongs);
+                RenderTrendChart(r, sessions);
+                RenderTimeSlots(r, sessions);
+                ComputeStreak(r, sessions);
+                await RenderCompareAsync(r, sessions);
 
-            // —— 趋势图 ——
-            RenderTrendChart(sessions);
+                var maxPlays = topSongs.Count > 0 ? topSongs.Max(s => s.PlayCount) : 1;
+                r.TopSongMax = Math.Max(1, maxPlays);
+                r.TopSongs = topSongs.Select((s, i) => new TopSongItem(s, i + 1, r.TopSongMax)).ToList();
+                r.RecentSongs = recentSongs.Take(10).ToList();
+                r.TopArtists = topArtists.Select(a => new ArtistStatItem(a.Artist, a.PlayCount)).ToList();
 
-            // —— 时段分布 ——
-            RenderTimeSlots(sessions);
+                r.StatusText = r.HasData ? "" : "还没有听歌记录，去发现页听听吧";
+                return r;
+            }).ConfigureAwait(false);
 
-            // —— 连续听歌 ——
-            ComputeStreak(sessions);
-
-            // —— 环比对比 ——
-            await RenderCompareAsync();
-
-            // —— Top10 歌曲 ——（整体替换集合，一次 PropertyChanged）
-            var maxPlays = topSongs.Count > 0 ? topSongs.Max(s => s.PlayCount) : 1;
-            TopSongMax = Math.Max(1, maxPlays);
-            TopSongs = new ObservableCollection<TopSongItem>(
-                topSongs.Select((s, i) => new TopSongItem(s, i + 1, TopSongMax)));
-
-            // —— 最近在听 ——
-            RecentSongs = new ObservableCollection<Song>(recentSongs.Take(10));
-
-            // —— Top5 歌手 ——
-            TopArtists = new ObservableCollection<ArtistStatItem>(
-                topArtists.Select(a => new ArtistStatItem(a.Artist, a.PlayCount)));
-
-            StatusText = HasData ? "" : "还没有听歌记录，去发现页听听吧";
+            // —— 一次性回 UI 线程赋值（触发绑定刷新 / CollectionView 重绑）——
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                ApplyResult(result);
+                IsLoading = false;
+            }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            StatusText = "加载失败：" + ex.Message;
             Log.Debug("ListeningStatsViewModel", $"[ListeningStatsVM] LoadAsync 异常: {ex}");
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                StatusText = "加载失败：" + ex.Message;
+                IsLoading = false;
+            }).ConfigureAwait(false);
         }
-        finally
-        {
-            IsLoading = false;
-        }
+    }
+
+    /// <summary>后台计算结果的容器：所有统计字段集中此处，避免在后台线程触碰绑定属性。</summary>
+    private sealed class StatsResult
+    {
+        public string TotalPlaysText = "0";
+        public string SongsHeardText = "0";
+        public string ListeningDaysText = "0";
+        public string CompanionDaysText = "0";
+        public string TotalDurationText = "0 分";
+        public string AvgDurationText = "0";
+        public string LongestSongText = "--:--";
+        public string TopSongTitle = "—";
+        public string NightPercentText = "0";
+        public string TrendCapText = "";
+        public List<TrendBar> TrendBars = new();
+        public List<TimeSlotItem> TimeSlots = new();
+        public string NightNoteText = "";
+        public string StreakCurrentText = "0";
+        public string StreakBestText = "0";
+        public string StreakCapText = "0";
+        public List<CompareItem> CompareItems = new();
+        public string CompareCapText = "";
+        public bool HasCompare = true;
+        public int TopSongMax = 1;
+        public List<TopSongItem> TopSongs = new();
+        public List<Song> RecentSongs = new();
+        public List<ArtistStatItem> TopArtists = new();
+        public bool HasData;
+        public string StatusText = "";
+    }
+
+    /// <summary>把后台计算结果一次性赋给绑定属性（必须在 UI 线程调用）。</summary>
+    private void ApplyResult(StatsResult r)
+    {
+        TotalPlaysText = r.TotalPlaysText;
+        SongsHeardText = r.SongsHeardText;
+        ListeningDaysText = r.ListeningDaysText;
+        CompanionDaysText = r.CompanionDaysText;
+        TotalDurationText = r.TotalDurationText;
+        AvgDurationText = r.AvgDurationText;
+        LongestSongText = r.LongestSongText;
+        TopSongTitle = r.TopSongTitle;
+        NightPercentText = r.NightPercentText;
+        TrendCapText = r.TrendCapText;
+        TrendBars.Clear();
+        foreach (var b in r.TrendBars) TrendBars.Add(b);
+        TimeSlots = new ObservableCollection<TimeSlotItem>(r.TimeSlots);
+        NightNoteText = r.NightNoteText;
+        StreakCurrentText = r.StreakCurrentText;
+        StreakBestText = r.StreakBestText;
+        StreakCapText = r.StreakCapText;
+        CompareItems = new ObservableCollection<CompareItem>(r.CompareItems);
+        CompareCapText = r.CompareCapText;
+        HasCompare = r.HasCompare;
+        TopSongMax = r.TopSongMax;
+        TopSongs = new ObservableCollection<TopSongItem>(r.TopSongs);
+        RecentSongs = new ObservableCollection<Song>(r.RecentSongs);
+        TopArtists = new ObservableCollection<ArtistStatItem>(r.TopArtists);
+        HasData = r.HasData;
+        StatusText = r.StatusText;
     }
 
     /// <summary>根据当前时间范围拉取播放会话列表。</summary>
@@ -201,8 +274,8 @@ public partial class ListeningStatsViewModel : ObservableObject
         return await _db.GetPlaySessionsAsync(since);
     }
 
-    /// <summary>计算顶部统计卡 + 听歌时长大卡。</summary>
-    private void ComputeSummary(List<PlaySession> sessions, List<Song> topSongs, List<Song> recentSongs)
+    /// <summary>计算顶部统计卡 + 听歌时长大卡（写入 StatsResult，不触碰绑定属性）。</summary>
+    private void ComputeSummary(StatsResult r, List<PlaySession> sessions, List<Song> topSongs, List<Song> recentSongs)
     {
         // 总播放次数 = 会话条数；听过歌曲数 = 不同 SongId 数；听歌天数 = 不同日期数
         var totalPlays = sessions.Count;
@@ -213,16 +286,16 @@ public partial class ListeningStatsViewModel : ObservableObject
         var now = DateTimeOffset.Now.ToUnixTimeSeconds();
         var companionDays = (int)Math.Max(1, Math.Round((now - _epoch) / 86400.0));
 
-        TotalPlaysText = totalPlays.ToString("N0");
-        SongsHeardText = songsHeard.ToString("N0");
-        ListeningDaysText = listeningDays.ToString("N0");
-        CompanionDaysText = companionDays.ToString("N0");
+        r.TotalPlaysText = totalPlays.ToString("N0");
+        r.SongsHeardText = songsHeard.ToString("N0");
+        r.ListeningDaysText = listeningDays.ToString("N0");
+        r.CompanionDaysText = companionDays.ToString("N0");
 
         // 累计听歌时长 = Σ session.DurationMs
         var totalMs = sessions.Sum(s => s.DurationMs);
         var totalMinutes = totalMs / 60000.0;
-        TotalDurationText = FormatDuration(totalMinutes);
-        AvgDurationText = listeningDays > 0 ? Math.Round(totalMinutes / listeningDays).ToString("N0") : "0";
+        r.TotalDurationText = FormatDuration(totalMinutes);
+        r.AvgDurationText = listeningDays > 0 ? Math.Round(totalMinutes / listeningDays).ToString("N0") : "0";
 
         // 最长单曲：从 topSongs + recentSongs 并集取最长 Duration
         var songById = new Dictionary<int, Song>();
@@ -239,8 +312,8 @@ public partial class ListeningStatsViewModel : ObservableObject
                 longestDisplay = $"{sec / 60}:{sec % 60:D2}";
             }
         }
-        LongestSongText = longestDisplay;
-        TopSongTitle = topSongs.Count > 0 ? topSongs[0].Title : "—";
+        r.LongestSongText = longestDisplay;
+        r.TopSongTitle = topSongs.Count > 0 ? topSongs[0].Title : "—";
 
         // 深夜听歌占比：21:00-05:00 的会话数 / 总会话数
         var nightCount = sessions.Count(s =>
@@ -249,32 +322,25 @@ public partial class ListeningStatsViewModel : ObservableObject
             return hour >= 21 || hour < 5;
         });
         var nightPct = totalPlays > 0 ? (int)Math.Round(nightCount * 100.0 / totalPlays) : 0;
-        NightPercentText = nightPct.ToString();
+        r.NightPercentText = nightPct.ToString();
     }
 
-    /// <summary>渲染趋势图（次数/时长切换）。</summary>
-    private void RenderTrendChart(List<PlaySession>? sessions = null)
+    /// <summary>纯函数：按当前指标/范围聚合趋势柱子，不触碰 UI 绑定（可在后台线程调用）。</summary>
+    private (List<TrendBar> Bars, string CapText) BuildTrendBars(List<PlaySession> sessions, bool isCount, int range)
     {
-        sessions ??= _lastSessions;
-        _lastSessions = sessions;
-        if (sessions == null) return;
-
-        TrendBars.Clear();
+        var bars = new List<TrendBar>();
         if (sessions.Count == 0)
-        {
-            TrendCapText = IsCountMetric ? "当前范围暂无播放记录" : "当前范围暂无播放记录";
-            return;
-        }
+            return (bars, "当前范围暂无播放记录");
 
         // 按时间范围决定聚合粒度：7 天→按日；30 天→按日；全部→按月
         List<(string Label, int Count, long Ms)> buckets;
         string capPrefix;
-        if (_currentRange == 7)
+        if (range == 7)
         {
             buckets = AggregateByDay(sessions, 7);
             capPrefix = "近 7 天";
         }
-        else if (_currentRange == 30)
+        else if (range == 30)
         {
             buckets = AggregateByDay(sessions, 30);
             capPrefix = "近 30 天";
@@ -287,22 +353,32 @@ public partial class ListeningStatsViewModel : ObservableObject
 
         var maxCount = buckets.Max(b => b.Count);
         var maxMs = buckets.Max(b => b.Ms);
-        var maxVal = IsCountMetric ? Math.Max(1, maxCount) : Math.Max(1L, maxMs);
+        var maxVal = isCount ? Math.Max(1, maxCount) : Math.Max(1L, maxMs);
         var activeDays = buckets.Count(b => b.Count > 0);
 
         foreach (var b in buckets)
         {
-            var rawVal = IsCountMetric ? b.Count : b.Ms;
+            var rawVal = isCount ? b.Count : b.Ms;
             var ratio = maxVal > 0 ? (double)rawVal / maxVal : 0;
-            var display = IsCountMetric
+            var display = isCount
                 ? (b.Count > 0 ? b.Count.ToString() : "")
                 : (b.Ms > 0 ? FormatDuration(b.Ms / 60000.0) : "");
-            TrendBars.Add(new TrendBar(b.Label, ratio, display));
+            bars.Add(new TrendBar(b.Label, ratio, display));
         }
 
-        TrendCapText = IsCountMetric
+        var cap = isCount
             ? $"{capPrefix} · 有 {activeDays} 天在听歌"
             : $"{capPrefix} · 共 {FormatDuration(sessions.Sum(s => s.DurationMs) / 60000.0)}";
+        return (bars, cap);
+    }
+
+    /// <summary>为 LoadAsync 在后台线程填充趋势结果。</summary>
+    private void RenderTrendChart(StatsResult r, List<PlaySession> sessions)
+    {
+        _lastSessions = sessions;
+        var (bars, cap) = BuildTrendBars(sessions, IsCountMetric, _currentRange);
+        r.TrendBars = bars;
+        r.TrendCapText = cap;
     }
 
     private List<PlaySession>? _lastSessions;
@@ -362,13 +438,13 @@ public partial class ListeningStatsViewModel : ObservableObject
         return result;
     }
 
-    /// <summary>渲染时段分布：6 个固定时段。</summary>
-    private void RenderTimeSlots(List<PlaySession> sessions)
+    /// <summary>渲染时段分布：6 个固定时段（写入 StatsResult）。</summary>
+    private void RenderTimeSlots(StatsResult r, List<PlaySession> sessions)
     {
         if (sessions.Count == 0)
         {
-            TimeSlots = new ObservableCollection<TimeSlotItem>();
-            NightNoteText = "";
+            r.TimeSlots = new List<TimeSlotItem>();
+            r.NightNoteText = "";
             return;
         }
 
@@ -406,10 +482,10 @@ public partial class ListeningStatsViewModel : ObservableObject
             var ratio = maxCount > 0 ? (double)counts[i] / maxCount : 0;
             items.Add(new TimeSlotItem(slots[i].Item1, pct, ratio));
         }
-        TimeSlots = new ObservableCollection<TimeSlotItem>(items);
+        r.TimeSlots = items;
 
         var nightPct = total > 0 ? (int)Math.Round((counts[4] + counts[5]) * 100.0 / total) : 0;
-        NightNoteText = nightPct >= 30
+        r.NightNoteText = nightPct >= 30
             ? $"🌙 深夜 + 凌晨共占 {nightPct}%，你是个不折不扣的夜猫子"
             : nightPct >= 15
                 ? $"🌙 深夜 + 凌晨共占 {nightPct}%，偶尔也会熬夜听歌"
@@ -417,13 +493,13 @@ public partial class ListeningStatsViewModel : ObservableObject
     }
 
     /// <summary>计算连续听歌（当前连续 + 最长连续，按天）。</summary>
-    private void ComputeStreak(List<PlaySession> sessions)
+    private void ComputeStreak(StatsResult r, List<PlaySession> sessions)
     {
         if (sessions.Count == 0)
         {
-            StreakCurrentText = "0";
-            StreakBestText = "0";
-            StreakCapText = "还未开始听歌";
+            r.StreakCurrentText = "0";
+            r.StreakBestText = "0";
+            r.StreakCapText = "还未开始听歌";
             return;
         }
 
@@ -459,23 +535,23 @@ public partial class ListeningStatsViewModel : ObservableObject
             if (run > best) best = run;
         }
 
-        StreakCurrentText = cur.ToString();
-        StreakBestText = best.ToString();
-        StreakCapText = cur > 0 ? $"已坚持 {cur} 天" : "今天还没听歌";
+        r.StreakCurrentText = cur.ToString();
+        r.StreakBestText = best.ToString();
+        r.StreakCapText = cur > 0 ? $"已坚持 {cur} 天" : "今天还没听歌";
     }
 
     /// <summary>渲染环比对比：当前范围 vs 上一周期（仅 7/30 支持，全部无对比）。</summary>
-    private async Task RenderCompareAsync()
+    private async Task RenderCompareAsync(StatsResult r, List<PlaySession> sessions)
     {
-        CompareItems.Clear();
+        r.CompareItems = new List<CompareItem>();
         if (_currentRange == 0)
         {
-            HasCompare = false;
-            CompareCapText = "全部时间 · 无对比";
+            r.HasCompare = false;
+            r.CompareCapText = "全部时间 · 无对比";
             return;
         }
-        HasCompare = true;
-        CompareCapText = $"近 {_currentRange} 天 vs 前 {_currentRange} 天";
+        r.HasCompare = true;
+        r.CompareCapText = $"近 {_currentRange} 天 vs 前 {_currentRange} 天";
 
         // 上一周期数据
         var now = DateTimeOffset.UtcNow;
@@ -484,7 +560,7 @@ public partial class ListeningStatsViewModel : ObservableObject
         var prevSessions = (await _db.GetPlaySessionsAsync(prevSince, 10000))
             .Where(s => s.PlayedAt < prevUntil).ToList();
 
-        var curSessions = _lastSessions ?? new List<PlaySession>();
+        var curSessions = sessions;
 
         var curPlays = curSessions.Count;
         var prevPlays = prevSessions.Count;
@@ -493,9 +569,9 @@ public partial class ListeningStatsViewModel : ObservableObject
         var curMs = curSessions.Sum(s => s.DurationMs);
         var prevMs = prevSessions.Sum(s => s.DurationMs);
 
-        CompareItems.Add(new CompareItem("播放次数", curPlays.ToString("N0"), DeltaPct(curPlays, prevPlays)));
-        CompareItems.Add(new CompareItem("听歌时长", FormatDuration(curMs / 60000.0), DeltaPct(curMs, prevMs)));
-        CompareItems.Add(new CompareItem("听歌天数", curDays.ToString(), DeltaPct(curDays, prevDays)));
+        r.CompareItems.Add(new CompareItem("播放次数", curPlays.ToString("N0"), DeltaPct(curPlays, prevPlays)));
+        r.CompareItems.Add(new CompareItem("听歌时长", FormatDuration(curMs / 60000.0), DeltaPct(curMs, prevMs)));
+        r.CompareItems.Add(new CompareItem("听歌天数", curDays.ToString(), DeltaPct(curDays, prevDays)));
     }
 
     /// <summary>计算环比百分比（+X% / -X% / 持平 / —）。</summary>

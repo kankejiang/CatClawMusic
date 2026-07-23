@@ -32,6 +32,8 @@ public class DonutView : GraphicsView
         HorizontalOptions = LayoutOptions.Center;
         VerticalOptions = LayoutOptions.Center;
         BackgroundColor = Colors.Transparent;
+        // 容器尺寸变化（如横竖屏、列表重排）后重绘，避免 GraphicsView 首次以错误尺寸测量导致饼图残留旧比例。
+        SizeChanged += (_, _) => Invalidate();
     }
 
     private static void OnDatasetChanged(BindableObject bindable, object? oldValue, object? newValue)
@@ -50,7 +52,8 @@ internal sealed class DonutDrawable : IDrawable
 
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
-        var total = _dataset.Total;
+        // 以各分段 Count 之和作为分母自校验，避免 PieDataset.Total 与分段不一致时比例失真。
+        var total = _dataset.Segments.Sum(s => s.Count);
         if (total <= 0 || _dataset.Segments.Count == 0)
             return;
 
@@ -68,18 +71,19 @@ internal sealed class DonutDrawable : IDrawable
         // 分段（顺时针，从正上方 -90° 起）
         // 注意：DrawArc 的 (x, y) 是椭圆外接框左上角，宽高=直径；而 DrawCircle 的 (cx,cy) 是圆心。
         // 必须用 cx-radius / cy-radius / 2*radius 才能与轨道圆完全重合，否则分段会偏小且偏右下。
+        // useCenter 必须为 false：true 会把每段路径连回圆心描边，产生放射状辐条，破坏环形图外观。
         float angle = -90f;
         float boxX = cx - radius;
         float boxY = cy - radius;
         float boxSize = radius * 2f;
         foreach (var seg in _dataset.Segments)
         {
-            float frac = total > 0 ? (float)seg.Count / total : 0f;
+            float frac = (float)seg.Count / total;
             if (frac <= 0f) continue;
             float sweep = frac * 360f;
             canvas.StrokeColor = seg.Color;
             canvas.StrokeSize = stroke;
-            canvas.DrawArc(boxX, boxY, boxSize, boxSize, angle, angle + sweep, true, false);
+            canvas.DrawArc(boxX, boxY, boxSize, boxSize, angle, angle + sweep, false, false);
             angle += sweep;
         }
 

@@ -475,33 +475,20 @@
                   ColumnSpacing="40"
                   Padding="54,8,54,24">
 
-                <!-- 左：封面（尽量大）+ 竖屏切换按钮 -->
+                <!-- 左：封面 -->
                 <Grid Grid.Column="0"
                       HorizontalOptions="Center" VerticalOptions="Center">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <!-- 竖屏切换按钮（始终可见，便于退出横屏） -->
-                    <ImageButton Grid.Row="0"
-                                 Source="ic_rotate"
-                                 WidthRequest="34" HeightRequest="34" CornerRadius="17" Padding="7"
-                                 BackgroundColor="#20FFFFFF" Aspect="AspectFit"
-                                 HorizontalOptions="End" VerticalOptions="Center"
-                                 Margin="0,0,0,12"
-                                 Clicked="OnRotateClicked" />
-                    <Border Grid.Row="1"
-                            x:Name="LandscapeCover"
+                    <Border x:Name="LandscapeCover"
                             StrokeThickness="0.5"
                             Stroke="#30FFFFFF"
                             StrokeShape="RoundRectangle 28"
                             BackgroundColor="Transparent"
-                            WidthRequest="360" HeightRequest="360"
+                            WidthRequest="460" HeightRequest="460"
                             HorizontalOptions="Center" VerticalOptions="Center">
                         <Image x:Name="LandscapeCoverImage"
                                Source="{Binding CoverImage}"
                                Aspect="AspectFill"
-                               WidthRequest="360" HeightRequest="360" />
+                               WidthRequest="460" HeightRequest="460" />
                     </Border>
                 </Grid>
 
@@ -533,7 +520,7 @@
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
 
-                    <!-- 工具图标：播放列表 / 睡眠定时（竖屏切换已移到封面角） -->
+                    <!-- 工具图标：播放列表 / 睡眠定时 / 竖屏切换 -->
                     <HorizontalStackLayout x:Name="LandscapeToolsRow" Grid.Row="1" Spacing="14">
                         <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
                                      Aspect="AspectFit" BackgroundColor="Transparent"
@@ -543,6 +530,10 @@
                                      Aspect="AspectFit" BackgroundColor="Transparent"
                                      Source="ic_timer"
                                      Clicked="OnSleepTimerClicked" />
+                        <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="ic_rotate"
+                                     Clicked="OnRotateClicked" />
                     </HorizontalStackLayout>
 
                     <!-- 当前歌词（点击进入歌词模式，横屏就地显示多行歌词） -->
@@ -558,11 +549,14 @@
                                MaxLines="1" LineBreakMode="TailTruncation" />
                     </VerticalStackLayout>
 
-                    <!-- 多行歌词面板（歌词模式显示，占满右栏剩余高度） -->
+                    <!-- 多行歌词面板（歌词模式显示，占满右栏剩余高度；点击任意处返回横屏模式） -->
                     <ScrollView x:Name="LandscapeLyricsScroll" Grid.Row="3"
                                 IsVisible="False"
                                 VerticalScrollBarVisibility="Never"
                                 HorizontalOptions="Fill" VerticalOptions="Fill">
+                        <ScrollView.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
+                        </ScrollView.GestureRecognizers>
                         <VerticalStackLayout x:Name="LandscapeLyricStack"
                                              Spacing="14"
                                              Padding="0,16,0,60"
@@ -570,7 +564,7 @@
                     </ScrollView>
 
                     <!-- 进度条 -->
-                    <Grid Grid.Row="4" RowDefinitions="Auto,Auto" RowSpacing="1">
+                    <Grid x:Name="LandscapeProgressRow" Grid.Row="4" RowDefinitions="Auto,Auto" RowSpacing="1">
                         <Slider x:Name="LandscapeProgressSlider"
                                 Minimum="0" Maximum="1" Value="0"
                                 ThumbColor="White"
@@ -588,7 +582,7 @@
                     </Grid>
 
                     <!-- 播放控制行 -->
-                    <HorizontalStackLayout Grid.Row="5" Spacing="14" VerticalOptions="Center">
+                    <HorizontalStackLayout x:Name="LandscapeControlsRow" Grid.Row="5" Spacing="14" VerticalOptions="Center">
                         <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
                                      Aspect="AspectFit" BackgroundColor="Transparent"
                                      Source="{Binding LikeIconSourceWhite}"

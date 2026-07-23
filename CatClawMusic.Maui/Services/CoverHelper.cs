@@ -14,6 +14,10 @@ public static class CoverHelper
     private static readonly string _coverCacheDir;
     private static readonly ConcurrentDictionary<int, byte> _resolvedSongIds = new();
 
+    // 网络封面下载并发控制：信号量限制同时进行的远程请求数，去重字典避免同一首歌重复下载
+    private static readonly SemaphoreSlim _networkCoverSemaphore = new(4);
+    private static readonly ConcurrentDictionary<int, byte> _networkCoverInflight = new();
+
     /// <summary>封面尺寸分级（最大边长，像素）——按使用场景限制，减少内存与解码开销。</summary>
     public const int NowPlayingSize = 1000;   // 播放页大图
     public const int DiscoverSize = 800;      // 发现页卡片 / 精选大图
@@ -119,6 +123,21 @@ public static class CoverHelper
         if (File.Exists(cachedPath))
             return cachedPath;
 
+        // 1.5 网络来源歌曲（WebDAV/SMB/Navidrome）：封面缓存在 covers/cover_{id}.jpg
+        // （由播放页 LoadCoverArt 或本方法异步下载）。命中则优先返回尺寸分桶缓存，
+        // 否则异步触发网络封面下载，下载完成后经 song.CoverArtPath 的 INPC 自动刷新可见 cell，
+        // 避免"列表里网络歌曲（如 webdav）始终无封面"的问题。
+        if (song.Source != SongSource.Local && !string.IsNullOrEmpty(song.RemoteId))
+        {
+            var netCached = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+            if (File.Exists(netCached))
+            {
+                var bucket = GetCachedPath(song.Id, maxSize);
+                return File.Exists(bucket) ? bucket : netCached;
+            }
+            TriggerNetworkCoverResolve(song);
+        }
+
         // 2. 选择可用源：优先使用 >= maxSize 的已有文件，否则从音频文件重新提取全分辨率
         string? source = null;
         if (!string.IsNullOrEmpty(song.CoverArtPath) && File.Exists(song.CoverArtPath)
@@ -169,6 +188,63 @@ public static class CoverHelper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 触发网络歌曲封面的异步下载（fire-and-forget）。
+    /// 不阻塞批量解析循环；对同一首歌去重，下载完成后写回 song.CoverArtPath 触发 INPC 刷新。
+    /// 并发数由信号量限制，避免一次性为整个网络歌单发起海量 WebDAV/SMB 请求拖垮服务器与线程池。
+    /// </summary>
+    private static void TriggerNetworkCoverResolve(Song song)
+    {
+        if (song.Id <= 0 || string.IsNullOrEmpty(song.RemoteId)) return;
+        // 去重：已在飞行中的下载不再重复触发
+        if (!_networkCoverInflight.TryAdd(song.Id, 0)) return;
+        _ = DownloadNetworkCoverAsync(song);
+    }
+
+    /// <summary>
+    /// 按协议从远程服务下载封面并缓存到 covers/cover_{id}.jpg；完成后回填 song.CoverArtPath。
+    /// WebDAV/SMB 走 INetworkMusicService.GetCoverAsync（下载文件头提取内嵌封面）；
+    /// Navidrome 同样复用该方法（内部转 Subsonic GetCoverArtAsync）。
+    /// </summary>
+    private static async Task DownloadNetworkCoverAsync(Song song)
+    {
+        try
+        {
+            await _networkCoverSemaphore.WaitAsync();
+            var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+            if (File.Exists(cachedPath)) return;
+
+            var svc = CatClawMusic.Maui.MauiProgram.Services.GetService<INetworkMusicService>();
+            if (svc == null) return;
+
+            var profiles = await svc.GetProfilesAsync();
+            var profile = song.Protocol switch
+            {
+                ProtocolType.WebDAV or ProtocolType.SMB => profiles.FirstOrDefault(p => p.Protocol == song.Protocol && p.IsEnabled),
+                ProtocolType.Navidrome => profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome && p.IsEnabled),
+                _ => null
+            };
+            if (profile == null) return;
+
+            using var stream = await svc.GetCoverAsync(song.RemoteId!, profile);
+            if (stream == null) return;
+
+            await using var fs = File.Create(cachedPath);
+            await stream.CopyToAsync(fs);
+            // 回填封面路径：INPC 让列表可见 cell 自动刷新
+            song.CoverArtPath = cachedPath;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("CoverHelper", $"[CoverHelper] 网络封面下载失败 songId={song.Id}: {ex.Message}");
+        }
+        finally
+        {
+            _networkCoverSemaphore.Release();
+            _networkCoverInflight.TryRemove(song.Id, out _);
+        }
     }
 
     /// <summary>

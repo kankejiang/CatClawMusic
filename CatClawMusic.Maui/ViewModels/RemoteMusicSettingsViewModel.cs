@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Services;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -438,6 +439,10 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
             await RefreshAsync();
             await ToastAsync($"同步完成！发现 {songs.Count} 首歌曲，正在后台补全元数据...");
 
+            // 通知音乐库（Library 页网络音乐库卡片/网络 tab）重新同步：扫描已入库，
+            // 解决"网络音乐有缓存但网络音乐库未同步"的问题。
+            LocalScanService.NotifyNetworkSyncCompleted(songs.Count);
+
             // 后台回填元数据（艺术家、专辑、时长等），不阻塞用户操作
             _ = Task.Run(async () =>
             {
@@ -462,6 +467,9 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
                         SyncStatus = "";
                         SyncProgress = 0;
                         HasSyncProgress = false;
+
+                        // 元数据回填完成，再次通知音乐库刷新以反映艺术家/专辑/时长等更新
+                        LocalScanService.NotifyNetworkSyncCompleted(0);
                     });
                 }
                 catch (Exception ex)
