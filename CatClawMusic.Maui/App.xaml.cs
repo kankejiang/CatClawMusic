@@ -1,10 +1,13 @@
-using CatClawMusic.Core.Interfaces;
+﻿using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Devices;
+using Microsoft.Maui.Devices.Sensors;
+using System.Threading;
 
 namespace CatClawMusic.Maui;
 
@@ -69,6 +72,15 @@ public partial class App : Application
     {
         base.OnStart();
 
+        // 冷启动时清理 MAUI Share 框架遗留的中转缓存（external cache 下 <固定uuid>/<随机uuid>/ 目录）。
+        // 放在冷启动而非"分享完成后"，是因为接收端 App 是异步读取 content URI 的，
+        // 分享后立即删会误删正在被读取的文件，导致接收端报"文件不存在"。
+        _ = Task.Run(() =>
+        {
+            try { Pages.NowPlayingPage.CleanupShareStagingCache(); }
+            catch { }
+        });
+
         // 若上次已开启诊断日志：后台线程记录一条启动标记（构造时已按 Preferences 恢复 IsEnabled）
         _ = Task.Run(() =>
         {
@@ -117,6 +129,8 @@ public partial class App : Application
     protected override void OnSleep()
     {
         base.OnSleep();
+#if ANDROID
+#endif
         try
         {
             var vm = MauiProgram.Services.GetService<NowPlayingViewModel>();
@@ -132,6 +146,10 @@ public partial class App : Application
     protected override void OnResume()
     {
         base.OnResume();
+#if ANDROID
+        // 兜底：后台期间旋转且 MainDisplayInfoChanged 未触发时，回前台立即校正布局
+        ApplyOrientationLayout();
+#endif
         try
         {
             var vm = MauiProgram.Services.GetService<NowPlayingViewModel>();
@@ -164,8 +182,9 @@ public partial class App : Application
         var currentPage = shell.CurrentPage;
         if (currentPage == null) return;
 
-        // MainPage 自身已处理 SafeArea，跳过
-        if (currentPage is Pages.MainPage) return;
+        // 全面屏页面自身处理 SafeArea（毛玻璃/歌词背景延伸到系统栏），跳过
+        if (currentPage is Pages.MainPage or Pages.DesktopMainPage
+            or Pages.NowPlayingPage or Pages.FullLyricsPage) return;
 
         // ContentPage 才有 Content 属性
         if (currentPage is not ContentPage contentPage) return;
@@ -182,6 +201,109 @@ public partial class App : Application
 
         rootGrid.Behaviors.Add(new SafeAreaPaddingBehavior());
     }
+
+#if ANDROID
+    /// <summary>用户手动强制横屏（点「横屏切换」按钮）。Activity 重建后由 App 级字段保留状态。</summary>
+    private bool _manualLandscape;
+
+    /// <summary>当前是否应处于横屏布局：手动强制 或 物理方向为横屏。</summary>
+    private static bool ShouldUseLandscape()
+    {
+        if (Application.Current is App app && app._manualLandscape) return true;
+        return DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Landscape;
+    }
+
+    /// <summary>强制进入横屏（旋转按钮）：锁定 SensorLandscape，延迟一帧切换 Shell 布局。
+    /// 必须延迟：此方法从页面按钮回调内调用，Shell 无法在事件处理中途换根页面。</summary>
+    public void ForceLandscape()
+    {
+        _manualLandscape = true;
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            if (activity != null)
+                activity.RequestedOrientation = Android.Content.PM.ScreenOrientation.SensorLandscape;
+        }
+        catch { }
+        // 延迟到下一个消息循环，让当前按钮事件处理完毕后再切 Shell 根页面
+        MainThread.BeginInvokeOnMainThread(() => ApplyOrientationLayout());
+    }
+
+    /// <summary>退出手动横屏（返回键 / 再次点旋转按钮）：解除方向锁定，切回竖屏手机布局。
+    /// 物理竖屏时 RequestedOrientation 变化不触发 MainDisplayInfoChanged，需手动切换。</summary>
+    public void ReleaseManualLandscape()
+    {
+        _manualLandscape = false;
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            if (activity != null)
+                activity.RequestedOrientation = Android.Content.PM.ScreenOrientation.Unspecified;
+        }
+        catch { }
+        // 物理竖屏时 RequestedOrientation 变化不触发重建，手动切回手机布局（同样延迟一帧）
+        if (DeviceDisplay.Current.MainDisplayInfo.Orientation != DisplayOrientation.Landscape)
+            MainThread.BeginInvokeOnMainThread(() => ApplyOrientationLayout());
+    }
+
+    /// <summary>切换横竖屏（播放页旋转按钮）。</summary>
+    public void ToggleManualLandscape()
+    {
+        if (_manualLandscape) ReleaseManualLandscape();
+        else ForceLandscape();
+    }
+
+    /// <summary>物理旋转回调：手动横屏状态下忽略（由 ForceLandscape 直接切换），否则按传感器方向直切布局。</summary>
+    private void OnDisplayOrientationChanged(object? sender, DisplayInfoChangedEventArgs e)
+    {
+        Android.Util.Log.Info("CatClaw", $"[Orientation] DisplayChanged: {e.DisplayInfo.Orientation}, manual={_manualLandscape}");
+        if (_manualLandscape) return;
+        ApplyOrientationLayout();
+    }
+
+    /// <summary>按当前方向直选 Shell 根页面：横屏→DesktopMainPage（桌面侧栏），竖屏→MainPage（手机 Tab）。
+    /// 触发源：MainDisplayOrientationChanged（物理旋转）、ForceLandscape/ReleaseManualLandscape（按钮）、
+    /// OnResume（后台回前台兜底）、CreateWindow（首次启动）。幂等：已正确则跳过。
+    /// 实现：Clear+Add Shell.Items（与 Windows CreateWindow 同模式），强制 Shell 重建渲染。</summary>
+    public void ApplyOrientationLayout(Shell? shellOverride = null)
+    {
+        try
+        {
+            var shell = shellOverride ?? Shell.Current;
+            if (shell == null) { Android.Util.Log.Warn("CatClaw", "[Orientation] shell==null, skip"); return; }
+
+            bool landscape = ShouldUseLandscape();
+
+            // 幂等：检查当前根页面是否已正确
+            var currentContent = shell.Items.SelectMany(i => i.Items).SelectMany(s => s.Items).FirstOrDefault()?.Content;
+            if (landscape && currentContent is Pages.DesktopMainPage) return;
+            if (!landscape && currentContent is Pages.MainPage) return;
+
+            Android.Util.Log.Info("CatClaw", $"[Orientation] 切换布局 → {(landscape ? "DesktopMainPage" : "MainPage")}");
+
+            ContentPage newPage = landscape
+                ? MauiProgram.Services.GetRequiredService<Pages.DesktopMainPage>()
+                : MauiProgram.Services.GetRequiredService<Pages.MainPage>();
+
+            // 与 Windows CreateWindow 同模式：Clear+Add 强制 Shell 重建
+            shell.Items.Clear();
+            shell.Items.Add(new ShellContent { Content = newPage, Route = "main" });
+        }
+        catch (Exception ex)
+        {
+            Android.Util.Log.Error("CatClaw", $"[Orientation] 布局切换失败: {ex}");
+        }
+    }
+#endif
+
+    /// <summary>用户是否已手动强制横屏（供 UI 按钮判断状态/图标）。
+    /// Android 下由 _manualLandscape 控制；其他平台始终 false。</summary>
+    public bool ManualLandscape =>
+#if ANDROID
+        _manualLandscape;
+#else
+        false;
+#endif
 
     protected override Window CreateWindow(IActivationState? activationState)
     {
@@ -233,6 +355,14 @@ public partial class App : Application
         };
 #else
         var window = new Window(shell);
+
+#if ANDROID
+        // 物理旋转 → 直切 Shell 布局（单一路径，无需 modal 推弹和多路对账）
+        DeviceDisplay.MainDisplayInfoChanged -= OnDisplayOrientationChanged;
+        DeviceDisplay.MainDisplayInfoChanged += OnDisplayOrientationChanged;
+        // 首次启动按当前方向直选布局（Shell.Current 尚未就绪，传实例）
+        ApplyOrientationLayout(shell);
+#endif
 #endif
 
         StartupLog("CreateWindow: Window created, returning");

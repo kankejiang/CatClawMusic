@@ -30,10 +30,14 @@ public interface INetworkMusicService
     Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile);
 
     /// <summary>获取专辑封面流</summary>
-    Task<Stream?> GetCoverAsync(string songId, ConnectionProfile profile);
+    /// <param name="coverPath">同目录侧车封面图远程路径（folder.jpg / cover.jpg 等）；非空时优先下载该图片</param>
+    Task<Stream?> GetCoverAsync(string songId, ConnectionProfile profile, string? coverPath = null);
 
     /// <summary>获取流媒体 URL（用于播放）</summary>
     Task<string> GetStreamUrlAsync(Song song, ConnectionProfile profile);
+
+    /// <summary>打开音频流（用于「分享音频文件」：把远程音频下载到本地后分享）。按协议返回可读流，调用方负责释放。</summary>
+    Task<Stream?> OpenAudioStreamAsync(Song song, ConnectionProfile profile);
 
     /// <summary>解析 WebDAV 播放 URL：自动检测服务器类型并修复/dav前缀或获取OpenList签名URL</summary>
     Task<string?> ResolveWebDavPlaybackUrlAsync(string url);

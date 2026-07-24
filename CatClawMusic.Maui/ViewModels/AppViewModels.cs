@@ -1250,7 +1250,7 @@ public partial class NowPlayingViewModel : ObservableObject
                     if (profile != null)
                     {
                         Log.Debug("AppViewModels", $"[CoverArt] 步骤6: 找到配置 {profile.Name}, 调用 GetCoverAsync...");
-                        var stream = await networkSvc.GetCoverAsync(song.RemoteId, profile);
+                        var stream = await networkSvc.GetCoverAsync(song.RemoteId, profile, song.RemoteCoverPath);
                         if (stream != null)
                         {
                             var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");

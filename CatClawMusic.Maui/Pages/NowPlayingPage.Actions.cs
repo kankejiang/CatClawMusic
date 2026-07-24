@@ -1,10 +1,16 @@
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
+using Microsoft.Maui.Storage;
 using static CatClawMusic.Maui.Controls.PopupUiHelpers;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
+using System.Collections.Generic;
+using System.IO;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -419,25 +425,22 @@ public partial class NowPlayingPage
     private void OnRotateClicked(object? sender, EventArgs e)
     {
 #if ANDROID
-        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
-        if (activity == null) return;
+        if (Application.Current is not App app) return;
 
-        var current = activity.RequestedOrientation;
-        if (current == global::Android.Content.PM.ScreenOrientation.Landscape ||
-            current == global::Android.Content.PM.ScreenOrientation.SensorLandscape)
+        bool goingToLandscape = !app.ManualLandscape;
+        app.ToggleManualLandscape();
+
+        if (goingToLandscape)
         {
-            // 恢复为跟随传感器（竖屏优先）
-            activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Unspecified;
-            Controls.NativeTabPager.SetSwipeEnabled(true);
+            // ForceLandscape 内部通过 BeginInvokeOnMainThread 延迟切 Shell 根页面，
+            // 这里再排一帧：Shell 切完 DesktopMainPage 后把播放页推到导航栈顶，
+            // 用户不会跳到发现页。
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var page = MauiProgram.Services.GetRequiredService<NowPlayingPage>();
+                Shell.Current?.Navigation.PushAsync(page);
+            });
         }
-        else
-        {
-            activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.SensorLandscape;
-            Controls.NativeTabPager.SetSwipeEnabled(false);
-        }
-#else
-        // Windows/桌面端无横屏切换需求
-        DisplayAlert("提示", "桌面端窗口可自由调整宽高，页面会自动适配布局", "知道了");
 #endif
     }
 
@@ -450,41 +453,208 @@ public partial class NowPlayingPage
         var song = _viewModel.CurrentSong;
         if (song == null) return;
 
-        var items = new List<VirtualizedSelectItem>();
+        BuildMoreMenu(song);
+        MorePopup.Open();
+    }
+
+    /// <summary>构建「更多」主菜单（查看歌手/专辑、加入歌单、分享）。</summary>
+    private void BuildMoreMenu(Core.Models.Song song)
+    {
+        MorePopup.Title = "歌曲操作";
+        MorePopup.ClearContent();
+
+        var menu = new VerticalStackLayout { Spacing = 0 };
 
         if (!string.IsNullOrEmpty(song.Artist))
-            items.Add(new VirtualizedSelectItem
+            menu.Add(CreateMenuRow("♪", "查看歌手", false, () =>
             {
-                Icon = "♪",
-                Text = "查看歌手",
-                OnSelected = _ => NavigateToArtist(song.Artist!)
-            });
+                MorePopup.Close();
+                NavigateToArtist(song.Artist!);
+            }));
+
         if (!string.IsNullOrEmpty(song.Album))
-            items.Add(new VirtualizedSelectItem
+            menu.Add(CreateMenuRow("◉", "查看专辑", false, () =>
             {
-                Icon = "◉",
-                Text = "查看专辑",
-                OnSelected = _ => NavigateToAlbum(song.Album!)
+                MorePopup.Close();
+                NavigateToAlbum(song.Album!);
+            }));
+
+        menu.Add(CreateMenuRow("＋", "加入歌单", true, () => BuildPlaylistPicker(song)));
+        menu.Add(CreateMenuRow("↗", "分享", false, () =>
+        {
+            MorePopup.Close();
+            _ = ShareSongAsync(song);
+        }));
+
+        MorePopup.AddContent(menu);
+    }
+
+    /// <summary>创建一行可点击菜单项（图标 + 文字 + 可选右侧箭头）。</summary>
+    private View CreateMenuRow(string icon, string text, bool showChevron, Action onTap)
+    {
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
+
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new() { Width = 32 },
+                new() { Width = GridLength.Star },
+                new() { Width = GridLength.Auto }
+            },
+            ColumnSpacing = 12,
+            HeightRequest = 52,
+            Padding = new Thickness(4, 0)
+        };
+
+        row.Add(new Label
+        {
+            Text = icon,
+            FontSize = 20,
+            TextColor = (Color)Application.Current!.Resources["PrimaryColor"],
+            HorizontalTextAlignment = TextAlignment.Center,
+            VerticalTextAlignment = TextAlignment.Center
+        }, 0);
+
+        row.Add(new Label
+        {
+            Text = text,
+            FontSize = 15,
+            TextColor = textPrimary,
+            VerticalTextAlignment = TextAlignment.Center
+        }, 1);
+
+        if (showChevron)
+        {
+            row.Add(new Label
+            {
+                Text = "›",
+                FontSize = 22,
+                TextColor = textSecondary,
+                HorizontalTextAlignment = TextAlignment.End,
+                VerticalTextAlignment = TextAlignment.Center
+            }, 2);
+        }
+
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += (_, _) => onTap();
+        row.GestureRecognizers.Add(tap);
+
+        return new Border
+        {
+            BackgroundColor = new Color(1, 1, 1, 0.04f),
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+            StrokeThickness = 0,
+            Padding = new Thickness(12, 0),
+            Margin = new Thickness(0, 0, 0, 8),
+            Content = row
+        };
+    }
+
+    /// <summary>进入「加入歌单」子视图：列出歌单，点击即加入。</summary>
+    private async void BuildPlaylistPicker(Core.Models.Song song)
+    {
+        MorePopup.Title = "加入歌单";
+        MorePopup.ClearContent();
+
+        // 返回头部
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new() { Width = GridLength.Auto },
+                new() { Width = GridLength.Star }
+            },
+            ColumnSpacing = 8,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        var back = new Label
+        {
+            Text = "‹ 返回",
+            FontSize = 14,
+            TextColor = (Color)Application.Current!.Resources["PrimaryColor"],
+            VerticalTextAlignment = TextAlignment.Center
+        };
+        var backTap = new TapGestureRecognizer();
+        backTap.Tapped += (_, _) => BuildMoreMenu(song);
+        back.GestureRecognizers.Add(backTap);
+        header.Add(back, 0);
+        header.Add(new Label
+        {
+            Text = "加入歌单",
+            FontSize = 16,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
+            VerticalTextAlignment = TextAlignment.Center
+        }, 1);
+        MorePopup.AddContent(header);
+
+        try
+        {
+            var playlists = await _musicLibrary.GetAllPlaylistsAsync();
+            if (playlists == null || playlists.Count == 0)
+            {
+                MorePopup.AddContent(new Label
+                {
+                    Text = "还没有歌单，请先在歌单页创建歌单",
+                    FontSize = 13,
+                    TextColor = (Color)Application.Current!.Resources["TextSecondaryColor"],
+                    Margin = new Thickness(0, 4, 0, 0)
+                });
+                return;
+            }
+
+            var list = new VerticalStackLayout { Spacing = 0 };
+            foreach (var p in playlists)
+            {
+                var capturedName = p.Name ?? "未命名歌单";
+                list.Add(CreateMenuRow("♫", capturedName, true,
+                    () => AddSongToPlaylist(p.Id, capturedName, song)));
+            }
+
+            MorePopup.AddContent(new ScrollView
+            {
+                MaximumHeightRequest = 360,
+                Content = list
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NowPlayingPage", $"[More] 加载歌单失败: {ex.Message}");
+            MorePopup.Close();
+        }
+    }
+
+    /// <summary>将当前歌曲加入指定歌单，并切换为成功态。</summary>
+    private async void AddSongToPlaylist(int playlistId, string playlistName, Core.Models.Song song)
+    {
+        try
+        {
+            await _musicLibrary.AddSongToPlaylistAsync(playlistId, song.Id);
+
+            MorePopup.ClearContent();
+            MorePopup.AddContent(new Label
+            {
+                Text = $"✓ 已添加到「{playlistName}」",
+                FontSize = 15,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
+                Margin = new Thickness(0, 6, 0, 14)
             });
 
-        // 加入歌单：进入子列表（KeepOpen 不关闭，可点返回）
-        items.Add(new VirtualizedSelectItem
+            var okBtn = CreatePopupButton("完成", true);
+            okBtn.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(() => MorePopup.Close())
+            });
+            MorePopup.AddContent(okBtn);
+        }
+        catch (Exception ex)
         {
-            Icon = "＋",
-            Text = "加入歌单",
-            TrailingIcon = "›",
-            KeepOpen = true,
-            OnSelected = _ => OpenPlaylistPickerFor(song)
-        });
-
-        items.Add(new VirtualizedSelectItem
-        {
-            Icon = "↗",
-            Text = "分享",
-            OnSelected = _ => ShareCurrent(song)
-        });
-
-        VsMore.Show(items, song.Title ?? "歌曲操作");
+            Log.Debug("NowPlayingPage", $"[More] 加入歌单失败: {ex.Message}");
+            MorePopup.Close();
+        }
     }
 
     private void NavigateToArtist(string artist)
@@ -493,101 +663,220 @@ public partial class NowPlayingPage
     private void NavigateToAlbum(string album)
         => _ = Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album)}");
 
-    private void OpenPlaylistPickerFor(Core.Models.Song song)
-        => _ = ShowPlaylistPickerAsync(song);
-
-    private void ShareCurrent(Core.Models.Song song)
-        => _ = ShareSongAsync(song);
-
-    /// <summary>在虚拟化选择器中进入歌单子列表（保留主菜单可返回）。</summary>
-    private async Task ShowPlaylistPickerAsync(Core.Models.Song song)
+    /// <summary>分享音频文件：本地歌曲直接分享文件；网络歌曲先下载到本地缓存再以文件分享。</summary>
+    private async Task ShareSongAsync(Song song)
     {
         try
         {
-            var playlists = await _musicLibrary.GetAllPlaylistsAsync();
+            // 清理上一次分享遗留的 MAUI 中转缓存（只删上次的，不会动本次即将创建的文件）。
+            // 注意：绝不能等 RequestAsync 返回后再清——接收端 App 是异步读取 content URI 的，
+            // 那样会误删正在被读取的文件，导致接收端报"文件不存在"。
+            CleanupShareStagingCache();
 
-            if (playlists == null || playlists.Count == 0)
+            string? filePath = await GetShareFilePathAsync(song);
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
             {
-                VsMore.ReplaceItems(new List<VirtualizedSelectItem>
-                {
-                    new()
-                    {
-                        Icon = "♫",
-                        Text = "还没有歌单",
-                        Subtitle = "请先在歌单页创建歌单后再添加",
-                        KeepOpen = true
-                    }
-                }, "加入歌单");
+                // 兜底：无法取到文件时，仅分享文字信息
+                var text = $"{song.Title} - {song.Artist}";
+                if (!string.IsNullOrEmpty(song.Album)) text += $"（{song.Album}）";
+                text += " | 来自猫爪音乐";
+                await Share.Default.RequestAsync(new ShareTextRequest { Text = text, Title = "分享歌曲" });
                 return;
             }
 
-            var items = playlists.Select(p => new VirtualizedSelectItem
+            var shareName = System.IO.Path.GetFileName(filePath);
+            Log.Debug("NowPlayingPage", $"[More] 分享文件名='{shareName}' 源='{song.FilePath}' Source={song.Source} Title='{song.Title}'");
+            ShowToast($"发送端文件名：{shareName}");
+
+            await Share.Default.RequestAsync(new ShareFileRequest
             {
-                Icon = "♫",
-                Text = p.Name ?? "未命名歌单",
-                TrailingIcon = "＋",
-                KeepOpen = true,
-                OnSelected = _ => AddSongToPlaylist(p.Id, p.Name ?? "未命名歌单", song)
-            }).ToList();
-
-            VsMore.PushItems(items, "加入歌单");
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("NowPlayingPage", $"[More] 加载歌单失败: {ex.Message}");
-            VsMore.Close();
-        }
-    }
-
-    /// <summary>将当前歌曲加入指定歌单，并在选择器内显示成功态后自动收起。</summary>
-    private async void AddSongToPlaylist(int playlistId, string playlistName, Core.Models.Song song)
-    {
-        try
-        {
-            await _musicLibrary.AddSongToPlaylistAsync(playlistId, song.Id);
-            VsMore.ReplaceItems(new List<VirtualizedSelectItem>
-            {
-                new()
-                {
-                    Icon = "✓",
-                    Text = $"已添加到「{playlistName}」",
-                    KeepOpen = true
-                }
-            }, "添加成功");
-
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                await Task.Delay(900);
-                VsMore.Close();
-            });
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("NowPlayingPage", $"[More] 加入歌单失败: {ex.Message}");
-            VsMore.Close();
-        }
-    }
-
-    /// <summary>分享当前歌曲</summary>
-    private async Task ShareSongAsync(Core.Models.Song song)
-    {
-        try
-        {
-            var text = $"{song.Title} - {song.Artist}";
-            if (!string.IsNullOrEmpty(song.Album))
-                text += $"（{song.Album}）";
-            text += " | 来自猫爪音乐";
-
-            await Share.Default.RequestAsync(new ShareTextRequest
-            {
-                Text = text,
-                Title = "分享歌曲"
+                Title = "分享音频文件",
+                File = new ShareFile(filePath)
             });
         }
         catch (Exception ex)
         {
             Log.Debug("NowPlayingPage", $"[More] 分享失败: {ex.Message}");
         }
+    }
+
+    /// <summary>清理 MAUI Share 框架遗留的中转缓存子目录。
+    /// MAUI Essentials 的 FileProvider 在执行 ShareFileRequest 时会将文件复制到
+    /// &lt;cache&gt;/&lt;固定provider-uuid(32位hex)&gt;/&lt;每次随机uuid&gt;/ 下，且不会自动清理。
+    /// 注意：MAUI 实际把中转文件放在 <b>external cache</b>
+    /// （/storage/emulated/0/Android/data/包名/cache/），而不是 FileSystem.CacheDirectory
+    /// 返回的 internal cache（/data/data/包名/cache/）。两者是不同的目录，
+    /// 早期版本只扫 internal cache 导致清理从未命中，这里两个目录都扫。</summary>
+    internal static void CleanupShareStagingCache()
+    {
+        try
+        {
+            // 候选中转根：internal cache + external cache（MAUI 真实所在）
+            var roots = new List<string> { FileSystem.CacheDirectory };
+#if ANDROID
+            try
+            {
+                // 本绑定版本无 GetExternalCacheDir()，改用已可用的 GetExternalFilesDir 推导：
+                // 外部文件根 .../Android/data/包名/files → 外部缓存根 .../Android/data/包名/cache
+                var extFiles = Android.App.Application.Context.GetExternalFilesDir(null)?.AbsolutePath;
+                if (!string.IsNullOrEmpty(extFiles))
+                {
+                    var extCache = System.IO.Path.Combine(
+                        System.IO.Path.GetDirectoryName(extFiles)!, "cache");
+                    if (!string.IsNullOrEmpty(extCache)) roots.Add(extCache);
+                }
+            }
+            catch { /* 拿不到 external cache 就只用 internal */ }
+#endif
+            foreach (var root in roots)
+            {
+                if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
+                ScanAndPurgeStaging(root);
+            }
+        }
+        catch { /* 清理失败静默忽略 */ }
+    }
+
+    /// <summary>扫描某个 cache 根目录，删除所有 MAUI provider staging 子目录下的随机子目录。</summary>
+    private static void ScanAndPurgeStaging(string cacheRoot)
+    {
+        foreach (var dir in Directory.GetDirectories(cacheRoot))
+        {
+            var name = System.IO.Path.GetFileName(dir);
+            // MAUI provider staging 根目录特征：32位纯十六进制字符串
+            if (name.Length == 32 && IsHexString(name))
+            {
+                foreach (var sub in Directory.GetDirectories(dir))
+                {
+                    try { Directory.Delete(sub, recursive: true); }
+                    catch { /* 个别文件被占用就跳过 */ }
+                }
+            }
+        }
+    }
+
+    private static bool IsHexString(string s)
+    {
+        foreach (var c in s)
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                return false;
+        return true;
+    }
+
+    /// <summary>解析可分享的本地文件路径：本地歌曲返回其文件；网络歌曲返回（已缓存或下载得到的）本地副本。</summary>
+    private async Task<string?> GetShareFilePathAsync(Song song)
+    {
+        // 本地歌曲：复制成"标题+扩展名"的干净文件名再分享（源文件名可能带 " (1)" 等后缀）
+        if (song.Source == SongSource.Local)
+        {
+            if (string.IsNullOrEmpty(song.FilePath) || !File.Exists(song.FilePath))
+                return null;
+            return CopyToShareDir(song, song.FilePath);
+        }
+
+        var networkSvc = MauiProgram.Services.GetService<INetworkMusicService>();
+        if (networkSvc == null) return null;
+
+        // 已缓存的网络音频：复制成带正确文件名的本地副本（缓存文件名为哈希，不直接分享）
+        var cached = AudioCacheService.Instance.GetCachedPath(song.FilePath);
+        if (cached != null && File.Exists(cached))
+        {
+            var bytes = await File.ReadAllBytesAsync(cached);
+            return WriteShareFile(song, bytes);
+        }
+
+        // 未缓存：按协议下载
+        var profiles = await networkSvc.GetProfilesAsync();
+        var profile = profiles.FirstOrDefault(p =>
+            (p.Protocol == ProtocolType.SMB && song.Source == SongSource.SMB) ||
+            (p.Protocol == ProtocolType.WebDAV && song.Source == SongSource.WebDAV) ||
+            ((p.Protocol == ProtocolType.Navidrome) && (song.Source == SongSource.WebDAV || song.Source == SongSource.Cache)));
+
+        if (profile == null) return null;
+
+        ShowToast("正在准备分享文件…");
+        using var stream = await networkSvc.OpenAudioStreamAsync(song, profile);
+        if (stream == null) return null;
+
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        return WriteShareFile(song, ms.ToArray());
+    }
+
+    /// <summary>把音频字节写入分享缓存目录，文件名取歌曲标题 + 原扩展名（清理非法字符）。</summary>
+    private static string? WriteShareFile(Song song, byte[] data)
+    {
+        if (data == null || data.Length == 0) return null;
+        try
+        {
+            var path = BuildSharePath(song, song.FilePath);
+            if (path == null) return null;
+            File.WriteAllBytes(path, data);
+            return path;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NowPlayingPage", $"[More] 写入分享文件失败: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>把本地源文件复制到分享缓存目录（重命名为干净的"标题+扩展名"）。</summary>
+    private static string? CopyToShareDir(Song song, string sourcePath)
+    {
+        try
+        {
+            var path = BuildSharePath(song, sourcePath);
+            if (path == null) return null;
+            File.Copy(sourcePath, path, overwrite: true);
+            return path;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NowPlayingPage", $"[More] 复制分享文件失败: {ex.Message}");
+            // 复制失败（如空间不足）时退回直接分享源文件
+            return sourcePath;
+        }
+    }
+
+    /// <summary>生成分享文件的目标路径：每次用一个全新的空子目录，返回"标题+原扩展名"（清理非法字符）。
+    /// 用全新空目录可从根本上杜绝"同目录已存在同名文件 → 被系统去重加 (1)(2)(3)"。</summary>
+    private static string? BuildSharePath(Song song, string? sourcePath)
+    {
+        var root = System.IO.Path.Combine(FileSystem.AppDataDirectory, "share_audio");
+
+        // 彻底清掉旧的分享根目录（含所有历史子目录/文件），防堆积；失败则忽略
+        try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch { }
+
+        // 每次用一个全新的空子目录（GUID），里面绝不可能有同名文件可供去重
+        var dir = System.IO.Path.Combine(root, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+
+        var ext = System.IO.Path.GetExtension(sourcePath);
+        if (string.IsNullOrEmpty(ext) || ext.Length > 10) ext = ".audio";
+
+        var name = string.IsNullOrWhiteSpace(song.Title) ? "audio" : song.Title.Trim();
+        // 去掉标题末尾的 " (1)" / "（1）" / "(1 )" 等重复序号后缀（半/全角、允许内部空格）
+        name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*[\(（]\s*\d+\s*[\)）]\s*$", "");
+        if (string.IsNullOrWhiteSpace(name)) name = "audio";
+        foreach (var c in System.IO.Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+        if (name.Length > 60) name = name[..60];
+
+        return System.IO.Path.Combine(dir, $"{name}{ext}");
+    }
+
+    /// <summary>简短提示（Android 原生 Toast；其它平台无操作）。</summary>
+    private static void ShowToast(string message)
+    {
+#if ANDROID
+        try
+        {
+            var ctx = Android.App.Application.Context;
+            var toast = Android.Widget.Toast.MakeText(ctx, message, Android.Widget.ToastLength.Short);
+            toast.Show();
+        }
+        catch { }
+#endif
     }
 
     // ═══════════════════════════════════════

@@ -475,6 +475,26 @@
                   ColumnSpacing="40"
                   Padding="54,8,54,24">
 
+                <!-- 横屏左上角收起按钮：点击返回桌面主页并进入发现页（普通手机横屏则收起播放页） -->
+                <Border Grid.Column="0"
+                        x:Name="LandscapeCollapseButton"
+                        StrokeThickness="0"
+                        BackgroundColor="#40000000"
+                        WidthRequest="44" HeightRequest="44"
+                        HorizontalOptions="Start" VerticalOptions="Start"
+                        ZIndex="20"
+                        Margin="0,4,0,0">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="22" />
+                    </Border.StrokeShape>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnLandscapeCollapseTapped" />
+                    </Border.GestureRecognizers>
+                    <Image x:Name="LandscapeCollapseIcon"
+                           WidthRequest="22" HeightRequest="22"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+
                 <!-- 左：封面 -->
                 <Grid Grid.Column="0"
                       HorizontalOptions="Center" VerticalOptions="Center">
@@ -537,13 +557,10 @@
                     </HorizontalStackLayout>
 
                     <!-- 当前歌词（点击进入歌词模式，横屏就地显示多行歌词） -->
-                    <VerticalStackLayout x:Name="LandscapeCurrentLyric" Grid.Row="2" Spacing="4">
+                    <VerticalStackLayout x:Name="LandscapeCurrentLyric" Grid.Row="2" Spacing="4" Padding="0,0,0,8">
                         <VerticalStackLayout.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
                         </VerticalStackLayout.GestureRecognizers>
-                        <Label Text="当前歌词" FontSize="10"
-                               TextColor="{DynamicResource TextHintColor}"
-                               CharacterSpacing="2" />
                         <Label Text="{Binding LyricCurrent}"
                                FontSize="17" FontAttributes="Bold" TextColor="White"
                                MaxLines="1" LineBreakMode="TailTruncation" />
@@ -592,7 +609,7 @@
                                      Source="{Binding PlayPreviousIconSourceWhite}"
                                      Command="{Binding PlayPreviousCommand}" />
                         <ImageButton WidthRequest="64" HeightRequest="64" CornerRadius="32" Padding="13"
-                                     Aspect="AspectFit" BackgroundColor="{DynamicResource PrimaryColor}"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
                                      Source="{Binding PlayPauseIconSourceWhite}"
                                      Command="{Binding TogglePlayPauseCommand}" />
                         <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
@@ -623,7 +640,9 @@
                            Title="定时停止音乐"
                            CloseOnMaskTapped="True" />
 
-        <!-- 更多操作：虚拟化选择器（替代居中弹窗，从底部滑入更自然，歌单子列表支持虚拟化） -->
-        <controls:VirtualizedSelect x:Name="VsMore" />
+        <!-- 更多操作：复用 AppPopup（与睡眠定时同款，在 ViewPager2 内稳定显示） -->
+        <controls:AppPopup x:Name="MorePopup"
+                           Title="歌曲操作"
+                           CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

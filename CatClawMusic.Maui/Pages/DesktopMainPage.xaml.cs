@@ -39,6 +39,7 @@ public partial class DesktopMainPage : ContentPage
     // 响应式：窄窗折叠为图标栏
     private bool _compact;
     private const double SidebarWidth = 220;
+    private const double AndroidSidebarWidth = 168; // 横屏手机复用桌面布局时侧栏更窄
     private const double CompactThreshold = 1000;
 
     /// <summary>全局实例，供嵌入的子页面（如 SearchPage）请求切换 tab</summary>
@@ -47,6 +48,25 @@ public partial class DesktopMainPage : ContentPage
     public DesktopMainPage(NowPlayingViewModel npVm, IServiceProvider services)
     {
         InitializeComponent();
+#if ANDROID
+        // 移动端横屏复用桌面布局：隐藏 Windows 专属标题栏（最小化/最大化/关闭按钮）并折叠其所在行；
+        // 状态栏安全区由 AppShell 的 OnShellNavigated 添加 SafeAreaPaddingBehavior 统一处理。
+        AppTitleBar.IsVisible = false;
+        RootGrid.RowDefinitions[0].Height = new GridLength(0);
+
+        // 隐藏侧栏顶部的 App Logo 区，降低底部播放器高度，并压缩手机横屏下的控件尺寸
+        SidebarLogo.IsVisible = false;
+        RootGrid.RowDefinitions[3].Height = new GridLength(72);
+        ApplyCompactPlayerBarMetrics();
+
+        // 初始侧栏宽度直接设为较窄值，避免首次渲染闪烁
+        RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
+#endif
+
+        // 顶部搜索/命令栏在两个平台都移除：发现页已有独立搜索框，顶部为重复入口
+        // （其中的歌词图标随之消失，如需保留可另加到播放栏）
+        TopBar.IsVisible = false;
+        RootGrid.RowDefinitions[1].Height = new GridLength(0);
         _npVm = npVm;
         _services = services;
         _audioPlayer = services.GetRequiredService<IAudioPlayerService>();
@@ -78,6 +98,7 @@ public partial class DesktopMainPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+
         _ = _npVm.LoadCurrentSongAsync();
         // 回到桌面主页时刷新歌单（例如从歌单详情页返回）
         _ = _playlistVm.RefreshIfChangedAsync()
@@ -92,6 +113,17 @@ public partial class DesktopMainPage : ContentPage
                 InvokeLifecycle(host, "OnAppearing");
         }
     }
+
+#if ANDROID
+    /// <summary>系统返回键：退出手动横屏，回到竖屏手机布局。
+    /// ReleaseManualLandscape 解除方向锁定并触发 Activity 重建（或直接切换布局）。</summary>
+    protected override bool OnBackButtonPressed()
+    {
+        if (Application.Current is App app)
+            app.ReleaseManualLandscape();
+        return true;
+    }
+#endif
 
     // ─── Navigation ───
 
@@ -144,9 +176,9 @@ public partial class DesktopMainPage : ContentPage
         ContentPage? page = tab switch
         {
             DesktopTab.Discover => _services.GetRequiredService<DesktopDiscoverPage>(),
-            DesktopTab.Library => _services.GetRequiredService<LibraryPage>(),
-            DesktopTab.Playlists => _services.GetRequiredService<PlaylistPage>(),
-            DesktopTab.Settings => _services.GetRequiredService<SettingsPage>(),
+            DesktopTab.Library => _services.GetRequiredService<DesktopLibraryPage>(),
+            DesktopTab.Playlists => _services.GetRequiredService<DesktopPlaylistPage>(),
+            DesktopTab.Settings => _services.GetRequiredService<DesktopSettingsPage>(),
             _ => null
         };
 
@@ -165,7 +197,9 @@ public partial class DesktopMainPage : ContentPage
         // 失效、一次性创建全部歌曲行并加载全部封面，大曲库下「我的音乐 / 歌单」会卡好几秒。
         // 这类页面直接放进有界高度的 ContentArea，让内部 CollectionView 自行滚动即可。
         // （DesktopDiscoverPage 是整页纵向滚动的 VerticalStackLayout，仍需要外层 ScrollView。）
-        if (content is ScrollView || page is LibraryPage or PlaylistPage or PlaylistDetailPage)
+        if (content is ScrollView
+            || page is LibraryPage or PlaylistPage or PlaylistDetailPage
+            || page is DesktopPlaylistPage or DesktopLibraryPage)
         {
             return content;
         }
@@ -463,13 +497,12 @@ public partial class DesktopMainPage : ContentPage
 
     private void OnLyricsButtonClicked(object? sender, EventArgs e)
     {
-        // Windows 桌面端：Shell 绝对路由 //fullyrics 在单一 ShellContent 下无效，
-        // 使用 Navigation.PushAsync 推入全屏歌词页。
         var page = _services.GetRequiredService<FullLyricsPage>();
         _ = Shell.Current.Navigation.PushAsync(page);
     }
 
-    /// <summary>点击底部播放栏的歌曲信息/封面时，跳转到正在播放页（桌面端使用 Navigation.PushAsync）</summary>
+    /// <summary>点击底部播放栏的歌曲信息/封面时，跳转到正在播放页。
+    /// DesktopMainPage 是 Shell 根页面，播放页用 PushAsync 覆盖全屏。</summary>
     private void OnPlayerSongInfoTapped(object? sender, EventArgs e)
     {
         var page = _services.GetRequiredService<NowPlayingPage>();
@@ -626,7 +659,13 @@ public partial class DesktopMainPage : ContentPage
     private void ApplyResponsiveLayout()
     {
         if (Width <= 0) return;
+#if ANDROID
+        // 横屏手机宽度通常 800~930px，应展示完整侧栏以保持 PC 观感；仅极窄（竖屏）才折叠为图标栏
+        const double AndroidCompactThreshold = 640;
+        bool compact = Width < AndroidCompactThreshold;
+#else
         bool compact = Width < CompactThreshold;
+#endif
         if (compact == _compact) return;
         _compact = compact;
 
@@ -644,7 +683,11 @@ public partial class DesktopMainPage : ContentPage
         }
         else
         {
+#if ANDROID
+            RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
+#else
             RootGrid.ColumnDefinitions[0].Width = new GridLength(SidebarWidth);
+#endif
             LogoText.IsVisible = true;
             NavDiscoverLabel.IsVisible = true;
             NavLibraryLabel.IsVisible = true;
@@ -655,4 +698,25 @@ public partial class DesktopMainPage : ContentPage
             foreach (var l in _playlistNameLabels) l.IsVisible = true;
         }
     }
+
+#if ANDROID
+    /// <summary>手机横屏复用桌面布局时，压缩底部播放栏的控件尺寸，降低行高。</summary>
+    private void ApplyCompactPlayerBarMetrics()
+    {
+        // 歌曲信息区
+        PlayerInfoGrid.Padding = new Thickness(12, 0);
+        PlayerInfoGrid.WidthRequest = 160;
+        PlayerCoverBorder.WidthRequest = 36;
+        PlayerCoverBorder.HeightRequest = 36;
+        PlayerCover.WidthRequest = 36;
+        PlayerCover.HeightRequest = 36;
+
+        // 播放控制区：减少两侧内边距，避免横屏手机横向拥挤
+        PlayerControlsGrid.Padding = new Thickness(8, 0);
+
+        // 音量区
+        VolumeGrid.WidthRequest = 90;
+        VolumeSlider.WidthRequest = 70;
+    }
+#endif
 }

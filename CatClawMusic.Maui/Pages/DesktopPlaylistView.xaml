@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
-             x:Class="CatClawMusic.Maui.Pages.PlaylistPage"
+             x:Class="CatClawMusic.Maui.Pages.DesktopPlaylistView"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
              BackgroundColor="Transparent">
 
@@ -11,14 +11,14 @@
 
         <Grid RowDefinitions="Auto,Auto,*">
 
-            <!-- Hero Card（与其他页面样式一致） -->
+            <!-- Hero Card（横屏下收紧边距） -->
             <Border Grid.Row="0"
-                    Margin="16,16,16,8"
+                    Margin="16,12,16,6"
                     Style="{StaticResource GlassCardStrongStyle}"
                     Background="{DynamicResource HeroBrush}">
                 <Grid ColumnDefinitions="*,Auto"
                       ColumnSpacing="12">
-                    <VerticalStackLayout Spacing="8">
+                    <VerticalStackLayout Spacing="6">
                         <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
                                Style="{StaticResource PageTitleStyle}"
                                TextColor="White" />
@@ -51,18 +51,24 @@
                    Margin="0,0,0,6"
                    IsVisible="{Binding IsLoading}" />
 
-            <!-- Playlist List -->
+            <!-- Playlist List（横屏双列网格） -->
             <CollectionView x:Name="PlaylistsList"
                             Grid.Row="2"
                             ItemsSource="{Binding Playlists}"
                             SelectionMode="Single"
                             SelectionChanged="OnPlaylistSelected"
-                            Margin="0,0,0,8">
+                            Margin="8,0,8,8">
+
+                <CollectionView.ItemsLayout>
+                    <GridItemsLayout Orientation="Vertical"
+                                     Span="2"
+                                     HorizontalItemSpacing="12"
+                                     VerticalItemSpacing="8" />
+                </CollectionView.ItemsLayout>
 
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="16,0,16,10"
-                                Padding="14"
+                        <Border Padding="14"
                                 StrokeShape="RoundRectangle 22"
                                 StrokeThickness="1"
                                 Stroke="{DynamicResource GlassStrokeColor}"
@@ -112,7 +118,7 @@
             </CollectionView>
         </Grid>
 
-        <!-- 新建歌单输入弹窗（替代 DisplayPromptAsync，避免 MAUI 11 兼容性问题） -->
+        <!-- 新建歌单输入弹窗 -->
         <controls:AppPopup x:Name="CreatePlaylistPopup"
                            Title="新建歌单"
                            CloseOnMaskTapped="True" />

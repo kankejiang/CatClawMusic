@@ -409,18 +409,6 @@ public partial class MainPage : ContentPage
     /// </summary>
     protected override bool OnBackButtonPressed()
     {
-        // 安卓横屏模式：系统返回键直接回到竖屏（而非切换 tab）
-#if ANDROID
-        if (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Landscape)
-        {
-            var activity = Platform.CurrentActivity;
-            if (activity != null)
-                activity.RequestedOrientation = global::Android.Content.PM.ScreenOrientation.Portrait;
-            Controls.NativeTabPager.SetSwipeEnabled(true);
-            return true;
-        }
-#endif
-
         var searchVm = _services.GetService<SearchViewModel>();
         if (searchVm?.IsChatMode == true)
         {

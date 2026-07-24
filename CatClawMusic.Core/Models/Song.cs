@@ -85,6 +85,11 @@ public class Song : INotifyPropertyChanged
     /// <summary>远程歌曲唯一标识（Subsonic songId），用于网络歌曲去重</summary>
     public string? RemoteId { get; set; }
 
+    /// <summary>同目录侧车封面图的远程路径（folder.jpg / cover.jpg 等），扫描时探测；运行时字段，不持久化。
+    /// 非空时优先于内嵌封面下载该图片作为封面，避免为整首音频抽帧。</summary>
+    [Ignore]
+    public string? RemoteCoverPath { get; set; }
+
     /// <summary>Android MediaStore 音频记录 ID，用于通过 ContentResolver.LoadThumbnail 快速加载封面</summary>
     public long MediaStoreId { get; set; }
 

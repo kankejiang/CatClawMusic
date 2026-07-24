@@ -11,8 +11,8 @@
     <!-- Desktop layout: TitleBar / Sidebar | TopBar / Content, with Player at bottom -->
     <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="Auto,52,*,100">
 
-        <!-- ═══ Custom Title Bar ═══ -->
-        <controls:TitleBar Grid.Row="0" Grid.ColumnSpan="2" />
+        <!-- ═══ Custom Title Bar ═══ (Windows 桌面端使用；移动端横屏复用时由代码隐藏) -->
+        <controls:TitleBar x:Name="AppTitleBar" Grid.Row="0" Grid.ColumnSpan="2" />
 
         <!-- ═══ Left Sidebar ═══ -->
         <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="3" Grid.Column="0"
@@ -21,8 +21,8 @@
                 BackgroundColor="{DynamicResource CardBackgroundColor}">
             <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="0,12,0,0">
 
-                <!-- App Logo -->
-                <Grid Grid.Row="0" Padding="20,8,20,16"
+                <!-- App Logo（Windows 桌面端显示；移动端横屏复用时隐藏以节省空间） -->
+                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,8,20,16"
                       ColumnDefinitions="Auto,*" ColumnSpacing="10">
                     <Border WidthRequest="36" HeightRequest="36"
                             StrokeShape="RoundRectangle 10"
@@ -46,31 +46,17 @@
                 <VerticalStackLayout Grid.Row="1" Spacing="2" Padding="8,0">
                     <Label x:Name="NavHeader" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Navigation]}" FontSize="10"
                            TextColor="{DynamicResource TextHintColor}"
-                           CharacterSpacing="2" Padding="12,8,12,4" />
+                           CharacterSpacing="2" Padding="12,4,12,2" />
 
                     <Border x:Name="NavDiscover" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
-                            Padding="12,10" BackgroundColor="Transparent">
+                            Padding="12,7" BackgroundColor="Transparent">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavDiscoverTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                             <Label Text="&#x1f50d;" FontSize="16" VerticalOptions="Center" />
-                            <Label x:Name="NavDiscoverLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DiscoverMusic]}" FontSize="14"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   VerticalOptions="Center" />
-                        </Grid>
-                    </Border>
-
-                    <Border x:Name="NavLibrary" StrokeThickness="0"
-                            StrokeShape="RoundRectangle 8"
-                            Padding="12,10" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnNavLibraryTapped" />
-                        </Border.GestureRecognizers>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Label Text="&#x1f3b5;" FontSize="16" VerticalOptions="Center" />
-                            <Label x:Name="NavLibraryLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MyMusic]}" FontSize="14"
+                            <Label x:Name="NavDiscoverLabel" Grid.Column="1" Text="发现" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
                         </Grid>
@@ -78,7 +64,7 @@
 
                     <Border x:Name="NavPlaylists" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
-                            Padding="12,10" BackgroundColor="Transparent">
+                            Padding="12,7" BackgroundColor="Transparent">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavPlaylistsTapped" />
                         </Border.GestureRecognizers>
@@ -89,11 +75,25 @@
                                    VerticalOptions="Center" />
                         </Grid>
                     </Border>
+
+                    <Border x:Name="NavLibrary" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="12,7" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavLibraryTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x1f3b5;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="NavLibraryLabel" Grid.Column="1" Text="音乐库" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
                 </VerticalStackLayout>
 
                 <!-- User Playlists (scrollable) -->
-                <VerticalStackLayout Grid.Row="2" Spacing="2" Padding="8,8,8,0">
-                    <Grid ColumnDefinitions="*,Auto" Padding="12,4,8,4">
+                <VerticalStackLayout Grid.Row="2" Spacing="2" Padding="8,4,8,0">
+                    <Grid ColumnDefinitions="*,Auto" Padding="12,2,8,2">
                         <Label x:Name="PlaylistHeader" Grid.Column="0" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MyPlaylists]}" FontSize="10"
                                TextColor="{DynamicResource TextHintColor}"
                                CharacterSpacing="2" VerticalOptions="Center" />
@@ -114,7 +114,7 @@
                 <!-- Settings at bottom -->
                 <VerticalStackLayout Grid.Row="3" Spacing="2" Padding="8,0,8,12">
                     <Border x:Name="NavSettings" StrokeThickness="0" StrokeShape="RoundRectangle 8"
-                            Padding="12,10" BackgroundColor="Transparent">
+                            Padding="12,7" BackgroundColor="Transparent">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
                         </Border.GestureRecognizers>
@@ -171,9 +171,9 @@
                 <!-- Song Info (left) -->
                 <!-- Windows 上嵌套布局的 TapGestureRecognizer 不可靠，
                      这里用一个透明 Border 覆盖整个歌曲信息区来接收点击。 -->
-                <Grid Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="12"
+                <Grid x:Name="PlayerInfoGrid" Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="12"
                       VerticalOptions="Center" WidthRequest="240">
-                    <Border WidthRequest="48" HeightRequest="48"
+                    <Border x:Name="PlayerCoverBorder" WidthRequest="48" HeightRequest="48"
                             StrokeShape="RoundRectangle 8"
                             StrokeThickness="0"
                             BackgroundColor="{DynamicResource SurfaceColor}">
@@ -204,7 +204,7 @@
                 </Grid>
 
                 <!-- Controls + Progress (center) -->
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto"
+                <Grid x:Name="PlayerControlsGrid" Grid.Column="1" RowDefinitions="Auto,Auto"
                       VerticalOptions="Center" RowSpacing="6" Padding="32,0">
                     <!-- Control buttons -->
                     <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
@@ -266,7 +266,7 @@
                 </Grid>
 
                 <!-- Volume (right) -->
-                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="12"
+                <Grid x:Name="VolumeGrid" Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="12"
                       VerticalOptions="Center" WidthRequest="140">
                     <Image Source="ic_music_note" WidthRequest="18" HeightRequest="18"
                            Opacity="0.5" VerticalOptions="Center" />

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 覆盖 MAUI Essentials 默认 file_paths：保留原有条目，并新增 files-path 以支持分享内部 files 目录下的文件 -->
+    <external-path name="external_files" path="." />
+    <cache-path name="internal_cache" path="." />
+    <external-cache-path name="external_cache" path="." />
+    <files-path name="internal_files" path="." />
+</paths>

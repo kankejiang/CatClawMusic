@@ -51,6 +51,8 @@ public partial class NowPlayingPage : ContentPage
 
         // 设置收起图标（使用 ImageSourceHelper 确保 Windows 端正确加载）
         CollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
+        // 横屏布局左上角收起按钮复用同一图标
+        LandscapeCollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
 
         // 播放页封面原生 ImageView 懒创建（尤其横屏 LandscapeCoverImage 在首次显示时才建 Handler），
         // 在其 Handler 就绪后立即打标记，确保自定义图像服务对封面一律高分辨率解码（横竖屏一致）。
@@ -665,6 +667,23 @@ public partial class NowPlayingPage : ContentPage
 #endif
     }
 
+    /// <summary>
+    /// 横屏布局左上角收起按钮：
+    /// DesktopMainPage 为 Shell 根页面，播放页经 PushAsync 入栈，PopAsync 返回即可。
+    /// 普通手机竖屏（播放页为 MainPage 内浮层）则收起播放页回到发现页。
+    /// </summary>
+    private void OnLandscapeCollapseTapped(object? sender, TappedEventArgs e)
+    {
+#if ANDROID || WINDOWS
+        if (Shell.Current.Navigation.NavigationStack.Count > 1)
+            _ = Shell.Current.Navigation.PopAsync();
+        else
+            _ = Shell.Current.GoToAsync("//main");
+#else
+        MainPage.Instance?.CollapseNowPlaying();
+#endif
+    }
+
     /// <summary>点击歌词按钮：横屏下就地切换歌词模式（收起右侧按钮显示多行歌词），竖屏下打开全屏歌词页</summary>
     private void OnOpenLyricsClicked(object? sender, EventArgs e)
     {
@@ -726,8 +745,8 @@ public partial class NowPlayingPage : ContentPage
                 OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                 StrokeWidth = 1,
                 FillProgress = 1,
-                HorizontalTextAlignment = TextAlignment.Center,
-                HorizontalOptions = LayoutOptions.Center
+                HorizontalTextAlignment = TextAlignment.Start,
+                HorizontalOptions = LayoutOptions.Fill
             };
             LandscapeLyricStack.Children.Add(label);
             return;
@@ -745,7 +764,7 @@ public partial class NowPlayingPage : ContentPage
                 OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                 StrokeWidth = 2,
                 FillProgress = 0,
-                HorizontalTextAlignment = TextAlignment.Center,
+                HorizontalTextAlignment = TextAlignment.Start,
                 HorizontalOptions = LayoutOptions.Fill,
                 LineBreakMode = LineBreakMode.WordWrap,
                 Opacity = 0.2,
@@ -777,7 +796,7 @@ public partial class NowPlayingPage : ContentPage
                     OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                     StrokeWidth = 1.5,
                     FillProgress = 0,
-                    HorizontalTextAlignment = TextAlignment.Center,
+                    HorizontalTextAlignment = TextAlignment.Start,
                     HorizontalOptions = LayoutOptions.Fill,
                     LineBreakMode = LineBreakMode.WordWrap,
                     Opacity = 0.2,

@@ -9,10 +9,8 @@ public partial class AppShell : Shell
         InitializeComponent();
         StartupLog("AppShell.ctor: InitializeComponent done");
 
-        // 从 DI 容器获取 MainPage 实例（Singleton），设置为 ShellContent 的内容
-        StartupLog("AppShell.ctor: Getting MainPage");
-        MainShellContent.Content = services.GetRequiredService<Pages.MainPage>();
-        StartupLog("AppShell.ctor: MainPage set");
+        // Shell 根页面由 App.ApplyOrientationLayout() 按当前方向设置（竖屏→MainPage，横屏→DesktopMainPage），
+        // 不再在构造函数中硬编码 MainPage。
 
         Routing.RegisterRoute("search", typeof(Pages.SearchPage));
         Routing.RegisterRoute("discover", typeof(Pages.SearchPage));

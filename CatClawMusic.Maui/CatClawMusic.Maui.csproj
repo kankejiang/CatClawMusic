@@ -41,6 +41,14 @@
 		<ApplicationTitle Condition="'$(Configuration)' == 'Debug'">猫爪音乐(Debug)</ApplicationTitle>
 	</PropertyGroup>
 
+	<!-- AndroidX 传递依赖版本漂移（KTX 2.9.2.1 把 core 约束在 [2.9.2.1, 2.9.3)，
+	     但 MAUI/ExoPlayer 的传递依赖要求 >= 2.10，二者无交集；NuGet 按最近优先解析到 2.10.0.2
+	     触发良性 NU1608。解析版本更高、二进制向后兼容，无运行时风险，故抑制。
+	     注意：勿加 TFM 条件——NuGet restore 阶段 $(TargetFramework) 尚未定义，条件会判定为 false 导致不生效。 -->
+	<PropertyGroup>
+		<NoWarn>$(NoWarn);NU1608</NoWarn>
+	</PropertyGroup>
+
 	<!-- Shared project references -->
 	<ItemGroup>
 		<ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
@@ -82,6 +90,9 @@
 		<!-- 原生 ViewPager2：Android 端用其承载 5 个 MAUI 页，水平分页位移由 GPU 合成，
 		     根治 net10 下 TranslationX 手动画面导致的左右滑动抽搐 -->
 		<PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0.10" />
+		<!-- 显式引入 Browser 包：MAUI WebAuthenticator 内部生成 CustomTabsServiceConnectionImpl.java
+		     等桩代码，依赖 androidx.browser.customtabs.*，但 SDK 不会自动传递该依赖 -->
+		<PackageReference Include="Xamarin.AndroidX.Browser" Version="1.8.0.11" />
 	</ItemGroup>
 
 	<!-- Android release signing：必须显式 AndroidKeyStore=true，且用 PropertyGroup 属性（非 ItemGroup） -->

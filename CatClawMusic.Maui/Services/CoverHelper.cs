@@ -228,7 +228,7 @@ public static class CoverHelper
             };
             if (profile == null) return;
 
-            using var stream = await svc.GetCoverAsync(song.RemoteId!, profile);
+            using var stream = await svc.GetCoverAsync(song.RemoteId!, profile, song.RemoteCoverPath);
             if (stream == null) return;
 
             await using var fs = File.Create(cachedPath);

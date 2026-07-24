@@ -15,7 +15,7 @@
         </Grid.Behaviors>
 
         <ScrollView Grid.Row="0">
-            <VerticalStackLayout Padding="16,18,16,22" Spacing="12">
+            <VerticalStackLayout Padding="16,12,16,16" Spacing="10">
 
                 <!-- Hero Header -->
                 <Border Style="{StaticResource GlassCardStrongStyle}"
@@ -47,7 +47,9 @@
                 <!-- Section: 内容与服务 -->
                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ContentAndServices]}"
                        Style="{StaticResource SectionTitleStyle}"
-                       Margin="4,8,0,2" />
+                       Margin="4,4,0,0" />
+
+                <VerticalStackLayout x:Name="Section1Items" Spacing="10">
 
                 <!-- 外观与个性化 -->
                 <Border Style="{StaticResource GlassCardStyle}">
@@ -158,10 +160,14 @@
                     </Border.GestureRecognizers>
                 </Border>
 
+                </VerticalStackLayout>
+
                 <!-- Section: 系统与维护 -->
                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SystemAndMaintenance]}"
                        Style="{StaticResource SectionTitleStyle}"
-                       Margin="4,12,0,2" />
+                       Margin="4,6,0,0" />
+
+                <VerticalStackLayout x:Name="Section2Items" Spacing="10">
 
                 <!-- 权限管理（仅 Android 需要运行时权限；Windows/PC 无意义，隐藏） -->
                 <Border Style="{StaticResource GlassCardStyle}"
@@ -276,6 +282,8 @@
                         <TapGestureRecognizer Tapped="OnAboutClicked" />
                     </Border.GestureRecognizers>
                 </Border>
+
+                </VerticalStackLayout>
 
             </VerticalStackLayout>
         </ScrollView>

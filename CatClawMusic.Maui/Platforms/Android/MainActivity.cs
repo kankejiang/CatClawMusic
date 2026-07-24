@@ -15,6 +15,8 @@ namespace CatClawMusic.Maui;
     Theme = "@style/Maui.SplashTheme",
     MainLauncher = true,
     LaunchMode = LaunchMode.SingleTop,
+    // 保留全部 ConfigurationChanges：MAUI Shell 的 scoped IServiceProvider 不支持 Activity 重建，
+    // 旋转时由 App.ApplyOrientationLayout() 在存活 Activity 内直切 ShellContent.Content。
     ConfigurationChanges = ConfigChanges.ScreenSize
         | ConfigChanges.Orientation
         | ConfigChanges.UiMode

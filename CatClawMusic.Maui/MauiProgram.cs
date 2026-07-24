@@ -395,13 +395,16 @@ public static class MauiProgram
         // ═══════════════════════════════════════════════════
         // Pages
         // ═══════════════════════════════════════════════════
-        services.AddSingleton<Pages.MainPage>();
-        services.AddSingleton<Pages.DesktopMainPage>();
+        services.AddTransient<Pages.MainPage>();
+        services.AddTransient<Pages.DesktopMainPage>();
         services.AddTransient<Pages.NowPlayingPage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();
         services.AddTransient<Pages.DesktopDiscoverPage>();
         services.AddTransient<Pages.SettingsPage>();
+        services.AddTransient<Pages.DesktopSettingsPage>();
+        services.AddTransient<Pages.DesktopLibraryPage>();
+        services.AddTransient<Pages.DesktopPlaylistPage>();
         services.AddTransient<Pages.AlbumDetailPage>();
         services.AddTransient<Pages.ArtistDetailPage>();
         services.AddTransient<Pages.AlbumsPage>();

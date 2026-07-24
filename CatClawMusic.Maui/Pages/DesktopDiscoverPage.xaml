@@ -11,47 +11,47 @@
         <VerticalStackLayout x:Name="RootStack" Padding="26,22,26,26" Spacing="0">
 
             <!-- ═══ Page Head: 发现 + 问候 + AI 开关 + 主题按钮 ═══ -->
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,0,0,4">
-                <VerticalStackLayout VerticalOptions="Center" Spacing="3">
-                    <Label Text="发现" FontSize="30" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" />
-                    <Label Text="{Binding GreetingText}" FontSize="13" TextColor="{DynamicResource TextSecondaryColor}" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,2">
+                <VerticalStackLayout VerticalOptions="Center" Spacing="2">
+                    <Label Text="发现" FontSize="24" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="{Binding GreetingText}" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
                 </VerticalStackLayout>
-                <HorizontalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="10">
+                <HorizontalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="8">
                     <Border StrokeShape="RoundRectangle 999" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
-                            BackgroundColor="{DynamicResource CardBackgroundColor}" Padding="12,8">
-                        <HorizontalStackLayout Spacing="9" VerticalOptions="Center">
-                            <Label Text="智能推荐" FontSize="13" TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center" />
-                            <Border BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" StrokeThickness="0" StrokeShape="RoundRectangle 999" WidthRequest="26" HeightRequest="26">
-                                <Label Text="AI" FontSize="10" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                            BackgroundColor="{DynamicResource CardBackgroundColor}" Padding="8,5">
+                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                            <Label Text="智能推荐" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center" />
+                            <Border BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" StrokeThickness="0" StrokeShape="RoundRectangle 999" WidthRequest="20" HeightRequest="20">
+                                <Label Text="AI" FontSize="8" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
-                            <Switch IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" Scale="0.85" />
+                            <Switch IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" Scale="0.72" />
                         </HorizontalStackLayout>
                     </Border>
-                    <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSearchToggleClicked" />
                         </Border.GestureRecognizers>
-                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center">
+                        <Image WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center">
                             <Image.Source>
                                 <AppThemeBinding Light="ic_search_light" Dark="ic_search" />
                             </Image.Source>
                         </Image>
                     </Border>
-                    <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRefreshClicked" />
                         </Border.GestureRecognizers>
-                        <Image WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center">
+                        <Image WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center">
                             <Image.Source>
                                 <AppThemeBinding Light="ic_refresh_light" Dark="ic_refresh" />
                             </Image.Source>
                         </Image>
                     </Border>
-                    <Border WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
-                        <Label x:Name="ThemeIcon" Text="&#x1f319;" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
+                        <Label x:Name="ThemeIcon" Text="&#x1f319;" FontSize="14" HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnThemeToggleClicked" />
                         </Border.GestureRecognizers>
