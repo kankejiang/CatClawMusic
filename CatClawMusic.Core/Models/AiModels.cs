@@ -13,6 +13,9 @@ public class ChatMessage
     /// <summary>消息文本内容</summary>
     public string Content { get; set; } = "";
 
+    /// <summary>推理模型的思考过程文本（reasoning_content），用于在思考区展示模型的推理内容</summary>
+    public string? ReasoningContent { get; set; }
+
     /// <summary>助手消息中携带的工具调用列表</summary>
     public List<ToolCall>? ToolCalls { get; set; }
 
@@ -120,6 +123,9 @@ public class LlmResponse
 {
     /// <summary>LLM 返回的文本内容</summary>
     public string Content { get; set; } = "";
+
+    /// <summary>推理模型返回的思考过程文本（reasoning_content / reasoning 字段）</summary>
+    public string ReasoningContent { get; set; } = "";
 
     /// <summary>LLM 触发的工具调用列表</summary>
     public List<ToolCall> ToolCalls { get; set; } = new();

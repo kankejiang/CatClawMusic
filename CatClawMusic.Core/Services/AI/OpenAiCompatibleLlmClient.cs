@@ -419,6 +419,12 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                 result.Content = message.TryGetProperty("content", out var content) && content.ValueKind != JsonValueKind.Null ? content.GetString() ?? "" : "";
                 result.FinishReason = choice.TryGetProperty("finish_reason", out var fr) && fr.ValueKind != JsonValueKind.Null ? fr.GetString() ?? "" : "";
 
+                // 推理模型的思考过程：DeepSeek 等多数用 reasoning_content，部分模型用 reasoning
+                if (message.TryGetProperty("reasoning_content", out var reasoning) && reasoning.ValueKind == JsonValueKind.String)
+                    result.ReasoningContent = reasoning.GetString() ?? "";
+                else if (message.TryGetProperty("reasoning", out var reasoning2) && reasoning2.ValueKind == JsonValueKind.String)
+                    result.ReasoningContent = reasoning2.GetString() ?? "";
+
                 if (message.TryGetProperty("tool_calls", out var toolCalls) && toolCalls.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var tc in toolCalls.EnumerateArray())

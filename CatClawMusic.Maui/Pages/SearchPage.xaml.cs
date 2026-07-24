@@ -566,6 +566,27 @@ public partial class SearchPage : ContentPage
         }
     }
 
+    /// <summary>点击聊天中的歌曲搜索结果卡片：以该消息的搜索结果作为播放队列播放。</summary>
+    private async void OnChatSongTapped(object? sender, EventArgs e)
+    {
+        if (sender is not VisualElement el || el.BindingContext is not Song song) return;
+        var queue = FindMessageSongs(el) ?? new List<Song> { song };
+        await PlaySongAsync(song, queue);
+    }
+
+    /// <summary>沿可视树向上查找所属聊天消息的 Songs 列表（作为播放队列）。</summary>
+    private static List<Song>? FindMessageSongs(VisualElement element)
+    {
+        Element? current = element;
+        while (current != null)
+        {
+            if (current.BindingContext is ViewModels.ObservableChatMessage msg && msg.Songs is { Count: > 0 })
+                return msg.Songs;
+            current = current.Parent;
+        }
+        return null;
+    }
+
     /// <summary>点击汉堡菜单按钮，从左到右滑出设置面板</summary>
     private async void OnHamburgerClicked(object? sender, EventArgs e)
     {

@@ -59,6 +59,13 @@ public interface IAgentService
     /// <summary>当前智能体是否已完成配置（具备可用的 LLM 客户端与工具）</summary>
     bool IsConfigured { get; }
 
+    /// <summary>
+    /// 尝试本地解析并执行基础播放命令（暂停/播放/下一首/上一首/停止/当前歌曲/音量等），无需配置 LLM 模型。
+    /// 命中命令时返回执行结果回复；未命中返回 null，由调用方回退到 LLM 或"未配置"提示。
+    /// </summary>
+    /// <param name="userMessage">用户输入文本</param>
+    Task<ChatMessage?> TryLocalCommandAsync(string userMessage);
+
     /// <summary>获取当前正在使用的内置智能体</summary>
     BuiltinAgent GetCurrentAgent();
 

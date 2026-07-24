@@ -467,8 +467,8 @@
                                     HorizontalOptions="{Binding Role, Converter={StaticResource ChatBubbleAlignmentConverter}}"
                                     VerticalOptions="Start">
                                 <VerticalStackLayout Spacing="6">
-                                    <!-- 思考/工具调用过程区块（仅助手消息且有步骤时可见，点击折叠/展开） -->
-                                    <Border IsVisible="{Binding HasThinkingSteps}"
+                                    <!-- 思考/工具调用过程区块（仅助手消息且有思考内容时可见，点击折叠/展开） -->
+                                    <Border IsVisible="{Binding HasThinking}"
                                             Padding="10,8"
                                             StrokeThickness="1"
                                             Stroke="#33FFFFFF"
@@ -509,6 +509,13 @@
                                                        VerticalOptions="Center"
                                                        IsVisible="{Binding IsThinkingExpanded, Converter={StaticResource InvertedBoolConverter}}" />
                                             </Grid>
+                                            <!-- 推理思考内容（展开且有推理文本时显示） -->
+                                            <Label IsVisible="{Binding ShowReasoning}"
+                                                   Text="{Binding ReasoningContent}"
+                                                   FontSize="11"
+                                                   TextColor="#CCFFFFFF"
+                                                   LineBreakMode="WordWrap"
+                                                   Margin="0,4,0,2" />
                                             <!-- 展开详情：思考步骤列表 -->
                                             <CollectionView IsVisible="{Binding IsThinkingExpanded}"
                                                             ItemsSource="{Binding ThinkingSteps}"
@@ -532,6 +539,32 @@
                                            TextColor="White"
                                            LineBreakMode="WordWrap"
                                            IsVisible="{Binding Content, Converter={StaticResource StringToBoolConverter}}" />
+
+                                    <!-- 歌曲搜索结果卡片（点击播放；非滚动渲染，避免嵌在旋转聊天列表里滚动反向） -->
+                                    <VerticalStackLayout IsVisible="{Binding HasSongs}"
+                                                         BindableLayout.ItemsSource="{Binding Songs}"
+                                                         Spacing="0"
+                                                         Margin="0,6,0,0">
+                                        <BindableLayout.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Padding="6,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                                    <Grid.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnChatSongTapped" />
+                                                    </Grid.GestureRecognizers>
+                                                    <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 8" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                                        <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="40" HeightRequest="40" />
+                                                    </Border>
+                                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                                                        <Label Text="{Binding Title}" FontSize="13" TextColor="White" MaxLines="1" LineBreakMode="TailTruncation" />
+                                                        <Label Text="{Binding Artist}" FontSize="10" TextColor="#B3FFFFFF" MaxLines="1" LineBreakMode="TailTruncation" />
+                                                    </VerticalStackLayout>
+                                                    <Border Grid.Column="2" WidthRequest="30" HeightRequest="30" StrokeShape="RoundRectangle 15" BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
+                                                        <Image Source="ic_play" WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
+                                                    </Border>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </BindableLayout.ItemTemplate>
+                                    </VerticalStackLayout>
                                 </VerticalStackLayout>
                             </Border>
 

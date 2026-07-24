@@ -304,30 +304,35 @@ public partial class SearchViewModel : ObservableObject
     {
         try
         {
-            var records = await _database.GetRecentChatMessagesAsync(30);
-            ChatMessages.Clear();
+            const int pageSize = 30;
+            var records = await _database.GetRecentChatMessagesAsync(pageSize);
             if (records.Count == 0)
             {
-                ChatMessages.Insert(0, new ObservableChatMessage
+                // 整体替换集合，一次性通知 UI（避免多次集合变更触发旋转列表反复布局）
+                ChatMessages = new ObservableCollection<ObservableChatMessage>
                 {
-                    Role = "assistant",
-                    Content = _agentService.IsConfigured
-                        ? "Yuki 在这里喵，可以帮你找歌、放歌、建歌单。"
-                        : "Yuki 在这里喵，不过 AI 还没配置，先去设置页完成配置吧。"
-                });
+                    new ObservableChatMessage
+                    {
+                        Role = "assistant",
+                        Content = _agentService.IsConfigured
+                            ? "Yuki 在这里喵，可以帮你找歌、放歌、建歌单。"
+                            : "Yuki 在这里喵，不过 AI 还没配置，先去设置页完成配置吧。"
+                    }
+                };
                 _oldestLoadedMessageId = 0;
                 HasMoreChatHistory = false;
             }
             else
             {
-                // 数据库返回正序（旧→新），倒序插入使最新消息在 index 0
+                // 数据库返回正序（旧→新），倒序构建使最新消息在 index 0；
+                // 构建好后整体替换集合，一次性通知 UI（替代 Clear+逐条 Add 的 N 次集合变更）。
+                var list = new List<ObservableChatMessage>(records.Count);
                 for (int i = records.Count - 1; i >= 0; i--)
-                {
-                    ChatMessages.Add(new ObservableChatMessage { Role = records[i].Role, Content = records[i].Content });
-                }
+                    list.Add(new ObservableChatMessage { Role = records[i].Role, Content = records[i].Content });
+                ChatMessages = new ObservableCollection<ObservableChatMessage>(list);
                 _oldestLoadedMessageId = records[0].Id;
-                var total = await _database.GetChatMessageCountAsync();
-                HasMoreChatHistory = total > ChatMessages.Count;
+                // 取满一页说明可能还有更多，免去额外的全表 COUNT 查询
+                HasMoreChatHistory = records.Count == pageSize;
             }
 
             ChatHistoryLoaded?.Invoke(this, new ChatHistoryLoadedEventArgs { IsInitialLoad = true, ScrollToEnd = true });
@@ -356,8 +361,8 @@ public partial class SearchViewModel : ObservableObject
                     ChatMessages.Add(new ObservableChatMessage { Role = older[i].Role, Content = older[i].Content });
                 }
                 _oldestLoadedMessageId = older[0].Id;
-                var total = await _database.GetChatMessageCountAsync();
-                HasMoreChatHistory = total > ChatMessages.Count;
+                // 取满一页说明可能还有更多，免去额外的全表 COUNT 查询
+                HasMoreChatHistory = older.Count == 20;
 
                 // 倒序模式下末尾追加不改变已有项 index，无需滚动位置修复
                 ChatHistoryLoaded?.Invoke(this, new ChatHistoryLoadedEventArgs
@@ -897,10 +902,30 @@ public partial class SearchViewModel : ObservableObject
 
         if (!_agentService.IsConfigured)
         {
+            // 未配置模型时，先尝试本地命令完成播放器基本操作（暂停/播放/切歌/音量等）
+            ChatMessage? localReply = null;
+            try { localReply = await _agentService.TryLocalCommandAsync(userMessage); }
+            catch (Exception ex) { Log.Debug("SearchViewModel", $"[SearchVM] 本地命令执行失败: {ex.Message}"); }
+
+            string? replyContent = localReply?.Content;
+            var replySongs = localReply?.Songs;
+
+            // 非播放/搜索命令时，用 Yuki 人格词库回复（SQLite 词库按需查询）
+            if (string.IsNullOrEmpty(replyContent))
+            {
+                try { replyContent = await Services.YukiWordLibrary.Instance.GetReplyAsync(userMessage); }
+                catch (Exception ex) { Log.Debug("SearchViewModel", $"[SearchVM] 词库回复失败: {ex.Message}"); }
+            }
+
+            // 词库也无内容时才回退到"未配置"提示
+            if (string.IsNullOrEmpty(replyContent))
+                replyContent = "AI 还没有配置好喵，先到“设置 > AI 设置”里填一下模型信息吧。\n\n不过基础的播放控制我可以直接帮你：暂停 / 播放 / 下一首 / 上一首 / 停止 / 当前歌曲 / 调音量。";
+
             var notConfiguredMsg = new ObservableChatMessage
             {
                 Role = "assistant",
-                Content = "AI 还没有配置好喵，先到“设置 > AI 设置”里填一下模型信息吧。"
+                Content = replyContent,
+                Songs = replySongs
             };
             // 倒序模式：新消息插入到头部
             ChatMessages.Insert(0, notConfiguredMsg);
@@ -935,6 +960,7 @@ public partial class SearchViewModel : ObservableObject
             {
                 assistantMsg.Content = BuildAssistantMessage(response);
                 assistantMsg.Songs = response.Songs;
+                assistantMsg.ReasoningContent = response.ReasoningContent;
                 assistantMsg.IsThinking = false;
                 // 移除"正在思考"占位项（如果有工具调用，工具步骤已追加在后面，只移除第一项占位）
                 if (assistantMsg.ThinkingSteps.Count > 0 && assistantMsg.ThinkingSteps[0].StartsWith("💭"))

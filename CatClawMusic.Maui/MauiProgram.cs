@@ -445,6 +445,8 @@ public static class MauiProgram
         AgentService.LibrarySnapshotProvider = () => MusicLibrarySnapshotService.LoadSnapshot();
         var chatMemoryService = Services.GetRequiredService<Services.ChatMemoryService>();
         AgentService.MemoryProvider = () => chatMemoryService.LoadMemory();
+        // Yuki 人格词库知识（SQLite 词库按需查询），已配置模型时注入让模型模仿语气
+        AgentService.PersonalityKnowledgeProvider = () => CatClawMusic.Maui.Services.YukiWordLibrary.Instance.GetKnowledgePromptAsync();
 
         // 后台迁移旧版未下采样的封面缓存，避免 UI 加载大图卡顿
         _ = CoverHelper.MigrateLegacyCoversAsync();

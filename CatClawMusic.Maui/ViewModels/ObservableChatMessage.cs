@@ -35,6 +35,15 @@ public partial class ObservableChatMessage : ObservableObject
     [ObservableProperty]
     private List<Song>? _songs;
 
+    /// <summary>是否携带歌曲结果（用于展示可点击播放的歌曲卡片）</summary>
+    public bool HasSongs => Songs != null && Songs.Count > 0;
+
+    /// <summary>Songs 变更时同步通知 HasSongs</summary>
+    partial void OnSongsChanged(List<Song>? value)
+    {
+        OnPropertyChanged(nameof(HasSongs));
+    }
+
     /// <summary>本条消息关联的思考过程步骤列表（如"调用工具 xxx"、"xxx 完成"）</summary>
     [ObservableProperty]
     private ObservableCollection<string> _thinkingSteps = new();
@@ -47,13 +56,26 @@ public partial class ObservableChatMessage : ObservableObject
     [ObservableProperty]
     private bool _isThinking;
 
+    /// <summary>推理模型的思考内容（reasoning_content），展示在思考区</summary>
+    [ObservableProperty]
+    private string? _reasoningContent;
+
     /// <summary>是否有思考步骤可展示</summary>
     public bool HasThinkingSteps => ThinkingSteps.Count > 0;
+
+    /// <summary>是否有思考内容可展示（推理文本或工具步骤），控制思考区整体可见性</summary>
+    public bool HasThinking => ThinkingSteps.Count > 0 || !string.IsNullOrWhiteSpace(ReasoningContent);
+
+    /// <summary>是否有推理思考文本</summary>
+    public bool HasReasoning => !string.IsNullOrWhiteSpace(ReasoningContent);
+
+    /// <summary>展开且有推理内容时显示推理文本</summary>
+    public bool ShowReasoning => IsThinkingExpanded && HasReasoning;
 
     /// <summary>思考过程摘要文本（折叠时显示，根据 IsThinking 和步骤数自动计算）</summary>
     public string ThinkingSummary => IsThinking
         ? "思考中..."
-        : (ThinkingSteps.Count > 0 ? $"已完成 · {ThinkingSteps.Count} 个步骤" : "");
+        : (ThinkingSteps.Count > 0 ? $"已完成 · {ThinkingSteps.Count} 个步骤" : (HasReasoning ? "已深度思考" : ""));
 
     /// <summary>默认构造：订阅初始集合的变更事件</summary>
     public ObservableChatMessage()
@@ -66,6 +88,7 @@ public partial class ObservableChatMessage : ObservableObject
     {
         Role = msg.Role;
         Content = msg.Content;
+        ReasoningContent = msg.ReasoningContent;
         ToolCalls = msg.ToolCalls;
         ToolCallId = msg.ToolCallId;
         Name = msg.Name;
@@ -77,6 +100,7 @@ public partial class ObservableChatMessage : ObservableObject
     {
         Role = msg.Role,
         Content = msg.Content,
+        ReasoningContent = msg.ReasoningContent,
         ToolCalls = msg.ToolCalls,
         ToolCallId = msg.ToolCallId,
         Name = msg.Name,
@@ -103,6 +127,21 @@ public partial class ObservableChatMessage : ObservableObject
     partial void OnIsThinkingChanged(bool value)
     {
         OnPropertyChanged(nameof(ThinkingSummary));
+    }
+
+    /// <summary>ReasoningContent 变更时同步通知 HasThinking/HasReasoning/ThinkingSummary</summary>
+    partial void OnReasoningContentChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasThinking));
+        OnPropertyChanged(nameof(HasReasoning));
+        OnPropertyChanged(nameof(ShowReasoning));
+        OnPropertyChanged(nameof(ThinkingSummary));
+    }
+
+    /// <summary>IsThinkingExpanded 变更时同步通知 ShowReasoning</summary>
+    partial void OnIsThinkingExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowReasoning));
     }
 
     private void OnThinkingStepsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

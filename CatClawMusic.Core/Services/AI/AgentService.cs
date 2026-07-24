@@ -27,6 +27,9 @@ public class AgentService : IAgentService
     /// <summary>音乐库服务（可选），用于在搜索音乐时附加歌曲上下文</summary>
     private readonly IMusicLibraryService? _musicLibrary;
 
+    /// <summary>音频播放器（可选），用于本地命令读取当前音量等播放状态</summary>
+    private readonly IAudioPlayerService? _player;
+
     /// <summary>当前智能体 ID，决定使用的系统提示词</summary>
     private string _currentAgentId;
 
@@ -41,6 +44,9 @@ public class AgentService : IAgentService
 
     /// <summary>长期记忆内容提供者（由 MAUI 层在启动时赋值）</summary>
     public static Func<string>? MemoryProvider { get; set; }
+
+    /// <summary>Yuki 人格词库知识提供者（由 MAUI 层在启动时赋值），注入系统提示词让模型模仿语气</summary>
+    public static Func<Task<string>>? PersonalityKnowledgeProvider { get; set; }
 
     /// <summary>初始化静态配置存储（由 DI 容器在启动时调用）</summary>
     /// <param name="configStorage">配置存储实现</param>
@@ -64,18 +70,191 @@ public class AgentService : IAgentService
     }
 
     /// <summary>
+    /// 尝试本地解析并执行基础播放命令，无需 LLM 模型。
+    /// 复用已注册的 control_playback / get_current_song 工具执行，命中返回回复，未命中返回 null。
+    /// </summary>
+    public async Task<ChatMessage?> TryLocalCommandAsync(string userMessage)
+    {
+        if (string.IsNullOrWhiteSpace(userMessage)) return null;
+        var text = userMessage.Trim();
+
+        var toolMap = _tools.ToDictionary(t => t.Name);
+
+        // ── 播放控制：暂停/下一首/上一首/停止/继续 ──
+        string? action = null;
+        if (ContainsAny(text, "暂停")) action = "pause";
+        else if (ContainsAny(text, "下一首", "下一曲", "切歌", "切到下一")) action = "next";
+        else if (ContainsAny(text, "上一首", "上一曲", "切到上一")) action = "previous";
+        else if (ContainsAny(text, "停止")) action = "stop";
+        else if (ContainsAny(text, "继续", "恢复")
+                 || text.Equals("播放", StringComparison.OrdinalIgnoreCase)
+                 || text.Equals("resume", StringComparison.OrdinalIgnoreCase)
+                 || text.Equals("play", StringComparison.OrdinalIgnoreCase))
+            action = "resume";
+
+        if (action != null && toolMap.TryGetValue("control_playback", out var controlTool))
+        {
+            var result = await controlTool.ExecuteAsync(JsonSerializer.Serialize(new { action }));
+            return new ChatMessage { Role = "assistant", Content = ExtractToolMessage(result) };
+        }
+
+        // ── 当前歌曲 ──
+        if (ContainsAny(text, "当前歌曲", "当前播放", "在放什么", "正在播放什么", "放的什么", "在听什么", "什么歌")
+            && toolMap.TryGetValue("get_current_song", out var currentTool))
+        {
+            var result = await currentTool.ExecuteAsync("{}");
+            return new ChatMessage { Role = "assistant", Content = FormatCurrentSong(result) };
+        }
+
+        // ── 音量：调大/调小/静音 ──（需当前音量，依赖 _player）
+        if (_player != null && toolMap.TryGetValue("control_playback", out var volTool))
+        {
+            var currentVol = (int)Math.Round(_player.Volume * 100);
+            int? targetVol = null;
+            string? volReply = null;
+            if (ContainsAny(text, "静音"))
+            {
+                targetVol = 0; volReply = "已静音";
+            }
+            else if (ContainsAny(text, "大点声", "大声", "音量调大", "音量加大", "调大音量", "声音大"))
+            {
+                targetVol = Math.Clamp(currentVol + 10, 0, 100); volReply = $"音量已调大到 {targetVol}";
+            }
+            else if (ContainsAny(text, "小点声", "小声", "音量调小", "音量减小", "调小音量", "声音小"))
+            {
+                targetVol = Math.Clamp(currentVol - 10, 0, 100); volReply = $"音量已调小到 {targetVol}";
+            }
+
+            if (targetVol != null)
+            {
+                await volTool.ExecuteAsync(JsonSerializer.Serialize(new { volume = targetVol.Value }));
+                return new ChatMessage { Role = "assistant", Content = volReply! };
+            }
+        }
+
+        // ── 搜索：歌名/歌手/专辑（无模型时也能搜，结果以可点击播放的卡片返回）──
+        if (_musicLibrary != null)
+        {
+            var keyword = ExtractSearchKeyword(text);
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                try
+                {
+                    var songs = await _musicLibrary.SearchAsync(keyword);
+                    if (songs != null && songs.Count > 0)
+                    {
+                        // 取前 10 首作为卡片（非滚动渲染，避免气泡过高），多余数量在文案中提示
+                        var top = songs.Take(10).ToList();
+                        var more = songs.Count > top.Count ? $"，还有 {songs.Count - top.Count} 首未显示" : "";
+                        return new ChatMessage
+                        {
+                            Role = "assistant",
+                            Content = $"找到 {songs.Count} 首和「{keyword}」相关的歌曲喵{more}，点一下就能播放~",
+                            Songs = top
+                        };
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logService.Warn("Agent", $"本地搜索失败: {ex.Message}");
+                }
+            }
+        }
+
+        return null; // 未命中任何基础命令
+    }
+
+    /// <summary>搜索动词（按长度降序，优先匹配长动词），命中即视为搜索意图。</summary>
+    private static readonly string[] SearchVerbs =
+        { "搜一下", "查找", "找一下", "我想听", "来一首", "帮我搜", "帮我找", "搜索", "播放", "搜", "找", "放", "听" };
+
+    /// <summary>搜索关键词中需剔除的限定词。</summary>
+    private static readonly string[] SearchQualifiers = { "歌曲", "音乐", "专辑", "歌手", "一下", "歌" };
+
+    /// <summary>从用户输入中提取搜索关键词：取最靠前的搜索动词之后的内容，并去掉常见限定词。无搜索意图返回 null。</summary>
+    private static string? ExtractSearchKeyword(string text)
+    {
+        int bestIdx = int.MaxValue;
+        int bestEnd = -1;
+        foreach (var verb in SearchVerbs)
+        {
+            var idx = text.IndexOf(verb, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0 && idx < bestIdx)
+            {
+                bestIdx = idx;
+                bestEnd = idx + verb.Length;
+            }
+        }
+        if (bestEnd < 0) return null;
+
+        var keyword = text.Substring(bestEnd).Trim();
+        foreach (var q in SearchQualifiers)
+            keyword = keyword.Replace(q, "");
+        keyword = keyword.Trim();
+        return keyword.Length > 0 ? keyword : null;
+    }
+
+    /// <summary>判断文本是否包含任意关键词（忽略大小写）。</summary>
+    private static bool ContainsAny(string text, params string[] keywords)
+    {
+        foreach (var k in keywords)
+            if (text.Contains(k, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    /// <summary>从工具返回的 JSON 中提取 message 或 error 文本作为友好回复。</summary>
+    private static string ExtractToolMessage(string toolResultJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(toolResultJson);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("message", out var msg) && msg.ValueKind == JsonValueKind.String)
+                return msg.GetString() ?? "操作完成";
+            if (root.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String)
+                return err.GetString() ?? "操作失败";
+        }
+        catch { }
+        return "操作完成";
+    }
+
+    /// <summary>将 get_current_song 工具的 JSON 结果格式化为友好的当前播放信息。</summary>
+    private static string FormatCurrentSong(string toolResultJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(toolResultJson);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String)
+                return err.GetString() ?? "当前没有正在播放的歌曲";
+            if (root.TryGetProperty("song", out var song))
+            {
+                var title = song.TryGetProperty("Title", out var t) ? t.GetString() : null;
+                var artist = song.TryGetProperty("Artist", out var a) ? a.GetString() : null;
+                var isPlaying = root.TryGetProperty("is_playing", out var ip) && ip.GetBoolean();
+                if (string.IsNullOrEmpty(title)) return "当前没有正在播放的歌曲";
+                var state = isPlaying ? "正在播放" : "当前暂停";
+                return string.IsNullOrEmpty(artist) ? $"{state}：「{title}」" : $"{state}：「{title}」- {artist}";
+            }
+        }
+        catch { }
+        return "当前没有正在播放的歌曲";
+    }
+
+    /// <summary>
     /// 构造 AgentService 实例
     /// </summary>
     /// <param name="llmClient">LLM 客户端</param>
     /// <param name="tools">可用的工具集合</param>
     /// <param name="logService">日志服务</param>
     /// <param name="musicLibrary">音乐库服务（可选）</param>
-    public AgentService(ILlmClient llmClient, IEnumerable<IAgentTool> tools, ILogService logService, IMusicLibraryService? musicLibrary = null)
+    public AgentService(ILlmClient llmClient, IEnumerable<IAgentTool> tools, ILogService logService, IMusicLibraryService? musicLibrary = null, IAudioPlayerService? player = null)
     {
         _llmClient = llmClient;
         _tools = tools;
         _logService = logService;
         _musicLibrary = musicLibrary;
+        _player = player;
         _currentAgentId = LoadCurrentAgentId();
     }
 
@@ -207,6 +386,19 @@ public class AgentService : IAgentService
             // 1. 系统提示（最稳定，缓存命中率高）
             _conversationHistory.Add(new ChatMessage { Role = "system", Content = CurrentSystemPrompt });
 
+            // 1.5 Yuki 人格词库知识（让模型模仿可爱/傲娇语气）
+            try
+            {
+                var personality = PersonalityKnowledgeProvider != null ? await PersonalityKnowledgeProvider.Invoke() : null;
+                if (!string.IsNullOrEmpty(personality))
+                {
+                    if (personality.Length > 2000)
+                        personality = personality[..2000] + "\n..";
+                    _conversationHistory.Add(new ChatMessage { Role = "system", Content = personality });
+                }
+            }
+            catch { }
+
             try
             {
                 var libraryContent = LibrarySnapshotProvider?.Invoke() ?? string.Empty;
@@ -244,6 +436,9 @@ public class AgentService : IAgentService
         int maxToolRounds = ConfigStorage.GetInt(AgentRunSettings.KeyMaxToolRounds, AgentRunSettings.DefaultMaxToolRounds);
         if (maxToolRounds <= 0) maxToolRounds = int.MaxValue;
 
+        // 累积推理模型每一轮的思考内容，最终附到回复上供 UI 思考区展示
+        var reasoningBuilder = new System.Text.StringBuilder();
+
         for (int round = 0; round < maxToolRounds; round++)
         {
             LlmResponse response;
@@ -252,6 +447,11 @@ public class AgentService : IAgentService
                 var requestMessages = BuildRequestMessages();
                 response = await Task.Run(() => _llmClient.ChatAsync(requestMessages, toolDefs, ct), ct);
                 _logService.Info("Agent", $"Agent LLM 响应: content='{Truncate(response.Content, 200)}', toolCalls={response.ToolCalls.Count}, finishReason={response.FinishReason}");
+                if (!string.IsNullOrEmpty(response.ReasoningContent))
+                {
+                    if (reasoningBuilder.Length > 0) reasoningBuilder.Append('\n');
+                    reasoningBuilder.Append(response.ReasoningContent);
+                }
             }
             catch (Exception ex)
             {
@@ -264,6 +464,8 @@ public class AgentService : IAgentService
             if (!response.HasToolCalls)
             {
                 var assistantMsg = new ChatMessage { Role = "assistant", Content = response.Content };
+                if (reasoningBuilder.Length > 0)
+                    assistantMsg.ReasoningContent = reasoningBuilder.ToString();
                 _conversationHistory.Add(assistantMsg);
                 return assistantMsg;
             }
