@@ -30,6 +30,9 @@ public partial class DesktopMainPage : ContentPage
     // 缓存每个 tab 对应的原始 ContentPage，用于调用 OnAppearing/OnDisappearing 生命周期
     private readonly Dictionary<DesktopTab, ContentPage> _pageHostCache = new();
 
+    // 当前嵌入 ContentArea 的子页面（如 DesktopAllSongsPage），非 null 时表示有子页面覆盖在 tab 内容上
+    private ContentPage? _embeddedSubPage;
+
     // 侧边栏歌单名称标签（用于响应式折叠时隐藏）
     private readonly List<Label> _playlistNameLabels = new();
 
@@ -119,6 +122,15 @@ public partial class DesktopMainPage : ContentPage
     /// ReleaseManualLandscape 解除方向锁定并触发 Activity 重建（或直接切换布局）。</summary>
     protected override bool OnBackButtonPressed()
     {
+        // 如果有嵌入子页面，先关闭它并恢复状态栏/播放栏
+        if (_embeddedSubPage != null)
+        {
+            CloseEmbeddedSubPage("library");
+            return true;
+        }
+
+        // 退出横屏前恢复状态栏
+        ShowSystemStatusBar();
         if (Application.Current is App app)
             app.ReleaseManualLandscape();
         return true;
@@ -148,6 +160,20 @@ public partial class DesktopMainPage : ContentPage
 
     private void SwitchTab(DesktopTab tab)
     {
+        // 如果有嵌入的子页面，先通知它 OnDisappearing 并清理，同时恢复底部播放栏和状态栏
+        if (_embeddedSubPage != null)
+        {
+            InvokeLifecycle(_embeddedSubPage, "OnDisappearing");
+            _embeddedSubPage = null;
+            PlayerBarBorder.IsVisible = true;
+#if ANDROID
+            RootGrid.RowDefinitions[3].Height = new GridLength(72);
+#else
+            RootGrid.RowDefinitions[3].Height = new GridLength(100);
+#endif
+            ShowSystemStatusBar();
+        }
+
         // 通知旧 tab 消失（触发数据加载等生命周期）
         if (_pageHostCache.TryGetValue(_currentTab, out var oldHost))
             InvokeLifecycle(oldHost, "OnDisappearing");
@@ -199,7 +225,8 @@ public partial class DesktopMainPage : ContentPage
         // （DesktopDiscoverPage 是整页纵向滚动的 VerticalStackLayout，仍需要外层 ScrollView。）
         if (content is ScrollView
             || page is LibraryPage or PlaylistPage or PlaylistDetailPage
-            || page is DesktopPlaylistPage or DesktopLibraryPage)
+            || page is DesktopPlaylistPage or DesktopLibraryPage
+            || page is DesktopArtistsPage or DesktopAlbumsPage or DesktopAllSongsPage)
         {
             return content;
         }
@@ -398,6 +425,60 @@ public partial class DesktopMainPage : ContentPage
         {
             Log.Debug("DesktopMainPage.xaml", $"[Desktop] OpenPlaylistEmbedded failed: {ex}");
         }
+    }
+
+    /// <summary>将音乐库子页面（DesktopAllSongsPage/DesktopArtistsPage/DesktopAlbumsPage）嵌入 ContentArea，
+    /// 同时隐藏底部播放栏以最大化内容区域。点击侧边栏任意 tab 或子页面返回按钮即可恢复。</summary>
+    public void OpenSubPageEmbedded(ContentPage page)
+    {
+        // 通知当前嵌入的子页面 OnDisappearing（连续打开多个子页面时）
+        if (_embeddedSubPage != null)
+            InvokeLifecycle(_embeddedSubPage, "OnDisappearing");
+        else if (_pageHostCache.TryGetValue(_currentTab, out var currentHost))
+            InvokeLifecycle(currentHost, "OnDisappearing");
+
+        _embeddedSubPage = page;
+
+        var content = page.Content;
+        page.Content = null;
+        content.BindingContext = page.BindingContext;
+        content.VerticalOptions = LayoutOptions.Fill;
+        content.HorizontalOptions = LayoutOptions.Fill;
+
+        ContentArea.Children.Clear();
+        ContentArea.Children.Add(content);
+
+        // 隐藏底部播放栏，让子页面获得最大内容展示空间
+        PlayerBarBorder.IsVisible = false;
+        RootGrid.RowDefinitions[3].Height = new GridLength(0);
+
+        // 隐藏系统状态栏，最大化内容展示区域
+        HideSystemStatusBar();
+
+        InvokeLifecycle(page, "OnAppearing");
+    }
+
+    /// <summary>关闭嵌入的子页面，恢复到指定 tab（默认音乐库）并恢复底部播放栏显示。</summary>
+    public void CloseEmbeddedSubPage(string returnTab = "library")
+    {
+        if (_embeddedSubPage != null)
+        {
+            InvokeLifecycle(_embeddedSubPage, "OnDisappearing");
+            _embeddedSubPage = null;
+        }
+
+        // 恢复底部播放栏
+        PlayerBarBorder.IsVisible = true;
+#if ANDROID
+        RootGrid.RowDefinitions[3].Height = new GridLength(72);
+#else
+        RootGrid.RowDefinitions[3].Height = new GridLength(100);
+#endif
+
+        // 恢复系统状态栏显示
+        ShowSystemStatusBar();
+
+        SwitchToNamedTab(returnTab);
     }
 
     private async Task PlayPlaylistAsync(Playlist pl)
@@ -718,5 +799,59 @@ public partial class DesktopMainPage : ContentPage
         VolumeGrid.WidthRequest = 90;
         VolumeSlider.WidthRequest = 70;
     }
+
+    /// <summary>隐藏系统状态栏，让子页面内容延伸到屏幕顶部（沉浸式）。</summary>
+    private void HideSystemStatusBar()
+    {
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            var window = activity?.Window;
+            if (window == null) return;
+
+            var decorView = window.DecorView;
+#pragma warning disable CS0618
+            decorView.SystemUiVisibility = (Android.Views.StatusBarVisibility)(
+                (int)decorView.SystemUiVisibility
+                | (int)Android.Views.SystemUiFlags.Fullscreen
+                | (int)Android.Views.SystemUiFlags.ImmersiveSticky
+                | (int)Android.Views.SystemUiFlags.LayoutStable
+                | (int)Android.Views.SystemUiFlags.LayoutFullscreen);
+#pragma warning restore CS0618
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopMainPage.xaml", $"[Desktop] HideSystemStatusBar failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>恢复系统状态栏显示。</summary>
+    private void ShowSystemStatusBar()
+    {
+        try
+        {
+            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+            var window = activity?.Window;
+            if (window == null) return;
+
+            var decorView = window.DecorView;
+#pragma warning disable CS0618
+            decorView.SystemUiVisibility = (Android.Views.StatusBarVisibility)(
+                (int)decorView.SystemUiVisibility
+                & ~(int)Android.Views.SystemUiFlags.Fullscreen
+                & ~(int)Android.Views.SystemUiFlags.ImmersiveSticky
+                & ~(int)Android.Views.SystemUiFlags.LayoutFullscreen);
+#pragma warning restore CS0618
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopMainPage.xaml", $"[Desktop] ShowSystemStatusBar failed: {ex.Message}");
+        }
+    }
+#else
+    /// <summary>非 Android 平台空实现（Windows 桌面端无系统状态栏概念）。</summary>
+    private void HideSystemStatusBar() { }
+    /// <summary>非 Android 平台空实现。</summary>
+    private void ShowSystemStatusBar() { }
 #endif
 }

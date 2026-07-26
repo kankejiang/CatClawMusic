@@ -1,4 +1,4 @@
-﻿using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
@@ -202,16 +202,21 @@ public partial class App : Application
         rootGrid.Behaviors.Add(new SafeAreaPaddingBehavior());
     }
 
+    /// <summary>当前是否应处于横屏布局：手动强制 或 物理方向为横屏。
+    /// Windows 桌面端始终为 true（桌面布局即横屏布局）。</summary>
+    public static bool IsLandscapeMode()
+    {
+#if ANDROID
+        if (Application.Current is App app && app._manualLandscape) return true;
+        return DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Landscape;
+#else
+        return true;
+#endif
+    }
+
 #if ANDROID
     /// <summary>用户手动强制横屏（点「横屏切换」按钮）。Activity 重建后由 App 级字段保留状态。</summary>
     private bool _manualLandscape;
-
-    /// <summary>当前是否应处于横屏布局：手动强制 或 物理方向为横屏。</summary>
-    private static bool ShouldUseLandscape()
-    {
-        if (Application.Current is App app && app._manualLandscape) return true;
-        return DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Landscape;
-    }
 
     /// <summary>强制进入横屏（旋转按钮）：锁定 SensorLandscape，延迟一帧切换 Shell 布局。
     /// 必须延迟：此方法从页面按钮回调内调用，Shell 无法在事件处理中途换根页面。</summary>
@@ -272,7 +277,7 @@ public partial class App : Application
             var shell = shellOverride ?? Shell.Current;
             if (shell == null) { Android.Util.Log.Warn("CatClaw", "[Orientation] shell==null, skip"); return; }
 
-            bool landscape = ShouldUseLandscape();
+            bool landscape = IsLandscapeMode();
 
             // 幂等：检查当前根页面是否已正确
             var currentContent = shell.Items.SelectMany(i => i.Items).SelectMany(s => s.Items).FirstOrDefault()?.Content;

@@ -379,16 +379,16 @@ public partial class LibraryPage : ContentPage
         switch (target)
         {
             case "local":
-                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=local", p => ((AllSongsPage)p).Source = "local");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=local", source: "local");
                 break;
             case "network":
-                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=network", p => ((AllSongsPage)p).Source = "network");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=network", source: "network");
                 break;
             case "favorite":
-                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=favorites", p => ((AllSongsPage)p).Source = "favorites");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=favorites", source: "favorites");
                 break;
             case "recent":
-                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", p => ((AllSongsPage)p).Source = "recent");
+                OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", source: "recent");
                 break;
             case "trash":
                 break;
@@ -398,7 +398,7 @@ public partial class LibraryPage : ContentPage
     // === Hero 统计数字点击导航 ===
 
     private void OnStatSongsTapped(object? sender, EventArgs e)
-        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=local", p => ((AllSongsPage)p).Source = "local");
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=local", source: "local");
 
     private void OnStatArtistsTapped(object? sender, EventArgs e)
         => OpenLibrarySubPage(typeof(ArtistsPage), "library/artists");
@@ -407,7 +407,7 @@ public partial class LibraryPage : ContentPage
         => OpenLibrarySubPage(typeof(AlbumsPage), "library/albums");
 
     private void OnStatRecentTapped(object? sender, EventArgs e)
-        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", p => ((AllSongsPage)p).Source = "recent");
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", source: "recent");
 
     private void OnScanCompleted(object? sender, int importedCount)
     {
@@ -859,11 +859,31 @@ public partial class LibraryPage : ContentPage
     private void OnPieNextTapped(object? sender, EventArgs e) => GoToPie(_pieIndex + 1);
 
     /// <summary>
-    /// 打开音乐库二级页：统一走 Shell 标准导航（路由已注册于 AppShell）。
-    /// 二级页的滚动与返回语义由 Shell 稳定托管，避免原生 ViewPager2 overlay 在部分
-    /// 布局下遮挡底层 hub 或内部列表无法滚动的问题。fallbackRoute 已编码查询参数
-    /// （如 AllSongsPage.Source），由 [QueryProperty] 自动注入。
+    /// 打开音乐库二级页：竖屏走 Shell 标准导航（路由已注册于 AppShell）；
+    /// 横屏复用桌面布局，直接 Push 对应的 Desktop 页面实例。
+    /// fallbackRoute 已编码查询参数（如 AllSongsPage.Source），由 [QueryProperty] 自动注入。
     /// </summary>
-    private void OpenLibrarySubPage(Type pageType, string fallbackRoute, Action<ContentPage>? configure = null)
-        => _ = Shell.Current.GoToAsync(fallbackRoute);
+    private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
+    {
+        if (App.IsLandscapeMode())
+        {
+            Type desktopType = pageType.Name switch
+            {
+                nameof(AllSongsPage) => typeof(DesktopAllSongsPage),
+                nameof(ArtistsPage) => typeof(DesktopArtistsPage),
+                nameof(AlbumsPage) => typeof(DesktopAlbumsPage),
+                _ => pageType
+            };
+
+            var page = (ContentPage)_sp.GetRequiredService(desktopType);
+            if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
+                desktopAllSongs.Source = source;
+
+            // 嵌入 ContentArea 而非全屏 Push，保持侧边栏和播放栏可见
+            DesktopMainPage.Instance?.OpenSubPageEmbedded(page);
+            return;
+        }
+
+        _ = Shell.Current.GoToAsync(fallbackRoute);
+    }
 }

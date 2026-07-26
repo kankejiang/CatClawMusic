@@ -379,3 +379,13 @@ FodyWeavers.xsd
 /.workbuddy/memory
 /temp_download
 /build_output3.txt
+
+# adb 调试截图与 UI dump 文件（根目录）
+/screen*.png
+/landscape*.png
+/app_*.png
+/unlock*.png
+/ui*.xml
+/window_dump*.xml
+/wd*.xml
+/ui_dump*.xml
