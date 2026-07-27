@@ -57,6 +57,15 @@ public partial class AudioPlayerService
     private const int SeekGuardMs = 800;
     /// <summary>ExoPlayer 状态监听器实例</summary>
     private ExoPlayerListener? _playerListener;
+    /// <summary>播放操作串行化锁：连续切歌时旧 PlayInternalAsync 持锁，新任务等待；
+    /// 配合 _playCts 让旧任务在 await 点主动退出，避免并发操作 ExoPlayer 触发 native 崩溃。</summary>
+    private readonly SemaphoreSlim _playLock = new(1, 1);
+    /// <summary>当前 PlayInternalAsync 的取消令牌源；切歌时 Cancel 让旧任务在 await 点抛 OperationCanceledException 退出。</summary>
+    private CancellationTokenSource? _playCts;
+    /// <summary>最近一次 OnPlayerError 时间戳（Ticks），用于退避避免错误后立即切歌形成崩溃循环。</summary>
+    private long _lastPlayerErrorTicks;
+    /// <summary>通知栏 Bitmap 操作锁，防止 Recycle 与通知系统使用竞态导致 native SIGSEGV。</summary>
+    private readonly object _notifBitmapLock = new();
 
     // Audio focus listener
     /// <summary>音频焦点变化监听器实例</summary>
@@ -257,15 +266,29 @@ public partial class AudioPlayerService
         // 避免把上一首的实时进度/时长透传到通知栏与 MediaSession（锁屏旧时间）。
         _isPrepared = false;
         _cachedPositionMs = 0;
-        _ = PlayInternalAsync(source, autoPlay: true);
+        // 取消上一次 PlayInternalAsync（若仍在 await FFmpeg/网络），并启动新任务；
+        // _playLock 保证新旧任务不会并发操作 ExoPlayer。
+        _playCts?.Cancel();
+        _playCts?.Dispose();
+        _playCts = new CancellationTokenSource();
+        var ct = _playCts.Token;
+        _ = PlayInternalAsync(source, autoPlay: true, ct: ct);
     }
 
     /// <summary>执行实际的播放流程：重置状态、必要时通过 FFmpeg 转码、设置媒体项、Prepare 并启动前台服务</summary>
     /// <param name="source">音频源 URI</param>
     /// <param name="autoPlay">是否在 Prepare 完成后立即开始播放</param>
     /// <param name="startPositionSec">起始播放位置（秒），用于 FFmpeg 模式重新烘焙时从原进度无缝重载</param>
-    private async Task PlayInternalAsync(Uri source, bool autoPlay, double startPositionSec = 0)
+    /// <param name="ct">取消令牌：连续切歌时旧任务会被取消，在 await 点抛 OperationCanceledException 退出</param>
+    private async Task PlayInternalAsync(Uri source, bool autoPlay, double startPositionSec = 0, CancellationToken ct = default)
     {
+        // 串行化：旧任务持锁时新任务在此等待；旧任务最终释放锁后新任务进入，
+        // 但旧任务此时已在 await 点被 ct 取消，不会继续操作 ExoPlayer。
+        await _playLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
         // 重置状态：在切换歌曲期间，IsPlaying 应返回 false，
         // 防止 _positionTimer 在 Prepare 未完成时反复拉到 0 位置
         _isPrepared = false;
@@ -313,8 +336,16 @@ public partial class AudioPlayerService
         try
         {
             var player = EnsurePlayer();
-            player.Stop();
-            player.ClearMediaItems();
+            // ExoPlayer 要求所有方法在创建它的线程（主线程）调用。
+            // WebDAV/SMB 路径中 await AsyncUrlResolver 后 continuation 可能在线程池线程，
+            // 因此所有 player 操作必须 Post 到主线程执行，否则触发 native 数据竞争。
+            // ct 在 Post 内部检查，确保等待主线程期间被取消的任务不会继续操作 player。
+            await PostToMainThreadAsync(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+                try { player.Stop(); } catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] player.Stop error: {ex.Message}"); }
+                try { player.ClearMediaItems(); } catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] ClearMediaItems error: {ex.Message}"); }
+            }, ct).ConfigureAwait(false);
 
             var playUri = source;
             var localPath = source.IsFile ? source.LocalPath :
@@ -331,7 +362,7 @@ public partial class AudioPlayerService
                 // 确保 FFmpeg 已初始化（首次播放时 Task.Run 注入可能尚未完成）
                 if (_ffmpeg == null || !_ffmpeg.IsAvailable)
                 {
-                    await EnsureFFmpegReadyAsync();
+                    await EnsureFFmpegReadyAsync(ct).ConfigureAwait(false);
                 }
 
                 if (_ffmpeg != null && _ffmpeg.IsAvailable)
@@ -341,7 +372,8 @@ public partial class AudioPlayerService
                     var eqFilter = ffmpegEqMode || _eqService?.IsAttached != true
                         ? EqualizerSettings.BuildFFmpegFilterChain()
                         : "";
-                    var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath, eqFilter);
+                    var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath, eqFilter).ConfigureAwait(false);
+                    ct.ThrowIfCancellationRequested();
                     if (wavPath != null)
                     {
                         playUri = new Uri("file://" + wavPath);
@@ -365,18 +397,23 @@ public partial class AudioPlayerService
             if (playUri.Scheme == "http" || playUri.Scheme == "https")
                 cachedSource = CreateNetworkMediaSource(androidUri);
 
-            if (cachedSource != null)
-                player.SetMediaSource(cachedSource);
-            else
-                player.SetMediaItem(MediaItem.FromUri(androidUri));
-            player.Prepare();
-            // FFmpeg 模式重新烘焙时，从原进度无缝续播（startPositionSec>0 才跳转，0 表示从头播放）
-            if (startPositionSec > 0.3)
+            // ExoPlayer 状态变更必须在主线程执行
+            await PostToMainThreadAsync(() =>
             {
-                try { player.SeekTo((long)(startPositionSec * 1000)); } catch { }
-            }
-            player.PlayWhenReady = autoPlay;
-            if (autoPlay) player.Play();
+                ct.ThrowIfCancellationRequested();
+                if (cachedSource != null)
+                    player.SetMediaSource(cachedSource);
+                else
+                    player.SetMediaItem(MediaItem.FromUri(androidUri));
+                player.Prepare();
+                // FFmpeg 模式重新烘焙时，从原进度无缝续播（startPositionSec>0 才跳转，0 表示从头播放）
+                if (startPositionSec > 0.3)
+                {
+                    try { player.SeekTo((long)(startPositionSec * 1000)); } catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] SeekTo error: {ex.Message}"); }
+                }
+                player.PlayWhenReady = autoPlay;
+                if (autoPlay) player.Play();
+            }, ct).ConfigureAwait(false);
 
             // 原生（非 FFmpeg）模式：确保原生均衡器已挂载并对当前设置生效。
             // 首次播放由 EnsurePlayer 挂载；此处覆盖「FFmpeg→原生」切换重载、以及重载后重新应用，
@@ -404,24 +441,67 @@ public partial class AudioPlayerService
             // 音频焦点由 ExoPlayer.SetAudioAttributes(handleAudioFocus=true) 自动管理，无需手动请求
             StartForegroundService();
         }
+        catch (System.OperationCanceledException)
+        {
+            Log.Debug("AudioPlayerService.Android", "[ExoPlayer] PlayInternalAsync 已被取消（连续切歌）");
+            throw;
+        }
         catch (Exception ex)
         {
             Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] Play error: {ex.Message}");
             // FFmpeg 兜底：如果 ExoPlayer 直接播放失败，尝试转码
             await TryFFmpegFallbackAsync(source);
         }
+        }
+        finally
+        {
+            _playLock.Release();
+        }
+    }
+
+    /// <summary>将操作投递到主线程 Looper 执行；若已在主线程则同步执行。支持取消令牌。</summary>
+    /// <param name="action">要在主线程执行的操作</param>
+    /// <param name="ct">取消令牌</param>
+    private Task PostToMainThreadAsync(Action action, CancellationToken ct = default)
+    {
+        // 已在主线程：直接执行（仍尊重 ct）
+        if (Looper.MyLooper() == Looper.MainLooper)
+        {
+            ct.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+        // 否则 Post 到主线程并 await 完成
+        var tcs = new TaskCompletionSource<bool>();
+        _mainHandler.Post(() =>
+        {
+            try
+            {
+                if (!ct.IsCancellationRequested)
+                    action();
+                tcs.TrySetResult(true);
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        });
+        return tcs.Task;
     }
 
     /// <summary>确保 FFmpegService 已初始化并注入（解决启动时 Task.Run 注入时序问题）</summary>
-    private async Task EnsureFFmpegReadyAsync()
+    /// <param name="ct">取消令牌</param>
+    private async Task EnsureFFmpegReadyAsync(CancellationToken ct = default)
     {
         if (_ffmpeg != null && _ffmpeg.IsAvailable) return;
         try
         {
             _ffmpeg ??= new FFmpegService();
-            await _ffmpeg.InitializeAsync();
+            await _ffmpeg.InitializeAsync().ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
             Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 就绪: {_ffmpeg.IsAvailable}");
         }
+        catch (System.OperationCanceledException) { throw; }
         catch (Exception ex)
         {
             Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] FFmpeg 初始化异常: {ex.Message}");
@@ -440,17 +520,20 @@ public partial class AudioPlayerService
         try
         {
             Log.Debug("AudioPlayerService.Android", "[ExoPlayer] 尝试 FFmpeg 兜底转码...");
-            var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath);
+            var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath).ConfigureAwait(false);
             if (wavPath == null) return;
 
             var player = EnsurePlayer();
-            player.Stop();
-            player.ClearMediaItems();
-
             var mediaItem = MediaItem.FromUri(global::Android.Net.Uri.Parse("file://" + wavPath));
-            player.SetMediaItem(mediaItem);
-            player.Prepare();
-            player.Play();
+            // ExoPlayer 操作必须在主线程
+            await PostToMainThreadAsync(() =>
+            {
+                try { player.Stop(); } catch { }
+                try { player.ClearMediaItems(); } catch { }
+                player.SetMediaItem(mediaItem);
+                player.Prepare();
+                player.Play();
+            }).ConfigureAwait(false);
             AcquireWakeLock();
             // 音频焦点由 ExoPlayer 自动管理
             StartForegroundService();
@@ -480,7 +563,8 @@ public partial class AudioPlayerService
     /// <summary>平台特定的暂停逻辑：暂停 ExoPlayer、释放唤醒锁（音频焦点由 ExoPlayer 自动管理）</summary>
     partial void PlatformPause()
     {
-        try { _player?.Pause(); ReleaseWakeLock(); } catch { }
+        try { _player?.Pause(); ReleaseWakeLock(); }
+        catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] PlatformPause error: {ex.Message}"); }
     }
 
     /// <summary>平台特定的恢复播放逻辑：恢复 ExoPlayer 播放、重新获取唤醒锁与 Wi-Fi 锁、确保前台服务运行（音频焦点由 ExoPlayer 自动管理）</summary>
@@ -496,7 +580,7 @@ public partial class AudioPlayerService
                 StartForegroundService();
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] PlatformResume error: {ex.Message}"); }
     }
 
     /// <summary>平台特定的停止逻辑：停止播放器、清空媒体项并重置状态、释放唤醒锁（音频焦点由 ExoPlayer 自动管理）</summary>
@@ -511,7 +595,7 @@ public partial class AudioPlayerService
             _cachedPositionMs = 0;
             ReleaseWakeLock();
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] PlatformStop error: {ex.Message}"); }
     }
 
     /// <summary>平台特定的跳转逻辑：跳转到指定位置并更新缓存</summary>
@@ -524,7 +608,7 @@ public partial class AudioPlayerService
             _player?.SeekTo((long)position.TotalMilliseconds);
             _cachedPositionMs = (long)position.TotalMilliseconds;
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] PlatformSeek error: {ex.Message}"); }
     }
 
     /// <summary>获取平台真实的播放状态（由 ExoPlayerListener 维护）</summary>
@@ -679,15 +763,20 @@ public partial class AudioPlayerService
     /// <summary>释放平台相关资源：停止前台服务、释放唤醒锁与音频焦点、释放 ExoPlayer 及监听器</summary>
     partial void DisposePlatform()
     {
+        // 取消任何进行中的 PlayInternalAsync，避免 Dispose 后仍访问 _player
+        try { _playCts?.Cancel(); } catch { }
         StopForegroundService();
         ReleaseWakeLock();
         AbandonAudioFocus();
         _eqService?.Dispose();
         _eqService = null;
-        if (_notificationBitmap != null)
+        lock (_notifBitmapLock)
         {
-            try { _notificationBitmap.Recycle(); } catch { }
-            _notificationBitmap = null;
+            if (_notificationBitmap != null)
+            {
+                try { _notificationBitmap.Recycle(); } catch { }
+                _notificationBitmap = null;
+            }
         }
         if (_player != null)
         {
@@ -703,9 +792,12 @@ public partial class AudioPlayerService
                 _player.Release();
                 _player.Dispose();
             }
-            catch { }
+            catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] Dispose player error: {ex.Message}"); }
             _player = null;
         }
+        try { _playCts?.Dispose(); } catch { }
+        _playCts = null;
+        try { _playLock.Dispose(); } catch { }
     }
 
     // ═══════════════════════════════════════
@@ -828,6 +920,32 @@ public partial class AudioPlayerService
                 $"[ExoPlayer] OnPlayerError: {error.ErrorCodeName} — {error.Message}");
             try
             {
+                // 退避：5 秒内连续 OnPlayerError 不再自动切下一首，避免竞态引起的崩溃循环。
+                // 竞态导致的错误会在切歌后立即触发；连续切歌会持续触发错误形成循环。
+                var nowTicks = System.Environment.TickCount64;
+                var lastTicks = Interlocked.Read(ref _owner._lastPlayerErrorTicks);
+                if (nowTicks - lastTicks < 5000)
+                {
+                    Log.Debug("AudioPlayerService.Android",
+                        "[ExoPlayer] OnPlayerError 退避：5 秒内已发生过错误，停止自动切歌避免崩溃循环");
+                    _owner._isActuallyPlaying = false;
+                    _owner._mainHandler.Post(() =>
+                    {
+                        try
+                        {
+                            _owner.PlaybackStateChanged?.Invoke(_owner, false);
+                        }
+                        catch { }
+                    });
+                    // 注意：退避分支【不能】StopPositionTimer()。
+                    // 若 ExoPlayer 自动从可恢复的解码错误中恢复（OnIsPlayingChanged 不会再次翻转为 true），
+                    // 停掉位置定时器后无人重启，进度条会永久冻结而音频仍在播（“进度条不会跑了”）。
+                    // 定时器始终按真实 CurrentPosition 轮询：播放恢复则进度继续推进，
+                    // 若播放确已停止，ExoPlayer 会自行触发 OnIsPlayingChanged(false) 来正确停表。
+                    return;
+                }
+                Interlocked.Exchange(ref _owner._lastPlayerErrorTicks, nowTicks);
+
                 // 通知上层播放失败，让 PlayAsync 中的 catch 块回退到 FFmpeg 转码路径
                 _owner._player?.Stop();
                 _owner._player?.ClearMediaItems();
@@ -840,10 +958,10 @@ public partial class AudioPlayerService
                         _owner.PlaybackStateChanged?.Invoke(_owner, false);
                         _owner.StopPositionTimer();
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] OnPlayerError post error: {ex.Message}"); }
                 });
             }
-            catch { }
+            catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] OnPlayerError handler error: {ex.Message}"); }
         }
     }
 
@@ -1105,29 +1223,34 @@ public partial class AudioPlayerService
         try
         {
             Android.Graphics.Bitmap? albumArt = null;
-            if (!string.IsNullOrEmpty(_currentCoverPath))
+            // 加锁保护 _notificationBitmap：通知栏进度回调（1s/次）与切歌/状态变更可能并发调用本方法，
+            // Recycle 与 ForegroundPlayerService 使用 bitmap 若竞态会触发 native SIGSEGV。
+            lock (_notifBitmapLock)
             {
-                if (_currentCoverPath != _lastNotifCoverPath)
+                if (!string.IsNullOrEmpty(_currentCoverPath))
                 {
-                    try
+                    if (_currentCoverPath != _lastNotifCoverPath)
                     {
-                        _notificationBitmap?.Recycle();
-                        _notificationBitmap = null;
-                        _notificationBitmap = DecodeBitmapDownsampled(
-                            global::Android.Graphics.BitmapFactory.DecodeFile(_currentCoverPath), 512);
+                        try
+                        {
+                            _notificationBitmap?.Recycle();
+                            _notificationBitmap = null;
+                            _notificationBitmap = DecodeBitmapDownsampled(
+                                global::Android.Graphics.BitmapFactory.DecodeFile(_currentCoverPath), 512);
+                        }
+                        catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[Notif] decode bitmap error: {ex.Message}"); }
+                        _lastNotifCoverPath = _currentCoverPath;
                     }
-                    catch { }
-                    _lastNotifCoverPath = _currentCoverPath;
+                    albumArt = _notificationBitmap;
                 }
-                albumArt = _notificationBitmap;
-            }
-            else
-            {
-                if (_notificationBitmap != null)
+                else
                 {
-                    _notificationBitmap.Recycle();
-                    _notificationBitmap = null;
-                    _lastNotifCoverPath = null;
+                    if (_notificationBitmap != null)
+                    {
+                        _notificationBitmap.Recycle();
+                        _notificationBitmap = null;
+                        _lastNotifCoverPath = null;
+                    }
                 }
             }
             long positionMs = 0;

@@ -149,7 +149,7 @@ public static class MusicUtility
                     return f;
             }
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"模糊匹配 lrc 歌词文件失败: {ex.Message}"); }
 
         // 模糊匹配 song*.ttml
         try
@@ -161,7 +161,7 @@ public static class MusicUtility
                     return f;
             }
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"模糊匹配 ttml 歌词文件失败: {ex.Message}"); }
 
         // 模糊匹配 song*.xml（可能是 TTML）
         try
@@ -173,7 +173,7 @@ public static class MusicUtility
                     return f;
             }
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"模糊匹配 xml 歌词文件失败: {ex.Message}"); }
 
         return null;
     }

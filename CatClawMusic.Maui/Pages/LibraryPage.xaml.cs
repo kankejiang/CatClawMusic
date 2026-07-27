@@ -398,7 +398,7 @@ public partial class LibraryPage : ContentPage
     // === Hero 统计数字点击导航 ===
 
     private void OnStatSongsTapped(object? sender, EventArgs e)
-        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=local", source: "local");
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=all", source: "all");
 
     private void OnStatArtistsTapped(object? sender, EventArgs e)
         => OpenLibrarySubPage(typeof(ArtistsPage), "library/artists");
@@ -501,9 +501,13 @@ public partial class LibraryPage : ContentPage
         if (_isFirstAppearing)
         {
             _isFirstAppearing = false;
-            await _vm.RefreshProtocolsAsync();
-            await LoadInitialDataAsync();
-            await _vm.LoadOverviewDataAsync();
+            // 三个无依赖的 IO 操作并行执行，缩短首屏等待
+            // （同文件 OnScanCompleted 已用 Task.WhenAll 并行这组操作，证明互不依赖）
+            await Task.WhenAll(
+                _vm.RefreshProtocolsAsync(),
+                LoadInitialDataAsync(),
+                _vm.LoadOverviewDataAsync()
+            );
         }
         else if (Services.LocalScanService.NeedsReload || Services.LocalScanService.NetworkNeedsReload)
         {
@@ -685,7 +689,7 @@ public partial class LibraryPage : ContentPage
             tap.Tapped += (_, _) =>
             {
                 _vm.SetDiscoverSource(capturedValue);
-                DiscoverSourcePopup.Close();
+                _ = DiscoverSourcePopup.CloseAsync();
             };
             optionBorder.GestureRecognizers.Add(tap);
 
@@ -787,6 +791,12 @@ public partial class LibraryPage : ContentPage
 
         PieDonut.Dataset = ds;
 
+        // 横屏紧凑模式下压缩图例尺寸，避免卡片高度减半后内容溢出
+        double legendFontSize = _dataInsightCompact ? 10.5 : 12.5;
+        double legendRowPadding = _dataInsightCompact ? 3 : 5.5;
+        double legendBoxSize = _dataInsightCompact ? 8 : 10;
+        double legendSpacing = _dataInsightCompact ? 6 : 9;
+
         PieLegend.Children.Clear();
         foreach (var seg in ds.Segments)
         {
@@ -795,18 +805,18 @@ public partial class LibraryPage : ContentPage
                 ColumnDefinitions = new ColumnDefinitionCollection
                 {
                     new() { Width = GridLength.Auto },
-                    new() { Width = GridLength.Star },
+                    new() { Width = GridLength.Auto },
                     new() { Width = GridLength.Auto }
                 },
-                ColumnSpacing = 9,
-                Padding = new Thickness(0, 5.5, 0, 5.5)
+                ColumnSpacing = legendSpacing,
+                Padding = new Thickness(0, legendRowPadding, 0, legendRowPadding)
             };
 
             row.Add(new BoxView
             {
-                WidthRequest = 10,
-                HeightRequest = 10,
-                CornerRadius = 3,
+                WidthRequest = legendBoxSize,
+                HeightRequest = legendBoxSize,
+                CornerRadius = _dataInsightCompact ? 2 : 3,
                 Color = seg.Color,
                 VerticalOptions = LayoutOptions.Center
             }, 0);
@@ -814,7 +824,7 @@ public partial class LibraryPage : ContentPage
             row.Add(new Label
             {
                 Text = seg.Name,
-                FontSize = 12.5,
+                FontSize = legendFontSize,
                 TextColor = textSecondary,
                 VerticalOptions = LayoutOptions.Center,
                 LineBreakMode = LineBreakMode.TailTruncation
@@ -824,7 +834,7 @@ public partial class LibraryPage : ContentPage
             row.Add(new Label
             {
                 Text = $"{seg.Count}  {pct:F1}%",
-                FontSize = 12.5,
+                FontSize = legendFontSize,
                 FontAttributes = FontAttributes.Bold,
                 TextColor = textPrimary,
                 VerticalOptions = LayoutOptions.Center,
@@ -857,6 +867,255 @@ public partial class LibraryPage : ContentPage
 
     private void OnPiePrevTapped(object? sender, EventArgs e) => GoToPie(_pieIndex - 1);
     private void OnPieNextTapped(object? sender, EventArgs e) => GoToPie(_pieIndex + 1);
+
+    // === 横屏桌面模式（DesktopLibraryPage）公共 API ===
+    // 这些访问器和方法把"摘出卡片重组布局"和"压缩 Hero 内部样式"等操作从 DesktopLibraryPage
+    // 移交回 LibraryPage 自身，避免反射和基于字符串匹配的硬编码视觉树操作。
+
+    /// <summary>Hero 区域卡片（含统计数字）。</summary>
+    public Border HeroCardView => HeroCard;
+    /// <summary>资料库列表卡片。</summary>
+    public Border LibraryListCardView => LibraryListCard;
+    /// <summary>数据洞察卡片（环形图）。</summary>
+    public Border DataInsightCardView => DataInsightCard;
+    /// <summary>存储占用卡片。</summary>
+    public Border StorageCardView => StorageCard;
+    /// <summary>最近添加卡片。</summary>
+    public Border RecentCardView => RecentCard;
+    /// <summary>发现页来源弹窗。</summary>
+    public Controls.AppPopup DiscoverSourcePopupView => DiscoverSourcePopup;
+
+    /// <summary>根 ScrollView（横屏桌面页直接复用，避免双重滚动嵌套）。</summary>
+    public ScrollView? RootScrollView => Content is Grid g && g.Children.Count > 0 && g.Children[0] is ScrollView sv ? sv : null;
+
+    /// <summary>根 VerticalStackLayout（横屏桌面页在此重组卡片布局）。</summary>
+    public VerticalStackLayout? RootStack => RootScrollView?.Content as VerticalStackLayout;
+
+    /// <summary>触发 <see cref="OnAppearing"/> 生命周期：供横屏包装页在 OnAppearing 时调用。
+    /// LibraryPage 实例化后并未真正加入可视化树（Content 被摘出），无法依赖系统触发的 OnAppearing。</summary>
+    public void TriggerOnAppearing() => OnAppearing();
+
+    /// <summary>应用紧凑 Hero 样式：手机横屏下激进压缩 padding/margin/字号，将 Hero 从 ~150dp 压到 ~70dp。
+    /// 移除原本基于字符串匹配的视觉树硬编码，改为按结构层级递归处理（更稳健，标签文案变化不会失效）。
+    /// 通过 Label.Tag 字段保存原始 FontSize，<see cref="ResetHeroStyle"/> 据此还原，避免重复调用导致样式错乱。</summary>
+    public void ApplyCompactHeroStyle()
+    {
+        try
+        {
+            // Hero 内部结构：Grid > [刷新按钮, VerticalStackLayout(Padding=22,20)]
+            if (HeroCard.Content is Grid heroGrid)
+            {
+                foreach (var child in heroGrid.Children)
+                {
+                    if (child is VerticalStackLayout vsl)
+                    {
+                        // 主容器 padding：22,20 → 12,6
+                        vsl.Padding = new Thickness(12, 6);
+                        vsl.Spacing = 0;
+
+                        foreach (var sub in vsl.Children)
+                        {
+                            // 标题区 VerticalStackLayout（含主标题与副标题）
+                            if (sub is VerticalStackLayout titleVsl)
+                            {
+                                foreach (var lbl in titleVsl.Children.OfType<Label>())
+                                {
+                                    CompactFontSize(lbl, 14, 10);
+                                    lbl.Margin = new Thickness(0);
+                                }
+                            }
+                            // 统计卡片网格（4 列）
+                            else if (sub is Grid statGrid && statGrid.ColumnDefinitions.Count == 4)
+                            {
+                                statGrid.Margin = new Thickness(0, 6, 0, 0); // 18 → 6
+                                statGrid.ColumnSpacing = 4; // 8 → 4
+
+                                // 压缩每个统计卡片
+                                foreach (var statCard in statGrid.Children.OfType<Border>())
+                                {
+                                    statCard.Padding = new Thickness(4, 4); // 12,10 → 4,4
+                                    statCard.StrokeShape = new RoundRectangle { CornerRadius = 10 }; // 16 → 10
+
+                                    if (statCard.Content is VerticalStackLayout cardVsl)
+                                    {
+                                        cardVsl.Spacing = 0;
+                                        foreach (var lbl in cardVsl.Children.OfType<Label>())
+                                        {
+                                            // 数字（≥14）压到 13；标签压到 9
+                                            CompactFontSize(lbl, lbl.FontSize >= 14 ? 13 : 9, lbl.FontSize >= 14 ? 13 : 9);
+                                            if (lbl.FontSize < 14)
+                                                lbl.Margin = new Thickness(0, 1, 0, 0);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch { /* 内部结构变化时静默忽略，不影响主布局 */ }
+    }
+
+    /// <summary>还原紧凑 Hero 样式（切换回宽屏布局时调用）。
+    /// 通过 Label.Tag 中保存的原始 FontSize 还原，幂等可重复调用。</summary>
+    public void ResetHeroStyle()
+    {
+        try
+        {
+            if (HeroCard.Content is Grid heroGrid)
+            {
+                foreach (var child in heroGrid.Children)
+                {
+                    if (child is VerticalStackLayout vsl)
+                    {
+                        vsl.Padding = new Thickness(22, 20);
+                        vsl.Spacing = 0;
+
+                        foreach (var sub in vsl.Children)
+                        {
+                            if (sub is VerticalStackLayout titleVsl)
+                            {
+                                foreach (var lbl in titleVsl.Children.OfType<Label>())
+                                {
+                                    RestoreFontSize(lbl);
+                                    lbl.Margin = new Thickness(0);
+                                }
+                            }
+                            else if (sub is Grid statGrid && statGrid.ColumnDefinitions.Count == 4)
+                            {
+                                statGrid.Margin = new Thickness(0, 18, 0, 0);
+                                statGrid.ColumnSpacing = 8;
+
+                                foreach (var statCard in statGrid.Children.OfType<Border>())
+                                {
+                                    statCard.Padding = new Thickness(12, 10);
+                                    statCard.StrokeShape = new RoundRectangle { CornerRadius = 16 };
+
+                                    if (statCard.Content is VerticalStackLayout cardVsl)
+                                    {
+                                        cardVsl.Spacing = 0;
+                                        foreach (var lbl in cardVsl.Children.OfType<Label>())
+                                        {
+                                            RestoreFontSize(lbl);
+                                            lbl.Margin = new Thickness(0);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>保存 Hero 内部 Label 的原始 FontSize，供 <see cref="ResetHeroStyle"/> 还原。
+    /// 使用 ConditionalWeakTable 避免 Label 被 GC 时残留条目。</summary>
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Label, System.Runtime.CompilerServices.StrongBox<double>> _heroOriginalFontSizes = new();
+
+    // 数据洞察卡片在横屏桌面模式下需要减半高度，以下字段保存原始尺寸并标记紧凑状态
+    private bool _dataInsightCompact;
+    private double _originalDonutSize = -1;
+    private double _originalPieButtonSize = -1;
+
+    /// <summary>压缩字号：首次调用时把原始 FontSize 保存到表，后续调用直接覆盖。
+    /// 注意 primarySize 与 secondarySize 在当前实现中相同（按调用方判断后传入）。</summary>
+    private void CompactFontSize(Label lbl, double primarySize, double secondarySize)
+    {
+        if (!_heroOriginalFontSizes.TryGetValue(lbl, out _))
+            _heroOriginalFontSizes.Add(lbl, new System.Runtime.CompilerServices.StrongBox<double>(lbl.FontSize));
+        lbl.FontSize = primarySize;
+    }
+
+    /// <summary>还原字号：从表取回原始 FontSize。若未保存过（未压缩过）则保持当前值。</summary>
+    private void RestoreFontSize(Label lbl)
+    {
+        if (_heroOriginalFontSizes.TryGetValue(lbl, out var box))
+        {
+            lbl.FontSize = box.Value;
+            _heroOriginalFontSizes.Remove(lbl);
+        }
+    }
+
+    /// <summary>压缩资料库列表项间距（手机横屏紧凑模式）。</summary>
+    public void ApplyCompactLibraryListStyle()
+    {
+        try
+        {
+            if (LibraryListCard.Content is VerticalStackLayout vsl)
+            {
+                foreach (var child in vsl.Children.OfType<VerticalStackLayout>())
+                {
+                    child.Spacing = 6; // 原始 12
+                }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>横屏桌面模式下压缩数据洞察卡片内部尺寸，使卡片高度接近减半。</summary>
+    public void ApplyCompactDataInsightStyle()
+    {
+        try
+        {
+            if (_originalDonutSize < 0)
+                _originalDonutSize = PieDonut.WidthRequest;
+            if (_originalPieButtonSize < 0)
+                _originalPieButtonSize = PiePrev.WidthRequest;
+
+            _dataInsightCompact = true;
+
+            // 圆环图与分页按钮尺寸减半
+            PieDonut.WidthRequest = 70;
+            PieDonut.HeightRequest = 70;
+            PiePrev.WidthRequest = 20;
+            PiePrev.HeightRequest = 20;
+            PieNext.WidthRequest = 20;
+            PieNext.HeightRequest = 20;
+
+            // 标题区 / 分页区 margin 压缩
+            if (DataInsightCard.Content is Grid grid)
+            {
+                if (grid.Children.Count > 0 && grid.Children[0] is Grid headerGrid)
+                    headerGrid.Margin = new Thickness(0, 0, 0, 4);
+                if (grid.Children.Count > 2 && grid.Children[2] is Grid footerGrid)
+                    footerGrid.Margin = new Thickness(0, 4, 0, 0);
+            }
+
+            // 重新渲染图例以应用压缩字号/间距
+            UpdatePieSelection();
+        }
+        catch { /* 内部结构变化时静默忽略 */ }
+    }
+
+    /// <summary>还原数据洞察卡片到原始尺寸（切回竖屏或宽屏宽松布局时）。</summary>
+    public void ResetDataInsightStyle()
+    {
+        try
+        {
+            _dataInsightCompact = false;
+
+            PieDonut.WidthRequest = _originalDonutSize > 0 ? _originalDonutSize : 138;
+            PieDonut.HeightRequest = _originalDonutSize > 0 ? _originalDonutSize : 138;
+            PiePrev.WidthRequest = _originalPieButtonSize > 0 ? _originalPieButtonSize : 26;
+            PiePrev.HeightRequest = _originalPieButtonSize > 0 ? _originalPieButtonSize : 26;
+            PieNext.WidthRequest = _originalPieButtonSize > 0 ? _originalPieButtonSize : 26;
+            PieNext.HeightRequest = _originalPieButtonSize > 0 ? _originalPieButtonSize : 26;
+
+            if (DataInsightCard.Content is Grid grid)
+            {
+                if (grid.Children.Count > 0 && grid.Children[0] is Grid headerGrid)
+                    headerGrid.Margin = new Thickness(0, 0, 0, 8);
+                if (grid.Children.Count > 2 && grid.Children[2] is Grid footerGrid)
+                    footerGrid.Margin = new Thickness(0, 8, 0, 0);
+            }
+
+            UpdatePieSelection();
+        }
+        catch { }
+    }
 
     /// <summary>
     /// 打开音乐库二级页：竖屏走 Shell 标准导航（路由已注册于 AppShell）；

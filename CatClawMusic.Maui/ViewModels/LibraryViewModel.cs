@@ -611,7 +611,7 @@ public partial class LibraryViewModel : ObservableObject
                         item.MaxSizeBytes = maxSize;
                 }
 
-                var recItems = localSongs
+                var recItems = allSongs
                     .OrderByDescending(s => s.DateAdded)
                     .Take(8)
                     .Select((s, i) =>
@@ -661,9 +661,9 @@ public partial class LibraryViewModel : ObservableObject
                         "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder.svg", "local"),
                     new("网络音乐库", netSubtitle, netStatusText, netStatusType,
                         "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi.svg", "network"),
-                    new("我喜欢的", $"{favCount} 首 · 智能歌单", "", "",
+                    new("我喜欢的", $"{favCount} 首 · 智能歌单", $"{favCount}首", "ok",
                         "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite.svg", "favorite"),
-                    new("最近播放", $"{recCount} 首 · 自动记录", "", "",
+                    new("最近播放", $"{recCount} 首 · 自动记录", $"{recCount}首", "ok",
                         "linear-gradient(135deg,#7A6CF0,#A78BFA)", "ic_history.svg", "recent"),
                 };
 
@@ -671,7 +671,7 @@ public partial class LibraryViewModel : ObservableObject
                         recentPlayCount: recCount, totalSongCount: tSong, totalAlbumCount: tAlbum,
                         totalArtistCount: tArtist, totalHours: tHours, totalMusicSizeText: musicSizeText,
                         folderCount: fCount, freeSpaceText: freeTxt, formatGroups: fGroups,
-                        recent: recItems, libraryCards: cards, pieDatasets: ComputePieDatasets(localSongs));
+                        recent: recItems, libraryCards: cards, pieDatasets: ComputePieDatasets(allSongs));
             });
 
             // 阶段2：主线程更新 UI 属性
@@ -758,13 +758,14 @@ public partial class LibraryViewModel : ObservableObject
     private static string FormatTimeAgo(long unixTimestamp)
     {
         if (unixTimestamp <= 0) return "未知";
-        var dt = DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).LocalDateTime;
-        var diff = DateTime.Now - dt;
+        // unix 时间戳为 UTC 源，使用 UtcDateTime 与 DateTime.UtcNow 配对避免时区混用
+        var dt = DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).UtcDateTime;
+        var diff = DateTime.UtcNow - dt;
         if (diff.TotalDays < 1) return "今天";
         if (diff.TotalDays < 2) return "昨天";
         if (diff.TotalDays < 7) return $"{(int)diff.TotalDays} 天前";
         if (diff.TotalDays < 30) return $"{(int)(diff.TotalDays / 7)} 周前";
-        return dt.ToString("MM-dd");
+        return dt.ToLocalTime().ToString("MM-dd");
     }
 
     private static string GetTopFolder(string path)

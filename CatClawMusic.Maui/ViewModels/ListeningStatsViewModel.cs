@@ -217,19 +217,19 @@ public partial class ListeningStatsViewModel : ObservableObject
         public string TrendCapText = "";
         public List<TrendBar> TrendBars = new();
         public List<TimeSlotItem> TimeSlots = new();
-        public string NightNoteText = "";
-        public string StreakCurrentText = "0";
-        public string StreakBestText = "0";
-        public string StreakCapText = "0";
-        public List<CompareItem> CompareItems = new();
-        public string CompareCapText = "";
-        public bool HasCompare = true;
-        public int TopSongMax = 1;
-        public List<TopSongItem> TopSongs = new();
-        public List<Song> RecentSongs = new();
-        public List<ArtistStatItem> TopArtists = new();
-        public bool HasData;
-        public string StatusText = "";
+        public string NightNoteText { get; set; } = "";
+        public string StreakCurrentText { get; set; } = "0";
+        public string StreakBestText { get; set; } = "0";
+        public string StreakCapText { get; set; } = "0";
+        public List<CompareItem> CompareItems { get; set; } = new();
+        public string CompareCapText { get; set; } = "";
+        public bool HasCompare { get; set; } = true;
+        public int TopSongMax { get; set; } = 1;
+        public List<TopSongItem> TopSongs { get; set; } = new();
+        public List<Song> RecentSongs { get; set; } = new();
+        public List<ArtistStatItem> TopArtists { get; set; } = new();
+        public bool HasData { get; set; }
+        public string StatusText { get; set; } = "";
     }
 
     /// <summary>把后台计算结果一次性赋给绑定属性（必须在 UI 线程调用）。</summary>

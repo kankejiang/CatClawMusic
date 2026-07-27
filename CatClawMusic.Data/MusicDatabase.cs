@@ -1461,24 +1461,28 @@ public class MusicDatabase
     /// <param name="limit">最大返回数量</param>
     public async Task<List<(string Artist, int PlayCount)>> GetTopPlayedArtistsAsync(int limit = 10)
     {
-        await EnsureMaintenanceCompletedAsync();
-        var history = await _database.Table<PlayHistory>().ToListAsync();
-        if (history.Count == 0) return new List<(string, int)>();
+        await EnsureMaintenanceCompletedAsync().ConfigureAwait(false);
+        // SQL 端聚合：按 SongId 聚合 PlayHistory，只返回 (SongId, Total) 行，
+        // 避免把整张 PlayHistory（可能上万行）拉到内存做客户端 GroupBy（主线程对象分配风暴）。
+        var songPlayRows = await _database.QueryAsync<PlayCountTotal>(
+            "SELECT SongId, SUM(PlayCount) AS Total FROM PlayHistory GROUP BY SongId").ConfigureAwait(false);
+        if (songPlayRows.Count == 0) return new List<(string, int)>();
 
-        var songIds = history.Select(h => h.SongId).ToHashSet();
-        var allSongs = (await _database.Table<Song>().ToListAsync()).Where(s => songIds.Contains(s.Id)).ToList();
+        // 只取有播放记录的歌曲（IN 查询），而非整张 Songs 表
+        var songIds = songPlayRows.Select(r => r.SongId).ToList();
+        var allSongs = await _database.Table<Song>().Where(s => songIds.Contains(s.Id)).ToListAsync().ConfigureAwait(false);
         if (allSongs.Count == 0) return new List<(string, int)>();
 
-        // 歌曲ID → 主艺术家名
-        var artists = await _database.Table<Artist>().ToListAsync();
+        // 只取用到的主艺术家，而非整表
+        var neededArtistIds = allSongs.Select(s => s.ArtistId).Distinct().ToList();
+        var artists = await _database.Table<Artist>().Where(a => neededArtistIds.Contains(a.Id)).ToListAsync().ConfigureAwait(false);
         var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
 
         // 多艺术家映射：SongId → " / " 分隔的全部艺术家名
-        var allArtistsDict = await GetAllArtistsForSongsAsync(allSongs.Select(s => s.Id));
+        var allArtistsDict = await GetAllArtistsForSongsAsync(allSongs.Select(s => s.Id)).ConfigureAwait(false);
 
-        // 按歌曲聚合播放次数
-        var songPlayDict = history.GroupBy(h => h.SongId)
-                                  .ToDictionary(g => g.Key, g => g.Sum(h => h.PlayCount));
+        // 播放次数字典直接来自 SQL 聚合结果，消除原对 history 的客户端 GroupBy
+        var songPlayDict = songPlayRows.ToDictionary(r => r.SongId, r => r.Total);
 
         // 按艺术家聚合：用 AllArtists（含合作艺术家），以 " / " 拆分后单独计入
         var artistPlayDict = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -3078,22 +3082,28 @@ public class MusicDatabase
     /// <param name="beforeId">只加载此 Id 之前的记录（用于向上翻页加载更多），传0或null表示不限制</param>
     public async Task<List<ChatMessageRecord>> GetRecentChatMessagesAsync(int limit, int? beforeId = null)
     {
+        List<ChatMessageRecord> list;
         if (beforeId.HasValue && beforeId.Value > 0)
         {
             // 向上翻页：加载指定Id之前的记录
-            return await _database.Table<ChatMessageRecord>()
+            list = await _database.Table<ChatMessageRecord>()
                 .Where(r => r.Id < beforeId.Value)
                 .OrderByDescending(r => r.Id)
                 .Take(limit)
-                .ToListAsync()
-                .ContinueWith(t => t.Result.AsEnumerable().Reverse().ToList());
+                .ToListAsync();
         }
-        // 首次加载：取最近N条
-        return await _database.Table<ChatMessageRecord>()
-            .OrderByDescending(r => r.Id)
-            .Take(limit)
-            .ToListAsync()
-            .ContinueWith(t => t.Result.AsEnumerable().Reverse().ToList());
+        else
+        {
+            // 首次加载：取最近N条
+            list = await _database.Table<ChatMessageRecord>()
+                .OrderByDescending(r => r.Id)
+                .Take(limit)
+                .ToListAsync();
+        }
+        // 原为降序取最近N条，反转为时间正序返回（最旧的在前）。
+        // 直接原地反转，避免 .Result 阻塞与 AsEnumerable().Reverse().ToList() 的中间集合分配。
+        list.Reverse();
+        return list;
     }
 
     /// <summary>获取聊天记录总数</summary>

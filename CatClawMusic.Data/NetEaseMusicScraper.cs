@@ -55,7 +55,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
 
         _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(10)
+            Timeout = TimeSpan.FromSeconds(NetworkTimeouts.ScrapeSeconds)
         };
         _httpClient.DefaultRequestHeaders.Add("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");

@@ -896,7 +896,7 @@ public partial class SearchViewModel : ObservableObject
         };
         // 倒序模式：新消息插入到头部（index 0），翻转后显示在视觉底部
         ChatMessages.Insert(0, userMsg);
-        _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "user", Content = userMessage, Timestamp = DateTime.UtcNow });
+        _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "user", Content = userMessage, Timestamp = DateTime.UtcNow });
         _chatMemoryService.RecordMessage(userMsg);
         _ = TrimOldChatMessagesAsync();
 
@@ -929,7 +929,7 @@ public partial class SearchViewModel : ObservableObject
             };
             // 倒序模式：新消息插入到头部
             ChatMessages.Insert(0, notConfiguredMsg);
-            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = notConfiguredMsg.Content, Timestamp = DateTime.UtcNow });
+            _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "assistant", Content = notConfiguredMsg.Content, Timestamp = DateTime.UtcNow });
             _chatMemoryService.RecordMessage(notConfiguredMsg);
             _currentThinkingMessage = null;
             _ = TriggerMemoryExtractionAsync();
@@ -969,7 +969,7 @@ public partial class SearchViewModel : ObservableObject
                 assistantMsg.IsThinkingExpanded = false;
             });
 
-            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
+            _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
             _chatMemoryService.RecordMessage(assistantMsg);
             IsAgentThinking = false;
             _ = TriggerMemoryExtractionAsync();
@@ -984,7 +984,7 @@ public partial class SearchViewModel : ObservableObject
                     assistantMsg.ThinkingSteps.RemoveAt(0);
                 assistantMsg.IsThinkingExpanded = false;
             });
-            _ = _database.SaveChatMessageAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
+            _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
             _chatMemoryService.RecordMessage(assistantMsg);
             IsAgentThinking = false;
             _ = TriggerMemoryExtractionAsync();
@@ -1006,6 +1006,14 @@ public partial class SearchViewModel : ObservableObject
             }
         }
         catch { }
+    }
+
+    /// <summary>安全保存聊天记录：捕获异常避免 DB 错误打断聊天流程</summary>
+    /// <param name="record">待保存的聊天消息记录</param>
+    private async Task SaveChatMessageSafeAsync(ChatMessageRecord record)
+    {
+        try { await _database.SaveChatMessageAsync(record); }
+        catch (Exception ex) { Log.Debug("SearchViewModel", $"保存聊天记录失败: {ex.Message}"); }
     }
 
     /// <summary>触发AI记忆提取（后台异步，不阻塞UI）</summary>
@@ -1369,7 +1377,7 @@ public partial class SearchViewModel : ObservableObject
                 // 用第一条推荐理由更新默认文案（占位卡也能显示合理文字）
                 var firstReason = batch[0].Reason;
                 if (!string.IsNullOrWhiteSpace(firstReason)) AiRecommendReason = firstReason;
-                SaveAiCacheToDisk(today, batch);
+                await SaveAiCacheToDiskAsync(today, batch);
             }
         }
         catch (Exception ex)
@@ -1475,14 +1483,15 @@ public partial class SearchViewModel : ObservableObject
     }
 
     /// <summary>将当天的 AI 推荐批次整批写入磁盘缓存</summary>
-    private void SaveAiCacheToDisk(string date, List<AiRecItem> items)
+    private async Task SaveAiCacheToDiskAsync(string date, List<AiRecItem> items)
     {
         try
         {
             var dir = Path.GetDirectoryName(_aiCacheFilePath);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             var cache = new AiRecCache { Date = date, Items = items };
-            File.WriteAllText(_aiCacheFilePath, System.Text.Json.JsonSerializer.Serialize(cache));
+            // 异步写入，避免阻塞调用方线程
+            await File.WriteAllTextAsync(_aiCacheFilePath, System.Text.Json.JsonSerializer.Serialize(cache));
         }
         catch (Exception ex)
         {
@@ -1585,7 +1594,7 @@ public partial class SearchViewModel : ObservableObject
 }
 
 /// <summary>搜索页艺术家展示项</summary>
-public class SearchArtistItem : INotifyPropertyChanged
+public class SearchArtistItem : ObservableObject
 {
     /// <summary>艺术家 ID</summary>
     public int Id { get; set; }
@@ -1608,15 +1617,10 @@ public class SearchArtistItem : INotifyPropertyChanged
             }
         }
     }
-
-    /// <summary>属性变更通知</summary>
-    public event PropertyChangedEventHandler? PropertyChanged;
-    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 /// <summary>搜索页专辑展示项</summary>
-public class SearchAlbumItem : INotifyPropertyChanged
+public class SearchAlbumItem : ObservableObject
 {
     /// <summary>专辑 ID</summary>
     public int Id { get; set; }
@@ -1641,11 +1645,6 @@ public class SearchAlbumItem : INotifyPropertyChanged
             }
         }
     }
-
-    /// <summary>属性变更通知</summary>
-    public event PropertyChangedEventHandler? PropertyChanged;
-    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 /// <summary>首页英雄卡片项</summary>

@@ -172,7 +172,7 @@
                 <!-- Windows 上嵌套布局的 TapGestureRecognizer 不可靠，
                      这里用一个透明 Border 覆盖整个歌曲信息区来接收点击。 -->
                 <Grid x:Name="PlayerInfoGrid" Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="12"
-                      VerticalOptions="Center" WidthRequest="240">
+                      VerticalOptions="Center" WidthRequest="240" MinimumWidthRequest="160">
                     <Border x:Name="PlayerCoverBorder" WidthRequest="48" HeightRequest="48"
                             StrokeShape="RoundRectangle 8"
                             StrokeThickness="0"
@@ -205,7 +205,7 @@
 
                 <!-- Controls + Progress (center) -->
                 <Grid x:Name="PlayerControlsGrid" Grid.Column="1" RowDefinitions="Auto,Auto"
-                      VerticalOptions="Center" RowSpacing="6" Padding="32,0">
+                      VerticalOptions="Center" RowSpacing="6" Padding="0">
                     <!-- Control buttons -->
                     <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
                           ColumnSpacing="16" HorizontalOptions="Center">
@@ -257,6 +257,7 @@
                                 ThumbColor="White"
                                 MinimumTrackColor="White"
                                 MaximumTrackColor="#40FFFFFF"
+                                HorizontalOptions="Fill" MinimumWidthRequest="240"
                                 DragStarted="OnDesktopSliderDragStarted"
                                 DragCompleted="OnDesktopSliderDragCompleted" />
                         <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}"
@@ -266,8 +267,8 @@
                 </Grid>
 
                 <!-- Volume (right) -->
-                <Grid x:Name="VolumeGrid" Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="12"
-                      VerticalOptions="Center" WidthRequest="140">
+                <Grid x:Name="VolumeGrid" Grid.Column="2" ColumnDefinitions="Auto,*" ColumnSpacing="12"
+                      VerticalOptions="Center" WidthRequest="240" MinimumWidthRequest="120">
                     <Image Source="ic_music_note" WidthRequest="18" HeightRequest="18"
                            Opacity="0.5" VerticalOptions="Center" />
                     <Slider Grid.Column="1" x:Name="VolumeSlider"
@@ -275,7 +276,8 @@
                             ThumbColor="White"
                             MinimumTrackColor="White"
                             MaximumTrackColor="#40FFFFFF"
-                            WidthRequest="100" VerticalOptions="Center" />
+                            HorizontalOptions="Fill" MinimumWidthRequest="160"
+                            VerticalOptions="Center" />
                 </Grid>
             </Grid>
         </Grid>

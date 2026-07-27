@@ -69,7 +69,7 @@ public class TagReader
                         };
                     }
                 }
-                catch { }
+                catch (Exception ex) { Log.Debug("TagReader", $"读取流标签失败: {ex.Message}"); }
             }
             return new Song
             {
@@ -235,7 +235,7 @@ public class TagReader
                 ext.Equals(".m4b", StringComparison.OrdinalIgnoreCase))
             {
                 try { return M4aMetadataReader.ExtractCoverArt(filePath); }
-                catch { }
+                catch (Exception ex) { Log.Debug("TagReader", $"M4A 封面提取失败: {ex.Message}"); }
             }
             return null;
         }
@@ -293,7 +293,7 @@ public class TagReader
                     var lyrics = M4aMetadataReader.ExtractLyrics(filePath);
                     if (!string.IsNullOrWhiteSpace(lyrics)) return lyrics;
                 }
-                catch { }
+                catch (Exception ex2) { Log.Debug("TagReader", $"M4A 歌词提取失败: {ex2.Message}"); }
             }
             return null;
         }
@@ -347,7 +347,7 @@ public class TagReader
                     if (stream.CanSeek) stream.Position = 0;
                     return M4aMetadataReader.ExtractLyricsFromStream(stream);
                 }
-                catch { }
+                catch (Exception ex2) { Log.Debug("TagReader", $"M4A 歌词流提取失败: {ex2.Message}"); }
             }
             return null;
         }
@@ -497,7 +497,7 @@ public class TagReader
                     if (stream.CanSeek) stream.Position = 0;
                     return M4aMetadataReader.ExtractCoverFromStream(stream);
                 }
-                catch { }
+                catch (Exception ex) { Log.Debug("TagReader", $"M4A 封面流提取失败: {ex.Message}"); }
             }
         }
         return null;

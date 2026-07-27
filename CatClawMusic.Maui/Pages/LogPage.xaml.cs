@@ -23,10 +23,10 @@ public partial class LogPage : ContentPage
     }
 
     /// <summary>页面出现时加载日志并构建标签 chips</summary>
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
-        _vm.LoadLogs();
+        await _vm.LoadLogsAsync();
         BuildTagChips();
     }
 
@@ -137,9 +137,9 @@ public partial class LogPage : ContentPage
 
     private void OnBackClicked(object? sender, EventArgs e) => Shell.Current.GoToAsync("..");
 
-    private void OnRefreshClicked(object? sender, EventArgs e)
+    private async void OnRefreshClicked(object? sender, EventArgs e)
     {
-        _vm.LoadLogs();
+        await _vm.LoadLogsAsync();
         BuildTagChips();
     }
 

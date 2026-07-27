@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Pages.Base;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
@@ -9,12 +10,11 @@ using Microsoft.Maui.Controls;
 namespace CatClawMusic.Maui.Pages;
 
 /// <summary>
-/// PC（Windows 桌面端）发现页：宽屏多列布局，复用 <see cref="SearchViewModel"/> 数据层。
-/// 包含页头（发现 + 时段问候 + AI 智能推荐开关 + 主题切换）、分段标签、
-/// Hero 横向多卡轮播（2 张同屏 + 箭头/圆点/自动轮播）、每日推荐/推荐艺人横滑、
-/// 排行榜双列（最多播放 + 我的最爱）、歌手网格、推荐专辑网格。
+/// PC（Windows 桌面端）/横屏发现页：宽屏多列布局，复用 <see cref="SearchViewModel"/> 数据层。
+/// 共享事件处理逻辑见 <see cref="DiscoverPageBase"/>；本类保留横屏专属的 Hero 多卡轮播、
+/// 每日推荐/推荐艺人横滑箭头、PC 鼠标滚轮修复等差异部分。
 /// </summary>
-public partial class DesktopDiscoverPage : ContentPage
+public partial class DesktopDiscoverPage : DiscoverPageBase
 {
     private readonly SearchViewModel _vm;
     private readonly PlayQueue _queue;
@@ -23,6 +23,7 @@ public partial class DesktopDiscoverPage : ContentPage
     private readonly IServiceProvider _services;
     private readonly IThemeService? _themeService;
     private readonly ListeningStatsView _statsView;
+    private readonly Services.IInteractionStateService? _interactionState;
 
     private IDispatcherTimer? _heroTimer;
     private int _heroIndex;
@@ -60,43 +61,36 @@ public partial class DesktopDiscoverPage : ContentPage
         SetupHeroTimer();
 
         // 用户交互（滚动列表等）期间暂停英雄卡自动轮播，与移动端发现页行为一致
-        if (_services.GetService(typeof(Services.IInteractionStateService)) is Services.IInteractionStateService interaction)
-            interaction.InteractionStateChanged += OnInteractionStateChangedForHero;
+        _interactionState = _services.GetService(typeof(Services.IInteractionStateService)) as Services.IInteractionStateService;
+        if (_interactionState != null)
+            _interactionState.InteractionStateChanged += OnInteractionStateChangedForHero;
 
         _vm.PropertyChanged += OnViewModelPropertyChanged;
         _vm.ChatHistoryLoaded += OnChatHistoryLoaded;
-        _vm.ScrollToLatestMessageRequested += (s, e) => ScrollToLatestMessage();
+        _vm.ScrollToLatestMessageRequested += OnScrollToLatestMessageRequested;
         // 注意：本页被 DesktopMainPage 提取 Content 后，ContentPage 自身脱离可视化树，
         // 因此监听 HeroScroll（仍留在树中）的尺寸变化来重排 Hero 卡片宽度。
         HeroScroll.SizeChanged += OnHeroSizeChanged;
     }
 
-    private void OnChatHistoryLoaded(object? sender, ChatHistoryLoadedEventArgs e)
-    {
-        // 倒序模式下：首次加载滚到 index 0（最新消息，翻转后视觉在底部）
-        // 加载更多历史时无需处理（末尾追加不改变已有项位置）
-        if (e is { IsInitialLoad: true, ScrollToEnd: true } && _vm.ChatMessages.Count > 0)
-        {
-            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(100), () =>
-            {
-                ChatMessagesList.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
-            });
-        }
-    }
+    // === 基类抽象属性实现 ===
 
-    private void ScrollToLatestMessage()
+    protected override SearchViewModel Vm => _vm;
+    protected override PlayQueue Queue => _queue;
+    protected override IAudioPlayerService AudioPlayer => _audioPlayer;
+    protected override ListeningStatsView StatsView => _statsView;
+    protected override CollectionView ChatMessagesListControl => ChatMessagesList;
+    protected override Entry SearchBoxControl => SearchBox;
+    protected override (Border, Label)[] TabControls => new[]
     {
-        // 倒序模式：最新消息在 index 0，翻转后视觉在底部
-        if (_vm.ChatMessages.Count > 0)
-        {
-            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), () =>
-            {
-                ChatMessagesList.ScrollTo(0, position: ScrollToPosition.Start, animate: true);
-            });
-        }
-    }
+        (TabRec, TabRecLabel),
+        (TabRank, TabRankLabel),
+        (TabArtist, TabArtistLabel),
+        (TabAlbum, TabAlbumLabel),
+        (TabStats, TabStatsLabel)
+    };
 
-    // ─── Hero carousel ───
+    // === Hero carousel（横屏专属：ScrollView + BindableLayout 多卡同屏） ===
 
     private void SetupHeroTimer()
     {
@@ -132,6 +126,9 @@ public partial class DesktopDiscoverPage : ContentPage
     {
         LayoutHeroCards();
     }
+
+    /// <summary>收到 ViewModel 的"滚动到最新消息"请求时，转发给基类实现。</summary>
+    private void OnScrollToLatestMessageRequested(object? sender, EventArgs e) => ScrollToLatestMessage();
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -189,7 +186,7 @@ public partial class DesktopDiscoverPage : ContentPage
     private void OnHeroPrevClicked(object? sender, EventArgs e) => _ = ScrollHeroTo(_heroIndex - 1);
     private void OnHeroNextClicked(object? sender, EventArgs e) => _ = ScrollHeroTo(_heroIndex + 1);
 
-    // ─── 每日推荐左右箭头 ───
+    // === 每日推荐左右箭头 ===
 
     /// <summary>每次翻页的卡片数（根据可见宽度动态计算）。</summary>
     private int DailyPageSize => DailyList.Width > 0 ? Math.Max(1, (int)((DailyList.Width + 12) / (150 + 12))) : 4;
@@ -233,7 +230,7 @@ public partial class DesktopDiscoverPage : ContentPage
         DailyNext.IsVisible = (_dailyVisibleStart + page) < items.Count;
     }
 
-    // ─── 推荐艺人左右箭头 ───
+    // === 推荐艺人左右箭头 ===
 
     private int ArtistPageSize => ArtistsRow.Width > 0 ? Math.Max(1, (int)((ArtistsRow.Width + 14) / (92 + 14))) : 5;
 
@@ -275,17 +272,49 @@ public partial class DesktopDiscoverPage : ContentPage
         ArtistNext.IsVisible = (_artistVisibleStart + page) < items.Count;
     }
 
-    // ─── Lifecycle ───
+    // === Lifecycle ===
+
+    /// <summary>订阅页面所需事件（幂等：先解绑再订阅，避免重复订阅）。
+    /// 构造函数与每次 OnAppearing 均调用，确保事件始终处于订阅状态。</summary>
+    private void SubscribeEvents()
+    {
+        if (_interactionState != null)
+        {
+            _interactionState.InteractionStateChanged -= OnInteractionStateChangedForHero;
+            _interactionState.InteractionStateChanged += OnInteractionStateChangedForHero;
+        }
+        _vm.PropertyChanged -= OnViewModelPropertyChanged;
+        _vm.PropertyChanged += OnViewModelPropertyChanged;
+        _vm.ChatHistoryLoaded -= OnChatHistoryLoaded;
+        _vm.ChatHistoryLoaded += OnChatHistoryLoaded;
+        _vm.ScrollToLatestMessageRequested -= OnScrollToLatestMessageRequested;
+        _vm.ScrollToLatestMessageRequested += OnScrollToLatestMessageRequested;
+        HeroScroll.SizeChanged -= OnHeroSizeChanged;
+        HeroScroll.SizeChanged += OnHeroSizeChanged;
+    }
+
+    /// <summary>解绑页面事件（在 OnDisappearing 中调用，避免页面不可见时仍处理回调导致内存泄漏或无效刷新）</summary>
+    private void UnsubscribeEvents()
+    {
+        if (_interactionState != null)
+            _interactionState.InteractionStateChanged -= OnInteractionStateChangedForHero;
+        _vm.PropertyChanged -= OnViewModelPropertyChanged;
+        _vm.ChatHistoryLoaded -= OnChatHistoryLoaded;
+        _vm.ScrollToLatestMessageRequested -= OnScrollToLatestMessageRequested;
+        HeroScroll.SizeChanged -= OnHeroSizeChanged;
+    }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
         _heroTimer?.Stop();
+        UnsubscribeEvents();
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        SubscribeEvents();
         _vm.GreetingText = CalculateGreeting();
 
         if (_vm.HeroCards.Count > 0)
@@ -331,7 +360,7 @@ public partial class DesktopDiscoverPage : ContentPage
         RefreshArrowVisibility();
     }
 
-    // ─── Arrow visibility helpers ───
+    // === Arrow visibility helpers ===
 
     private void RefreshArrowVisibility()
     {
@@ -403,51 +432,7 @@ public partial class DesktopDiscoverPage : ContentPage
     }
 #endif
 
-    // ─── Category tabs ───
-
-    private void OnCategoryTapped(object? sender, TappedEventArgs e)
-    {
-        if (e.Parameter is string p && int.TryParse(p, out int idx))
-        {
-            _vm.CurrentCategory = idx;
-            UpdateTabVisualState(idx);
-            // 切换到"报告"Tab 时触发统计数据加载
-            if (idx == 4)
-            {
-                _ = _statsView.LoadAsync();
-            }
-        }
-    }
-
-    private void UpdateTabVisualState(int selectedIndex)
-    {
-        var primary = (Color)(Application.Current?.Resources["PrimaryColor"] ?? Colors.Purple);
-        var cardBg = (Color)(Application.Current?.Resources["CardBackgroundColor"] ?? Colors.Transparent);
-        var textSecondary = (Color)(Application.Current?.Resources["TextSecondaryColor"] ?? Colors.Gray);
-
-        TabRec.BackgroundColor = selectedIndex == 0 ? primary : cardBg;
-        TabRecLabel.TextColor = selectedIndex == 0 ? Colors.White : textSecondary;
-
-        TabRank.BackgroundColor = selectedIndex == 1 ? primary : cardBg;
-        TabRankLabel.TextColor = selectedIndex == 1 ? Colors.White : textSecondary;
-
-        TabArtist.BackgroundColor = selectedIndex == 2 ? primary : cardBg;
-        TabArtistLabel.TextColor = selectedIndex == 2 ? Colors.White : textSecondary;
-
-        TabAlbum.BackgroundColor = selectedIndex == 3 ? primary : cardBg;
-        TabAlbumLabel.TextColor = selectedIndex == 3 ? Colors.White : textSecondary;
-
-        TabStats.BackgroundColor = selectedIndex == 4 ? primary : cardBg;
-        TabStatsLabel.TextColor = selectedIndex == 4 ? Colors.White : textSecondary;
-    }
-
-    private void OnArtistsViewAllClicked(object? sender, EventArgs e)
-    {
-        _vm.CurrentCategory = 2;
-        UpdateTabVisualState(2);
-    }
-
-    // ─── Theme switch ───
+    // === 主题切换 ===
 
     private void OnThemeToggleClicked(object? sender, EventArgs e)
     {
@@ -465,7 +450,7 @@ public partial class DesktopDiscoverPage : ContentPage
             : "\u2600\uFE0F";  // ☀️
     }
 
-    // ─── Shuffle ───
+    // === Shuffle：换批后回到开头并刷新箭头 ===
 
     private void OnShuffleDailyClicked(object? sender, EventArgs e)
     {
@@ -475,30 +460,7 @@ public partial class DesktopDiscoverPage : ContentPage
         ScrollDailyTo(0);
     }
 
-    // ─── Song selection handlers ───
-
-    private async void OnDailySongSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not Song song) return;
-        if (sender is CollectionView cv) cv.SelectedItem = null;
-        await PlaySongAsync(song, _vm.DailyRecommendSongs.ToList());
-    }
-
-    private async void OnTopPlayedSongSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not Song song) return;
-        if (sender is CollectionView cv) cv.SelectedItem = null;
-        await PlaySongAsync(song, _vm.TopPlayedSongs.ToList());
-    }
-
-    private async void OnFavoriteSongSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not Song song) return;
-        if (sender is CollectionView cv) cv.SelectedItem = null;
-        await PlaySongAsync(song, _vm.FavoriteSongs.ToList());
-    }
-
-    // ─── Hero play ───
+    // === Hero 卡片点击（横屏专属：从 BindingContext 解析 HeroCardItem） ===
 
     /// <summary>从手势/按钮的 sender 中解析出绑定的 HeroCardItem。
     /// 注意：PC 端 Hero 用 ScrollView+BindableLayout，TapGestureRecognizer.Tapped 的 sender 是识别器本身（非 Border），
@@ -533,129 +495,7 @@ public partial class DesktopDiscoverPage : ContentPage
         await PlaySongAsync(song, list);
     }
 
-    // ─── Rank list ───
-
-    private async void OnRankItemTapped(object? sender, TappedEventArgs e)
-    {
-        if (sender is Border border && border.BindingContext is Song song)
-        {
-            await PlaySongAsync(song, _vm.TopPlayedSongs.ToList());
-        }
-    }
-
-    private async void OnRankPlayTapped(object? sender, EventArgs e)
-    {
-        if (sender is ImageButton btn && btn.BindingContext is Song song)
-        {
-            await PlaySongAsync(song, _vm.TopPlayedSongs.ToList());
-        }
-    }
-
-    private async void OnFavItemTapped(object? sender, TappedEventArgs e)
-    {
-        if (sender is Border border && border.BindingContext is Song song)
-        {
-            await PlaySongAsync(song, _vm.FavoriteSongs.ToList());
-        }
-    }
-
-    private async void OnFavPlayTapped(object? sender, EventArgs e)
-    {
-        if (sender is ImageButton btn && btn.BindingContext is Song song)
-        {
-            await PlaySongAsync(song, _vm.FavoriteSongs.ToList());
-        }
-    }
-
-    /// <summary>排名标签着色：前 3 名用主色，其余用次要色。</summary>
-    private void OnRankItemBindingContextChanged(object? sender, EventArgs e)
-    {
-        if (sender is not Border border) return;
-        if (border.BindingContext is not Song song) return;
-
-        var list = _vm.TopPlayedSongs;
-        var index = list.IndexOf(song);
-        if (index < 0) return;
-
-        var rank = index + 1;
-        if (border.Content is Grid grid && grid.Children.Count > 0 && grid.Children[0] is Label rankLabel)
-        {
-            rankLabel.Text = rank.ToString();
-            rankLabel.TextColor = rank <= 3
-                ? (Color)Application.Current?.Resources["PrimaryColor"]!
-                : (Color)Application.Current?.Resources["TextHintColor"]!;
-        }
-    }
-
-    // ─── Artist / Album navigation ───
-
-    private async void OnArtistSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not SearchArtistItem artist) return;
-        if (sender is CollectionView cv) cv.SelectedItem = null;
-        await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name)}");
-    }
-
-    private async void OnAlbumSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not SearchAlbumItem album) return;
-        if (sender is CollectionView cv) cv.SelectedItem = null;
-        await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title)}");
-    }
-
-    // ─── Playback ───
-
-    private async Task PlaySongAsync(Song song, IReadOnlyList<Song> songs)
-    {
-        try
-        {
-            if (songs.Count > 0) _queue.SetSongs(songs);
-            _queue.SelectSong(song.Id);
-            if (!string.IsNullOrWhiteSpace(song.FilePath))
-            {
-                await _audioPlayer.PlayAsync(song.FilePath);
-            }
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("播放失败", ex.Message, "确定");
-        }
-    }
-
-    // ─── Search ───
-
-    private void OnSearchToggleClicked(object? sender, EventArgs e)
-    {
-        _vm.IsSearchOpen = !_vm.IsSearchOpen;
-        if (_vm.IsSearchOpen)
-        {
-            SearchBox.Focus();
-        }
-        else
-        {
-            SearchBox.Unfocus();
-            SearchBox.Text = "";
-            _vm.ClearSearchDropdown();
-        }
-    }
-
-    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
-    {
-        _vm.SearchQuery = e.NewTextValue ?? "";
-    }
-
-    private void OnSearchCompleted(object? sender, EventArgs e)
-    {
-        var entry = sender as Entry;
-        _vm.SearchQuery = entry?.Text?.Trim() ?? "";
-        entry?.Unfocus();
-    }
-
-    private void OnClearSearchClicked(object? sender, EventArgs e)
-    {
-        SearchBox.Text = "";
-        _vm.ClearSearchDropdown();
-    }
+    // === 搜索结果中的歌曲播放 ===
 
     private async void OnSearchSongSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -676,19 +516,7 @@ public partial class DesktopDiscoverPage : ContentPage
         }
     }
 
-    private async void OnSearchArtistSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not SearchArtistItem artist) return;
-        if (sender is CollectionView cv) cv.SelectedItem = null;
-        await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name)}");
-    }
-
-    private async void OnSearchAlbumSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (e.CurrentSelection.FirstOrDefault() is not SearchAlbumItem album) return;
-        if (sender is CollectionView cv) cv.SelectedItem = null;
-        await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title)}");
-    }
+    // === 刷新 ===
 
     private async void OnRefreshClicked(object? sender, EventArgs e)
     {
@@ -697,52 +525,11 @@ public partial class DesktopDiscoverPage : ContentPage
         catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover refresh: {ex.Message}"); }
     }
 
-    // ─── AI Chat ───
+    // === 查看全部入口（横屏专属：导航到 DesktopArtists/DesktopAlbums） ===
 
-    private void OnAiEntryTapped(object? sender, TappedEventArgs e)
+    private void OnArtistsViewAllClicked(object? sender, EventArgs e)
     {
-        _vm.IsSearchOpen = false;
-        SearchBox.Unfocus();
-        SearchBox.Text = "";
-        _vm.ClearSearchDropdown();
-        _vm.EnterChatModeCommand.Execute(null);
-    }
-
-    private void OnChatBackClicked(object? sender, EventArgs e)
-    {
-        _vm.ExitChatModeCommand.Execute(null);
-    }
-
-    private void OnChatInputCompleted(object? sender, EventArgs e)
-    {
-        _ = _vm.SendMessageCommand.ExecuteAsync(null);
-    }
-
-    private void OnSendClicked(object? sender, EventArgs e)
-    {
-        _ = _vm.SendMessageCommand.ExecuteAsync(null);
-    }
-
-    private static string CalculateGreeting()
-    {
-        var hour = DateTime.Now.Hour;
-        return hour switch
-        {
-            >= 0 and < 6 => "凌晨好，为你精选深夜好歌",
-            >= 6 and < 12 => "早上好，为你精选晨间好歌",
-            >= 12 and < 18 => "下午好，为你精选午后好歌",
-            _ => "晚上好，为你精选今日好歌"
-        };
-    }
-
-    /// <summary>聊天消息列表滚动时检测是否需要加载更多历史记录
-    /// 倒序+翻转模式：视觉底部 = 数据源末尾 = 最旧消息，滚到底部时加载更旧的历史</summary>
-    private async void OnChatMessagesScrolled(object? sender, ItemsViewScrolledEventArgs e)
-    {
-        // 翻转后 VerticalOffset 语义反转：滚到视觉底部时 offset 接近 0
-        if (e.VerticalOffset < 30 && _vm.HasMoreChatHistory)
-        {
-            await _vm.LoadMoreChatHistoryAsync();
-        }
+        _vm.CurrentCategory = 2;
+        UpdateTabVisualState(2);
     }
 }

@@ -8,18 +8,10 @@
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <ContentPage.Resources>
-        <converters:InitialConverter x:Key="InitialConverter" />
-        <converters:CoverArtConverter x:Key="CoverArtConverter" />
-        <converters:PlaceholderColorConverter x:Key="PlaceholderColorConverter" />
-        <converters:NameToLetterConverter x:Key="NameToLetterConverter" />
-        <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
-    </ContentPage.Resources>
-
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <!-- Frosted glass background: blurred theme image, semi-transparent -->
+        <!-- Frosted glass background -->
         <controls:FrostedBackground Grid.RowSpan="5"
             Source="{DynamicResource ThemeBackgroundImage}"
             IsActive="{DynamicResource ThemeBackgroundEnabled}"
@@ -68,7 +60,7 @@
                     StrokeShape="RoundRectangle 12"
                     WidthRequest="38" HeightRequest="38">
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnSearchTapped" />
+                    <TapGestureRecognizer Tapped="OnSearchToggled" />
                 </Border.GestureRecognizers>
                 <Image Source="ic_search.svg"
                        WidthRequest="17" HeightRequest="17"
@@ -93,119 +85,39 @@
         </VerticalStackLayout>
 
         <!-- 搜索框 -->
-        <Border Grid.Row="2"
-                Margin="16,4,16,10"
-                Padding="11,0,14,0"
-                StrokeShape="RoundRectangle 14"
-                StrokeThickness="1"
-                Stroke="{DynamicResource GlassStrokeColor}"
-                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
-            <Grid ColumnDefinitions="Auto,*"
-                  VerticalOptions="Center">
-                <Image Source="ic_search.svg"
-                       WidthRequest="16" HeightRequest="16" />
-                <Entry Grid.Column="1"
-                       Placeholder="搜索艺术家、按地区筛选…"
-                       Text="{Binding SearchQuery}"
-                       FontSize="14"
-                       TextColor="{DynamicResource TextPrimaryColor}"
-                       PlaceholderColor="{DynamicResource TextHintColor}"
-                       VerticalOptions="Center"
-                       Margin="10,0,0,0" />
-            </Grid>
-        </Border>
+        <controls:PageSearchBox Grid.Row="2"
+                                Margin="16,4,16,10"
+                                Placeholder="搜索艺术家、按地区筛选…"
+                                SearchQuery="{Binding SearchQuery, Mode=TwoWay}" />
 
         <!-- 来源筛选 chips + 工具栏 -->
         <Grid Grid.Row="3"
               RowDefinitions="Auto,Auto"
               Padding="0,0,0,8">
             <!-- 筛选 chips -->
-            <ScrollView Grid.Row="0"
-                        Orientation="Horizontal"
-                        Padding="16,4">
-                <HorizontalStackLayout Spacing="8" x:Name="FilterChips"
-                                       BindableLayout.ItemsSource="{Binding SourceFilters}">
-                    <BindableLayout.ItemTemplate>
-                        <DataTemplate>
-                            <Border Padding="14,7"
-                                    StrokeShape="RoundRectangle 999"
-                                    StrokeThickness="1"
-                                    BackgroundColor="{Binding BackgroundColor}"
-                                    Stroke="{Binding BorderColor}">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnFilterChipTapped" />
-                                </Border.GestureRecognizers>
-                                <Label Text="{Binding Label}"
-                                       FontSize="12.5"
-                                       TextColor="{Binding TextColor}" />
-                            </Border>
-                        </DataTemplate>
-                    </BindableLayout.ItemTemplate>
-                </HorizontalStackLayout>
-            </ScrollView>
+            <controls:ChipList Grid.Row="0"
+                               Margin="16,4"
+                               ItemsSource="{Binding SourceFilters}"
+                               ChipTapped="OnFilterChipTapped"
+                               ChipPadding="14,7"
+                               ChipCornerRadius="999"
+                               ChipFontSize="12.5" />
 
             <!-- 工具栏：排序 + 视图切换 -->
             <Grid Grid.Row="1"
                   ColumnDefinitions="*,Auto"
                   Padding="16,6,16,0">
-                <ScrollView Grid.Column="0"
-                            Orientation="Horizontal">
-                    <HorizontalStackLayout Spacing="6" x:Name="SortButtons"
-                                           BindableLayout.ItemsSource="{Binding SortOptions}">
-                        <BindableLayout.ItemTemplate>
-                            <DataTemplate>
-                                <Border Padding="11,6"
-                                        StrokeShape="RoundRectangle 9"
-                                        StrokeThickness="1"
-                                        Stroke="{Binding BorderColor}"
-                                        BackgroundColor="{Binding BackgroundColor}">
-                                    <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="OnSortChipTapped" />
-                                    </Border.GestureRecognizers>
-                                    <Label Text="{Binding Label}"
-                                           FontSize="12"
-                                           TextColor="{Binding TextColor}" />
-                                </Border>
-                            </DataTemplate>
-                        </BindableLayout.ItemTemplate>
-                    </HorizontalStackLayout>
-                </ScrollView>
+                <controls:ChipList Grid.Column="0"
+                                   ItemsSource="{Binding SortOptions}"
+                                   ChipTapped="OnSortChipTapped"
+                                   ChipPadding="11,6"
+                                   ChipCornerRadius="9"
+                                   ChipFontSize="12" />
 
                 <!-- 视图切换 -->
-                <Border Grid.Column="1"
-                        StrokeShape="RoundRectangle 10"
-                        StrokeThickness="1"
-                        Stroke="{DynamicResource GlassStrokeColor}"
-                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                        Margin="10,0,0,0">
-                    <Grid ColumnDefinitions="Auto,Auto"
-                          ColumnSpacing="0">
-                        <Border Grid.Column="0"
-                                WidthRequest="34" HeightRequest="30"
-                                BackgroundColor="{Binding GridButtonColor}"
-                                StrokeShape="RoundRectangle 10,0,0,10">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnViewToggleTapped" CommandParameter="grid" />
-                            </Border.GestureRecognizers>
-                            <Image Source="ic_grid.svg"
-                                   WidthRequest="16" HeightRequest="16"
-                                   Aspect="AspectFit"
-                                   VerticalOptions="Center" HorizontalOptions="Center" />
-                        </Border>
-                        <Border Grid.Column="1"
-                                WidthRequest="34" HeightRequest="30"
-                                BackgroundColor="{Binding ListButtonColor}"
-                                StrokeShape="RoundRectangle 0,10,10,0">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnViewToggleTapped" CommandParameter="list" />
-                            </Border.GestureRecognizers>
-                            <Image Source="ic_list.svg"
-                                   WidthRequest="16" HeightRequest="16"
-                                   Aspect="AspectFit"
-                                   VerticalOptions="Center" HorizontalOptions="Center" />
-                        </Border>
-                    </Grid>
-                </Border>
+                <controls:ViewToggleButton Grid.Column="1"
+                                           Margin="10,0,0,0"
+                                           IsGridView="{Binding IsGridView, Mode=TwoWay}" />
             </Grid>
         </Grid>
 
@@ -216,7 +128,6 @@
               ColumnSpacing="0">
 
             <!-- 网格视图 -->
-                        <!-- 网格视图（虚拟化：ScrollView+FlexLayout 会一次性创建所有 cell，数据量大时主线程卡死） -->
             <CollectionView Grid.Column="0"
                             x:Name="GridCollectionView"
                             ItemsSource="{Binding FilteredArtists}"

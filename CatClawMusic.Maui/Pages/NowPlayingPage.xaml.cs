@@ -6,6 +6,7 @@ using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
+using System.IO;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -46,12 +47,21 @@ public partial class NowPlayingPage : ContentPage
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
         Loaded += OnPageLoaded;
 
+        // 页面 Handler 销毁时取消 PropertyChanged 订阅，防止横竖屏切换后旧页面
+        // 的 handler 留在 Singleton ViewModel 上造成内存泄漏和事件干扰。
+        // 不在 OnDisappearing 取消（memory 约束：保持跨页面进度更新活跃）。
+        Unloaded += (_, _) =>
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+        };
+
         // 监听 RootGrid 尺寸变化（Content 被 MainPage 提取后 OnSizeAllocated 不会触发）
         RootGrid.SizeChanged += OnRootSizeChanged;
 
         // 设置收起图标（使用 ImageSourceHelper 确保 Windows 端正确加载）
         CollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
-        // 横屏布局左上角收起按钮复用同一图标
+        // 横屏布局右上角收起按钮复用同一图标
         LandscapeCollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
 
         // 播放页封面原生 ImageView 懒创建（尤其横屏 LandscapeCoverImage 在首次显示时才建 Handler），
@@ -128,6 +138,9 @@ public partial class NowPlayingPage : ContentPage
                 PhoneControls.IsVisible = false;
                 DesktopControls.IsVisible = false;
                 BottomActionBar.IsVisible = false;
+                // 横屏封面首次显示时 Handler 才创建，可能错过 PlayerCoverTag 导致低分辨率解码；
+                // 延迟重载一次封面，确保使用高分辨率桶。
+                _ = ReloadCoverHighResAsync(LandscapeCoverImage);
             }
             RightHalf.ClearValue(HeightRequestProperty);
             MainContent.RowDefinitions = new RowDefinitionCollection
@@ -154,6 +167,8 @@ public partial class NowPlayingPage : ContentPage
                 LandscapeCurrentLyric.IsVisible = true;
                 LandscapeLyricsScroll.IsVisible = false;
                 _landscapeLyricsMode = false;
+                // 若页面首次以横屏创建，竖屏封面 Handler 此时才就绪，重载一次确保高分辨率。
+                _ = ReloadCoverHighResAsync(ArtworkImage);
             }
             // 5行歌词高度估算：约 200-220px
             RightHalf.HeightRequest = 200;
@@ -198,6 +213,43 @@ public partial class NowPlayingPage : ContentPage
                 v2.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
         }
         catch { /* Handler 未就绪时忽略，下次 OnAppearing 再补 */ }
+#endif
+    }
+
+    /// <summary>
+    /// 为指定封面 Image 强制使用高分辨率桶重新加载图片。
+    /// 用于横屏/竖屏封面在布局切换后 Handler 才创建、导致首次解码分辨率不足的场景。
+    /// </summary>
+    private async Task ReloadCoverHighResAsync(Image image)
+    {
+#if ANDROID
+        try
+        {
+            // 等待布局测量完成、Handler 与原生 ImageView 就绪
+            await Task.Delay(50);
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                try
+                {
+                    // 直接给原生 ImageView 打 Tag，确保后续解码走 PlayerCoverTargetPx
+                    if (image.Handler?.PlatformView is Android.Widget.ImageView iv)
+                        iv.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
+
+                    // 强制重新解码：先清空 Source（会破坏 XAML 的 OneWay 绑定），
+                    // 再用 SetBinding 重新建立绑定。绑定立即求值，将 Source 设回
+                    // ViewModel.CoverImage 的当前值，触发带 Tag 的高分辨率重新解码。
+                    // 关键：必须用 SetBinding 而非直接赋值 Source，否则后续切歌时
+                    // ViewModel.CoverImage 的变化无法传播到 Image（绑定已断开）。
+                    image.Source = null;
+                    image.SetBinding(Image.SourceProperty, new Binding(nameof(NowPlayingViewModel.CoverImage)));
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("NowPlayingPage", $"[Cover] 高分辨率重载失败: {ex.Message}");
+                }
+            });
+        }
+        catch { }
 #endif
     }
 
@@ -271,67 +323,85 @@ public partial class NowPlayingPage : ContentPage
     /// <param name="e">属性变更事件参数。</param>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
-            e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
+        // 横竖屏切换时旧页面被销毁但订阅未取消，UI 控件可能已为 null。
+        // try-catch 防止 NullReferenceException 阻断多播委托调用链，
+        // 否则后续的绑定系统 handler 不会被调用，导致封面等绑定不更新。
+        try
         {
-            MainThread.BeginInvokeOnMainThread(() =>
+            if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
+                e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
             {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (_isLandscape && _landscapeLyricsMode)
+                        BuildLandscapeLyricViews();
+                    else
+                        BuildLyricViews();
+                });
+                return;
+            }
+
+            if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLyricIndexObservable))
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (_isLandscape && _landscapeLyricsMode)
+                        HighlightLandscapeLine(_viewModel.CurrentLyricIndexObservable);
+                    else
+                        HighlightLine(_viewModel.CurrentLyricIndexObservable);
+                });
+                return;
+            }
+
+            // 逐字填充进度变化：直接更新当前行 KaraokeLabel 的 FillProgress
+            // PropertyChanged 已在主线程触发，无需额外 dispatch
+            if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLineFillProgress))
+            {
+                var idx = _viewModel.CurrentLyricIndexObservable;
                 if (_isLandscape && _landscapeLyricsMode)
-                    BuildLandscapeLyricViews();
-                else
-                    BuildLyricViews();
-            });
-            return;
-        }
-
-        if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLyricIndexObservable))
-        {
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                if (_isLandscape && _landscapeLyricsMode)
-                    HighlightLandscapeLine(_viewModel.CurrentLyricIndexObservable);
-                else
-                    HighlightLine(_viewModel.CurrentLyricIndexObservable);
-            });
-            return;
-        }
-
-        // 逐字填充进度变化：直接更新当前行 KaraokeLabel 的 FillProgress
-        // PropertyChanged 已在主线程触发，无需额外 dispatch
-        if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLineFillProgress))
-        {
-            var idx = _viewModel.CurrentLyricIndexObservable;
-            if (_isLandscape && _landscapeLyricsMode)
-            {
-                if (idx >= 0 && idx < _landscapeLyricLabels.Count)
-                    _landscapeLyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
+                {
+                    if (idx >= 0 && idx < _landscapeLyricLabels.Count)
+                        _landscapeLyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
+                }
+                else if (idx >= 0 && idx < _lyricLabels.Count)
+                    _lyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
+                return;
             }
-            else if (idx >= 0 && idx < _lyricLabels.Count)
-                _lyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
-            return;
-        }
 
-        // 直接响应 ViewModel 的 Progress/Duration 变化，替代冗余的 500ms UI 定时器
-        if (e.PropertyName == nameof(NowPlayingViewModel.Duration))
-        {
-            var duration = _viewModel.Duration;
-            if (duration > 1 && ProgressSlider.Maximum != duration)
+            // 直接响应 ViewModel 的 Progress/Duration 变化，替代冗余的 500ms UI 定时器
+            if (e.PropertyName == nameof(NowPlayingViewModel.Duration))
             {
-                ProgressSlider.Maximum = duration;
-                LandscapeProgressSlider.Maximum = duration;
+                var duration = _viewModel.Duration;
+                // 即使 duration<=1（数据库时长未知）也要更新 Maximum，
+                // 否则切歌时滑块保留上一首的 Maximum，进度条显示异常。
+                var max = duration > 1 ? duration : 1;
+                if (ProgressSlider.Maximum != max)
+                {
+                    ProgressSlider.Maximum = max;
+                    LandscapeProgressSlider.Maximum = max;
+                }
+            }
+
+            if (e.PropertyName == nameof(NowPlayingViewModel.Progress) && !_isDragging)
+            {
+                var progress = _viewModel.Progress;
+                // 切歌时 Progress 被重置为 0：无论新歌时长是否已知，都必须把滑块归零，
+                // 否则滑块停在上一首的结束位置，表现为「进度条未重建」。
+                if (progress == 0)
+                {
+                    ProgressSlider.Value = 0;
+                    LandscapeProgressSlider.Value = 0;
+                    return;
+                }
+                var duration = _viewModel.Duration;
+                if (duration > 1 && Math.Abs(ProgressSlider.Value - progress) > 0.5)
+                {
+                    ProgressSlider.Value = progress;
+                    LandscapeProgressSlider.Value = progress;
+                }
             }
         }
-
-        if (e.PropertyName == nameof(NowPlayingViewModel.Progress) && !_isDragging)
-        {
-            var progress = _viewModel.Progress;
-            var duration = _viewModel.Duration;
-            if (duration > 1 && Math.Abs(ProgressSlider.Value - progress) > 0.5)
-            {
-                ProgressSlider.Value = progress;
-                LandscapeProgressSlider.Value = progress;
-            }
-        }
+        catch { /* 页面已销毁，忽略 */ }
     }
 
     private void BuildLyricViews()
@@ -654,7 +724,7 @@ public partial class NowPlayingPage : ContentPage
 #endif
     }
 
-    /// <summary>点击左上角收起按钮：播放页向下平移收起，露出发现页</summary>
+    /// <summary>点击右上角收起按钮：播放页向下平移收起，露出发现页</summary>
     private void OnCollapseButtonTapped(object? sender, TappedEventArgs e)
     {
 #if WINDOWS
@@ -668,7 +738,7 @@ public partial class NowPlayingPage : ContentPage
     }
 
     /// <summary>
-    /// 横屏布局左上角收起按钮：
+    /// 横屏布局右上角收起按钮：
     /// DesktopMainPage 为 Shell 根页面，播放页经 PushAsync 入栈，PopAsync 返回即可。
     /// 普通手机竖屏（播放页为 MainPage 内浮层）则收起播放页回到发现页。
     /// </summary>
@@ -1063,7 +1133,7 @@ public partial class NowPlayingPage : ContentPage
                 {
                     if (grid.BindingContext is Song song)
                     {
-                        PlaylistPopup.Close();
+                        _ = PlaylistPopup.CloseAsync();
                         _ = _viewModel.PlaySongFromQueueCommand.ExecuteAsync(song);
                     }
                 };

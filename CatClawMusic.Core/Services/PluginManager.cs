@@ -269,7 +269,7 @@ public class PluginManager : IPluginManager
             foreach (var sub in info.SubPlugins)
             {
                 // 子插件初始化失败则静默忽略
-                try { await sub.InitializeAsync(); } catch { }
+                try { await sub.InitializeAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"子插件初始化失败: {ex.Message}"); }
             }
         }
     }
@@ -285,10 +285,10 @@ public class PluginManager : IPluginManager
     {
         foreach (var info in _plugins.Where(p => p.IsEnabled))
         {
-            try { await info.Plugin.ShutdownAsync(); } catch { }
+            try { await info.Plugin.ShutdownAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"主插件关闭失败: {ex.Message}"); }
             foreach (var sub in info.SubPlugins)
             {
-                try { await sub.ShutdownAsync(); } catch { }
+                try { await sub.ShutdownAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"子插件关闭失败: {ex.Message}"); }
             }
         }
     }
@@ -542,7 +542,7 @@ public class PluginManager : IPluginManager
             await primary.InitializeAsync();
             foreach (var sub in info.SubPlugins)
             {
-                try { await sub.InitializeAsync(); } catch { }
+                try { await sub.InitializeAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"子插件初始化失败: {ex.Message}"); }
             }
         }
 
@@ -674,11 +674,11 @@ public class PluginManager : IPluginManager
                 await info.Plugin.ShutdownAsync();
                 foreach (var sub in info.SubPlugins)
                 {
-                    try { await sub.ShutdownAsync(); } catch { }
+                    try { await sub.ShutdownAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"子插件关闭失败: {ex.Message}"); }
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("PluginManager", $"卸载时关闭插件失败: {ex.Message}"); }
 
         // 删除插件 DLL 文件
         if (info.AssemblyPath != null)
@@ -687,7 +687,7 @@ public class PluginManager : IPluginManager
             {
                 File.Delete(info.AssemblyPath);
             }
-            catch { }
+            catch (Exception ex) { Log.Debug("PluginManager", $"删除插件 DLL 失败: {ex.Message}"); }
         }
 
         // 从内存和索引中移除
@@ -719,7 +719,7 @@ public class PluginManager : IPluginManager
                 }));
             File.WriteAllText(indexPath, data);
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("PluginManager", $"保存插件索引失败: {ex.Message}"); }
     }
 
     /// <summary>
@@ -750,7 +750,7 @@ public class PluginManager : IPluginManager
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("PluginManager", $"加载插件索引失败: {ex.Message}"); }
     }
 
     /// <summary>
@@ -817,12 +817,10 @@ public class PluginManager : IPluginManager
 
                     _plugins.Add(info);
                 }
-                catch
-                {
-                }
+                catch (Exception ex) { Log.Debug("PluginManager", $"恢复插件失败: {ex.Message}"); }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("PluginManager", $"恢复已安装插件失败: {ex.Message}"); }
     }
 
     /// <summary>

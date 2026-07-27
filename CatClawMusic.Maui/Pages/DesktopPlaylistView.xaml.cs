@@ -160,7 +160,7 @@ public partial class DesktopPlaylistView : ContentPage
             }
         };
         var cancelTap = new TapGestureRecognizer();
-        cancelTap.Tapped += (_, _) => CreatePlaylistPopup.Close();
+        cancelTap.Tapped += (_, _) => { _ = CreatePlaylistPopup.CloseAsync(); };
         cancelBtn.GestureRecognizers.Add(cancelTap);
         btnRow.Add(cancelBtn, 0);
 
@@ -208,7 +208,7 @@ public partial class DesktopPlaylistView : ContentPage
             return;
         }
 
-        CreatePlaylistPopup.Close();
+        await CreatePlaylistPopup.CloseAsync();
 
         try
         {

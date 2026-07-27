@@ -10,7 +10,7 @@ public class MemoryItem
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     public string Category { get; set; } = "preference";
     public string Content { get; set; } = "";
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public int Importance { get; set; } = 5;
 }
@@ -206,7 +206,7 @@ public class ChatMemoryService
                         existing.Content = item.Content;
                         existing.Category = item.Category;
                         existing.Importance = item.Importance;
-                        existing.UpdatedAt = DateTime.Now;
+                        existing.UpdatedAt = DateTime.UtcNow;
                         hasChanges = true;
                     }
                     else
@@ -260,7 +260,7 @@ public class ChatMemoryService
             if (existing != null)
             {
                 existing.Importance = Math.Max(existing.Importance, importance);
-                existing.UpdatedAt = DateTime.Now;
+                existing.UpdatedAt = DateTime.UtcNow;
             }
             else
             {

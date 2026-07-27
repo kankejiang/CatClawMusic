@@ -52,7 +52,7 @@ public class ExploreDataService
         _library = library;
         _cacheDir = cacheDir;
         _cacheFilePath = Path.Combine(cacheDir, "daily_recommend.json");
-        try { Directory.CreateDirectory(cacheDir); } catch { }
+        try { Directory.CreateDirectory(cacheDir); } catch (Exception ex) { Log.Debug("ExploreDataService", $"创建缓存目录失败: {ex.Message}"); }
     }
 
     /// <summary>设置来源筛选</summary>
@@ -86,7 +86,7 @@ public class ExploreDataService
             if (File.Exists(_cacheFilePath))
                 File.Delete(_cacheFilePath);
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("ExploreDataService", $"删除缓存文件失败: {ex.Message}"); }
     }
 
     /// <summary>根据来源筛选过滤歌曲列表</summary>
@@ -125,7 +125,7 @@ public class ExploreDataService
 
         _dailyRecommendCache = shuffled;
         _dailyRecommendDate = today;
-        SaveDailyRecommendToDisk(today, shuffled);
+        await SaveDailyRecommendToDiskAsync(today, shuffled).ConfigureAwait(false);
         return shuffled;
     }
 
@@ -168,7 +168,7 @@ public class ExploreDataService
     }
 
     /// <summary>保存每日推荐到磁盘缓存</summary>
-    private void SaveDailyRecommendToDisk(string date, List<Song> songs)
+    private async Task SaveDailyRecommendToDiskAsync(string date, List<Song> songs)
     {
         try
         {
@@ -178,7 +178,8 @@ public class ExploreDataService
             {
                 if (File.Exists(_cacheFilePath))
                 {
-                    var json = File.ReadAllText(_cacheFilePath);
+                    // 异步读取，避免阻塞调用方线程
+                    var json = await File.ReadAllTextAsync(_cacheFilePath).ConfigureAwait(false);
                     existing = System.Text.Json.JsonSerializer.Deserialize<DailyRecommendCache>(json) ?? new DailyRecommendCache();
                 }
                 else
@@ -193,9 +194,10 @@ public class ExploreDataService
 
             Directory.CreateDirectory(_cacheDir);
             var output = System.Text.Json.JsonSerializer.Serialize(existing);
-            File.WriteAllText(_cacheFilePath, output);
+            // 异步写入，避免阻塞调用方线程
+            await File.WriteAllTextAsync(_cacheFilePath, output).ConfigureAwait(false);
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("ExploreDataService", $"写入每日推荐缓存失败: {ex.Message}"); }
     }
 
     /// <summary>将艺人/专辑 ID 合并到已有磁盘缓存（不覆盖歌曲推荐）</summary>
@@ -226,7 +228,7 @@ public class ExploreDataService
             var output = System.Text.Json.JsonSerializer.Serialize(existing);
             await File.WriteAllTextAsync(_cacheFilePath, output);
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("ExploreDataService", $"写入艺人专辑缓存失败: {ex.Message}"); }
     }
 
     /// <summary>获取每日推荐艺术家（每天随机10个，带缓存）</summary>
@@ -309,7 +311,7 @@ public class ExploreDataService
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("ExploreDataService", $"聚合艺术家歌曲数失败: {ex.Message}"); }
 
         // 从每个艺术家的第一首本地歌曲获取封面信息
         var artistSampleCover = songs
@@ -530,7 +532,7 @@ public class ExploreDataService
                     s.PlayCount = count;
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Debug("ExploreDataService", $"填充播放次数失败: {ex.Message}"); }
     }
 
     /// <summary>

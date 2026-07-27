@@ -389,3 +389,4 @@ FodyWeavers.xsd
 /window_dump*.xml
 /wd*.xml
 /ui_dump*.xml
+/.workbuddy/verify

@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.Services.Equalizer;
+using Microsoft.Maui.ApplicationModel;
 
 namespace CatClawMusic.Maui.Services;
 
@@ -25,10 +26,6 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private double _lastNotifiedPosition = -1;
     // 缓存定时器回调委托，避免每次 tick 创建新闭包
     private static readonly TimerCallback _positionCallback = PositionTimerCallback;
-    // 缓存主线程调度委托，避免每次 tick 创建新 Action 闭包
-    // 注意: 不能用 [ThreadStatic]，因为 Timer 线程写、主线程读需要看到同一个值
-    private static volatile AudioPlayerService? _tickSvc;
-    private static readonly Action _tickAction = TickOnMainThread;
 
     /// <summary>
     /// 平台可注入的 URL 转换器，用于将 smb:// 等 ExoPlayer 不支持的协议 URL 转换为可播放的 URL（如本地 HTTP 代理地址）。
@@ -73,15 +70,27 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     private static void PositionTimerCallback(object? state)
     {
         if (state is not AudioPlayerService svc || svc._disposed) return;
-        // ExoPlayer 要求在创建线程（主线程）访问，必须切到主线程
-        _tickSvc = svc;
-        MainThread.BeginInvokeOnMainThread(_tickAction);
+        // 把 tick 派发回主线程读取播放位置。
+        // 早期实现用构造期捕获的 SynchronizationContext（_mainContext）做 Post，
+        // 但 MAUI 在部分启动路径下构造时主线程同步上下文尚未就绪 → _mainContext 为 null →
+        // 每次 tick 的 Post 被静默丢弃 → 进度条冻结而音频照常播放（“进度条不会跑”）。
+        // MainThread.BeginInvokeOnMainThread 由 MAUI 在启动早期安装，跨平台可靠，
+        // 不依赖捕获时机，是修复进度条冻结的关键。
+        MainThread.BeginInvokeOnMainThread(() => TickOnMainThread(svc));
     }
 
-    private static void TickOnMainThread()
+    private static int _tickLogCount;
+
+    private static void TickOnMainThread(object? state)
     {
-        var svc = _tickSvc;
-        if (svc == null || svc._disposed) return;
+        if (state is not AudioPlayerService svc || svc._disposed) return;
+#if DEBUG
+        if (_tickLogCount < 3)
+        {
+            _tickLogCount++;
+            Log.Debug("AudioPlayerService", $"[PositionTimer] tick #{_tickLogCount} pos={svc.CurrentPosition:F2}s");
+        }
+#endif
         try
         {
             var pos = svc.CurrentPosition;
@@ -219,6 +228,9 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     internal void StartPositionTimer()
     {
         StopPositionTimer();
+#if DEBUG
+        Log.Debug("AudioPlayerService", "[PositionTimer] Started");
+#endif
         _positionTimer = new System.Threading.Timer(_positionCallback, this, 50, 50);
     }
 

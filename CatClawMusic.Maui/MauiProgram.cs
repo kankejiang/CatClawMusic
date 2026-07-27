@@ -22,11 +22,11 @@ public static class MauiProgram
     {
         // 写固定路径，确保能找到日志
         var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
-        try { File.Delete(logPath); } catch { }
+        try { File.Delete(logPath); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"清理启动日志失败: {ex.Message}"); }
         void StartupLog(string msg)
         {
             Log.Debug("MauiProgram", $"[STARTUP] {msg}");
-            try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch { }
+            try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"启动日志写入失败: {ex.Message}"); }
         }
 
         StartupLog("Step 0: CreateMauiApp entry");
@@ -91,7 +91,7 @@ public static class MauiProgram
         // ═══════════════════════════════════════════════════
         var dbPath = Path.Combine(FileSystem.AppDataDirectory, "catclaw.db");
         var db = new MusicDatabase(dbPath);
-        _ = Task.Run(async () => { try { await db.EnsureInitializedAsync(); } catch { } });
+        _ = Task.Run(async () => { try { await db.EnsureInitializedAsync(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"数据库初始化失败: {ex.Message}"); } });
         services.AddSingleton(db);
 
         // ═══════════════════════════════════════════════════
@@ -154,7 +154,8 @@ public static class MauiProgram
                 if (authToken != null)
                     reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
                 Log.Debug("MauiProgram", "[Lyrics] RemoteUrlStreamOpener 发送 HTTP 请求...");
-                var resp = httpClient.SendAsync(reqMsg).GetAwaiter().GetResult();
+                // 用 Task.Run 包裹避免在 UI 线程同步等待（RemoteUrlStreamOpener 为库代码要求的同步签名）
+                var resp = Task.Run(() => httpClient.SendAsync(reqMsg)).GetAwaiter().GetResult();
                 Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                 if (!resp.IsSuccessStatusCode)
                 {
@@ -506,7 +507,7 @@ public static class MauiProgram
                 var audio = Services.GetRequiredService<AudioPlayerService>();
                 audio.SetFFmpegService(ffmpeg);
             }
-            catch { }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"FFmpeg 初始化失败: {ex.Message}"); }
         });
 #endif
 
@@ -567,7 +568,8 @@ public static class MauiProgram
                     reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, lyricsHeadSize - 1);
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                     Log.Debug("MauiProgram", $"[Lyrics] SMB Range 请求: {proxyUrl[..Math.Min(80, proxyUrl.Length)]}...");
-                    var resp = _sharedHttpClient.SendAsync(reqMsg, cts.Token).GetAwaiter().GetResult();
+                    // 用 Task.Run 包裹避免 SyncContext 死锁（委托为库代码要求的同步签名）
+                    var resp = Task.Run(() => _sharedHttpClient.SendAsync(reqMsg, cts.Token)).GetAwaiter().GetResult();
                     Log.Debug("MauiProgram", $"[Lyrics] SMB Range 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                     if (!resp.IsSuccessStatusCode) return null;
                     using var ms = new MemoryStream();
@@ -590,7 +592,8 @@ public static class MauiProgram
                 try
                 {
                     Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener 入口: {url[..Math.Min(60, url.Length)]}...");
-                    var resolvedUrl = networkMusic.ResolveWebDavPlaybackUrlAsync(url).GetAwaiter().GetResult();
+                    // 用 Task.Run 包裹避免 SyncContext 死锁（委托为库代码要求的同步签名）
+                    var resolvedUrl = Task.Run(() => networkMusic.ResolveWebDavPlaybackUrlAsync(url)).GetAwaiter().GetResult();
                     var downloadUrl = string.IsNullOrEmpty(resolvedUrl) ? url : resolvedUrl;
                     Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener downloadUrl: {downloadUrl[..Math.Min(60, downloadUrl.Length)]}...");
 
@@ -622,7 +625,8 @@ public static class MauiProgram
                     if (authToken != null)
                         reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
                     Log.Debug("MauiProgram", "[Lyrics] Android RemoteUrlStreamOpener 发送 Range 请求...");
-                    var resp = webDavHttpClient.SendAsync(reqMsg).GetAwaiter().GetResult();
+                    // 用 Task.Run 包裹避免 SyncContext 死锁（委托为库代码要求的同步签名）
+                    var resp = Task.Run(() => webDavHttpClient.SendAsync(reqMsg)).GetAwaiter().GetResult();
                     Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                     if (!resp.IsSuccessStatusCode)
                         return null;
@@ -664,12 +668,11 @@ public static class SafeAreaHelper
     /// <param name="bottomDp">导航栏高度（dp）</param>
     public static void UpdateInsets(double topDp, double bottomDp)
     {
-        // 防止手势导航模式下同步读取为 0 覆盖掉 EdgeToEdgeInsets 异步回调的正确值
-        // （EdgeToEdgeGlobalLayoutListener 每次布局后调用 SetupEdgeToEdge，其内同步读
-        // navigation_bar_height 在全面屏手势下返回 0，会错误覆盖已设置的非零 BottomInset）
-        if (bottomDp <= 0 && BottomInset > 0) bottomDp = BottomInset;
-        if (topDp <= 0 && TopInset > 0) topDp = TopInset;
-
+        // 直接采用系统回调的真实 insets 值：
+        // - 横屏状态栏隐藏 → top=0 是正确值，不应被旧值覆盖
+        // - 车机/竖屏状态栏可见 → top=实际高度
+        // - 手势导航 → bottom=0 是正确值
+        // 旧逻辑会"防 0 覆盖"，导致横屏下 TopInset 永远锁在竖屏的 24dp，造成内容被抬高。
         bool changed = Math.Abs(topDp - TopInset) > 0.5 || Math.Abs(bottomDp - BottomInset) > 0.5;
         TopInset = topDp;
         BottomInset = bottomDp;

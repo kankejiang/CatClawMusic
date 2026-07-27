@@ -46,6 +46,10 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
             {
                 var drawable = new BitmapDrawable(imageView.Resources ?? imageView.Context?.Resources, bitmap);
                 imageView.SetImageDrawable(drawable);
+                // 对播放页封面强制保持 CenterCrop，确保 XAML Aspect="AspectFill" 在 Source 重新绑定后仍生效，
+                // 防止出现封面只显示上半部分、下半截黑色的情况。
+                if (imageView.Tag?.ToString() == PlayerCoverTag)
+                    imageView.SetScaleType(ImageView.ScaleType.CenterCrop);
                 return new CachingImageSourceResult(drawable);
             }
         }

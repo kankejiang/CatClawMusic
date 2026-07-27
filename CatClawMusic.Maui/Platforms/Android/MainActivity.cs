@@ -226,31 +226,30 @@ public class MainActivity : MauiAppCompatActivity
 
             // 优先尝试同步读取当前窗口 inset（Android 11+ / API 30+），
             // 比 navigation_bar_height 资源更准确（后者在手势导航下可能为 0）。
+            // 同时读取多种 inset 类型取最大值，每种用 try-catch 包裹避免兼容性崩溃。
             var currentInsets = rootView.RootWindowInsets;
             if (currentInsets != null)
             {
-                var systemBars = currentInsets.GetInsets(WindowInsets.Type.SystemBars());
-                syncTop = systemBars.Top / density;
-                syncBottom = systemBars.Bottom / density;
+                int syncTopPx = 0, syncBottomPx = 0;
+                try { var sb = currentInsets.GetInsets(WindowInsets.Type.SystemBars()); syncTopPx = Math.Max(syncTopPx, sb.Top); syncBottomPx = Math.Max(syncBottomPx, sb.Bottom); } catch { }
+                try { var mg = currentInsets.GetInsets(WindowInsets.Type.MandatorySystemGestures()); syncTopPx = Math.Max(syncTopPx, mg.Top); syncBottomPx = Math.Max(syncBottomPx, mg.Bottom); } catch { }
+                try { var sg = currentInsets.GetInsets(WindowInsets.Type.SystemGestures()); syncTopPx = Math.Max(syncTopPx, sg.Top); syncBottomPx = Math.Max(syncBottomPx, sg.Bottom); } catch { }
+                try { var so = currentInsets.GetInsets(WindowInsets.Type.SystemOverlays()); syncTopPx = Math.Max(syncTopPx, so.Top); syncBottomPx = Math.Max(syncBottomPx, so.Bottom); } catch { }
+                syncTop = syncTopPx / density;
+                syncBottom = syncBottomPx / density;
+                Android.Util.Log.Debug("MainActivity", $"[SafeArea] sync insets: top={syncTop:F1}px(={syncTopPx}px), bottom={syncBottom:F1}dp(={syncBottomPx}px)");
             }
 
-            // 回退：从系统维度资源读取（传统 3 键导航）
-            if (syncTop <= 0)
+            // 仅在 RootWindowInsets 尚未就绪（同步读取全为 0）时才用资源兜底；
+            // 横屏状态栏隐藏时 insets 会正确返回 0，不应被资源值覆盖。
+            if (syncTop <= 0 && syncBottom <= 0)
             {
                 var statusHId = Resources?.GetIdentifier("status_bar_height", "dimen", "android") ?? 0;
                 syncTop = (statusHId > 0 ? Resources?.GetDimensionPixelSize(statusHId) ?? 0 : 0) / density;
-            }
-            if (syncBottom <= 0)
-            {
                 var navHId = Resources?.GetIdentifier("navigation_bar_height", "dimen", "android") ?? 0;
                 syncBottom = (navHId > 0 ? Resources?.GetDimensionPixelSize(navHId) ?? 0 : 0) / density;
+                Android.Util.Log.Debug("MainActivity", $"[SafeArea] resource fallback: top={syncTop:F1}dp, bottom={syncBottom:F1}dp");
             }
-
-            // 全面屏手势兜底：navigation_bar_height 在手势导航下返回 0，
-            // 但 RootWindowInsets 在 OnCreate 阶段可能尚未就绪。
-            // 使用合理默认值防止 TabBar 完全紧贴屏幕底边。
-            if (syncBottom <= 0)
-                syncBottom = 16;
 
             SafeAreaHelper.UpdateInsets(syncTop, syncBottom);
         }
@@ -325,22 +324,25 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
     public WindowInsetsCompat OnApplyWindowInsets(Android.Views.View? v, WindowInsetsCompat? insets)
     {
         if (v == null || insets == null) return insets!;
-        var systemBars = insets.GetInsets(WindowInsetsCompat.Type.SystemBars());
+
+        // 同时读取多种 inset 类型并取最大值，适配车机/全面屏各种系统 UI。
+        // 每种类型用 try-catch 包裹：不同 AndroidX Core 版本和 API level 支持的方法不同，
+        // 避免因某类型不存在（NoSuchMethodError）导致整个应用崩溃。
+        int top = 0, bottom = 0;
+        try { var sb = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()); top = Math.Max(top, sb.Top); bottom = Math.Max(bottom, sb.Bottom); } catch { }
+        try { var mg = insets.GetInsets(WindowInsetsCompat.Type.MandatorySystemGestures()); top = Math.Max(top, mg.Top); bottom = Math.Max(bottom, mg.Bottom); } catch { }
+        try { var sg = insets.GetInsets(WindowInsetsCompat.Type.SystemGestures()); top = Math.Max(top, sg.Top); bottom = Math.Max(bottom, sg.Bottom); } catch { }
+        try { var so = insets.GetInsets(WindowInsetsCompat.Type.SystemOverlays()); top = Math.Max(top, so.Top); bottom = Math.Max(bottom, so.Bottom); } catch { }
 
         // 关键：强制清零根内容视图的原生 padding。
-        // 即使返回 Consumed，MAUI 仍可能在其 ApplySafeArea 中将导航栏高度作为
-        // ContentViewGroup 的底部 padding，导致所有页面（含全屏页）底部留空。
-        // 项目内部页面通过 SafeAreaHelper 自行管理 padding，根视图不应再叠加。
         v.SetPadding(0, 0, 0, 0);
 
-        // 不设置根视图 padding，让内容延伸到系统栏区域
-        // 各页面通过 SafeAreaHelper 自行处理 padding
         try
         {
             var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
             var density = activity?.Resources?.DisplayMetrics?.Density ?? 1f;
-            var topDp = systemBars.Top / density;
-            var bottomDp = systemBars.Bottom / density;
+            var topDp = top / density;
+            var bottomDp = bottom / density;
 
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
                 SafeAreaHelper.UpdateInsets(topDp, bottomDp));

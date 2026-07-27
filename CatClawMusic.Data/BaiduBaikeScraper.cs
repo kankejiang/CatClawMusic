@@ -32,7 +32,7 @@ public class BaiduBaikeScraper : IArtistMetadataScraper
         {
             PooledConnectionLifetime = TimeSpan.FromMinutes(3),
         });
-        _http.Timeout = TimeSpan.FromSeconds(15);
+        _http.Timeout = TimeSpan.FromSeconds(NetworkTimeouts.ScrapeSeconds);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
     }

@@ -384,7 +384,8 @@ public partial class AudioPlayerService
             {
                 try
                 {
-                    var file = StorageFile.GetFileFromPathAsync(_currentCoverPath).GetAwaiter().GetResult();
+                    // 用 Task.Run 包裹避免在 UI 线程同步等待 WinRT 异步操作导致 SyncContext 死锁
+                    var file = Task.Run(() => StorageFile.GetFileFromPathAsync(_currentCoverPath).AsTask()).GetAwaiter().GetResult();
                     updater.Thumbnail = RandomAccessStreamReference.CreateFromFile(file);
                 }
                 catch (Exception ex)

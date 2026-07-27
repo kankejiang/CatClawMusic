@@ -177,4 +177,10 @@
     <converters:ChatBubbleAlignmentConverter x:Key="ChatBubbleAlignmentConverter" />
     <converters:LogLevelBackgroundConverter x:Key="LogLevelBackgroundConverter" />
     <converters:LogLevelForegroundConverter x:Key="LogLevelForegroundConverter" />
+    <!-- 列表/网格项模板公共 Converter（全局注册，供 ContentView 组件和页面共用） -->
+    <converters:InitialConverter x:Key="InitialConverter" />
+    <converters:CoverArtConverter x:Key="CoverArtConverter" />
+    <converters:PlaceholderColorConverter x:Key="PlaceholderColorConverter" />
+    <converters:NameToLetterConverter x:Key="NameToLetterConverter" />
+    <converters:PlaybackCountConverter x:Key="PlaybackCountConverter" />
 </ResourceDictionary>

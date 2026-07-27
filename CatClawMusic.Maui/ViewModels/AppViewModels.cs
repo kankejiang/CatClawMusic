@@ -530,6 +530,13 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             UpdateLyricPosition(position);
         }
+        else
+        {
+            // 交互期间（含自动滚动跟随）仍持续更新当前行的逐字着色进度，
+            // 避免滚动冻结着色、结束后跳字；只是不切换行索引，避免滚动期间
+            // 触发新的 HighlightLine → ScrollToLine 循环。
+            UpdateFillProgressOnly(position);
+        }
 
         // 预缓冲：距歌曲结束 PreBufferSeconds 秒时，开始缓冲下一首 + 预取元数据
         if (Duration > 0 && (Duration - position.TotalSeconds) <= AudioCacheService.PreBufferSeconds
@@ -1058,7 +1065,7 @@ public partial class NowPlayingViewModel : ObservableObject
 
         // 缓存命中：已下采样到播放页尺寸（1000px）的封面文件，直接复用避免重复解码大图
         var npCached = Services.CoverHelper.GetCachedPath(song.Id, Services.CoverHelper.NowPlayingSize);
-        if (File.Exists(npCached))
+        if (File.Exists(npCached) && Services.CoverHelper.IsValidImageFilePublic(npCached))
         {
             CurrentCoverPath = npCached;
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -1070,6 +1077,11 @@ public partial class NowPlayingViewModel : ObservableObject
             try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(npCached); } catch { }
 #endif
             return;
+        }
+        // npCached 损坏则删除，继续重新提取
+        if (File.Exists(npCached))
+        {
+            try { File.Delete(npCached); } catch { }
         }
 
         // 1. Check existing CoverArtPath
@@ -1182,13 +1194,13 @@ public partial class NowPlayingViewModel : ObservableObject
             try
             {
                 ct.ThrowIfCancellationRequested();
-                var stream = await _musicLibrary.GetAlbumCoverAsync(song);
+                // await using 确保异常路径下 stream 也能被释放
+                await using var stream = await _musicLibrary.GetAlbumCoverAsync(song);
                 if (stream != null)
                 {
                     var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
-                    using (var fs = File.Create(cachedPath))
+                    await using (var fs = File.Create(cachedPath))
                         await stream.CopyToAsync(fs, ct);
-                    stream.Dispose();
                     coverPath = cachedPath;
                 }
             }
@@ -1213,13 +1225,13 @@ public partial class NowPlayingViewModel : ObservableObject
                     var profile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome);
                     if (profile != null)
                     {
-                        var stream = await networkSvc.GetCoverAsync(song.CoverArtPath, profile);
+                        // await using 确保异常路径下 stream 也能被释放
+                        await using var stream = await networkSvc.GetCoverAsync(song.CoverArtPath, profile);
                         if (stream != null)
                         {
                             var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
-                            using (var fs = File.Create(cachedPath))
+                            await using (var fs = File.Create(cachedPath))
                                 await stream.CopyToAsync(fs, ct);
-                            stream.Dispose();
                             coverPath = cachedPath;
                         }
                     }
@@ -1250,13 +1262,13 @@ public partial class NowPlayingViewModel : ObservableObject
                     if (profile != null)
                     {
                         Log.Debug("AppViewModels", $"[CoverArt] 步骤6: 找到配置 {profile.Name}, 调用 GetCoverAsync...");
-                        var stream = await networkSvc.GetCoverAsync(song.RemoteId, profile, song.RemoteCoverPath);
+                        // await using 确保异常路径下 stream 也能被释放
+                        await using var stream = await networkSvc.GetCoverAsync(song.RemoteId, profile, song.RemoteCoverPath);
                         if (stream != null)
                         {
                             var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
-                            using (var fs = File.Create(cachedPath))
+                            await using (var fs = File.Create(cachedPath))
                                 await stream.CopyToAsync(fs, ct);
-                            stream.Dispose();
                             coverPath = cachedPath;
                             Log.Debug("AppViewModels", $"[CoverArt] 步骤6: 封面提取成功 -> {cachedPath}");
                         }
@@ -1281,6 +1293,18 @@ public partial class NowPlayingViewModel : ObservableObject
         ct.ThrowIfCancellationRequested();
 
         Log.Debug("AppViewModels", $"[CoverArt] 封面加载完成: {song.Title}, coverPath={(coverPath != null ? "找到" : "未找到")}");
+
+        if (coverPath != null)
+        {
+            // 最终路径校验：损坏则回退默认封面
+            if (!coverPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && !coverPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                && !Services.CoverHelper.IsValidImageFilePublic(coverPath))
+            {
+                Log.Debug("AppViewModels", $"[CoverArt] 最终路径校验失败，回退默认封面: {coverPath}");
+                coverPath = null;
+            }
+        }
 
         if (coverPath != null)
         {
@@ -1361,7 +1385,8 @@ public partial class NowPlayingViewModel : ObservableObject
 
                 Directory.CreateDirectory(_coverCacheDir);
                 var outPath = Path.Combine(_coverCacheDir, $"cover_{songId}.jpg");
-                File.WriteAllBytes(outPath, bytes);
+                // 同步方法内用 Task.Run 将写盘切到线程池线程，避免阻塞当前线程的同步上下文
+                Task.Run(() => File.WriteAllBytes(outPath, bytes)).Wait();
                 return outPath;
             }
             finally
@@ -1505,6 +1530,17 @@ public partial class NowPlayingViewModel : ObservableObject
         var lineMode = Services.LyricsSettingsService.Instance.LyricsMode == Services.LyricsSettingsService.Mode.Line;
         CurrentLineFillProgress = LyricFillCalculator.ComputeFillProgress(
             _currentLyrics.Lines[lineIndex], lineIndex, _currentLyrics.Lines, position, lineMode);
+    }
+
+    /// <summary>
+    /// 交互期间仅更新当前行的逐字着色进度，不切换行索引。
+    /// 用于自动滚动/用户滚动期间保持着色持续推进，避免滚动结束后跳字。
+    /// </summary>
+    private void UpdateFillProgressOnly(TimeSpan position)
+    {
+        if (_currentLyrics == null || _currentLyrics.Lines.Count == 0) return;
+        _lastPosition = position;
+        UpdateFillProgress(_currentLyricIndex, position);
     }
 
     private static string GetLineText(List<LrcLyricLine> lines, int index)

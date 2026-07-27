@@ -183,7 +183,7 @@ public partial class PlaylistPage : ContentPage
             }
         };
         var cancelTap = new TapGestureRecognizer();
-        cancelTap.Tapped += (_, _) => CreatePlaylistPopup.Close();
+        cancelTap.Tapped += (_, _) => { _ = CreatePlaylistPopup.CloseAsync(); };
         cancelBtn.GestureRecognizers.Add(cancelTap);
         btnRow.Add(cancelBtn, 0);
 
@@ -237,7 +237,7 @@ public partial class PlaylistPage : ContentPage
         }
 
         Log.Debug("PlaylistPage.xaml", $"[PlaylistPage] 开始创建歌单: '{name}'");
-        CreatePlaylistPopup.Close();
+        await CreatePlaylistPopup.CloseAsync();
 
         try
         {

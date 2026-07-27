@@ -18,6 +18,85 @@ public static class CoverHelper
     private static readonly SemaphoreSlim _networkCoverSemaphore = new(4);
     private static readonly ConcurrentDictionary<int, byte> _networkCoverInflight = new();
 
+    /// <summary>
+    /// 轻量级封面文件完整性校验：检查文件存在、大小 > 0、文件头为已知图片格式魔术字节，
+    /// 并检查文件尾标记（JPEG EOI / PNG IEND），避免写入中途崩溃/断电留下的半截损坏缓存
+    /// 被当成有效图片使用，导致封面只显示上半部分。
+    /// 不完整性解码图片，避免 GC 压力。
+    /// </summary>
+    public static bool IsValidImageFilePublic(string? path) => IsValidImageFile(path);
+
+    private static bool IsValidImageFile(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        try
+        {
+            if (!File.Exists(path)) return false;
+            var fi = new FileInfo(path);
+            if (fi.Length < 16) return false; // 太小，肯定不完整
+
+            using var fs = File.OpenRead(path);
+            Span<byte> header = stackalloc byte[12];
+            int read = fs.Read(header);
+            if (read < 4) return false;
+
+            // JPEG: FF D8 FF，文件尾应为 FF D9（EOI 标记）
+            if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+            {
+                if (fi.Length < 2) return false;
+                fs.Seek(-2, SeekOrigin.End);
+                Span<byte> tail = stackalloc byte[2];
+                return fs.Read(tail) == 2 && tail[0] == 0xFF && tail[1] == 0xD9;
+            }
+
+            // PNG: 89 50 4E 47 0D 0A 1A 0A，文件尾含 IEND chunk + AE 42 60 82
+            if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
+            {
+                if (fi.Length < 12) return false;
+                fs.Seek(-12, SeekOrigin.End);
+                Span<byte> tail = stackalloc byte[12];
+                if (fs.Read(tail) != 12) return false;
+                // tail[0..3] = "IEND", tail[8..11] = PNG 文件尾 magic
+                return tail[0] == 0x49 && tail[1] == 0x45 && tail[2] == 0x4E && tail[3] == 0x44
+                    && tail[8] == 0xAE && tail[9] == 0x42 && tail[10] == 0x60 && tail[11] == 0x82;
+            }
+
+            // BMP: 42 4D（无简单尾标记，至少检查头部大小字段合理）
+            if (header[0] == 0x42 && header[1] == 0x4D)
+            {
+                if (fi.Length < 14) return false;
+                // BMP 文件头 2 字节标志 + 4 字节文件大小
+                fs.Seek(2, SeekOrigin.Begin);
+                Span<byte> sizeBytes = stackalloc byte[4];
+                if (fs.Read(sizeBytes) != 4) return false;
+                var declaredSize = BitConverter.ToUInt32(sizeBytes);
+                // 声明大小与实际大小允许一定容差（部分 BMP 写入时不精确）
+                return declaredSize == 0 || Math.Abs((long)declaredSize - fi.Length) <= 4096;
+            }
+
+            // GIF: 47 49 46 38，文件尾应为 3B
+            if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38)
+            {
+                if (fi.Length < 1) return false;
+                fs.Seek(-1, SeekOrigin.End);
+                Span<byte> tail = stackalloc byte[1];
+                return fs.Read(tail) == 1 && tail[0] == 0x3B;
+            }
+
+            // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50，文件大小在 header[4..7]
+            if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
+                && read >= 12 && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50)
+            {
+                var chunkSize = BitConverter.ToUInt32(header.Slice(4, 4));
+                // RIFF chunk 大小 = 文件总大小 - 8
+                return Math.Abs((long)chunkSize - (fi.Length - 8)) <= 4096;
+            }
+
+            return false;
+        }
+        catch { return false; }
+    }
+
     /// <summary>封面尺寸分级（最大边长，像素）——按使用场景限制，减少内存与解码开销。</summary>
     public const int NowPlayingSize = 1000;   // 播放页大图
     public const int DiscoverSize = 800;      // 发现页卡片 / 精选大图
@@ -26,7 +105,7 @@ public static class CoverHelper
 
     static CoverHelper()
     {
-        _coverCacheDir = Path.Combine(FileSystem.CacheDirectory, "covers");
+        _coverCacheDir = System.IO.Path.Combine(FileSystem.CacheDirectory, "covers");
         Directory.CreateDirectory(_coverCacheDir);
     }
 
@@ -121,7 +200,12 @@ public static class CoverHelper
         // 1. 命中尺寸分桶缓存
         var cachedPath = GetCachedPath(song.Id, maxSize);
         if (File.Exists(cachedPath))
-            return cachedPath;
+        {
+            if (IsValidImageFile(cachedPath))
+                return cachedPath;
+            // 缓存损坏，删除后继续重新提取
+            TryDeleteSource(cachedPath);
+        }
 
         // 1.5 网络来源歌曲（WebDAV/SMB/Navidrome）：封面缓存在 covers/cover_{id}.jpg
         // （由播放页 LoadCoverArt 或本方法异步下载）。命中则优先返回尺寸分桶缓存，
@@ -129,7 +213,7 @@ public static class CoverHelper
         // 避免"列表里网络歌曲（如 webdav）始终无封面"的问题。
         if (song.Source != SongSource.Local && !string.IsNullOrEmpty(song.RemoteId))
         {
-            var netCached = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+            var netCached = System.IO.Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
             if (File.Exists(netCached))
             {
                 var bucket = GetCachedPath(song.Id, maxSize);
@@ -213,7 +297,7 @@ public static class CoverHelper
         try
         {
             await _networkCoverSemaphore.WaitAsync();
-            var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+            var cachedPath = System.IO.Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
             if (File.Exists(cachedPath)) return;
 
             var svc = CatClawMusic.Maui.MauiProgram.Services.GetService<INetworkMusicService>();
@@ -231,8 +315,18 @@ public static class CoverHelper
             using var stream = await svc.GetCoverAsync(song.RemoteId!, profile, song.RemoteCoverPath);
             if (stream == null) return;
 
-            await using var fs = File.Create(cachedPath);
-            await stream.CopyToAsync(fs);
+            // 临时文件 + 原子重命名 + 校验
+            var tmpPath = cachedPath + ".tmp";
+            await using (var fs = File.Create(tmpPath))
+            {
+                await stream.CopyToAsync(fs);
+            }
+            if (!IsValidImageFile(tmpPath))
+            {
+                TryDeleteSource(tmpPath);
+                return;
+            }
+            File.Move(tmpPath, cachedPath, overwrite: true);
             // 回填封面路径：INPC 让列表可见 cell 自动刷新
             song.CoverArtPath = cachedPath;
         }
@@ -284,8 +378,19 @@ public static class CoverHelper
             var newHeight = (int)(height * ratio);
 
             using var downsized = image.Downsize(newWidth, newHeight);
-            using var destStream = File.Create(destPath);
-            downsized.Save(destStream);
+            // 临时文件 + 原子重命名：避免写入中途异常留下半截损坏缓存
+            var tmpPath = destPath + ".tmp";
+            using (var destStream = File.Create(tmpPath))
+            {
+                downsized.Save(destStream);
+            }
+            if (!IsValidImageFile(tmpPath))
+            {
+                // 下采样后校验失败，删除临时文件不写入目标
+                TryDeleteSource(tmpPath);
+                return false;
+            }
+            File.Move(tmpPath, destPath, overwrite: true);
             return true;
         }
         catch (Exception ex)
@@ -350,7 +455,7 @@ public static class CoverHelper
     /// <summary>获取歌曲封面的标准缓存路径（按尺寸分桶，避免不同尺寸互相覆盖）。</summary>
     public static string GetCachedPath(int songId, int maxSize = DefaultMaxSize)
     {
-        return Path.Combine(_coverCacheDir, $"cover_{songId}_{maxSize}.jpg");
+        return System.IO.Path.Combine(_coverCacheDir, $"cover_{songId}_{maxSize}.jpg");
     }
 
     /// <summary>

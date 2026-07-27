@@ -81,6 +81,13 @@ public partial class DesktopMainPage : ContentPage
         SizeChanged += OnPageSizeChanged;
         InitVolumeSlider();
 
+#if ANDROID
+        // 横屏下 RootGrid 顶部/底部需要留出系统栏安全区，避免车机/手机横屏内容被状态栏或 Dock 遮挡。
+        // SafeAreaHelper 由 Android MainActivity 在 EdgeToEdge 回调中异步更新，订阅变化事件以确保首帧即正确。
+        ApplyRootGridSafeArea();
+        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+#endif
+
         // 构造时仅创建默认 tab 内容，不触发生命周期（页面尚未进入可视树）
         _currentTab = DesktopTab.Discover;
         UpdateNavHighlight();
@@ -97,6 +104,40 @@ public partial class DesktopMainPage : ContentPage
     }
 
     private bool _isFirstAppearing = true;
+
+#if ANDROID
+    /// <summary>SafeArea 变化时刷新 RootGrid 安全区内边距。</summary>
+    private void OnSafeAreaChanged(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(ApplyRootGridSafeArea);
+    }
+
+    /// <summary>
+    /// 自适应安全区：直接使用系统 insets 实际值。
+    /// 手机横屏状态栏隐藏 → TopInset=0；车机状态栏可见 → TopInset=实际高度。底部同理。
+    /// 子页面嵌入全屏模式时清零。
+    /// </summary>
+    private void ApplyRootGridSafeArea()
+    {
+        if (_embeddedSubPage != null)
+        {
+            RootGrid.Padding = new Thickness(0);
+            return;
+        }
+
+        // 完全跟随系统 insets：有状态栏就留白，没有就不留
+        RootGrid.Padding = new Thickness(0, SafeAreaHelper.TopInset, 0, SafeAreaHelper.BottomInset);
+    }
+
+    /// <summary>
+    /// 内容区安全区已由 RootGrid 统一处理，此方法仅用于嵌入子页面时清零 ContentArea padding。
+    /// </summary>
+    private void ApplyContentAreaSafeArea()
+    {
+        // 嵌入子页面时全屏显示，不额外添加顶部安全区
+        ContentArea.Padding = _embeddedSubPage != null ? new Thickness(0) : new Thickness(0);
+    }
+#endif
 
     protected override void OnAppearing()
     {
@@ -168,6 +209,7 @@ public partial class DesktopMainPage : ContentPage
             PlayerBarBorder.IsVisible = true;
 #if ANDROID
             RootGrid.RowDefinitions[3].Height = new GridLength(72);
+            ApplyContentAreaSafeArea(); // 恢复 tab 内容的顶部状态栏安全区
 #else
             RootGrid.RowDefinitions[3].Height = new GridLength(100);
 #endif
@@ -446,6 +488,10 @@ public partial class DesktopMainPage : ContentPage
         content.HorizontalOptions = LayoutOptions.Fill;
 
         ContentArea.Children.Clear();
+#if ANDROID
+        // 子页面全屏展示，移除 RootGrid 安全区 padding
+        ApplyRootGridSafeArea();
+#endif
         ContentArea.Children.Add(content);
 
         // 隐藏底部播放栏，让子页面获得最大内容展示空间
@@ -477,6 +523,11 @@ public partial class DesktopMainPage : ContentPage
 
         // 恢复系统状态栏显示
         ShowSystemStatusBar();
+
+#if ANDROID
+        // 恢复 RootGrid 顶部/底部系统栏安全区
+        ApplyRootGridSafeArea();
+#endif
 
         SwitchToNamedTab(returnTab);
     }
@@ -794,10 +845,12 @@ public partial class DesktopMainPage : ContentPage
 
         // 播放控制区：减少两侧内边距，避免横屏手机横向拥挤
         PlayerControlsGrid.Padding = new Thickness(8, 0);
+        DesktopProgressSlider.MinimumWidthRequest = 160;
 
-        // 音量区
-        VolumeGrid.WidthRequest = 90;
-        VolumeSlider.WidthRequest = 70;
+        // 音量区：compact 模式下保持 160 宽，Slider 至少 120
+        VolumeGrid.WidthRequest = 160;
+        VolumeGrid.MinimumWidthRequest = 120;
+        VolumeSlider.MinimumWidthRequest = 120;
     }
 
     /// <summary>隐藏系统状态栏，让子页面内容延伸到屏幕顶部（沉浸式）。</summary>

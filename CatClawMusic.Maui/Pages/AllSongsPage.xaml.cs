@@ -5,7 +5,8 @@ using CatClawMusic.Maui.ViewModels;
 namespace CatClawMusic.Maui.Pages;
 
 /// <summary>
-/// "全部歌曲"二级页面：按 HTML 原型实现，支持搜索、多维度排序、A-Z 索引、播放/随机。
+/// "全部歌曲"二级页面（竖屏）：支持搜索、多维度排序、A-Z 索引、播放/随机。
+/// 横屏下使用 <see cref="DesktopAllSongsPage"/>。公共 UI 组件见 <see cref="Controls"/> 命名空间。
 /// </summary>
 [QueryProperty(nameof(Source), "source")]
 public partial class AllSongsPage : ContentPage
@@ -29,29 +30,31 @@ public partial class AllSongsPage : ContentPage
         _ = _vm.LoadAsync(Source);
     }
 
-    // === 返回 ===
+    // === 事件处理 ===
 
     private async void OnBackTapped(object? sender, EventArgs e)
     {
-        if (PagerNavigator.TryPopOverlay())
+        if (PagerNavigator.TryPopOverlay()) return;
+
+        // 横屏嵌入模式：返回到音乐库 tab，保持侧边栏可见
+        if (App.IsLandscapeMode() && DesktopMainPage.Instance != null)
+        {
+            DesktopMainPage.Instance.CloseEmbeddedSubPage("library");
             return;
+        }
+
         if (Navigation.NavigationStack.Count > 1)
             await Navigation.PopAsync();
         else
             await Shell.Current.GoToAsync("..");
     }
 
-    // === 排序芯片点击 ===
-
-    private void OnSortChipTapped(object? sender, TappedEventArgs e)
+    // ChipList.ChipTapped 事件签名：EventHandler<object?>
+    private void OnSortChipTapped(object? sender, object? item)
     {
-        if (e.Parameter is string key)
-        {
-            _vm.ToggleSort(key);
-        }
+        if (item is SortOption option)
+            _vm.ToggleSort(option.Key);
     }
-
-    // === 歌曲选择 ===
 
     private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -62,15 +65,25 @@ public partial class AllSongsPage : ContentPage
         }
     }
 
-    // === 更多按钮 ===
-
     private async void OnMoreTapped(object? sender, TappedEventArgs e)
     {
         if (e.Parameter is not Song song) return;
-
         var action = await DisplayActionSheet(song.Title, "取消", null,
             "添加到播放队列", "添加到歌单", "查看歌曲详情", "分享");
+        await HandleSongAction(action, song);
+    }
 
+    private void OnIndexTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is int index && index >= 0 && index < _vm.Songs.Count)
+        {
+            var targetSong = _vm.Songs[index];
+            SongListView?.ScrollTo(targetSong, position: ScrollToPosition.MakeVisible);
+        }
+    }
+
+    private async Task HandleSongAction(string? action, Song song)
+    {
         switch (action)
         {
             case "查看歌曲详情":
@@ -83,50 +96,5 @@ public partial class AllSongsPage : ContentPage
                 // TODO: 添加到歌单
                 break;
         }
-    }
-
-    // === A-Z 索引点击 ===
-
-    private void OnIndexTapped(object? sender, TappedEventArgs e)
-    {
-        if (e.Parameter is int index && index >= 0 && index < _vm.Songs.Count)
-        {
-            var targetSong = _vm.Songs[index];
-            _songList?.ScrollTo(targetSong, position: ScrollToPosition.MakeVisible);
-        }
-    }
-
-    private CollectionView? _songList;
-
-    protected override void OnHandlerChanged()
-    {
-        base.OnHandlerChanged();
-        // 找到歌曲列表 CollectionView
-        _songList = FindSongList(this);
-    }
-
-    private CollectionView? FindSongList(Element? element)
-    {
-        if (element == null) return null;
-        if (element is CollectionView cv
-            && cv.ItemsSource == (BindingContext as AllSongsViewModel)?.Songs)
-            return cv;
-
-        if (element is Layout layout)
-        {
-            foreach (var child in layout.Children)
-            {
-                if (child is Element childElement)
-                {
-                    var found = FindSongList(childElement);
-                    if (found != null) return found;
-                }
-            }
-        }
-        else if (element is IContentView { Content: Element content })
-        {
-            return FindSongList(content);
-        }
-        return null;
     }
 }

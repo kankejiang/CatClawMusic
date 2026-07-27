@@ -131,46 +131,54 @@ public partial class AppBottomSheet : ContentView
         });
     }
 
-    public async void Close()
+    public async Task CloseAsync()
     {
         if (!_isOpen) return;
         _isOpen = false;
 
-        var overlay = SheetMode == BottomSheetMode.Center || SheetMode == BottomSheetMode.FullScreen;
-        Task anim;
-        if (overlay)
+        try
         {
-            anim = Task.WhenAll(
-                MaskLayer.FadeTo(0, 180, Easing.CubicIn),
-                SheetCard.ScaleTo(0.96, 200, Easing.CubicIn),
-                SheetCard.FadeTo(0, 180, Easing.CubicIn)
-            );
-        }
-        else
-        {
-            anim = Task.WhenAll(
-                MaskLayer.FadeTo(0, 180, Easing.CubicIn),
-                SheetCard.TranslateTo(0, 600, 220, Easing.CubicIn),
-                SheetCard.FadeTo(0, 180, Easing.CubicIn)
-            );
-        }
-        await anim;
+            var overlay = SheetMode == BottomSheetMode.Center || SheetMode == BottomSheetMode.FullScreen;
+            Task anim;
+            if (overlay)
+            {
+                anim = Task.WhenAll(
+                    MaskLayer.FadeTo(0, 180, Easing.CubicIn),
+                    SheetCard.ScaleTo(0.96, 200, Easing.CubicIn),
+                    SheetCard.FadeTo(0, 180, Easing.CubicIn)
+                );
+            }
+            else
+            {
+                anim = Task.WhenAll(
+                    MaskLayer.FadeTo(0, 180, Easing.CubicIn),
+                    SheetCard.TranslateTo(0, 600, 220, Easing.CubicIn),
+                    SheetCard.FadeTo(0, 180, Easing.CubicIn)
+                );
+            }
+            await anim;
 
 #if ANDROID
-        RemoveBlurFromSiblings();
+            RemoveBlurFromSiblings();
 #endif
 
-        this.Opacity = 0;
-        this.IsVisible = false;
-        this.InputTransparent = true;
+            this.Opacity = 0;
+            this.IsVisible = false;
+            this.InputTransparent = true;
 
-        Closed?.Invoke(this, EventArgs.Empty);
+            Closed?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            // 关闭动画或清理过程中的异常不应导致崩溃，仅记录日志
+            Log.Debug("AppBottomSheet", $"[AppBottomSheet] CloseAsync 异常: {ex.Message}");
+        }
     }
 
     private void OnMaskTapped(object sender, EventArgs e)
     {
         if (CloseOnMaskTapped)
-            Close();
+            _ = CloseAsync();
     }
 
 #if ANDROID

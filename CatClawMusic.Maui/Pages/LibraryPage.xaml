@@ -12,7 +12,7 @@
         <ScrollView Background="Transparent">
             <VerticalStackLayout Padding="18,8,18,132" Spacing="0">
             <!-- Hero 区域 -->
-            <Border Padding="0" StrokeShape="RoundRectangle 24" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" Margin="0,6,0,0">
+            <Border x:Name="HeroCard" Padding="0" StrokeShape="RoundRectangle 24" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" Margin="0,6,0,0">
                 <Border.Background>
                     <LinearGradientBrush EndPoint="1,1">
                         <GradientStop Offset="0" Color="#4D8C7BFF" />
@@ -93,7 +93,7 @@
             </Border>
 
             <!-- 资料库列表 -->
-            <Border Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
+            <Border x:Name="LibraryListCard" Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
                     Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundColor}">
                 <VerticalStackLayout Spacing="0">
                     <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,14">
@@ -112,54 +112,56 @@
             </Border>
 
             <!-- 数据洞察 -->
-            <Border Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
+            <Border x:Name="DataInsightCard" Margin="0,18,0,0" Padding="14,12" StrokeShape="RoundRectangle 22" StrokeThickness="1"
                     Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundColor}">
-                <VerticalStackLayout Spacing="0">
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="0">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
                         <HorizontalStackLayout Spacing="8">
-                            <Label Text="数据洞察" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="数据洞察" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" />
                             <Border StrokeShape="RoundRectangle 999" StrokeThickness="1"
                                     Stroke="{DynamicResource BadgeStrokeColor}"
                                     BackgroundColor="{DynamicResource BadgeBackgroundColor}"
-                                    Padding="8,2" VerticalOptions="Center">
-                                <Label x:Name="PieNameBadge" Text="音频格式" FontSize="10" TextColor="{DynamicResource AccentColor}" />
+                                    Padding="7,2" VerticalOptions="Center">
+                                <Label x:Name="PieNameBadge" Text="音频格式" FontSize="9.5" TextColor="{DynamicResource AccentColor}" />
                             </Border>
                         </HorizontalStackLayout>
-                        <Label x:Name="PieCounter" Grid.Column="1" Text="1 / 3" FontSize="12" FontAttributes="Bold"
+                        <Label x:Name="PieCounter" Grid.Column="1" Text="1 / 3" FontSize="11" FontAttributes="Bold"
                                TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
                     </Grid>
 
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-                        <controls:DonutView x:Name="PieDonut" Grid.Column="0" />
-                        <VerticalStackLayout x:Name="PieLegend" Grid.Column="1" Spacing="0" VerticalOptions="Center" />
-                    </Grid>
+                    <HorizontalStackLayout Grid.Row="1" HorizontalOptions="Center" VerticalOptions="Center" Spacing="14">
+                        <controls:DonutView x:Name="PieDonut"
+                                            WidthRequest="138" HeightRequest="138"
+                                            HorizontalOptions="Center" VerticalOptions="Center" />
+                        <VerticalStackLayout x:Name="PieLegend" Spacing="0" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
 
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16" Margin="0,14,0,0">
-                        <Border x:Name="PiePrev" Grid.Column="0" WidthRequest="30" HeightRequest="30"
+                    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="0,8,0,0">
+                        <Border x:Name="PiePrev" Grid.Column="0" WidthRequest="26" HeightRequest="26"
                                 StrokeShape="RoundRectangle 999" StrokeThickness="1"
                                 Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource GlassButtonColor}">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnPiePrevTapped" />
                             </Border.GestureRecognizers>
-                            <Label Text="‹" FontSize="20" TextColor="{DynamicResource TextPrimaryColor}"
+                            <Label Text="‹" FontSize="17" TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" HorizontalOptions="Center" />
                         </Border>
-                        <HorizontalStackLayout x:Name="PieDots" Grid.Column="1" HorizontalOptions="Center" Spacing="7" VerticalOptions="Center" />
-                        <Border x:Name="PieNext" Grid.Column="2" WidthRequest="30" HeightRequest="30"
+                        <HorizontalStackLayout x:Name="PieDots" Grid.Column="1" HorizontalOptions="Center" Spacing="6" VerticalOptions="Center" />
+                        <Border x:Name="PieNext" Grid.Column="2" WidthRequest="26" HeightRequest="26"
                                 StrokeShape="RoundRectangle 999" StrokeThickness="1"
                                 Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource GlassButtonColor}">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnPieNextTapped" />
                             </Border.GestureRecognizers>
-                            <Label Text="›" FontSize="20" TextColor="{DynamicResource TextPrimaryColor}"
+                            <Label Text="›" FontSize="17" TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" HorizontalOptions="Center" />
                         </Border>
                     </Grid>
-                </VerticalStackLayout>
+                </Grid>
             </Border>
 
             <!-- 存储占用 -->
-            <Border Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
+            <Border x:Name="StorageCard" Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
                     Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundColor}">
                 <VerticalStackLayout Spacing="14">
                     <Grid ColumnDefinitions="*,Auto">
@@ -189,7 +191,7 @@
             </Border>
 
             <!-- 最近添加 -->
-            <Border Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
+            <Border x:Name="RecentCard" Margin="0,18,0,0" Padding="16" StrokeShape="RoundRectangle 22" StrokeThickness="1"
                     Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundColor}">
                 <VerticalStackLayout Spacing="0">
                     <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,14">

@@ -77,7 +77,7 @@ public class LlmConfigEntry : LlmConfig
     /// <summary>是否为当前激活的配置</summary>
     public bool IsActive { get; set; }
     /// <summary>创建时间</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
     /// 获取显示名称：若 Name 非空则直接返回，否则按 Provider 查找对应服务商名称

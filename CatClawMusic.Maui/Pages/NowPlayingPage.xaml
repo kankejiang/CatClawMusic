@@ -37,29 +37,13 @@
                 <TapGestureRecognizer Tapped="OnPageTapped" />
             </Grid.GestureRecognizers>
 
-            <!-- Row 0: 顶部导航栏（左上角收起按钮 + 歌曲信息 + 右上角窗口控件） -->
+            <!-- Row 0: 顶部导航栏（左侧歌曲信息 + 右上角窗口控件 + 右上角收起按钮） -->
             <Grid x:Name="TopNavBar"
                   Grid.Row="0"
-                  ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                  ColumnDefinitions="*,Auto,Auto,Auto,Auto"
                   HeightRequest="40">
-                <!-- 左上角收起按钮（向下箭头，点击收起播放页；Windows端同时承担返回功能） -->
-                <Border Grid.Column="0"
-                        x:Name="CollapseButton"
-                        StrokeThickness="0"
-                        BackgroundColor="Transparent"
-                        WidthRequest="44" HeightRequest="44"
-                        HorizontalOptions="Start" VerticalOptions="Center"
-                        ZIndex="10">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnCollapseButtonTapped" />
-                    </Border.GestureRecognizers>
-                    <Image x:Name="CollapseIcon"
-                           WidthRequest="22" HeightRequest="22"
-                           HorizontalOptions="Center" VerticalOptions="Center" />
-                </Border>
-
-                <!-- 歌曲信息（收起按钮右侧） -->
-                <Grid Grid.Column="1" ColumnDefinitions="Auto" VerticalOptions="Center">
+                <!-- 歌曲信息（左侧） -->
+                <Grid Grid.Column="0" ColumnDefinitions="Auto" VerticalOptions="Center">
                     <Grid Grid.Column="0" RowDefinitions="Auto,Auto" RowSpacing="0">
                         <Label Grid.Row="0"
                                Text="{Binding Title}"
@@ -82,7 +66,7 @@
 
                 <!-- 右上角窗口控制按钮（仅 Windows 端显示） -->
                 <!-- 最小化按钮 -->
-                <Border Grid.Column="2"
+                <Border Grid.Column="1"
                         IsVisible="{OnPlatform Default=false, WinUI=true}"
                         WidthRequest="46" HeightRequest="40"
                         BackgroundColor="Transparent"
@@ -100,7 +84,7 @@
                 </Border>
 
                 <!-- 最大化/还原按钮 -->
-                <Border Grid.Column="3"
+                <Border Grid.Column="2"
                         IsVisible="{OnPlatform Default=false, WinUI=true}"
                         WidthRequest="46" HeightRequest="40"
                         BackgroundColor="Transparent"
@@ -130,7 +114,7 @@
                 </Border>
 
                 <!-- 关闭按钮 -->
-                <Border Grid.Column="4"
+                <Border Grid.Column="3"
                         IsVisible="{OnPlatform Default=false, WinUI=true}"
                         WidthRequest="46" HeightRequest="40"
                         BackgroundColor="Transparent"
@@ -145,6 +129,22 @@
                           StrokeThickness="1.5"
                           HorizontalOptions="Center"
                           VerticalOptions="Center" />
+                </Border>
+
+                <!-- 右上角收起按钮（向下箭头，点击收起播放页；Windows端同时承担返回功能） -->
+                <Border Grid.Column="4"
+                        x:Name="CollapseButton"
+                        StrokeThickness="0"
+                        BackgroundColor="Transparent"
+                        WidthRequest="44" HeightRequest="44"
+                        HorizontalOptions="End" VerticalOptions="Center"
+                        ZIndex="10">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCollapseButtonTapped" />
+                    </Border.GestureRecognizers>
+                    <Image x:Name="CollapseIcon"
+                           WidthRequest="22" HeightRequest="22"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
             </Grid>
 
@@ -467,23 +467,24 @@
                 </Grid>
             </Grid>
 
-            <!-- ═══ 横屏 / Windows 布局：左封面 + 右信息/控制（覆盖主内容+底部区域） ═══ -->
+            <!-- ═══ 横屏 / Windows 布局：顶行收起按钮 + 左封面 + 右信息/控制 ═══ -->
             <Grid x:Name="LandscapeRoot"
                   Grid.Row="1" Grid.RowSpan="2"
                   IsVisible="False"
+                  RowDefinitions="Auto,*"
                   ColumnDefinitions="1*,1.15*"
-                  ColumnSpacing="40"
-                  Padding="54,8,54,24">
+                  ColumnSpacing="32"
+                  Padding="48,8,48,20">
 
-                <!-- 横屏左上角收起按钮：点击返回桌面主页并进入发现页（普通手机横屏则收起播放页） -->
-                <Border Grid.Column="0"
+                <!-- 横屏右上角收起按钮：独占最上行，比标题更高 -->
+                <Border Grid.Row="0" Grid.ColumnSpan="2"
                         x:Name="LandscapeCollapseButton"
                         StrokeThickness="0"
                         BackgroundColor="#40000000"
                         WidthRequest="44" HeightRequest="44"
-                        HorizontalOptions="Start" VerticalOptions="Start"
+                        HorizontalOptions="End" VerticalOptions="Start"
                         ZIndex="20"
-                        Margin="0,4,0,0">
+                        Margin="0,0,0,4">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="22" />
                     </Border.StrokeShape>
@@ -495,10 +496,11 @@
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
 
-                <!-- 左：封面 -->
-                <Grid Grid.Column="0"
-                      HorizontalOptions="Center" VerticalOptions="Center">
-                    <Border x:Name="LandscapeCover"
+                <!-- 左：封面（封面占剩余空间并居中，底部留一行空白避免贴底） -->
+                <Grid Grid.Row="1" Grid.Column="0"
+                      RowDefinitions="*,Auto"
+                      HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Border Grid.Row="0" x:Name="LandscapeCover"
                             StrokeThickness="0.5"
                             Stroke="#30FFFFFF"
                             StrokeShape="RoundRectangle 28"
@@ -510,26 +512,29 @@
                                Aspect="AspectFill"
                                WidthRequest="460" HeightRequest="460" />
                     </Border>
+                    <!-- 底部留白行：抵消顶部收起按钮行（44高 + 上padding 8）与下padding 20的差值，
+                         使封面在屏幕内上下留白一致。 -->
+                    <Grid Grid.Row="1" HeightRequest="32" />
                 </Grid>
 
                 <!-- 右：信息 + 控制 + 歌词（Grid 行布局，歌词面板占满剩余高度） -->
-                <Grid Grid.Column="1"
+                <Grid Grid.Row="1" Grid.Column="1"
                       RowDefinitions="Auto,Auto,Auto,*,Auto,Auto"
-                      RowSpacing="14"
+                      RowSpacing="10"
                       ColumnDefinitions="*"
                       VerticalOptions="Fill"
                       HorizontalOptions="Fill"
-                      Padding="0,4">
+                      Padding="0,28,0,0">
 
-                    <!-- 标题 + 艺人 + 音质徽章 -->
-                    <VerticalStackLayout x:Name="LandscapeTitleBlock" Grid.Row="0" Spacing="3">
+                    <!-- 标题 + 艺人 + 音质徽章（顶部，仅次于悬浮的收起按钮） -->
+                    <VerticalStackLayout x:Name="LandscapeTitleBlock" Grid.Row="0" Spacing="2">
                         <Label Text="{Binding Title}"
-                               FontSize="34" FontFamily="OpenSansSemibold"
+                               FontSize="28" FontFamily="OpenSansSemibold"
                                TextColor="White"
                                MaxLines="1" LineBreakMode="TailTruncation" />
-                        <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
                             <Label Text="{Binding Artist}"
-                                   FontSize="15" TextColor="{DynamicResource TextSecondaryColor}"
+                                   FontSize="14" TextColor="{DynamicResource TextSecondaryColor}"
                                    MaxLines="1" LineBreakMode="TailTruncation" />
                             <Label Text="Hi-Res" FontSize="9" FontAttributes="Bold"
                                    TextColor="{DynamicResource PrimaryColor}"
@@ -540,8 +545,8 @@
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
 
-                    <!-- 工具图标：播放列表 / 睡眠定时 / 竖屏切换 -->
-                    <HorizontalStackLayout x:Name="LandscapeToolsRow" Grid.Row="1" Spacing="14">
+                    <!-- 工具图标：播放列表 / 睡眠定时 / 竖屏切换（放到歌名下方） -->
+                    <HorizontalStackLayout x:Name="LandscapeToolsRow" Grid.Row="1" Spacing="12">
                         <ImageButton WidthRequest="30" HeightRequest="30" CornerRadius="15" Padding="6"
                                      Aspect="AspectFit" BackgroundColor="Transparent"
                                      Source="{Binding PlaylistIconSource}"
@@ -557,12 +562,12 @@
                     </HorizontalStackLayout>
 
                     <!-- 当前歌词（点击进入歌词模式，横屏就地显示多行歌词） -->
-                    <VerticalStackLayout x:Name="LandscapeCurrentLyric" Grid.Row="2" Spacing="4" Padding="0,0,0,8">
+                    <VerticalStackLayout x:Name="LandscapeCurrentLyric" Grid.Row="2" Spacing="4" Padding="0,0,0,4">
                         <VerticalStackLayout.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
                         </VerticalStackLayout.GestureRecognizers>
                         <Label Text="{Binding LyricCurrent}"
-                               FontSize="17" FontAttributes="Bold" TextColor="White"
+                               FontSize="16" FontAttributes="Bold" TextColor="White"
                                MaxLines="1" LineBreakMode="TailTruncation" />
                     </VerticalStackLayout>
 
@@ -570,14 +575,14 @@
                     <ScrollView x:Name="LandscapeLyricsScroll" Grid.Row="3"
                                 IsVisible="False"
                                 VerticalScrollBarVisibility="Never"
-                                HorizontalOptions="Fill" VerticalOptions="Fill">
+                                HorizontalOptions="Center" VerticalOptions="Fill">
                         <ScrollView.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
                         </ScrollView.GestureRecognizers>
                         <VerticalStackLayout x:Name="LandscapeLyricStack"
-                                             Spacing="14"
-                                             Padding="0,16,0,60"
-                                             HorizontalOptions="Fill" />
+                                             Spacing="12"
+                                             Padding="0,12,0,48"
+                                             HorizontalOptions="Center" />
                     </ScrollView>
 
                     <!-- 进度条 -->
@@ -599,7 +604,7 @@
                     </Grid>
 
                     <!-- 播放控制行 -->
-                    <HorizontalStackLayout x:Name="LandscapeControlsRow" Grid.Row="5" Spacing="14" VerticalOptions="Center">
+                    <HorizontalStackLayout x:Name="LandscapeControlsRow" Grid.Row="5" Spacing="12" VerticalOptions="Center">
                         <ImageButton WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="9"
                                      Aspect="AspectFit" BackgroundColor="Transparent"
                                      Source="{Binding LikeIconSourceWhite}"

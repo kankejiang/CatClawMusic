@@ -17,9 +17,9 @@ internal static class BitmapMemoryCache
 
     private struct Entry
     {
-        public Bitmap Bitmap;
-        public long Size;
-        public LinkedListNode<string> Node;
+        public Bitmap Bitmap { get; set; }
+        public long Size { get; set; }
+        public LinkedListNode<string> Node { get; set; }
     }
 
     /// <summary>从缓存中获取 Bitmap，命中时将其移到 LRU 队首</summary>

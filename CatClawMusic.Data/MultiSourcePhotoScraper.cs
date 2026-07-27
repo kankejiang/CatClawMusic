@@ -32,7 +32,7 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
     /// <returns>配置好的 HttpClient 实例。</returns>
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(NetworkTimeouts.ScrapeSeconds) };
         client.DefaultRequestHeaders.Add("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
         return client;

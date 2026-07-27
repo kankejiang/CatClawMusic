@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.SourceFilterControl">
+
+    <Border StrokeShape="RoundRectangle 10"
+            StrokeThickness="1"
+            Stroke="{DynamicResource GlassStrokeColor}"
+            BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+            HorizontalOptions="Start">
+        <Grid ColumnDefinitions="Auto,Auto,Auto"
+              ColumnSpacing="0"
+              HorizontalOptions="Center">
+            <!-- 全部 -->
+            <Border x:Name="AllButton"
+                    Grid.Column="0"
+                    Padding="14,6"
+                    StrokeShape="RoundRectangle 10,0,0,10"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnAllTapped" />
+                </Border.GestureRecognizers>
+                <Label x:Name="AllLabel" Text="全部" FontSize="12.5" FontAttributes="Bold"
+                       VerticalOptions="Center" HorizontalOptions="Center" />
+            </Border>
+            <!-- 本地 -->
+            <Border x:Name="LocalButton"
+                    Grid.Column="1"
+                    Padding="14,6"
+                    StrokeShape="RoundRectangle 0"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnLocalTapped" />
+                </Border.GestureRecognizers>
+                <Label x:Name="LocalLabel" Text="本地" FontSize="12.5" FontAttributes="Bold"
+                       VerticalOptions="Center" HorizontalOptions="Center" />
+            </Border>
+            <!-- 网络 -->
+            <Border x:Name="NetworkButton"
+                    Grid.Column="2"
+                    Padding="14,6"
+                    StrokeShape="RoundRectangle 0,10,10,0"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnNetworkTapped" />
+                </Border.GestureRecognizers>
+                <Label x:Name="NetworkLabel" Text="网络" FontSize="12.5" FontAttributes="Bold"
+                       VerticalOptions="Center" HorizontalOptions="Center" />
+            </Border>
+        </Grid>
+    </Border>
+</ContentView>

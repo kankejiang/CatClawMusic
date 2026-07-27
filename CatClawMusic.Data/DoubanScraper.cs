@@ -28,7 +28,7 @@ public class DoubanScraper : IArtistMetadataScraper
     {
         _cacheDir = cacheDir;
         Directory.CreateDirectory(_cacheDir);
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(NetworkTimeouts.ScrapeSeconds) };
         // 模拟浏览器请求头，避免被反爬
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");

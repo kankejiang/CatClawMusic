@@ -950,8 +950,8 @@ internal static class ProcessedBitmapCache
 {
     private sealed class Entry
     {
-        public Bitmap Bitmap;
-        public int RefCount;
+        public Bitmap Bitmap { get; set; }
+        public int RefCount { get; set; }
         public Entry(Bitmap bmp) { Bitmap = bmp; RefCount = 1; }
     }
 
@@ -1046,7 +1046,7 @@ public class FrostedBackgroundHandler : ViewHandler<FrostedBackground, FrostedBa
 
     private static void MapSource(FrostedBackgroundHandler handler, FrostedBackground view)
     {
-        handler.PlatformView.UpdateSourceFromImageSource(view.Source, view.CacheKey);
+        _ = handler.PlatformView.UpdateSourceFromImageSourceAsync(view.Source, view.CacheKey);
     }
 
     private static void MapIsActive(FrostedBackgroundHandler handler, FrostedBackground view)
@@ -1091,19 +1091,19 @@ internal static class FrostedBackgroundSourceExtensions
     /// <param name="platformView">目标视图</param>
     /// <param name="source">图片源</param>
     /// <param name="cacheKey">缓存键（如封面路径），用于跨实例共享处理后位图</param>
-    public static async void UpdateSourceFromImageSource(this FrostedBackgroundView platformView, ImageSource? source, string? cacheKey)
+    public static async Task UpdateSourceFromImageSourceAsync(this FrostedBackgroundView platformView, ImageSource? source, string? cacheKey)
     {
-        if (source == null)
-        {
-            platformView.IncrementLoadingVersion();
-            platformView.SetSource(null, null);
-            return;
-        }
-
-        var version = platformView.IncrementLoadingVersion();
-
         try
         {
+            if (source == null)
+            {
+                platformView.IncrementLoadingVersion();
+                platformView.SetSource(null, null);
+                return;
+            }
+
+            var version = platformView.IncrementLoadingVersion();
+
             Bitmap? bitmap = null;
 
             // 优先处理 FileImageSource：直接从文件解码，避免 StreamImageSource 的内部取消机制
@@ -1194,6 +1194,7 @@ internal static class FrostedBackgroundSourceExtensions
         }
         catch (Exception ex)
         {
+            // 整个加载流程的兜底异常处理，确保 async Task 不会抛出未观察异常
             Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] 加载封面失败: {ex.Message}");
         }
     }

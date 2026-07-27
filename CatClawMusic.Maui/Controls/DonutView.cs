@@ -46,6 +46,11 @@ public class DonutView : GraphicsView
 
 internal sealed class DonutDrawable : IDrawable
 {
+    // 颜色常量（集中管理，避免散落硬编码）
+    private static readonly Color TrackColor = Color.FromArgb("#2A3870");
+    private static readonly Color CenterTextColor = Color.FromArgb("#F7F8FF");
+    private static readonly Color LabelColor = Color.FromArgb("#8D93B7");
+
     private readonly PieDataset _dataset;
 
     public DonutDrawable(PieDataset dataset) => _dataset = dataset;
@@ -60,11 +65,11 @@ internal sealed class DonutDrawable : IDrawable
         float size = Math.Min(dirtyRect.Width, dirtyRect.Height);
         float cx = dirtyRect.Center.X;
         float cy = dirtyRect.Center.Y;
-        float radius = size / 2f - 10f;
-        const float stroke = 15f;
+        float stroke = size * 0.11f;
+        float radius = size / 2f - stroke * 0.6f;
 
         // 背景轨道
-        canvas.StrokeColor = Color.FromArgb("#2A3870");
+        canvas.StrokeColor = TrackColor;
         canvas.StrokeSize = stroke;
         canvas.DrawCircle(cx, cy, radius);
 
@@ -89,22 +94,24 @@ internal sealed class DonutDrawable : IDrawable
 
         // 中心总数（大号粗体）
         canvas.StrokeSize = 0f;
-        canvas.FontSize = 21f;
+        float titleSize = size * 0.15f;
+        canvas.FontSize = titleSize;
         canvas.Font = new Microsoft.Maui.Graphics.Font(
             Microsoft.Maui.Graphics.Font.Default.Name,
             (int)Microsoft.Maui.Graphics.FontWeights.Bold,
             Microsoft.Maui.Graphics.FontStyleType.Normal);
-        canvas.FontColor = Color.FromArgb("#F7F8FF");
-        canvas.DrawString(total.ToString("N0"), cx - radius, cy - 24f, radius * 2f, 28f,
+        canvas.FontColor = CenterTextColor;
+        canvas.DrawString(total.ToString("N0"), cx - radius, cy - radius * 0.35f, radius * 2f, radius * 0.6f,
             Microsoft.Maui.Graphics.HorizontalAlignment.Center,
             Microsoft.Maui.Graphics.VerticalAlignment.Center,
             Microsoft.Maui.Graphics.TextFlow.ClipBounds, 0f);
 
         // 中心单位（小号常规）
-        canvas.FontSize = 10f;
+        float subSize = size * 0.075f;
+        canvas.FontSize = subSize;
         canvas.Font = Microsoft.Maui.Graphics.Font.Default;
-        canvas.FontColor = Color.FromArgb("#8D93B7");
-        canvas.DrawString("首 (本地)", cx - radius, cy - 2f, radius * 2f, 24f,
+        canvas.FontColor = LabelColor;
+        canvas.DrawString("首 (本地)", cx - radius, cy + radius * 0.15f, radius * 2f, radius * 0.5f,
             Microsoft.Maui.Graphics.HorizontalAlignment.Center,
             Microsoft.Maui.Graphics.VerticalAlignment.Center,
             Microsoft.Maui.Graphics.TextFlow.ClipBounds, 0f);

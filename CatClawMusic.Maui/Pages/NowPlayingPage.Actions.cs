@@ -178,7 +178,7 @@ public partial class NowPlayingPage
             Margin = new Thickness(0, 16, 0, 0)
         };
         var cancelBtn = CreatePopupButton("取消", false);
-        cancelBtn.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => SleepTimerPopup.Close()) });
+        cancelBtn.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => { _ = SleepTimerPopup.CloseAsync(); }) });
         footGrid.Add(cancelBtn, 0);
 
         var startBtn = CreatePopupButton("开始定时", true);
@@ -254,14 +254,14 @@ public partial class NowPlayingPage
             Command = new Command(() =>
             {
                 _sleepTimer.Cancel();
-                SleepTimerPopup.Close();
+                _ = SleepTimerPopup.CloseAsync();
                 UpdateTimerButtonState();
             })
         });
         footGrid.Add(cancelTimerBtn, 0);
 
         var doneBtn = CreatePopupButton("完成", true);
-        doneBtn.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => SleepTimerPopup.Close()) });
+        doneBtn.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => { _ = SleepTimerPopup.CloseAsync(); }) });
         footGrid.Add(doneBtn, 1);
         stack.Add(footGrid);
 
@@ -468,22 +468,22 @@ public partial class NowPlayingPage
         if (!string.IsNullOrEmpty(song.Artist))
             menu.Add(CreateMenuRow("♪", "查看歌手", false, () =>
             {
-                MorePopup.Close();
+                _ = MorePopup.CloseAsync();
                 NavigateToArtist(song.Artist!);
             }));
 
         if (!string.IsNullOrEmpty(song.Album))
             menu.Add(CreateMenuRow("◉", "查看专辑", false, () =>
             {
-                MorePopup.Close();
+                _ = MorePopup.CloseAsync();
                 NavigateToAlbum(song.Album!);
             }));
 
         menu.Add(CreateMenuRow("＋", "加入歌单", true, () => BuildPlaylistPicker(song)));
         menu.Add(CreateMenuRow("↗", "分享", false, () =>
         {
-            MorePopup.Close();
-            _ = ShareSongAsync(song);
+            _ = MorePopup.CloseAsync();
+                _ = ShareSongAsync(song);
         }));
 
         MorePopup.AddContent(menu);
@@ -622,7 +622,7 @@ public partial class NowPlayingPage
         catch (Exception ex)
         {
             Log.Debug("NowPlayingPage", $"[More] 加载歌单失败: {ex.Message}");
-            MorePopup.Close();
+            await MorePopup.CloseAsync();
         }
     }
 
@@ -646,14 +646,14 @@ public partial class NowPlayingPage
             var okBtn = CreatePopupButton("完成", true);
             okBtn.GestureRecognizers.Add(new TapGestureRecognizer
             {
-                Command = new Command(() => MorePopup.Close())
+                Command = new Command(() => { _ = MorePopup.CloseAsync(); })
             });
             MorePopup.AddContent(okBtn);
         }
         catch (Exception ex)
         {
             Log.Debug("NowPlayingPage", $"[More] 加入歌单失败: {ex.Message}");
-            MorePopup.Close();
+            await MorePopup.CloseAsync();
         }
     }
 

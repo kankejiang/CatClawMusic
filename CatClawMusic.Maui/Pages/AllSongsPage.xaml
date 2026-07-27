@@ -9,11 +9,11 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
              Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto"
           Background="{DynamicResource PageBackgroundBrush}">
 
         <!-- Frosted glass background: blurred theme image, semi-transparent -->
-        <controls:FrostedBackground Grid.RowSpan="5"
+        <controls:FrostedBackground Grid.RowSpan="6"
             Source="{DynamicResource ThemeBackgroundImage}"
             IsActive="{DynamicResource ThemeBackgroundEnabled}"
             IsVisible="{DynamicResource ThemeBackgroundEnabled}"
@@ -50,24 +50,22 @@
         </Grid>
 
         <!-- ═══ 搜索栏 ═══ -->
-        <Border Grid.Row="1" Margin="16,4,16,10" Padding="11,0,14,0"
-                StrokeShape="RoundRectangle 14"
-                StrokeThickness="1"
-                Stroke="{DynamicResource GlassStrokeColor}"
-                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalOptions="Center">
-                <Label Grid.Column="0" Text="🔍" FontSize="14" VerticalOptions="Center"
-                       TextColor="{DynamicResource TextHintColor}" />
-                <Entry Grid.Column="1" Text="{Binding SearchQuery}"
-                       Placeholder="搜索歌曲、艺术家、专辑"
-                       PlaceholderColor="{DynamicResource TextHintColor}"
-                       TextColor="{DynamicResource TextPrimaryColor}"
-                       BackgroundColor="Transparent" FontSize="14" VerticalOptions="Center" />
-            </Grid>
-        </Border>
+        <controls:PageSearchBox Grid.Row="1"
+                                Margin="16,4,16,10"
+                                CornerRadius="14"
+                                FontSize="14"
+                                Placeholder="搜索歌曲、艺术家、专辑"
+                                SearchQuery="{Binding SearchQuery, Mode=TwoWay}" />
+
+        <!-- ═══ 本地/网络/全部筛选 ═══ -->
+        <Grid Grid.Row="2" Padding="16,4" ColumnDefinitions="Auto,*">
+            <controls:SourceFilterControl Grid.Column="0"
+                                          SelectedMode="{Binding FilterMode, Mode=TwoWay}"
+                                          IsVisible="{Binding IsSourceFilterVisible}" />
+        </Grid>
 
         <!-- ═══ 播放全部 / 随机播放 ═══ -->
-        <Grid Grid.Row="2" Padding="16,4" ColumnDefinitions="*,*" ColumnSpacing="10">
+        <Grid Grid.Row="3" Padding="16,4" ColumnDefinitions="*,*" ColumnSpacing="10">
             <!-- 播放全部 -->
             <Border Grid.Column="0" Padding="0,13"
                     StrokeShape="RoundRectangle 14"
@@ -96,33 +94,18 @@
         </Grid>
 
         <!-- ═══ 排序栏 + 歌曲列表 ═══ -->
-        <Grid Grid.Row="3" RowDefinitions="Auto,*">
-            <!-- 排序栏：实心胶囊按钮，选不中均为实心背景+可见边框 -->
-            <ScrollView Grid.Row="0" Orientation="Horizontal" Padding="16,4">
-                <HorizontalStackLayout Spacing="8" x:Name="SortButtons"
-                                       BindableLayout.ItemsSource="{Binding SortOptions}">
-                    <BindableLayout.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SortOption">
-                            <Border Padding="13,7"
-                                    StrokeShape="RoundRectangle 20"
-                                    StrokeThickness="1"
-                                    Stroke="{Binding BorderColor}"
-                                    BackgroundColor="{Binding BackgroundColor}">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnSortChipTapped"
-                                                          CommandParameter="{Binding Key}" />
-                                </Border.GestureRecognizers>
-                                <Label Text="{Binding Label}" FontSize="12.5" FontAttributes="Bold"
-                                       TextColor="{Binding TextColor}"
-                                       HorizontalOptions="Center" VerticalOptions="Center" />
-                            </Border>
-                        </DataTemplate>
-                    </BindableLayout.ItemTemplate>
-                </HorizontalStackLayout>
-            </ScrollView>
+        <Grid Grid.Row="4" RowDefinitions="Auto,*">
+            <!-- 排序栏 -->
+            <controls:ChipList Grid.Row="0"
+                               Margin="16,4"
+                               ItemsSource="{Binding SortOptions}"
+                               ChipTapped="OnSortChipTapped"
+                               ChipPadding="13,7"
+                               ChipCornerRadius="20"
+                               ChipFontSize="12.5" />
 
             <!-- 歌曲列表 -->
-            <CollectionView Grid.Row="1" ItemsSource="{Binding Songs}"
+            <CollectionView Grid.Row="1" x:Name="SongListView" ItemsSource="{Binding Songs}"
                             SelectionMode="Single"
                             SelectedItem="{Binding SelectedSong}"
                             SelectionChanged="OnSongSelected">
@@ -199,7 +182,7 @@
         </Grid>
 
         <!-- ═══ 加载指示器 ═══ -->
-        <ActivityIndicator Grid.Row="3" IsRunning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
+        <ActivityIndicator Grid.Row="4" IsRunning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
                            HorizontalOptions="Center" VerticalOptions="Center"
                            Color="{DynamicResource PrimaryColor}" />
     </Grid>

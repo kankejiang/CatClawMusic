@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+<base:DiscoverPageBase xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:base="clr-namespace:CatClawMusic.Maui.Pages.Base"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.SearchPage"
@@ -290,27 +291,28 @@
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource GlassCardStyle}" Padding="12" Margin="0,0,0,8" BindingContextChanged="OnRankItemBindingContextChanged">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnRankItemTapped" />
-                                            </Border.GestureRecognizers>
-                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
-                                                <Label x:Name="RankIndex" Text="" WidthRequest="26" FontSize="15" FontAttributes="Bold" VerticalOptions="Center" HorizontalTextAlignment="Center" />
-                                                <Border WidthRequest="50" HeightRequest="50" StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
-                                                    <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="50" HeightRequest="50" />
-                                                </Border>
-                                                <VerticalStackLayout Grid.Column="2" VerticalOptions="Center" Spacing="2">
-                                                    <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold" MaxLines="1" />
-                                                    <Label Text="{Binding Artist}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
-                                                </VerticalStackLayout>
-                                                <Grid Grid.Column="3" VerticalOptions="Center" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                    <Label Text="{Binding PlayCount, StringFormat='{0}次'}" FontSize="10" TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" IsVisible="{Binding PlayCount, Converter={StaticResource CountToBoolConverter}}" />
-                                                    <Border WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17" BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
-                                                        <ImageButton Source="ic_play" WidthRequest="16" HeightRequest="16" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRankPlayTapped" />
-                                                    </Border>
-                                                </Grid>
-                                            </Grid>
-                                        </Border>
+                                        <Grid Padding="14,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                                            <Border Grid.Column="0" WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 10" StrokeThickness="0" BackgroundColor="{DynamicResource InputBackgroundColor}">
+                                                <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="46" HeightRequest="46" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                                <Label Text="{Binding Title}" FontSize="14.5" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" LineBreakMode="TailTruncation" MaxLines="1" />
+                                                <Label FontSize="12" LineBreakMode="TailTruncation" MaxLines="1" TextColor="{DynamicResource TextHintColor}">
+                                                    <Label.Text>
+                                                        <MultiBinding StringFormat="{}{0} · {1}">
+                                                            <Binding Path="Artist" TargetNullValue="未知艺术家" />
+                                                            <Binding Path="Album" TargetNullValue="未知专辑" />
+                                                        </MultiBinding>
+                                                    </Label.Text>
+                                                </Label>
+                                            </VerticalStackLayout>
+                                            <Label Grid.Column="2" FontSize="12" VerticalOptions="Center" TextColor="{DynamicResource TextHintColor}" Text="{Binding Duration, Converter={StaticResource DurationConverter}}" />
+                                            <Label Grid.Column="3" Text="⋮" FontSize="18" VerticalOptions="Center" TextColor="{DynamicResource TextHintColor}" Padding="6,0">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnMoreTapped" CommandParameter="{Binding}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+                                        </Grid>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
@@ -323,27 +325,28 @@
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource GlassCardStyle}" Padding="12" Margin="0,0,0,8">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnFavItemTapped" />
-                                            </Border.GestureRecognizers>
-                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
-                                                <Label Text="★" WidthRequest="26" FontSize="16" FontAttributes="Bold" TextColor="#FFD700" VerticalOptions="Center" HorizontalTextAlignment="Center" />
-                                                <Border WidthRequest="50" HeightRequest="50" StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
-                                                    <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="50" HeightRequest="50" />
-                                                </Border>
-                                                <VerticalStackLayout Grid.Column="2" VerticalOptions="Center" Spacing="2">
-                                                    <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold" MaxLines="1" />
-                                                    <Label Text="{Binding Artist}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
-                                                </VerticalStackLayout>
-                                                <Grid Grid.Column="3" VerticalOptions="Center" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                    <Label Text="已收藏" FontSize="10" TextColor="{DynamicResource PrimaryColor}" VerticalOptions="Center" />
-                                                    <Border WidthRequest="34" HeightRequest="34" StrokeShape="RoundRectangle 17" BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
-                                                        <ImageButton Source="ic_play" WidthRequest="16" HeightRequest="16" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnFavPlayTapped" />
-                                                    </Border>
-                                                </Grid>
-                                            </Grid>
-                                        </Border>
+                                        <Grid Padding="14,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                                            <Border Grid.Column="0" WidthRequest="46" HeightRequest="46" StrokeShape="RoundRectangle 10" StrokeThickness="0" BackgroundColor="{DynamicResource InputBackgroundColor}">
+                                                <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="46" HeightRequest="46" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                                <Label Text="{Binding Title}" FontSize="14.5" FontAttributes="Bold" TextColor="{DynamicResource TextPrimaryColor}" LineBreakMode="TailTruncation" MaxLines="1" />
+                                                <Label FontSize="12" LineBreakMode="TailTruncation" MaxLines="1" TextColor="{DynamicResource TextHintColor}">
+                                                    <Label.Text>
+                                                        <MultiBinding StringFormat="{}{0} · {1}">
+                                                            <Binding Path="Artist" TargetNullValue="未知艺术家" />
+                                                            <Binding Path="Album" TargetNullValue="未知专辑" />
+                                                        </MultiBinding>
+                                                    </Label.Text>
+                                                </Label>
+                                            </VerticalStackLayout>
+                                            <Label Grid.Column="2" FontSize="12" VerticalOptions="Center" TextColor="{DynamicResource TextHintColor}" Text="{Binding Duration, Converter={StaticResource DurationConverter}}" />
+                                            <Label Grid.Column="3" Text="⋮" FontSize="18" VerticalOptions="Center" TextColor="{DynamicResource TextHintColor}" Padding="6,0">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnMoreTapped" CommandParameter="{Binding}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+                                        </Grid>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
@@ -727,4 +730,4 @@
             </Grid>
         </Grid>
     </Grid>
-</ContentPage>
+</base:DiscoverPageBase>

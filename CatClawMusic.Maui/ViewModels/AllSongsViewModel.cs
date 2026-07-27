@@ -19,6 +19,7 @@ public partial class AllSongsViewModel : ObservableObject
     private readonly IAudioPlayerService _audioService;
     private readonly IMusicLibraryService _musicLibrary;
 
+    private List<Song> _loadedSongs = new();
     private List<Song> _allSongs = new();
     private CancellationTokenSource? _filterCts;
 
@@ -32,6 +33,8 @@ public partial class AllSongsViewModel : ObservableObject
         // 初始高亮默认排序项（标题）
         foreach (var option in SortOptions)
             option.IsActive = option.Key == _sortKey;
+
+        UpdateViewButtonColors();
     }
 
     // === 歌曲列表内存缓存（跨页实例共享，避免每次进入都全量重查 DB） ===
@@ -120,9 +123,43 @@ public partial class AllSongsViewModel : ObservableObject
     /// <summary>是否显示 A-Z 索引（仅按标题排序且无搜索时）</summary>
     [ObservableProperty] private bool _showIndexRail;
 
+    // === 视图模式（列表 / 网格）===
+
+    /// <summary>歌曲列表默认使用列表视图：手机横屏右侧区域窄，列表能完整显示歌名/歌手/时长。</summary>
+    [ObservableProperty] private bool _isGridView = false;
+
+    [ObservableProperty] private Color _gridButtonColor = Colors.Transparent;
+    [ObservableProperty] private Color _listButtonColor = Colors.Transparent;
+
+    partial void OnIsGridViewChanged(bool value) => UpdateViewButtonColors();
+
+    private void UpdateViewButtonColors()
+    {
+        var activeColor = (Color)(Application.Current?.Resources["PrimaryColor"] ?? Colors.Purple);
+        var inactiveColor = (Color)(Application.Current?.Resources["CardBackgroundStrongColor"] ?? Colors.Gray);
+        GridButtonColor = IsGridView ? activeColor : inactiveColor;
+        ListButtonColor = IsGridView ? inactiveColor : activeColor;
+    }
+
+    [RelayCommand]
+    private void ToggleView() => IsGridView = !IsGridView;
+
     // === 数据源类型 ===
 
-    private string _source = "local"; // "local" | "network" | "all"
+    private string _source = "local"; // "local" | "network" | "all" | "favorites" | "recent"
+
+    /// <summary>当前本地/网络筛选模式（仅在 Source == "all" 时生效）。</summary>
+    [ObservableProperty] private string _filterMode = "all";
+
+    /// <summary>是否显示本地/网络筛选（只有入口为"全部音乐"时才展示）。</summary>
+    [ObservableProperty] private bool _isSourceFilterVisible;
+
+    partial void OnFilterModeChanged(string value)
+    {
+        // 切换筛选时直接使用已加载的全部数据做内存过滤，避免重复查 DB
+        ApplyFilterCore();
+        _ = FilterAndSortAsync();
+    }
 
     /// <summary>
     /// 加载歌曲数据。通过 source 参数决定加载哪个数据源。
@@ -130,6 +167,15 @@ public partial class AllSongsViewModel : ObservableObject
     public async Task LoadAsync(string source)
     {
         _source = source;
+        IsSourceFilterVisible = source == "all";
+
+        // favorites / recent / local / network 入口时，筛选模式与来源对齐；
+        // source == "all" 时保持当前筛选模式（默认 all）。
+        if (source is "local" or "network")
+            FilterMode = source;
+        else if (source is "favorites" or "recent")
+            FilterMode = "all";
+
         IsLoading = true;
 
         try
@@ -186,28 +232,44 @@ public partial class AllSongsViewModel : ObservableObject
             "network" => await _db.GetCachedNetworkSongsAsync(),
             "favorites" => await _db.GetFavoriteSongsAsync(),
             "recent" => await _db.GetRecentSongsAsync(),
+            "all" => (await _db.GetSongsAsync()).Concat(await _db.GetCachedNetworkSongsAsync()).ToList(),
             _ => (await _db.GetSongsAsync()).Concat(await _db.GetCachedNetworkSongsAsync()).ToList()
         };
         return SortSongs(loaded);
     }
 
-    /// <summary>将（已排序的）歌曲列表赋值到 UI 集合，并刷新标题 / 统计 / A-Z 索引条。</summary>
-    private Task ApplyList(List<Song> songs, string title)
+    /// <summary>将加载的原始歌曲列表应用到 UI，并根据当前本地/网络筛选模式过滤。</summary>
+    private Task ApplyList(List<Song> loadedSongs, string title)
     {
         return MainThread.InvokeOnMainThreadAsync(() =>
         {
             PageTitle = title;
-            _allSongs = songs;
-            var filtered = SortSongs(songs.ToList());
-            Songs = new ObservableCollection<Song>(filtered);
-            SongCountText = $"{filtered.Count:N0} 首歌曲";
-            ShowIndexRail = SortKey == "title" && string.IsNullOrWhiteSpace(SearchQuery);
-            if (ShowIndexRail)
-                BuildGroupHeaders(filtered);
-            else
-                GroupHeaders.Clear();
+            _loadedSongs = loadedSongs;
+            ApplyFilterCore();
             IsLoading = false;
         });
+    }
+
+    /// <summary>根据 Source 与 FilterMode 从 _loadedSongs 得到 _allSongs，并刷新 UI 集合与统计。</summary>
+    private void ApplyFilterCore()
+    {
+        IEnumerable<Song> q = _loadedSongs;
+        if (_source == "all" && FilterMode != "all")
+        {
+            q = FilterMode == "local"
+                ? q.Where(s => s.Source == SongSource.Local)
+                : q.Where(s => s.Source != SongSource.Local);
+        }
+
+        _allSongs = q.ToList();
+        var filtered = SortSongs(_allSongs.ToList());
+        Songs = new ObservableCollection<Song>(filtered);
+        SongCountText = $"{filtered.Count:N0} 首歌曲";
+        ShowIndexRail = SortKey == "title" && string.IsNullOrWhiteSpace(SearchQuery);
+        if (ShowIndexRail)
+            BuildGroupHeaders(filtered);
+        else
+            GroupHeaders.Clear();
     }
 
     /// <summary>切换排序字段（再次点击同一切换升降序）</summary>

@@ -138,7 +138,7 @@ public partial class LogViewModel : ObservableObject
 
     /// <summary>加载日志文件并解析（页面 OnAppearing 时调用）</summary>
     [RelayCommand]
-    public void LoadLogs()
+    public async Task LoadLogsAsync()
     {
         _allEntries.Clear();
         AvailableTags.Clear();
@@ -157,7 +157,8 @@ public partial class LogViewModel : ObservableObject
             SizeKb = Math.Max(1, (int)(fi.Length / 1024));
 
             // 按行读取，逐行解析（格式：HH:mm:ss.fff\t[L][tag] msg）
-            var lines = File.ReadAllLines(_logFilePath);
+            // 改为异步读取，避免阻塞 UI 线程
+            var lines = await File.ReadAllLinesAsync(_logFilePath);
             var seenTags = new HashSet<string>();
             // 正则：HH:mm:ss.fff [L][tag] msg，L 可以是 D/I/W/E
             var regex = new Regex(@"^(\d{2}:\d{2}:\d{2}\.\d{3})\s*\[(D|I|W|E)\]\s*\[([^\]]+)\]\s?(.*)$");
@@ -296,7 +297,7 @@ public partial class LogViewModel : ObservableObject
         try
         {
             if (File.Exists(_logFilePath))
-                File.WriteAllText(_logFilePath, "");
+                await File.WriteAllTextAsync(_logFilePath, "");
             _allEntries.Clear();
             UpdateStats();
             ApplyFilter();
@@ -314,7 +315,7 @@ public partial class LogViewModel : ObservableObject
             Directory.CreateDirectory(tmpDir);
             var logFile = Path.Combine(tmpDir, "debug.log");
             if (File.Exists(_logFilePath))
-                File.Copy(_logFilePath, logFile, true);
+                await Task.Run(() => File.Copy(_logFilePath, logFile, true));
 
             // 附加设备信息
             if (IncludeDeviceInfo)

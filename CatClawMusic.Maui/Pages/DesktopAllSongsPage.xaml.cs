@@ -5,7 +5,8 @@ using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>横屏桌面模式全部歌曲页：双列网格歌曲列表，复用 AllSongsViewModel。</summary>
+/// <summary>横屏桌面模式全部歌曲页：双列网格歌曲列表，复用 AllSongsViewModel。
+/// 公共 UI 组件见 <see cref="Controls"/> 命名空间；本类仅保留横屏专属的网格列数自适应与 AppPopup 弹窗。</summary>
 [QueryProperty(nameof(Source), "source")]
 public partial class DesktopAllSongsPage : ContentPage
 {
@@ -18,6 +19,23 @@ public partial class DesktopAllSongsPage : ContentPage
         InitializeComponent();
         _vm = vm;
         BindingContext = _vm;
+        SizeChanged += OnPageSizeChanged;
+    }
+
+    /// <summary>
+    /// 根据右侧可用宽度动态计算网格列数：每列约 132px（封面 96 + 间距 8 + padding 12×2 + 余量）。
+    /// 手机横屏右侧约 1160px → 8 列，平板/车机更宽 → 更多列，最小 4 列，最大 12 列。
+    /// </summary>
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        if (GridSongView?.ItemsLayout is not GridItemsLayout gridLayout) return;
+
+        double rightWidth = Math.Max(0, Width - 280);
+        int span = (int)Math.Round(rightWidth / 132);
+        span = Math.Clamp(span, 4, 12);
+
+        if (gridLayout.Span != span)
+            gridLayout.Span = span;
     }
 
     protected override void OnAppearing()
@@ -26,28 +44,27 @@ public partial class DesktopAllSongsPage : ContentPage
         _ = _vm.LoadAsync(Source);
     }
 
-    private async void OnBackTapped(object? sender, EventArgs e)
+    // === 事件处理 ===
+
+    private void OnBackTapped(object? sender, EventArgs e)
     {
-        if (PagerNavigator.TryPopOverlay())
-            return;
-        // 横屏嵌入模式：返回到音乐库 tab
+        if (PagerNavigator.TryPopOverlay()) return;
+
+        // 横屏嵌入模式：返回到音乐库 tab，保持侧边栏可见
         if (App.IsLandscapeMode() && DesktopMainPage.Instance != null)
         {
             DesktopMainPage.Instance.CloseEmbeddedSubPage("library");
             return;
         }
-        if (Navigation.NavigationStack.Count > 1)
-            await Navigation.PopAsync();
-        else
-            await Shell.Current.GoToAsync("..");
+
+        _ = Shell.Current.GoToAsync("..");
     }
 
-    private void OnSortChipTapped(object? sender, TappedEventArgs e)
+    // ChipList.ChipTapped 事件签名：EventHandler<object?>
+    private void OnSortChipTapped(object? sender, object? item)
     {
-        if (e.Parameter is string key)
-        {
-            _vm.ToggleSort(key);
-        }
+        if (item is SortOption option)
+            _vm.ToggleSort(option.Key);
     }
 
     private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
@@ -59,17 +76,36 @@ public partial class DesktopAllSongsPage : ContentPage
         }
     }
 
+    private async void OnGridSongTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is Song song)
+            await _vm.PlaySongCommand.ExecuteAsync(song);
+    }
+
     private void OnMoreTapped(object? sender, TappedEventArgs e)
     {
         if (e.Parameter is not Song song) return;
+        ShowSongMorePopup(song);
+    }
 
-        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
+    private void OnIndexTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is int index && index >= 0 && index < _vm.Songs.Count)
+        {
+            var targetSong = _vm.Songs[index];
+            SongListView?.ScrollTo(targetSong, position: ScrollToPosition.MakeVisible);
+        }
+    }
+
+    // === AppPopup 弹窗（MAUI 11 Android 端 DisplayActionSheet 兼容性问题） ===
+
+    private void ShowSongMorePopup(Song song)
+    {
         var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
-        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
         var cardBg = (Color)Application.Current!.Resources["CardBackgroundStrongColor"];
 
-        SongMorePopup.Title = song.Title;
-        SongMorePopup.ClearContent();
+        SongMorePopupControl.Title = song.Title;
+        SongMorePopupControl.ClearContent();
 
         string[] actions = { "添加到播放队列", "添加到歌单", "查看歌曲详情", "分享" };
         foreach (var action in actions)
@@ -89,7 +125,7 @@ public partial class DesktopAllSongsPage : ContentPage
             {
                 Command = new Command(async () =>
                 {
-                    SongMorePopup.Close();
+                    await SongMorePopupControl.CloseAsync();
                     await HandleSongAction(captured, song);
                 })
             });
@@ -100,13 +136,13 @@ public partial class DesktopAllSongsPage : ContentPage
                 TextColor = textPrimary,
                 VerticalOptions = LayoutOptions.Center
             };
-            SongMorePopup.AddContent(row);
+            SongMorePopupControl.AddContent(row);
         }
 
-        SongMorePopup.Open();
+        SongMorePopupControl.Open();
     }
 
-    private async Task HandleSongAction(string action, Song song)
+    private async Task HandleSongAction(string? action, Song song)
     {
         switch (action)
         {
@@ -119,15 +155,6 @@ public partial class DesktopAllSongsPage : ContentPage
             case "添加到歌单":
                 // TODO: 添加到歌单
                 break;
-        }
-    }
-
-    private void OnIndexTapped(object? sender, TappedEventArgs e)
-    {
-        if (e.Parameter is int index && index >= 0 && index < _vm.Songs.Count)
-        {
-            var targetSong = _vm.Songs[index];
-            SongListView?.ScrollTo(targetSong, position: ScrollToPosition.MakeVisible);
         }
     }
 }

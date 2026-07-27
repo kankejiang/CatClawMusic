@@ -90,7 +90,7 @@ public class SmbStreamProxy : IDisposable
                 try
                 {
                     var context = await listener.GetContextAsync().WaitAsync(ct);
-                    _ = Task.Run(() => HandleRequest(context), ct);
+                    _ = Task.Run(() => HandleRequestAsync(context), ct);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
@@ -131,7 +131,7 @@ public class SmbStreamProxy : IDisposable
         return _smbPool.GetOrAdd(key, _ => new SmbService());
     }
 
-    private async void HandleRequest(HttpListenerContext context)
+    private async Task HandleRequestAsync(HttpListenerContext context)
     {
         var request = context.Request;
         var response = context.Response;
@@ -268,6 +268,7 @@ public class SmbStreamProxy : IDisposable
         }
         catch (Exception ex)
         {
+            // 完整兜底：记录日志并确保响应关闭，避免连接泄漏
             Log.Debug("SmbStreamProxy", $"[SmbProxy] HandleRequest error: {ex.Message}");
             try
             {

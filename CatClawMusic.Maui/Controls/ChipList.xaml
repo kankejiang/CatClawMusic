@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.ChipList">
+
+    <!-- 横向可滚动 / 纵向堆叠由 code-behind 根据 Orientation 动态切换 -->
+    <ScrollView x:Name="ScrollHost"
+                Orientation="Horizontal"
+                VerticalScrollBarVisibility="Never"
+                HorizontalScrollBarVisibility="Never">
+        <StackLayout x:Name="ItemsHost" Spacing="8" />
+    </ScrollView>
+</ContentView>

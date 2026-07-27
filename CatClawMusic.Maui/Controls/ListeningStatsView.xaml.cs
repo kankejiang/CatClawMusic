@@ -15,8 +15,13 @@ public partial class ListeningStatsView : ContentView
     private ListeningStatsViewModel? _vm;
     private bool _isLoaded;
 
-    private static readonly Color BarTopColor = Color.FromArgb("#55D6FF");
-    private static readonly Color BarBottomColor = Color.FromArgb("#8C7BFF");
+    // 颜色常量（集中管理，避免散落硬编码）
+    private static readonly Color TrendGradientStart = Color.FromArgb("#55D6FF");
+    private static readonly Color TrendGradientEnd = Color.FromArgb("#8C7BFF");
+    private static readonly Color TrendGlowStart = Color.FromArgb("#6655D6FF");
+    private static readonly Color TrendGlowEnd = Color.FromArgb("#338C7BFF");
+    private static readonly Color LabelColor = Color.FromArgb("#8D93B7");
+
     private const int BarTrackHeight = 100;
     private const int BarTopPadding = 20;
 
@@ -27,8 +32,8 @@ public partial class ListeningStatsView : ContentView
         EndPoint = new Point(0, 1),
         GradientStops = new GradientStopCollection
         {
-            new GradientStop(Color.FromArgb("#55D6FF"), 0),
-            new GradientStop(Color.FromArgb("#8C7BFF"), 1),
+            new GradientStop(TrendGradientStart, 0),
+            new GradientStop(TrendGradientEnd, 1),
         }
     };
     private static readonly LinearGradientBrush GlowBrush = new()
@@ -37,8 +42,8 @@ public partial class ListeningStatsView : ContentView
         EndPoint = new Point(0, 1),
         GradientStops = new GradientStopCollection
         {
-            new GradientStop(Color.FromArgb("#6655D6FF"), 0),
-            new GradientStop(Color.FromArgb("#338C7BFF"), 1),
+            new GradientStop(TrendGlowStart, 0),
+            new GradientStop(TrendGlowEnd, 1),
         }
     };
 
@@ -137,7 +142,7 @@ public partial class ListeningStatsView : ContentView
                 FontSize = valueFontSize,
                 FontAttributes = FontAttributes.Bold,
                 FontFamily = "OpenSansSemibold",
-                TextColor = BarTopColor,
+                TextColor = TrendGradientStart,
                 HorizontalOptions = LayoutOptions.Center,
                 IsVisible = bar.HasValue,
             };
@@ -191,7 +196,7 @@ public partial class ListeningStatsView : ContentView
             {
                 Text = bar.Label,
                 FontSize = labelFontSize,
-                TextColor = Color.FromArgb("#8D93B7"),
+                TextColor = LabelColor,
                 HorizontalOptions = LayoutOptions.Center,
             };
             stack.Children.Add(label);

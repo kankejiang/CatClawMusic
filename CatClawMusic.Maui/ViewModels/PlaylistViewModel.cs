@@ -122,7 +122,7 @@ public partial class PlaylistViewModel : ObservableObject
             }
 
             // 批量解析每个歌单的封面（用 CoverSongId 查磁盘缓存或从音频文件提取）
-            await Task.Run(() =>
+            await Task.Run(async () =>
             {
                 foreach (var pl in Playlists)
                 {
@@ -133,7 +133,7 @@ public partial class PlaylistViewModel : ObservableObject
                         // 缓存未命中，需要从数据库取歌曲文件路径来提取封面
                         try
                         {
-                            var song = _db.GetSongByIdAsync(pl.CoverSongId).GetAwaiter().GetResult();
+                            var song = await _db.GetSongByIdAsync(pl.CoverSongId);
                             if (song != null)
                             {
                                 var resolved = Services.CoverHelper.ResolveSingleCover(song, Services.CoverHelper.ThumbnailSize);

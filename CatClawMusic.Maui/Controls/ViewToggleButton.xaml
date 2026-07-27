@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.ViewToggleButton">
+
+    <Border StrokeShape="RoundRectangle 10"
+            StrokeThickness="1"
+            Stroke="{DynamicResource GlassStrokeColor}"
+            BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+        <Grid ColumnDefinitions="Auto,Auto"
+              ColumnSpacing="0"
+              HorizontalOptions="Center">
+            <!-- 网格视图按钮 -->
+            <Border x:Name="GridButton"
+                    Grid.Column="0"
+                    WidthRequest="38" HeightRequest="30"
+                    StrokeShape="RoundRectangle 10,0,0,10"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnGridTapped" />
+                </Border.GestureRecognizers>
+                <Image Source="{AppThemeBinding Light=ic_grid_light.svg, Dark=ic_grid.svg}"
+                       WidthRequest="16" HeightRequest="16"
+                       Aspect="AspectFit"
+                       VerticalOptions="Center" HorizontalOptions="Center" />
+            </Border>
+            <!-- 列表视图按钮 -->
+            <Border x:Name="ListButton"
+                    Grid.Column="1"
+                    WidthRequest="38" HeightRequest="30"
+                    StrokeShape="RoundRectangle 0,10,10,0"
+                    StrokeThickness="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnListTapped" />
+                </Border.GestureRecognizers>
+                <Image Source="{AppThemeBinding Light=ic_list_light.svg, Dark=ic_list.svg}"
+                       WidthRequest="16" HeightRequest="16"
+                       Aspect="AspectFit"
+                       VerticalOptions="Center" HorizontalOptions="Center" />
+            </Border>
+        </Grid>
+    </Border>
+</ContentView>
