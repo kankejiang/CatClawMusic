@@ -6,6 +6,7 @@ using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
+using System.IO;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -128,6 +129,9 @@ public partial class NowPlayingPage : ContentPage
                 PhoneControls.IsVisible = false;
                 DesktopControls.IsVisible = false;
                 BottomActionBar.IsVisible = false;
+                // 横屏封面首次显示时 Handler 才创建，可能错过 PlayerCoverTag 导致低分辨率解码；
+                // 延迟重载一次封面，确保使用高分辨率桶。
+                _ = ReloadCoverHighResAsync(LandscapeCoverImage);
             }
             RightHalf.ClearValue(HeightRequestProperty);
             MainContent.RowDefinitions = new RowDefinitionCollection
@@ -154,6 +158,8 @@ public partial class NowPlayingPage : ContentPage
                 LandscapeCurrentLyric.IsVisible = true;
                 LandscapeLyricsScroll.IsVisible = false;
                 _landscapeLyricsMode = false;
+                // 若页面首次以横屏创建，竖屏封面 Handler 此时才就绪，重载一次确保高分辨率。
+                _ = ReloadCoverHighResAsync(ArtworkImage);
             }
             // 5行歌词高度估算：约 200-220px
             RightHalf.HeightRequest = 200;
@@ -198,6 +204,42 @@ public partial class NowPlayingPage : ContentPage
                 v2.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
         }
         catch { /* Handler 未就绪时忽略，下次 OnAppearing 再补 */ }
+#endif
+    }
+
+    /// <summary>
+    /// 为指定封面 Image 强制使用高分辨率桶重新加载图片。
+    /// 用于横屏/竖屏封面在布局切换后 Handler 才创建、导致首次解码分辨率不足的场景。
+    /// </summary>
+    private async Task ReloadCoverHighResAsync(Image image)
+    {
+#if ANDROID
+        try
+        {
+            // 等待布局测量完成、Handler 与原生 ImageView 就绪
+            await Task.Delay(50);
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                try
+                {
+                    // 直接给原生 ImageView 打 Tag，确保后续解码走 PlayerCoverTargetPx
+                    if (image.Handler?.PlatformView is Android.Widget.ImageView iv)
+                        iv.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
+
+                    // 用新的 FileImageSource 实例触发重新解码，避免复用低分辨率缓存
+                    var source = !string.IsNullOrEmpty(_viewModel.CurrentCoverPath) && File.Exists(_viewModel.CurrentCoverPath)
+                        ? ImageSource.FromFile(_viewModel.CurrentCoverPath)
+                        : _viewModel.CoverImage;
+                    image.Source = null;
+                    image.Source = source;
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("NowPlayingPage", $"[Cover] 高分辨率重载失败: {ex.Message}");
+                }
+            });
+        }
+        catch { }
 #endif
     }
 

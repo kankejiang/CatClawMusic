@@ -41,5 +41,17 @@
 - README 必须 GitHub 友好纯 markdown, 禁更新日志。
 - UI 改动先出 HTML 原型; 品牌深空蓝玻璃拟态 #8C7BFF/#55D6FF/#080B1A。
 
+## 横屏/竖屏方向控制 (2026-07-27)
+- 状态机：`App.xaml.cs` 维护 `_manualLandscape` + `_manualPortrait` 两个互斥手动标志。
+  - `IsLandscapeMode()`：强制横屏→true，强制竖屏→false，否则按 `DeviceDisplay.Current.MainDisplayInfo.Orientation`。
+  - 播放页/桌面页旋转按钮调用 `App.ToggleManualLandscape()`：当前横屏→强制竖屏(`SensorPortrait`+切`MainPage`)，否则→强制横屏(`SensorLandscape`+切`DesktopMainPage`)。
+  - `OnDisplayOrientationChanged`：仅在设备**实际到达**强制方向后释放对应标志（Landscape→释放`_manualLandscape`；Portrait→释放`_manualPortrait`），之后恢复跟随物理方向/系统自动旋转。
+  - `DesktopMainPage.OnBackButtonPressed` 调用 `ReleaseManualLandscape()` 即强制回竖屏。
+- 横屏布局实现：`CreateWindow` / `ApplyOrientationLayout` 用 `shell.Items.Clear()+Add(ShellContent)` 直接换根；横屏根为 `DesktopMainPage`，竖屏根为 `MainPage`。
+
+## 播放页封面高分辨率解码
+- Android 自定义 `CachingFileImageSourceService` 按 `ImageView.Tag` 识别播放页封面，命中 `PlayerCoverTag` 时按 1024px 解码，否则按视图尺寸桶解码。
+- `NowPlayingPage` 在 `OnAppearing`/HandlerChanged 给 `ArtworkImage`/`LandscapeCoverImage` 打 Tag；并在 `ApplyLayoutForOrientation` 横竖屏切换后调用 `ReloadCoverHighResAsync` 重载封面，避免隐藏态首次显示时错过 Tag 导致模糊。
+
 ## 环境
 - SteamTools 中间人证书: 合并 CA 包 `C:\Users\Administrator\git-ca-steamtools.crt`(git 全局 sslCAInfo, 勿删); git 用 openssl 后端。

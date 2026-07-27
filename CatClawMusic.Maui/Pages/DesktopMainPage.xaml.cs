@@ -81,6 +81,13 @@ public partial class DesktopMainPage : ContentPage
         SizeChanged += OnPageSizeChanged;
         InitVolumeSlider();
 
+#if ANDROID
+        // 横屏下 ContentArea 顶部需要留出状态栏安全区，避免 Hero 卡片等内容被系统状态栏遮挡。
+        // SafeAreaHelper 由 Android MainActivity 在 EdgeToEdge 回调中异步更新，订阅变化事件以确保首帧即正确。
+        ApplyContentAreaSafeArea();
+        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+#endif
+
         // 构造时仅创建默认 tab 内容，不触发生命周期（页面尚未进入可视树）
         _currentTab = DesktopTab.Discover;
         UpdateNavHighlight();
@@ -97,6 +104,24 @@ public partial class DesktopMainPage : ContentPage
     }
 
     private bool _isFirstAppearing = true;
+
+#if ANDROID
+    /// <summary>SafeArea 变化时刷新 ContentArea 顶部 padding（仅在未嵌入子页面时生效）。</summary>
+    private void OnSafeAreaChanged(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(ApplyContentAreaSafeArea);
+    }
+
+    /// <summary>为 ContentArea 顶部添加状态栏安全区 padding，避免横屏内容被系统状态栏遮挡。</summary>
+    private void ApplyContentAreaSafeArea()
+    {
+        // 嵌入子页面时全屏显示，不额外添加顶部安全区（由子页面自身处理）
+        if (_embeddedSubPage != null) return;
+        var top = SafeAreaHelper.TopInset;
+        if (top < 1) top = 24; // 兜底：状态栏高度通常 >= 24dp
+        ContentArea.Padding = new Thickness(0, top, 0, 0);
+    }
+#endif
 
     protected override void OnAppearing()
     {
@@ -168,6 +193,7 @@ public partial class DesktopMainPage : ContentPage
             PlayerBarBorder.IsVisible = true;
 #if ANDROID
             RootGrid.RowDefinitions[3].Height = new GridLength(72);
+            ApplyContentAreaSafeArea(); // 恢复 tab 内容的顶部状态栏安全区
 #else
             RootGrid.RowDefinitions[3].Height = new GridLength(100);
 #endif
@@ -446,6 +472,10 @@ public partial class DesktopMainPage : ContentPage
         content.HorizontalOptions = LayoutOptions.Fill;
 
         ContentArea.Children.Clear();
+#if ANDROID
+        // 子页面全屏展示，移除 ContentArea 顶部安全区 padding
+        ContentArea.Padding = new Thickness(0);
+#endif
         ContentArea.Children.Add(content);
 
         // 隐藏底部播放栏，让子页面获得最大内容展示空间
@@ -477,6 +507,11 @@ public partial class DesktopMainPage : ContentPage
 
         // 恢复系统状态栏显示
         ShowSystemStatusBar();
+
+#if ANDROID
+        // 恢复 tab 内容的顶部状态栏安全区
+        ApplyContentAreaSafeArea();
+#endif
 
         SwitchToNamedTab(returnTab);
     }

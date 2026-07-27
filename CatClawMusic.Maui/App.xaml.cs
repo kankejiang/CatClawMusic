@@ -202,12 +202,16 @@ public partial class App : Application
         rootGrid.Behaviors.Add(new SafeAreaPaddingBehavior());
     }
 
-    /// <summary>当前是否应处于横屏布局：手动强制 或 物理方向为横屏。
-    /// Windows 桌面端始终为 true（桌面布局即横屏布局）。</summary>
+    /// <summary>当前是否应处于横屏布局：手动强制横屏为 true，手动强制竖屏为 false，
+    /// 否则按物理方向。Windows 桌面端始终为 true（桌面布局即横屏布局）。</summary>
     public static bool IsLandscapeMode()
     {
 #if ANDROID
-        if (Application.Current is App app && app._manualLandscape) return true;
+        if (Application.Current is App app)
+        {
+            if (app._manualLandscape) return true;
+            if (app._manualPortrait) return false;
+        }
         return DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Landscape;
 #else
         return true;
@@ -215,14 +219,19 @@ public partial class App : Application
     }
 
 #if ANDROID
-    /// <summary>用户手动强制横屏（点「横屏切换」按钮）。Activity 重建后由 App 级字段保留状态。</summary>
+    /// <summary>正在强制切换到横屏的过渡标志（实际到达横屏后由 DisplayOrientationChanged 清除）。</summary>
     private bool _manualLandscape;
+    /// <summary>正在强制切换到竖屏的过渡标志（实际到达竖屏后由 DisplayOrientationChanged 清除）。</summary>
+    private bool _manualPortrait;
+    /// <summary>当前是否由用户锁定在横屏模式（用于按钮状态判断与切换，不受物理旋转回调清除）。</summary>
+    private bool _manualLandscapeLocked;
 
-    /// <summary>强制进入横屏（旋转按钮）：锁定 SensorLandscape，延迟一帧切换 Shell 布局。
-    /// 必须延迟：此方法从页面按钮回调内调用，Shell 无法在事件处理中途换根页面。</summary>
+    /// <summary>强制进入横屏：锁定 SensorLandscape，延迟一帧切换 Shell 布局。</summary>
     public void ForceLandscape()
     {
         _manualLandscape = true;
+        _manualPortrait = false;
+        _manualLandscapeLocked = true;
         try
         {
             var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
@@ -234,35 +243,39 @@ public partial class App : Application
         MainThread.BeginInvokeOnMainThread(() => ApplyOrientationLayout());
     }
 
-    /// <summary>退出手动横屏（返回键 / 再次点旋转按钮）：解除方向锁定，切回竖屏手机布局。
-    /// 物理竖屏时 RequestedOrientation 变化不触发 MainDisplayInfoChanged，需手动切换。</summary>
+    /// <summary>强制进入竖屏（返回键 / 再次点旋转按钮）：锁定 SensorPortrait，切回竖屏手机布局。</summary>
     public void ReleaseManualLandscape()
     {
         _manualLandscape = false;
+        _manualPortrait = true;
+        _manualLandscapeLocked = false;
         try
         {
             var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
             if (activity != null)
-                activity.RequestedOrientation = Android.Content.PM.ScreenOrientation.Unspecified;
+                activity.RequestedOrientation = Android.Content.PM.ScreenOrientation.SensorPortrait;
         }
         catch { }
-        // 物理竖屏时 RequestedOrientation 变化不触发重建，手动切回手机布局（同样延迟一帧）
-        if (DeviceDisplay.Current.MainDisplayInfo.Orientation != DisplayOrientation.Landscape)
-            MainThread.BeginInvokeOnMainThread(() => ApplyOrientationLayout());
+        // 直接切回手机布局，不依赖 DisplayOrientation 是否已经变为 Portrait
+        MainThread.BeginInvokeOnMainThread(() => ApplyOrientationLayout());
     }
 
-    /// <summary>切换横竖屏（播放页旋转按钮）。</summary>
+    /// <summary>切换横竖屏（播放页旋转按钮）：横屏与竖屏切换。</summary>
     public void ToggleManualLandscape()
     {
-        if (_manualLandscape) ReleaseManualLandscape();
+        if (_manualLandscapeLocked) ReleaseManualLandscape();
         else ForceLandscape();
     }
 
-    /// <summary>物理旋转回调：手动横屏状态下忽略（由 ForceLandscape 直接切换），否则按传感器方向直切布局。</summary>
+    /// <summary>物理旋转回调：当设备实际到达强制方向后释放对应手动标志，之后按传感器方向切换布局。</summary>
     private void OnDisplayOrientationChanged(object? sender, DisplayInfoChangedEventArgs e)
     {
-        Android.Util.Log.Info("CatClaw", $"[Orientation] DisplayChanged: {e.DisplayInfo.Orientation}, manual={_manualLandscape}");
-        if (_manualLandscape) return;
+        var orientation = e.DisplayInfo.Orientation;
+        Android.Util.Log.Info("CatClaw", $"[Orientation] DisplayChanged: {orientation}, manualLandscape={_manualLandscape}, manualPortrait={_manualPortrait}, locked={_manualLandscapeLocked}");
+        if (_manualLandscape && orientation == DisplayOrientation.Landscape)
+            _manualLandscape = false; // 已实际到达横屏，释放强制横屏
+        else if (_manualPortrait && orientation == DisplayOrientation.Portrait)
+            _manualPortrait = false; // 已实际到达竖屏，释放强制竖屏
         ApplyOrientationLayout();
     }
 
@@ -302,10 +315,10 @@ public partial class App : Application
 #endif
 
     /// <summary>用户是否已手动强制横屏（供 UI 按钮判断状态/图标）。
-    /// Android 下由 _manualLandscape 控制；其他平台始终 false。</summary>
+    /// Android 下由 _manualLandscapeLocked 控制；其他平台始终 false。</summary>
     public bool ManualLandscape =>
 #if ANDROID
-        _manualLandscape;
+        _manualLandscapeLocked;
 #else
         false;
 #endif
