@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.DesktopAllSongsPage"
              x:DataType="vm:AllSongsViewModel"
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
@@ -45,7 +46,7 @@
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnBackTapped" />
                             </Border.GestureRecognizers>
-                            <Image Source="ic_arrow_left.svg"
+                            <Image Source="{helpers:ThemedIcon Light=ic_arrow_left_light, Dark=ic_arrow_left}"
                                    WidthRequest="16" HeightRequest="16"
                                    Aspect="AspectFit"
                                    VerticalOptions="Center" HorizontalOptions="Center" />

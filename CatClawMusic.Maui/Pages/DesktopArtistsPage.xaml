@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.DesktopArtistsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
@@ -43,7 +44,7 @@
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnBackTapped" />
                             </Border.GestureRecognizers>
-                            <Image Source="ic_arrow_left.svg"
+                            <Image Source="{helpers:ThemedIcon Light=ic_arrow_left_light, Dark=ic_arrow_left}"
                                    WidthRequest="16" HeightRequest="16"
                                    Aspect="AspectFit"
                                    VerticalOptions="Center" HorizontalOptions="Center" />

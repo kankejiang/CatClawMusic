@@ -1,8 +1,10 @@
 using CatClawMusic.Data;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Maui.Helpers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Maui.Controls;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -19,9 +21,9 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IAgentService _agentService;
     private readonly IUpdateService _updateService;
 
-    /// <summary>深色模式图标（跟随系统/浅色/深色）</summary>
+    /// <summary>深色模式图标（跟随系统/浅色/深色），已解析为 ImageSource，避免 WinUI 字符串源解析失败。</summary>
     [ObservableProperty]
-    private string _darkModeIcon = "ic_system_mode";
+    private ImageSource? _darkModeIcon = ImageSourceHelper.FromNameOriginal("ic_system_mode");
 
     /// <summary>本地音乐状态文本</summary>
     [ObservableProperty]
@@ -208,9 +210,9 @@ public partial class SettingsViewModel : ObservableObject
     {
         DarkModeIcon = _themeService.DarkModeSetting switch
         {
-            DarkModeSetting.Light => "ic_light_mode",
-            DarkModeSetting.Dark => "ic_dark_mode",
-            _ => "ic_system_mode"
+            DarkModeSetting.Light => ImageSourceHelper.FromNameOriginal("ic_light_mode"),
+            DarkModeSetting.Dark => ImageSourceHelper.FromNameOriginal("ic_dark_mode"),
+            _ => ImageSourceHelper.FromNameOriginal("ic_system_mode")
         };
     }
 }

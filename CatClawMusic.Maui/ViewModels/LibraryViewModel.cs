@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Helpers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
@@ -658,13 +659,13 @@ public partial class LibraryViewModel : ObservableObject
                 var cards = new ObservableCollection<LibraryCardItem>
                 {
                     new("本地音乐库", $"{locCount} 首 · {fCount} 个文件夹 · 今天 {lastSync} 扫描", "已同步", "ok",
-                        "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder.svg", "local"),
+                        "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder", "local"),
                     new("网络音乐库", netSubtitle, netStatusText, netStatusType,
-                        "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi.svg", "network"),
+                        "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi", "network"),
                     new("我喜欢的", $"{favCount} 首 · 智能歌单", $"{favCount}首", "ok",
-                        "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite.svg", "favorite"),
+                        "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite", "favorite"),
                     new("最近播放", $"{recCount} 首 · 自动记录", $"{recCount}首", "ok",
-                        "linear-gradient(135deg,#7A6CF0,#A78BFA)", "ic_history.svg", "recent"),
+                        "linear-gradient(135deg,#7A6CF0,#A78BFA)", "ic_history", "recent"),
                 };
 
                 return (localSongCount: locCount, networkSongCount: netCount, favoriteCount: favCount,
@@ -899,7 +900,8 @@ public class LibraryCardItem
     public string StatusText { get; }
     public string StatusType { get; }
     public string IconBackground { get; }
-    public string IconSource { get; }
+    public string IconSourceName { get; }
+    public ImageSource? IconSource { get; }
     public string Target { get; }
 
     public LibraryCardItem(string name, string subtitle, string statusText, string statusType,
@@ -910,7 +912,10 @@ public class LibraryCardItem
         StatusText = statusText;
         StatusType = statusType;
         IconBackground = iconBackground;
-        IconSource = iconSource;
+        IconSourceName = iconSource;
+        // 在 Windows 上直接把 "ic_xxx.svg" 当 Image.Source 字符串无法解析 MauiImage；
+        // 这里提前用 ImageSourceHelper 解析为 ImageSource（彩色渐变背景上的白色图标，无需主题变体）。
+        IconSource = ImageSourceHelper.FromNameOriginal(iconSource);
         Target = target;
     }
 }

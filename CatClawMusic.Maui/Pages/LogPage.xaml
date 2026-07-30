@@ -5,6 +5,7 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:sys="clr-namespace:System;assembly=netstandard"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.LogPage"
              Title="诊断日志"
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
@@ -40,7 +41,7 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnBackClicked" />
                         </Border.GestureRecognizers>
-                        <Image Source="{AppThemeBinding Light=ic_back_light, Dark=ic_back}"
+                        <Image Source="{helpers:ThemedIcon Light=ic_back_light, Dark=ic_back}"
                                WidthRequest="22" HeightRequest="22"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
@@ -55,7 +56,7 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRefreshClicked" />
                         </Border.GestureRecognizers>
-                        <Image Source="{AppThemeBinding Light=ic_refresh_light, Dark=ic_refresh}"
+                        <Image Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}"
                                WidthRequest="20" HeightRequest="20"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
@@ -151,7 +152,7 @@
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <Border Grid.Column="0" Style="{StaticResource GlassCardStyle}" Padding="12,9">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                <Image Source="{AppThemeBinding Light=ic_search_light, Dark=ic_search}"
+                                <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}"
                                        WidthRequest="16" HeightRequest="16"
                                        VerticalOptions="Center" Opacity="0.6" />
                                 <Entry Grid.Column="1"
@@ -169,7 +170,7 @@
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnScrollToTopClicked" />
                             </Border.GestureRecognizers>
-                            <Image Source="{AppThemeBinding Light=ic_arrow_up_light, Dark=ic_arrow_up}"
+                            <Image Source="{helpers:ThemedIcon Light=ic_arrow_up_light, Dark=ic_arrow_up}"
                                    WidthRequest="18" HeightRequest="18"
                                    HorizontalOptions="Center" VerticalOptions="Center" Opacity="0.7" />
                         </Border>
@@ -246,7 +247,7 @@
                     <Border Style="{StaticResource GlassCardStrongStyle}" Padding="16">
                         <VerticalStackLayout Spacing="13">
                             <HorizontalStackLayout Spacing="8">
-                                <Image Source="{AppThemeBinding Light=ic_share_light, Dark=ic_share}"
+                                <Image Source="{helpers:ThemedIcon Light=ic_share_light, Dark=ic_share}"
                                        WidthRequest="17" HeightRequest="17"
                                        VerticalOptions="Center" />
                                 <Label Text="导出给开发者" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />

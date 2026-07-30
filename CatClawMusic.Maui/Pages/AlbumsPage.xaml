@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.AlbumsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabAlbums]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -37,7 +38,7 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnBackTapped" />
                 </Border.GestureRecognizers>
-                <Image Source="ic_arrow_left.svg"
+                <Image Source="{helpers:ThemedIcon Name=ic_arrow_left}"
                        WidthRequest="18" HeightRequest="18"
                        Aspect="AspectFit"
                        VerticalOptions="Center" HorizontalOptions="Center" />
@@ -65,7 +66,7 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnSearchToggled" />
                 </Border.GestureRecognizers>
-                <Image Source="ic_search.svg"
+                <Image Source="{helpers:ThemedIcon Name=ic_search}"
                        WidthRequest="18" HeightRequest="18"
                        Aspect="AspectFit"
                        VerticalOptions="Center" HorizontalOptions="Center" />

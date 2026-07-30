@@ -4,6 +4,7 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.LibraryPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
              BackgroundColor="Transparent">
@@ -32,7 +33,7 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSettingsTapped" />
                         </Border.GestureRecognizers>
-                        <Image Source="ic_settings.svg"
+                        <Image Source="{helpers:ThemedIcon Name=ic_settings, Original=True}"
                                WidthRequest="16" HeightRequest="16"
                                Aspect="AspectFit"
                                VerticalOptions="Center" HorizontalOptions="Center" />

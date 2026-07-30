@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:base="clr-namespace:CatClawMusic.Maui.Pages.Base"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              xmlns:models="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.DesktopDiscoverPage"
@@ -33,22 +34,16 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSearchToggleClicked" />
                         </Border.GestureRecognizers>
-                        <Image WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.Source>
-                                <AppThemeBinding Light="ic_search_light" Dark="ic_search" />
-                            </Image.Source>
-                        </Image>
+                        <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}"
+                               WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRefreshClicked" />
                         </Border.GestureRecognizers>
-                        <Image WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.Source>
-                                <AppThemeBinding Light="ic_refresh_light" Dark="ic_refresh" />
-                            </Image.Source>
-                        </Image>
+                        <Image Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}"
+                               WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
@@ -63,9 +58,9 @@
             <!-- 搜索框 -->
             <Border x:Name="SearchBoxContainer" Margin="0,0,0,0" Style="{StaticResource GlassInputStyle}" IsVisible="{Binding IsSearchOpen}">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                    <Image Source="ic_search" WidthRequest="18" HeightRequest="18" Opacity="0.9" VerticalOptions="Center" />
+                    <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}" WidthRequest="18" HeightRequest="18" Opacity="0.9" VerticalOptions="Center" />
                     <Entry Grid.Column="1" x:Name="SearchBox" Text="{Binding SearchQuery, Mode=TwoWay}" Placeholder="搜索歌曲、歌手、专辑..." ReturnType="Search" TextChanged="OnSearchTextChanged" Completed="OnSearchCompleted" />
-                    <ImageButton Grid.Column="2" Source="ic_close" WidthRequest="24" HeightRequest="24" BackgroundColor="Transparent" IsVisible="{Binding ShowSearchResults}" Clicked="OnClearSearchClicked" />
+                    <ImageButton Grid.Column="2" Source="{helpers:ThemedIcon Name=ic_close, Original=True}" WidthRequest="24" HeightRequest="24" BackgroundColor="Transparent" IsVisible="{Binding ShowSearchResults}" Clicked="OnClearSearchClicked" />
                 </Grid>
             </Border>
 
@@ -127,7 +122,7 @@
                                                 <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
                                                 <Label Text="{Binding Artist}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
                                             </VerticalStackLayout>
-                                            <ImageButton Source="ic_play" WidthRequest="28" HeightRequest="28" BackgroundColor="Transparent" Clicked="OnSearchSongPlayTapped" />
+                                            <ImageButton Source="{helpers:ThemedIcon Light=ic_play_light, Dark=ic_play}" WidthRequest="28" HeightRequest="28" BackgroundColor="Transparent" Clicked="OnSearchSongPlayTapped" />
                                         </Grid>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
@@ -542,7 +537,7 @@
                     <Entry x:Name="ChatInputBox" Text="{Binding ChatInput, Mode=TwoWay}"
                            Placeholder="输入消息..." ReturnType="Send" Completed="OnChatInputCompleted" />
                     <Border Grid.Column="1" Style="{StaticResource GlassIconContainerStyle}" BackgroundColor="{DynamicResource ChipActiveColor}">
-                        <ImageButton Source="ic_send" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnSendClicked" />
+                        <ImageButton Source="{helpers:ThemedIcon Name=ic_send, Original=True}" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnSendClicked" />
                     </Border>
                 </Grid>
             </Border>

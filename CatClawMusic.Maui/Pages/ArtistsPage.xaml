@@ -4,6 +4,7 @@
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.ArtistsPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -38,7 +39,7 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnBackTapped" />
                 </Border.GestureRecognizers>
-                <Image Source="ic_arrow_left.svg"
+                <Image Source="{helpers:ThemedIcon Name=ic_arrow_left}"
                        WidthRequest="18" HeightRequest="18"
                        Aspect="AspectFit"
                        VerticalOptions="Center" HorizontalOptions="Center" />
@@ -62,7 +63,7 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnSearchToggled" />
                 </Border.GestureRecognizers>
-                <Image Source="ic_search.svg"
+                <Image Source="{helpers:ThemedIcon Name=ic_search}"
                        WidthRequest="17" HeightRequest="17"
                        Aspect="AspectFit"
                        VerticalOptions="Center" HorizontalOptions="Center" />

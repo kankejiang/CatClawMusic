@@ -5,6 +5,7 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
@@ -199,7 +200,7 @@ public partial class LibraryPage : ContentPage
         };
         arrowBorder.Content = new Image
         {
-            Source = "ic_arrow_forward.svg",
+            Source = ImageSourceHelper.FromNameThemed("ic_arrow_forward"),
             WidthRequest = 16,
             HeightRequest = 16,
             Aspect = Aspect.AspectFit,

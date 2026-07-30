@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.DesktopPlaylistView"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}"
              BackgroundColor="Transparent">
@@ -34,7 +35,7 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnCreatePlaylistClicked" />
                         </Border.GestureRecognizers>
-                        <Image Source="ic_add"
+                        <Image Source="{helpers:ThemedIcon Name=ic_add, Original=True}"
                                WidthRequest="22" HeightRequest="22"
                                HorizontalOptions="Center"
                                VerticalOptions="Center" />
@@ -63,7 +64,7 @@
                                     <GradientStop Color="#FF7AAE" Offset="1" />
                                 </LinearGradientBrush>
                             </Border.Background>
-                            <Image Source="ic_favorite.svg" WidthRequest="22" HeightRequest="22"
+                            <Image Source="{helpers:ThemedIcon Name=ic_favorite, Original=True}" WidthRequest="22" HeightRequest="22"
                                    HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
                         <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">
@@ -93,7 +94,7 @@
                                     <GradientStop Color="#A78BFA" Offset="1" />
                                 </LinearGradientBrush>
                             </Border.Background>
-                            <Image Source="ic_history.svg" WidthRequest="22" HeightRequest="22"
+                            <Image Source="{helpers:ThemedIcon Name=ic_history, Original=True}" WidthRequest="22" HeightRequest="22"
                                    HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
                         <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">

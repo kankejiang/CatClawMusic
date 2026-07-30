@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.DesktopMainPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
@@ -145,7 +146,7 @@
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnLyricsButtonClicked" />
                     </Grid.GestureRecognizers>
-                    <Image Source="ic_lyrics"
+                    <Image Source="{helpers:ThemedIcon Name=ic_lyrics, Original=True}"
                            WidthRequest="22" HeightRequest="22"
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Grid>
@@ -269,7 +270,7 @@
                 <!-- Volume (right) -->
                 <Grid x:Name="VolumeGrid" Grid.Column="2" ColumnDefinitions="Auto,*" ColumnSpacing="12"
                       VerticalOptions="Center" WidthRequest="240" MinimumWidthRequest="120">
-                    <Image Source="ic_music_note" WidthRequest="18" HeightRequest="18"
+                    <Image Source="{helpers:ThemedIcon Name=ic_music_note, Original=True}" WidthRequest="18" HeightRequest="18"
                            Opacity="0.5" VerticalOptions="Center" />
                     <Slider Grid.Column="1" x:Name="VolumeSlider"
                             Minimum="0" Maximum="1"

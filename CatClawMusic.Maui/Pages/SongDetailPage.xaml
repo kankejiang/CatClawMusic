@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.SongDetailPage"
              Title="歌曲详情"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -40,7 +41,7 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnBackClicked" />
                         </Border.GestureRecognizers>
-                        <Image Source="ic_back.svg"
+                        <Image Source="{helpers:ThemedIcon Name=ic_back, Original=True}"
                                WidthRequest="18" HeightRequest="18"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
@@ -123,7 +124,7 @@
                         Margin="0,12,0,0"
                         HorizontalOptions="Center">
                     <HorizontalStackLayout Spacing="6">
-                        <Image Source="ic_album.svg"
+                        <Image Source="{helpers:ThemedIcon Name=ic_album, Original=True}"
                                WidthRequest="13" HeightRequest="13"
                                Opacity="0.8"
                                VerticalOptions="Center" />

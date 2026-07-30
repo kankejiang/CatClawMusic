@@ -4,6 +4,7 @@
              xmlns:base="clr-namespace:CatClawMusic.Maui.Pages.Base"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.SearchPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}"
              BackgroundColor="Transparent">
@@ -26,25 +27,13 @@
                         </VerticalStackLayout>
                         <HorizontalStackLayout Grid.Column="1" Spacing="10" VerticalOptions="Center">
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked">
-                                    <ImageButton.Source>
-                                        <AppThemeBinding Light="ic_search_light" Dark="ic_search" />
-                                    </ImageButton.Source>
-                                </ImageButton>
+                                <ImageButton Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked" />
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked">
-                                    <ImageButton.Source>
-                                        <AppThemeBinding Light="ic_refresh_light" Dark="ic_refresh" />
-                                    </ImageButton.Source>
-                                </ImageButton>
+                                <ImageButton Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked" />
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked">
-                                    <ImageButton.Source>
-                                        <AppThemeBinding Light="ic_settings_light" Dark="ic_settings" />
-                                    </ImageButton.Source>
-                                </ImageButton>
+                                <ImageButton Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked" />
                             </Border>
                         </HorizontalStackLayout>
                     </Grid>

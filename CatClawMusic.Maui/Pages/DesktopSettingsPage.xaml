@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.DesktopSettingsPage"
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
@@ -31,7 +32,8 @@
                         </Border.GestureRecognizers>
                         <Image Source="{Binding DarkModeIcon}"
                                WidthRequest="36" HeightRequest="36"
-                               HorizontalOptions="Center" VerticalOptions="Center" />
+                               HorizontalOptions="Center" VerticalOptions="Center"
+                               Aspect="AspectFit" />
                     </Border>
                 </Grid>
             </Border>
@@ -46,13 +48,13 @@
                 <VerticalStackLayout Spacing="10">
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_edit_light, Dark=ic_edit}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_edit_light, Dark=ic_edit}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Appearance]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppearanceDesc]}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnAppearanceSettingsClicked" /></Border.GestureRecognizers>
@@ -60,13 +62,13 @@
 
                     <Border Style="{StaticResource GlassCardStyle}" IsVisible="{OnPlatform Default=false, Android=true}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_lyrics_light, Dark=ic_lyrics}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_lyrics_light, Dark=ic_lyrics}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricDesc]}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnDesktopLyricClicked" /></Border.GestureRecognizers>
@@ -74,13 +76,13 @@
 
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_folder_light, Dark=ic_folder}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusic]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding LocalMusicStatus}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnLocalMusicClicked" /></Border.GestureRecognizers>
@@ -91,13 +93,13 @@
                 <VerticalStackLayout Grid.Column="1" Spacing="10">
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_search_light, Dark=ic_search}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding RemoteMusicStatus}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnRemoteMusicClicked" /></Border.GestureRecognizers>
@@ -105,13 +107,13 @@
 
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_equalizer_light, Dark=ic_equalizer}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_equalizer_light, Dark=ic_equalizer}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Plugins]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding PluginStatus}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnPluginManagementClicked" /></Border.GestureRecognizers>
@@ -119,13 +121,13 @@
 
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_play_light, Dark=ic_play}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_play_light, Dark=ic_play}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ExploreSettings]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding AiStatus}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnAiSettingsClicked" /></Border.GestureRecognizers>
@@ -143,13 +145,13 @@
                 <VerticalStackLayout Spacing="10">
                     <Border Style="{StaticResource GlassCardStyle}" IsVisible="{OnPlatform Default=false, Android=true}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_lock_locked_light, Dark=ic_lock_locked}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_lock_locked_light, Dark=ic_lock_locked}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding PermissionStatus}" FontSize="11" TextColor="{Binding PermissionStatusColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnPermissionManagementClicked" /></Border.GestureRecognizers>
@@ -157,13 +159,13 @@
 
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_settings_light, Dark=ic_settings}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettings]}" FontSize="14" FontFamily="OpenSansSemibold" />
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsDesc]}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" />
                             </VerticalStackLayout>
-                            <Image Grid.Column="2" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnGeneralSettingsClicked" /></Border.GestureRecognizers>
@@ -171,7 +173,7 @@
 
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_info_light, Dark=ic_info}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_info_light, Dark=ic_info}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="诊断日志" FontSize="14" FontFamily="OpenSansSemibold" />
@@ -188,7 +190,7 @@
                 <VerticalStackLayout Grid.Column="1" Spacing="10">
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_folder_light, Dark=ic_folder}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}" FontSize="14" FontFamily="OpenSansSemibold" />
@@ -198,7 +200,7 @@
                                      Color="{DynamicResource ErrorColor}"
                                      IsVisible="{Binding IsUpdateAvailable}"
                                      VerticalOptions="Center" />
-                            <Image Grid.Column="3" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="3" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnBackupRestoreClicked" /></Border.GestureRecognizers>
@@ -206,7 +208,7 @@
 
                     <Border Style="{StaticResource GlassCardStyle}">
                         <Grid Padding="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-                            <Image Source="{AppThemeBinding Light=ic_check_light, Dark=ic_check}" WidthRequest="20" HeightRequest="20"
+                            <Image Source="{helpers:ThemedIcon Light=ic_check_light, Dark=ic_check}" WidthRequest="20" HeightRequest="20"
                                    VerticalOptions="Center" Opacity="0.8" />
                             <VerticalStackLayout Grid.Column="1" Spacing="1">
                                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[About]}" FontSize="14" FontFamily="OpenSansSemibold" />
@@ -216,7 +218,7 @@
                                      Color="{DynamicResource ErrorColor}"
                                      IsVisible="{Binding IsUpdateAvailable}"
                                      VerticalOptions="Center" />
-                            <Image Grid.Column="3" Source="{AppThemeBinding Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
+                            <Image Grid.Column="3" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
                                    WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.5" />
                         </Grid>
                         <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnAboutClicked" /></Border.GestureRecognizers>

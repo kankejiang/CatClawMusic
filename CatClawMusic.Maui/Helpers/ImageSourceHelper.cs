@@ -32,6 +32,8 @@ public static class ImageSourceHelper
         "ic_play", "ic_pause",
         "ic_skip_previous", "ic_skip_next",
         "ic_repeat_all", "ic_repeat_one", "ic_shuffle",
+        "ic_search", "ic_refresh",
+        "ic_arrow_forward", "ic_arrow_left", "ic_check",
     };
 
     public static ImageSource? FromName(string? name)
