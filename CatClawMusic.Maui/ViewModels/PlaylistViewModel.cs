@@ -37,6 +37,14 @@ public partial class PlaylistViewModel : ObservableObject
     [ObservableProperty]
     private int _playlistCount;
 
+    /// <summary>收藏歌曲数量（供顶部入口卡片展示）</summary>
+    [ObservableProperty]
+    private int _favoriteSongCount;
+
+    /// <summary>最近播放歌曲数量（供顶部入口卡片展示）</summary>
+    [ObservableProperty]
+    private int _recentSongCount;
+
     /// <summary>
     /// 初始化 <see cref="PlaylistViewModel"/> 实例。
     /// </summary>
@@ -85,16 +93,8 @@ public partial class PlaylistViewModel : ObservableObject
             await Task.WhenAll(favCountTask, recentCountTask,
                 favFirstIdTask, recentFirstIdTask);
 
-            Playlists.Add(new Playlist
-            {
-                Id = -2, Name = "收藏歌曲", SongCount = favCountTask.Result,
-                IsSystem = true, CoverSongId = favFirstIdTask.Result, CreatedAt = _epoch + 1
-            });
-            Playlists.Add(new Playlist
-            {
-                Id = -3, Name = "最近播放", SongCount = recentCountTask.Result,
-                IsSystem = true, CoverSongId = recentFirstIdTask.Result, CreatedAt = _epoch + 2
-            });
+            FavoriteSongCount = favCountTask.Result;
+            RecentSongCount = recentCountTask.Result;
 
             var userPlaylists = await _musicLibrary.GetAllPlaylistsAsync();
 
@@ -175,53 +175,17 @@ public partial class PlaylistViewModel : ObservableObject
     /// </summary>
     public async Task RefreshSystemPlaylistCountsAsync()
     {
-        if (Playlists.Count < 2) return;
         try
         {
             var favCountTask = _musicLibrary.GetFavoriteSongCountAsync();
             var recentCountTask = _musicLibrary.GetRecentSongCountAsync();
-            var favFirstIdTask = _musicLibrary.GetFirstFavoriteSongIdAsync();
-            var recentFirstIdTask = _musicLibrary.GetFirstRecentSongIdAsync();
 
-            await Task.WhenAll(favCountTask, recentCountTask,
-                favFirstIdTask, recentFirstIdTask);
+            await Task.WhenAll(favCountTask, recentCountTask);
 
-            UpdateSystemPlaylist(-2, "收藏歌曲", favCountTask.Result, favFirstIdTask.Result, _epoch + 1);
-            UpdateSystemPlaylist(-3, "最近播放", recentCountTask.Result, recentFirstIdTask.Result, _epoch + 2);
+            FavoriteSongCount = favCountTask.Result;
+            RecentSongCount = recentCountTask.Result;
         }
         catch { }
-    }
-
-    private void UpdateSystemPlaylist(int id, string name, int songCount, int coverSongId, long createdAt)
-    {
-        var existing = Playlists.FirstOrDefault(p => p.Id == id);
-        if (existing == null) return;
-        if (existing.SongCount == songCount && existing.CoverSongId == coverSongId) return;
-
-        // 解析新封面歌曲的封面路径
-        string? coverPath = null;
-        if (coverSongId > 0)
-        {
-            coverPath = Services.CoverHelper.GetCachedPath(coverSongId, Services.CoverHelper.ThumbnailSize);
-            if (!File.Exists(coverPath))
-            {
-                try
-                {
-                    var song = _db.GetSongByIdAsync(coverSongId).GetAwaiter().GetResult();
-                    if (song != null)
-                        coverPath = Services.CoverHelper.ResolveSingleCover(song, Services.CoverHelper.ThumbnailSize);
-                }
-                catch { }
-            }
-        }
-
-        var idx = Playlists.IndexOf(existing);
-        Playlists[idx] = new Playlist
-        {
-            Id = id, Name = name, SongCount = songCount,
-            IsSystem = true, CoverSongId = coverSongId, CreatedAt = createdAt,
-            CoverPath = coverPath
-        };
     }
 
     /// <summary>

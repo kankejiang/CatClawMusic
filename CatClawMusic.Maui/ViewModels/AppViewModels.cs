@@ -734,15 +734,15 @@ public partial class NowPlayingViewModel : ObservableObject
             try
             {
                 await _db.EnsureInitializedAsync();
-                var (restoredSongs, restoredCurrentId) = await RestoreQueueStateAsync();
-                if (restoredSongs.Count > 0 && restoredCurrentId > 0)
+                var (restoredSongs, restoredIndex, restoredMode) = await RestoreQueueStateAsync();
+                if (restoredSongs.Count > 0 && restoredIndex >= 0)
                 {
-                    _queue.SetSongs(restoredSongs);
-                    _queue.SelectSong(restoredCurrentId);
+                    // 直接恢复持久化的播放顺序（含洗牌顺序），不再重新洗牌
+                    _queue.RestorePersisted(restoredSongs, restoredIndex, restoredMode);
                     song = _queue.CurrentSong;
                     // 标记启动恢复，避免自动播放
                     _isStartupRestore = true;
-                    Log.Debug("AppViewModels", $"[NowPlaying] 恢复播放队列: {restoredSongs.Count} 首, 当前歌曲ID={restoredCurrentId}");
+                    Log.Debug("AppViewModels", $"[NowPlaying] 恢复播放队列: {restoredSongs.Count} 首, 索引={restoredIndex}, 模式={restoredMode}");
                 }
             }
             catch (Exception ex)
@@ -999,7 +999,7 @@ public partial class NowPlayingViewModel : ObservableObject
     }
 
     /// <summary>从 Preferences 恢复播放队列状态（在线程池线程执行以避免阻塞主线程）</summary>
-    private async Task<(List<Song> songs, int currentSongId)> RestoreQueueStateAsync()
+    private async Task<(List<Song> songs, int currentIndex, PlayMode playMode)> RestoreQueueStateAsync()
     {
         try
         {
@@ -1008,10 +1008,10 @@ public partial class NowPlayingViewModel : ObservableObject
             {
                 var songIdsStr = Preferences.Default.Get("queue_song_ids", "");
                 var currentSongId = Preferences.Default.Get("queue_current_song_id", -1);
-                var playMode = Preferences.Default.Get("queue_play_mode", (int)PlayMode.ListRepeat);
+                var playMode = (PlayMode)Preferences.Default.Get("queue_play_mode", (int)PlayMode.ListRepeat);
 
                 if (string.IsNullOrEmpty(songIdsStr) || currentSongId <= 0)
-                    return (new List<Song>(), -1);
+                    return (new List<Song>(), -1, playMode);
 
                 var songIds = songIdsStr.Split(',')
                     .Where(s => int.TryParse(s, out _))
@@ -1019,7 +1019,7 @@ public partial class NowPlayingViewModel : ObservableObject
                     .ToList();
 
                 if (songIds.Count == 0)
-                    return (new List<Song>(), -1);
+                    return (new List<Song>(), -1, playMode);
 
                 // 并行查询所有歌曲（避免串行 await）
                 var songTasks = songIds.Select(async id =>
@@ -1038,14 +1038,15 @@ public partial class NowPlayingViewModel : ObservableObject
                 var results = await Task.WhenAll(songTasks);
                 var songs = results.Where(s => s != null).Cast<Song>().ToList();
 
-                _queue.PlayMode = (PlayMode)playMode;
-                return (songs, currentSongId);
+                // 保存顺序即展示顺序（随机模式下即洗牌顺序），计算当前歌曲在其中的索引
+                var currentIndex = songs.FindIndex(s => s.Id == currentSongId);
+                return (songs, currentIndex, playMode);
             }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Debug("AppViewModels", $"[NowPlaying] 恢复队列状态失败: {ex.Message}");
-            return (new List<Song>(), -1);
+            return (new List<Song>(), -1, PlayMode.ListRepeat);
         }
     }
 

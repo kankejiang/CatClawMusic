@@ -11,9 +11,9 @@ public class DesktopPlaylistPage : ContentPage
 {
     private readonly DesktopPlaylistView _inner;
 
-    public DesktopPlaylistPage(PlaylistViewModel vm)
+    public DesktopPlaylistPage(PlaylistViewModel vm, IServiceProvider sp)
     {
-        _inner = new DesktopPlaylistView(vm);
+        _inner = new DesktopPlaylistView(vm, sp);
 
         var content = _inner.Content;
         _inner.Content = null;

@@ -79,6 +79,24 @@ public class PlayQueue
     }
 
     /// <summary>
+    /// 从持久化状态恢复播放队列（跨重启），保留已洗好的顺序，不做任何重新洗牌。
+    /// 随机模式下 <paramref name="songs"/> 即已保存的洗牌顺序，直接复用，直至用户再次洗牌。
+    /// </summary>
+    /// <param name="songs">完整的歌曲列表（已是期望的展示顺序，随机模式下即洗牌顺序）</param>
+    /// <param name="currentIndex">当前歌曲在 <paramref name="songs"/> 中的索引</param>
+    /// <param name="mode">播放模式</param>
+    public void RestorePersisted(IReadOnlyList<Song> songs, int currentIndex, PlayMode mode)
+    {
+        _originalList = songs?.ToList() ?? new List<Song>();
+        // 随机模式：洗牌顺序直接复用持久化的顺序，不再重新洗牌
+        _shuffledList = mode == PlayMode.Shuffle ? _originalList.ToList() : new List<Song>();
+        _currentIndex = (currentIndex >= 0 && currentIndex < _originalList.Count) ? currentIndex : -1;
+        _history.Clear();
+        _playMode = mode;
+        RebuildIndex();
+    }
+
+    /// <summary>
     /// 重建歌曲 ID 到索引的映射
     /// </summary>
     private void RebuildIndex()
@@ -89,26 +107,50 @@ public class PlayQueue
     }
     
     /// <summary>
-    /// 开启随机播放（洗牌），保持当前歌曲在洗牌列表中的位置
+    /// 开启随机播放（洗牌）。洗牌后播放列表的第一首固定为原始播放列表里的第一首歌，
+    /// 其余歌曲保持随机顺序。若当前正在播放某首歌，则保持该歌曲继续播放（其索引落在
+    /// 洗牌列表中的对应位置），不强行跳转到第一首；若当前没有正在播放的歌曲（空闲态），
+    /// 则播放位置落在洗牌列表首位，即原始播放列表的第一首歌。
     /// </summary>
     public void EnableShuffle()
     {
-        var currentSong = _currentIndex >= 0 ? _originalList.ElementAtOrDefault(_currentIndex) : null;
+        if (_originalList.Count == 0)
+        {
+            _shuffledList = new List<Song>();
+            _currentIndex = -1;
+            _history.Clear();
+            return;
+        }
+
+        var firstSong = _originalList[0];
         _shuffledList = ShuffleService.Shuffle(_originalList);
         _history.Clear();
 
-        if (currentSong != null)
+        // 洗牌后第一首固定为播放列表里的第一首歌（其余保持随机顺序）
+        var firstIdx = _shuffledList.FindIndex(s => s.Id == firstSong.Id);
+        if (firstIdx > 0)
         {
-            var idx = _shuffledList.FindIndex(s => s.Id == currentSong.Id);
-            if (idx >= 0)
+            _shuffledList.RemoveAt(firstIdx);
+            _shuffledList.Insert(0, firstSong);
+        }
+
+        if (_currentIndex >= 0)
+        {
+            // 当前有正在播放的歌曲：保持它继续播放，避免显示与音频不一致
+            var currentSong = _originalList.ElementAtOrDefault(_currentIndex);
+            if (currentSong != null)
             {
-                _shuffledList.RemoveAt(idx);
-                _shuffledList.Insert(0, currentSong);
+                var idx = _shuffledList.FindIndex(s => s.Id == currentSong.Id);
+                _currentIndex = idx >= 0 ? idx : 0;
             }
-            _currentIndex = 0;
+            else
+            {
+                _currentIndex = 0;
+            }
         }
         else
         {
+            // 空闲态：从洗牌列表首位（即播放列表第一首歌）开始
             _currentIndex = 0;
         }
     }
@@ -156,10 +198,10 @@ public class PlayQueue
         int nextIndex = _currentIndex + 1;
         if (nextIndex >= list.Count)
         {
-            if (PlayMode == PlayMode.ListRepeat)
-                nextIndex = 0;
+            if (PlayMode == PlayMode.ListRepeat || PlayMode == PlayMode.Shuffle)
+                nextIndex = 0; // 随机模式复用同一份洗牌顺序，循环预览
             else
-                return null; // Sequential 结束 / Shuffle 需重洗牌（预览不可靠）
+                return null; // Sequential 结束
         }
 
         return nextIndex < list.Count ? list[nextIndex] : null;
@@ -318,13 +360,9 @@ public class PlayQueue
 
         if (nextIndex >= list.Count)
         {
-            if (PlayMode == PlayMode.ListRepeat)
+            if (PlayMode == PlayMode.ListRepeat || PlayMode == PlayMode.Shuffle)
             {
-                nextIndex = 0;
-            }
-            else if (PlayMode == PlayMode.Shuffle)
-            {
-                _shuffledList = ShuffleService.Shuffle(_originalList);
+                // 随机模式：复用同一份洗牌顺序循环播放，直到用户再次洗牌（不再重新洗牌）
                 nextIndex = 0;
             }
             else

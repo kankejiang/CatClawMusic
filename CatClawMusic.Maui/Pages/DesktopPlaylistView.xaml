@@ -9,7 +9,7 @@
 
     <Grid Background="Transparent">
 
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,Auto,Auto,*">
 
             <!-- Hero Card（横屏下收紧边距） -->
             <Border Grid.Row="0"
@@ -42,18 +42,82 @@
                 </Grid>
             </Border>
 
+            <!-- ═══ 快速入口卡片：我喜欢的 + 最近播放 ═══ -->
+            <Grid Grid.Row="1" Margin="16,4,16,4" ColumnDefinitions="*,*" ColumnSpacing="12">
+
+                <!-- 我喜欢的 -->
+                <Border Grid.Column="0" Padding="14"
+                        StrokeShape="RoundRectangle 18"
+                        Stroke="{DynamicResource GlassStrokeColor}"
+                        StrokeThickness="1"
+                        BackgroundColor="{DynamicResource CardOverlayColor}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnFavoriteCardTapped" />
+                    </Border.GestureRecognizers>
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                        <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
+                                StrokeShape="RoundRectangle 14" StrokeThickness="0">
+                            <Border.Background>
+                                <LinearGradientBrush EndPoint="1,1">
+                                    <GradientStop Color="#FF5C8A" Offset="0" />
+                                    <GradientStop Color="#FF7AAE" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Image Source="ic_favorite.svg" WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">
+                            <Label Text="我喜欢的" FontSize="14" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label FontSize="11.5" TextColor="{DynamicResource TextHintColor}"
+                                   Text="{Binding FavoriteSongCount, StringFormat='{0} 首 · 收藏歌单'}" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+
+                <!-- 最近播放 -->
+                <Border Grid.Column="1" Padding="14"
+                        StrokeShape="RoundRectangle 18"
+                        Stroke="{DynamicResource GlassStrokeColor}"
+                        StrokeThickness="1"
+                        BackgroundColor="{DynamicResource CardOverlayColor}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRecentCardTapped" />
+                    </Border.GestureRecognizers>
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                        <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
+                                StrokeShape="RoundRectangle 14" StrokeThickness="0">
+                            <Border.Background>
+                                <LinearGradientBrush EndPoint="1,1">
+                                    <GradientStop Color="#7A6CF0" Offset="0" />
+                                    <GradientStop Color="#A78BFA" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Image Source="ic_history.svg" WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">
+                            <Label Text="最近播放" FontSize="14" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label FontSize="11.5" TextColor="{DynamicResource TextHintColor}"
+                                   Text="{Binding RecentSongCount, StringFormat='{0} 首 · 播放记录'}" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+            </Grid>
+
             <!-- Status -->
-            <Label Grid.Row="1"
+            <Label Grid.Row="2"
                    Text="{Binding StatusText}"
                    FontSize="12"
                    TextColor="{DynamicResource TextHintColor}"
                    HorizontalOptions="Center"
-                   Margin="0,0,0,6"
+                   Margin="0,4,0,6"
                    IsVisible="{Binding IsLoading}" />
 
-            <!-- Playlist List（横屏双列网格） -->
+            <!-- Playlist List（横屏双列 + AllSongs 紧凑风格） -->
             <CollectionView x:Name="PlaylistsList"
-                            Grid.Row="2"
+                            Grid.Row="3"
                             ItemsSource="{Binding Playlists}"
                             SelectionMode="Single"
                             SelectionChanged="OnPlaylistSelected"
@@ -63,56 +127,44 @@
                     <GridItemsLayout Orientation="Vertical"
                                      Span="2"
                                      HorizontalItemSpacing="12"
-                                     VerticalItemSpacing="8" />
+                                     VerticalItemSpacing="4" />
                 </CollectionView.ItemsLayout>
 
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Border Padding="14"
-                                StrokeShape="RoundRectangle 22"
-                                StrokeThickness="1"
-                                Stroke="{DynamicResource GlassStrokeColor}"
-                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
-                            <Grid ColumnDefinitions="Auto,*,Auto"
-                                  ColumnSpacing="14">
-                                <Border Grid.Column="0"
-                                        WidthRequest="60" HeightRequest="60"
-                                        StrokeShape="RoundRectangle 16"
-                                        StrokeThickness="0"
-                                        BackgroundColor="{DynamicResource SurfaceColor}">
-                                    <Grid>
-                                        <Image Source="{Binding CoverPath}"
-                                               Aspect="AspectFill"
-                                               WidthRequest="60" HeightRequest="60"
-                                               IsVisible="{Binding CoverPath, Converter={StaticResource StringToBoolConverter}}" />
-                                        <Label Text="{Binding Name, Converter={StaticResource PlaylistIconConverter}}"
-                                               FontSize="24"
-                                               HorizontalOptions="Center"
-                                               VerticalOptions="Center"
-                                               IsVisible="{Binding CoverPath, Converter={StaticResource InvertedStringToBoolConverter}}" />
-                                    </Grid>
-                                </Border>
-                                <VerticalStackLayout Grid.Column="1"
-                                                     VerticalOptions="Center" Spacing="4">
-                                    <Label Text="{Binding Name}"
-                                           FontSize="16"
-                                           FontFamily="OpenSansSemibold"
-                                           TextColor="{DynamicResource TextPrimaryColor}"
-                                           MaxLines="1" />
-                                    <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
-                                           FontSize="12"
-                                           TextColor="{DynamicResource TextHintColor}" />
-                                </VerticalStackLayout>
-                                <ImageButton Grid.Column="2"
-                                             Source="ic_menu"
-                                             WidthRequest="34" HeightRequest="34"
-                                             BackgroundColor="Transparent"
-                                             Padding="6"
-                                             VerticalOptions="Center"
-                                             IsVisible="{Binding IsSystem, Converter={StaticResource InvertedBoolConverter}}"
-                                             Clicked="OnPlaylistMenuClicked" />
-                            </Grid>
-                        </Border>
+                        <Grid Padding="12,7" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                            <!-- 封面 -->
+                            <Border Grid.Column="0" WidthRequest="42" HeightRequest="42"
+                                    StrokeShape="RoundRectangle 10" StrokeThickness="0"
+                                    BackgroundColor="{DynamicResource InputBackgroundColor}">
+                                <Grid>
+                                    <Image Source="{Binding CoverPath}" Aspect="AspectFill"
+                                           WidthRequest="42" HeightRequest="42"
+                                           IsVisible="{Binding CoverPath, Converter={StaticResource StringToBoolConverter}}" />
+                                    <Label Text="{Binding Name, Converter={StaticResource PlaylistIconConverter}}"
+                                           FontSize="20" HorizontalOptions="Center" VerticalOptions="Center"
+                                           IsVisible="{Binding CoverPath, Converter={StaticResource InvertedStringToBoolConverter}}" />
+                                </Grid>
+                            </Border>
+
+                            <!-- 歌单名 + 数量 -->
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                <Label Text="{Binding Name}" FontSize="14" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       LineBreakMode="TailTruncation" MaxLines="1" />
+                                <Label Text="{Binding SongCount, StringFormat='{0} 首歌曲'}"
+                                       FontSize="11.5" TextColor="{DynamicResource TextHintColor}" />
+                            </VerticalStackLayout>
+
+                            <!-- 更多按钮 -->
+                            <Label Grid.Column="2" Text="⋮" FontSize="16" VerticalOptions="Center"
+                                   TextColor="{DynamicResource TextHintColor}" Padding="4,0"
+                                   IsVisible="{Binding IsSystem, Converter={StaticResource InvertedBoolConverter}}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnPlaylistMoreTapped" CommandParameter="{Binding}" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>

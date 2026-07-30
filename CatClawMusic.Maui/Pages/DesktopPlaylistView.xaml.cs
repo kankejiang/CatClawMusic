@@ -10,13 +10,15 @@ namespace CatClawMusic.Maui.Pages;
 public partial class DesktopPlaylistView : ContentPage
 {
     private readonly PlaylistViewModel _viewModel;
+    private readonly IServiceProvider _sp;
     private bool _isFirstAppearing = true;
     private Entry? _playlistNameEntry;
 
-    public DesktopPlaylistView(PlaylistViewModel viewModel)
+    public DesktopPlaylistView(PlaylistViewModel viewModel, IServiceProvider sp)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _sp = sp;
         BindingContext = viewModel;
     }
 
@@ -47,12 +49,12 @@ public partial class DesktopPlaylistView : ContentPage
         }
     }
 
-    private async void OnPlaylistMenuClicked(object? sender, EventArgs e)
+    /// <summary>点击歌单项的 ⋮ 按钮时触发，弹出操作菜单。</summary>
+    private async void OnPlaylistMoreTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is ImageButton button && button.BindingContext is Playlist playlist)
+        if (e.Parameter is Playlist playlist)
         {
-            if (playlist.IsSystem)
-                return;
+            if (playlist.IsSystem) return;
 
             var action = await DisplayActionSheet(
                 playlist.Name, "取消", null,
@@ -77,6 +79,14 @@ public partial class DesktopPlaylistView : ContentPage
             }
         }
     }
+
+    /// <summary>点击"我喜欢的"卡片，导航到全部歌曲（收藏筛选）。</summary>
+    private void OnFavoriteCardTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=favorites", source: "favorites");
+
+    /// <summary>点击"最近播放"卡片，导航到全部歌曲（最近播放筛选）。</summary>
+    private void OnRecentCardTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", source: "recent");
 
     private async void OnCreatePlaylistClicked(object? sender, TappedEventArgs e)
     {
@@ -221,5 +231,29 @@ public partial class DesktopPlaylistView : ContentPage
             }
         }
         catch { }
+    }
+
+    /// <summary>
+    /// 打开音乐库二级页：竖屏走 Shell 导航；横屏嵌入 ContentArea。
+    /// </summary>
+    private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
+    {
+        if (App.IsLandscapeMode())
+        {
+            Type desktopType = pageType.Name switch
+            {
+                nameof(AllSongsPage) => typeof(DesktopAllSongsPage),
+                _ => pageType
+            };
+
+            var page = (ContentPage)_sp.GetRequiredService(desktopType);
+            if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
+                desktopAllSongs.Source = source;
+
+            DesktopMainPage.Instance?.OpenSubPageEmbedded(page);
+            return;
+        }
+
+        _ = Shell.Current.GoToAsync(fallbackRoute);
     }
 }

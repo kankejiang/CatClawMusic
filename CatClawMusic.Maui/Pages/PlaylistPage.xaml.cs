@@ -6,19 +6,22 @@ using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>歌单列表页面，展示用户创建与系统的歌单集合。</summary>
+/// <summary>歌单列表页面，展示用户创建的歌单集合。</summary>
 public partial class PlaylistPage : ContentPage
 {
     private readonly PlaylistViewModel _viewModel;
+    private readonly IServiceProvider _sp;
     private bool _isFirstAppearing = true;
     private Entry? _playlistNameEntry;
 
     /// <summary>初始化 <see cref="PlaylistPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="viewModel">歌单列表页面对应的视图模型。</param>
-    public PlaylistPage(PlaylistViewModel viewModel)
+    /// <param name="sp">服务提供器，用于横屏时解析 Desktop 页面。</param>
+    public PlaylistPage(PlaylistViewModel viewModel, IServiceProvider sp)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _sp = sp;
         BindingContext = viewModel;
     }
 
@@ -40,8 +43,6 @@ public partial class PlaylistPage : ContentPage
     }
 
     /// <summary>在歌单列表中选中某个歌单时触发，导航到该歌单的详情页。</summary>
-    /// <param name="sender">事件源。</param>
-    /// <param name="e">选择变更事件参数。</param>
     private async void OnPlaylistSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is Playlist playlist)
@@ -54,15 +55,12 @@ public partial class PlaylistPage : ContentPage
         }
     }
 
-    /// <summary>点击歌单项的菜单按钮时触发，弹出操作菜单以执行重命名、删除等操作。</summary>
-    /// <param name="sender">事件源，通常为携带歌单上下文的图片按钮。</param>
-    /// <param name="e">事件参数。</param>
-    private async void OnPlaylistMenuClicked(object? sender, EventArgs e)
+    /// <summary>点击歌单项的 ⋮ 按钮时触发，弹出操作菜单。</summary>
+    private async void OnPlaylistMoreTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is ImageButton button && button.BindingContext is Playlist playlist)
+        if (e.Parameter is Playlist playlist)
         {
-            if (playlist.IsSystem)
-                return;
+            if (playlist.IsSystem) return;
 
             var action = await DisplayActionSheet(
                 playlist.Name, "取消", null,
@@ -87,6 +85,14 @@ public partial class PlaylistPage : ContentPage
             }
         }
     }
+
+    /// <summary>点击"我喜欢的"卡片，导航到全部歌曲（收藏筛选）。</summary>
+    private void OnFavoriteCardTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=favorites", source: "favorites");
+
+    /// <summary>点击"最近播放"卡片，导航到全部歌曲（最近播放筛选）。</summary>
+    private void OnRecentCardTapped(object? sender, EventArgs e)
+        => OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=recent", source: "recent");
 
     /// <summary>点击新建歌单按钮时触发，打开自定义输入弹窗以创建新的歌单。</summary>
     /// <param name="sender">事件源。</param>
@@ -254,5 +260,29 @@ public partial class PlaylistPage : ContentPage
         {
             Log.Debug("PlaylistPage.xaml", $"[PlaylistPage] 创建歌单异常: {ex}");
         }
+    }
+
+    /// <summary>
+    /// 打开音乐库二级页：竖屏走 Shell 导航；横屏复用桌面布局并嵌入 ContentArea。
+    /// </summary>
+    private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
+    {
+        if (App.IsLandscapeMode())
+        {
+            Type desktopType = pageType.Name switch
+            {
+                nameof(AllSongsPage) => typeof(DesktopAllSongsPage),
+                _ => pageType
+            };
+
+            var page = (ContentPage)_sp.GetRequiredService(desktopType);
+            if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
+                desktopAllSongs.Source = source;
+
+            DesktopMainPage.Instance?.OpenSubPageEmbedded(page);
+            return;
+        }
+
+        _ = Shell.Current.GoToAsync(fallbackRoute);
     }
 }

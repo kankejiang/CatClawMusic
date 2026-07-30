@@ -35,6 +35,7 @@ public class ForegroundPlayerService : Service
     private bool _isLyricsEnabled = false;
     private Bitmap? _albumArt;
     private Bitmap? _albumArtSource;
+    private readonly object _albumArtLock = new();
     private long _positionMs;
     private long _durationMs;
 
@@ -155,23 +156,26 @@ public class ForegroundPlayerService : Service
         _positionMs = positionMs;
         _durationMs = durationMs;
 
-        if (albumArt != null && !albumArt.IsRecycled)
+        lock (_albumArtLock)
         {
-            // 如果传入的就是当前已解码的副本（如收藏/歌词切换时回传 _albumArt），
-            // 或者是同一个源 Bitmap（如进度更新时复用缓存），则无需重新解码，避免回收已使用的 Bitmap
-            if (!ReferenceEquals(albumArt, _albumArt) && !ReferenceEquals(albumArt, _albumArtSource))
+            if (albumArt != null && !albumArt.IsRecycled)
             {
-                if (_albumArt != null && !_albumArt.IsRecycled)
-                    _albumArt.Recycle();
-                _albumArt = DecodeBitmapDownsampled(albumArt, 512);
-                _albumArtSource = albumArt;
+                // 如果传入的就是当前已解码的副本（如收藏/歌词切换时回传 _albumArt），
+                // 或者是同一个源 Bitmap（如进度更新时复用缓存），则无需重新解码，避免回收已使用的 Bitmap
+                if (!ReferenceEquals(albumArt, _albumArt) && !ReferenceEquals(albumArt, _albumArtSource))
+                {
+                    if (_albumArt != null && !_albumArt.IsRecycled)
+                        _albumArt.Recycle();
+                    _albumArt = DecodeBitmapDownsampled(albumArt, 512);
+                    _albumArtSource = albumArt;
+                }
             }
-        }
-        else if (_albumArt != null && !_albumArt.IsRecycled)
-        {
-            _albumArt.Recycle();
-            _albumArt = null;
-            _albumArtSource = null;
+            else if (_albumArt != null && !_albumArt.IsRecycled)
+            {
+                _albumArt.Recycle();
+                _albumArt = null;
+                _albumArtSource = null;
+            }
         }
 
         UpdateMediaSessionPlaybackState();
@@ -228,8 +232,13 @@ public class ForegroundPlayerService : Service
             int height = source.Height;
             if (width <= 0 || height <= 0) return null;
             float scale = Math.Min((float)maxSize / width, (float)maxSize / height);
-            if (scale >= 1.0f) return source;  // 无需缩小，直接返回原图避免 Copy 分配
-            return Bitmap.CreateScaledBitmap(source, (int)(width * scale), (int)(height * scale), true);
+            // 必须始终返回【独立副本】，不得 return source：
+            // 调用方传入的 albumArt 是 AudioPlayerService._notificationBitmap，本服务若直接持有
+            // 该实例，调用方在切歌时会 Recycle 它，使本服务的 _albumArt 悬空；下一次 SetMetadata
+            // 跨进程写 Parcel 时访问已释放 Bitmap → native SIGABRT。始终 Copy 一份归本服务独占。
+            int dstW = Math.Max(1, (int)(width * scale));
+            int dstH = Math.Max(1, (int)(height * scale));
+            return Bitmap.CreateScaledBitmap(source, dstW, dstH, true);
         }
         catch
         {
@@ -280,12 +289,18 @@ public class ForegroundPlayerService : Service
             .PutString(MediaMetadata.MetadataKeyTitle, _title)
             .PutString(MediaMetadata.MetadataKeyArtist, _artist)
             .PutLong(MediaMetadata.MetadataKeyDuration, _durationMs);
-        if (_albumArt != null)
+        lock (_albumArtLock)
         {
-            metadataBuilder.PutBitmap(MediaMetadata.MetadataKeyAlbumArt, _albumArt);
-            metadataBuilder.PutBitmap(MediaMetadata.MetadataKeyArt, _albumArt);
+            if (_albumArt != null && !_albumArt.IsRecycled)
+            {
+                metadataBuilder.PutBitmap(MediaMetadata.MetadataKeyAlbumArt, _albumArt);
+                metadataBuilder.PutBitmap(MediaMetadata.MetadataKeyArt, _albumArt);
+            }
+            // 必须在持有 _albumArtLock 期间完成 SetMetadata：跨进程 Parcel 会拷贝位图像素，
+            // 若此刻另一线程（如 onIsPlayingChanged 触发的切歌）Recycle 了 _albumArt，
+            // Parcel 会访问已释放 Bitmap → native SIGABRT。
+            _mediaSession.SetMetadata(metadataBuilder.Build());
         }
-        _mediaSession.SetMetadata(metadataBuilder.Build());
     }
 
     public static void Start(global::Android.Content.Context context, string title, string artist)
@@ -313,9 +328,12 @@ public class ForegroundPlayerService : Service
         }
         if (_instance != null)
         {
-            if (_instance._albumArt != null && !_instance._albumArt.IsRecycled)
-                _instance._albumArt.Recycle();
-            _instance._albumArt = null;
+            lock (_instance._albumArtLock)
+            {
+                if (_instance._albumArt != null && !_instance._albumArt.IsRecycled)
+                    _instance._albumArt.Recycle();
+                _instance._albumArt = null;
+            }
         }
         _instance = null;
     }
@@ -340,9 +358,12 @@ public class ForegroundPlayerService : Service
             _mediaSession.Release();
             _mediaSession = null;
         }
-        if (_albumArt != null && !_albumArt.IsRecycled)
-            _albumArt.Recycle();
-        _albumArt = null;
+        lock (_albumArtLock)
+        {
+            if (_albumArt != null && !_albumArt.IsRecycled)
+                _albumArt.Recycle();
+            _albumArt = null;
+        }
         _instance = null;
     }
 
@@ -387,11 +408,6 @@ public class ForegroundPlayerService : Service
             .SetPriority((int)NotificationPriority.High)
             .SetShowWhen(false);
 
-        if (_albumArt != null && !_albumArt.IsRecycled)
-        {
-            builder.SetLargeIcon(_albumArt);
-        }
-
         builder.AddAction(lyricsIcon, _isLyricsEnabled ? "关闭桌面歌词" : "桌面歌词", lyricsIntent);
         builder.AddAction(Resource.Drawable.ic_notif_previous, "上一首", prevIntent);
         builder.AddAction(playIcon, _isPlaying ? "暂停" : "播放", playPauseIntent);
@@ -413,7 +429,16 @@ public class ForegroundPlayerService : Service
             }
         }
 
-        return builder.Build();
+        // Build() 内部会将 LargeIcon(_albumArt) 跨进程 Parcel；必须在持有 _albumArtLock 期间完成，
+        // 否则另一线程若在 Build 中途 Recycle _albumArt，会触发 native SIGABRT。
+        Notification? built;
+        lock (_albumArtLock)
+        {
+            if (_albumArt != null && !_albumArt.IsRecycled)
+                builder.SetLargeIcon(_albumArt);
+            built = builder.Build();
+        }
+        return built;
     }
 
     private void CreateNotificationChannel()
@@ -436,9 +461,12 @@ public class ForegroundPlayerService : Service
             _mediaSession.Release();
             _mediaSession = null;
         }
-        if (_albumArt != null && !_albumArt.IsRecycled)
-            _albumArt.Recycle();
-        _albumArt = null;
+        lock (_albumArtLock)
+        {
+            if (_albumArt != null && !_albumArt.IsRecycled)
+                _albumArt.Recycle();
+            _albumArt = null;
+        }
         _albumArtSource = null;
         _instance = null;
         base.OnDestroy();
