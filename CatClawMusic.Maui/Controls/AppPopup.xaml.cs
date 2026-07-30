@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Devices;
 
 namespace CatClawMusic.Maui.Controls;
 
@@ -123,6 +124,11 @@ public partial class AppPopup : ContentView
         if (_isOpen) return;
         _isOpen = true;
 
+        // 在 ViewPager2 等「无界高度」宿主中，弹窗所在的 Grid 会被撑到整个内容高度，
+        // 导致 PopupCard（VerticalOptions=Center）落在内容底部而非可见屏幕中心。
+        // 将弹窗覆盖层固定为「一屏高」并顶对齐，使卡片在可见区域内居中。
+        PinToScreenHeight();
+
         this.InputTransparent = false;
         this.IsVisible = true;
         this.Opacity = 1;
@@ -145,6 +151,30 @@ public partial class AppPopup : ContentView
                 PopupCard.ScaleTo(1, 220, Easing.CubicOut)
             );
         });
+    }
+
+    /// <summary>
+    /// 当弹窗被放在「无界高度」宿主（如 NativeTabPager / ViewPager2 中的页面）内时，
+    /// 其父 Grid 会被 ScrollView 内容撑到极高，PopupCard 的 VerticalOptions=Center 会落到内容底部。
+    /// 这里把弹窗覆盖层自身高度钳制为「一屏高(dp)」并顶对齐父容器，
+    /// 从而让 PopupCard 在可见屏幕区域内居中，而不受父级内容总高度影响。
+    /// </summary>
+    private void PinToScreenHeight()
+    {
+        try
+        {
+            var display = DeviceDisplay.Current.MainDisplayInfo;
+            var screenHeightDp = display.Height / display.Density;
+            if (screenHeightDp > 0)
+            {
+                this.VerticalOptions = LayoutOptions.Start;
+                this.HeightRequest = screenHeightDp;
+            }
+        }
+        catch
+        {
+            // 取不到屏幕尺寸时回退到默认 Fill 居中行为，不影响功能
+        }
     }
 
     public async Task CloseAsync()

@@ -8,7 +8,9 @@
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}"
              BackgroundColor="Transparent">
 
-    <Grid Background="Transparent">
+    <Grid x:Name="RootLayout"
+          Background="Transparent"
+          VerticalOptions="Fill">
         <ScrollView Background="Transparent">
             <VerticalStackLayout Padding="18,8,18,132" Spacing="0">
             <!-- Hero 区域 -->
@@ -20,7 +22,7 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <Grid>
-                    <!-- 右上角刷新图标 -->
+                    <!-- 右上角设置按钮 -->
                     <Border HorizontalOptions="End" VerticalOptions="Start"
                             Margin="0,14,14,0"
                             WidthRequest="32" HeightRequest="32"
@@ -28,9 +30,9 @@
                             StrokeThickness="0"
                             BackgroundColor="#33FFFFFF">
                         <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnScanTapped" />
+                            <TapGestureRecognizer Tapped="OnSettingsTapped" />
                         </Border.GestureRecognizers>
-                        <Image Source="ic_refresh.svg"
+                        <Image Source="ic_settings.svg"
                                WidthRequest="16" HeightRequest="16"
                                Aspect="AspectFit"
                                VerticalOptions="Center" HorizontalOptions="Center" />
@@ -211,8 +213,10 @@
                 </VerticalStackLayout>
             </Border>
 
-            <controls:AppPopup x:Name="DiscoverSourcePopup" Title="发现页来源" CloseOnMaskTapped="True" />
         </VerticalStackLayout>
         </ScrollView>
+
+        <!-- 全屏弹窗层：覆盖整个页面，不受 ScrollView 内容高度影响 -->
+        <controls:AppPopup x:Name="DiscoverSourcePopup" Title="发现页来源" CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

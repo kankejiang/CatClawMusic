@@ -611,19 +611,19 @@ public partial class LibraryPage : ContentPage
         var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
         var inactiveColor = (Color)Application.Current!.Resources["ChipInactiveColor"];
         var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
-        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
         var textHint = (Color)Application.Current!.Resources["TextHintColor"];
         var cardBg = (Color)Application.Current!.Resources["CardBackgroundStrongColor"];
 
         var options = new[]
         {
-            ("自动", "auto", "本地和网络都有 → 本地；只有网络 → 网络"),
+            ("自动", "auto", "有本地和网络优先显示本地；仅网络时显示网络"),
             ("本地", "local", "仅显示本地音乐库内容"),
-            ("网络", "network", "仅显示网络音乐源内容"),
-            ("混合", "all", "合并显示本地与网络内容")
+            ("网络", "network", "仅显示网络音乐源内容")
         };
 
         var currentSource = _vm.DiscoverSource ?? "auto";
+        // 兼容旧偏好：旧版本可能存了 "all"，回退到 "auto"
+        if (currentSource == "all") currentSource = "auto";
 
         DiscoverSourcePopup.ClearContent();
 
@@ -699,43 +699,10 @@ public partial class LibraryPage : ContentPage
         DiscoverSourcePopup.Open();
     }
 
-    private async void OnScanTapped(object? sender, EventArgs e)
+    /// <summary>点击音乐库 Hero 卡片右上角设置按钮，打开发现页数据源选择弹窗。</summary>
+    private void OnSettingsTapped(object? sender, EventArgs e)
     {
-        if (_scanService == null) return;
-        if (_vm.IsScanning) return; // 防止并发扫描
-
-        _refreshCts?.Cancel();
-        _refreshCts = new CancellationTokenSource();
-        var ct = _refreshCts.Token;
-
-        try
-        {
-            MainThread.BeginInvokeOnMainThread(() => _vm.IsScanning = true);
-
-            var useMediaStore = Preferences.Default.Get("use_media_store", false);
-            var useSafScan = Preferences.Default.Get("use_saf_scan", false);
-
-            var imported = await _scanService.ScanAsync(null, ct, useMediaStore, useSafScan);
-
-            // ScanCompleted 事件仅在 imported>0 时触发并刷新；无新增（如仅清理已删文件）时
-            // 这里手动刷新总览，确保音乐库数据始终最新。
-            if (imported <= 0)
-            {
-                OnScanCompleted(null, imported);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // 用户取消，忽略
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("LibraryPage.xaml", $"[LibraryPage] 手动刷新音乐库失败: {ex.Message}");
-        }
-        finally
-        {
-            MainThread.BeginInvokeOnMainThread(() => _vm.IsScanning = false);
-        }
+        ShowDiscoverSourcePopup();
     }
 
     private async void OnAlbumsClicked(object? sender, EventArgs e)

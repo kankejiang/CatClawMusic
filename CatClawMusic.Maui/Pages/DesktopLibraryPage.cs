@@ -60,8 +60,12 @@ public class DesktopLibraryPage : ContentPage
             _layoutInitialized = _heroCard != null && _libraryCard != null
                 && _dataInsightCard != null && _storageCard != null && _recentCard != null;
 
-            // 防止 inner Content 被双重挂载：本页使用其内部的 ScrollView 作为 Content
+            // 防止 inner Content 被双重挂载：把 ScrollView 与弹窗摘出后重新挂载到新根 Grid
             _inner.Content = null;
+
+            // 弹窗必须从原视觉树移除，才能加入新父容器
+            if (_popup?.Parent is Layout oldPopupParent)
+                oldPopupParent.Children.Remove(_popup);
 
             // 监听尺寸变化，按宽度选择布局模式
             SizeChanged += OnPageSizeChanged;
@@ -69,9 +73,12 @@ public class DesktopLibraryPage : ContentPage
             // 确保手机横屏下首帧即呈现双列网格，而不是保持 LibraryPage 原始单列堆叠。
             ApplyLayoutForWidth(Math.Max(Width, 0));
 
-            // 直接使用内部的 ScrollView 作为页面 Content，
-            // 避免 DesktopMainPage.CreatePageContent 再包一层 ScrollView 导致双重滚动嵌套
-            Content = scrollView;
+            // 用 Grid 同时承载 ScrollView 与全屏弹窗层，避免弹窗被滚动内容裁剪
+            var rootGrid = new Grid();
+            rootGrid.Children.Add(scrollView);
+            if (_popup != null)
+                rootGrid.Children.Add(_popup);
+            Content = rootGrid;
             BindingContext = _inner.BindingContext;
             return;
         }
@@ -141,9 +148,6 @@ public class DesktopLibraryPage : ContentPage
         // 最近添加：通栏全宽
         _recentCard!.Margin = new Thickness(0);
         vsl.Children.Add(_recentCard);
-
-        if (_popup != null)
-            vsl.Children.Add(_popup);
     }
 
     /// <summary>窄屏紧凑布局（手机横屏）：双列网格 + 激进压缩 padding/margin/字号。
@@ -181,9 +185,6 @@ public class DesktopLibraryPage : ContentPage
         // 最近添加：通栏全宽
         _recentCard!.Margin = new Thickness(0);
         vsl.Children.Add(_recentCard);
-
-        if (_popup != null)
-            vsl.Children.Add(_popup);
     }
 
     /// <summary>构造双列等宽网格行：左视图 | 右视图。</summary>

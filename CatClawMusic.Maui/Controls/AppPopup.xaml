@@ -10,8 +10,9 @@
     <Grid x:Name="RootGrid"
           InputTransparent="False"
           BackgroundColor="Transparent">
+        <!-- 透明遮罩：用于点击空白处关闭；背景已有高斯模糊，不需要额外黑色遮罩 -->
         <BoxView x:Name="MaskLayer"
-                 Color="#99000000"
+                 Color="Transparent"
                  InputTransparent="False"
                  Opacity="0">
             <BoxView.GestureRecognizers>
