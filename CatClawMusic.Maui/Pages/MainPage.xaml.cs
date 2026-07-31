@@ -103,6 +103,19 @@ public partial class MainPage : ContentPage
         // 订阅系统栏高度变化，更新 SafeArea padding
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
 
+        // 页面被销毁（如横竖屏根切换 shell.Items.Clear）时释放交互令牌：
+        // 若 ViewPager2 在 Dragging/Settling 状态中、或 Windows pan 手势中途被销毁，
+        // Idle/手势结束回调永不触发，BeginInteraction 令牌永不释放，
+        // InteractionStateService.IsUserInteracting 会永久卡 true，
+        // 导致歌词行索引更新（UpdateLyricPosition）被永久门控 —— 表现为
+        // 「横竖屏切回后歌词不再滚动/高亮不再推进」。
+        Unloaded += (_, _) =>
+        {
+            _swipeInteractionToken?.Dispose();
+            _swipeInteractionToken = null;
+            _panInteractionToken?.Dispose();
+            _panInteractionToken = null;
+        };
     }
 
     /// <summary>创建 5 个页面（全屏歌词 + 4 个 tab），按平台选择承载方式：
