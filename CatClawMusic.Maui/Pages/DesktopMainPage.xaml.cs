@@ -122,7 +122,10 @@ public partial class DesktopMainPage : ContentPage
     {
         if (_embeddedSubPage != null)
         {
-            RootGrid.Padding = new Thickness(0);
+            // 子页面全屏嵌入：状态栏已隐藏，顶部/左右不留白；
+            // 但底部导航栏/dock（车机 dock、三键导航）仍存在，必须保留底部 inset，
+            // 否则嵌入的列表页（全部歌曲/艺术家/专辑）底部内容会被系统栏遮挡。
+            RootGrid.Padding = new Thickness(0, 0, 0, SafeAreaHelper.BottomInset);
             return;
         }
 
