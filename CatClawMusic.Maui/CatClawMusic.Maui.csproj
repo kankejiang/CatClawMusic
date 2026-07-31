@@ -104,4 +104,11 @@
 		<AndroidSigningStorePass>$(CatClawStorePass)</AndroidSigningStorePass>
 	</PropertyGroup>
 
+	<!-- 开发调试（Debug）：关闭 Fast Assembly Deployment，避免物理机部署时
+	     FastDeploy 状态冲突导致的 ADB0010 NO_CERTIFICATES / “不支持运行以前的版本”。
+	     改为完整签名 APK 正常安装，部署更稳。如需恢复快速增量部署，删除本段即可。 -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<AndroidUseFastDeploy>false</AndroidUseFastDeploy>
+	</PropertyGroup>
+
 </Project>
