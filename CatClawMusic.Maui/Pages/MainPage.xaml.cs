@@ -970,10 +970,12 @@ public partial class MainPage : ContentPage
             _lastViewPagerPadding = viewPagerPadding;
         }
 
-        // TabBar 贴紧屏幕底部：不叠加系统导航栏高度，仅用固定小间距防止图标过于贴边。
-        // 用户要求无空白间隙（Edge-to-Edge 全屏延伸）。
-        var tabBarHeight = hideTabBar ? 0 : 56;
-        var tabBarBottomPad = hideTabBar ? 0 : 4;
+        // TabBar 延伸到屏幕底部（含导航栏区域）：
+        // HeightRequest(56+bottom) 让毛玻璃表面覆盖导航栏区域；
+        // Padding(bottom+4) 把内部图标抬离导航栏，内容区高度保持恒定 46dp（不变形）。
+        // 当 bottom=0（手势导航）时退化为 56+0 / 4+0，视觉与旧版完全一致。
+        var tabBarHeight = hideTabBar ? 0 : (56 + bottom);
+        var tabBarBottomPad = hideTabBar ? 0 : (4 + bottom);
         var tabBarPadding = new Thickness(0, 6, 0, tabBarBottomPad);
 
         bool tabBarChanged = TabBar.Padding != _lastTabBarPadding || Math.Abs(TabBar.HeightRequest - tabBarHeight) > 0.01;
