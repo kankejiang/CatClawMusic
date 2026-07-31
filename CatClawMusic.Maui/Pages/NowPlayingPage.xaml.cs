@@ -97,8 +97,9 @@ public partial class NowPlayingPage : ContentPage
     {
         // RootGrid 原始 Padding 为 (20,12,20,16)，顶部加上状态栏高度
         var top = SafeAreaHelper.TopInset;
-#if WINDOWS
-        // 底部预留任务栏（底部 dock 栏）高度，避免底部控件被遮挡
+#if ANDROID || WINDOWS
+        // 底部预留导航栏/底部 dock 栏高度，避免底部控件被遮挡
+        // （Android 经典三键/手势栏、车机 dock；Windows 任务栏）
         var bottom = 16 + SafeAreaHelper.BottomInset;
 #else
         var bottom = 16;
@@ -570,44 +571,32 @@ public partial class NowPlayingPage : ContentPage
             var label = _lyricLabels[index];
 
 #if ANDROID
-            if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView
-                && label.Handler?.PlatformView is global::Android.Views.View nativeLabel)
+            if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView)
             {
-                int[] labelLocation = new int[2];
-                nativeLabel.GetLocationOnScreen(labelLocation);
-                int[] recyclerLocation = new int[2];
-                recyclerView.GetLocationOnScreen(recyclerLocation);
-
-                int labelCenterY = labelLocation[1] + nativeLabel.Height / 2;
-                int targetY = recyclerLocation[1] + (int)(recyclerView.Height * 0.25);
-                int dy = labelCenterY - targetY;
-
+                // 纯 MAUI 坐标计算目标偏移，不依赖歌词行原生视图（label.Handler）：
+                // 横竖屏根切换后 CollectionView 重建期间，Header（LyricStack）及其子元素
+                // 可能迟迟不被 RecyclerView realize，label.Handler 为 null。
+                // 旧实现会落入 else 分支对 RecyclerView 直接设 ScrollY —— 这是无效操作
+                // （logcat: "RecyclerView does not support scrolling to an absolute position"），
+                // 表现为切回竖屏后歌词不再滚动。
+                var y = GetRelativeY(label);
+                var targetScrollY = Math.Max(0, y - LyricCollectionView.Height * 0.25);
+                int dy = (int)(targetScrollY - recyclerView.ComputeVerticalScrollOffset());
                 if (Math.Abs(dy) > 2)
                 {
                     recyclerView.SmoothScrollBy(0, dy);
                 }
             }
-            else if (LyricCollectionView.Handler?.PlatformView is global::Android.Views.View nativeView)
-            {
-                var y = GetRelativeY(label);
-                var targetScrollY = y - LyricCollectionView.Height * 0.25;
-                targetScrollY = Math.Max(0, targetScrollY);
-                nativeView.ScrollY = (int)targetScrollY;
-            }
 #elif WINDOWS
-            if (LyricCollectionView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView
-                && label.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement nativeLabel)
+            if (LyricCollectionView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView)
             {
                 var scrollViewer = FindScrollViewer(listView);
-                if (scrollViewer != null && scrollViewer.Content is Microsoft.UI.Xaml.UIElement content)
+                if (scrollViewer != null)
                 {
-                    // 相对于 ScrollViewer 内容原点计算标签绝对位置（更精确，避免增量误差）
-                    var transform = nativeLabel.TransformToVisual(content);
-                    var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-                    var labelCenter = point.Y + nativeLabel.ActualHeight / 2;
-                    // 目标：让标签中心位于视口 25% 处
-                    var targetOffset = labelCenter - scrollViewer.ViewportHeight * 0.25;
-                    targetOffset = Math.Max(0, Math.Min(targetOffset, scrollViewer.ScrollableHeight));
+                    // 与 Android 同理：用 MAUI 坐标计算目标偏移，避免依赖 label 原生视图
+                    // （根切换/重建后可能为 null 导致静默失败）。
+                    var y = GetRelativeY(label);
+                    var targetOffset = Math.Max(0, Math.Min(y - LyricCollectionView.Height * 0.25, scrollViewer.ScrollableHeight));
                     // 仅当偏差较大时才滚动，避免逐字更新时频繁打断动画
                     if (Math.Abs(scrollViewer.VerticalOffset - targetOffset) > 4)
                     {

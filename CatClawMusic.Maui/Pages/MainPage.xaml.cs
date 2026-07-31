@@ -111,8 +111,10 @@ public partial class MainPage : ContentPage
         // 「横竖屏切回后歌词不再滚动/高亮不再推进」。
         Unloaded += (_, _) =>
         {
+#if ANDROID
             _swipeInteractionToken?.Dispose();
             _swipeInteractionToken = null;
+#endif
             _panInteractionToken?.Dispose();
             _panInteractionToken = null;
         };
