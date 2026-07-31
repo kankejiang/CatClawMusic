@@ -12,7 +12,7 @@ public interface IInteractionStateService
     void NotifyTouchStarted();
     /// <summary>手指抬起/手势取消。最后一个手指抬起后延迟一小段时间才视为交互结束。</summary>
     void NotifyTouchEnded();
-    /// <summary>安全网：Activity 进入后台等场景强制清零触摸计数，防止 UP 事件丢失导致交互状态永久卡死。</summary>
+    /// <summary>安全网：Activity 进入后台/横竖屏根切换等场景强制清零触摸计数，防止 UP 事件丢失导致交互状态永久卡死。</summary>
     void ResetTouchState();
     IDisposable BeginInteraction(string reason);
 }
@@ -24,8 +24,6 @@ public class InteractionStateService : IInteractionStateService
     private int _touchRefCount;
     private readonly System.Timers.Timer _scrollIdleTimer;
     private readonly System.Timers.Timer _touchIdleTimer;
-    private readonly System.Timers.Timer _interactionWatchdog;
-    private DateTime _lastInteractionActivity = DateTime.UtcNow;
     private readonly object _lock = new();
 
     public bool IsUserScrolling => Volatile.Read(ref _scrollRefCount) > 0;
@@ -72,34 +70,6 @@ public class InteractionStateService : IInteractionStateService
                 }
             });
         };
-
-        // 安全网：交互状态看门狗。三个计数器的自愈定时器（_touchIdleTimer/_scrollIdleTimer）
-        // 都在「开始」事件时 Stop、依赖「结束」事件重启 —— 若页面在交互中途被销毁
-        // （横竖屏根切换 shell.Items.Clear 重建视图树），UP / ScrollEnded / Idle 回调可能
-        // 永久丢失，定时器永不重启，IsUserInteracting 永久卡 true，导致歌词行索引同步
-        // （UpdateLyricPosition）、桌面歌词等功能永久冻结。OnPause 的 ResetTouchState
-        // 只覆盖后台场景，旋转/根切换不触发。
-        // 此处每 2.5 秒巡检：交互态持续超过 4 秒且无任何新活动 → 判定为泄漏，全部清零
-        // 并广播交互结束（VM 收到后会用播放器实时位置补一次歌词同步）。
-        _interactionWatchdog = new System.Timers.Timer(2500);
-        _interactionWatchdog.AutoReset = true;
-        _interactionWatchdog.Elapsed += (s, e) =>
-        {
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                lock (_lock)
-                {
-                    if (!IsUserInteracting) return;
-                    if ((DateTime.UtcNow - _lastInteractionActivity).TotalSeconds < 4) return;
-                    _interactionRefCount = 0;
-                    _touchRefCount = 0;
-                    _scrollRefCount = 0;
-                    OnScrollStateChanged(false);
-                    OnInteractionStateChanged(false);
-                }
-            });
-        };
-        _interactionWatchdog.Start();
     }
 
     public void NotifyScrollStarted()
@@ -109,7 +79,6 @@ public class InteractionStateService : IInteractionStateService
             bool wasScrolling = IsUserScrolling;
             bool wasInteracting = IsUserInteracting;
             _scrollRefCount++;
-            _lastInteractionActivity = DateTime.UtcNow;
             _scrollIdleTimer.Stop();
             if (!wasScrolling)
                 OnScrollStateChanged(true);
@@ -120,7 +89,6 @@ public class InteractionStateService : IInteractionStateService
 
     public void NotifyScrollEnded()
     {
-        _lastInteractionActivity = DateTime.UtcNow;
         _scrollIdleTimer.Stop();
         _scrollIdleTimer.Start();
     }
@@ -131,7 +99,6 @@ public class InteractionStateService : IInteractionStateService
         {
             bool wasInteracting = IsUserInteracting;
             _touchRefCount++;
-            _lastInteractionActivity = DateTime.UtcNow;
             _touchIdleTimer.Stop();
             if (!wasInteracting)
                 OnInteractionStateChanged(true);
@@ -144,7 +111,6 @@ public class InteractionStateService : IInteractionStateService
         {
             if (_touchRefCount > 0)
                 _touchRefCount--;
-            _lastInteractionActivity = DateTime.UtcNow;
             if (_touchRefCount == 0)
             {
                 _touchIdleTimer.Stop();
@@ -157,11 +123,22 @@ public class InteractionStateService : IInteractionStateService
     {
         lock (_lock)
         {
-            if (_touchRefCount == 0) return;
+            // 安全网：横竖屏根切换（shell.Items.Clear+Add，由 App.ApplyOrientationLayout 调用）
+            // / Activity 进入后台（MainActivity.OnPause）等场景，所有 UP/ScrollEnded/Idle
+            // 回调都可能永久丢失，必须强制清零全部三个计数器并停止所有空闲定时器，
+            // 否则 IsUserInteracting 永久卡 true → 歌词行索引（UpdateLyricPosition）、
+            // 桌面歌词、进度条同步全部冻结。
+            bool wasInteracting = IsUserInteracting;
             _touchRefCount = 0;
+            _scrollRefCount = 0;
+            _interactionRefCount = 0;
             _touchIdleTimer.Stop();
-            if (!IsUserInteracting)
+            _scrollIdleTimer.Stop();
+            if (wasInteracting)
+            {
+                OnScrollStateChanged(false);
                 OnInteractionStateChanged(false);
+            }
         }
     }
 
@@ -171,7 +148,6 @@ public class InteractionStateService : IInteractionStateService
         {
             bool wasInteracting = IsUserInteracting;
             _interactionRefCount++;
-            _lastInteractionActivity = DateTime.UtcNow;
             if (!wasInteracting)
                 OnInteractionStateChanged(true);
         }
@@ -184,7 +160,6 @@ public class InteractionStateService : IInteractionStateService
         {
             if (_interactionRefCount > 0)
                 _interactionRefCount--;
-            _lastInteractionActivity = DateTime.UtcNow;
             if (_interactionRefCount == 0 && !IsUserScrolling)
                 OnInteractionStateChanged(false);
         }

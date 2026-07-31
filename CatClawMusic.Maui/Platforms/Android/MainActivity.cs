@@ -123,26 +123,30 @@ public class MainActivity : MauiAppCompatActivity
         try { _interaction?.ResetTouchState(); } catch { }
     }
 
-    /// <summary>Android 低内存警告回调：主动释放 Bitmap 缓存并触发 GC，避免被 LMK 杀进程。</summary>
+    /// <summary>Android 低内存警告回调：渐进释放 Bitmap 缓存（保留热数据），
+    /// 不调用 GC.Collect——显式 GC 在低内存下只会加剧主线程停顿，ART 会自动管理。</summary>
     public override void OnLowMemory()
     {
         base.OnLowMemory();
-        try { BitmapMemoryCache.Clear(); } catch { }
-        try { System.GC.Collect(); } catch { }
+        try { BitmapMemoryCache.Trim(0.25); } catch { }
     }
 
-    /// <summary>Android 内存裁剪回调：仅在严重级别（RunningCritical 及以上）清空 Bitmap 缓存并触发 GC。
+    /// <summary>Android 内存裁剪回调：按级别渐进驱逐 Bitmap 缓存，级别越高保留越少。
     /// 注意：不要用 RunningLow 作为清空门槛——RunningLow(10) 在前台轻微内存压力下就会触发，
-    /// 会把 64MB 封面缓存整个清空，回前台时所有封面被迫重解码，引发解码风暴与主线程长冻结。
-    /// LRU 缓存本身已自限 64MB 并自动驱逐最旧条目，无需在轻度裁剪时全清。</summary>
+    /// 会把 32MB 封面缓存整个清空，回前台时所有封面被迫重解码，引发解码风暴与主线程长冻结。
+    /// LRU 缓存本身已自限 32MB 并自动驱逐最旧条目，无需在轻度裁剪时全清。
+    /// 即使 RunningCritical 也只保留 25% 热数据而非全清，避免重新解码风暴。</summary>
     /// <param name="level">内存裁剪级别</param>
     public override void OnTrimMemory(TrimMemory level)
     {
         base.OnTrimMemory(level);
         if (level >= TrimMemory.RunningCritical)
         {
-            try { BitmapMemoryCache.Clear(); } catch { }
-            try { System.GC.Collect(); } catch { }
+            try { BitmapMemoryCache.Trim(0.25); } catch { }
+        }
+        else if (level >= TrimMemory.RunningLow)
+        {
+            try { BitmapMemoryCache.Trim(0.5); } catch { }
         }
     }
 

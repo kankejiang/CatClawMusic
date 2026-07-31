@@ -455,13 +455,21 @@ public static class MauiProgram
         // Yuki 人格词库知识（SQLite 词库按需查询），已配置模型时注入让模型模仿语气
         AgentService.PersonalityKnowledgeProvider = () => CatClawMusic.Maui.Services.YukiWordLibrary.Instance.GetKnowledgePromptAsync();
 
-        // 后台迁移旧版未下采样的封面缓存，避免 UI 加载大图卡顿
-        _ = CoverHelper.MigrateLegacyCoversAsync();
+        // 后台迁移旧版未下采样的封面缓存，避免 UI 加载大图卡顿。
+        // 延迟 5s 启动：冷启动时主线程忙于程序集加载/首帧布局，延迟非关键 I/O
+        // 减少与封面解码/数据库初始化的竞争（Debug+FastDev 下效果更明显）。
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(5000); await CoverHelper.MigrateLegacyCoversAsync(); }
+            catch (Exception ex) { Log.Debug("MauiProgram", $"[STARTUP] 封面迁移失败: {ex.Message}"); }
+        });
 
         _ = Task.Run(async () =>
         {
             try
             {
+                // 延迟 5s：非关键任务，避开冷启动 I/O 高峰
+                await Task.Delay(5000);
                 if (!File.Exists(MusicLibrarySnapshotService.SnapshotPath))
                 {
                     var db = Services.GetRequiredService<MusicDatabase>();
@@ -483,6 +491,8 @@ public static class MauiProgram
         {
             try
             {
+                // 延迟 5s：非关键任务，避开冷启动 I/O 高峰
+                await Task.Delay(5000);
                 if (!Preferences.Default.Get("playcount_recalibrated_v1", false))
                 {
                     var db = Services.GetRequiredService<MusicDatabase>();

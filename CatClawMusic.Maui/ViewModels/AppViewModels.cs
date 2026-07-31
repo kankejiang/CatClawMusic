@@ -800,7 +800,7 @@ public partial class NowPlayingViewModel : ObservableObject
 
         if (!isSameSong)
         {
-            // 切歌：重置进度和歌词
+            // 切歌：重置进度、封面和歌词
             // Song.Duration 单位是毫秒，Slider 需要秒
             // 新歌曲还没加载完成，_audioService.Duration 可能是旧值或 0，
             // 因此只使用数据库中的时长；若无效则等待 DurationChanged 事件修正。
@@ -811,6 +811,11 @@ public partial class NowPlayingViewModel : ObservableObject
             CurrentTimeDisplay = "0:00";
             _lastDisplayedSecond = 0;
             ClearLyrics();
+
+            // 关键修复：切歌时先重置封面为默认图，防止异步加载失败时显示旧封面
+            CoverImage = ImageSource.FromFile(DefaultCoverService.GetDefaultCoverPath());
+            HasCover = false;
+            CurrentCoverPath = null;
 
             // 持久化当前歌曲 ID，下次启动可恢复
             Preferences.Default.Set("last_playing_song_id", song.Id);
@@ -1472,7 +1477,6 @@ public partial class NowPlayingViewModel : ObservableObject
 
         if (newIndex == _currentLyricIndex)
             return;
-
         _currentLyricIndex = newIndex;
 
         // 智能删除空行开启时，若当前行为空行（被过滤），不更新 UI 显示索引，
@@ -1501,6 +1505,52 @@ public partial class NowPlayingViewModel : ObservableObject
         LyricLine5 = GetLineText(displayLines, displayIndex + 2);
         LyricLine6 = GetLineText(displayLines, displayIndex + 3);
         LyricLine7 = GetLineText(displayLines, displayIndex + 4);
+    }
+
+    /// <summary>
+    /// 横竖屏根切换（shell.Items.Clear + 重建 MainPage）后强制同步歌词显示：
+    /// 新 NowPlayingPage 的 _lastHighlightIndex 初始为 -1，而 Singleton VM 的
+    /// _currentLyricIndex 保持旧值——UpdateLyricPosition 在 newIndex==_currentLyricIndex
+    /// 时直接 return，新页面收不到 CurrentLyricIndexObservable 的 PropertyChanged，
+    /// 导致歌词高亮/滚动永久冻结（直到下一次行索引变化才偶然恢复）。
+    /// 这里用播放器实时位置重跑歌词定位，并强制广播当前索引与填充进度，
+    /// 让新页面立即完成高亮初始化。
+    /// </summary>
+    public void RefreshLyricDisplayAfterLayout()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                // 强制广播歌词行集合：新页面在订阅 PropertyChanged 之前 AllLyricLines
+                // 可能已被设置，错过事件就永远不会 BuildLyricLabels → 歌词区域空白。
+                OnPropertyChanged(nameof(AllLyricLines));
+                OnPropertyChanged(nameof(HasLyrics));
+
+                // 强制广播进度/时长：新页面的 Slider 在 XAML 初始值为 0，
+                // 若 Progress 属性恰未发生数值变化则不会触发 PropertyChanged，
+                // 滑块就停在 0（"进度条没有重头开始走"）。
+                OnPropertyChanged(nameof(Duration));
+                OnPropertyChanged(nameof(Progress));
+                OnPropertyChanged(nameof(TotalTimeDisplay));
+                OnPropertyChanged(nameof(CurrentTimeDisplay));
+
+                // 用播放器实时位置重跑歌词定位
+                var pos = TimeSpan.FromSeconds(_audioService.CurrentPosition);
+                UpdateLyricPosition(pos);
+
+                // 强制广播：即使行索引未变化，也触发新页面的 HighlightLine 完成初始化
+                OnPropertyChanged(nameof(CurrentLyricIndexObservable));
+                OnPropertyChanged(nameof(CurrentLineFillProgress));
+
+                // 同步播放/暂停图标状态
+                OnPropertyChanged(nameof(IsPlaying));
+                OnPropertyChanged(nameof(PlayPauseIcon));
+                OnPropertyChanged(nameof(PlayPauseIconSource));
+                OnPropertyChanged(nameof(PlayPauseIconSourceWhite));
+            }
+            catch { }
+        });
     }
 
     /// <summary>
@@ -1633,6 +1683,13 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private void ClearLyrics()
     {
+        // 关键修复：必须清空 _filteredLines 和 _currentLyrics，
+        // 否则 AllLyricLines getter 会返回旧歌的歌词（导致切歌后歌词显示不更新）
+        _currentLyrics = null;
+        _currentLyricIndex = -1;
+        _filteredLines = null;
+        _originalToFilteredMap = null;
+
         LyricCurrent = "";
         LyricLine0 = "";
         LyricLine1 = "";

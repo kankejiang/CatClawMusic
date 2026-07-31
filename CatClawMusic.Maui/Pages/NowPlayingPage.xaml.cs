@@ -28,6 +28,20 @@ public partial class NowPlayingPage : ContentPage
     private readonly List<Border> _landscapeLyricBorders = new();
     private int _landscapeLastHighlight = -1;
 
+    /// <summary>CollectionView Handler 变化时触发：Handler 就绪后滚动到当前歌词行。</summary>
+    private void OnCollectionViewHandlerChanged(object? sender, EventArgs e)
+    {
+        if (LyricCollectionView.Handler != null && _lyricLabels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
+        {
+            _ = Task.Delay(300).ContinueWith(_ =>
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (LyricCollectionView.Handler != null && !_isLandscape)
+                        HighlightLine(_viewModel.CurrentLyricIndexObservable);
+                }));
+        }
+    }
+
     /// <summary>初始化 <see cref="NowPlayingPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="viewModel">当前播放视图模型，提供歌曲、进度与歌词数据。</param>
     /// <param name="sleepTimer">睡眠定时服务。</param>
@@ -45,15 +59,23 @@ public partial class NowPlayingPage : ContentPage
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+        LyricCollectionView.HandlerChanged += OnCollectionViewHandlerChanged;
         Loaded += OnPageLoaded;
 
         // 页面 Handler 销毁时取消 PropertyChanged 订阅，防止横竖屏切换后旧页面
         // 的 handler 留在 Singleton ViewModel 上造成内存泄漏和事件干扰。
         // 不在 OnDisappearing 取消（memory 约束：保持跨页面进度更新活跃）。
-        Unloaded += (_, _) =>
+        // 用 HandlerChanged 而非 Unloaded：ViewPager2 回收页面时不触发 MAUI Unloaded，
+        // 但 Handler 一定会在页面销毁/重建时经历 null→handler→null 生命周期。
+        HandlerChanged += (_, _) =>
         {
-            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-            SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+            if (Handler == null)
+            {
+                Android.Util.Log.Info("NPP", "[NowPlayingPage] Handler=null(取消订阅) #{0}", GetHashCode());
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                LyricCollectionView.HandlerChanged -= OnCollectionViewHandlerChanged;
+            }
         };
 
         // 监听 RootGrid 尺寸变化（Content 被 MainPage 提取后 OnSizeAllocated 不会触发）
@@ -335,6 +357,15 @@ public partial class NowPlayingPage : ContentPage
         // 否则后续的绑定系统 handler 不会被调用，导致封面等绑定不更新。
         try
         {
+#if ANDROID
+            // PlatformView 临时分离时（ViewPager2 离屏页）跳过处理但不取消订阅：
+            // 取消订阅会导致返回页面后歌词不再更新（订阅不会自动恢复）。
+            // 永久分离（横竖屏切换 Handler=null）由 HandlerChanged 事件统一处理取消订阅。
+            if (Handler?.PlatformView is Android.Views.View av && !av.IsAttachedToWindow)
+            {
+                return;
+            }
+#endif
             if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
                 e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
             {
@@ -571,21 +602,29 @@ public partial class NowPlayingPage : ContentPage
             var label = _lyricLabels[index];
 
 #if ANDROID
-            if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView)
+            // 标签尚未布局时重试：横竖屏切换后 CollectionView 重建，
+            // Handler 就绪但子元素可能仍为 Y=0/Height=0。
+            // HandlerChanged 只在 Handler 变化时触发一次，不会因布局完成而再次触发，
+            // 因此必须在此主动重试，否则歌词永远不会滚动。
+            for (int attempt = 0; attempt < 8; attempt++)
             {
-                // 纯 MAUI 坐标计算目标偏移，不依赖歌词行原生视图（label.Handler）：
-                // 横竖屏根切换后 CollectionView 重建期间，Header（LyricStack）及其子元素
-                // 可能迟迟不被 RecyclerView realize，label.Handler 为 null。
-                // 旧实现会落入 else 分支对 RecyclerView 直接设 ScrollY —— 这是无效操作
-                // （logcat: "RecyclerView does not support scrolling to an absolute position"），
-                // 表现为切回竖屏后歌词不再滚动。
-                var y = GetRelativeY(label);
-                var targetScrollY = Math.Max(0, y - LyricCollectionView.Height * 0.25);
-                int dy = (int)(targetScrollY - recyclerView.ComputeVerticalScrollOffset());
-                if (Math.Abs(dy) > 2)
+                if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView)
                 {
-                    recyclerView.SmoothScrollBy(0, dy);
+                    var y = GetRelativeY(label);
+
+                    if (y > 0)
+                    {
+                        var targetScrollY = Math.Max(0, y - LyricCollectionView.Height * 0.25);
+                        int dy = (int)(targetScrollY - recyclerView.ComputeVerticalScrollOffset());
+                        if (Math.Abs(dy) > 2)
+                        {
+                            recyclerView.SmoothScrollBy(0, dy);
+                        }
+                        return; // 滚动成功，退出重试循环
+                    }
                 }
+
+                await Task.Delay(200);
             }
 #elif WINDOWS
             if (LyricCollectionView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView)

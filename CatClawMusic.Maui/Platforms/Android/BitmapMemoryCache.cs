@@ -5,11 +5,14 @@ namespace CatClawMusic.Maui.Platforms.Android;
 /// <summary>
 /// Android Bitmap 内存缓存：按文件路径缓存解码后的 Bitmap，
 /// 避免 CollectionView 滑动时反复解码同一封面图片造成 GC 压力。
-/// 使用 LRU 算法限制总占用大小为 64MB。
+/// 使用 LRU 算法限制总占用大小为 32MB。
 /// </summary>
 internal static class BitmapMemoryCache
 {
-    private const long MaxSizeBytes = 64L * 1024 * 1024;
+    // 32MB：64MB 的 Bitmap 全是 Java 堆对象（JNI 全局引用），常驻过多会加剧
+    // Mono GC bridge 的 Runtime.gc() 频率（每 500ms 一次的 Explicit GC 风暴）。
+    // 300px 封面约 360KB/张，32MB ≈ 90 张，足够覆盖列表滚动窗口。
+    private const long MaxSizeBytes = 32L * 1024 * 1024;
     private static readonly object _lock = new();
     private static readonly LinkedList<string> _lruList = new();
     private static readonly Dictionary<string, Entry> _cache = new();
@@ -74,6 +77,30 @@ internal static class BitmapMemoryCache
             _cache.Clear();
             _lruList.Clear();
             _totalSize = 0;
+        }
+    }
+
+    /// <summary>渐进式驱逐：按 LRU 从队尾驱逐，使总占用降至上限的 keepFraction。
+    /// 用于 Android OnTrimMemory 内存裁剪——全量 Clear 会导致回前台时所有封面
+    /// 重新解码（解码风暴 + GC 压力），渐进驱逐保留热数据。
+    /// 目标基于 MaxSizeBytes 计算而非当前 _totalSize，保证多次调用幂等
+    /// （OnLowMemory 与 OnTrimMemory(Critical) 先后触发时不会连续腰斩）。</summary>
+    /// <param name="keepFraction">保留比例（0~1），默认保留 50%</param>
+    public static void Trim(double keepFraction = 0.5)
+    {
+        lock (_lock)
+        {
+            var targetSize = (long)(MaxSizeBytes * Math.Clamp(keepFraction, 0, 1));
+            while (_totalSize > targetSize && _lruList.Count > 0)
+            {
+                var lastKey = _lruList.Last!.Value;
+                _lruList.RemoveLast();
+                if (_cache.TryGetValue(lastKey, out var evict))
+                {
+                    _cache.Remove(lastKey);
+                    _totalSize -= evict.Size;
+                }
+            }
         }
     }
 }

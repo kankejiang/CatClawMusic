@@ -16,6 +16,26 @@ public partial class FullLyricsPage : ContentPage
     private int _lastHighlightIndex = -1;
     private readonly LyricsSettingsService _settings = LyricsSettingsService.Instance;
 
+    /// <summary>CollectionView Handler 变化时触发：Handler 就绪后滚动到当前歌词行。
+    /// 横竖屏切换后新页面的 CollectionView Handler 延迟创建（ViewPager2 离屏页），
+    /// 此事件确保 Handler 一旦就绪立即同步歌词位置。</summary>
+    private void OnCollectionViewHandlerChanged(object? sender, EventArgs e)
+    {
+        if (LyricCollectionView.Handler != null && _lyricLabels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
+        {
+            Android.Util.Log.Info("FLP", "[FullLyricsPage] CollectionView Handler 就绪，延迟滚动到 idx={0}", _viewModel.CurrentLyricIndexObservable);
+            _ = Task.Delay(300).ContinueWith(_ =>
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (LyricCollectionView.Handler != null)
+                    {
+                        HighlightLineWithoutScroll(_viewModel.CurrentLyricIndexObservable);
+                        ScrollToLine(_viewModel.CurrentLyricIndexObservable);
+                    }
+                }));
+        }
+    }
+
     /// <summary>初始化 <see cref="FullLyricsPage"/> 类的新实例，并绑定对应的视图模型。</summary>
     /// <param name="viewModel">当前播放视图模型，提供歌词与播放状态数据。</param>
     public FullLyricsPage(NowPlayingViewModel viewModel)
@@ -24,9 +44,28 @@ public partial class FullLyricsPage : ContentPage
         _viewModel = viewModel;
         BindingContext = viewModel;
 
+        Android.Util.Log.Info("FLP", "[FullLyricsPage] 构造 #{0}", GetHashCode());
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+        LyricCollectionView.HandlerChanged += OnCollectionViewHandlerChanged;
         BuildLyricViews();
+
+        // Handler 销毁时取消 PropertyChanged 订阅，防止横竖屏切换后旧页面
+        // 的 handler 留在 Singleton ViewModel 上造成内存泄漏和事件干扰
+        // （旧实例操作已销毁控件可能抛异常，中断多播事件链，导致新页面收不到
+        // Progress/CurrentLyricIndexObservable 等广播 → 进度条不走、歌词不滚动）。
+        // 用 HandlerChanged 而非 Unloaded：ViewPager2 回收页面时不触发 MAUI Unloaded，
+        // 但 Handler 一定会在页面销毁/重建时经历 null→handler→null 生命周期。
+        HandlerChanged += (_, _) =>
+        {
+            if (Handler == null)
+            {
+                Android.Util.Log.Info("FLP", "[FullLyricsPage] Handler=null(取消订阅) #{0}", GetHashCode());
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                LyricCollectionView.HandlerChanged -= OnCollectionViewHandlerChanged;
+            }
+        };
     }
 
     /// <summary>系统栏高度变化时触发，更新内容区域的顶部 padding 以避开状态栏</summary>
@@ -54,6 +93,17 @@ public partial class FullLyricsPage : ContentPage
     /// <param name="e">属性变更事件参数。</param>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        try
+        {
+#if ANDROID
+            // PlatformView 临时分离时（ViewPager2 离屏页）跳过处理但不取消订阅：
+            // 取消订阅会导致返回页面后歌词不再更新（订阅不会自动恢复）。
+            // 永久分离（横竖屏切换 Handler=null）由 HandlerChanged 事件统一处理取消订阅。
+            if (Handler?.PlatformView is Android.Views.View av && !av.IsAttachedToWindow)
+            {
+                return;
+            }
+#endif
         if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
             e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
         {
@@ -69,7 +119,6 @@ public partial class FullLyricsPage : ContentPage
             });
             return;
         }
-
         // 逐字填充进度变化：PropertyChanged 已在主线程触发，无需额外 dispatch
         if (e.PropertyName == nameof(NowPlayingViewModel.CurrentLineFillProgress))
         {
@@ -77,6 +126,8 @@ public partial class FullLyricsPage : ContentPage
             if (idx >= 0 && idx < _lyricLabels.Count)
                 _lyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
         }
+        }
+        catch { /* 页面已销毁，忽略 */ }
     }
 
     /// <summary>当页面显示在屏幕上时触发，订阅主题变更事件并重建或恢复歌词高亮状态。</summary>
@@ -303,29 +354,53 @@ public partial class FullLyricsPage : ContentPage
             var label = _lyricLabels[index];
 
 #if ANDROID
-            if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView
-                && label.Handler?.PlatformView is global::Android.Views.View nativeLabel)
+            // 标签尚未布局时重试：横竖屏切换后 CollectionView 重建，
+            // Handler 就绪但子元素（LyricStack 内的 Label/Border）可能仍为 Y=0/Height=0。
+            // HandlerChanged 只在 Handler 变化时触发一次，不会因布局完成而再次触发，
+            // 因此必须在此主动重试，否则歌词永远不会滚动。
+            for (int attempt = 0; attempt < 8; attempt++)
             {
-                int[] labelLocation = new int[2];
-                nativeLabel.GetLocationOnScreen(labelLocation);
-                int[] recyclerLocation = new int[2];
-                recyclerView.GetLocationOnScreen(recyclerLocation);
-
-                int labelCenterY = labelLocation[1] + nativeLabel.Height / 2;
-                int targetY = recyclerLocation[1] + (int)(recyclerView.Height * 0.25);
-                int dy = labelCenterY - targetY;
-
-                if (Math.Abs(dy) > 2)
+                if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView)
                 {
-                    recyclerView.SmoothScrollBy(0, dy);
+                    var y = GetRelativeY(label);
+
+                    if (y > 0)
+                    {
+                        var targetScrollY = Math.Max(0, y - LyricCollectionView.Height * 0.25);
+                        int dy = (int)(targetScrollY - recyclerView.ComputeVerticalScrollOffset());
+                        if (attempt > 0)
+                            Android.Util.Log.Info("FLP", "[FullLyricsPage] ScrollToLine idx={0} 重试#{1} 成功 y={2:F0} dy={3}", index, attempt, y, dy);
+                        if (Math.Abs(dy) > 2)
+                        {
+                            recyclerView.SmoothScrollBy(0, dy);
+                        }
+                        return; // 滚动成功，退出重试循环
+                    }
                 }
+                else
+                {
+                    // Handler 尚未就绪，等待后重试
+                }
+
+                await Task.Delay(200);
             }
-            else if (LyricCollectionView.Handler?.PlatformView is global::Android.Views.View nativeView)
+            Android.Util.Log.Info("FLP", "[FullLyricsPage] ScrollToLine idx={0} 重试8次仍 y=0，放弃", index);
+#elif WINDOWS
+            if (LyricCollectionView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView)
             {
-                var y = GetRelativeY(label);
-                var targetScrollY = y - LyricCollectionView.Height * 0.25;
-                targetScrollY = Math.Max(0, targetScrollY);
-                nativeView.ScrollY = (int)targetScrollY;
+                var scrollViewer = FindScrollViewer(listView);
+                if (scrollViewer != null)
+                {
+                    // 与 Android 同理：用 MAUI 坐标计算目标偏移，避免依赖 label 原生视图
+                    // （根切换/重建后可能为 null 导致静默失败）。
+                    var y = GetRelativeY(label);
+                    var targetOffset = Math.Max(0, Math.Min(y - LyricCollectionView.Height * 0.25, scrollViewer.ScrollableHeight));
+                    // 仅当偏差较大时才滚动，避免逐字更新时频繁打断动画
+                    if (Math.Abs(scrollViewer.VerticalOffset - targetOffset) > 4)
+                    {
+                        scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
+                    }
+                }
             }
 #else
             var y = GetRelativeY(label);
@@ -339,6 +414,23 @@ public partial class FullLyricsPage : ContentPage
         }
         catch { }
     }
+
+#if WINDOWS
+    /// <summary>递归查找 ListViewBase 内的 ScrollViewer（与 NowPlayingPage 同实现）</summary>
+    private static Microsoft.UI.Xaml.Controls.ScrollViewer? FindScrollViewer(Microsoft.UI.Xaml.DependencyObject obj)
+    {
+        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(obj); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(obj, i);
+            if (child is Microsoft.UI.Xaml.Controls.ScrollViewer sv)
+                return sv;
+            var result = FindScrollViewer(child);
+            if (result != null)
+                return result;
+        }
+        return null;
+    }
+#endif
 
     /// <summary>获取元素相对于 LyricStack 的 Y 坐标（累加所有父容器的 Y）</summary>
     private double GetRelativeY(VisualElement element)

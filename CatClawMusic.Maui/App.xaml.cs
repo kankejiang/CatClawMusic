@@ -307,6 +307,30 @@ public partial class App : Application
             shell.Items.Clear();
             shell.Items.Add(new ShellContent { Content = newPage, Route = "main" });
 
+            // 横竖屏根切换可能丢失 UP/ScrollEnded 事件（旧视图树被销毁），
+            // 显式复位触摸计数并广播交互结束，防止 IsUserInteracting 卡死
+            // 导致歌词同步/桌面歌词永久冻结。
+            try
+            {
+                var interaction = MauiProgram.Services.GetService<IInteractionStateService>();
+                interaction?.ResetTouchState();
+            }
+            catch { }
+
+            // 横竖屏根切换后：新 NowPlayingPage 的歌词高亮/进度状态需强制同步，
+            // 否则 VM 歌词索引不变时新页面收不到 PropertyChanged，歌词永久冻结。
+            // 延迟一帧等新页面挂载 + OnAppearing 完成后再广播。
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    await Task.Delay(250);
+                    var npVm = MauiProgram.Services.GetRequiredService<NowPlayingViewModel>();
+                    npVm.RefreshLyricDisplayAfterLayout();
+                }
+                catch { }
+            });
+
 #if ANDROID
             // 切换布局后主动请求重新应用 insets：横竖屏切换时系统栏可见性可能变化
             // （如横屏隐藏状态栏），必须重新派发 OnApplyWindowInsets 才能拿到新的 inset 值，
