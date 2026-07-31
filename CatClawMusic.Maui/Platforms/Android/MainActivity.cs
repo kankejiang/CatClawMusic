@@ -232,9 +232,11 @@ public class MainActivity : MauiAppCompatActivity
             {
                 int syncTopPx = 0, syncBottomPx = 0;
                 try { var sb = currentInsets.GetInsets(WindowInsets.Type.SystemBars()); syncTopPx = Math.Max(syncTopPx, sb.Top); syncBottomPx = Math.Max(syncBottomPx, sb.Bottom); } catch { }
+                try { var nb = currentInsets.GetInsets(WindowInsets.Type.NavigationBars()); syncTopPx = Math.Max(syncTopPx, nb.Top); syncBottomPx = Math.Max(syncBottomPx, nb.Bottom); } catch { }
                 try { var mg = currentInsets.GetInsets(WindowInsets.Type.MandatorySystemGestures()); syncTopPx = Math.Max(syncTopPx, mg.Top); syncBottomPx = Math.Max(syncBottomPx, mg.Bottom); } catch { }
                 try { var sg = currentInsets.GetInsets(WindowInsets.Type.SystemGestures()); syncTopPx = Math.Max(syncTopPx, sg.Top); syncBottomPx = Math.Max(syncBottomPx, sg.Bottom); } catch { }
                 try { var so = currentInsets.GetInsets(WindowInsets.Type.SystemOverlays()); syncTopPx = Math.Max(syncTopPx, so.Top); syncBottomPx = Math.Max(syncBottomPx, so.Bottom); } catch { }
+                try { var cb = currentInsets.GetInsets(WindowInsets.Type.CaptionBar()); syncTopPx = Math.Max(syncTopPx, cb.Top); syncBottomPx = Math.Max(syncBottomPx, cb.Bottom); } catch { }
                 syncTop = syncTopPx / density;
                 syncBottom = syncBottomPx / density;
                 Android.Util.Log.Debug("MainActivity", $"[SafeArea] sync insets: top={syncTop:F1}px(={syncTopPx}px), bottom={syncBottom:F1}dp(={syncBottomPx}px)");
@@ -330,9 +332,11 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
         // 避免因某类型不存在（NoSuchMethodError）导致整个应用崩溃。
         int top = 0, bottom = 0;
         try { var sb = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()); top = Math.Max(top, sb.Top); bottom = Math.Max(bottom, sb.Bottom); } catch { }
+        try { var nb = insets.GetInsets(WindowInsetsCompat.Type.NavigationBars()); top = Math.Max(top, nb.Top); bottom = Math.Max(bottom, nb.Bottom); } catch { }
         try { var mg = insets.GetInsets(WindowInsetsCompat.Type.MandatorySystemGestures()); top = Math.Max(top, mg.Top); bottom = Math.Max(bottom, mg.Bottom); } catch { }
         try { var sg = insets.GetInsets(WindowInsetsCompat.Type.SystemGestures()); top = Math.Max(top, sg.Top); bottom = Math.Max(bottom, sg.Bottom); } catch { }
         try { var so = insets.GetInsets(WindowInsetsCompat.Type.SystemOverlays()); top = Math.Max(top, so.Top); bottom = Math.Max(bottom, so.Bottom); } catch { }
+        try { var cb = insets.GetInsets(WindowInsetsCompat.Type.CaptionBar()); top = Math.Max(top, cb.Top); bottom = Math.Max(bottom, cb.Bottom); } catch { }
 
         // 关键：强制清零根内容视图的原生 padding。
         v.SetPadding(0, 0, 0, 0);
