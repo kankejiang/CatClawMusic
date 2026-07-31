@@ -365,11 +365,22 @@ public partial class App : Application
                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                 var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
                 CurrentAppWindow = appWindow;
+                _appHwnd = hwnd;
 
                 if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
                 {
                     presenter.SetBorderAndTitleBar(true, false);
                 }
+
+                // 测量系统任务栏（底部 dock 栏）高度，并在窗口延伸到任务栏下方或最大化时，
+                // 为底部 UI（播放栏等）预留安全区内边距，避免被任务栏遮挡。
+                // 窗口尺寸/位置/状态变化时重新计算。
+                UpdateWindowsSafeArea(appWindow);
+                appWindow.Changed += (_, args) =>
+                {
+                    if (args.DidSizeChange || args.DidPositionChange || args.DidPresenterChange)
+                        UpdateWindowsSafeArea(appWindow);
+                };
 
                 // 通过 P/Invoke 移除 WS_CAPTION，彻底隐藏系统标题栏
                 _ = Task.Run(async () =>
@@ -420,6 +431,32 @@ public partial class App : Application
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_FRAMECHANGED = 0x0020;
 
+    private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int left, top, right, bottom;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
     private static void RemoveSystemTitleBar(IntPtr hwnd)
     {
         try
@@ -432,6 +469,55 @@ public partial class App : Application
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
         }
         catch (Exception ex) { Log.Debug("App", $"移除系统标题栏失败: {ex.Message}"); }
+    }
+
+    /// <summary>主窗口句柄缓存，供 UpdateWindowsSafeArea 计算任务栏高度时使用。</summary>
+    private static IntPtr _appHwnd;
+
+    /// <summary>
+    /// Windows 专属：测量系统任务栏（底部 dock 栏）高度，并在窗口延伸到任务栏下方或最大化时，
+    /// 为底部 UI（播放栏等）预留安全区内边距，避免被任务栏遮挡。
+    /// 通过系统 API（MonitorFromWindow + GetMonitorInfo + GetDpiForWindow）查询当前窗口所在显示器的
+    /// 「屏幕全屏矩形」与「工作区矩形」，二者底部之差即任务栏在底部占用的高度（effective px == MAUI dp）。
+    /// </summary>
+    private static void UpdateWindowsSafeArea(Microsoft.UI.Windowing.AppWindow appWindow)
+    {
+        try
+        {
+            if (_appHwnd == IntPtr.Zero) return;
+
+            // 取得窗口所在显示器的全屏矩形与工作区（不含任务栏）矩形，均为物理像素
+            var hmonitor = MonitorFromWindow(_appHwnd, MONITOR_DEFAULTTONEAREST);
+            var mi = new MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
+            if (!GetMonitorInfo(hmonitor, ref mi)) return;
+
+            // 物理像素 → effective px（= MAUI dp），按窗口 DPI 换算
+            int dpi = (int)GetDpiForWindow(_appHwnd);
+            if (dpi <= 0) dpi = 96;
+            double scale = 96.0 / dpi;
+
+            // 工作区底部（不含任务栏）与屏幕全屏底部（含任务栏）
+            double workBottomDp = mi.rcWork.bottom * scale;
+            double screenBottomDp = mi.rcMonitor.bottom * scale;
+
+            // 任务栏在底部占用的高度（dp）—— 即「测量 dock 栏高度」
+            double dockHeight = Math.Max(0, screenBottomDp - workBottomDp);
+
+            // 窗口底部相对工作区底部的溢出量：窗口实际延伸到任务栏下方时为 > 0
+            double winBottomDp = appWindow.Position.Y + appWindow.Size.Height;
+            double overlap = Math.Max(0, winBottomDp - workBottomDp);
+
+            bool maximized = appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter
+                && presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
+
+            // 最大化时始终预留任务栏高度（即使窗口被约束在工作区内，也避免自动隐藏的任务栏弹出时遮挡）；
+            // 非最大化时仅在实际溢出（延伸到任务栏下方）才预留，避免无谓留白。
+            double bottomInset = maximized ? dockHeight : Math.Min(overlap, dockHeight);
+
+            // TopInset 在 Windows 桌面端恒为 0（窗口带边框，不延伸到顶部系统区）
+            SafeAreaHelper.UpdateInsets(SafeAreaHelper.TopInset, bottomInset);
+        }
+        catch (Exception ex) { Log.Debug("App", $"更新 Windows 安全区失败: {ex.Message}"); }
     }
 #endif
 }

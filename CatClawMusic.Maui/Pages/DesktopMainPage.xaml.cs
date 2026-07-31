@@ -81,9 +81,9 @@ public partial class DesktopMainPage : ContentPage
         SizeChanged += OnPageSizeChanged;
         InitVolumeSlider();
 
-#if ANDROID
-        // 横屏下 RootGrid 顶部/底部需要留出系统栏安全区，避免车机/手机横屏内容被状态栏或 Dock 遮挡。
-        // SafeAreaHelper 由 Android MainActivity 在 EdgeToEdge 回调中异步更新，订阅变化事件以确保首帧即正确。
+#if ANDROID || WINDOWS
+        // RootGrid 底部需要留出系统栏安全区：Android 为导航栏，Windows 为任务栏（底部 dock 栏）。
+        // SafeAreaHelper 由平台在系统栏尺寸变化时异步更新，订阅变化事件以确保首帧即正确。
         ApplyRootGridSafeArea();
         SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
 #endif
@@ -105,7 +105,7 @@ public partial class DesktopMainPage : ContentPage
 
     private bool _isFirstAppearing = true;
 
-#if ANDROID
+#if ANDROID || WINDOWS
     /// <summary>SafeArea 变化时刷新 RootGrid 安全区内边距。</summary>
     private void OnSafeAreaChanged(object? sender, EventArgs e)
     {
@@ -114,7 +114,8 @@ public partial class DesktopMainPage : ContentPage
 
     /// <summary>
     /// 自适应安全区：直接使用系统 insets 实际值。
-    /// 手机横屏状态栏隐藏 → TopInset=0；车机状态栏可见 → TopInset=实际高度。底部同理。
+    /// Android：横屏状态栏隐藏 → TopInset=0；车机状态栏可见 → TopInset=实际高度。底部为导航栏高度。
+    /// Windows：TopInset 恒为 0；BottomInset 为任务栏（底部 dock 栏）高度（由 App.UpdateWindowsSafeArea 写入）。
     /// 子页面嵌入全屏模式时清零。
     /// </summary>
     private void ApplyRootGridSafeArea()
@@ -125,7 +126,7 @@ public partial class DesktopMainPage : ContentPage
             return;
         }
 
-        // 完全跟随系统 insets：有状态栏就留白，没有就不留
+        // 完全跟随系统 insets：有系统栏就留白，没有就不留
         RootGrid.Padding = new Thickness(0, SafeAreaHelper.TopInset, 0, SafeAreaHelper.BottomInset);
     }
 
@@ -488,7 +489,7 @@ public partial class DesktopMainPage : ContentPage
         content.HorizontalOptions = LayoutOptions.Fill;
 
         ContentArea.Children.Clear();
-#if ANDROID
+#if ANDROID || WINDOWS
         // 子页面全屏展示，移除 RootGrid 安全区 padding
         ApplyRootGridSafeArea();
 #endif
@@ -524,7 +525,7 @@ public partial class DesktopMainPage : ContentPage
         // 恢复系统状态栏显示
         ShowSystemStatusBar();
 
-#if ANDROID
+#if ANDROID || WINDOWS
         // 恢复 RootGrid 顶部/底部系统栏安全区
         ApplyRootGridSafeArea();
 #endif

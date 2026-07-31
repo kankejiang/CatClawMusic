@@ -97,7 +97,13 @@ public partial class NowPlayingPage : ContentPage
     {
         // RootGrid 原始 Padding 为 (20,12,20,16)，顶部加上状态栏高度
         var top = SafeAreaHelper.TopInset;
-        RootGrid.Padding = new Thickness(20, top + 12, 20, 16);
+#if WINDOWS
+        // 底部预留任务栏（底部 dock 栏）高度，避免底部控件被遮挡
+        var bottom = 16 + SafeAreaHelper.BottomInset;
+#else
+        var bottom = 16;
+#endif
+        RootGrid.Padding = new Thickness(20, top + 12, 20, bottom);
     }
 
     /// <summary>页面尺寸分配时触发，根据宽高比切换横屏/竖屏布局。</summary>

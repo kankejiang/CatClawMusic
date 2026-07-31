@@ -39,7 +39,13 @@ public partial class FullLyricsPage : ContentPage
     private void ApplySafeArea()
     {
         var top = SafeAreaHelper.TopInset;
-        ContentGrid.Padding = new Thickness(0, top, 0, 0);
+#if WINDOWS
+        // 底部预留任务栏（底部 dock 栏）高度，避免歌词底部被遮挡
+        var bottom = SafeAreaHelper.BottomInset;
+#else
+        var bottom = 0;
+#endif
+        ContentGrid.Padding = new Thickness(0, top, 0, bottom);
     }
 
     /// <summary>当视图模型属性变更时触发，根据变更的属性重建歌词视图或更新高亮行。</summary>
