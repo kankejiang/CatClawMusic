@@ -964,6 +964,12 @@ public partial class MainPage : ContentPage
         // （见 SetupPages），ViewPagerGrid 不再加顶部 padding，避免重复计算与失效风险。
         // 这里 ViewPagerGrid.Padding 仅保持为 0。
         var viewPagerPadding = new Thickness(0);
+        // AI 聊天模式：TabBar 隐藏后页面区域会延伸到屏幕底部，聊天输入栏（SearchPage 底部）
+        // 会被三键导航栏/车机 dock 遮挡 → 为页面区域预留底部 inset。
+        // 全屏页面（播放页/歌词页）自身处理底部安全区，chat 与其互斥（聊天仅在发现页触发），
+        // 但显式排除 isFullScreen 防止双倍 padding。
+        if (isChatMode && !isFullScreen)
+            viewPagerPadding = new Thickness(0, 0, 0, bottom);
         if (ViewPagerGrid.Padding != _lastViewPagerPadding)
         {
             ViewPagerGrid.Padding = viewPagerPadding;

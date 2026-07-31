@@ -25,7 +25,7 @@
         </controls:HeroCard>
 
         <ScrollView Grid.Row="1">
-            <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
+            <VerticalStackLayout x:Name="ContentStack" Padding="16,8,16,22" Spacing="14">
 
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{OnPlatform Default=false, Android=true}">
