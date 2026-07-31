@@ -39,8 +39,9 @@ public partial class FullLyricsPage : ContentPage
     private void ApplySafeArea()
     {
         var top = SafeAreaHelper.TopInset;
-#if WINDOWS
-        // 底部预留任务栏（底部 dock 栏）高度，避免歌词底部被遮挡
+#if ANDROID || WINDOWS
+        // 底部预留导航栏/底部 dock 栏高度，避免歌词底部被遮挡
+        // （Android 经典三键/手势栏、车机 dock；Windows 任务栏）
         var bottom = SafeAreaHelper.BottomInset;
 #else
         var bottom = 0;

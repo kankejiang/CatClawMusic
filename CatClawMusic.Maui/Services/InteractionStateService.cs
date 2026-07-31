@@ -73,12 +73,14 @@ public class InteractionStateService : IInteractionStateService
             });
         };
 
-        // 安全网：交互令牌看门狗。BeginInteraction 令牌若因页面在动画中途被销毁而泄漏
-        // （Dispose 永不调用，如横竖屏根切换时 ViewPager2 停在 Dragging/Settling 状态），
-        // IsUserInteracting 会永久卡 true，导致歌词行索引同步（UpdateLyricPosition）、
-        // 桌面歌词等功能永久冻结。_scrollRefCount/_touchRefCount 各有超时兜底，
-        // 唯独 _interactionRefCount 没有 → 此处每 2.5 秒巡检：
-        // 无触摸、无滚动且超过 4 秒无新交互活动 → 强制清零并广播交互结束。
+        // 安全网：交互状态看门狗。三个计数器的自愈定时器（_touchIdleTimer/_scrollIdleTimer）
+        // 都在「开始」事件时 Stop、依赖「结束」事件重启 —— 若页面在交互中途被销毁
+        // （横竖屏根切换 shell.Items.Clear 重建视图树），UP / ScrollEnded / Idle 回调可能
+        // 永久丢失，定时器永不重启，IsUserInteracting 永久卡 true，导致歌词行索引同步
+        // （UpdateLyricPosition）、桌面歌词等功能永久冻结。OnPause 的 ResetTouchState
+        // 只覆盖后台场景，旋转/根切换不触发。
+        // 此处每 2.5 秒巡检：交互态持续超过 4 秒且无任何新活动 → 判定为泄漏，全部清零
+        // 并广播交互结束（VM 收到后会用播放器实时位置补一次歌词同步）。
         _interactionWatchdog = new System.Timers.Timer(2500);
         _interactionWatchdog.AutoReset = true;
         _interactionWatchdog.Elapsed += (s, e) =>
@@ -87,10 +89,12 @@ public class InteractionStateService : IInteractionStateService
             {
                 lock (_lock)
                 {
-                    if (_interactionRefCount <= 0) return;
-                    if (_touchRefCount > 0 || _scrollRefCount > 0) return; // 真实交互中
+                    if (!IsUserInteracting) return;
                     if ((DateTime.UtcNow - _lastInteractionActivity).TotalSeconds < 4) return;
                     _interactionRefCount = 0;
+                    _touchRefCount = 0;
+                    _scrollRefCount = 0;
+                    OnScrollStateChanged(false);
                     OnInteractionStateChanged(false);
                 }
             });
@@ -116,6 +120,7 @@ public class InteractionStateService : IInteractionStateService
 
     public void NotifyScrollEnded()
     {
+        _lastInteractionActivity = DateTime.UtcNow;
         _scrollIdleTimer.Stop();
         _scrollIdleTimer.Start();
     }
@@ -139,6 +144,7 @@ public class InteractionStateService : IInteractionStateService
         {
             if (_touchRefCount > 0)
                 _touchRefCount--;
+            _lastInteractionActivity = DateTime.UtcNow;
             if (_touchRefCount == 0)
             {
                 _touchIdleTimer.Stop();
@@ -178,6 +184,7 @@ public class InteractionStateService : IInteractionStateService
         {
             if (_interactionRefCount > 0)
                 _interactionRefCount--;
+            _lastInteractionActivity = DateTime.UtcNow;
             if (_interactionRefCount == 0 && !IsUserScrolling)
                 OnInteractionStateChanged(false);
         }
