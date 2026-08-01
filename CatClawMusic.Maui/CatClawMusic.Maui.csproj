@@ -22,6 +22,10 @@
 		<WindowsPackageType>None</WindowsPackageType>
 		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
 		<EnableMsixTooling>true</EnableMsixTooling>
+		<!-- XAML 编译器包装：Windows App SDK 1.7 的 XamlCompiler.exe 在 .NET 10 上
+		     编译成功但退出码为 1（关闭时崩溃），用包装脚本检查 output.json 是否生成
+		     来判断成功与否，绕过错误的退出码。 -->
+		<XamlCompilerExePath Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">$(MSBuildProjectDirectory)\XamlCompilerWrapper.bat</XamlCompilerExePath>
 
 		<!-- Platform min versions -->
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">31.0</SupportedOSPlatformVersion>
@@ -105,10 +109,23 @@
 	</PropertyGroup>
 
 	<!-- 开发调试（Debug）：关闭 Fast Assembly Deployment，避免物理机部署时
-	     FastDeploy 状态冲突导致的 ADB0010 NO_CERTIFICATES / “不支持运行以前的版本”。
+	     FastDeploy 状态冲突导致的 ADB0010 NO_CERTIFICATES / "不支持运行以前的版本"。
 	     改为完整签名 APK 正常安装，部署更稳。如需恢复快速增量部署，删除本段即可。 -->
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<AndroidUseFastDeploy>false</AndroidUseFastDeploy>
 	</PropertyGroup>
+
+	<!-- Windows XAML 编译修复：XamlCompiler.exe 在 .NET 10 上编译成功但退出码为 1
+	     （关闭崩溃），且 output.json 中 GeneratedCodeFiles 为空。
+	     1. 用包装脚本绕过退出码问题
+	     2. 用 AfterBuildFixXamlOutput target 修复 output.json 中缺失的 GeneratedCodeFiles -->
+	<Target Name="FixXamlCompilerOutput" AfterTargets="MarkupCompilePass1"
+			Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<!-- 扫描 obj 目录中的 .g.cs 文件并添加到 Compile -->
+		<ItemGroup>
+			<GeneratedXamlCodeFiles Include="$(XamlGeneratedOutputPath)**\*.g.cs" />
+			<Compile Include="@(GeneratedXamlCodeFiles)" />
+		</ItemGroup>
+	</Target>
 
 </Project>

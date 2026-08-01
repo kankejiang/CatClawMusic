@@ -449,7 +449,16 @@ public static class MauiProgram
         builder.Logging.AddProvider(new CatClawMusic.Maui.Services.FileLoggerProvider());
 
         StartupLog("Step 50: Build");
-        var app = builder.Build();
+        MauiApp app;
+        try
+        {
+            app = builder.Build();
+        }
+        catch (Exception ex)
+        {
+            StartupLog($"Step 50 FAILED: {ex}");
+            throw;
+        }
         Services = app.Services;
         StartupLog("Step 51: Services set");
 

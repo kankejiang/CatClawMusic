@@ -26,8 +26,8 @@
         <!-- 暗色遮罩层：确保歌词文字可读 -->
         <BoxView Color="#70000000" InputTransparent="True" />
 
-        <!-- 竖屏内容：顶部 HeroCard + 全宽歌词 -->
-        <Grid x:Name="ContentGrid" RowDefinitions="Auto,*">
+        <!-- ═══ 竖屏内容：顶部 HeroCard + 全宽歌词 ═══ -->
+        <Grid x:Name="PortraitContent" RowDefinitions="Auto,*">
 
             <controls:HeroCard Grid.Row="0"
                                ShowBackButton="False">
@@ -88,6 +88,9 @@
                             ItemsSource="{Binding LyricPlaceholderItems}"
                             SelectionMode="None"
                             VerticalScrollBarVisibility="Never">
+                <CollectionView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnLyricsAreaTapped" />
+                </CollectionView.GestureRecognizers>
                 <CollectionView.Behaviors>
                     <controls:ScrollPerformanceBehavior />
                 </CollectionView.Behaviors>
@@ -117,6 +120,86 @@
                        TextColor="{DynamicResource TextSecondaryColor}"
                        HorizontalTextAlignment="Center" />
             </Border>
+        </Grid>
+
+        <!-- ═══ 横屏内容：左封面 + 右歌词（删除顶部卡片） ═══ -->
+        <Grid x:Name="LandscapeContent"
+              IsVisible="False"
+              ColumnDefinitions="1*,1.15*"
+              ColumnSpacing="32"
+              Padding="48,0,48,0">
+
+            <!-- 左：封面（正方形，顶部贴状态栏下方，左边距=状态栏高度+5px，底部贴底部安全区上方） -->
+            <Grid Grid.Column="0"
+                  HorizontalOptions="Fill" VerticalOptions="Fill">
+                <!-- 封面辉光（模糊投影）- 底层 -->
+                <Border x:Name="LandscapeCoverGlow"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 28"
+                        BackgroundColor="Transparent"
+                        Opacity="0.35"
+                        Scale="1.08"
+                        TranslationY="10"
+                        HorizontalOptions="Start" VerticalOptions="Start" />
+                <!-- 封面本体 - 上层 -->
+                <Border x:Name="LandscapeCover"
+                        StrokeThickness="0.5"
+                        Stroke="#30FFFFFF"
+                        StrokeShape="RoundRectangle 28"
+                        BackgroundColor="Transparent"
+                        HorizontalOptions="Start" VerticalOptions="Start">
+                    <Image x:Name="LandscapeCoverImage"
+                           Source="{Binding CoverImage}"
+                           Aspect="AspectFill" />
+                </Border>
+            </Grid>
+
+            <!-- 右：歌词（占满剩余高度，无顶部卡片） -->
+            <Grid Grid.Column="1"
+                  RowDefinitions="*,Auto"
+                  RowSpacing="0"
+                  VerticalOptions="Fill">
+
+                <!-- 歌词区域（占满剩余空间） -->
+                <CollectionView Grid.Row="0"
+                                x:Name="LandscapeLyricCollectionView"
+                                ItemsSource="{Binding LyricPlaceholderItems}"
+                                SelectionMode="None"
+                                VerticalScrollBarVisibility="Never">
+                    <CollectionView.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnLyricsAreaTapped" />
+                    </CollectionView.GestureRecognizers>
+                    <CollectionView.Behaviors>
+                        <controls:ScrollPerformanceBehavior />
+                    </CollectionView.Behaviors>
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.Header>
+                        <VerticalStackLayout x:Name="LandscapeLyricStack"
+                                             Padding="24,100,24,300"
+                                             Spacing="14" />
+                    </CollectionView.Header>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <BoxView HeightRequest="0" />
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!-- 无歌词提示 -->
+                <Border Grid.Row="0"
+                        x:Name="LandscapeNoLyricsBadge"
+                        Margin="20,0"
+                        VerticalOptions="End"
+                        Style="{StaticResource GlassBadgeStyle}"
+                        IsVisible="{Binding HasLyrics, Converter={StaticResource InvertedBoolConverter}}">
+                    <Label Text="{Binding NoLyricsText}"
+                           FontSize="14"
+                           TextColor="{DynamicResource TextSecondaryColor}"
+                           HorizontalTextAlignment="Center" />
+                </Border>
+            </Grid>
         </Grid>
 
         <!-- 歌词设置弹窗（预定义，默认隐藏） -->

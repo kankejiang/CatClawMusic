@@ -226,7 +226,7 @@
                                 <VerticalStackLayout x:Name="LyricStack"
                                                      Padding="0,10,0,10"
                                                      Spacing="8"
-                                                     HorizontalOptions="Center" />
+                                                     HorizontalOptions="Fill" />
                             </CollectionView.Header>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
@@ -496,25 +496,21 @@
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
 
-                <!-- 左：封面（封面占剩余空间并居中，底部留一行空白避免贴底） -->
-                <Grid Grid.Row="1" Grid.Column="0"
-                      RowDefinitions="*,Auto"
+                <!-- 左：封面（跨两行，顶部贴状态栏下方，左边距=状态栏高度+5px，底部贴底部安全区上方，动态计算正方形边长） -->
+                <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
                       HorizontalOptions="Fill" VerticalOptions="Fill">
-                    <Border Grid.Row="0" x:Name="LandscapeCover"
+                    <Border x:Name="LandscapeCover"
                             StrokeThickness="0.5"
                             Stroke="#30FFFFFF"
                             StrokeShape="RoundRectangle 28"
                             BackgroundColor="Transparent"
                             WidthRequest="460" HeightRequest="460"
-                            HorizontalOptions="Center" VerticalOptions="Center">
+                            HorizontalOptions="Start" VerticalOptions="Start">
                         <Image x:Name="LandscapeCoverImage"
                                Source="{Binding CoverImage}"
                                Aspect="AspectFill"
                                WidthRequest="460" HeightRequest="460" />
                     </Border>
-                    <!-- 底部留白行：抵消顶部收起按钮行（44高 + 上padding 8）与下padding 20的差值，
-                         使封面在屏幕内上下留白一致。 -->
-                    <Grid Grid.Row="1" HeightRequest="32" />
                 </Grid>
 
                 <!-- 右：信息 + 控制 + 歌词（Grid 行布局，歌词面板占满剩余高度） -->

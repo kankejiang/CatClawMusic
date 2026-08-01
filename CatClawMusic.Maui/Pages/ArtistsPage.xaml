@@ -5,6 +5,7 @@
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
+             xmlns:data="clr-namespace:CatClawMusic.Data;assembly=CatClawMusic.Data"
              x:Class="CatClawMusic.Maui.Pages.ArtistsPage"
              x:DataType="vm:ArtistsViewModel"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
@@ -162,7 +163,7 @@
                     <GridItemsLayout Orientation="Vertical" Span="3" HorizontalItemSpacing="8" VerticalItemSpacing="12" />
                 </CollectionView.ItemsLayout>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ArtistWithCount">
+                    <DataTemplate x:DataType="data:ArtistWithCount">
                         <Border StrokeThickness="0"
                                 BackgroundColor="Transparent">
                             <Border.GestureRecognizers>
@@ -207,7 +208,7 @@
                             SelectionMode="None"
                             IsVisible="{Binding IsGridView, Converter={StaticResource InvertedBoolConverter}}">
                 <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ArtistWithCount">
+                    <DataTemplate x:DataType="data:ArtistWithCount">
                         <Grid Padding="14,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"

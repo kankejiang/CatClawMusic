@@ -19,23 +19,6 @@ public partial class DesktopAllSongsPage : ContentPage
         InitializeComponent();
         _vm = vm;
         BindingContext = _vm;
-        SizeChanged += OnPageSizeChanged;
-    }
-
-    /// <summary>
-    /// 根据右侧可用宽度动态计算网格列数：每列约 132px（封面 96 + 间距 8 + padding 12×2 + 余量）。
-    /// 手机横屏右侧约 1160px → 8 列，平板/车机更宽 → 更多列，最小 4 列，最大 12 列。
-    /// </summary>
-    private void OnPageSizeChanged(object? sender, EventArgs e)
-    {
-        if (GridSongView?.ItemsLayout is not GridItemsLayout gridLayout) return;
-
-        double rightWidth = Math.Max(0, Width - 280);
-        int span = (int)Math.Round(rightWidth / 132);
-        span = Math.Clamp(span, 4, 12);
-
-        if (gridLayout.Span != span)
-            gridLayout.Span = span;
     }
 
     protected override void OnAppearing()
@@ -60,10 +43,10 @@ public partial class DesktopAllSongsPage : ContentPage
         _ = Shell.Current.GoToAsync("..");
     }
 
-    // ChipList.ChipTapped 事件签名：EventHandler<object?>
-    private void OnSortChipTapped(object? sender, object? item)
+    // FlexLayout 排序项点击：从 sender 的 BindingContext 中获取 SortOption
+    private void OnSortChipTapped(object? sender, EventArgs e)
     {
-        if (item is SortOption option)
+        if (sender is BindableObject bo && bo.BindingContext is SortOption option)
             _vm.ToggleSort(option.Key);
     }
 
