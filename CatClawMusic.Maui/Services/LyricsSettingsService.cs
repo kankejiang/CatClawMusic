@@ -29,6 +29,7 @@ public class LyricsSettingsService
     private const string KeyAlignment = "lyrics_alignment";
     private const string KeyFontSize = "lyrics_font_size";
     private const string KeyRemoveEmptyLines = "lyrics_remove_empty_lines";
+    private const string KeyAlignmentMigrated = "lyrics_alignment_migrated_v2";
 
     // 桌面歌词设置键
     private const string KeyDesktopEnabled = "desktop_lyric_enabled";
@@ -61,7 +62,17 @@ public class LyricsSettingsService
 
     public Alignment LyricsAlignment
     {
-        get => (Alignment)Preferences.Get(KeyAlignment, (int)Alignment.Center);
+        get
+        {
+            // 一次性迁移：旧版本默认值为 Center，新版本改为 Left。
+            // 已安装用户的首选项可能保存了旧的默认值 Center，需重置为新的默认值 Left。
+            if (!Preferences.Get(KeyAlignmentMigrated, false))
+            {
+                Preferences.Set(KeyAlignmentMigrated, true);
+                Preferences.Set(KeyAlignment, (int)Alignment.Left);
+            }
+            return (Alignment)Preferences.Get(KeyAlignment, (int)Alignment.Left);
+        }
         set => Preferences.Set(KeyAlignment, (int)value);
     }
 

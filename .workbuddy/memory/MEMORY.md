@@ -2,8 +2,11 @@
 
 ## 构建与发布
 - 主线: `CatClawMusic.Maui/CatClawMusic.Maui.csproj` (v1.6.5+, net10.0-android, UseMaui 单项目)。
-- Release 签名命令见 `2026-07-20.md` 日志; keystore = 解决方案根 `catclaw.keystore`(alias=catclaw, pass=catclaw123, SHA1 9F:D0:61:3A:7C:76:1E:A8:5A:48:89:4F:4D:35:66:65:8A:89:24:69)。⚠️ 签名必须 `<AndroidKeyStore>true</AndroidKeyStore>` + PropertyGroup 写法, 否则静默回退 debug 密钥致旧用户无法覆盖装。
+- Release 签名命令见 `2026-07-20.md` 日志; keystore = 解决方案根 `catclaw.keystore`(alias=catclaw, pass=catclaw123, SHA1 9F:D0:61:3A:7C:76:1E:A8:5A:48:89:4F:4D:35:66:65:8A:89:24:69)。⚠️ 签名必须 `<AndroidKeyStore>true</AndroidKeyStore>` + PropertyGroup 写法, 否则静默回退 debug 密钥致旧用户无法覆盖装。密码经环境变量 `CatClawKeyPass`/`CatClawStorePass` 注入(csproj 用 `$(CatClawKeyPass)`/`$(CatClawStorePass)`)。
 - 产出 `bin/Release/net10.0-android/publish/*-Signed.apk`(csproj 无自动复制 target)。
+- **构建坑(2026-08-01, 详见当日日志)**: ① `global.json` 原 `rollForward:"latestMajor"` 会滚到 net11 预览 SDK 致 XA0111(aapt2 版本不受支持)→ 已改 `"latestFeature"` 锁定 .NET 10; ② Android 包 36.1.69 的 aapt2 daemon 多实例并行会随机崩(APT2098「failed to open file」, 每次不同文件)→ 必须加 `-p:Aapt2DaemonMaxInstanceCount=0 -m:1`。完整命令:
+  `CatClawKeyPass=catclaw123 CatClawStorePass=catclaw123 dotnet publish CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net10.0-android -p:Aapt2DaemonMaxInstanceCount=0 -m:1`
+- apksigner 验证: `/c/Users/lvjin/AppData/Local/Android/Sdk/build-tools/34.0.0/apksigner.bat verify --print-certs <apk>`(Git Bash 需 `MSYS_NO_PATHCONV=1` + Windows 路径)。jarsigner 报「没有清单」是正常的(.NET Android 用 v2/v3 签名, 非 v1 JAR)。
 
 ## Android 16 / 16KB 页对齐 (2026-07-20)
 - 三星 Android16 闪退根因 = `libe_sqlite3.so`(SQLitePCLRaw 2.1.2) 4KB 对齐。修复: 三 csproj 顶层 `<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />`(Maui 另加 `SQLitePCLRaw.lib.e_sqlite3.android` 2.1.11)。⚠️ 必须 2.1.11(2.1.10 仅消警告, 16KB 设备 DB 仍打不开)。

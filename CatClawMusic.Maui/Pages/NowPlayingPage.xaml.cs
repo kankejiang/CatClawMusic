@@ -27,6 +27,7 @@ public partial class NowPlayingPage : ContentPage
     private readonly List<KaraokeLabel> _landscapeLyricLabels = new();
     private readonly List<Border> _landscapeLyricBorders = new();
     private int _landscapeLastHighlight = -1;
+    private readonly LyricsSettingsService _settings = LyricsSettingsService.Instance;
 
     /// <summary>CollectionView Handler 变化时触发：Handler 就绪后滚动到当前歌词行。</summary>
     private void OnCollectionViewHandlerChanged(object? sender, EventArgs e)
@@ -67,7 +68,9 @@ public partial class NowPlayingPage : ContentPage
         {
             if (Handler == null)
             {
+#if ANDROID
                 Android.Util.Log.Info("NPP", "[NowPlayingPage] Handler=null(取消订阅) #{0}", GetHashCode());
+#endif
                 _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
             }
@@ -118,19 +121,42 @@ public partial class NowPlayingPage : ContentPage
         MainThread.BeginInvokeOnMainThread(() => ApplySafeArea());
     }
 
-    /// <summary>给 RootGrid 应用 SafeArea 顶部 padding（雾面背景不应用，保持延伸到状态栏）</summary>
+    /// <summary>给 RootGrid 应用 SafeArea 顶部 padding（雾面背景不应用，保持延伸到状态栏）。
+    /// 竖屏：顶部+12px、底部+16px 基础间距。
+    /// 横屏：顶部状态栏+5px、底部=max(状态栏,dock栏)+5px，封面上下对称留出最小间距。</summary>
     private void ApplySafeArea()
     {
-        // RootGrid 原始 Padding 为 (20,12,20,16)，顶部加上状态栏高度
-        var top = SafeAreaHelper.TopInset;
-#if ANDROID || WINDOWS
-        // 底部预留导航栏/底部 dock 栏高度，避免底部控件被遮挡
-        // （Android 经典三键/手势栏、车机 dock；Windows 任务栏）
-        var bottom = 16 + SafeAreaHelper.BottomInset;
-#else
-        var bottom = 16;
+#if WINDOWS
+        // Windows 端使用 WindowsStage 自身的顶部安全区 padding
+        ApplyWindowsSafeArea();
+        return;
 #endif
-        RootGrid.Padding = new Thickness(20, top + 12, 20, bottom);
+        var topInset = SafeAreaHelper.TopInset;
+        var bottomInset = SafeAreaHelper.BottomInset;
+
+        if (_isLandscape)
+        {
+            // 横屏：内容区域上下贴边（仅留5px呼吸间距）
+            // 顶部 = 状态栏 + 5px
+            // 底部 = max(状态栏, dock栏) + 5px
+            //   手机/平板无 dock 栏（bottomInset≈0），用 topInset 与顶部对称
+            //   车机有 dock 栏（bottomInset>0），用 bottomInset 确保不遮挡
+            var effectiveBottom = Math.Max(topInset, bottomInset) + 5;
+            RootGrid.Padding = new Thickness(20, topInset + 5, 20, effectiveBottom);
+            // LandscapeRoot 上下 padding 为 0（RootGrid 已处理上下间距），
+            // 左右 48px 保证右栏内容不贴边
+            LandscapeRoot.Padding = new Thickness(48, 0, 48, 0);
+        }
+        else
+        {
+            // 竖屏：原始 Padding (20,12,20,16) + 状态栏/底部安全区
+#if ANDROID || WINDOWS
+            var bottom = 16 + bottomInset;
+#else
+            var bottom = 16;
+#endif
+            RootGrid.Padding = new Thickness(20, topInset + 12, 20, bottom);
+        }
     }
 
     /// <summary>页面尺寸分配时触发，根据宽高比切换横屏/竖屏布局。</summary>
@@ -147,11 +173,47 @@ public partial class NowPlayingPage : ContentPage
     {
         if (width <= 0 || height <= 0) return;
 
+#if WINDOWS
+        // Windows 桌面端：使用独立的 WindowsStage 布局（基于 Aurora 原型），
+        // 完全跳过手机竖屏/横屏逻辑，安卓端不受影响。
+        ApplyWindowsLayout(width, height);
+        return;
+#endif
+
         var isLandscape = width > height;
-        // 封面尺寸：竖屏根据较短边计算；横屏尽量占满左栏（取左栏宽与可用高的最小值），上限与竖屏一致 560
-        var coverSize = isLandscape
-            ? Math.Clamp((int)Math.Min(height - 32, (width - 148) / 2.15), 240, 560)
-            : Math.Clamp((int)(width - 60), 280, 560);
+        var topInset = SafeAreaHelper.TopInset;
+        var bottomInset = SafeAreaHelper.BottomInset;
+
+        // 封面尺寸计算：
+        // 竖屏：根据较短边计算，左右各留30px间距。
+        // 横屏：三个边定一个正方形——
+        //   顶部 = 状态栏 + 5px
+        //   底部 = max(状态栏, dock栏) + 5px（手机/平板用状态栏对称，车机用dock栏）
+        //   左边 = 状态栏 + 5px
+        //   边长 = min(可用高度, 左栏可用宽度)
+        int coverSize;
+        if (isLandscape)
+        {
+            // 可用高度 = height - 顶部预留 - 底部预留
+            // 顶部预留 = topInset + 5，底部预留 = max(topInset, bottomInset) + 5
+            double effectiveBottomInset = Math.Max(topInset, bottomInset);
+            double availableHeight = height - topInset - effectiveBottomInset - 10;
+            // 左栏宽度：LandscapeRoot 内容宽度 = width - 20*2(RootGrid左右) - 48*2(LandscapeRoot左右) - 32(列间距)
+            // 左栏占比 1 / (1+1.15) = 1/2.15
+            double landscapeContentWidth = width - 40 - 96 - 32;
+            double leftColumnWidth = landscapeContentWidth / 2.15;
+            // 封面左边距(相对于左栏Grid) = 目标左边距 - RootGrid左padding - LandscapeRoot左padding
+            // 目标左边距 = topInset + 5（相对于屏幕左边）
+            double leftMarginInGrid = (topInset + 5) - 20 - 48; // = topInset - 63
+            // 左栏可用宽度 = 左栏宽度 - 左边距（左边距为负时增加可用宽度）
+            double availableWidth = leftColumnWidth - leftMarginInGrid;
+            // 封面尺寸 = min(可用高度, 可用宽度)，保留 240-800 的合理范围
+            coverSize = Math.Clamp((int)Math.Min(availableHeight, availableWidth), 240, 800);
+        }
+        else
+        {
+            coverSize = Math.Clamp((int)(width - 60), 280, 560);
+        }
 
         if (_isLandscape == isLandscape && _lastCoverSize == coverSize)
             return;
@@ -174,6 +236,8 @@ public partial class NowPlayingPage : ContentPage
                 // 横屏封面首次显示时 Handler 才创建，可能错过 PlayerCoverTag 导致低分辨率解码；
                 // 延迟重载一次封面，确保使用高分辨率桶。
                 _ = ReloadCoverHighResAsync(LandscapeCoverImage);
+                // 方向切换后立即应用横屏 SafeArea，确保车机 dock 栏下内容不被遮挡
+                ApplySafeArea();
             }
             RightHalf.ClearValue(HeightRequestProperty);
             MainContent.RowDefinitions = new RowDefinitionCollection
@@ -181,6 +245,10 @@ public partial class NowPlayingPage : ContentPage
                 new RowDefinition { Height = GridLength.Auto },
                 new RowDefinition { Height = GridLength.Star }
             };
+            // 横屏封面位置：顶部贴齐（VerticalOptions=Start，顶部=0即对齐状态栏+5），
+            // 左边距 = topInset + 5 - RootGrid左padding - LandscapeRoot左padding
+            double leftMargin = topInset + 5 - 20 - 48;
+            LandscapeCover.Margin = new Thickness(leftMargin, 0, 0, 0);
         }
         else
         {
@@ -210,6 +278,9 @@ public partial class NowPlayingPage : ContentPage
                 new RowDefinition { Height = GridLength.Star },
                 new RowDefinition { Height = GridLength.Auto }
             };
+            // 恢复竖屏 SafeArea
+            if (orientationChanged)
+                ApplySafeArea();
         }
 
         if (_lastCoverSize != coverSize)
@@ -316,6 +387,11 @@ public partial class NowPlayingPage : ContentPage
 
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
 
+#if WINDOWS
+        // Windows 桌面端：构建 WindowsStage 歌词视图、同步滑块、初始化音量与图标
+        OnWindowsStageReady();
+        CrashReporter.MarkStage("NowPlayingPage.OnAppearing: Windows 歌词视图构建完成");
+#else
         // 仅在歌词行数变化时重建视图，避免切页时大量控件销毁/重建
         var allLines = _viewModel.AllLyricLines;
         if (allLines == null || _lyricLabels.Count != allLines.Count)
@@ -331,6 +407,7 @@ public partial class NowPlayingPage : ContentPage
                 MainThread.BeginInvokeOnMainThread(() =>
                     HighlightLine(_viewModel.CurrentLyricIndexObservable)));
         }
+#endif
 
         // 整个进入播放页流程无异常完成，清除阶段标记（若此后再崩，说明是后续交互，非进入阶段）
         CrashReporter.ClearStage();
@@ -348,8 +425,27 @@ public partial class NowPlayingPage : ContentPage
     /// <param name="e">主题变更事件参数。</param>
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
     {
+#if WINDOWS
+        MainThread.BeginInvokeOnMainThread(BuildWindowsLyricViews);
+#else
         MainThread.BeginInvokeOnMainThread(BuildLyricViews);
+#endif
     }
+
+#if !WINDOWS
+    // WindowsStage 桌面面板在安卓端不可见；这些处理器仅为满足共享 XAML 的事件绑定编译。
+    private void OnWinPlayTapped(object? sender, TappedEventArgs e)
+        => _viewModel.TogglePlayPauseCommand.Execute(null);
+
+    private void OnWinLikeTapped(object? sender, TappedEventArgs e)
+        => _viewModel.ToggleLikeCommand.Execute(null);
+
+    private void OnWinFollowTapped(object? sender, TappedEventArgs e) { }
+
+    private void OnWinVolumeChanged(object? sender, ValueChangedEventArgs e) { }
+
+    private void OnWinMuteTapped(object? sender, EventArgs e) { }
+#endif
 
     /// <summary>当视图模型属性变更时触发，根据变更的属性重建歌词视图或更新高亮行。</summary>
     /// <param name="sender">事件源。</param>
@@ -369,6 +465,60 @@ public partial class NowPlayingPage : ContentPage
             {
                 return;
             }
+#endif
+#if WINDOWS
+            // Windows 桌面端：所有歌词/进度/播放状态变更路由到 WindowsStage 控件
+            switch (e.PropertyName)
+            {
+                case nameof(NowPlayingViewModel.AllLyricLines):
+                case nameof(NowPlayingViewModel.HasLyrics):
+                    MainThread.BeginInvokeOnMainThread(BuildWindowsLyricViews);
+                    return;
+                case nameof(NowPlayingViewModel.CurrentLyricIndexObservable):
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        if (_winFollow)
+                            HighlightWindowsLine(_viewModel.CurrentLyricIndexObservable);
+                        else
+                            HighlightWindowsLineWithoutScroll(_viewModel.CurrentLyricIndexObservable);
+                    });
+                    return;
+                case nameof(NowPlayingViewModel.CurrentLineFillProgress):
+                    {
+                        var idx = _viewModel.CurrentLyricIndexObservable;
+                        if (idx >= 0 && idx < _winLyricLabels.Count)
+                            _winLyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
+                        return;
+                    }
+                case nameof(NowPlayingViewModel.IsPlaying):
+                    MainThread.BeginInvokeOnMainThread(OnWinPlayingChanged);
+                    return;
+                case nameof(NowPlayingViewModel.IsLiked):
+                    MainThread.BeginInvokeOnMainThread(UpdateWinLikeIcon);
+                    return;
+                case nameof(NowPlayingViewModel.Duration):
+                    {
+                        var duration = _viewModel.Duration;
+                        var max = duration > 1 ? duration : 1;
+                        if (WinProgressSlider.Maximum != max)
+                            WinProgressSlider.Maximum = max;
+                        return;
+                    }
+                case nameof(NowPlayingViewModel.Progress) when !_isDragging:
+                    {
+                        var progress = _viewModel.Progress;
+                        if (progress == 0)
+                        {
+                            WinProgressSlider.Value = 0;
+                            return;
+                        }
+                        var duration = _viewModel.Duration;
+                        if (duration > 1 && Math.Abs(WinProgressSlider.Value - progress) > 0.5)
+                            WinProgressSlider.Value = progress;
+                        return;
+                    }
+            }
+            return;
 #endif
             if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
                 e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
@@ -469,8 +619,8 @@ public partial class NowPlayingPage : ContentPage
                 OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                 StrokeWidth = 2,
                 FillProgress = 0,
-                HorizontalTextAlignment = TextAlignment.Center,
-                HorizontalOptions = LayoutOptions.Fill,
+                HorizontalTextAlignment = _settings.ToTextAlignment(),
+                HorizontalOptions = _settings.ToLayoutOptions(),
                 LineBreakMode = LineBreakMode.WordWrap,
                 Padding = new Thickness(16, 4)
             };
@@ -481,13 +631,13 @@ public partial class NowPlayingPage : ContentPage
                 StrokeThickness = 0,
                 BackgroundColor = Colors.Transparent,
                 Padding = new Thickness(18, 0),
-                HorizontalOptions = LayoutOptions.Fill
+                HorizontalOptions = _settings.ToLayoutOptions()
             };
             border.Content = label;
 
             if (!string.IsNullOrEmpty(line.Translation))
             {
-                var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Fill };
+                var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = _settings.ToLayoutOptions() };
                 stack.Children.Add(border);
 
                 var transLabel = new KaraokeLabel
@@ -500,19 +650,19 @@ public partial class NowPlayingPage : ContentPage
                     OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
                     StrokeWidth = 1.5,
                     FillProgress = 0,
-                    HorizontalTextAlignment = TextAlignment.Center,
-                    HorizontalOptions = LayoutOptions.Fill,
+                    HorizontalTextAlignment = _settings.ToTextAlignment(),
+                    HorizontalOptions = _settings.ToLayoutOptions(),
                     LineBreakMode = LineBreakMode.WordWrap,
                     Padding = new Thickness(16, 4)
                 };
-                // 用与主歌词相同结构的 Border 包裹，确保翻译文本与主歌词居中对齐
+                // 用与主歌词相同结构的 Border 包裹，确保翻译文本与主歌词对齐一致
                 var transBorder = new Border
                 {
                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
                     StrokeThickness = 0,
                     BackgroundColor = Colors.Transparent,
                     Padding = new Thickness(18, 0),
-                    HorizontalOptions = LayoutOptions.Fill
+                    HorizontalOptions = _settings.ToLayoutOptions()
                 };
                 transBorder.Content = transLabel;
                 stack.Children.Add(transBorder);
@@ -608,28 +758,36 @@ public partial class NowPlayingPage : ContentPage
 #if ANDROID
             // 标签尚未布局时重试：横竖屏切换后 CollectionView 重建，
             // Handler 就绪但子元素可能仍为 Y=0/Height=0。
-            // HandlerChanged 只在 Handler 变化时触发一次，不会因布局完成而再次触发，
-            // 因此必须在此主动重试，否则歌词永远不会滚动。
-            for (int attempt = 0; attempt < 8; attempt++)
+            // 注意：MAUI 的 element.Y 在 CollectionView Header 中不会被 RecyclerView 正确更新，
+            // 因此必须使用原生 GetLocationOnScreen 获取精确的屏幕坐标来计算滚动偏移。
+            for (int attempt = 0; attempt < 12; attempt++)
             {
-                if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView)
+                if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView
+                    && label.Handler?.PlatformView is Android.Views.View nativeLabel
+                    && label.Height > 0)
                 {
-                    var y = GetRelativeY(label);
-
-                    if (y > 0)
+                    // 使用原生 GetLocationOnScreen 获取 label 相对于 RecyclerView 可见区域中心的 Y 坐标。
+                    // 这比 MAUI 的 element.Y 更可靠，因为 RecyclerView 不会更新 MAUI 包装器的 Y 属性。
+                    var labelLoc = new int[2];
+                    var rvLoc = new int[2];
+                    nativeLabel.GetLocationOnScreen(labelLoc);
+                    recyclerView.GetLocationOnScreen(rvLoc);
+                    // viewportY = label 中心在 RecyclerView 可见区域中的 Y 坐标
+                    var viewportY = labelLoc[1] - rvLoc[1] + nativeLabel.Height / 2;
+                    // 当前行定位在可见区域约 1/3 处（原"第三行"效果）
+                    int dy = (int)(viewportY - recyclerView.Height * 0.33);
+                    if (attempt > 0)
+                        Android.Util.Log.Info("NPP", "[NowPlayingPage] ScrollToLine idx={0} 重试#{1} 成功 viewportY={2:F0} dy={3}", index, attempt, viewportY, dy);
+                    if (Math.Abs(dy) > 2)
                     {
-                        var targetScrollY = Math.Max(0, y - LyricCollectionView.Height * 0.25);
-                        int dy = (int)(targetScrollY - recyclerView.ComputeVerticalScrollOffset());
-                        if (Math.Abs(dy) > 2)
-                        {
-                            recyclerView.SmoothScrollBy(0, dy);
-                        }
-                        return; // 滚动成功，退出重试循环
+                        recyclerView.SmoothScrollBy(0, dy);
                     }
+                    return; // 滚动成功，退出重试循环
                 }
 
                 await Task.Delay(200);
             }
+            Android.Util.Log.Info("NPP", "[NowPlayingPage] ScrollToLine idx={0} 重试12次仍 label.Height=0，放弃", index);
 #elif WINDOWS
             if (LyricCollectionView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView)
             {
@@ -660,14 +818,17 @@ public partial class NowPlayingPage : ContentPage
         catch { }
     }
 
-    /// <summary>获取元素相对于 LyricStack 的 Y 坐标（累加所有父容器的 Y）</summary>
+    /// <summary>获取元素相对于 LyricCollectionView 内容顶部的 Y 坐标。
+    /// 遍历父容器累加 Y，包括 LyricStack 自身的 Y（Header 在 RecyclerView 中的偏移）。</summary>
     private double GetRelativeY(VisualElement element)
     {
         double y = element.Y + element.Height / 2;
         var parent = element.Parent as VisualElement;
-        while (parent != null && parent != LyricStack)
+        while (parent != null)
         {
             y += parent.Y;
+            if (parent == LyricStack)
+                break;
             parent = parent.Parent as VisualElement;
         }
         return y;
@@ -722,6 +883,10 @@ public partial class NowPlayingPage : ContentPage
     /// <param name="e">点击事件参数。</param>
     private void OnPageTapped(object? sender, TappedEventArgs e)
     {
+#if WINDOWS
+        // Windows 端通过独立的歌词按钮/Chip 进入歌词页，不响应整页点击
+        return;
+#else
         var ptCover = e.GetPosition(CoverArea);
         if (ptCover.HasValue && ptCover.Value.X >= -10 && ptCover.Value.X <= CoverArea.Width + 10
             && ptCover.Value.Y >= -10 && ptCover.Value.Y <= CoverArea.Height + 10)
@@ -750,6 +915,7 @@ public partial class NowPlayingPage : ContentPage
                 GoToFullLyrics();
             }
         }
+#endif
     }
 
     /// <summary>跳转到全屏歌词页：移动端走 ViewPager 切换，桌面端走 Shell 路由</summary>
@@ -792,11 +958,14 @@ public partial class NowPlayingPage : ContentPage
 #endif
     }
 
-    /// <summary>点击歌词按钮：横屏下就地切换歌词模式（收起右侧按钮显示多行歌词），竖屏下打开全屏歌词页</summary>
+    /// <summary>点击歌词按钮：横屏下 PushAsync 推入 FullLyricsPage（复用竖屏歌词滚动逻辑），竖屏下走 ViewPager 切换</summary>
     private void OnOpenLyricsClicked(object? sender, EventArgs e)
     {
         if (_isLandscape)
-            ToggleLandscapeLyricsMode();
+        {
+            var fullLyricsPage = MauiProgram.Services.GetRequiredService<Pages.FullLyricsPage>();
+            _ = Shell.Current.Navigation.PushAsync(fullLyricsPage);
+        }
         else
             GoToFullLyrics();
     }
@@ -819,7 +988,7 @@ public partial class NowPlayingPage : ContentPage
         }
     }
 
-    /// <summary>应用横屏歌词模式的可见性与封面尺寸</summary>
+    /// <summary>应用横屏歌词模式的可见性</summary>
     private void ApplyLandscapeLyricsMode()
     {
         LandscapeTitleBlock.IsVisible = !_landscapeLyricsMode;
@@ -829,8 +998,8 @@ public partial class NowPlayingPage : ContentPage
         // 歌词模式下隐藏进度条与播放控件，呈现纯净歌词页；再次点击歌词恢复横屏模式
         LandscapeProgressRow.IsVisible = !_landscapeLyricsMode;
         LandscapeControlsRow.IsVisible = !_landscapeLyricsMode;
-        // 重算封面尺寸（歌词模式封面更大，能多大就多大）
-        ApplyLayoutForOrientation(this.Width, this.Height);
+
+        // 歌词模式下右栏内容变化但封面布局不变（封面始终贴上下边、左距=状态栏+5px）
     }
 
     /// <summary>构建横屏多行歌词视图（目标为 LandscapeLyricStack）</summary>
@@ -994,27 +1163,85 @@ public partial class NowPlayingPage : ContentPage
         ScrollToLandscapeLine(index);
     }
 
-    private void ScrollToLandscapeLine(int index)
+    private async void ScrollToLandscapeLine(int index)
     {
         if (index < 0 || index >= _landscapeLyricLabels.Count) return;
 
         try
         {
             var label = _landscapeLyricLabels[index];
-            var y = GetRelativeYLandscape(label);
-            var targetScrollY = Math.Max(0, y - LandscapeLyricsScroll.Height * 0.3);
-            _ = LandscapeLyricsScroll.ScrollToAsync(0, targetScrollY, false);
+
+            // 与竖屏同理：布局未完成时 label.Height=0，需重试直到布局就绪。
+            // 使用原生 GetLocationOnScreen 获取精确坐标，避免 MAUI Y 属性不准确。
+            // 使用原生 Android ScrollView.SmoothScrollTo 替代 MAUI ScrollToAsync（后者在 Android 上不可靠）。
+            for (int attempt = 0; attempt < 12; attempt++)
+            {
+                if (label.Height > 0)
+                {
+#if ANDROID
+                    if (label.Handler?.PlatformView is Android.Views.View nativeLabel
+                        && LandscapeLyricsScroll.Handler?.PlatformView is Android.Widget.ScrollView nativeScroll)
+                    {
+                        var labelLoc = new int[2];
+                        var scrollLoc = new int[2];
+                        nativeLabel.GetLocationOnScreen(labelLoc);
+                        nativeScroll.GetLocationOnScreen(scrollLoc);
+                        // viewportY = label 中心在 ScrollView 可见区域中的 Y 坐标
+                        var viewportY = labelLoc[1] - scrollLoc[1] + nativeLabel.Height / 2;
+                        // 目标滚动位置 = 当前滚动偏移 + (viewportY - 期望位置)
+                        // 期望位置 = ScrollView 高度的 1/3（与竖屏一致的视觉效果）
+                        int targetScrollY = nativeScroll.ScrollY + (int)(viewportY - nativeScroll.Height * 0.33);
+                        targetScrollY = Math.Max(0, targetScrollY);
+                        if (Math.Abs(nativeScroll.ScrollY - targetScrollY) > 2)
+                        {
+                            nativeScroll.SmoothScrollTo(0, targetScrollY);
+                        }
+                        return;
+                    }
+#else
+                    // 非Android平台使用MAUI ScrollToAsync
+                    var targetY = label.Y - LandscapeLyricsScroll.Height * 0.33;
+                    if (Math.Abs(LandscapeLyricsScroll.ScrollY - targetY) > 2)
+                    {
+                        await LandscapeLyricsScroll.ScrollToAsync(0, Math.Max(0, targetY), true);
+                    }
+                    return;
+#endif
+                }
+                await Task.Delay(200);
+            }
         }
         catch { }
     }
 
+    /// <summary>获取 ScrollView 当前垂直滚动偏移（跨平台兼容）</summary>
+    private static double GetScrollViewVerticalOffset(ScrollView sv)
+    {
+        try
+        {
+#if ANDROID
+            if (sv.Handler?.PlatformView is Android.Widget.ScrollView nsv)
+                return nsv.ScrollY;
+#elif WINDOWS
+            if (sv.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ScrollViewer nsv)
+                return nsv.VerticalOffset;
+#endif
+        }
+        catch { }
+        return 0;
+    }
+
+    /// <summary>获取元素相对于 LandscapeLyricsScroll 内容顶部的 Y 坐标。
+    /// 遍历父容器累加 Y，包括 LandscapeLyricStack 自身的 Y（ScrollView 内内容的偏移）。</summary>
     private double GetRelativeYLandscape(VisualElement element)
     {
         double y = element.Y + element.Height / 2;
         var parent = element.Parent as VisualElement;
-        while (parent != null && parent != LandscapeLyricStack)
+        while (parent != null)
         {
             y += parent.Y;
+            if (parent == LandscapeLyricStack)
+                break;
             parent = parent.Parent as VisualElement;
         }
         return y;
@@ -1244,6 +1471,7 @@ public partial class NowPlayingPage : ContentPage
         var isMaximized = presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
         MaximizeIcon.IsVisible = !isMaximized;
         RestoreIcon.IsVisible = isMaximized;
+        UpdateWinMaximizeIcon();
 #endif
     }
 

@@ -226,7 +226,7 @@
                                 <VerticalStackLayout x:Name="LyricStack"
                                                      Padding="0,10,0,10"
                                                      Spacing="8"
-                                                     HorizontalOptions="Center" />
+                                                     HorizontalOptions="Fill" />
                             </CollectionView.Header>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
@@ -496,25 +496,21 @@
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
 
-                <!-- 左：封面（封面占剩余空间并居中，底部留一行空白避免贴底） -->
-                <Grid Grid.Row="1" Grid.Column="0"
-                      RowDefinitions="*,Auto"
+                <!-- 左：封面（跨两行，顶部贴状态栏下方，左边距=状态栏高度+5px，底部贴底部安全区上方，动态计算正方形边长） -->
+                <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
                       HorizontalOptions="Fill" VerticalOptions="Fill">
-                    <Border Grid.Row="0" x:Name="LandscapeCover"
+                    <Border x:Name="LandscapeCover"
                             StrokeThickness="0.5"
                             Stroke="#30FFFFFF"
                             StrokeShape="RoundRectangle 28"
                             BackgroundColor="Transparent"
                             WidthRequest="460" HeightRequest="460"
-                            HorizontalOptions="Center" VerticalOptions="Center">
+                            HorizontalOptions="Start" VerticalOptions="Start">
                         <Image x:Name="LandscapeCoverImage"
                                Source="{Binding CoverImage}"
                                Aspect="AspectFill"
                                WidthRequest="460" HeightRequest="460" />
                     </Border>
-                    <!-- 底部留白行：抵消顶部收起按钮行（44高 + 上padding 8）与下padding 20的差值，
-                         使封面在屏幕内上下留白一致。 -->
-                    <Grid Grid.Row="1" HeightRequest="32" />
                 </Grid>
 
                 <!-- 右：信息 + 控制 + 歌词（Grid 行布局，歌词面板占满剩余高度） -->
@@ -629,6 +625,291 @@
                                      Aspect="AspectFit" BackgroundColor="Transparent"
                                      Source="{Binding LyricsIconSource}"
                                      Clicked="OnOpenLyricsClicked" />
+                    </HorizontalStackLayout>
+                </Grid>
+            </Grid>
+
+            <!-- ═════════════════════════════════════════════════════════════════ -->
+            <!-- Windows 桌面播放布局（仅 Windows 端显示，基于 Aurora 原型）          -->
+            <!-- Android 横屏仍使用上面的 LandscapeRoot，本布局不影响安卓端            -->
+            <!-- ═════════════════════════════════════════════════════════════════ -->
+            <Grid x:Name="WindowsStage"
+                  Grid.Row="1" Grid.RowSpan="2"
+                  IsVisible="False"
+                  RowDefinitions="Auto,*,Auto"
+                  Padding="0"
+                  ZIndex="5">
+
+                <!-- ─── Row 0: 亚克力标题栏 ─── -->
+                <Grid x:Name="WinTitleBar" Grid.Row="0" HeightRequest="48"
+                      ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto"
+                      ColumnSpacing="12"
+                      BackgroundColor="#66121214"
+                      Padding="18,0,6,0">
+                    <!-- 品牌光点 -->
+                    <Border Grid.Column="0" WidthRequest="11" HeightRequest="11"
+                            StrokeThickness="0" BackgroundColor="Transparent"
+                            HorizontalOptions="Center" VerticalOptions="Center">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="6" /></Border.StrokeShape>
+                        <Grid>
+                            <BoxView Color="{DynamicResource PrimaryColor}" />
+                            <BoxView Color="{DynamicResource PrimaryColor}" Opacity="0.45" Scale="1.8" />
+                        </Grid>
+                    </Border>
+                    <!-- EQ 频谱条 -->
+                    <Grid x:Name="WinEq" Grid.Column="1" WidthRequest="28" HeightRequest="14"
+                          ColumnDefinitions="*,*,*,*" ColumnSpacing="2"
+                          HorizontalOptions="Start" VerticalOptions="Center">
+                        <BoxView x:Name="WinEq1" Grid.Column="0" HeightRequest="4" CornerRadius="1.5"
+                                 BackgroundColor="{DynamicResource PrimaryLightColor}" VerticalOptions="End" />
+                        <BoxView x:Name="WinEq2" Grid.Column="1" HeightRequest="4" CornerRadius="1.5"
+                                 BackgroundColor="{DynamicResource PrimaryLightColor}" VerticalOptions="End" />
+                        <BoxView x:Name="WinEq3" Grid.Column="2" HeightRequest="4" CornerRadius="1.5"
+                                 BackgroundColor="{DynamicResource PrimaryLightColor}" VerticalOptions="End" />
+                        <BoxView x:Name="WinEq4" Grid.Column="3" HeightRequest="4" CornerRadius="1.5"
+                                 BackgroundColor="{DynamicResource PrimaryLightColor}" VerticalOptions="End" />
+                    </Grid>
+                    <!-- 标题：正在播放 · 曲目 — 艺人 -->
+                    <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
+                        <Label Text="正在播放" FontSize="13" FontFamily="OpenSansSemibold" TextColor="White" />
+                        <Label Text="·" TextColor="#6E6E73" VerticalOptions="Center" />
+                        <Label Text="{Binding Title}" FontSize="12.5" TextColor="#C2C6E4" MaxLines="1"
+                               LineBreakMode="TailTruncation" />
+                        <Label Text="—" TextColor="#6E6E73" VerticalOptions="Center" />
+                        <Label Text="{Binding Artist}" FontSize="12.5" TextColor="#8D93B7" MaxLines="1"
+                               LineBreakMode="TailTruncation" />
+                    </HorizontalStackLayout>
+
+                    <!-- 窗口控件 -->
+                    <Border Grid.Column="4" WidthRequest="46" HeightRequest="32"
+                            StrokeThickness="0" BackgroundColor="Transparent"
+                            HorizontalOptions="Center" VerticalOptions="Center">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnMinimizeTapped" />
+                        </Border.GestureRecognizers>
+                        <Path WidthRequest="11" HeightRequest="11" Data="M 2,6 L 9,6" Stroke="#8E8E93"
+                              StrokeThickness="1.6" HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <Border Grid.Column="5" WidthRequest="46" HeightRequest="32"
+                            StrokeThickness="0" BackgroundColor="Transparent"
+                            HorizontalOptions="Center" VerticalOptions="Center">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnMaximizeTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid>
+                            <Path x:Name="WinMaximizeIcon" WidthRequest="11" HeightRequest="11"
+                                  Data="M 2.5,2.5 L 8.5,2.5 L 8.5,8.5 L 2.5,8.5 Z" Stroke="#8E8E93"
+                                  StrokeThickness="1.6" HorizontalOptions="Center" VerticalOptions="Center" />
+                            <Path x:Name="WinRestoreIcon" WidthRequest="11" HeightRequest="11"
+                                  Data="M 2,4 L 7,4 L 7,9 L 2,9 Z M 4,2 L 9,2 L 9,7 L 7,7 L 7,4 L 4,4 Z" Stroke="#8E8E93"
+                                  StrokeThickness="1.6" HorizontalOptions="Center" VerticalOptions="Center"
+                                  IsVisible="false" />
+                        </Grid>
+                    </Border>
+                    <Border Grid.Column="6" WidthRequest="46" HeightRequest="32"
+                            StrokeThickness="0" BackgroundColor="Transparent"
+                            HorizontalOptions="Center" VerticalOptions="Center">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="8" /></Border.StrokeShape>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCloseTapped" />
+                        </Border.GestureRecognizers>
+                        <Path WidthRequest="11" HeightRequest="11" Data="M 3,3 L 9,9 M 3,9 L 9,3" Stroke="#8E8E93"
+                              StrokeThickness="1.6" HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+
+                <!-- ─── Row 1: 主舞台（左封面+元信息 / 右歌词） ─── -->
+                <Grid Grid.Row="1" ColumnDefinitions="0.42*,0.58*" ColumnSpacing="0">
+                    <!-- 左：封面 + 曲目信息 -->
+                    <Grid Grid.Column="0" RowDefinitions="*,Auto" Padding="40,24,24,24">
+                        <!-- 封面：3D 倾斜 + 光泽 -->
+                        <Border x:Name="WinCover" Grid.Row="0"
+                                StrokeThickness="0" BackgroundColor="Transparent"
+                                StrokeShape="RoundRectangle 16"
+                                HorizontalOptions="Start" VerticalOptions="Center"
+                                RotationY="-3" RotationX="1"
+                                TranslationY="8">
+                            <Border.Shadow>
+                                <Shadow Brush="Black" Offset="0,30" Radius="40" Opacity="0.55" />
+                            </Border.Shadow>
+                            <Grid>
+                                <Image x:Name="WinCoverImage" Source="{Binding CoverImage}" Aspect="AspectFill" />
+                                <BoxView InputTransparent="True">
+                                    <BoxView.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#30FFFFFF" Offset="0" />
+                                            <GradientStop Color="Transparent" Offset="0.4" />
+                                        </LinearGradientBrush>
+                                    </BoxView.Background>
+                                </BoxView>
+                                <Border StrokeThickness="0.5" Stroke="#1AFFFFFF" BackgroundColor="Transparent" />
+                            </Grid>
+                        </Border>
+
+                        <!-- 元信息 -->
+                        <VerticalStackLayout Grid.Row="1" Spacing="6" Padding="0,18,0,0">
+                            <Label Text="{Binding Album}" FontSize="11" FontAttributes="Bold"
+                                   TextColor="#8D93B7" LineBreakMode="TailTruncation" MaxLines="1" />
+                            <Label Text="{Binding Title}" FontSize="30" FontFamily="OpenSansSemibold"
+                                   TextColor="White" LineBreakMode="TailTruncation" MaxLines="2" />
+                            <Label Text="{Binding Artist}" FontSize="15" TextColor="#C2C6E4"
+                                   LineBreakMode="TailTruncation" MaxLines="1" />
+                            <!-- 操作 chips -->
+                            <HorizontalStackLayout Spacing="8" Margin="0,14,0,0">
+                                <Border x:Name="WinLikeChip" StrokeThickness="1" Stroke="#1FFFFFFF"
+                                        BackgroundColor="#10FFFFFF" Padding="15,0" HeightRequest="34"
+                                        HorizontalOptions="Start" VerticalOptions="Center">
+                                    <Border.StrokeShape><RoundRectangle CornerRadius="17" /></Border.StrokeShape>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnWinLikeTapped" />
+                                    </Border.GestureRecognizers>
+                                    <HorizontalStackLayout Spacing="7" VerticalOptions="Center">
+                                        <Image x:Name="WinLikeIcon" WidthRequest="15" HeightRequest="15"
+                                               Source="{Binding LikeIconSourceWhite}" Aspect="AspectFit" />
+                                        <Label x:Name="WinLikeLabel" Text="收藏" FontSize="12.5" TextColor="White"
+                                               VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Border StrokeThickness="1" Stroke="#1FFFFFFF" BackgroundColor="#10FFFFFF"
+                                        Padding="15,0" HeightRequest="34"
+                                        HorizontalOptions="Start" VerticalOptions="Center">
+                                    <Border.StrokeShape><RoundRectangle CornerRadius="17" /></Border.StrokeShape>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnOpenLyricsClicked" />
+                                    </Border.GestureRecognizers>
+                                    <HorizontalStackLayout Spacing="7" VerticalOptions="Center">
+                                        <Image WidthRequest="15" HeightRequest="15" Source="{Binding LyricsIconSource}"
+                                               Aspect="AspectFit" />
+                                        <Label Text="歌词" FontSize="12.5" TextColor="White" VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Border StrokeThickness="1" Stroke="#1FFFFFFF" BackgroundColor="#10FFFFFF"
+                                        Padding="15,0" HeightRequest="34"
+                                        HorizontalOptions="Start" VerticalOptions="Center">
+                                    <Border.StrokeShape><RoundRectangle CornerRadius="17" /></Border.StrokeShape>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnMoreClicked" />
+                                    </Border.GestureRecognizers>
+                                    <HorizontalStackLayout Spacing="7" VerticalOptions="Center">
+                                        <Image WidthRequest="15" HeightRequest="15" Source="ic_more" Aspect="AspectFit" />
+                                        <Label Text="更多" FontSize="12.5" TextColor="White" VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <!-- 右：歌词列（WinLyricColumn：Windows 端由 Handler 挂 AcrylicBrush 毛玻璃背景） -->
+                    <Grid x:Name="WinLyricColumn" Grid.Column="1" RowDefinitions="Auto,*" Padding="14,24,14,14">
+                        <!-- 歌词头：LYRICS + 跟随开关 -->
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="0,0,26,12">
+                            <Label Text="LYRICS · 同步歌词" FontSize="11" FontAttributes="Bold"
+                                   TextColor="#8D93B7" VerticalOptions="Center" />
+                            <Border Grid.Column="1" x:Name="WinFollowBtn" StrokeThickness="1"
+                                    Stroke="#1FFFFFFF" BackgroundColor="#10FFFFFF" Padding="13,0" HeightRequest="28"
+                                    HorizontalOptions="End" VerticalOptions="Center">
+                                <Border.StrokeShape><RoundRectangle CornerRadius="14" /></Border.StrokeShape>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnWinFollowTapped" />
+                                </Border.GestureRecognizers>
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Image WidthRequest="13" HeightRequest="13" Source="{Binding LyricsIconSource}"
+                                           Aspect="AspectFit" />
+                                    <Label x:Name="WinFollowLabel" Text="跟随" FontSize="11.5" FontAttributes="Bold"
+                                           TextColor="White" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </Border>
+                        </Grid>
+                        <!-- 歌词滚动区 -->
+                        <ScrollView x:Name="WinLyricsScroll" Grid.Row="1"
+                                    VerticalScrollBarVisibility="Never"
+                                    VerticalOptions="Fill" HorizontalOptions="Fill">
+                            <VerticalStackLayout x:Name="WinLyricStack" Spacing="20" Padding="26,0" />
+                        </ScrollView>
+                        <!-- 顶部遮罩淡出 -->
+                        <BoxView Grid.Row="1" InputTransparent="True" HeightRequest="70" VerticalOptions="Start">
+                            <BoxView.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#CC0A0A0C" Offset="0" />
+                                    <GradientStop Color="Transparent" Offset="1" />
+                                </LinearGradientBrush>
+                            </BoxView.Background>
+                        </BoxView>
+                        <!-- 底部遮罩淡出 -->
+                        <BoxView Grid.Row="1" InputTransparent="True" HeightRequest="70" VerticalOptions="End">
+                            <BoxView.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="Transparent" Offset="0" />
+                                    <GradientStop Color="#CC0A0A0C" Offset="1" />
+                                </LinearGradientBrush>
+                            </BoxView.Background>
+                        </BoxView>
+                        <!-- 无歌词提示 -->
+                        <Label x:Name="WinNoLyricsLabel" Grid.Row="1" Text="{Binding NoLyricsText}" FontSize="13"
+                               TextColor="#8D93B7" Opacity="0.6" HorizontalTextAlignment="Center"
+                               HorizontalOptions="Center" VerticalOptions="Center" IsVisible="False" />
+                    </Grid>
+                </Grid>
+
+                <!-- ─── Row 2: 底部控制坞（亚克力） ─── -->
+                <Grid x:Name="WinDock" Grid.Row="2" HeightRequest="92"
+                      ColumnDefinitions="1*,1.6*,1*"
+                      ColumnSpacing="24"
+                      BackgroundColor="#66101012"
+                      Padding="22,0">
+                    <!-- 左：播放控制 -->
+                    <HorizontalStackLayout Grid.Column="0" Spacing="6" VerticalOptions="Center" HorizontalOptions="Start">
+                        <ImageButton x:Name="WinShuffleBtn" WidthRequest="40" HeightRequest="40" CornerRadius="20"
+                                     Padding="9" Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlayModeIconSourceWhite}" Command="{Binding CyclePlayModeCommand}" />
+                        <ImageButton WidthRequest="40" HeightRequest="40" CornerRadius="20" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlayPreviousIconSourceWhite}" Command="{Binding PlayPreviousCommand}" />
+                        <Border x:Name="WinPlayBtn" WidthRequest="50" HeightRequest="50" StrokeThickness="0"
+                                BackgroundColor="#F7F8FF" HorizontalOptions="Center" VerticalOptions="Center">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="25" /></Border.StrokeShape>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnWinPlayTapped" />
+                            </Border.GestureRecognizers>
+                            <Border.Shadow>
+                                <Shadow Brush="White" Offset="0,8" Radius="24" Opacity="0.4" />
+                            </Border.Shadow>
+                            <Image x:Name="WinPlayIcon" WidthRequest="22" HeightRequest="22" Aspect="AspectFit"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <ImageButton WidthRequest="40" HeightRequest="40" CornerRadius="20" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlayNextIconSourceWhite}" Command="{Binding PlayNextCommand}" />
+                        <ImageButton WidthRequest="40" HeightRequest="40" CornerRadius="20" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding PlaylistIconSource}" Clicked="OnOpenPlaylistClicked" />
+                    </HorizontalStackLayout>
+
+                    <!-- 中：进度条 -->
+                    <Grid Grid.Column="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="13" VerticalOptions="Center">
+                        <Label Text="{Binding CurrentTimeDisplay}" FontSize="11.5" FontFamily="OpenSansSemibold"
+                               TextColor="#8D93B7" />
+                        <Slider Grid.Column="1" x:Name="WinProgressSlider" Minimum="0" Maximum="1" Value="0"
+                                ThumbColor="White" MinimumTrackColor="{DynamicResource PrimaryColor}"
+                                MaximumTrackColor="#24FFFFFF" HeightRequest="24"
+                                DragStarted="OnSliderDragStarted" DragCompleted="OnSliderDragCompleted" />
+                        <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}" FontSize="11.5"
+                               FontFamily="OpenSansSemibold" TextColor="#8D93B7" />
+                    </Grid>
+
+                    <!-- 右：音量 + 队列 + 歌词 -->
+                    <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center" HorizontalOptions="End">
+                        <ImageButton x:Name="WinMuteBtn" WidthRequest="40" HeightRequest="40" CornerRadius="20"
+                                     Padding="9" Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="ic_volume" Clicked="OnWinMuteTapped" />
+                        <Slider x:Name="WinVolumeSlider" WidthRequest="92" Minimum="0" Maximum="1" Value="1"
+                                ThumbColor="White" MinimumTrackColor="White" MaximumTrackColor="#24FFFFFF"
+                                HeightRequest="24" ValueChanged="OnWinVolumeChanged" />
+                        <ImageButton WidthRequest="40" HeightRequest="40" CornerRadius="20" Padding="9"
+                                     Aspect="AspectFit" BackgroundColor="Transparent"
+                                     Source="{Binding LyricsIconSource}" Clicked="OnOpenLyricsClicked" />
                     </HorizontalStackLayout>
                 </Grid>
             </Grid>

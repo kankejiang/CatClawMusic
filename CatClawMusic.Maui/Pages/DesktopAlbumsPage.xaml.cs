@@ -1,10 +1,11 @@
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.ViewModels;
+using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>横屏桌面模式专辑页：8 列网格布局，复用 AlbumsViewModel。
+/// <summary>横屏桌面模式专辑页：4 列网格布局，复用 AlbumsViewModel。
 /// 公共 UI 组件见 <see cref="Controls"/> 命名空间。</summary>
 public partial class DesktopAlbumsPage : ContentPage
 {
@@ -41,16 +42,17 @@ public partial class DesktopAlbumsPage : ContentPage
         _ = Shell.Current.GoToAsync("..");
     }
 
-    // ChipList.ChipTapped 事件签名：EventHandler<object?>
-    private void OnFilterChipTapped(object? sender, object? item)
+    // FlexLayout 筛选项点击：从 sender 的 BindingContext 中获取 FilterChip
+    private void OnFilterChipTapped(object? sender, EventArgs e)
     {
-        if (item is AlbumsViewModel.FilterChip chip)
+        if (sender is BindableObject bo && bo.BindingContext is AlbumsViewModel.FilterChip chip)
             _viewModel.SelectFilter(chip.FilterKey);
     }
 
-    private void OnSortChipTapped(object? sender, object? item)
+    // FlexLayout 排序项点击：从 sender 的 BindingContext 中获取 SortOption
+    private void OnSortChipTapped(object? sender, EventArgs e)
     {
-        if (item is AlbumsViewModel.SortOption option)
+        if (sender is BindableObject bo && bo.BindingContext is AlbumsViewModel.SortOption option)
             _viewModel.SelectSort(option.Key);
     }
 
@@ -67,5 +69,69 @@ public partial class DesktopAlbumsPage : ContentPage
     {
         if (sender is BindableObject bo && bo.BindingContext is AlbumsViewModel.LetterRailItem letter)
             _viewModel.SelectLetter(letter.Key);
+    }
+
+    private void OnAlbumMoreTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is not AlbumWithCount album) return;
+        ShowAlbumMorePopup(album);
+    }
+
+    // === AppPopup 弹窗 ===
+
+    private void ShowAlbumMorePopup(AlbumWithCount album)
+    {
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var cardBg = (Color)Application.Current!.Resources["CardBackgroundStrongColor"];
+
+        AlbumMorePopup.Title = album.Title;
+        AlbumMorePopup.ClearContent();
+
+        string[] actions = { "查看详情", "播放全部歌曲", "分享" };
+        foreach (var action in actions)
+        {
+            var captured = action;
+            var row = new Border
+            {
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+                Stroke = cardBg,
+                StrokeThickness = 0,
+                BackgroundColor = cardBg,
+                Padding = new Thickness(14, 11),
+                Margin = new Thickness(0, 0, 0, 6),
+                HorizontalOptions = LayoutOptions.Fill
+            };
+            row.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    await AlbumMorePopup.CloseAsync();
+                    await HandleAlbumAction(captured, album);
+                })
+            });
+            row.Content = new Label
+            {
+                Text = action,
+                FontSize = 14,
+                TextColor = textPrimary,
+                VerticalOptions = LayoutOptions.Center
+            };
+            AlbumMorePopup.AddContent(row);
+        }
+
+        AlbumMorePopup.Open();
+    }
+
+    private async Task HandleAlbumAction(string? action, AlbumWithCount album)
+    {
+        switch (action)
+        {
+            case "查看详情":
+                await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
+                break;
+            case "播放全部歌曲":
+                // TODO: 播放该专辑全部歌曲
+                break;
+        }
     }
 }

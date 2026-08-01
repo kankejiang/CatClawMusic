@@ -4,7 +4,7 @@ using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>横屏桌面模式艺术家页：8 列网格布局，复用 ArtistsViewModel。
+/// <summary>横屏桌面模式艺术家页：4 列网格布局，复用 ArtistsViewModel。
 /// 公共 UI 组件见 <see cref="Controls"/> 命名空间。</summary>
 public partial class DesktopArtistsPage : ContentPage
 {
@@ -41,15 +41,17 @@ public partial class DesktopArtistsPage : ContentPage
         _ = Shell.Current.GoToAsync("..");
     }
 
-    private void OnFilterChipTapped(object? sender, object? item)
+    // FlexLayout 筛选项点击：从 sender 的 BindingContext 中获取 FilterChip
+    private void OnFilterChipTapped(object? sender, EventArgs e)
     {
-        if (item is ArtistsViewModel.FilterChip chip)
+        if (sender is BindableObject bo && bo.BindingContext is FilterChip chip)
             _viewModel.SelectFilter(chip.FilterKey);
     }
 
-    private void OnSortChipTapped(object? sender, object? item)
+    // FlexLayout 排序项点击：从 sender 的 BindingContext 中获取 SortOption
+    private void OnSortChipTapped(object? sender, EventArgs e)
     {
-        if (item is ArtistsViewModel.SortOption option)
+        if (sender is BindableObject bo && bo.BindingContext is ArtistsViewModel.SortOption option)
             _viewModel.SelectSort(option.Key);
     }
 

@@ -73,46 +73,63 @@
                     <controls:ViewToggleButton IsGridView="{Binding IsGridView, Mode=TwoWay}"
                                                HorizontalOptions="Start" />
 
-                    <!-- 播放全部 -->
-                    <Border Padding="12,8"
-                            StrokeShape="RoundRectangle 10"
-                            StrokeThickness="1"
-                            Stroke="{DynamicResource GlassStrokeStrongColor}"
-                            BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding PlayAllCommand}" />
-                        </Border.GestureRecognizers>
-                        <Label Text="▶ 播放全部" FontSize="13" FontAttributes="Bold"
-                               TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
-                    </Border>
-
-                    <!-- 随机播放 -->
-                    <Border Padding="12,8"
-                            StrokeShape="RoundRectangle 10"
-                            StrokeThickness="1"
-                            Stroke="{DynamicResource GlassStrokeColor}"
-                            BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding ShufflePlayCommand}" />
-                        </Border.GestureRecognizers>
-                        <Label Text="🔀 随机播放" FontSize="13" FontAttributes="Bold"
-                               TextColor="{DynamicResource TextPrimaryColor}"
-                               HorizontalOptions="Center" VerticalOptions="Center" />
-                    </Border>
+                    <!-- 播放全部 + 随机播放（同一行） -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <!-- 播放全部 -->
+                        <Border Grid.Column="0" Padding="12,8"
+                                StrokeShape="RoundRectangle 10"
+                                StrokeThickness="1"
+                                Stroke="{DynamicResource GlassStrokeStrongColor}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding PlayAllCommand}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="▶ 播放" FontSize="12" FontAttributes="Bold"
+                                   TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <!-- 随机播放 -->
+                        <Border Grid.Column="1" Padding="12,8"
+                                StrokeShape="RoundRectangle 10"
+                                StrokeThickness="1"
+                                Stroke="{DynamicResource GlassStrokeColor}"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ShufflePlayCommand}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="🔀 随机" FontSize="12" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                    </Grid>
 
                     <!-- 排序标签 -->
                     <Label Text="排序" FontSize="11" FontAttributes="Bold"
                            TextColor="{DynamicResource TextHintColor}"
                            CharacterSpacing="2" Margin="0,4,0,0" />
 
-                    <!-- 排序选项（垂直排列） -->
-                    <controls:ChipList Orientation="Vertical"
-                                       Spacing="6"
-                                       ItemsSource="{Binding SortOptions}"
-                                       ChipTapped="OnSortChipTapped"
-                                       ChipPadding="11,8"
-                                       ChipCornerRadius="10"
-                                       ChipFontSize="12" />
+                    <!-- 排序选项（两列网格排列） -->
+                    <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start"
+                                BindableLayout.ItemsSource="{Binding SortOptions}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SortOption">
+                                <Border WidthRequest="124"
+                                        Margin="0,0,6,6"
+                                        Padding="11,7"
+                                        StrokeShape="RoundRectangle 10"
+                                        StrokeThickness="1"
+                                        Stroke="{Binding BorderColor}"
+                                        BackgroundColor="{Binding BackgroundColor}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnSortChipTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Label}"
+                                           FontSize="12"
+                                           TextColor="{Binding TextColor}"
+                                           HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </FlexLayout>
 
                 </VerticalStackLayout>
             </ScrollView>
@@ -180,32 +197,29 @@
                 </CollectionView.EmptyView>
             </CollectionView>
 
-            <!-- 网格视图：列数根据右侧可用宽度动态调整 -->
+            <!-- 网格视图：4 列布局 -->
             <CollectionView Grid.Column="0" x:Name="GridSongView"
                             ItemsSource="{Binding Songs}"
                             SelectionMode="None"
                             IsVisible="{Binding IsGridView}">
                 <CollectionView.ItemsLayout>
-                    <GridItemsLayout Orientation="Vertical" Span="2" HorizontalItemSpacing="8" VerticalItemSpacing="10" />
+                    <GridItemsLayout Orientation="Vertical" Span="4" HorizontalItemSpacing="12" VerticalItemSpacing="12" />
                 </CollectionView.ItemsLayout>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
-                        <Border StrokeThickness="0" BackgroundColor="Transparent"
-                                Padding="6">
+                        <Border StrokeThickness="0" BackgroundColor="Transparent">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnGridSongTapped" CommandParameter="{Binding}" />
                             </Border.GestureRecognizers>
-                            <VerticalStackLayout Spacing="4">
-                                <Border WidthRequest="96" HeightRequest="96"
-                                        StrokeShape="RoundRectangle 12" StrokeThickness="0"
+                            <VerticalStackLayout Spacing="6">
+                                <Border StrokeShape="RoundRectangle 14" StrokeThickness="0"
                                         BackgroundColor="{DynamicResource InputBackgroundColor}">
-                                    <Image Source="{Binding CoverArtPath}" Aspect="AspectFill"
-                                           WidthRequest="96" HeightRequest="96" />
+                                    <Image Source="{Binding CoverArtPath}" Aspect="AspectFill" />
                                 </Border>
-                                <Label Text="{Binding Title}" FontSize="11" FontAttributes="Bold"
+                                <Label Text="{Binding Title}" FontSize="12" FontAttributes="Bold"
                                        TextColor="{DynamicResource TextPrimaryColor}"
                                        LineBreakMode="TailTruncation" MaxLines="1" />
-                                <Label Text="{Binding Artist}" FontSize="9.5"
+                                <Label Text="{Binding Artist}" FontSize="10.5"
                                        TextColor="{DynamicResource TextHintColor}"
                                        LineBreakMode="TailTruncation" MaxLines="1" />
                             </VerticalStackLayout>
