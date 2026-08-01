@@ -95,6 +95,10 @@ public partial class ChipList : ContentView
     public ChipList()
     {
         InitializeComponent();
+        // 构造函数中立即应用初始方向：XAML 中 StackLayout 默认是 Vertical，
+        // 若 BindableProperty 默认值为 Horizontal 且 XAML 未显式修改，
+        // OnOrientationChanged 不会触发，导致视觉上仍是纵向排列。
+        ApplyOrientation();
     }
 
     private static void OnItemsSourceChanged(BindableObject bindable, object oldValue, object newValue)

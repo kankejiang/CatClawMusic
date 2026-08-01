@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.DesktopAlbumsPage"
+             x:DataType="vm:AlbumsViewModel"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabAlbums]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
@@ -104,23 +106,22 @@
                                        ChipCornerRadius="10"
                                        ChipFontSize="12" />
 
-                    <!-- 年代快捷导航（左侧底部常驻，便于跳转） -->
-                    <VerticalStackLayout Spacing="6" Margin="0,6,0,0"
-                                         IsVisible="{Binding IsGridView}">
-                        <Label Text="年代" FontSize="11" FontAttributes="Bold"
+                    <!-- A-Z 字母索引（左侧底部常驻，便于跳转） -->
+                    <VerticalStackLayout Spacing="6" Margin="0,6,0,0">
+                        <Label Text="字母索引" FontSize="11" FontAttributes="Bold"
                                TextColor="{DynamicResource TextHintColor}"
                                CharacterSpacing="2" />
                         <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start"
-                                    BindableLayout.ItemsSource="{Binding EraRailItems}">
+                                    BindableLayout.ItemsSource="{Binding LetterRailItems}">
                             <BindableLayout.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="vm:AlbumsViewModel+LetterRailItem">
                                     <Border Margin="0,0,4,4"
                                             Padding="8,5"
                                             StrokeShape="RoundRectangle 6"
                                             StrokeThickness="0"
                                             BackgroundColor="{Binding BackgroundColor}">
                                         <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnEraTapped" />
+                                            <TapGestureRecognizer Tapped="OnLetterTapped" />
                                         </Border.GestureRecognizers>
                                         <Label Text="{Binding Label}"
                                                FontSize="10"
@@ -142,31 +143,15 @@
             <!-- 网格视图 -->
             <CollectionView Grid.Column="0"
                             x:Name="GridCollectionView"
-                            ItemsSource="{Binding EraGroups}"
-                            IsGrouped="True"
+                            ItemsSource="{Binding FilteredAlbums}"
                             SelectionMode="None"
                             IsVisible="{Binding IsGridView}"
                             Margin="0,2,0,0">
                 <CollectionView.ItemsLayout>
                     <GridItemsLayout Orientation="Vertical" Span="8" HorizontalItemSpacing="8" VerticalItemSpacing="10" />
                 </CollectionView.ItemsLayout>
-                <CollectionView.GroupHeaderTemplate>
-                    <DataTemplate>
-                        <HorizontalStackLayout Spacing="6" Padding="0,6,0,4">
-                            <Label Text="{Binding Era}"
-                                   FontSize="11.5"
-                                   FontFamily="OpenSansSemibold"
-                                   TextColor="{DynamicResource TextSecondaryColor}"
-                                   VerticalOptions="Center" />
-                            <Label Text="{Binding Count, StringFormat='{0} 张'}"
-                                   FontSize="10"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   VerticalOptions="Center" />
-                        </HorizontalStackLayout>
-                    </DataTemplate>
-                </CollectionView.GroupHeaderTemplate>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vm:AlbumWithCount">
                         <Border StrokeThickness="0"
                                 StrokeShape="RoundRectangle 10"
                                 BackgroundColor="Transparent">
@@ -206,6 +191,11 @@
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Label Text="没有匹配的专辑" FontSize="13"
+                           TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
+                </CollectionView.EmptyView>
             </CollectionView>
 
             <!-- 列表视图 -->
@@ -216,7 +206,7 @@
                             IsVisible="{Binding IsGridView, Converter={StaticResource InvertedBoolConverter}}"
                             Margin="0,2,0,0">
                 <CollectionView.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vm:AlbumWithCount">
                         <Border Padding="8,5"
                                 StrokeShape="RoundRectangle 10"
                                 StrokeThickness="0"
@@ -271,6 +261,11 @@
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Label Text="没有匹配的专辑" FontSize="13"
+                           TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
+                </CollectionView.EmptyView>
             </CollectionView>
         </Grid>
 

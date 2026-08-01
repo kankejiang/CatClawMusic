@@ -148,7 +148,7 @@ public partial class App : Application
         base.OnResume();
 #if ANDROID
         // 兜底：后台期间旋转且 MainDisplayInfoChanged 未触发时，回前台立即校正布局
-        ApplyOrientationLayout();
+        _ = ApplyOrientationLayout();
 #endif
         try
         {
@@ -240,7 +240,7 @@ public partial class App : Application
         }
         catch (Exception ex) { Log.Debug("App", $"强制横屏失败: {ex.Message}"); }
         // 延迟到下一个消息循环，让当前按钮事件处理完毕后再切 Shell 根页面
-        MainThread.BeginInvokeOnMainThread(() => ApplyOrientationLayout());
+        MainThread.BeginInvokeOnMainThread(async () => await ApplyOrientationLayout());
     }
 
     /// <summary>强制进入竖屏（返回键 / 再次点旋转按钮）：锁定 SensorPortrait，切回竖屏手机布局。</summary>
@@ -257,7 +257,7 @@ public partial class App : Application
         }
         catch (Exception ex) { Log.Debug("App", $"恢复竖屏失败: {ex.Message}"); }
         // 直接切回手机布局，不依赖 DisplayOrientation 是否已经变为 Portrait
-        MainThread.BeginInvokeOnMainThread(() => ApplyOrientationLayout());
+        MainThread.BeginInvokeOnMainThread(async () => await ApplyOrientationLayout());
     }
 
     /// <summary>切换横竖屏（播放页旋转按钮）：横屏与竖屏切换。</summary>
@@ -276,14 +276,14 @@ public partial class App : Application
             _manualLandscape = false; // 已实际到达横屏，释放强制横屏
         else if (_manualPortrait && orientation == DisplayOrientation.Portrait)
             _manualPortrait = false; // 已实际到达竖屏，释放强制竖屏
-        ApplyOrientationLayout();
+        _ = ApplyOrientationLayout();
     }
 
     /// <summary>按当前方向直选 Shell 根页面：横屏→DesktopMainPage（桌面侧栏），竖屏→MainPage（手机 Tab）。
     /// 触发源：MainDisplayOrientationChanged（物理旋转）、ForceLandscape/ReleaseManualLandscape（按钮）、
     /// OnResume（后台回前台兜底）、CreateWindow（首次启动）。幂等：已正确则跳过。
     /// 实现：Clear+Add Shell.Items（与 Windows CreateWindow 同模式），强制 Shell 重建渲染。</summary>
-    public void ApplyOrientationLayout(Shell? shellOverride = null)
+    public async Task ApplyOrientationLayout(Shell? shellOverride = null)
     {
         try
         {
@@ -298,6 +298,17 @@ public partial class App : Application
             if (!landscape && currentContent is Pages.MainPage) return;
 
             Android.Util.Log.Info("CatClaw", $"[Orientation] 切换布局 → {(landscape ? "DesktopMainPage" : "MainPage")}");
+
+            // 弹出导航栈中所有 PushAsync 推入的页面（横屏时推入的 NowPlayingPage / FullLyricsPage 等）。
+            // 若不弹出，切换根页面后这些页面仍留在导航栈上，覆盖新的 MainPage，
+            // 导致 ViewPager2 滑动手势和歌词按钮全部失效（竖屏→横屏→竖屏后全屏歌词进不去）。
+            // 必须逐个 await PopAsync：PopAsync 是异步方法，不 await 时 NavigationStack.Count
+            // 不会同步减少，导致 while 循环无限执行冻结 UI 线程。
+            while (shell.Navigation.NavigationStack.Count > 1)
+            {
+                Android.Util.Log.Info("CatClaw", $"[Orientation] 弹出残留页面: {shell.Navigation.NavigationStack[^1]?.GetType().Name}");
+                await shell.Navigation.PopAsync(false);
+            }
 
             ContentPage newPage = landscape
                 ? MauiProgram.Services.GetRequiredService<Pages.DesktopMainPage>()
@@ -426,7 +437,7 @@ public partial class App : Application
         DeviceDisplay.MainDisplayInfoChanged -= OnDisplayOrientationChanged;
         DeviceDisplay.MainDisplayInfoChanged += OnDisplayOrientationChanged;
         // 首次启动按当前方向直选布局（Shell.Current 尚未就绪，传实例）
-        ApplyOrientationLayout(shell);
+        _ = ApplyOrientationLayout(shell);
 #endif
 #endif
 

@@ -2,14 +2,13 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System.Collections;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace CatClawMusic.Maui.ViewModels;
 
 /// <summary>
-/// 专辑列表页 ViewModel：从本地数据库加载所有专辑，支持搜索、来源筛选、排序和视图切换。
+/// 专辑列表页 ViewModel：从本地数据库加载所有专辑，支持搜索、来源筛选、A-Z 字母索引、排序和视图切换。
+/// 布局与排序逻辑与 <see cref="ArtistsViewModel"/> 保持一致。
 /// </summary>
 public partial class AlbumsViewModel : ObservableObject
 {
@@ -18,17 +17,9 @@ public partial class AlbumsViewModel : ObservableObject
     // === 数据源 ===
     private List<AlbumWithCount> _allAlbums = new();
 
-    /// <summary>专辑集合（含每张专辑的歌曲数量与示例封面）</summary>
-    [ObservableProperty]
-    private ObservableCollection<AlbumWithCount> _albums = new();
-
-    /// <summary>筛选后的专辑列表（用于列表视图）</summary>
+    /// <summary>筛选后的专辑列表（列表视图 + 网格视图共用）</summary>
     [ObservableProperty]
     private ObservableCollection<AlbumWithCount> _filteredAlbums = new();
-
-    /// <summary>年代分组（用于网格视图）</summary>
-    [ObservableProperty]
-    private ObservableCollection<EraGroup> _eraGroups = new();
 
     // === UI 状态 ===
     /// <summary>是否正在加载专辑数据</summary>
@@ -49,7 +40,7 @@ public partial class AlbumsViewModel : ObservableObject
 
     /// <summary>是否为网格视图（false则为列表视图）</summary>
     [ObservableProperty]
-    private bool _isGridView = true;
+    private bool _isGridView = false;
 
     /// <summary>当前选中的专辑</summary>
     [ObservableProperty]
@@ -62,7 +53,7 @@ public partial class AlbumsViewModel : ObservableObject
 
     // === 筛选与排序 ===
     [ObservableProperty] private string _currentFilter = "all";
-    [ObservableProperty] private string _currentEra = "all";
+    [ObservableProperty] private string _currentLetter = "";
     [ObservableProperty] private string _currentSort = "name";
 
     /// <summary>来源筛选选项</summary>
@@ -73,25 +64,23 @@ public partial class AlbumsViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<SortOption> _sortOptions = new();
 
-    /// <summary>年代 rail 选项</summary>
+    /// <summary>A-Z 字母 rail 选项</summary>
     [ObservableProperty]
-    private ObservableCollection<EraRailItem> _eraRailItems = new();
+    private ObservableCollection<LetterRailItem> _letterRailItems = new();
 
     // === 颜色绑定 ===
     [ObservableProperty] private Color _gridButtonColor;
     [ObservableProperty] private Color _listButtonColor;
 
     // === 静态数据 ===
-    private static readonly string[] EraOrder = { "2020s", "2010s", "2000s", "1990s", "1980s", "1970s", "更早", "未知" };
     private static readonly Color AccentColor = Color.FromArgb("#8C7BFF");
     private static readonly Color TransparentColor = Colors.Transparent;
 
     // === 跨实例静态缓存：进入页面时若底层数据未变，直接复用已处理好的集合，实现"秒开" ===
     private static readonly object _cacheLock = new();
     private static List<AlbumWithCount>? _cachedAllAlbums;
-    private static ObservableCollection<EraGroup>? _cachedEraGroups;
     private static ObservableCollection<AlbumWithCount>? _cachedFilteredAlbums;
-    private static ObservableCollection<EraRailItem>? _cachedEraRailItems;
+    private static ObservableCollection<LetterRailItem>? _cachedLetterRailItems;
     private static int _cachedTotalAlbums;
     private static int _cachedTotalSongs;
     private static int _cachedTotalArtists;
@@ -126,6 +115,7 @@ public partial class AlbumsViewModel : ObservableObject
         {
             new("name", "名称 A-Z", true),
             new("count", "歌曲数", false),
+            new("year", "年份", false),
             new("play", "最常听", false),
         };
     }
@@ -144,13 +134,12 @@ public partial class AlbumsViewModel : ObservableObject
             _allAlbums = albums;
 
             // 2) 若底层数据未变化（ExploreDataService 命中缓存，返回同一实例），
-            //    直接复用已处理好的分组/列表集合，主线程零重建 → 进入页面秒开。
+            //    直接复用已处理好的列表/字母索引，主线程零重建 → 进入页面秒开。
             bool instant;
             lock (_cacheLock)
                 instant = ReferenceEquals(albums, _cachedAllAlbums)
-                          && _cachedEraGroups != null
                           && _cachedFilteredAlbums != null
-                          && _cachedEraRailItems != null;
+                          && _cachedLetterRailItems != null;
 
             if (instant)
             {
@@ -159,8 +148,7 @@ public partial class AlbumsViewModel : ObservableObject
                     TotalAlbums = _cachedTotalAlbums;
                     TotalSongs = _cachedTotalSongs;
                     TotalArtists = _cachedTotalArtists;
-                    EraRailItems = _cachedEraRailItems!;
-                    EraGroups = _cachedEraGroups!;
+                    LetterRailItems = _cachedLetterRailItems!;
                     FilteredAlbums = _cachedFilteredAlbums!;
                     StatusText = $"共 {TotalAlbums} 张专辑";
                     IsLoading = false;
@@ -174,7 +162,7 @@ public partial class AlbumsViewModel : ObservableObject
                     TotalAlbums = _allAlbums.Count;
                     TotalSongs = _allAlbums.Sum(a => a.SongCount);
                     TotalArtists = _allAlbums.Select(a => a.ArtistName).Distinct().Count();
-                    BuildEraRail();
+                    BuildLetterRail();
                     ApplyFiltersAndSort();
                     StatusText = $"共 {TotalAlbums} 张专辑";
                     IsLoading = false;
@@ -184,9 +172,8 @@ public partial class AlbumsViewModel : ObservableObject
                 lock (_cacheLock)
                 {
                     _cachedAllAlbums = albums;
-                    _cachedEraGroups = EraGroups;
                     _cachedFilteredAlbums = FilteredAlbums;
-                    _cachedEraRailItems = EraRailItems;
+                    _cachedLetterRailItems = LetterRailItems;
                     _cachedTotalAlbums = TotalAlbums;
                     _cachedTotalSongs = TotalSongs;
                     _cachedTotalArtists = TotalArtists;
@@ -209,9 +196,8 @@ public partial class AlbumsViewModel : ObservableObject
         lock (_cacheLock)
         {
             _cachedAllAlbums = null;
-            _cachedEraGroups = null;
             _cachedFilteredAlbums = null;
-            _cachedEraRailItems = null;
+            _cachedLetterRailItems = null;
         }
     }
 
@@ -264,42 +250,54 @@ public partial class AlbumsViewModel : ObservableObject
         catch { /* 封面解析失败不应影响列表展示 */ }
     }
 
-    /// <summary>构建年代 rail 数据</summary>
-    private void BuildEraRail()
+    /// <summary>构建 A-Z 字母 rail 数据</summary>
+    private void BuildLetterRail()
     {
-        var eraCounts = new Dictionary<string, int> { { "all", _allAlbums.Count } };
+        var letters = _allAlbums
+            .Select(a => GetIndexLetter(a.Title))
+            .Distinct()
+            .OrderBy(l => l, new LetterComparer())
+            .ToList();
 
-        foreach (var era in EraOrder)
+        var items = new ObservableCollection<LetterRailItem>();
+        foreach (var letter in letters)
         {
-            var count = _allAlbums.Count(a => GetEra(a.Year) == era);
-            if (count > 0)
-                eraCounts[era] = count;
+            items.Add(new LetterRailItem(letter, letter == CurrentLetter));
         }
 
-        EraRailItems = new ObservableCollection<EraRailItem>();
-        EraRailItems.Add(new EraRailItem("all", "全", CurrentEra == "all"));
-
-        foreach (var era in EraOrder)
-        {
-            if (eraCounts.TryGetValue(era, out var count) && count > 0)
-            {
-                EraRailItems.Add(new EraRailItem(era, era.Replace("s", "").Replace("更早", "旧").Replace("未知", "?"), CurrentEra == era));
-            }
-        }
+        LetterRailItems = items;
     }
 
-    /// <summary>根据年份获取年代分组</summary>
-    private static string GetEra(int? year)
+    /// <summary>获取专辑标题的索引字母（中文取首字，英文取首字母大写，数字/符号归 #）</summary>
+    private static string GetIndexLetter(string? title)
     {
-        if (!year.HasValue || year < 1960) return "未知";
-        var y = year.Value;
-        if (y >= 2020) return "2020s";
-        if (y >= 2010) return "2010s";
-        if (y >= 2000) return "2000s";
-        if (y >= 1990) return "1990s";
-        if (y >= 1980) return "1980s";
-        if (y >= 1970) return "1970s";
-        return "更早";
+        if (string.IsNullOrEmpty(title)) return "#";
+        var c = title.Trim()[0];
+        if (char.IsAsciiLetter(c)) return char.ToUpperInvariant(c).ToString();
+        if (char.IsDigit(c)) return "#";
+        return c.ToString(); // 中文直接用首字
+    }
+
+    /// <summary>字母排序比较器：A-Z → 中文（按 Unicode 码点）→ #</summary>
+    private sealed class LetterComparer : IComparer<string>
+    {
+        public int Compare(string? x, string? y)
+        {
+            if (x == null && y == null) return 0;
+            if (x == null) return 1;
+            if (y == null) return -1;
+
+            int rank(string s) => s switch
+            {
+                "#" => 2,
+                _ when s.Length == 1 && char.IsAsciiLetter(s[0]) => 0,
+                _ => 1
+            };
+
+            int rx = rank(x), ry = rank(y);
+            if (rx != ry) return rx.CompareTo(ry);
+            return string.Compare(x, y, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>选择筛选条件</summary>
@@ -312,13 +310,13 @@ public partial class AlbumsViewModel : ObservableObject
         ApplyFiltersAndSort();
     }
 
-    /// <summary>选择年代</summary>
-    public void SelectEra(string eraKey)
+    /// <summary>选择字母</summary>
+    public void SelectLetter(string letter)
     {
-        CurrentEra = eraKey;
-        foreach (var item in EraRailItems)
-            item.IsActive = item.Key == eraKey;
-        OnPropertyChanged(nameof(EraRailItems));
+        CurrentLetter = CurrentLetter == letter ? "" : letter;
+        foreach (var item in LetterRailItems)
+            item.IsActive = item.Key == CurrentLetter;
+        OnPropertyChanged(nameof(LetterRailItems));
         ApplyFiltersAndSort();
     }
 
@@ -332,7 +330,7 @@ public partial class AlbumsViewModel : ObservableObject
         ApplyFiltersAndSort();
     }
 
-    /// <partial name="IsGridView"/>变化时更新颜色</summary>
+    /// <summary>IsGridView 变化时更新颜色</summary>
     partial void OnIsGridViewChanged(bool value) => UpdateViewToggleColors();
 
     /// <summary>更新视图切换按钮颜色</summary>
@@ -358,9 +356,11 @@ public partial class AlbumsViewModel : ObservableObject
             _ => result
         };
 
-        // 2. 年代筛选
-        if (CurrentEra != "all")
-            result = result.Where(a => GetEra(a.Year) == CurrentEra);
+        // 2. 字母筛选
+        if (!string.IsNullOrEmpty(CurrentLetter))
+        {
+            result = result.Where(a => GetIndexLetter(a.Title) == CurrentLetter);
+        }
 
         // 3. 搜索筛选
         if (!string.IsNullOrWhiteSpace(SearchQuery))
@@ -374,37 +374,38 @@ public partial class AlbumsViewModel : ObservableObject
         // 4. 排序
         result = CurrentSort switch
         {
-            "name" => result.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase),
+            "name" => result.OrderBy(a => a.Title, new TitleComparer()),
             "count" => result.OrderByDescending(a => a.SongCount),
+            "year" => result.OrderByDescending(a => a.Year ?? 0),
             "play" => result.OrderByDescending(a => 0), // TODO: 添加播放次数
-            _ => result.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase)
+            _ => result.OrderBy(a => a.Title, new TitleComparer())
         };
 
-        var filtered = result.ToList();
-        FilteredAlbums = new ObservableCollection<AlbumWithCount>(filtered);
-
-        // 构建网格视图的年代分组
-        if (IsGridView)
-        {
-            BuildEraGroups(filtered);
-        }
+        FilteredAlbums = new ObservableCollection<AlbumWithCount>(result.ToList());
     }
 
-    /// <summary>构建年代分组（网格视图）</summary>
-    private void BuildEraGroups(List<AlbumWithCount> albums)
+    /// <summary>标题排序比较器：英文 A-Z 优先，中文按 Unicode 码点，数字/符号最后</summary>
+    private sealed class TitleComparer : IComparer<string>
     {
-        var groups = new ObservableCollection<EraGroup>();
-
-        foreach (var era in EraOrder)
+        public int Compare(string? x, string? y)
         {
-            var items = albums.Where(a => GetEra(a.Year) == era).ToList();
-            if (items.Count > 0)
-            {
-                groups.Add(new EraGroup(era, items.Count, items));
-            }
-        }
+            if (x == null && y == null) return 0;
+            if (x == null) return 1;
+            if (y == null) return -1;
 
-        EraGroups = groups;
+            int rank(string s)
+            {
+                if (string.IsNullOrEmpty(s)) return 3;
+                var c = s.Trim()[0];
+                if (char.IsAsciiLetter(c)) return 0;
+                if (c >= 0x4E00 && c <= 0x9FFF) return 1; // CJK
+                return 2;
+            }
+
+            int rx = rank(x), ry = rank(y);
+            if (rx != ry) return rx.CompareTo(ry);
+            return string.Compare(x, y, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>获取专辑来源类型（本地/网络）</summary>
@@ -481,8 +482,8 @@ public partial class AlbumsViewModel : ObservableObject
         }
     }
 
-    /// <summary>年代 rail 选项模型</summary>
-    public partial class EraRailItem : ObservableObject
+    /// <summary>A-Z 字母 rail 选项模型</summary>
+    public partial class LetterRailItem : ObservableObject
     {
         public string Key { get; }
         public string Label { get; }
@@ -490,39 +491,21 @@ public partial class AlbumsViewModel : ObservableObject
         [ObservableProperty]
         private bool _isActive;
 
-        public EraRailItem(string key, string label, bool active)
+        public LetterRailItem(string key, bool active)
         {
             Key = key;
-            Label = label;
+            Label = key;
             IsActive = active;
         }
 
-        public Color BackgroundColor => IsActive ? AccentColor : TransparentColor;
-        public Color TextColor => IsActive ? Colors.White : Color.FromArgb("#67729B");
+        public Color BackgroundColor => IsActive ? Color.FromArgb("#8C7BFF33") : TransparentColor;
+        public Color TextColor => IsActive ? Colors.White : Color.FromArgb("#7A85B0");
 
         partial void OnIsActiveChanged(bool value)
         {
             OnPropertyChanged(nameof(BackgroundColor));
             OnPropertyChanged(nameof(TextColor));
         }
-    }
-
-    /// <summary>年代分组（网格视图）。实现 IEnumerable 以便 MAUI 分组 CollectionView 能枚举子项。</summary>
-    public class EraGroup : IEnumerable<AlbumWithCount>
-    {
-        public string Era { get; }
-        public int Count { get; }
-        public List<AlbumWithCount> Items { get; }
-
-        public EraGroup(string era, int count, List<AlbumWithCount> items)
-        {
-            Era = era;
-            Count = count;
-            Items = items;
-        }
-
-        public IEnumerator<AlbumWithCount> GetEnumerator() => Items.GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => Items.GetEnumerator();
     }
 }
 

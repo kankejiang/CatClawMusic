@@ -85,8 +85,25 @@ public partial class DesktopMainPage : ContentPage
         // RootGrid 底部需要留出系统栏安全区：Android 为导航栏，Windows 为任务栏（底部 dock 栏）。
         // SafeAreaHelper 由平台在系统栏尺寸变化时异步更新，订阅变化事件以确保首帧即正确。
         ApplyRootGridSafeArea();
-        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
 #endif
+
+        // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
+        HandlerChanged += (_, _) =>
+        {
+            if (Handler == null)
+            {
+#if ANDROID || WINDOWS
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+#endif
+            }
+            else
+            {
+#if ANDROID || WINDOWS
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+#endif
+            }
+        };
 
         // 构造时仅创建默认 tab 内容，不触发生命周期（页面尚未进入可视树）
         _currentTab = DesktopTab.Discover;

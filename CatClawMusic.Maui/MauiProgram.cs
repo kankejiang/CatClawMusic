@@ -396,8 +396,12 @@ public static class MauiProgram
         // ═══════════════════════════════════════════════════
         // Pages
         // ═══════════════════════════════════════════════════
-        services.AddTransient<Pages.MainPage>();
-        services.AddTransient<Pages.DesktopMainPage>();
+        // MainPage/DesktopMainPage 为 Singleton：横竖屏切换时复用同一实例，
+        // 避免每次重建 ViewPager2 及 5 个子页面（含歌词/播放页）带来的性能开销。
+        // 子页面（NowPlayingPage 等）仍为 Transient，但 MainPage 构造只执行一次，
+        // 故 ViewPager2 内的子页面实例也只创建一次。
+        services.AddSingleton<Pages.MainPage>();
+        services.AddSingleton<Pages.DesktopMainPage>();
         services.AddTransient<Pages.NowPlayingPage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();

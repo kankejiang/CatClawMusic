@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              x:Class="CatClawMusic.Maui.Pages.AlbumsPage"
+             x:DataType="vm:AlbumsViewModel"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabAlbums]}"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             Shell.NavBarIsVisible="False">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*"
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <!-- Frosted glass background: blurred theme image, semi-transparent -->
+        <!-- Frosted glass background -->
         <controls:FrostedBackground Grid.RowSpan="5"
             Source="{DynamicResource ThemeBackgroundImage}"
             IsActive="{DynamicResource ThemeBackgroundEnabled}"
@@ -24,17 +27,14 @@
             UseNativeBlur="True"
             InputTransparent="True" />
 
-        <!-- 顶栏 -->
-        <Grid Grid.Row="0"
-              ColumnDefinitions="Auto,*,Auto"
-              Padding="16,12,16,8"
-              Background="{DynamicResource PageBackgroundBrush}">
-            <Border Grid.Column="0"
+        <!-- ═══ 顶栏 ═══ -->
+        <Grid Grid.Row="0" Padding="16,12,16,8" ColumnDefinitions="Auto,*,Auto">
+            <!-- 返回按钮 -->
+            <Border Grid.Column="0" WidthRequest="38" HeightRequest="38"
+                    StrokeShape="RoundRectangle 12"
                     BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                     Stroke="{DynamicResource GlassStrokeColor}"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 12"
-                    WidthRequest="38" HeightRequest="38">
+                    StrokeThickness="1">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnBackTapped" />
                 </Border.GestureRecognizers>
@@ -44,174 +44,74 @@
                        VerticalOptions="Center" HorizontalOptions="Center" />
             </Border>
 
-            <VerticalStackLayout Grid.Column="1"
-                                 VerticalOptions="Center"
-                                 Margin="14,0,0,0">
+            <!-- 标题 + 统计 -->
+            <VerticalStackLayout Grid.Column="1" Margin="14,0,0,0" VerticalOptions="Center">
                 <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabAlbums]}"
-                       FontSize="17"
-                       FontFamily="OpenSansSemibold"
+                       FontSize="19" FontAttributes="Bold"
                        TextColor="{DynamicResource TextPrimaryColor}" />
-                <Label Text="浏览音乐库中的所有专辑"
-                       FontSize="11"
-                       TextColor="{DynamicResource TextHintColor}"
-                       Margin="0,1,0,0" />
+                <Label Text="{Binding TotalAlbums, StringFormat='{0} 张专辑'}"
+                       FontSize="12"
+                       TextColor="{DynamicResource TextHintColor}" />
             </VerticalStackLayout>
 
-            <Border Grid.Column="2"
-                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
-                    Stroke="{DynamicResource GlassStrokeColor}"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 12"
-                    WidthRequest="38" HeightRequest="38">
-                <Border.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnSearchToggled" />
-                </Border.GestureRecognizers>
-                <Image Source="{helpers:ThemedIcon Name=ic_search}"
-                       WidthRequest="18" HeightRequest="18"
-                       Aspect="AspectFit"
-                       VerticalOptions="Center" HorizontalOptions="Center" />
-            </Border>
+            <!-- 视图切换 -->
+            <controls:ViewToggleButton Grid.Column="2"
+                                       IsGridView="{Binding IsGridView, Mode=TwoWay}" />
         </Grid>
 
-        <!-- Hero 区域 -->
-        <Border Grid.Row="1"
-                Margin="16,6,16,14"
-                Padding="22,20"
-                StrokeShape="RoundRectangle 22"
-                StrokeThickness="1"
-                Stroke="{DynamicResource GlassStrokeColor}"
-                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
-            <Border.Shadow>
-                <Shadow Brush="#40000000" Offset="0,10" Radius="24" Opacity="0.3" />
-            </Border.Shadow>
-            <Grid ColumnDefinitions="*,Auto">
-                <VerticalStackLayout Spacing="2">
-                    <Label Text="我的专辑库"
-                           FontSize="24"
-                           FontFamily="OpenSansSemibold"
-                           TextColor="{DynamicResource TextPrimaryColor}" />
-                    <Label Text="按年份、来源与播放热度浏览你的收藏"
-                           FontSize="12.5"
-                           TextColor="{DynamicResource TextSecondaryColor}"
-                           Margin="0,6,0,0" />
-                    <FlexLayout Direction="Row"
-                                Wrap="NoWrap"
-                                Margin="0,14,0,0">
-                        <VerticalStackLayout Spacing="1">
-                            <Label Text="{Binding TotalAlbums, StringFormat='{0}'}"
-                                   FontSize="19"
-                                   FontFamily="OpenSansSemibold"
-                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="张专辑"
-                                   FontSize="10.5"
-                                   TextColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-                        <BoxView WidthRequest="1" Color="#22FFFFFF" Margin="18,2" />
-                        <VerticalStackLayout Spacing="1">
-                            <Label Text="{Binding TotalSongs, StringFormat='{0}'}"
-                                   FontSize="19"
-                                   FontFamily="OpenSansSemibold"
-                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="首歌曲"
-                                   FontSize="10.5"
-                                   TextColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-                        <BoxView WidthRequest="1" Color="#22FFFFFF" Margin="18,2" />
-                        <VerticalStackLayout Spacing="1">
-                            <Label Text="{Binding TotalArtists, StringFormat='{0}'}"
-                                   FontSize="19"
-                                   FontFamily="OpenSansSemibold"
-                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="位艺术家"
-                                   FontSize="10.5"
-                                   TextColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-                    </FlexLayout>
-                </VerticalStackLayout>
-            </Grid>
-        </Border>
-
-        <!-- 搜索框 -->
-        <controls:PageSearchBox Grid.Row="2"
-                                Margin="16,0,12,0"
+        <!-- ═══ 搜索栏 ═══ -->
+        <controls:PageSearchBox Grid.Row="1"
+                                Margin="16,4,16,10"
                                 CornerRadius="14"
-                                FontSize="13.5"
+                                FontSize="14"
                                 Placeholder="搜索专辑或艺术家"
-                                SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
-                                IsVisible="{Binding IsSearchVisible}" />
+                                SearchQuery="{Binding SearchQuery, Mode=TwoWay}" />
 
-        <!-- 来源筛选 chips + 工具栏 -->
-        <Grid Grid.Row="3"
-              RowDefinitions="Auto,Auto"
-              Padding="0,0,0,8">
-            <!-- 筛选 chips -->
-            <controls:ChipList Grid.Row="0"
-                               Margin="16,12,16,0"
+        <!-- ═══ 来源筛选 + 排序 ═══ -->
+        <Grid Grid.Row="2" Padding="16,4,16,8" ColumnDefinitions="*,*"
+              ColumnSpacing="10">
+            <!-- 来源筛选 -->
+            <controls:ChipList Grid.Column="0"
+                               Orientation="Horizontal"
                                ItemsSource="{Binding SourceFilters}"
                                ChipTapped="OnFilterChipTapped"
-                               ChipPadding="14,7"
-                               ChipCornerRadius="999"
+                               ChipPadding="13,7"
+                               ChipCornerRadius="20"
                                ChipFontSize="12.5" />
 
-            <!-- 工具栏：排序 + 视图切换 -->
-            <Grid Grid.Row="1"
-                  ColumnDefinitions="*,Auto"
-                  Padding="16,8,16,8">
-                <controls:ChipList Grid.Column="0"
-                                   ItemsSource="{Binding SortOptions}"
-                                   ChipTapped="OnSortChipTapped"
-                                   ChipPadding="11,5"
-                                   ChipCornerRadius="999"
-                                   ChipFontSize="11.5" />
-
-                <!-- 视图切换 -->
-                <controls:ViewToggleButton Grid.Column="1"
-                                           Margin="10,0,0,0"
-                                           IsGridView="{Binding IsGridView, Mode=TwoWay}" />
-            </Grid>
+            <!-- 排序 -->
+            <controls:ChipList Grid.Column="1"
+                               Orientation="Horizontal"
+                               HorizontalOptions="End"
+                               ItemsSource="{Binding SortOptions}"
+                               ChipTapped="OnSortChipTapped"
+                               ChipPadding="13,7"
+                               ChipCornerRadius="20"
+                               ChipFontSize="12.5" />
         </Grid>
 
-        <!-- 主体布局：网格/列表 + 右侧年代 rail -->
-        <Grid Grid.Row="4"
-              ColumnDefinitions="*,Auto"
-              Padding="8,4,0,8"
-              ColumnSpacing="8">
-            <!-- 网格视图（虚拟化 + 按年代分组：ScrollView+嵌套FlexLayout 会一次性创建所有 cell，数据量大时主线程卡死） -->
+        <!-- ═══ 主体布局：列表/网格 + 右侧字母 rail ═══ -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Padding="0,0,0,8" ColumnSpacing="0">
+
+            <!-- 网格视图 -->
             <CollectionView Grid.Column="0"
                             x:Name="GridCollectionView"
-                            ItemsSource="{Binding EraGroups}"
-                            IsGrouped="True"
+                            ItemsSource="{Binding FilteredAlbums}"
                             SelectionMode="None"
                             IsVisible="{Binding IsGridView}"
-                            Margin="0,4,0,0">
+                            Margin="8,4,0,0">
                 <CollectionView.ItemsLayout>
                     <GridItemsLayout Orientation="Vertical" Span="3" HorizontalItemSpacing="8" VerticalItemSpacing="12" />
                 </CollectionView.ItemsLayout>
-                <CollectionView.GroupHeaderTemplate>
-                    <DataTemplate>
-                        <HorizontalStackLayout Spacing="8" Padding="0,14,0,0">
-                            <Label Text="{Binding Era}"
-                                   FontSize="12"
-                                   FontFamily="OpenSansSemibold"
-                                   TextColor="{DynamicResource TextSecondaryColor}"
-                                   VerticalOptions="Center" />
-                            <Label Text="{Binding Count, StringFormat='{0} 张'}"
-                                   FontSize="10.5"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   VerticalOptions="Center" />
-                        </HorizontalStackLayout>
-                    </DataTemplate>
-                </CollectionView.GroupHeaderTemplate>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vm:AlbumWithCount">
                         <Border StrokeThickness="0"
-                                StrokeShape="RoundRectangle 12"
                                 BackgroundColor="Transparent">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnAlbumTapped" />
                             </Border.GestureRecognizers>
-                            <VerticalStackLayout Spacing="7">
-                                <Border StrokeShape="RoundRectangle 14"
+                            <VerticalStackLayout Spacing="8">
+                                <Border StrokeShape="RoundRectangle 18"
                                         StrokeThickness="0"
                                         BackgroundColor="{Binding Id, Converter={StaticResource PlaceholderColorConverter}}">
                                     <Grid>
@@ -221,31 +121,36 @@
                                         <Label Text="{Binding Title, Converter={StaticResource InitialConverter}}"
                                                FontSize="30"
                                                FontFamily="OpenSansSemibold"
-                                               TextColor="#99FFFFFF"
+                                               TextColor="#DDFFFFFF"
                                                HorizontalOptions="Center" VerticalOptions="Center"
                                                IsVisible="{Binding CoverArtPath, Converter={StaticResource CoverArtConverter}, ConverterParameter=invert}" />
                                     </Grid>
                                 </Border>
                                 <Label Text="{Binding Title}"
-                                       FontSize="12"
+                                       FontSize="12.5"
                                        FontAttributes="Bold"
                                        TextColor="{DynamicResource TextPrimaryColor}"
-                                       LineBreakMode="WordWrap"
-                                       MaxLines="2" />
+                                       HorizontalOptions="Center"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1" />
                                 <Label Text="{Binding ArtistName}"
                                        FontSize="10.5"
                                        TextColor="{DynamicResource TextHintColor}"
+                                       HorizontalOptions="Center"
                                        LineBreakMode="TailTruncation" />
-                                <Label Text="{Binding SongCount, StringFormat='{0} 首'}"
-                                       FontSize="10"
-                                       TextColor="{DynamicResource TextHintColor}" />
                             </VerticalStackLayout>
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+
+                <CollectionView.EmptyView>
+                    <Label Text="没有匹配的专辑" FontSize="13"
+                           TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
+                </CollectionView.EmptyView>
             </CollectionView>
 
-            <!-- 列表视图 -->
+            <!-- 列表视图（与 AllSongsPage 样式一致） -->
             <CollectionView Grid.Column="0"
                             x:Name="ListCollectionView"
                             ItemsSource="{Binding FilteredAlbums}"
@@ -253,80 +158,83 @@
                             IsVisible="{Binding IsGridView, Converter={StaticResource InvertedBoolConverter}}"
                             Margin="0,4,0,0">
                 <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Border Padding="9,6"
-                                StrokeShape="RoundRectangle 12"
-                                StrokeThickness="0"
-                                BackgroundColor="Transparent"
-                                Margin="0,0,0,2">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnAlbumTapped" />
-                            </Border.GestureRecognizers>
-                            <Grid ColumnDefinitions="Auto,*,Auto"
-                                  ColumnSpacing="12"
-                                  VerticalOptions="Center">
-                                <Border Grid.Column="0"
-                                        WidthRequest="50" HeightRequest="50"
-                                        StrokeShape="RoundRectangle 11"
-                                        StrokeThickness="0"
-                                        BackgroundColor="{Binding Id, Converter={StaticResource PlaceholderColorConverter}}">
-                                    <Grid>
-                                        <Image Source="{Binding CoverArtPath}"
-                                               Aspect="AspectFill"
-                                               IsVisible="{Binding CoverArtPath, Converter={StaticResource CoverArtConverter}}" />
-                                        <Label Text="{Binding Title, Converter={StaticResource InitialConverter}}"
-                                               FontSize="18"
-                                               FontFamily="OpenSansSemibold"
-                                               TextColor="#DDFFFFFF"
-                                               HorizontalOptions="Center" VerticalOptions="Center"
-                                               IsVisible="{Binding CoverArtPath, Converter={StaticResource CoverArtConverter}, ConverterParameter=invert}" />
-                                    </Grid>
-                                </Border>
-                                <VerticalStackLayout Grid.Column="1"
-                                                     VerticalOptions="Center"
-                                                     Spacing="2">
-                                    <Label Text="{Binding Title}"
-                                           FontSize="13.5"
+                    <DataTemplate x:DataType="vm:AlbumWithCount">
+                        <Grid Padding="14,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                            <!-- 封面 -->
+                            <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
+                                    StrokeShape="RoundRectangle 10" StrokeThickness="0"
+                                    BackgroundColor="{Binding Id, Converter={StaticResource PlaceholderColorConverter}}">
+                                <Grid>
+                                    <Image Source="{Binding CoverArtPath}"
+                                           Aspect="AspectFill"
+                                           IsVisible="{Binding CoverArtPath, Converter={StaticResource CoverArtConverter}}" />
+                                    <Label Text="{Binding Title, Converter={StaticResource InitialConverter}}"
+                                           FontSize="18"
                                            FontFamily="OpenSansSemibold"
-                                           TextColor="{DynamicResource TextPrimaryColor}"
-                                           LineBreakMode="TailTruncation" />
-                                    <Label Text="{Binding ArtistName, StringFormat='{0} · '}"
-                                           FontSize="11.5"
-                                           TextColor="{DynamicResource TextHintColor}"
-                                           LineBreakMode="TailTruncation" />
-                                </VerticalStackLayout>
-                                <HorizontalStackLayout Grid.Column="2"
-                                                       VerticalOptions="Center"
-                                                       Spacing="4">
-                                    <Ellipse WidthRequest="7" HeightRequest="7"
-                                             Fill="#55D6FF" />
-                                    <Label Text="{Binding SongCount, StringFormat='{0} 首'}"
-                                           FontSize="11"
-                                           TextColor="{DynamicResource TextHintColor}" />
-                                </HorizontalStackLayout>
-                            </Grid>
-                        </Border>
+                                           TextColor="#DDFFFFFF"
+                                           HorizontalOptions="Center" VerticalOptions="Center"
+                                           IsVisible="{Binding CoverArtPath, Converter={StaticResource CoverArtConverter}, ConverterParameter=invert}" />
+                                </Grid>
+                            </Border>
+
+                            <!-- 标题 + 艺术家·歌曲数 -->
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                <Label Text="{Binding Title}" FontSize="14.5" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimaryColor}"
+                                       LineBreakMode="TailTruncation" MaxLines="1" />
+                                <Label FontSize="12" LineBreakMode="TailTruncation" MaxLines="1"
+                                       TextColor="{DynamicResource TextHintColor}">
+                                    <Label.Text>
+                                        <MultiBinding StringFormat="{}{0} · {1} 首">
+                                            <Binding Path="ArtistName" />
+                                            <Binding Path="SongCount" />
+                                        </MultiBinding>
+                                    </Label.Text>
+                                </Label>
+                            </VerticalStackLayout>
+
+                            <!-- 年份 -->
+                            <Label Grid.Column="2" FontSize="12" VerticalOptions="Center"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   Text="{Binding Year}" />
+
+                            <!-- 更多按钮 -->
+                            <Label Grid.Column="3" Text="⋮" FontSize="18" VerticalOptions="Center"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   Padding="6,0">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnAlbumMoreTapped" CommandParameter="{Binding}" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+
+                <CollectionView.EmptyView>
+                    <Label Text="没有匹配的专辑" FontSize="13"
+                           TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
+                </CollectionView.EmptyView>
             </CollectionView>
 
-            <!-- 年代 rail -->
+            <!-- 字母 rail（A-Z 索引） -->
             <ScrollView Grid.Column="1"
-                        IsVisible="{Binding IsGridView}"
-                        Margin="0,4,0,0">
-                <VerticalStackLayout Spacing="2" x:Name="EraRail"
-                                     BindableLayout.ItemsSource="{Binding EraRailItems}">
+                        Margin="0,8,6,0"
+                        VerticalOptions="Start">
+                <VerticalStackLayout Spacing="1" x:Name="LetterRail"
+                                     BindableLayout.ItemsSource="{Binding LetterRailItems}">
                     <BindableLayout.ItemTemplate>
-                        <DataTemplate>
-                            <Border WidthRequest="30" HeightRequest="30"
-                                    StrokeShape="RoundRectangle 8"
+                        <DataTemplate x:DataType="vm:AlbumsViewModel+LetterRailItem">
+                            <Border WidthRequest="18"
+                                    HeightRequest="18"
+                                    StrokeShape="RoundRectangle 5"
                                     StrokeThickness="0"
                                     BackgroundColor="{Binding BackgroundColor}">
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnEraTapped" />
+                                    <TapGestureRecognizer Tapped="OnLetterTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="{Binding Label}"
-                                       FontSize="10.5"
+                                       FontSize="9.5"
                                        FontFamily="OpenSansSemibold"
                                        TextColor="{Binding TextColor}"
                                        HorizontalOptions="Center" VerticalOptions="Center" />
@@ -337,11 +245,14 @@
             </ScrollView>
         </Grid>
 
-        <!-- 加载指示器 -->
-        <ActivityIndicator Grid.Row="4"
+        <!-- ═══ 加载指示器 ═══ -->
+        <ActivityIndicator Grid.Row="3"
                            IsRunning="{Binding IsLoading}"
                            IsVisible="{Binding IsLoading}"
                            Color="{DynamicResource PrimaryColor}"
                            HorizontalOptions="Center" VerticalOptions="Center" />
+
+        <!-- ═══ 更多操作弹窗 ═══ -->
+        <controls:AppPopup x:Name="AlbumMorePopup" Title="专辑操作" CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

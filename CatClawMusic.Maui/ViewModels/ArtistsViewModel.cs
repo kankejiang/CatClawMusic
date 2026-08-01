@@ -61,7 +61,7 @@ public partial class ArtistsViewModel : ObservableObject
     // === 筛选与排序 ===
     [ObservableProperty] private string _currentFilter = "all";
     [ObservableProperty] private string _currentLetter = "";
-    [ObservableProperty] private string _currentSort = "default";
+    [ObservableProperty] private string _currentSort = "name";
 
     /// <summary>来源筛选选项</summary>
     [ObservableProperty]
@@ -126,10 +126,9 @@ public partial class ArtistsViewModel : ObservableObject
     {
         SortOptions = new ObservableCollection<SortOption>
         {
-            new("default", "默认", true),
+            new("name", "名称 A-Z", true),
             new("songs", "歌曲数", false),
             new("plays", "最常听", false),
-            new("name", "名称 A-Z", false),
         };
     }
 
@@ -321,13 +320,13 @@ public partial class ArtistsViewModel : ObservableObject
         }
     }
 
-    /// <summary>构建字母 rail 数据</summary>
+    /// <summary>构建 A-Z 字母 rail 数据</summary>
     private void BuildLetterRail()
     {
         var letters = _allArtists
             .Select(a => GetIndexLetter(a.Name))
             .Distinct()
-            .OrderBy(l => l)
+            .OrderBy(l => l, new LetterComparer())
             .ToList();
 
         var items = new ObservableCollection<LetterRailItem>();
@@ -339,15 +338,14 @@ public partial class ArtistsViewModel : ObservableObject
         LetterRailItems = items;
     }
 
-    /// <summary>获取艺术家名称的索引字母（中文取首字符，英文取首字母）</summary>
+    /// <summary>获取艺术家名称的索引字母（中文取首字，英文取首字母，数字归 #）</summary>
     private static string GetIndexLetter(string? name)
     {
         if (string.IsNullOrEmpty(name)) return "#";
-        var c = name.Trim().ToUpperInvariant()[0];
-        if (c >= 'A' && c <= 'Z') return c.ToString();
-        // 简单判断中文字符
-        if (c >= 0x4E00 && c <= 0x9FFF) return "中";
-        return "#";
+        var c = name.Trim()[0];
+        if (char.IsAsciiLetter(c)) return char.ToUpperInvariant(c).ToString();
+        if (char.IsDigit(c)) return "#";
+        return c.ToString(); // 中文直接用首字
     }
 
     /// <summary>选择筛选条件</summary>
@@ -425,11 +423,57 @@ public partial class ArtistsViewModel : ObservableObject
         {
             "songs" => result.OrderByDescending(a => a.SongCount),
             "plays" => result.OrderByDescending(a => 0), // TODO: 添加播放次数
-            "name" => result.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase),
-            _ => result.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
+            "name" => result.OrderBy(a => a.Name, new NameComparer()),
+            _ => result.OrderBy(a => a.Name, new NameComparer())
         };
 
         FilteredArtists = new ObservableCollection<ArtistWithCount>(result.ToList());
+    }
+
+    /// <summary>字母排序比较器：A-Z → 中文（按 Unicode 码点）→ #</summary>
+    private sealed class LetterComparer : IComparer<string>
+    {
+        public int Compare(string? x, string? y)
+        {
+            if (x == null && y == null) return 0;
+            if (x == null) return 1;
+            if (y == null) return -1;
+
+            int rank(string s) => s switch
+            {
+                "#" => 2,
+                _ when s.Length == 1 && char.IsAsciiLetter(s[0]) => 0,
+                _ => 1
+            };
+
+            int rx = rank(x), ry = rank(y);
+            if (rx != ry) return rx.CompareTo(ry);
+            return string.Compare(x, y, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>名称排序比较器：英文 A-Z 优先，中文按 Unicode 码点，数字/符号最后</summary>
+    private sealed class NameComparer : IComparer<string>
+    {
+        public int Compare(string? x, string? y)
+        {
+            if (x == null && y == null) return 0;
+            if (x == null) return 1;
+            if (y == null) return -1;
+
+            int rank(string s)
+            {
+                if (string.IsNullOrEmpty(s)) return 3;
+                var c = s.Trim()[0];
+                if (char.IsAsciiLetter(c)) return 0;
+                if (c >= 0x4E00 && c <= 0x9FFF) return 1; // CJK
+                return 2;
+            }
+
+            int rx = rank(x), ry = rank(y);
+            if (rx != ry) return rx.CompareTo(ry);
+            return string.Compare(x, y, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>获取艺术家来源类型</summary>

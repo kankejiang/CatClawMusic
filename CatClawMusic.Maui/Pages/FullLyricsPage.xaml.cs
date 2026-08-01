@@ -45,17 +45,11 @@ public partial class FullLyricsPage : ContentPage
         BindingContext = viewModel;
 
         Android.Util.Log.Info("FLP", "[FullLyricsPage] 构造 #{0}", GetHashCode());
-        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+        // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）
         LyricCollectionView.HandlerChanged += OnCollectionViewHandlerChanged;
         BuildLyricViews();
 
-        // Handler 销毁时取消 PropertyChanged 订阅，防止横竖屏切换后旧页面
-        // 的 handler 留在 Singleton ViewModel 上造成内存泄漏和事件干扰
-        // （旧实例操作已销毁控件可能抛异常，中断多播事件链，导致新页面收不到
-        // Progress/CurrentLyricIndexObservable 等广播 → 进度条不走、歌词不滚动）。
-        // 用 HandlerChanged 而非 Unloaded：ViewPager2 回收页面时不触发 MAUI Unloaded，
-        // 但 Handler 一定会在页面销毁/重建时经历 null→handler→null 生命周期。
+        // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
         HandlerChanged += (_, _) =>
         {
             if (Handler == null)
@@ -63,7 +57,14 @@ public partial class FullLyricsPage : ContentPage
                 Android.Util.Log.Info("FLP", "[FullLyricsPage] Handler=null(取消订阅) #{0}", GetHashCode());
                 _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
-                LyricCollectionView.HandlerChanged -= OnCollectionViewHandlerChanged;
+            }
+            else
+            {
+                // 挂载（或重新挂载）：订阅静态/单例事件
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+                _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
             }
         };
     }

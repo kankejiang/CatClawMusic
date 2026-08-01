@@ -57,16 +57,12 @@ public partial class NowPlayingPage : ContentPage
         _audioPlayer = audioPlayer;
         BindingContext = _viewModel;
 
-        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+        // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）
         LyricCollectionView.HandlerChanged += OnCollectionViewHandlerChanged;
         Loaded += OnPageLoaded;
 
-        // 页面 Handler 销毁时取消 PropertyChanged 订阅，防止横竖屏切换后旧页面
-        // 的 handler 留在 Singleton ViewModel 上造成内存泄漏和事件干扰。
-        // 不在 OnDisappearing 取消（memory 约束：保持跨页面进度更新活跃）。
-        // 用 HandlerChanged 而非 Unloaded：ViewPager2 回收页面时不触发 MAUI Unloaded，
-        // 但 Handler 一定会在页面销毁/重建时经历 null→handler→null 生命周期。
+        // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
+        // 页面挂载时订阅、分离时取消，避免横竖屏切换后旧订阅残留或新挂载时漏订阅。
         HandlerChanged += (_, _) =>
         {
             if (Handler == null)
@@ -74,7 +70,15 @@ public partial class NowPlayingPage : ContentPage
                 Android.Util.Log.Info("NPP", "[NowPlayingPage] Handler=null(取消订阅) #{0}", GetHashCode());
                 _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
-                LyricCollectionView.HandlerChanged -= OnCollectionViewHandlerChanged;
+            }
+            else
+            {
+                // 挂载（或重新挂载）：订阅静态/单例事件
+                // 先 -= 再 += 避免重复订阅
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+                _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
             }
         };
 

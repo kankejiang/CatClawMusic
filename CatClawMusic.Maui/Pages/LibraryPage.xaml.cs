@@ -48,11 +48,7 @@ public partial class LibraryPage : ContentPage
         _sp = sp;
         BindingContext = _vm;
 
-        _vm.DiscoverSourceChanged += OnDiscoverSourceChanged;
-        Services.LocalScanService.ScanCompleted += OnScanCompleted;
-        Services.LocalScanService.NetworkSyncCompleted += OnNetworkSyncCompleted;
-
-        _vm.PropertyChanged += OnViewModelPropertyChanged;
+        // 事件订阅由 OnHandlerChanging 管理，支持页面实例复用（Singleton MainPage）
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -485,10 +481,27 @@ public partial class LibraryPage : ContentPage
     protected override void OnHandlerChanging(HandlerChangingEventArgs args)
     {
         base.OnHandlerChanging(args);
-        _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
-        Services.LocalScanService.ScanCompleted -= OnScanCompleted;
-        Services.LocalScanService.NetworkSyncCompleted -= OnNetworkSyncCompleted;
-        _vm.PropertyChanged -= OnViewModelPropertyChanged;
+
+        if (args.NewHandler == null)
+        {
+            // 页面分离：取消订阅
+            _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
+            Services.LocalScanService.ScanCompleted -= OnScanCompleted;
+            Services.LocalScanService.NetworkSyncCompleted -= OnNetworkSyncCompleted;
+            _vm.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+        else
+        {
+            // 页面挂载（或重新挂载）：订阅事件（先 -= 再 += 避免重复）
+            _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
+            _vm.DiscoverSourceChanged += OnDiscoverSourceChanged;
+            Services.LocalScanService.ScanCompleted -= OnScanCompleted;
+            Services.LocalScanService.ScanCompleted += OnScanCompleted;
+            Services.LocalScanService.NetworkSyncCompleted -= OnNetworkSyncCompleted;
+            Services.LocalScanService.NetworkSyncCompleted += OnNetworkSyncCompleted;
+            _vm.PropertyChanged -= OnViewModelPropertyChanged;
+            _vm.PropertyChanged += OnViewModelPropertyChanged;
+        }
     }
 
     protected override async void OnAppearing()
@@ -579,7 +592,7 @@ public partial class LibraryPage : ContentPage
                 await _exploreDataService.GetAllArtistsAsync();
 
                 // 预热 VM 静态缓存：让首次进入列表页时直接复用已构建好的集合，
-                // 主线程不再做 BuildLetterRail/BuildEraRail/ApplyFiltersAndSort 等重活。
+                // 主线程不再做 BuildLetterRail/ApplyFiltersAndSort 等重活。
                 var albumsVm = _sp.GetService<AlbumsViewModel>();
                 var artistsVm = _sp.GetService<ArtistsViewModel>();
                 if (albumsVm != null) await albumsVm.LoadAsync();

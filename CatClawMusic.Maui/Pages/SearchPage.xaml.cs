@@ -42,8 +42,6 @@ public partial class SearchPage : DiscoverPageBase
         _audioPlayer = audioPlayer;
         _services = services;
         _interactionState = services.GetService<Services.IInteractionStateService>();
-        if (_interactionState != null)
-            _interactionState.InteractionStateChanged += OnInteractionStateChangedForHero;
         _nowPlayingVm = nowPlayingVm;
         _statsView = statsView;
         BindingContext = _vm;
@@ -56,24 +54,38 @@ public partial class SearchPage : DiscoverPageBase
         ChatBackButton.Clicked += OnChatBackClicked;
 
         ChatMiniPlayer.BindingContext = _nowPlayingVm;
-        _nowPlayingVm.PropertyChanged += OnNowPlayingPropertyChanged;
 
-        _vm.ChatHistoryLoaded += OnChatHistoryLoaded;
-        _vm.ScrollToLatestMessageRequested += (s, e) => ScrollToLatestMessage();
-
-        _vm.PropertyChanged += (s, e) =>
+        // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton MainPage）。
+        // 页面挂载时订阅、分离时取消，避免横竖屏切换后旧订阅残留或新挂载时漏订阅。
+        HandlerChanged += (_, _) =>
         {
-            if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
+            if (Handler == null)
             {
-                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () =>
-                {
-                    ChatInputBox?.Focus();
-                });
-                UpdateChatMiniPlayerVisibility();
+                // 页面分离：取消订阅
+                if (_interactionState != null)
+                    _interactionState.InteractionStateChanged -= OnInteractionStateChangedForHero;
+                _nowPlayingVm.PropertyChanged -= OnNowPlayingPropertyChanged;
+                _vm.ChatHistoryLoaded -= OnChatHistoryLoaded;
+                _vm.ScrollToLatestMessageRequested -= OnScrollToLatestMessageRequested;
+                _vm.PropertyChanged -= OnSearchVmPropertyChanged;
+                _heroAutoScrollTimer?.Stop();
             }
-            else if (e.PropertyName == nameof(_vm.IsChatMode) && !_vm.IsChatMode)
+            else
             {
-                UpdateChatMiniPlayerVisibility();
+                // 页面挂载（或重新挂载）：订阅事件（先 -= 再 += 避免重复）
+                if (_interactionState != null)
+                {
+                    _interactionState.InteractionStateChanged -= OnInteractionStateChangedForHero;
+                    _interactionState.InteractionStateChanged += OnInteractionStateChangedForHero;
+                }
+                _nowPlayingVm.PropertyChanged -= OnNowPlayingPropertyChanged;
+                _nowPlayingVm.PropertyChanged += OnNowPlayingPropertyChanged;
+                _vm.ChatHistoryLoaded -= OnChatHistoryLoaded;
+                _vm.ChatHistoryLoaded += OnChatHistoryLoaded;
+                _vm.ScrollToLatestMessageRequested -= OnScrollToLatestMessageRequested;
+                _vm.ScrollToLatestMessageRequested += OnScrollToLatestMessageRequested;
+                _vm.PropertyChanged -= OnSearchVmPropertyChanged;
+                _vm.PropertyChanged += OnSearchVmPropertyChanged;
             }
         };
 
@@ -145,6 +157,26 @@ public partial class SearchPage : DiscoverPageBase
             MainThread.BeginInvokeOnMainThread(UpdateChatMiniPlayerVisibility);
         }
     }
+
+    /// <summary>SearchViewModel 属性变更处理：聊天模式切换时管理迷你播放器可见性和输入框焦点。</summary>
+    private void OnSearchVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
+        {
+            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () =>
+            {
+                ChatInputBox?.Focus();
+            });
+            UpdateChatMiniPlayerVisibility();
+        }
+        else if (e.PropertyName == nameof(_vm.IsChatMode) && !_vm.IsChatMode)
+        {
+            UpdateChatMiniPlayerVisibility();
+        }
+    }
+
+    /// <summary>滚动到最新聊天消息。</summary>
+    private void OnScrollToLatestMessageRequested(object? sender, EventArgs e) => ScrollToLatestMessage();
 
     private void UpdateChatMiniPlayerVisibility()
     {

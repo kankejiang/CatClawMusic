@@ -63,9 +63,9 @@ public partial class DesktopAlbumsPage : ContentPage
         }
     }
 
-    private void OnEraTapped(object? sender, EventArgs e)
+    private void OnLetterTapped(object? sender, EventArgs e)
     {
-        if (sender is BindableObject bo && bo.BindingContext is AlbumsViewModel.EraRailItem era)
-            _viewModel.SelectEra(era.Key);
+        if (sender is BindableObject bo && bo.BindingContext is AlbumsViewModel.LetterRailItem letter)
+            _viewModel.SelectLetter(letter.Key);
     }
 }

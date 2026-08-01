@@ -26,6 +26,7 @@ public partial class MainPage : ContentPage
     private readonly IServiceProvider _services;
     private readonly List<ContentPage> _tabPages = new();
     private readonly NowPlayingViewModel _nowPlayingVm;
+    private readonly SearchViewModel? _searchVm;
     private readonly Services.IInteractionStateService? _interactionState;
     // ViewPager 布局: [FullLyrics(0), NowPlaying(1), Search(2), Playlist(3), Library(4)]
     // TabBar 的 4 个按钮对应 index 1-4，index 0 是全屏歌词（无 Tab 按钮）
@@ -82,41 +83,41 @@ public partial class MainPage : ContentPage
 
         // 迷你播放器绑定到 NowPlayingViewModel
         MiniPlayer.BindingContext = _nowPlayingVm;
-        _nowPlayingVm.PropertyChanged += OnNowPlayingPropertyChanged;
-
-        // 订阅 SearchViewModel 的聊天模式变化：进入聊天时隐藏 TabBar，迷你播放器保留在输入框上方
-        var searchVm = services.GetService<SearchViewModel>();
-        if (searchVm != null)
-        {
-            searchVm.PropertyChanged += (s, e) =>
-            {
-                if (e.PropertyName == nameof(SearchViewModel.IsChatMode))
-                {
-                    MainThread.BeginInvokeOnMainThread(UpdateTabBarVisibility);
-                }
-            };
-        }
+        _searchVm = services.GetService<SearchViewModel>();
 
         SetupPages();
         ViewPagerGrid.SizeChanged += OnViewPagerSizeChanged;
 
-        // 订阅系统栏高度变化，更新 SafeArea padding
-        SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
-
-        // 页面被销毁（如横竖屏根切换 shell.Items.Clear）时释放交互令牌：
-        // 若 ViewPager2 在 Dragging/Settling 状态中、或 Windows pan 手势中途被销毁，
-        // Idle/手势结束回调永不触发，BeginInteraction 令牌永不释放，
-        // InteractionStateService.IsUserInteracting 会永久卡 true，
-        // 导致歌词行索引更新（UpdateLyricPosition）被永久门控 —— 表现为
-        // 「横竖屏切回后歌词不再滚动/高亮不再推进」。
-        Unloaded += (_, _) =>
+        // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
+        // 页面挂载时订阅、分离时取消，并释放交互令牌防止 IsUserInteracting 卡死。
+        HandlerChanged += (_, _) =>
         {
+            if (Handler == null)
+            {
+                // 页面分离：取消订阅并释放交互令牌
+                _nowPlayingVm.PropertyChanged -= OnNowPlayingPropertyChanged;
+                _searchVm!.PropertyChanged -= OnSearchVmPropertyChanged;
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
 #if ANDROID
-            _swipeInteractionToken?.Dispose();
-            _swipeInteractionToken = null;
+                _swipeInteractionToken?.Dispose();
+                _swipeInteractionToken = null;
 #endif
-            _panInteractionToken?.Dispose();
-            _panInteractionToken = null;
+                _panInteractionToken?.Dispose();
+                _panInteractionToken = null;
+            }
+            else
+            {
+                // 页面挂载（或重新挂载）：订阅静态/单例事件
+                _nowPlayingVm.PropertyChanged -= OnNowPlayingPropertyChanged;
+                _nowPlayingVm.PropertyChanged += OnNowPlayingPropertyChanged;
+                if (_searchVm != null)
+                {
+                    _searchVm.PropertyChanged -= OnSearchVmPropertyChanged;
+                    _searchVm.PropertyChanged += OnSearchVmPropertyChanged;
+                }
+                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+            }
         };
     }
 
@@ -1051,6 +1052,15 @@ public partial class MainPage : ContentPage
             e.PropertyName == nameof(NowPlayingViewModel.CurrentSong))
         {
             MainThread.BeginInvokeOnMainThread(UpdateMiniPlayerVisibility);
+        }
+    }
+
+    /// <summary>SearchViewModel 属性变化：聊天模式切换时更新 TabBar 显隐</summary>
+    private void OnSearchVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SearchViewModel.IsChatMode))
+        {
+            MainThread.BeginInvokeOnMainThread(UpdateTabBarVisibility);
         }
     }
 
