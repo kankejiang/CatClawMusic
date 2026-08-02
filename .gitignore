@@ -390,3 +390,6 @@ FodyWeavers.xsd
 /wd*.xml
 /ui_dump*.xml
 /.workbuddy/verify
+
+# WorkBuddy 本地缓存（截图/脚本，非项目文件）
+.workbuddy/cache/

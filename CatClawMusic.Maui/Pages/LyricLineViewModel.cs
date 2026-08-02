@@ -71,6 +71,28 @@ public class LyricLineViewModel : INotifyPropertyChanged, Microsoft.Maui.Control
         set { if (_mainFontAttributes == value) return; _mainFontAttributes = value; OnPropertyChanged(); }
     }
 
+    private double _mainScale = 1.0;
+    /// <summary>
+    /// 主文的渲染缩放（不参与布局！）。2026-08-02 第三次迭代：行高必须**恒定**，
+    /// 滚动才可能真正线性平滑——之前用 MainFontSize 表达"当前大/已唱小"，字号动画
+    /// 480ms 内持续改变行高，列表布局不断重排，滚动插值被扰动成"抖动/跳动"。
+    /// 改为固定字号 + Scale 渲染变换后：行高恒定 → 锚点稳定 → 滚动纯线性。
+    /// 当前行=1.5、未唱相邻=0.82、已唱相邻=0.66。
+    /// </summary>
+    public double MainScale
+    {
+        get => _mainScale;
+        set { if (NearlyEqual(_mainScale, value)) return; _mainScale = value; OnPropertyChanged(); }
+    }
+
+    private double _transScale = 0.8;
+    /// <summary>翻译行的渲染缩放，随 MainScale 联动（约 0.8×）。同样不参与布局。</summary>
+    public double TransScale
+    {
+        get => _transScale;
+        set { if (NearlyEqual(_transScale, value)) return; _transScale = value; OnPropertyChanged(); }
+    }
+
     private double _blur;
     /// <summary>行的高斯模糊半径（DP）。当前行=0（清晰），离当前行越远越大，营造景深。</summary>
     public double Blur

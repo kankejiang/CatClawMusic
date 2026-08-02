@@ -844,63 +844,25 @@
                                 </HorizontalStackLayout>
                             </Border>
                         </Grid>
-                        <!-- 歌词列表（2026-08-02 重写）
-                             1. CollectionView（ListViewBase）+ 原生 Label，避开 ScrollView 在
-                                .NET 10 MAUI + WinUI 3 下 ViewportHeight=0 的 bug；
-                                也避开了 KaraokeLabelHandler 在 FillProgress<0.5 时改透明前景的隐形 bug。
-                             2. 2026-08-02 二次迭代：3 档字号（当前 / 相邻 / 远）+ 白色/冷灰配色，
-                                纯文本层次不依赖左侧色条，更贴近参考设计稿；
-                                当前行右侧加一枚小红点作为"在播"标识。
-                             3. 字号瞬时落位；颜色透明度走缓出（见 NowPlayingPage.Windows.cs 的
-                                HighlightWindowsLine + AnimateScrollTo）。 -->
-                        <CollectionView x:Name="WinLyricsList" Grid.Row="1"
-                                        BackgroundColor="Transparent"
-                                        VerticalScrollBarVisibility="Never"
-                                        SelectionMode="None"
-                                        ItemSizingStrategy="MeasureAllItems"
-                                        ItemsLayout="VerticalList">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="pages:LyricLineViewModel">
-                                    <Grid Padding="{Binding RowPadding}">
-                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Start"
-                                                              effects:LyricBlurEffect.BlurAmount="{Binding Blur}">
-                                            <VerticalStackLayout.Effects>
-                                                <effects:LyricBlurEffect />
-                                            </VerticalStackLayout.Effects>
-                                            <Label Text="{Binding Text}"
-                                                   FontSize="{Binding MainFontSize}"
-                                                   FontFamily="OpenSansRegular"
-                                                   FontAttributes="{Binding MainFontAttributes}"
-                                                   TextColor="{Binding MainColor}"
-                                                   Opacity="{Binding MainOpacity}"
-                                                   LineBreakMode="WordWrap"
-                                                   HorizontalTextAlignment="Start"
-                                                   HorizontalOptions="Start" />
-                                            <Label Text="{Binding Translation}"
-                                                   IsVisible="{Binding HasTranslation}"
-                                                   FontSize="{Binding TransFontSize}"
-                                                   FontFamily="OpenSansRegular"
-                                                   TextColor="{Binding TransColor}"
-                                                   Opacity="{Binding TransOpacity}"
-                                                   LineBreakMode="WordWrap"
-                                                   HorizontalTextAlignment="Start"
-                                                   HorizontalOptions="Start" />
-                                        </VerticalStackLayout>
-                                        <!-- 当前行右侧小红点（"在播"标识） -->
-                                        <Ellipse WidthRequest="5" HeightRequest="5"
-                                                 Fill="#FF5A5A"
-                                                 HorizontalOptions="End"
-                                                 VerticalOptions="Start"
-                                                 Margin="0,14,18,0"
-                                                 IsVisible="{Binding IsCurrent}">
-                                            <Ellipse.Shadow>
-                                                <Shadow Brush="#FF5A5A" Radius="6" Opacity="0.9" />
-                                            </Ellipse.Shadow>
-                                        </Ellipse>
-                                    </Grid>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                        <!-- 歌词区：自绘静态堆叠 + 整体平移滚动（非虚拟化列表，从根上消除跳动）。
+                             滚动 = 平移 WinLyricStack.TranslationY（合成线程变换，不重排），切句时缓动 tween。
+                             构建见 NowPlayingPage.Windows.cs 的 BuildWindowsLyricViews / ScrollToWindowsLine。 -->
+                        <Grid x:Name="WinLyricClip" Grid.Row="1"
+                              BackgroundColor="Transparent" IsClippedToBounds="True">
+                            <VerticalStackLayout x:Name="WinLyricStack"
+                                                Spacing="0" HorizontalOptions="Start" VerticalOptions="Start" />
+                            <!-- 上下边缘渐隐遮罩：把歌词淡入背景，避免突兀切断 -->
+                            <Grid IsClippedToBounds="True" InputTransparent="True" BackgroundColor="Transparent">
+                                <Grid.Background>
+                                    <LinearGradientBrush x:StartPoint="0,0" x:EndPoint="0,1">
+                                        <GradientStop Offset="0"    Color="#080B1A" />
+                                        <GradientStop Offset="0.14" Color="#080B1A" Opacity="0" />
+                                        <GradientStop Offset="0.86" Color="#080B1A" Opacity="0" />
+                                        <GradientStop Offset="1"    Color="#080B1A" />
+                                    </LinearGradientBrush>
+                                </Grid.Background>
+                            </Grid>
+                        </Grid>
                         <Label x:Name="WinNoLyricsLabel" Grid.Row="1" Text="{Binding NoLyricsText}" FontSize="13"
                                TextColor="#8D93B7" Opacity="0.6" HorizontalTextAlignment="Center"
                                HorizontalOptions="Center" VerticalOptions="Center" IsVisible="False" />

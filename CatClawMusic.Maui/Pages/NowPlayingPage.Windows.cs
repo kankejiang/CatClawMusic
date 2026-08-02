@@ -21,22 +21,28 @@ namespace CatClawMusic.Maui.Pages;
 /// </summary>
 public partial class NowPlayingPage
 {
-    // Windows 歌词视图（CollectionView ItemsSource）
-    private readonly List<LyricLineViewModel> _winLyricItems = new();
+    // Windows 歌词视图：自绘静态堆叠（不用 CollectionView/虚拟化，从根上消除"跳动"）。
+    // 所有行一次性铺开到 WinLyricStack，滚动 = 整体平移它的 TranslationY（合成线程变换，不重排）。
+    // 切句时把 TranslationY 用缓动动画 tween 到目标行（参考 BetterLyrics 的 ScrollOffset 机制）。
+    private readonly List<WinLyricRow> _winRows = new();
+    private double[] _winRowTops = Array.Empty<double>();   // 每行顶部在 stack 内的 Y
+    private double _winRowHeight;       // 实测行高（行距恒定 → 锚点稳定）
+    private double _winStackHeight;     // 整个 stack 高度
+    private double _winClipHeight;      // 歌词裁剪区高度
     private int _winLastHighlight = -1;
     private bool _winFollow = true;
-    // 最近一次"程序发起"的滚动时刻，用于把自动滚动产生的 Scrolled 事件与用户手动拖动区分开
-    private DateTime _winLastAutoScrollAt = DateTime.MinValue;
-    // 程序滚动（含其平滑动画收尾）在此时刻之前产生的所有 Scrolled 一律忽略。
-    // 关键修复：WinUI ChangeView(disableAnimation:false) 的平滑滚动收尾事件会晚于
-    // _winProgramScrolling 清空的时机到达，原 500ms 宽限不足以覆盖，导致一次尾随 Scrolled
-    // 把 _winFollow 误置为 false —— 此后每句只走 WithoutScroll（不滚动），歌词"看起来不动了"。
-    // 改用一个独立的、较长的免疫窗口（1000ms）来彻底屏蔽程序滚动的尾随事件。
-    private DateTime _winExpectScrollUntil = DateTime.MinValue;
-    // 程序正在做平滑滚动（动画进行中）→ 期间产生的 Scrolled 一律忽略，避免误关跟随
-    private bool _winProgramScrolling;
-    // 保存计算出的滚动区高度，handler attach 后强制设到原生 ScrollViewer（仅 ScrollView 方案用，保留兼容）
-    private double _winLastScrollHeight;
+    private bool _winPanWired;
+    private double _winPanStartY;
+    private double _winLastScrollHeight;   // 兼容字段（已被静态堆叠实测高度替代，无读取方）
+
+    /// <summary>一行歌词的视图引用（代码构建，非绑定）。</summary>
+    private sealed class WinLyricRow
+    {
+        public Grid Container = null!;
+        public Label Main = null!;
+        public Label Trans = null!;
+        public Ellipse Dot = null!;
+    }
 
     // Windows 封面尺寸缓存
     private int _winCoverSize;
@@ -133,18 +139,9 @@ public partial class NowPlayingPage
         }
         catch { }
 
-        // 歌词构建
+        // 歌词构建（自绘静态堆叠 + 平移滚动）
         BuildWindowsLyricViews();
-        if (_winLyricItems.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
-        {
-            _ = Task.Delay(120).ContinueWith(_ =>
-                MainThread.BeginInvokeOnMainThread(() =>
-                    HighlightWindowsLine(_viewModel.CurrentLyricIndexObservable)));
-        }
-
-        // 手动拖动歌词时自动退出跟随，避免用户往回翻时被下一次自动滚动拽回来
-        WinLyricsList.Scrolled -= OnWinLyricsScrolled;
-        WinLyricsList.Scrolled += OnWinLyricsScrolled;
+        WireWinLyricPanGesture();
 
         // EQ 动画
         UpdateWinEqAnimation();
@@ -155,414 +152,259 @@ public partial class NowPlayingPage
     // ═══════════════════════════════════════
 
     // 歌词层次配色（参考设计稿：纯白当前 + 冷灰递进，避免品牌色干扰阅读）
-    private static readonly Color WinLyricCurrentColor = Colors.White;                // 当前行
-    private static readonly Color WinLyricNearColor = Color.FromArgb("#B8B8C8");      // 相邻 1 行
-    private static readonly Color WinLyricFarColor = Color.FromArgb("#787888");       // 更远的行
+    private static readonly Color WinLyricCurrentColor = Colors.White;                  // 当前行
+    private static readonly Color WinLyricNearColor = Color.FromArgb("#A8AAB0");      // 偏亮的中性灰(参考图未唱档)
+    private static readonly Color WinLyricFarColor = Color.FromArgb("#5A5C66");       // 偏冷的中性灰(参考图已唱档)
 
-    // 动画帧间隔（毫秒）：8ms ≈ 125fps 目标。所有歌词动画（字号/颜色）统一用此帧率，
-    // 在高刷新率（120/144Hz）屏幕上能跑满刷新率，运动更顺滑、帧数更高。
-    // （普通 60Hz 屏渲染上限仍是 60fps，但更密的采样不会更卡。）
-    private const uint WinLyricFrameMs = 8;
+    // 滚动缓动时长（毫秒）：~380ms + CubicInOut，与 BetterLyrics 的 ScrollOffset tween 同量级，
+    // 切句时整列平缓上移一格，丝滑无跳动。
 
-    // 字号/颜色/模糊三层过渡的统一时长（毫秒）。
-    // 用 ~480ms + CubicInOut（慢起慢收）而非原先 280ms 的 CubicOut（快起），
-    // 让"新当前行从下方缓缓长大 + 缓缓变清晰"在随滚动上移的过程中清晰可读，
-    // 而不是一帧内就"啪"地变到最大最清晰。
-    private const uint WinLyricGrowMs = 480;
-
-    // 行内边距（DP）：基础档（多数行）与"关键三行"档（已唱上一行 / 当前行 / 未唱下一行）。
-    // 加大间距 → 每切一句时列表"向上滚动"的步长更大、更显眼（之前步长太小，几乎看不出在滚）。
-    private static readonly Thickness WinLyricPadBase = new(0, 12, 0, 12);
-    private static readonly Thickness WinLyricPadKey = new(0, 34, 0, 34);
-    /// <summary>当前行及其上下相邻行的上下内边距加大，让关键三行更透气。</summary>
-    private static Thickness WinLyricRowPadding(int i, int index)
-        => (i == index || i == index - 1 || i == index + 1) ? WinLyricPadKey : WinLyricPadBase;
-
-    /// <summary>构建 Windows 歌词视图到 WinLyricsList（CollectionView）。</summary>
+    /// <summary>构建 Windows 歌词：所有行一次性代码构建为 WinLyricStack 的子 Grid（自绘静态堆叠，非虚拟化）。</summary>
     private void BuildWindowsLyricViews()
     {
-        _winLyricItems.Clear();
+        _winRows.Clear();
+        WinLyricStack.Children.Clear();
+        WinLyricStack.TranslationY = 0;
         _winLastHighlight = -1;
+        _winRowTops = Array.Empty<double>();
 
         var lines = _viewModel.AllLyricLines;
         if (lines == null || lines.Count == 0)
         {
             WinNoLyricsLabel.IsVisible = true;
-            WinLyricsList.ItemsSource = null;
             return;
         }
         WinNoLyricsLabel.IsVisible = false;
 
         var baseSize = _settings.FontSize;
+        var transSize = Math.Max(10, baseSize - 4);
 
         foreach (var line in lines)
         {
-            _winLyricItems.Add(new LyricLineViewModel
+            var row = new Grid
+            {
+                Padding = new Thickness(0, 13, 0, 13),
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = GridLength.Auto },
+                },
+                RowDefinitions = new RowDefinitionCollection
+                {
+                    new RowDefinition { Height = GridLength.Auto },
+                    new RowDefinition { Height = GridLength.Auto },
+                },
+            };
+
+            var main = new Label
             {
                 Text = line.Text,
-                Translation = line.Translation ?? string.Empty,
-                MainFontSize = baseSize * 0.74,
-                TransFontSize = baseSize * 0.74 - 2,
-                MainColor = WinLyricFarColor,
-                TransColor = WinLyricFarColor,
-                MainOpacity = 1.0,
-                TransOpacity = 0.85,
-                Blur = 6.0,
-                IsCurrent = false,
-            });
-        }
+                FontSize = baseSize,
+                FontFamily = "OpenSansRegular",
+                FontAttributes = FontAttributes.Bold,
+                TextColor = WinLyricFarColor,
+                LineBreakMode = LineBreakMode.WordWrap,
+                HorizontalOptions = LayoutOptions.Start,
+                VerticalOptions = LayoutOptions.Center,
+            };
+            Grid.SetRow(main, 0); Grid.SetColumn(main, 0);
 
-        WinLyricsList.ItemsSource = _winLyricItems;
+            // 译文常驻占位：无译文也占固定高度 → 所有行高一致 → 滚动锚点稳定
+            var trans = new Label
+            {
+                Text = line.Translation ?? string.Empty,
+                FontSize = transSize,
+                FontFamily = "OpenSansRegular",
+                TextColor = WinLyricFarColor,
+                Opacity = 0.85,
+                LineBreakMode = LineBreakMode.WordWrap,
+                HorizontalOptions = LayoutOptions.Start,
+                VerticalOptions = LayoutOptions.Center,
+                HeightRequest = transSize * 1.4,
+            };
+            Grid.SetRow(trans, 1); Grid.SetColumn(trans, 0);
+
+            var dot = new Ellipse
+            {
+                WidthRequest = 5, HeightRequest = 5,
+                Fill = Color.FromArgb("#FF5A5A"),
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Start,
+                Margin = new Thickness(0, 4, 18, 0),
+                IsVisible = false,
+            };
+            dot.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Color.FromArgb("#FF5A5A"), Radius = 6f, Opacity = 0.9f };
+            Grid.SetRow(dot, 0); Grid.SetColumn(dot, 1);
+
+            row.Children.Add(main);
+            row.Children.Add(trans);
+            row.Children.Add(dot);
+
+            WinLyricStack.Children.Add(row);
+            _winRows.Add(new WinLyricRow { Container = row, Main = main, Trans = trans, Dot = dot });
+        }
 
         var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
         HighlightWindowsLineWithoutScroll(idx);
 
-        WinLog($"Build done: sourceLines={lines.Count} items={_winLyricItems.Count} baseSize={baseSize}");
+        // 布局完成后实测行高 + 各行顶 Y，再一次性钉到当前行
+        _winRowHeight = 0;
+        _ = Task.Delay(80).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            MeasureWinRows();
+            ScrollToWindowsLine(idx, animate: false);
+        }));
+
+        WinLog($"Build done: sourceLines={lines.Count} rows={_winRows.Count} baseSize={baseSize}");
     }
 
     /// <summary>刷新全部行的层次样式，但不触发滚动（构建期/初始化用）。</summary>
     private void HighlightWindowsLineWithoutScroll(int index)
     {
-        if (index < 0 || index >= _winLyricItems.Count) return;
-
-        var baseSize = _settings.FontSize;
-        for (int i = 0; i < _winLyricItems.Count; i++)
-            ApplyWinLyricTierInstant(i, index, baseSize);
+        if (index < 0 || index >= _winRows.Count) return;
+        for (int i = 0; i < _winRows.Count; i++)
+            ApplyWinLyricTierInstant(i, index);
         _winLastHighlight = index;
     }
 
     /// <summary>
-    /// 高亮指定行并平滑滚动到"从上往下第 3 行"。
-    ///
-    /// 分层策略（兼顾"好看"与"不卡滚动"）：
-    /// 1. 字号**只对真正发生变化的那几行做 ~240ms 缓出 grow/shrink 动画**（见 AnimateWinLyricSize）；
-    ///    其余行字号不变、setter 内部值比较直接去重，不触发任何重测量。
-    /// 2. 颜色 / 透明度不参与布局，单独做 ~300ms 缓出交叉淡入，营造"高亮渐显"的观感。
-    /// 3. 滚动本身用原生 ScrollViewer 的 VerticalOffset 缓动（见 AnimateScrollTo），
-    ///    而不是 CollectionView.ScrollTo(animate:true) —— 后者在 WinUI 3 上会被任何
-    ///    布局刷新打断；这里用自驱动的 ChangeView 实现丝滑跟随，且字号动画只动 2~3 行，
-    ///    不会把整列拉进重测量风暴，故滚动依旧稳。
+    /// 高亮指定行（颜色/透明度/红点分层），并缓动滚动到该行（当前行钉在离顶部 2 行处）。
+    /// 滚动 = 整体平移 WinLyricStack.TranslationY（合成线程变换，不重排），故丝滑无跳动——
+    /// 这正是 BetterLyrics 用 Canvas + ScrollOffset tween 达成的效果，这里用 MAUI 等价实现。
+    /// 行本身同字号、不缩放，只有颜色/红点随平滑上移变化。
     /// </summary>
     private void HighlightWindowsLine(int index)
     {
-        if (index < 0 || index >= _winLyricItems.Count) return;
+        if (index < 0 || index >= _winRows.Count) return;
 
-        var baseSize = _settings.FontSize;
-
-        // 捕获每行颜色旧值，供后续交叉淡入；字号单独做 grow/shrink 动画。
-        // 优化：仅把"颜色/透明度确实变化"的行加入动画列表，避免每帧无谓刷新全部 24 行
-        // （这正是之前卡帧的主因——24 行 × 4 个属性每帧重绑，UI 线程被压到远低于 60fps）。
-        var states = new List<(LyricLineViewModel Vm,
-            Color FromMain, Color ToMain, double FromMainOp, double ToMainOp,
-            Color FromTrans, Color ToTrans)>();
-        for (int i = 0; i < _winLyricItems.Count; i++)
-        {
-            var vm = _winLyricItems[i];
-            var (size, color, opacity, blur) = GetWinLyricTier(i, index, baseSize);
-
-            // 行距：关键三行（已唱上一行 / 当前 / 未唱下一行）瞬时加大，不做动画以免布局抖动
-            vm.RowPadding = WinLyricRowPadding(i, index);
-
-            if (!LyricLineViewModel.SameColor(vm.MainColor, color) || !LyricLineViewModel.NearlyEqual(vm.MainOpacity, opacity)
-                || !LyricLineViewModel.SameColor(vm.TransColor, color))
-            {
-                states.Add((vm, vm.MainColor, color, vm.MainOpacity, opacity,
-                    vm.TransColor, color));
-            }
-
-            vm.MainFontAttributes = FontAttributes.Bold;   // 所有行加粗
-
-            // 模糊半径：变化明显（相邻3 → 当前0，或 当前0 → 已唱6）时做缓动过渡，
-            // 避免"啪"地变清晰/变糊造成当前行像闪现出来。
-            var fromBlur = vm.Blur;
-            if (Math.Abs(fromBlur - blur) < 0.15)
-                vm.Blur = blur;
-            else
-                AnimateWinLyricBlur(i, fromBlur, blur);
-            vm.IsCurrent = i == index;
-
-            // 字号：变化明显的那几行（上一当前→已唱、下一未唱→当前）做 grow/shrink 动画；
-            // 几乎不变的直接落位，省去无谓的重测量。
-            var fromSize = vm.MainFontSize;
-            if (Math.Abs(fromSize - size) < 0.5)
-            {
-                vm.MainFontSize = size;
-                vm.TransFontSize = Math.Max(10, size - 4);
-            }
-            else
-            {
-                AnimateWinLyricSize(i, fromSize, size);
-            }
-        }
+        for (int i = 0; i < _winRows.Count; i++)
+            ApplyWinLyricTierInstant(i, index);
         _winLastHighlight = index;
 
-        // 颜色 / 透明度 交叉淡入：只动真正变化的那几行（layout 无关，安全逐帧）。
-        // 帧间隔 WinLyricFrameMs(8ms≈125fps)，高刷屏上更顺滑；每帧只动 3~5 行，开销极低。
-        this.AbortAnimation("WinLyricColor");
-        var colorAnim = new Animation(t =>
-        {
-            foreach (var s in states)
-            {
-                s.Vm.MainColor = LerpColor(s.FromMain, s.ToMain, t);
-                s.Vm.MainOpacity = s.FromMainOp + (s.ToMainOp - s.FromMainOp) * t;
-                s.Vm.TransColor = LerpColor(s.FromTrans, s.ToTrans, t);
-                s.Vm.TransOpacity = s.ToMainOp * 0.88;
-            }
-        }, 0, 1, Easing.CubicInOut);
-        colorAnim.Commit(this, "WinLyricColor", length: WinLyricGrowMs, rate: WinLyricFrameMs);
-
-        WinLog($"Highlight idx={index}/{_winLyricItems.Count} follow={_winFollow}");
-        ScrollToWindowsLine(index);
-    }
-
-    /// <summary>对某一行字号做 ~480ms 缓动 grow/shrink（CubicInOut，慢起慢收），
-    /// 配合"已唱缩小 / 未唱放大"的层次过渡，让新当前行在随滚动上移的过程中"缓缓长大"。
-    /// 只动这一行的两个字号属性，且 setter 值比较去重，避免连锁重测量拖慢滚动。</summary>
-    private void AnimateWinLyricSize(int i, double fromSize, double toSize)
-    {
-        var vm = _winLyricItems[i];
-        var fromTrans = vm.TransFontSize;
-        var toTrans = Math.Max(10, toSize - 4);
-        var key = $"WinLyricSize{i}";
-        this.AbortAnimation(key);
-        new Animation(t =>
-        {
-            vm.MainFontSize = fromSize + (toSize - fromSize) * t;
-            vm.TransFontSize = fromTrans + (toTrans - fromTrans) * t;
-        }, 0, 1, Easing.CubicInOut).Commit(this, key, length: WinLyricGrowMs, rate: WinLyricFrameMs);
-    }
-
-    /// <summary>对某一行的高斯模糊半径做 ~480ms 缓动过渡（CubicInOut，慢起慢收）。
-    /// 之前模糊是"<b>瞬时</b>"设置的——一行从相邻(blur 3)变成当前(blur 0)时会在一帧内"啪"地变清晰，
-    /// 视觉上就像当前行"闪现"；后来改为逐帧重建 Win2D 模糊层，但每帧重建整张 CompositionVisualSurface
-    /// 会重新捕获文字视觉树，导致闪烁/卡顿，"变清晰"仍像跳变。现在模糊层（surface+sprite）跨帧复用，
-    /// 只重建轻量的模糊 effect/brush，故此处 480ms 的缓动能平滑呈现"缓缓变清晰 / 缓缓变糊"。</summary>
-    private void AnimateWinLyricBlur(int i, double fromBlur, double toBlur)
-    {
-        var vm = _winLyricItems[i];
-        var key = $"WinLyricBlur{i}";
-        this.AbortAnimation(key);
-        new Animation(t => vm.Blur = fromBlur + (toBlur - fromBlur) * t, 0, 1, Easing.CubicInOut)
-            .Commit(this, key, length: WinLyricGrowMs, rate: WinLyricFrameMs);
-    }
-
-    /// <summary>两个 MAUI Color 之间线性插值（t∈[0,1]）。</summary>
-    private static Color LerpColor(Color a, Color b, double t)
-    {
-        t = t < 0 ? 0 : t > 1 ? 1 : t;
-        return Color.FromRgba(
-            a.Red + (b.Red - a.Red) * t,
-            a.Green + (b.Green - a.Green) * t,
-            a.Blue + (b.Blue - a.Blue) * t,
-            a.Alpha + (b.Alpha - a.Alpha) * t);
+        ScrollToWindowsLine(index, animate: true);
+        WinLog($"Highlight idx={index}/{_winRows.Count} follow={_winFollow}");
     }
 
     /// <summary>
-    /// 按与当前行的"方向 + 距离"返回层次样式（已唱缩小 / 未唱放大，当前行为峰值）。
-    ///
-    /// - 当前行 (i==index)：最大、清晰、白、加粗。
-    /// - 未唱行 (i&gt;index，未来)：比已唱明显大、接近当前，颜色偏亮；越靠下略减。
-    /// - 已唱行 (i&lt;index，过去)：明显缩小、颜色转冷灰、模糊更强；越往上越小越糊。
-    ///
-    /// 行在"未唱→当前→已唱"推进时，字号先增大后减小，配合 <see cref="AnimateWinLyricSize"/>
-    /// 的缓出动画形成自然的 grow/shrink 呼吸感。
+    /// 按与当前行的"方向 + 距离"返回层次（颜色 + 透明度）。参考图风格：所有行**同字号**，
+    /// 层次全靠颜色/红点表达。
+    /// - 当前行：白、不透明、红点。
+    /// - 未唱行：偏亮灰，略降透明度（越远越暗）。
+    /// - 已唱行：偏冷灰，更暗（越远越暗）。
     /// </summary>
-    private static (double Size, Color Color, double Opacity, double Blur) GetWinLyricTier(
-        int i, int index, double baseSize)
+    private static (Color Color, double Opacity) GetWinLyricTier(int i, int index)
     {
         if (i == index)
-            return (baseSize * 1.5, WinLyricCurrentColor, 1.0, 0.0);   // 当前：峰值、比基础大 50%、清晰、白
+            return (WinLyricCurrentColor, 1.0);
 
-        if (i < index) // 已唱（过去）：明显缩小 + 渐隐 + 渐糊，越往上越小越糊
+        if (i < index) // 已唱（过去）
         {
             var d = index - i;
-            var size = d switch
-            {
-                1 => baseSize * 0.66,
-                2 => baseSize * 0.60,
-                _ => baseSize * 0.54,
-            };
-            return (Math.Max(12, size), WinLyricFarColor, d <= 2 ? 0.55 : 0.42, d <= 1 ? 6.0 : 9.0);
+            return (WinLyricFarColor, d == 1 ? 0.55 : 0.40);
         }
-        else // 未唱（未来）：比已唱明显大、接近当前，但明显比当前小且带模糊 → 升为当前时"长大+变清晰"落差更猛
+        else // 未唱（未来）
         {
             var d = i - index;
-            var size = d switch
-            {
-                1 => baseSize * 0.82,
-                2 => baseSize * 0.78,
-                _ => baseSize * 0.74,
-            };
-            return (Math.Max(13, size), WinLyricNearColor, d <= 2 ? 0.82 : 0.65, d <= 1 ? 4.0 : 7.0);
+            return (WinLyricNearColor, d == 1 ? 0.80 : 0.65);
         }
     }
 
-    /// <summary>无动画地把某一行落到它应有的层次样式（setter 内部已做值比较，重复调用无开销）。</summary>
-    private void ApplyWinLyricTierInstant(int i, int index, double baseSize)
+    /// <summary>把第 i 行落到它应有的层次（颜色/透明度/红点）。不触发布局、不做动画。</summary>
+    private void ApplyWinLyricTierInstant(int i, int index)
     {
-        var item = _winLyricItems[i];
-        var (size, color, opacity, blur) = GetWinLyricTier(i, index, baseSize);
+        var row = _winRows[i];
+        var (color, opacity) = GetWinLyricTier(i, index);
 
-        item.IsCurrent = i == index;
-        item.MainFontAttributes = FontAttributes.Bold;   // 所有行加粗
-        item.MainFontSize = size;
-        item.MainColor = color;
-        item.MainOpacity = opacity;
-        item.TransFontSize = Math.Max(10, size - 4);
-        item.TransColor = color;
-        item.TransOpacity = opacity * 0.88;
-        item.Blur = blur;                                // 高斯模糊半径（DP），由 LyricBlurEffect 消费
-        item.RowPadding = WinLyricRowPadding(i, index);  // 关键三行加大行距
+        row.Main.TextColor = color;
+        row.Main.Opacity = opacity;
+        row.Trans.TextColor = color;
+        row.Trans.Opacity = opacity * 0.8;
+        row.Dot.IsVisible = i == index;
     }
 
-    /// <summary>
-    /// 平滑滚动到指定行。
-    ///
-    /// 做法：拿到 CollectionView 内原生 ScrollViewer，用自驱动的 <c>ChangeView</c> + 缓出曲线
-    /// 把 VerticalOffset 从当前位置插值到"目标行固定在从上往下第 3 行"的位置（~320ms）。相比
-    /// <c>CollectionView.ScrollTo(animate:true)</c>，它不受布局刷新打断，丝滑且可控。
-    /// 第 3 行意味着当前行上方始终留出 2 行（index-1、index-2）的高度，这样当前行视觉上钉在
-    /// 列表偏上位置，而非垂直居中——更接近主流播放器歌词页的观感。
-    ///
-    /// 离屏项的 ItemContainer 尚未生成时 <c>ContainerFromIndex</c> 返回 null，先瞬时定位逼出容器，
-    /// 下一帧再补平滑滚动。
-    /// </summary>
-    private void ScrollToWindowsLine(int index)
+    // ═══════════════════════════════════════
+    // 滚动：整体平移 WinLyricStack.TranslationY（合成线程变换，不重排）
+    // ═══════════════════════════════════════
+
+    /// <summary>把歌词瞬时/缓动钉到指定行：当前行固定在离顶部 2 行高度处（从上往下第 3 行）。
+    /// 滚动实现 = 平移 WinLyricStack.TranslationY（合成线程变换，不重排）→ 丝滑无跳动，
+    /// 等价于 BetterLyrics 的 ScrollOffset tween。animate=true 时 380ms CubicInOut 缓动上移一格。</summary>
+    private void ScrollToWindowsLine(int index, bool animate)
     {
-        if (index < 0 || index >= _winLyricItems.Count) return;
-        if (WinLyricsList.ItemsSource == null) return;
+        if (index < 0 || index >= _winRows.Count) return;
+        if (_winRowTops.Length != _winRows.Count) return;
 
-        var sv = GetInnerScrollViewer();
-        var lv = WinLyricsList.Handler?.PlatformView as WinListViewBase;
-        var container = lv?.ContainerFromIndex(index) as WinFrameworkElement;
+        _winClipHeight = WinLyricClip.Bounds.Height; // 实时读，兼容窗口尺寸变化
 
-        // 容器未就绪（首次进入 / 离屏）：瞬时定位逼出容器，稍后补平滑滚动
-        if (sv == null || container == null)
-        {
-            try
-            {
-                _winLastAutoScrollAt = DateTime.UtcNow;
-                _winExpectScrollUntil = DateTime.UtcNow.AddMilliseconds(1000);
-                WinLyricsList.ScrollTo(index, position: ScrollToPosition.Center, animate: false);
-                WinLog($"ScrollTo[realize] idx={index}/{_winLyricItems.Count}");
-            }
-            catch (Exception ex)
-            {
-                WinLog($"ScrollTo[realize] FAILED idx={index}: {ex.Message}");
-            }
+        // 当前行顶部要落在离裁剪区顶部 2 行高度的位置；前几行（idx&lt;2）不往下滚，钉在顶部。
+        double topGap = 2 * (_winRowHeight > 0 ? _winRowHeight : 1);
+        double targetY = topGap - _winRowTops[index];
+        targetY = Math.Min(0, targetY); // 不允许向上越过开头（出现上方空白）
 
-            _ = Task.Delay(70).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
-            {
-                if (WinLyricsList.ItemsSource != null && index < _winLyricItems.Count
-                    && index >= 2) // 第 3 行以下才有完整 2 行做落脚，否则直接落 top
-                {
-                    ScrollToWindowsLine(index);
-                }
-                else
-                {
-                    // 顶部几行：没有 2 行可垫，直接瞬时顶到列表开头即可
-                    try
-                    {
-                        _winLastAutoScrollAt = DateTime.UtcNow;
-                        _winExpectScrollUntil = DateTime.UtcNow.AddMilliseconds(1000);
-                        WinLyricsList.ScrollTo(0, position: ScrollToPosition.Start, animate: false);
-                    }
-                    catch { }
-                }
-            }));
-            return;
-        }
+        // 底部夹紧：歌词较短时不能滚过最后一行（下方留白）。
+        double maxTranslate = (_winClipHeight > 0 && _winStackHeight > _winClipHeight)
+            ? _winClipHeight - _winStackHeight   // 负值
+            : 0;
+        targetY = Math.Clamp(targetY, maxTranslate, 0);
 
-        // 强制布局更新：刚被我们改成新字号的容器要让 ActualHeight/位置立即生效，
-        // 否则算出的目标偏移会基于旧高度，丝滑滚到位时实际已偏离目标行。
-        try { container.UpdateLayout(); } catch { }
-        try { sv.UpdateLayout(); } catch { }
+        WinLyricStack.CancelAnimations();
+        if (animate)
+            WinLyricStack.TranslateTo(0, targetY, 380, Easing.CubicInOut);
+        else
+            WinLyricStack.TranslationY = targetY;
 
-        // 计算目标偏移：把当前行钉在"从上往下第 3 行"——即它上方留出 2 行（index-1、index-2）的高度。
-        // 上面两行若已实体化就用其真实高度，否则用当前行高度兜底估算，保证位置稳定不跳。
-        double topGap = 0;
-        for (int k = 1; k <= 2; k++)
-        {
-            int above = index - k;
-            if (above < 0) break;
-            var aboveC = lv?.ContainerFromIndex(above) as WinFrameworkElement;
-            var aboveH = aboveC?.ActualHeight ?? container.ActualHeight;
-            topGap += aboveH;
-        }
-
-        var itemTopInViewport = container.TransformToVisual(sv)
-            .TransformPoint(new global::Windows.Foundation.Point(0, 0)).Y;
-        var targetOffset = sv.VerticalOffset + itemTopInViewport - topGap;
-        targetOffset = Math.Clamp(targetOffset, 0, sv.ScrollableHeight);
-
-        WinLog($"ScrollTo[anim] idx={index}/{_winLyricItems.Count} " +
-               $"from={sv.VerticalOffset:F1} to={targetOffset:F1} topGap={topGap:F1}");
-        AnimateScrollTo(targetOffset);
+        WinLog($"Scroll idx={index} targetY={targetY:F1} topGap={topGap:F1}");
     }
 
-    /// <summary>
-    /// 平滑滚动到 target。
-    ///
-    /// 关键：不再用 MAUI 的 <c>Animation</c> 每帧在 UI 线程调用 <c>ChangeView</c> 做插值——
-    /// 那种做法帧数受 UI 线程负载拖累，容易掉帧、看起来"帧数低"。
-    /// 改为调用 <c>ChangeView(..., disableAnimation:false)</c>，把平滑滚动交给 WinUI 在
-    /// **合成线程（compositor）**上完成，帧率直接等于显示器刷新率（60/120/144Hz），
-    /// 与 UI 线程解耦，运动明显更顺滑、帧数更高。
-    /// 用 <c>ViewChanged</c> 的 <c>IsIntermediate</c> 判断动画结束，期间持续刷新时间戳，
-    /// 避免被 <c>OnWinLyricsScrolled</c> 误判为"用户手动滚动"而退出跟随。
-    /// </summary>
-    private void AnimateScrollTo(double target)
+    /// <summary>布局完成后实测各行顶 Y、行高、整体高度、裁剪区高度，供滚动夹紧与锚点计算。</summary>
+    private void MeasureWinRows()
     {
-        var sv = GetInnerScrollViewer();
-        if (sv == null) return;
-
-        var from = sv.VerticalOffset;
-        if (Math.Abs(target - from) < 0.5)
+        if (_winRows.Count == 0) return;
+        _winRowTops = new double[_winRows.Count];
+        double y = 0;
+        for (int i = 0; i < _winRows.Count; i++)
         {
-            _winLastAutoScrollAt = DateTime.UtcNow;
-            _winExpectScrollUntil = DateTime.UtcNow.AddMilliseconds(1000);
-            return;
+            var bounds = _winRows[i].Container.Bounds;
+            _winRowTops[i] = bounds.Y;            // 子元素在 stack 坐标系内的顶部 Y
+            var h = bounds.Height;
+            if (h <= 0) h = _winRowHeight > 0 ? _winRowHeight : 40;
+            y += h;
         }
-
-        _winProgramScrolling = true;
-        _winLastAutoScrollAt = DateTime.UtcNow;
-        _winExpectScrollUntil = DateTime.UtcNow.AddMilliseconds(1000);
-
-        void OnViewChanged(object? s, WinScrollViewerViewChangedEventArgs e)
-        {
-            _winLastAutoScrollAt = DateTime.UtcNow;
-            _winExpectScrollUntil = DateTime.UtcNow.AddMilliseconds(1000);
-            if (!e.IsIntermediate) // 平滑滚动已结束
-            {
-                if (sv != null) sv.ViewChanged -= OnViewChanged;
-                _winProgramScrolling = false;
-            }
-        }
-        sv.ViewChanged += OnViewChanged;
-
-        // disableAnimation:false —— 由 WinUI 在合成线程上做缓出平滑滚动
-        sv.ChangeView(null, target, null, disableAnimation: false);
+        _winStackHeight = y;
+        _winRowHeight = _winRows.Count > 0 ? y / _winRows.Count : 0;
+        _winClipHeight = WinLyricClip.Bounds.Height;
+        WinLog($"Measure: rows={_winRows.Count} rowH={_winRowHeight:F1} stackH={_winStackHeight:F1} clipH={_winClipHeight:F1}");
     }
 
-    /// <summary>拿到 CollectionView 内层的原生 ScrollViewer（用于手动平滑滚动）。</summary>
-    private WinScrollViewer? GetInnerScrollViewer()
+    // ═══════════════════════════════════════
+    // 手动拖拽（用户拖动歌词 → 退出跟随、自由浏览）
+    // ═══════════════════════════════════════
+
+    /// <summary>给歌词裁剪区挂一个平移手势：用户拖动即退出跟随、手动浏览歌词。</summary>
+    private void WireWinLyricPanGesture()
     {
-        if (WinLyricsList.Handler?.PlatformView is not WinListViewBase lv) return null;
-        return FindVisualChild<WinScrollViewer>(lv);
+        if (_winPanWired) return;
+        _winPanWired = true;
+        var pan = new PanGestureRecognizer();
+        pan.PanUpdated += OnWinLyricPan;
+        WinLyricClip.GestureRecognizers.Add(pan);
     }
 
-    private static T? FindVisualChild<T>(WinDependencyObject? parent) where T : WinDependencyObject
+    private void OnWinLyricPan(object? sender, PanUpdatedEventArgs e)
     {
-        if (parent == null) return null;
-        var count = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
+        if (e.StatusType == GestureStatus.Started)
         {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T t) return t;
-            var found = FindVisualChild<T>(child);
-            if (found != null) return found;
+            WinLyricStack.CancelAnimations();
+            _winPanStartY = WinLyricStack.TranslationY;
+            if (_winFollow) SetWinFollow(false); // 拖动即退出跟随
         }
-        return null;
+        else if (e.StatusType == GestureStatus.Running)
+        {
+            double maxTranslate = (_winClipHeight > 0 && _winStackHeight > _winClipHeight)
+                ? _winClipHeight - _winStackHeight : 0;
+            var y = Math.Clamp(_winPanStartY + e.TotalY, maxTranslate, 0);
+            WinLyricStack.TranslationY = y;
+        }
     }
 
     private static void WinLog(string msg)
@@ -735,7 +577,7 @@ public partial class NowPlayingPage
     private void OnWinFollowTapped(object? sender, TappedEventArgs e)
         => SetWinFollow(!_winFollow);
 
-    /// <summary>切换歌词跟随模式，并同步按钮外观；重新开启时立即回到当前行。</summary>
+    /// <summary>切换歌词跟随模式，并同步按钮外观；重新开启时立即缓动回到当前行。</summary>
     private void SetWinFollow(bool follow)
     {
         if (_winFollow == follow) return;
@@ -746,22 +588,13 @@ public partial class NowPlayingPage
             ? (Color)Application.Current!.Resources["PrimaryColor"]
             : Color.FromArgb("#10FFFFFF");
 
-        if (follow && _winLyricItems.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
+        // 当前行滚动 = WinLyricStack.TranslationY 缓动平移（合成线程变换，不重排）。
+        // 重新跟随时从当前位移 tween 回当前行，无跳动。不再需要旧 CollectionView 的自动滚动定时器。
+        if (follow && _winRows.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
+        {
             HighlightWindowsLine(_viewModel.CurrentLyricIndexObservable);
-    }
-
-    /// <summary>
-    /// 用户手动拖动歌词列表 → 自动退出跟随模式。
-    /// 程序自身发起的 ScrollTo 也会触发 Scrolled，用时间窗口把它过滤掉。
-    /// </summary>
-    private void OnWinLyricsScrolled(object? sender, ItemsViewScrolledEventArgs e)
-    {
-        if (!_winFollow) return;
-        if (_winProgramScrolling) return; // 程序平滑滚动进行中，忽略自身产生的滚动事件
-        // 屏蔽程序滚动收尾阶段的尾随 Scrolled（见 _winExpectScrollUntil 注释），
-        // 否则会把 _winFollow 误关，导致后续切句不再滚动。只有超出免疫窗口的滚动才视为用户手动拖动。
-        if (DateTime.UtcNow < _winExpectScrollUntil) return;
-        SetWinFollow(false);
+        }
+        // follow=false 时无需停任何定时器（平移由手势直接驱动，跟随由切句时 HighlightWindowsLine 驱动）。
     }
 
     // ═══════════════════════════════════════
