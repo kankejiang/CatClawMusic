@@ -194,8 +194,10 @@ public partial class NowPlayingPage
             {
                 // 当前行主文本会 Scale 到 1.5，向上下各溢出约半个字高；
                 // padding/RowSpacing 预留缓冲，避免放大后压到相邻行与本行译文。
-                Padding = new Thickness(0, 15, 0, 15),
-                RowSpacing = 6,
+                // 注：用户反馈"行距太大"已收紧——上下 7px + RowSpacing 3px 合计 17px
+                // （原 15+6+15=36px），仍给当前行 Scale=1.5 留 7px 上下缓冲。
+                Padding = new Thickness(0, 7, 0, 7),
+                RowSpacing = 3,
                 ColumnDefinitions = new ColumnDefinitionCollection
                 {
                     new ColumnDefinition { Width = GridLength.Star },

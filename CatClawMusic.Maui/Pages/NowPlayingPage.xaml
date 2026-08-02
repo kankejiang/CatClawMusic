@@ -822,8 +822,8 @@
                     </Grid>
 
                     <!-- 右：歌词列 -->
-                    <Grid x:Name="WinLyricColumn" Grid.Column="1" RowDefinitions="Auto,*" Padding="8,26,44,16">
-                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="0,0,24,12">
+                    <Grid x:Name="WinLyricColumn" Grid.Column="1" RowDefinitions="Auto,*" Padding="8,12,44,8">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Padding="0,0,24,4">
                             <HorizontalStackLayout Spacing="9" VerticalOptions="Center">
                                 <Ellipse WidthRequest="7" HeightRequest="7" Fill="#55D6FF" VerticalOptions="Center">
                                     <Ellipse.Shadow>
