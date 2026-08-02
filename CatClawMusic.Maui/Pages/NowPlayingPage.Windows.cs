@@ -34,6 +34,7 @@ public partial class NowPlayingPage
     private bool _winPanWired;
     private double _winPanStartY;
     private double _winLastScrollHeight;   // 兼容字段（已被静态堆叠实测高度替代，无读取方）
+    private int _winMeasureRetries;        // 行高测量重试计数（布局未就绪时补偿）
 
     /// <summary>一行歌词的视图引用（代码构建，非绑定）。</summary>
     private sealed class WinLyricRow
@@ -247,12 +248,15 @@ public partial class NowPlayingPage
         var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
         HighlightWindowsLineWithoutScroll(idx);
 
-        // 布局完成后实测行高 + 各行顶 Y，再一次性钉到当前行
+        // 布局完成后实测行高 + 各行顶 Y，再一次性钉到当前行。
+        // ForceLayout 强制同步布局，避免 Bounds 未就绪导致所有行顶算成 0（整列不滚）。
         _winRowHeight = 0;
-        _ = Task.Delay(80).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+        _winMeasureRetries = 0;
+        _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
         {
             MeasureWinRows();
-            ScrollToWindowsLine(idx, animate: false);
+            if (_winFollow && _viewModel.CurrentLyricIndexObservable >= 0)
+                ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable, animate: false);
         }));
 
         WinLog($"Build done: sourceLines={lines.Count} rows={_winRows.Count} baseSize={baseSize}");
@@ -356,24 +360,43 @@ public partial class NowPlayingPage
         WinLog($"Scroll idx={index} targetY={targetY:F1} topGap={topGap:F1}");
     }
 
-    /// <summary>布局完成后实测各行顶 Y、行高、整体高度、裁剪区高度，供滚动夹紧与锚点计算。</summary>
+    /// <summary>
+    /// 实测各行顶部 Y（由实测行高累加，不依赖 Bounds.Y 的布局时机，避免未就绪时全 0 → 整列不滚）、
+    /// 行高、整体高度、裁剪区高度，供滚动夹紧与锚点计算。行高未就绪（布局未跑完）时自动重试。
+    /// </summary>
     private void MeasureWinRows()
     {
         if (_winRows.Count == 0) return;
+        _winClipHeight = WinLyricClip.Bounds.Height;
         _winRowTops = new double[_winRows.Count];
         double y = 0;
+        bool needsRetry = false;
         for (int i = 0; i < _winRows.Count; i++)
         {
-            var bounds = _winRows[i].Container.Bounds;
-            _winRowTops[i] = bounds.Y;            // 子元素在 stack 坐标系内的顶部 Y
-            var h = bounds.Height;
-            if (h <= 0) h = _winRowHeight > 0 ? _winRowHeight : 40;
+            _winRowTops[i] = y;                 // 由前序行高累加（关键：不读 Bounds.Y，规避时机问题）
+            var h = _winRows[i].Container.Bounds.Height;
+            if (h <= 0.5)
+            {
+                h = _winRowHeight > 0 ? _winRowHeight : 40;   // 未就绪时先用回退值，重试会校正
+                needsRetry = true;
+            }
             y += h;
         }
         _winStackHeight = y;
         _winRowHeight = _winRows.Count > 0 ? y / _winRows.Count : 0;
-        _winClipHeight = WinLyricClip.Bounds.Height;
-        WinLog($"Measure: rows={_winRows.Count} rowH={_winRowHeight:F1} stackH={_winStackHeight:F1} clipH={_winClipHeight:F1}");
+
+        WinLog($"Measure: rows={_winRows.Count} rowH={_winRowHeight:F1} stackH={_winStackHeight:F1} clipH={_winClipHeight:F1} retry={_winMeasureRetries}");
+
+        if (needsRetry && _winMeasureRetries < 6)
+        {
+            _winMeasureRetries++;
+            _ = Task.Delay(120).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                MeasureWinRows();
+                if (_winFollow && _viewModel.CurrentLyricIndexObservable >= 0)
+                    ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable, animate: false);
+            }));
+        }
     }
 
     // ═══════════════════════════════════════
