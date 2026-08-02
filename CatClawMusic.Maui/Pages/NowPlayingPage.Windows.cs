@@ -156,7 +156,8 @@ public partial class NowPlayingPage
     // 歌词层次配色（参考设计稿：纯白当前 + 冷灰递进，避免品牌色干扰阅读）
     private static readonly Color WinLyricCurrentColor = Colors.White;                  // 当前行
     private static readonly Color WinLyricNearColor = Color.FromArgb("#A8AAB0");      // 偏亮的中性灰(参考图未唱档)
-    private static readonly Color WinLyricFarColor = Color.FromArgb("#5A5C66");       // 偏冷的中性灰(参考图已唱档)
+    // 已唱档的冷灰：2026-08-02 按用户要求已停用（已唱与未唱同色），保留常量以便回退。
+    private static readonly Color WinLyricFarColor = Color.FromArgb("#5A5C66");
 
     // 滚动缓动时长（毫秒）：~380ms + CubicInOut，与 BetterLyrics 的 ScrollOffset tween 同量级，
     // 切句时整列平缓上移一格，丝滑无跳动。
@@ -259,7 +260,7 @@ public partial class NowPlayingPage
                 FontSize = baseSize,
                 FontFamily = "OpenSansRegular",
                 FontAttributes = FontAttributes.Bold,
-                TextColor = WinLyricFarColor,
+                TextColor = WinLyricNearColor,
                 LineBreakMode = LineBreakMode.WordWrap,
                 HorizontalOptions = LayoutOptions.Start,
                 VerticalOptions = LayoutOptions.Center,
@@ -275,7 +276,7 @@ public partial class NowPlayingPage
                 Text = line.Translation ?? string.Empty,
                 FontSize = transSize,
                 FontFamily = "OpenSansRegular",
-                TextColor = WinLyricFarColor,
+                TextColor = WinLyricNearColor,
                 Opacity = 0.85,
                 LineBreakMode = LineBreakMode.WordWrap,
                 HorizontalOptions = LayoutOptions.Start,
@@ -369,8 +370,8 @@ public partial class NowPlayingPage
     /// 层次全靠颜色/红点 + 整体毛玻璃背景表达（见 OnWindowsStageReady 中给 WinLyricClip
     /// 套的 AcrylicBrush）。"清晰度"差异由系统级毛玻璃统一提供，每行不单独做模糊。
     /// - 当前行：白、不透明、红点。
-    /// - 已唱行：偏冷灰（越远越暗），透出毛玻璃后看上去更"远"。
-    /// - 未唱行：偏亮灰（越远越暗），透出毛玻璃后看上去更"远"。
+    /// - 其余行（已唱 / 未唱一视同仁）：中性灰，仅按**距离**递减透明度，越远越暗。
+    ///   2026-08-02 按用户要求取消了已唱行的冷灰暗档，两侧完全对称。
     /// </summary>
     private static (Color Color, double Opacity) GetWinLyricTier(int i, int index)
     {
@@ -379,10 +380,8 @@ public partial class NowPlayingPage
 
         var d = Math.Abs(i - index);
 
-        if (i < index) // 已唱（过去）
-            return (WinLyricFarColor, d == 1 ? 0.55 : 0.40);
-
-        // 未唱（未来）
+        // 已唱与未唱**同色同透明度**（用户要求）：非当前行不再区分过去/未来，
+        // 焦点完全交给当前行的白色 + Scale 1.5 + 红点，两侧对称衬托。
         return (WinLyricNearColor, d == 1 ? 0.80 : 0.65);
     }
 
