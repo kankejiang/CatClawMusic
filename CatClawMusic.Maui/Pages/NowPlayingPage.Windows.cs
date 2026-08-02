@@ -202,7 +202,13 @@ public partial class NowPlayingPage
     /// ⚠ 若某版本 WinUI 行为有别，表现为"非当前行整片空白"——把此开关改为 false 即可回退到
     /// 带轻微重影但一定可见的模式。
     /// </summary>
-    private const bool WinLyricBlurHideSource = true;
+    /// <summary>
+    /// 模糊生效时是否把行容器自身 Opacity 设为 0（仅留模糊副本）。
+    /// .NET 10 MAUI 的 WinUI CompositionVisualSurface 在本环境会把 SourceVisual 自己的 Opacity 也算进采样，
+    /// 即便 SetBlurAmount&lt;0.01 也会"略微欠采"，导致非当前行整片消失。关闭后回归"清晰原文 + 模糊副本叠加"：
+    /// 笔画边缘有极轻微重影（模糊半径 ≤6.5 不明显），但所有行都可见。
+    /// </summary>
+    private const bool WinLyricBlurHideSource = false;
 
     /// <summary>构建 Windows 歌词：所有行一次性代码构建为 WinLyricStack 的子 Grid（自绘静态堆叠，非虚拟化）。</summary>
     private void BuildWindowsLyricViews()
