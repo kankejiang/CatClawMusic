@@ -850,7 +850,7 @@
                         <Grid x:Name="WinLyricClip" Grid.Row="1"
                               BackgroundColor="Transparent" IsClippedToBounds="True">
                             <VerticalStackLayout x:Name="WinLyricStack"
-                                                Spacing="0" HorizontalOptions="Start" VerticalOptions="Start" />
+                                                Spacing="0" HorizontalOptions="Fill" VerticalOptions="Start" />
                             <!-- 上下边缘渐隐遮罩：把歌词淡入背景，避免突兀切断 -->
                             <Grid IsClippedToBounds="True" InputTransparent="True" BackgroundColor="Transparent">
                                 <Grid.Background>

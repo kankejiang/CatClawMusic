@@ -160,6 +160,14 @@ public partial class NowPlayingPage
     // 滚动缓动时长（毫秒）：~380ms + CubicInOut，与 BetterLyrics 的 ScrollOffset tween 同量级，
     // 切句时整列平缓上移一格，丝滑无跳动。
 
+    /// <summary>当前行主文本放大倍率（视觉上字号 +50%）。
+    /// 用 Scale 渲染变换而非改 FontSize：Scale 不参与布局测量 → 行高恒定 → 滚动锚点稳定，
+    /// 若直接改 FontSize 会让当前行变高、整列重排，滚动必然出现跳动。</summary>
+    private const double WinLyricCurrentScale = 1.5;
+
+    /// <summary>当前行放大/缩回的缓动时长，与滚动 tween 同步，视觉上"缓缓长大"。</summary>
+    private const uint WinLyricScaleMs = 380;
+
     /// <summary>构建 Windows 歌词：所有行一次性代码构建为 WinLyricStack 的子 Grid（自绘静态堆叠，非虚拟化）。</summary>
     private void BuildWindowsLyricViews()
     {
@@ -184,7 +192,10 @@ public partial class NowPlayingPage
         {
             var row = new Grid
             {
-                Padding = new Thickness(0, 13, 0, 13),
+                // 当前行主文本会 Scale 到 1.5，向上下各溢出约半个字高；
+                // padding/RowSpacing 预留缓冲，避免放大后压到相邻行与本行译文。
+                Padding = new Thickness(0, 15, 0, 15),
+                RowSpacing = 6,
                 ColumnDefinitions = new ColumnDefinitionCollection
                 {
                     new ColumnDefinition { Width = GridLength.Star },
@@ -207,6 +218,9 @@ public partial class NowPlayingPage
                 LineBreakMode = LineBreakMode.WordWrap,
                 HorizontalOptions = LayoutOptions.Start,
                 VerticalOptions = LayoutOptions.Center,
+                // 以左边缘为缩放锚点，放大时向右生长而不是向左溢出屏幕外
+                AnchorX = 0,
+                AnchorY = 0.5,
             };
             Grid.SetRow(main, 0); Grid.SetColumn(main, 0);
 
@@ -275,15 +289,21 @@ public partial class NowPlayingPage
     /// 高亮指定行（颜色/透明度/红点分层），并缓动滚动到该行（当前行钉在离顶部 2 行处）。
     /// 滚动 = 整体平移 WinLyricStack.TranslationY（合成线程变换，不重排），故丝滑无跳动——
     /// 这正是 BetterLyrics 用 Canvas + ScrollOffset tween 达成的效果，这里用 MAUI 等价实现。
-    /// 行本身同字号、不缩放，只有颜色/红点随平滑上移变化。
+    /// 当前行主文本额外用 Scale 放大 50%（渲染变换，不改行高 → 不影响滚动锚点）。
     /// </summary>
     private void HighlightWindowsLine(int index)
     {
         if (index < 0 || index >= _winRows.Count) return;
 
+        var prev = _winLastHighlight;
         for (int i = 0; i < _winRows.Count; i++)
-            ApplyWinLyricTierInstant(i, index);
+            ApplyWinLyricTierInstant(i, index, setScale: i != index && i != prev);
         _winLastHighlight = index;
+
+        // 新当前行缓缓长大到 1.5，旧当前行缓缓缩回 1.0（与滚动同步的 380ms CubicInOut）
+        AnimateWinRowScale(index, WinLyricCurrentScale);
+        if (prev >= 0 && prev != index)
+            AnimateWinRowScale(prev, 1.0);
 
         ScrollToWindowsLine(index, animate: true);
         WinLog($"Highlight idx={index}/{_winRows.Count} follow={_winFollow}");
@@ -313,8 +333,9 @@ public partial class NowPlayingPage
         }
     }
 
-    /// <summary>把第 i 行落到它应有的层次（颜色/透明度/红点）。不触发布局、不做动画。</summary>
-    private void ApplyWinLyricTierInstant(int i, int index)
+    /// <summary>把第 i 行落到它应有的层次（颜色/透明度/红点/缩放）。不触发布局、不做动画。
+    /// <paramref name="setScale"/>=false 时跳过缩放，交给 <see cref="AnimateWinRowScale"/> 缓动处理。</summary>
+    private void ApplyWinLyricTierInstant(int i, int index, bool setScale = true)
     {
         var row = _winRows[i];
         var (color, opacity) = GetWinLyricTier(i, index);
@@ -324,6 +345,23 @@ public partial class NowPlayingPage
         row.Trans.TextColor = color;
         row.Trans.Opacity = opacity * 0.8;
         row.Dot.IsVisible = i == index;
+
+        if (setScale)
+        {
+            row.Main.CancelAnimations();
+            row.Main.Scale = i == index ? WinLyricCurrentScale : 1.0;
+        }
+    }
+
+    /// <summary>缓动把第 i 行主文本缩放到目标倍率（Scale 是渲染变换，不影响行高与滚动锚点）。</summary>
+    private void AnimateWinRowScale(int i, double target)
+    {
+        if (i < 0 || i >= _winRows.Count) return;
+        var main = _winRows[i].Main;
+        if (Math.Abs(main.Scale - target) < 0.01) return;
+
+        main.CancelAnimations();
+        _ = main.ScaleTo(target, WinLyricScaleMs, Easing.CubicInOut);
     }
 
     // ═══════════════════════════════════════
