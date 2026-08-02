@@ -175,6 +175,35 @@ public partial class NowPlayingPage
     /// <c>_winRowTops</c> 的"所有行等高"前提，滚动锚点失效并重新引入跳动。</summary>
     private const double WinLyricGapExtra = 6;
 
+    // ── 高斯模糊景深 ──────────────────────────────────────────
+    // 层次不再只靠颜色/透明度表达，而是叠加"清晰度"：当前行全清晰，越远越模糊。
+    // 好处正如需求所述——不必再纠结字号/字体差异，焦点天然落在当前行。
+
+    /// <summary>相邻行（距离 1）的模糊半径（DP）。</summary>
+    private const double WinLyricBlurNear = 2.5;
+
+    /// <summary>距离 2 行的模糊半径。</summary>
+    private const double WinLyricBlurMid = 4.5;
+
+    /// <summary>距离 ≥3 行的模糊半径（最远档，不再继续加深，避免糊成一团色块）。</summary>
+    private const double WinLyricBlurFar = 6.5;
+
+    /// <summary>
+    /// 模糊生效时是否隐藏"清晰原文"，只留模糊副本。
+    ///
+    /// 模糊层是一个叠在行容器**之上**的兄弟 SpriteVisual（见 LyricBlurPlatformEffect），
+    /// 原本清晰的文字仍在其下方，笔画边缘会透出来形成重影 → 远行看着"糊不彻底"。
+    /// 把行容器自身 Opacity 设为 0 即可只留模糊副本：
+    /// <c>CompositionVisualSurface</c> 捕获的是 SourceVisual 的**子树**，
+    /// SourceVisual 自身的 Offset/Opacity/Clip 不计入采样
+    /// （现有实现需手动 <c>_sprite.Offset = visual.Offset</c> 正是此证据），
+    /// 所以容器透明不会让模糊层一起消失。
+    ///
+    /// ⚠ 若某版本 WinUI 行为有别，表现为"非当前行整片空白"——把此开关改为 false 即可回退到
+    /// 带轻微重影但一定可见的模式。
+    /// </summary>
+    private const bool WinLyricBlurHideSource = true;
+
     /// <summary>构建 Windows 歌词：所有行一次性代码构建为 WinLyricStack 的子 Grid（自绘静态堆叠，非虚拟化）。</summary>
     private void BuildWindowsLyricViews()
     {
@@ -264,6 +293,10 @@ public partial class NowPlayingPage
             row.Children.Add(trans);
             row.Children.Add(dot);
 
+            // 整行（正文 + 译文）一起失焦：模糊挂在行容器上，而不是逐个 Label，
+            // 这样译文与正文的模糊程度一致，不会出现"正文糊了译文还清晰"的割裂。
+            row.Effects.Add(new CatClawMusic.Maui.Effects.LyricBlurEffect());
+
             WinLyricStack.Children.Add(row);
             _winRows.Add(new WinLyricRow { Container = row, Main = main, Trans = trans, Dot = dot });
         }
@@ -312,8 +345,12 @@ public partial class NowPlayingPage
 
         // 新当前行缓缓长大到 1.5，旧当前行缓缓缩回 1.0（与滚动同步的 380ms CubicInOut）
         AnimateWinRowScale(index, WinLyricCurrentScale);
+        AnimateWinRowBlur(index, 0);                       // 新当前行缓缓变清晰
         if (prev >= 0 && prev != index)
+        {
             AnimateWinRowScale(prev, 1.0);
+            AnimateWinRowBlur(prev, GetWinLyricTier(prev, index).Blur); // 旧当前行缓缓失焦
+        }
 
         // 当前行上下呼吸空间随之平滑迁移（同为 380ms，与放大/滚动三者同步）
         ApplyWinRowGap(index, animate: true);
@@ -329,21 +366,21 @@ public partial class NowPlayingPage
     /// - 未唱行：偏亮灰，略降透明度（越远越暗）。
     /// - 已唱行：偏冷灰，更暗（越远越暗）。
     /// </summary>
-    private static (Color Color, double Opacity) GetWinLyricTier(int i, int index)
+    private static (Color Color, double Opacity, double Blur) GetWinLyricTier(int i, int index)
     {
         if (i == index)
-            return (WinLyricCurrentColor, 1.0);
+            return (WinLyricCurrentColor, 1.0, 0);
+
+        var d = Math.Abs(i - index);
+        var blur = d == 1 ? WinLyricBlurNear
+                 : d == 2 ? WinLyricBlurMid
+                 : WinLyricBlurFar;
 
         if (i < index) // 已唱（过去）
-        {
-            var d = index - i;
-            return (WinLyricFarColor, d == 1 ? 0.55 : 0.40);
-        }
-        else // 未唱（未来）
-        {
-            var d = i - index;
-            return (WinLyricNearColor, d == 1 ? 0.80 : 0.65);
-        }
+            return (WinLyricFarColor, d == 1 ? 0.55 : 0.40, blur);
+
+        // 未唱（未来）
+        return (WinLyricNearColor, d == 1 ? 0.80 : 0.65, blur);
     }
 
     /// <summary>把第 i 行落到它应有的层次（颜色/透明度/红点/缩放）。不触发布局、不做动画。
@@ -351,7 +388,7 @@ public partial class NowPlayingPage
     private void ApplyWinLyricTierInstant(int i, int index, bool setScale = true)
     {
         var row = _winRows[i];
-        var (color, opacity) = GetWinLyricTier(i, index);
+        var (color, opacity, blur) = GetWinLyricTier(i, index);
 
         row.Main.TextColor = color;
         row.Main.Opacity = opacity;
@@ -361,8 +398,48 @@ public partial class NowPlayingPage
 
         if (setScale)
         {
-            row.Main.CancelAnimations();
+            row.Main.AbortAnimation("ScaleTo");
             row.Main.Scale = i == index ? WinLyricCurrentScale : 1.0;
+            SetWinRowBlurInstant(i, blur);
+        }
+    }
+
+    /// <summary>瞬时把第 i 行的模糊落位（含"隐藏清晰原文"的容器透明度）。</summary>
+    private void SetWinRowBlurInstant(int i, double blur)
+    {
+        var container = _winRows[i].Container;
+        container.AbortAnimation(WinBlurAnimName);
+        container.AbortAnimation("FadeTo");
+
+        CatClawMusic.Maui.Effects.LyricBlurEffect.SetBlurAmount(container, blur);
+        if (WinLyricBlurHideSource)
+            container.Opacity = blur > 0.01 ? 0 : 1;
+    }
+
+    /// <summary>模糊过渡动画的名字，用于精确取消（不能用 CancelAnimations——会连带掐断缩放/行距动画）。</summary>
+    private const string WinBlurAnimName = "WinLyricBlur";
+
+    /// <summary>
+    /// 缓动把第 i 行的模糊过渡到目标半径，与放大/行距/滚动同为 380ms CubicInOut，
+    /// 视觉上"新当前行缓缓变清晰、旧当前行缓缓失焦"。
+    /// 同步淡入/淡出清晰原文层（见 <see cref="WinLyricBlurHideSource"/>），二者交叉淡化。
+    /// </summary>
+    private void AnimateWinRowBlur(int i, double target)
+    {
+        if (i < 0 || i >= _winRows.Count) return;
+        var container = _winRows[i].Container;
+
+        var from = CatClawMusic.Maui.Effects.LyricBlurEffect.GetBlurAmount(container);
+        if (Math.Abs(from - target) < 0.05) return;
+
+        container.AbortAnimation(WinBlurAnimName);
+        new Animation(v => CatClawMusic.Maui.Effects.LyricBlurEffect.SetBlurAmount(container, v), from, target)
+            .Commit(container, WinBlurAnimName, 16, WinLyricScaleMs, Easing.CubicInOut);
+
+        if (WinLyricBlurHideSource)
+        {
+            container.AbortAnimation("FadeTo");
+            _ = container.FadeTo(target > 0.01 ? 0 : 1, WinLyricScaleMs, Easing.CubicInOut);
         }
     }
 
@@ -373,7 +450,7 @@ public partial class NowPlayingPage
         var main = _winRows[i].Main;
         if (Math.Abs(main.Scale - target) < 0.01) return;
 
-        main.CancelAnimations();
+        main.AbortAnimation("ScaleTo");
         _ = main.ScaleTo(target, WinLyricScaleMs, Easing.CubicInOut);
     }
 
@@ -396,7 +473,8 @@ public partial class NowPlayingPage
             var container = _winRows[i].Container;
             if (Math.Abs(container.TranslationY - target) < 0.5) continue;
 
-            container.CancelAnimations();
+            // 精确取消：容器上同时跑着模糊过渡与原文淡入淡出，CancelAnimations 会把它们一起掐断
+            container.AbortAnimation("TranslateTo");
             if (animate)
                 _ = container.TranslateTo(0, target, WinLyricScaleMs, Easing.CubicInOut);
             else

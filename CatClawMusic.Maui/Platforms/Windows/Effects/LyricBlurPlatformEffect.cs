@@ -32,6 +32,9 @@ public class LyricBlurPlatformEffect : PlatformEffect
     private SpriteVisual? _sprite;
     private CompositionVisualSurface? _surface;
     private CompositionSurfaceBrush? _surfaceBrush;
+    // 模糊画刷同样跨帧复用：BlurAmount 注册为可动画参数，逐帧只写标量，
+    // 不再每帧 CreateEffectFactory/CreateBrush（那在 380ms×60fps 的过渡里是明显的浪费）。
+    private CompositionEffectBrush? _blurBrush;
 
     protected override void OnAttached()
     {
@@ -65,6 +68,7 @@ public class LyricBlurPlatformEffect : PlatformEffect
         _sprite = null;
         _surface = null;
         _surfaceBrush = null;
+        _blurBrush = null;
     }
 
     private void UpdateBlur()
@@ -106,19 +110,24 @@ public class LyricBlurPlatformEffect : PlatformEffect
             }
             _sprite.Opacity = 1;
 
-            // 只重建极轻量的模糊 effect + brush（surface 与 sprite 复用，不重新捕获视觉树），
-            // 这样每一帧的模糊半径变化都能平滑反映，呈现"缓缓变清晰 / 缓缓变糊"的渐变。
-            var blur = new GaussianBlurEffect
+            // 模糊画刷只创建一次：BlurAmount 声明为可动画参数，之后逐帧仅写入标量，
+            // 因此"缓缓变清晰 / 缓缓变糊"的每一帧都极轻量（无 effect 图重编译）。
+            if (_blurBrush is null)
             {
-                Name = "LyricBlur",
-                BlurAmount = (float)amount,
-                BorderMode = EffectBorderMode.Soft,
-                Source = new CompositionEffectSourceParameter("src"),
-            };
-            var factory = visual.Compositor.CreateEffectFactory(blur);
-            var brush = factory.CreateBrush();
-            brush.SetSourceParameter("src", _surfaceBrush);
-            _sprite.Brush = brush;
+                var blur = new GaussianBlurEffect
+                {
+                    Name = "LyricBlur",
+                    BlurAmount = (float)amount,
+                    BorderMode = EffectBorderMode.Soft,
+                    Source = new CompositionEffectSourceParameter("src"),
+                };
+                var factory = visual.Compositor.CreateEffectFactory(blur, new[] { "LyricBlur.BlurAmount" });
+                _blurBrush = factory.CreateBrush();
+                _blurBrush.SetSourceParameter("src", _surfaceBrush);
+                _sprite.Brush = _blurBrush;
+            }
+
+            _blurBrush.Properties.InsertScalar("LyricBlur.BlurAmount", (float)amount);
         }
         catch
         {
