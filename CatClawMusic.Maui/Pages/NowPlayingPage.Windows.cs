@@ -312,14 +312,16 @@ public partial class NowPlayingPage
         HighlightWindowsLineWithoutScroll(idx);
 
         // 布局完成后实测行高 + 各行顶 Y，再一次性钉到当前行。
-        // ForceLayout 强制同步布局，避免 Bounds 未就绪导致所有行顶算成 0（整列不滚）。
+        // 注意用 idx（未开播时 = 0）而不是 CurrentLyricIndexObservable：
+        // 未播放时也要先把第 1 行钉到第 3 行位置，否则一开播会突然"向下跳一格"。
         _winRowHeight = 0;
         _winMeasureRetries = 0;
         _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
         {
             MeasureWinRows();
-            if (_winFollow && _viewModel.CurrentLyricIndexObservable >= 0)
-                ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable, animate: false);
+            if (_winFollow)
+                ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
+                    ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
         }));
 
         WinLog($"Build done: sourceLines={lines.Count} rows={_winRows.Count} baseSize={baseSize}");
@@ -486,7 +488,13 @@ public partial class NowPlayingPage
     // 滚动：整体平移 WinLyricStack.TranslationY（合成线程变换，不重排）
     // ═══════════════════════════════════════
 
-    /// <summary>把歌词瞬时/缓动钉到指定行：当前行固定在离顶部 2 行高度处（从上往下第 3 行）。
+    /// <summary>把歌词瞬时/缓动钉到指定行：当前行**恒定**落在从上往下第 3 行的位置（离顶 2 行高）。
+    ///
+    /// 刻意**不做**顶部/底部夹紧——这正是"开头第 1 句就已经在第 3 行、结尾最后一句仍停在第 3 行"
+    /// 的关键。夹紧会让开头几句挤在第 1/2 行、结尾几句掉到底部，当前行位置飘忽。
+    /// 代价是首尾会露出空白区（顶部 2 行高、底部约 clipH-2行高），这是预期效果：
+    /// 歌词像一条无限长的带子匀速穿过固定的"读取窗口"。
+    ///
     /// 滚动实现 = 平移 WinLyricStack.TranslationY（合成线程变换，不重排）→ 丝滑无跳动，
     /// 等价于 BetterLyrics 的 ScrollOffset tween。animate=true 时 380ms CubicInOut 缓动上移一格。</summary>
     private void ScrollToWindowsLine(int index, bool animate)
@@ -496,17 +504,9 @@ public partial class NowPlayingPage
 
         _winClipHeight = WinLyricClip.Bounds.Height; // 实时读，兼容窗口尺寸变化
 
-        // 当前行顶部要落在离裁剪区顶部 2 行高度的位置；前几行（idx&lt;2）不往下滚，钉在顶部。
+        // 当前行顶部恒定落在离裁剪区顶部 2 行高度处。首尾不夹紧 → 位置永远一致。
         double topGap = 2 * (_winRowHeight > 0 ? _winRowHeight : 1);
         double targetY = topGap - _winRowTops[index];
-        targetY = Math.Min(0, targetY); // 不允许向上越过开头（出现上方空白）
-
-        // 底部夹紧：歌词较短时不能滚过最后一行（下方留白）。
-        // 减去 WinLyricGapExtra：当前行下方的行会被 ApplyWinRowGap 下移 e，末行实际底边更低。
-        double maxTranslate = (_winClipHeight > 0 && _winStackHeight > _winClipHeight)
-            ? _winClipHeight - _winStackHeight - WinLyricGapExtra   // 负值
-            : 0;
-        targetY = Math.Clamp(targetY, maxTranslate, 0);
 
         WinLyricStack.CancelAnimations();
         if (animate)
@@ -550,8 +550,9 @@ public partial class NowPlayingPage
             _ = Task.Delay(120).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
             {
                 MeasureWinRows();
-                if (_winFollow && _viewModel.CurrentLyricIndexObservable >= 0)
-                    ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable, animate: false);
+                if (_winFollow)
+                    ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
+                        ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
             }));
         }
     }
@@ -611,9 +612,13 @@ public partial class NowPlayingPage
         }
         else if (e.StatusType == GestureStatus.Running)
         {
-            double maxTranslate = (_winClipHeight > 0 && _winStackHeight > _winClipHeight)
-                ? _winClipHeight - _winStackHeight : 0;
-            var y = Math.Clamp(_winPanStartY + e.TotalY, maxTranslate, 0);
+            // 拖拽范围与自动滚动保持一致：允许把第 1 行拖到第 3 行位置（正向上界 = topGap），
+            // 也允许把最后一行拖到第 3 行位置（负向下界）。否则拖到首尾会被硬弹回，
+            // 与"当前行恒定钉在第 3 行"的观感不符。
+            double topGap = 2 * (_winRowHeight > 0 ? _winRowHeight : 1);
+            double lastTop = _winRowTops.Length > 0 ? _winRowTops[^1] : 0;
+            double minTranslate = topGap - lastTop;   // 末行钉到第 3 行时的平移量（负值）
+            var y = Math.Clamp(_winPanStartY + e.TotalY, Math.Min(minTranslate, topGap), topGap);
             WinLyricStack.TranslationY = y;
         }
     }
