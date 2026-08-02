@@ -283,6 +283,12 @@ public class NetworkMusicService : INetworkMusicService
     private const int TagHeadSizeLarge = 2 * 1024 * 1024;
 
     /// <summary>
+    /// 文件尾部下载大小（8MB）：非 faststart 的 M4A/MP4 的 moov box（含标签/封面/时长）位于文件末尾，
+    /// 头部截断解析失败时 Range 请求最后一段，从 moov 手动解析元数据（无需整首下载）。
+    /// </summary>
+    private const int TagTailSize = 8 * 1024 * 1024;
+
+    /// <summary>
     /// 下载远程文件的头部数据用于标签解析，失败时回退到完整下载
     /// </summary>
     /// <summary>
@@ -329,6 +335,33 @@ public class NetworkMusicService : INetworkMusicService
             return (ms, false);
         }
         catch { return (null, false); }
+    }
+
+    /// <summary>下载 WebDAV 远程文件尾部数据（Range 请求最后一段），用于 moov 在文件末尾的 M4A/MP4 元数据解析。</summary>
+    private async Task<byte[]?> DownloadTailAsync(string remotePath, long fileSize)
+    {
+        var tailSize = Math.Min(TagTailSize, fileSize);
+        if (tailSize <= 0) return null;
+        var offset = fileSize - tailSize;
+        var tail = await _webDav.OpenReadRangeAsync(remotePath, offset, tailSize);
+        return tail.Length > 0 ? tail : null;
+    }
+
+    /// <summary>下载 SMB 远程文件尾部数据（Range 请求最后一段），用于 moov 在文件末尾的 M4A/MP4 元数据解析。</summary>
+    private async Task<byte[]?> DownloadSmbTailAsync(string remotePath, ConnectionProfile profile, long fileSize)
+    {
+        var tailSize = Math.Min(TagTailSize, fileSize);
+        if (tailSize <= 0) return null;
+        var offset = fileSize - tailSize;
+        var tail = await _smb.OpenReadRangeAsync(remotePath, offset, tailSize);
+        return tail.Length > 0 ? tail : null;
+    }
+
+    /// <summary>判断远程路径是否为 M4A/MP4 家族格式（moov 可能位于文件末尾，需尾部解析）。</summary>
+    private static bool IsM4aPath(string path)
+    {
+        var ext = Path.GetExtension(path)?.ToLowerInvariant();
+        return ext is ".m4a" or ".mp4" or ".m4b";
     }
 
     /// <summary>
@@ -425,9 +458,13 @@ public class NetworkMusicService : INetworkMusicService
                             ms.Position = 0;
                             try
                             {
-                                var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
-                                if (coverBytes != null)
-                                    return new MemoryStream(coverBytes);
+                                // 非音频头（损坏/伪装文件）直接放弃，避免 TagLib 异常刷屏
+                                if (IsAudioHeader(ms))
+                                {
+                                    var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
+                                    if (coverBytes != null)
+                                        return new MemoryStream(coverBytes);
+                                }
                             }
                             finally { ms.Dispose(); }
                         }
@@ -446,26 +483,30 @@ public class NetworkMusicService : INetworkMusicService
                 {
                     try
                     {
-                        var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
-                        if (coverBytes != null)
+                        // 非音频头：放弃提取与整首兜底（头都坏了整首更不可能有封面）
+                        if (IsAudioHeader(ms))
                         {
-                            Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 内嵌封面提取成功 ({coverBytes.Length} 字节)");
-                            return new MemoryStream(coverBytes);
-                        }
-                        // 头部未抽到封面且文件被截断（封面可能超过头部范围）→ 整首下载兜底
-                        if (truncated)
-                        {
-                            Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 头部无内嵌封面，整首下载兜底: {songId}");
-                            ms.Dispose();
-                            using var full = await _webDav.OpenReadAsync(songId);
-                            var fms = new MemoryStream();
-                            await full.CopyToAsync(fms);
-                            fms.Position = 0;
-                            var fullCover = TagReader.ExtractCoverFromStream(fms, songId);
-                            if (fullCover != null)
+                            var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
+                            if (coverBytes != null)
                             {
-                                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 整首兜底提取封面成功 ({fullCover.Length} 字节)");
-                                return new MemoryStream(fullCover);
+                                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 内嵌封面提取成功 ({coverBytes.Length} 字节)");
+                                return new MemoryStream(coverBytes);
+                            }
+                            // 头部未抽到封面且文件被截断（封面可能超过头部范围）→ 整首下载兜底
+                            if (truncated)
+                            {
+                                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 头部无内嵌封面，整首下载兜底: {songId}");
+                                ms.Dispose();
+                                using var full = await _webDav.OpenReadAsync(songId);
+                                var fms = new MemoryStream();
+                                await full.CopyToAsync(fms);
+                                fms.Position = 0;
+                                var fullCover = TagReader.ExtractCoverFromStream(fms, songId);
+                                if (fullCover != null)
+                                {
+                                    Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 整首兜底提取封面成功 ({fullCover.Length} 字节)");
+                                    return new MemoryStream(fullCover);
+                                }
                             }
                         }
                     }
@@ -507,26 +548,30 @@ public class NetworkMusicService : INetworkMusicService
                 {
                     try
                     {
-                        var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
-                        if (coverBytes != null)
+                        // 非音频头：放弃提取与整首兜底
+                        if (IsAudioHeader(ms))
                         {
-                            Log.Debug("NetworkMusicService", $"[CatClaw] SMB 内嵌封面提取成功 ({coverBytes.Length} 字节)");
-                            return new MemoryStream(coverBytes);
-                        }
-                        if (truncated)
-                        {
-                            Log.Debug("NetworkMusicService", $"[CatClaw] SMB 头部无内嵌封面，整首下载兜底: {songId}");
-                            ms.Dispose();
-                            _smb.Configure(profile);
-                            using var full = await _smb.OpenReadAsync(songId);
-                            var fms = new MemoryStream();
-                            await full.CopyToAsync(fms);
-                            fms.Position = 0;
-                            var fullCover = TagReader.ExtractCoverFromStream(fms, songId);
-                            if (fullCover != null)
+                            var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
+                            if (coverBytes != null)
                             {
-                                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 整首兜底提取封面成功 ({fullCover.Length} 字节)");
-                                return new MemoryStream(fullCover);
+                                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 内嵌封面提取成功 ({coverBytes.Length} 字节)");
+                                return new MemoryStream(coverBytes);
+                            }
+                            if (truncated)
+                            {
+                                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 头部无内嵌封面，整首下载兜底: {songId}");
+                                ms.Dispose();
+                                _smb.Configure(profile);
+                                using var full = await _smb.OpenReadAsync(songId);
+                                var fms = new MemoryStream();
+                                await full.CopyToAsync(fms);
+                                fms.Position = 0;
+                                var fullCover = TagReader.ExtractCoverFromStream(fms, songId);
+                                if (fullCover != null)
+                                {
+                                    Log.Debug("NetworkMusicService", $"[CatClaw] SMB 整首兜底提取封面成功 ({fullCover.Length} 字节)");
+                                    return new MemoryStream(fullCover);
+                                }
                             }
                         }
                     }
@@ -718,11 +763,12 @@ public class NetworkMusicService : INetworkMusicService
     }
 
     /// <summary>
-    /// 后台回填网络歌曲元数据：找到所有缺少元数据的歌曲（快速扫描入库的），
+    /// 回填网络歌曲元数据：找到所有缺少元数据的歌曲（快速扫描入库的），
     /// 逐批从远程服务器下载标签信息并更新数据库。
     /// </summary>
     public async Task BackfillMetadataAsync(ConnectionProfile profile,
-        IProgress<(int done, int total, string status)>? progress = null)
+        IProgress<(int done, int total, string status)>? progress = null,
+        CancellationToken ct = default)
     {
         try { await _db.EnsureInitializedAsync(); } catch { }
 
@@ -752,7 +798,8 @@ public class NetworkMusicService : INetworkMusicService
 
         var tasks = needsBackfill.Select(song => Task.Run(async () =>
         {
-            await ScanSemaphore.WaitAsync();
+            if (ct.IsCancellationRequested) return;
+            await ScanSemaphore.WaitAsync(ct);
             try
             {
                 var tagged = await FetchSongMetadataAsync(song, profile);
@@ -783,10 +830,12 @@ public class NetworkMusicService : INetworkMusicService
                 if (progress != null && (d % 10 == 0 || d == total))
                     progress.Report((d, total, $"正在补全元数据 {d}/{total}"));
             }
-        }));
+        }, ct));
 
         await Task.WhenAll(tasks);
-        progress?.Report((total, total, $"元数据补全完成，共 {total} 首"));
+        progress?.Report((total, total, ct.IsCancellationRequested
+            ? $"已跳过补全（{done}/{total}）"
+            : $"元数据补全完成，共 {total} 首"));
     }
 
     /// <summary>判断解析出的标签是否含有效元数据（自适应标签头重试的判定依据）。</summary>
@@ -795,6 +844,54 @@ public class NetworkMusicService : INetworkMusicService
         return (!string.IsNullOrWhiteSpace(tagSong.Artist) && tagSong.Artist != "未知艺术家")
             || (!string.IsNullOrWhiteSpace(tagSong.Album) && tagSong.Album != "未知专辑")
             || tagSong.Duration > 0;
+    }
+
+    /// <summary>
+    /// 快速判定文件头是否为已知音频格式（magic bytes）。
+    /// 用于网络元数据补全：对损坏/截断/伪装成音频的远程文件（半截下载、加密文件等），
+    /// 在 TagLib 解析前直接判定跳过，避免大量 CorruptFileException 抛出（第一机会异常刷屏 +
+    /// 异常栈分配导致的 GC 压力），同时省掉"小头失败再下大头"的重复请求。
+    /// </summary>
+    private static bool IsAudioHeader(Stream s)
+    {
+        try
+        {
+            if (s == null || !s.CanRead) return false;
+            var pos = s.CanSeek ? s.Position : 0;
+            if (s.CanSeek) s.Position = 0;
+            Span<byte> h = stackalloc byte[16];
+            int n = s.Read(h);
+            if (s.CanSeek) s.Position = pos;
+            if (n < 4) return false;
+
+            // ID3v2 头（MP3/AAC 等）
+            if (h[0] == (byte)'I' && h[1] == (byte)'D' && h[2] == (byte)'3') return true;
+            // MP3 裸帧同步（11 位全 1：0xFF 0xE0~0xFF）
+            if (h[0] == 0xFF && (h[1] & 0xE0) == 0xE0) return true;
+            // FLAC
+            if (h[0] == (byte)'f' && h[1] == (byte)'L' && h[2] == (byte)'a' && h[3] == (byte)'C') return true;
+            // Ogg（Vorbis/Opus/FLAC-in-Ogg）
+            if (h[0] == (byte)'O' && h[1] == (byte)'g' && h[2] == (byte)'g' && h[3] == (byte)'S') return true;
+            // M4A/MP4（offset 4 处 ftyp）
+            if (n >= 8 && h[4] == (byte)'f' && h[5] == (byte)'t' && h[6] == (byte)'y' && h[7] == (byte)'p') return true;
+            // WAV（RIFF...WAVE）
+            if (n >= 12 && h[0] == (byte)'R' && h[1] == (byte)'I' && h[2] == (byte)'F' && h[3] == (byte)'F'
+                && h[8] == (byte)'W' && h[9] == (byte)'A' && h[10] == (byte)'V' && h[11] == (byte)'E') return true;
+            // APE
+            if (h[0] == (byte)'M' && h[1] == (byte)'A' && h[2] == (byte)'C' && h[3] == (byte)' ') return true;
+            // WavPack
+            if (h[0] == (byte)'w' && h[1] == (byte)'v' && h[2] == (byte)'p' && h[3] == (byte)'k') return true;
+            // AIFF（FORM...AIFF）
+            if (n >= 12 && h[0] == (byte)'F' && h[1] == (byte)'O' && h[2] == (byte)'R' && h[3] == (byte)'M'
+                && h[8] == (byte)'A' && h[9] == (byte)'I' && h[10] == (byte)'F' && h[11] == (byte)'F') return true;
+            // DSD
+            if (h[0] == (byte)'D' && h[1] == (byte)'S' && h[2] == (byte)'D' && h[3] == (byte)' ') return true;
+            // MusePack
+            if (h[0] == (byte)'M' && h[1] == (byte)'P' && h[2] == (byte)'C' && h[3] == (byte)'K') return true;
+
+            return false;
+        }
+        catch { return false; }
     }
 
     /// <summary>这些格式的标签头可能很大（内嵌封面/长注释），小头解析失败时需用大头重试。</summary>
@@ -868,6 +965,10 @@ public class NetworkMusicService : INetworkMusicService
                 if (ms == null) continue;
                 try
                 {
+                    // 非音频头（损坏/截断/伪装文件）：直接放弃，不再下载大头重试，
+                    // 避免 TagLib 抛 CorruptFileException 刷屏与异常 GC 压力
+                    if (!IsAudioHeader(ms)) break;
+
                     var tagSong = TagReader.ReadFromStream(ms, song.FilePath, decodedRemotePath, song.FileSize);
                     if (tagSong != null)
                     {
@@ -883,10 +984,42 @@ public class NetworkMusicService : INetworkMusicService
             }
         }
 
-        if (bestTag != null)
+        if (bestTag != null && HasUsefulMetadata(bestTag))
         {
             ApplyTagToSong(song, bestTag, decodeTitle: true);
             return song;
+        }
+
+        // 头部解析无有效元数据：非 faststart M4A/MP4 的 moov（标签+时长）在文件末尾，
+        // 256KB/2MB 头内找不到（TagLib 抛 CorruptFileException），Range 下载尾部手动解析
+        if (IsM4aPath(decodedRemotePath) && song.FileSize > 0)
+        {
+            try
+            {
+                var tail = await DownloadTailAsync(remotePath, song.FileSize);
+                if (tail != null)
+                {
+                    var meta = M4aMetadataReader.ReadAllFromTail(tail, song.FileSize);
+                    if (meta != null
+                        && (meta.Title != null || meta.Artist != null || meta.Album != null || meta.DurationSeconds > 0))
+                    {
+                        ApplyTagToSong(song, new Song
+                        {
+                            Title = meta.Title,
+                            Artist = meta.Artist ?? "未知艺术家",
+                            Album = meta.Album ?? "未知专辑",
+                            Duration = meta.DurationSeconds,
+                            Bitrate = meta.Bitrate
+                        }, decodeTitle: true);
+                        Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV M4A 尾部解析成功: {decodedRemotePath}");
+                        return song;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV M4A 尾部解析失败: {ex.Message}");
+            }
         }
         return null;
     }
@@ -917,6 +1050,9 @@ public class NetworkMusicService : INetworkMusicService
                 if (ms == null) continue;
                 try
                 {
+                    // 非音频头：直接放弃，不再下载大头重试（同上，避免 TagLib 异常刷屏）
+                    if (!IsAudioHeader(ms)) break;
+
                     var tagSong = TagReader.ReadFromStream(ms, song.FilePath, remotePath, song.FileSize);
                     if (tagSong != null)
                     {
@@ -932,10 +1068,42 @@ public class NetworkMusicService : INetworkMusicService
             }
         }
 
-        if (bestTag != null)
+        if (bestTag != null && HasUsefulMetadata(bestTag))
         {
             ApplyTagToSong(song, bestTag, decodeTitle: false);
             return song;
+        }
+
+        // 头部解析无有效元数据：非 faststart M4A/MP4 的 moov（标签+时长）在文件末尾，
+        // Range 下载尾部手动解析（同 WebDAV 逻辑）
+        if (IsM4aPath(remotePath) && song.FileSize > 0)
+        {
+            try
+            {
+                var tail = await DownloadSmbTailAsync(remotePath, profile, song.FileSize);
+                if (tail != null)
+                {
+                    var meta = M4aMetadataReader.ReadAllFromTail(tail, song.FileSize);
+                    if (meta != null
+                        && (meta.Title != null || meta.Artist != null || meta.Album != null || meta.DurationSeconds > 0))
+                    {
+                        ApplyTagToSong(song, new Song
+                        {
+                            Title = meta.Title,
+                            Artist = meta.Artist ?? "未知艺术家",
+                            Album = meta.Album ?? "未知专辑",
+                            Duration = meta.DurationSeconds,
+                            Bitrate = meta.Bitrate
+                        }, decodeTitle: false);
+                        Log.Debug("NetworkMusicService", $"[CatClaw] SMB M4A 尾部解析成功: {remotePath}");
+                        return song;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("NetworkMusicService", $"[CatClaw] SMB M4A 尾部解析失败: {ex.Message}");
+            }
         }
         return null;
     }

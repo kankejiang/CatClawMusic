@@ -227,7 +227,10 @@ public partial class AudioPlayerService
         try
         {
             var cache = EnsureMediaCache();
-            var upstream = new AndroidX.Media3.DataSource.DefaultHttpDataSource.Factory();
+            // 设置与歌词下载一致的 User-Agent：EOS/移动云 CDN 防盗链会拦截 ExoPlayerLib 默认 UA，
+            // 导致同 URL 下 HttpClient(206) 成功而 ExoPlayer(BAD_HTTP_STATUS) 失败
+            var upstream = new AndroidX.Media3.DataSource.DefaultHttpDataSource.Factory()
+                .SetUserAgent("CatClawMusic/1.0");
             var cacheFactory = new AndroidX.Media3.DataSource.Cache.CacheDataSource.Factory()
                 .SetCache(cache)
                 .SetUpstreamDataSourceFactory(upstream)

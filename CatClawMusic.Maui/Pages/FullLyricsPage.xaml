@@ -83,31 +83,19 @@
                 </controls:HeroCard.CardContent>
             </controls:HeroCard>
 
-            <CollectionView Grid.Row="1"
-                            x:Name="LyricCollectionView"
-                            ItemsSource="{Binding LyricPlaceholderItems}"
-                            SelectionMode="None"
-                            VerticalScrollBarVisibility="Never">
-                <CollectionView.GestureRecognizers>
+            <!-- 歌词区：自绘静态堆叠 + 整体平移滚动（复刻 Windows/播放页方案，当前行恒钉 1/3 处） -->
+            <Grid Grid.Row="1"
+                  x:Name="LyricClip"
+                  IsClippedToBounds="True">
+                <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnLyricsAreaTapped" />
-                </CollectionView.GestureRecognizers>
-                <CollectionView.Behaviors>
-                    <controls:ScrollPerformanceBehavior />
-                </CollectionView.Behaviors>
-                <CollectionView.ItemsLayout>
-                    <LinearItemsLayout Orientation="Vertical" />
-                </CollectionView.ItemsLayout>
-                <CollectionView.Header>
-                    <VerticalStackLayout x:Name="LyricStack"
-                                         Padding="24,100,24,300"
-                                         Spacing="14" />
-                </CollectionView.Header>
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <BoxView HeightRequest="0" />
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+                </Grid.GestureRecognizers>
+                <VerticalStackLayout x:Name="LyricStack"
+                                     Padding="24,10,24,10"
+                                     Spacing="14"
+                                     HorizontalOptions="Fill"
+                                     VerticalOptions="Start" />
+            </Grid>
 
             <Border Grid.Row="1"
                     x:Name="NoLyricsBadge"
@@ -161,31 +149,19 @@
                   VerticalOptions="Fill">
 
                 <!-- 歌词区域（占满剩余空间） -->
-                <CollectionView Grid.Row="0"
-                                x:Name="LandscapeLyricCollectionView"
-                                ItemsSource="{Binding LyricPlaceholderItems}"
-                                SelectionMode="None"
-                                VerticalScrollBarVisibility="Never">
-                    <CollectionView.GestureRecognizers>
+                <!-- 歌词区：自绘静态堆叠 + 整体平移滚动（横屏版） -->
+                <Grid Grid.Row="0"
+                      x:Name="LandscapeLyricClip"
+                      IsClippedToBounds="True">
+                    <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnLyricsAreaTapped" />
-                    </CollectionView.GestureRecognizers>
-                    <CollectionView.Behaviors>
-                        <controls:ScrollPerformanceBehavior />
-                    </CollectionView.Behaviors>
-                    <CollectionView.ItemsLayout>
-                        <LinearItemsLayout Orientation="Vertical" />
-                    </CollectionView.ItemsLayout>
-                    <CollectionView.Header>
-                        <VerticalStackLayout x:Name="LandscapeLyricStack"
-                                             Padding="24,100,24,300"
-                                             Spacing="14" />
-                    </CollectionView.Header>
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <BoxView HeightRequest="0" />
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
+                    </Grid.GestureRecognizers>
+                    <VerticalStackLayout x:Name="LandscapeLyricStack"
+                                         Padding="24,10,24,10"
+                                         Spacing="14"
+                                         HorizontalOptions="Fill"
+                                         VerticalOptions="Start" />
+                </Grid>
 
                 <!-- 无歌词提示 -->
                 <Border Grid.Row="0"

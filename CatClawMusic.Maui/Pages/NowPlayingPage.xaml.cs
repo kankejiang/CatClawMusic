@@ -21,6 +21,14 @@ public partial class NowPlayingPage : ContentPage
     private readonly List<KaraokeLabel> _lyricLabels = new();
     private readonly List<Border> _lyricBorders = new();
     private int _lastHighlightIndex = -1;
+
+    // 竖屏歌词滚动（复刻 Windows）：自绘静态堆叠 + 整体平移 TranslationY。
+    // _lyricRowViews = 每行根视图（Border 或 含译文的 VerticalStackLayout）；
+    // _lyricRowTops = 实测行高累加锚点表；滚动目标 = 当前行中心恒钉在裁剪区 1/3 处。
+    private readonly List<View> _lyricRowViews = new();
+    private double[] _lyricRowTops = Array.Empty<double>();
+    private double _lyricClipHeight;
+    private int _lyricMeasureRetries;
     private bool _isLandscape;
     private int _lastCoverSize;
     private bool _landscapeLyricsMode;
@@ -29,16 +37,19 @@ public partial class NowPlayingPage : ContentPage
     private int _landscapeLastHighlight = -1;
     private readonly LyricsSettingsService _settings = LyricsSettingsService.Instance;
 
-    /// <summary>CollectionView Handler 变化时触发：Handler 就绪后滚动到当前歌词行。</summary>
+    /// <summary>LyricClip Handler 变化时触发：就绪后实测行高并把当前行钉到 1/3 处。</summary>
     private void OnCollectionViewHandlerChanged(object? sender, EventArgs e)
     {
-        if (LyricCollectionView.Handler != null && _lyricLabels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
+        if (LyricClip.Handler != null && _lyricRowViews.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
         {
             _ = Task.Delay(300).ContinueWith(_ =>
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    if (LyricCollectionView.Handler != null && !_isLandscape)
-                        HighlightLine(_viewModel.CurrentLyricIndexObservable);
+                    if (LyricClip.Handler != null && !_isLandscape)
+                    {
+                        MeasureLyricRows();
+                        ScrollToLine(_viewModel.CurrentLyricIndexObservable);
+                    }
                 }));
         }
     }
@@ -59,7 +70,7 @@ public partial class NowPlayingPage : ContentPage
         BindingContext = _viewModel;
 
         // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）
-        LyricCollectionView.HandlerChanged += OnCollectionViewHandlerChanged;
+        LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
         Loaded += OnPageLoaded;
 
         // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
@@ -92,6 +103,10 @@ public partial class NowPlayingPage : ContentPage
         CollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
         // 横屏布局右上角收起按钮复用同一图标
         LandscapeCollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
+#if WINDOWS
+        // Windows 桌面播放布局的收起按钮
+        WinCollapseIcon.Source = ImageSourceHelper.FromNameOriginal("ic_collapse");
+#endif
 
         // 播放页封面原生 ImageView 懒创建（尤其横屏 LandscapeCoverImage 在首次显示时才建 Handler），
         // 在其 Handler 就绪后立即打标记，确保自定义图像服务对封面一律高分辨率解码（横竖屏一致）。
@@ -110,9 +125,6 @@ public partial class NowPlayingPage : ContentPage
     private void OnPageLoaded(object? sender, EventArgs e)
     {
         UpdateTimerButtonState();
-#if WINDOWS
-        UpdateMaximizeIcon();
-#endif
     }
 
     /// <summary>系统栏高度变化时触发，更新内容区域的顶部 padding 以避开状态栏</summary>
@@ -598,7 +610,9 @@ public partial class NowPlayingPage : ContentPage
         LyricStack.Children.Clear();
         _lyricLabels.Clear();
         _lyricBorders.Clear();
+        _lyricRowViews.Clear();
         _lastHighlightIndex = -1;
+        _lyricRowTops = Array.Empty<double>();
 
         var lines = _viewModel.AllLyricLines;
         if (lines == null || lines.Count == 0)
@@ -609,7 +623,7 @@ public partial class NowPlayingPage : ContentPage
             var label = new KaraokeLabel
             {
                 Text = line.Text,
-                FontSize = 12,
+                FontSize = 15,   // 统一字号：平移滚动锚点依赖行高恒定，当前行强调走 Scale
                 FontFamily = "OpenSansRegular",
                 FontAttributes = FontAttributes.None,
                 TextColor = Colors.White,
@@ -621,6 +635,9 @@ public partial class NowPlayingPage : ContentPage
                 LineBreakMode = LineBreakMode.WordWrap,
                 Padding = new Thickness(16, 4)
             };
+            // 缩放锚点（当前行 Scale 放大用）：居中歌词从中心向两侧生长，左对齐从左边缘向右生长
+            label.AnchorX = _settings.ToLayoutOptions().Alignment == LayoutAlignment.Center ? 0.5 : 0;
+            label.AnchorY = 0.5;
 
             var border = new Border
             {
@@ -628,13 +645,15 @@ public partial class NowPlayingPage : ContentPage
                 StrokeThickness = 0,
                 BackgroundColor = Colors.Transparent,
                 Padding = new Thickness(18, 0),
-                HorizontalOptions = _settings.ToLayoutOptions()
+                // 必须 Fill：让 KaraokeLabel 拿到父级宽度约束 → StaticLayout 正常换行。
+                // 文本左/中/右对齐由 KaraokeLabel.HorizontalTextAlignment 绘制时控制，不受影响。
+                HorizontalOptions = LayoutOptions.Fill
             };
             border.Content = label;
 
             if (!string.IsNullOrEmpty(line.Translation))
             {
-                var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = _settings.ToLayoutOptions() };
+                var stack = new VerticalStackLayout { Spacing = 2, HorizontalOptions = LayoutOptions.Fill };
                 stack.Children.Add(border);
 
                 var transLabel = new KaraokeLabel
@@ -659,15 +678,17 @@ public partial class NowPlayingPage : ContentPage
                     StrokeThickness = 0,
                     BackgroundColor = Colors.Transparent,
                     Padding = new Thickness(18, 0),
-                    HorizontalOptions = _settings.ToLayoutOptions()
+                    HorizontalOptions = LayoutOptions.Fill
                 };
                 transBorder.Content = transLabel;
                 stack.Children.Add(transBorder);
                 LyricStack.Children.Add(stack);
+                _lyricRowViews.Add(stack);
             }
             else
             {
                 LyricStack.Children.Add(border);
+                _lyricRowViews.Add(border);
             }
 
             _lyricLabels.Add(label);
@@ -678,7 +699,95 @@ public partial class NowPlayingPage : ContentPage
         {
             var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
             HighlightLineWithoutScroll(idx);
+
+            // 布局完成后实测行高 + 钉当前行（首行也恒钉 1/3 处，避免开播时突然跳动）
+            _lyricMeasureRetries = 0;
+            _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (LyricClip.Handler == null) return;
+                MeasureLyricRows();
+                ScrollToLine(idx);
+            }));
         }
+    }
+
+    /// <summary>
+    /// 实测各行顶部 Y（由实测行高累加）与裁剪区高度，供"当前行恒钉 1/3 处"的锚点计算。
+    /// 行高未就绪（布局未跑完）时自动重试，最多 6 次。
+    /// </summary>
+    private void MeasureLyricRows()
+    {
+        if (_lyricRowViews.Count == 0) return;
+
+        _lyricClipHeight = LyricClip.Bounds.Height;
+        _lyricRowTops = new double[_lyricRowViews.Count];
+        double y = 0;
+        double spacing = LyricStack.Spacing;   // ⚠ 行间距必须计入锚点累加，否则每行偏差 8px → 越滚越偏
+        bool needsRetry = false;
+        for (int i = 0; i < _lyricRowViews.Count; i++)
+        {
+            _lyricRowTops[i] = y;                    // 由前序行高累加，不读 Bounds.Y（规避布局时机问题）
+            var h = _lyricRowViews[i].Height;
+            if (h <= 0.5)
+            {
+                h = 40;                              // 未就绪先用回退值，重试会校正
+                needsRetry = true;
+            }
+            y += h + spacing;
+        }
+
+        if (needsRetry && _lyricMeasureRetries < 6)
+        {
+            _lyricMeasureRetries++;
+            _ = Task.Delay(120).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (LyricClip.Handler == null) return;
+                MeasureLyricRows();
+                var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
+                ScrollToLine(idx);
+            }));
+        }
+    }
+
+    // 歌词行视觉层次（复刻 Windows）：
+    // Scale 渲染变换放大（不参与布局测量 → 行高恒定 → 滚动锚点稳定，不会像改 FontSize 那样跳动），
+    // 行距呼吸用行容器 TranslationY 渲染平移撑开当前行上下缝隙（独立于整体滚动的 LyricStack.TranslationY）。
+    // ⚠ 所有行必须统一 FontSize：平移滚动的锚点表依赖行高恒定，任何动态字号切换都会导致
+    // 锚点失效 → 当前行越滚越偏（已踩坑）。当前行的强调完全交给 Scale。
+    private const double LyricCurrentScale = 1.5;    // 当前行放大倍率（15 × 1.5 = 22.5，比原 18 更突出）
+    private const double LyricGapExtra = 6;          // 当前行上下额外呼吸空间（px）
+    private const uint LyricAnimMs = 380;            // 与滚动 tween 同步的缓动时长
+
+    /// <summary>只把当前行上下两条缝隙撑开 <see cref="LyricGapExtra"/>：上方行整体上移、下方行整体下移，
+    /// 当前行自身不动。用行容器 TranslationY（渲染变换，不重排）→ 与 LyricStack 整体滚动独立叠加。</summary>
+    private void ApplyLyricRowGap(int index, bool animate)
+    {
+        for (int i = 0; i < _lyricRowViews.Count; i++)
+        {
+            double target = i < index ? -LyricGapExtra
+                          : i > index ? LyricGapExtra
+                          : 0;
+
+            var row = _lyricRowViews[i];
+            if (Math.Abs(row.TranslationY - target) < 0.5) continue;
+
+            row.AbortAnimation("TranslateTo");
+            if (animate)
+                _ = row.TranslateTo(0, target, LyricAnimMs, Easing.CubicInOut);
+            else
+                row.TranslationY = target;
+        }
+    }
+
+    /// <summary>缓动把第 i 行主歌词缩放到目标倍率（Scale 是渲染变换，不影响行高与滚动锚点）。</summary>
+    private void AnimateLyricRowScale(int i, double target)
+    {
+        if (i < 0 || i >= _lyricLabels.Count) return;
+        var lbl = _lyricLabels[i];
+        if (Math.Abs(lbl.Scale - target) < 0.01) return;
+
+        lbl.AbortAnimation("ScaleTo");
+        _ = lbl.ScaleTo(target, LyricAnimMs, Easing.CubicInOut);
     }
 
     private void HighlightLineWithoutScroll(int index)
@@ -688,25 +797,23 @@ public partial class NowPlayingPage : ContentPage
         for (int i = 0; i < _lyricLabels.Count; i++)
         {
             var lbl = _lyricLabels[i];
-            var dist = Math.Abs(i - index);
 
             if (i == index)
             {
                 // 当前行：实心填充，进度由 ViewModel 逐字计算（逐行模式为 1.0）
-                lbl.FontSize = 18;
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = _viewModel.CurrentLineFillProgress;
+                lbl.Scale = LyricCurrentScale;
             }
             else
             {
                 // 非当前行：浅色实心，统一字号和不透明度
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                lbl.FontSize = 15;
                 lbl.Opacity = 0.35;
+                lbl.Scale = 1.0;
             }
         }
 
+        ApplyLyricRowGap(index, animate: false);
         _lastHighlightIndex = index;
     }
 
@@ -716,119 +823,65 @@ public partial class NowPlayingPage : ContentPage
 
         var affectedMin = Math.Max(0, Math.Min(index, _lastHighlightIndex) - 4);
         var affectedMax = Math.Min(_lyricLabels.Count - 1, Math.Max(index, _lastHighlightIndex) + 4);
+        var prev = _lastHighlightIndex;
 
         for (int i = affectedMin; i <= affectedMax; i++)
         {
             var lbl = _lyricLabels[i];
-            var dist = Math.Abs(i - index);
 
             if (i == index)
             {
-                lbl.FontSize = 18;
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = _viewModel.CurrentLineFillProgress;
                 lbl.Opacity = 1.0;
             }
             else
             {
                 // 非当前行：浅色实心，统一字号和不透明度
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                lbl.FontSize = 15;
                 lbl.Opacity = 0.35;
             }
+
+            // Scale 走缓动动画（跳过当前/旧行，交给 AnimateLyricRowScale 处理）
+            if (i != index && i != prev)
+                lbl.Scale = i == index ? LyricCurrentScale : 1.0;
         }
+
+        // 新当前行缓缓放大，旧当前行缓缓缩回（与滚动同为 380ms CubicInOut）
+        AnimateLyricRowScale(index, LyricCurrentScale);
+        if (prev >= 0 && prev != index)
+            AnimateLyricRowScale(prev, 1.0);
+
+        // 当前行上下呼吸空间平滑迁移
+        ApplyLyricRowGap(index, animate: true);
 
         _lastHighlightIndex = index;
 
         ScrollToLine(index);
     }
 
-    private async void ScrollToLine(int index)
+    /// <summary>
+    /// 把歌词缓动钉到指定行：当前行中心**恒定**落在裁剪区 1/3 处（复刻 Windows 的滚动方案）。
+    /// 滚动 = 整体平移 LyricStack.TranslationY（合成线程变换，不重排 → 丝滑无跳动），
+    /// 380ms CubicInOut 缓动，等价于 BetterLyrics 的 ScrollOffset tween。
+    /// 首尾不夹紧：第 1 句也钉在 1/3 处、最后一句仍停 1/3 处，位置永远一致。
+    /// </summary>
+    private void ScrollToLine(int index)
     {
-        if (index < 0 || index >= _lyricLabels.Count) return;
+        if (index < 0 || index >= _lyricRowViews.Count) return;
+        if (_lyricRowTops.Length != _lyricRowViews.Count) return;
 
         try
         {
-            var label = _lyricLabels[index];
+            _lyricClipHeight = LyricClip.Bounds.Height; // 实时读，兼容区域尺寸变化
+            if (_lyricClipHeight <= 0) return;
 
-#if ANDROID
-            // 标签尚未布局时重试：横竖屏切换后 CollectionView 重建，
-            // Handler 就绪但子元素可能仍为 Y=0/Height=0。
-            // 注意：MAUI 的 element.Y 在 CollectionView Header 中不会被 RecyclerView 正确更新，
-            // 因此必须使用原生 GetLocationOnScreen 获取精确的屏幕坐标来计算滚动偏移。
-            for (int attempt = 0; attempt < 12; attempt++)
-            {
-                if (LyricCollectionView.Handler?.PlatformView is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView
-                    && label.Handler?.PlatformView is Android.Views.View nativeLabel
-                    && label.Height > 0)
-                {
-                    // 使用原生 GetLocationOnScreen 获取 label 相对于 RecyclerView 可见区域中心的 Y 坐标。
-                    // 这比 MAUI 的 element.Y 更可靠，因为 RecyclerView 不会更新 MAUI 包装器的 Y 属性。
-                    var labelLoc = new int[2];
-                    var rvLoc = new int[2];
-                    nativeLabel.GetLocationOnScreen(labelLoc);
-                    recyclerView.GetLocationOnScreen(rvLoc);
-                    // viewportY = label 中心在 RecyclerView 可见区域中的 Y 坐标
-                    var viewportY = labelLoc[1] - rvLoc[1] + nativeLabel.Height / 2;
-                    // 当前行定位在可见区域约 1/3 处（原"第三行"效果）
-                    int dy = (int)(viewportY - recyclerView.Height * 0.33);
-                    if (attempt > 0)
-                        Android.Util.Log.Info("NPP", "[NowPlayingPage] ScrollToLine idx={0} 重试#{1} 成功 viewportY={2:F0} dy={3}", index, attempt, viewportY, dy);
-                    if (Math.Abs(dy) > 2)
-                    {
-                        recyclerView.SmoothScrollBy(0, dy);
-                    }
-                    return; // 滚动成功，退出重试循环
-                }
+            var rowH = _lyricRowViews[index].Height > 0 ? _lyricRowViews[index].Height : 40;
+            double targetY = _lyricClipHeight * 0.33 - (_lyricRowTops[index] + rowH / 2.0);
 
-                await Task.Delay(200);
-            }
-            Android.Util.Log.Info("NPP", "[NowPlayingPage] ScrollToLine idx={0} 重试12次仍 label.Height=0，放弃", index);
-#elif WINDOWS
-            if (LyricCollectionView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView)
-            {
-                var scrollViewer = FindScrollViewer(listView);
-                if (scrollViewer != null)
-                {
-                    // 与 Android 同理：用 MAUI 坐标计算目标偏移，避免依赖 label 原生视图
-                    // （根切换/重建后可能为 null 导致静默失败）。
-                    var y = GetRelativeY(label);
-                    var targetOffset = Math.Max(0, Math.Min(y - LyricCollectionView.Height * 0.25, scrollViewer.ScrollableHeight));
-                    // 仅当偏差较大时才滚动，避免逐字更新时频繁打断动画
-                    if (Math.Abs(scrollViewer.VerticalOffset - targetOffset) > 4)
-                    {
-                        scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
-                    }
-                }
-            }
-#else
-            var y = GetRelativeY(label);
-            var targetScrollY = y - LyricCollectionView.Height * 0.25;
-            targetScrollY = Math.Max(0, targetScrollY);
-            if (LyricCollectionView.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().Any())
-            {
-                LyricCollectionView.ScrollTo(items.Cast<object>().First(), position: ScrollToPosition.Start, animate: true);
-            }
-#endif
+            LyricStack.CancelAnimations();
+            LyricStack.TranslateTo(0, targetY, 380, Easing.CubicInOut);
         }
         catch { }
-    }
-
-    /// <summary>获取元素相对于 LyricCollectionView 内容顶部的 Y 坐标。
-    /// 遍历父容器累加 Y，包括 LyricStack 自身的 Y（Header 在 RecyclerView 中的偏移）。</summary>
-    private double GetRelativeY(VisualElement element)
-    {
-        double y = element.Y + element.Height / 2;
-        var parent = element.Parent as VisualElement;
-        while (parent != null)
-        {
-            y += parent.Y;
-            if (parent == LyricStack)
-                break;
-            parent = parent.Parent as VisualElement;
-        }
-        return y;
     }
 
 #if WINDOWS
@@ -1419,67 +1472,10 @@ public partial class NowPlayingPage : ContentPage
         PlaylistPopup.AddContent(_playlistCollectionView);
     }
 
-    // ─── 窗口控制按钮 ──
-
-    private void OnMinimizeTapped(object? sender, TappedEventArgs e)
-    {
-#if WINDOWS
-        if (App.CurrentAppWindow == null) return;
-        var hwnd = Microsoft.UI.Win32Interop.GetWindowFromWindowId(App.CurrentAppWindow.Id);
-        _ = ShowWindow(hwnd, SW_MINIMIZE);
-#endif
-    }
-
-    private void OnMaximizeTapped(object? sender, TappedEventArgs e)
-    {
-        ToggleMaximize();
-    }
-
-    private void OnCloseTapped(object? sender, TappedEventArgs e)
-    {
-#if WINDOWS
-        if (App.CurrentAppWindow == null) return;
-        var hwnd = Microsoft.UI.Win32Interop.GetWindowFromWindowId(App.CurrentAppWindow.Id);
-        _ = PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
-#endif
-    }
-
-    private void ToggleMaximize()
-    {
-#if WINDOWS
-        if (App.CurrentAppWindow?.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
-        {
-            if (presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized)
-                presenter.Restore();
-            else
-                presenter.Maximize();
-
-            UpdateMaximizeIcon();
-        }
-#endif
-    }
-
-    private void UpdateMaximizeIcon()
-    {
-#if WINDOWS
-        if (App.CurrentAppWindow?.Presenter is not Microsoft.UI.Windowing.OverlappedPresenter presenter)
-            return;
-
-        var isMaximized = presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
-        MaximizeIcon.IsVisible = !isMaximized;
-        RestoreIcon.IsVisible = isMaximized;
-        UpdateWinMaximizeIcon();
-#endif
-    }
-
 #if WINDOWS
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
     private const int SW_MINIMIZE = 6;
-    private const uint WM_CLOSE = 0x0010;
 #endif
 }

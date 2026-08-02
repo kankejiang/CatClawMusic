@@ -20,11 +20,13 @@ public interface INetworkMusicService
         Action<List<Song>>? songBatchCallback = null,
         bool quickScan = false);
 
-    /// <summary>后台回填网络歌曲元数据（扫描阶段跳过的元数据在此补全）</summary>
+    /// <summary>回填网络歌曲元数据（扫描阶段跳过的元数据在此补全）</summary>
     /// <param name="profile">连接配置</param>
     /// <param name="progress">进度回调</param>
+    /// <param name="ct">取消令牌</param>
     Task BackfillMetadataAsync(ConnectionProfile profile,
-        IProgress<(int done, int total, string status)>? progress = null);
+        IProgress<(int done, int total, string status)>? progress = null,
+        CancellationToken ct = default);
 
     /// <summary>搜索网络歌曲</summary>
     Task<List<Song>> SearchAsync(string keyword, ConnectionProfile profile);

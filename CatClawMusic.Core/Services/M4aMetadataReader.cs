@@ -80,6 +80,89 @@ public static class M4aMetadataReader
         };
     }
 
+    /// <summary>
+    /// 从 m4a 文件尾部数据中解析元数据。
+    /// 适用于 moov box 位于文件末尾的「非 faststart」M4A/MP4：网络补全只下载文件头（256KB/2MB）时
+    /// TagLib 因找不到 moov 抛 CorruptFileException，需 Range 下载文件尾段后在此手动解析。
+    /// 在尾部数据中搜索合法的 moov box（size 校验过滤 mdat 中的随机假 moov），解析标签与时长。
+    /// </summary>
+    /// <param name="tailData">文件尾部字节（Range 请求下载的最后一段）</param>
+    /// <param name="fileSize">远程文件完整大小（用于重算码率，截断流长度算出的码率不准）</param>
+    public static M4aMetadata? ReadAllFromTail(byte[] tailData, long fileSize)
+    {
+        foreach (var (start, size) in FindMoovCandidates(tailData))
+        {
+            try
+            {
+                using var ms = new MemoryStream(tailData, start, size, writable: false);
+                using var br = new BinaryReader(ms, System.Text.Encoding.UTF8, leaveOpen: true);
+                var r = WalkTopLevel(br, size, wantCover: false, wantLyrics: false, wantProperties: true, wantTags: true);
+                if (r.title == null && r.artist == null && r.album == null && r.durationSeconds <= 0)
+                    continue; // 假 moov（mdat 中的随机字节），尝试下一个候选
+                return new M4aMetadata
+                {
+                    Title = r.title,
+                    Artist = r.artist,
+                    Album = r.album,
+                    DurationSeconds = r.durationSeconds,
+                    Bitrate = r.durationSeconds > 0 ? (int)(fileSize * 8 / r.durationSeconds / 1000) : r.bitrate,
+                    SampleRate = r.sampleRate,
+                    Channels = r.channels,
+                    BitDepth = r.bitDepth,
+                    Codec = r.codec
+                };
+            }
+            catch { /* 无效候选，继续下一个 */ }
+        }
+        return null;
+    }
+
+    /// <summary>从 m4a 文件尾部数据中提取封面（moov 在末尾时 covr 也位于其中，可省去整首下载兜底）。</summary>
+    public static byte[]? ExtractCoverFromTail(byte[] tailData)
+    {
+        foreach (var (start, size) in FindMoovCandidates(tailData))
+        {
+            try
+            {
+                using var ms = new MemoryStream(tailData, start, size, writable: false);
+                using var br = new BinaryReader(ms, System.Text.Encoding.UTF8, leaveOpen: true);
+                var r = WalkTopLevel(br, size, wantCover: true);
+                if (r.cover != null) return r.cover;
+            }
+            catch { }
+        }
+        return null;
+    }
+
+    /// <summary>在尾部数据中搜索合法的 moov box 候选（8 字节对齐：size(4B) + "moov"）。</summary>
+    private static IEnumerable<(int start, int size)> FindMoovCandidates(byte[] data)
+    {
+        if (data == null || data.Length < 12) yield break;
+        for (int i = 4; i <= data.Length - 8; i++)
+        {
+            if (data[i] != (byte)'m' || data[i + 1] != (byte)'o' ||
+                data[i + 2] != (byte)'o' || data[i + 3] != (byte)'v')
+                continue;
+            var size = ReadUInt32BE(data, i - 4);
+            if (size == 0)
+            {
+                // size=0 表示 box 延伸到流末尾（截断尾部内）
+                yield return (i - 4, data.Length - (i - 4));
+            }
+            else if (size >= 8 && i - 4 + (long)size <= data.Length)
+            {
+                yield return (i - 4, (int)size);
+            }
+            // size==1（64 位扩展大小）极少用于 moov，此处不处理
+        }
+    }
+
+    private static uint ReadUInt32BE(byte[] data, int offset)
+    {
+        if (offset < 0 || offset + 4 > data.Length) return 0;
+        return (uint)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]);
+    }
+
     /// <summary>快速判断 m4a 文件是否为 ALAC 编码（扫描 moov/stsd 中的 alac 标记）</summary>
     public static bool IsAlac(string filePath)
     {

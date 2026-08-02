@@ -15,6 +15,8 @@ public partial class App : Application
 {
 #if WINDOWS
     public static Microsoft.UI.Windowing.AppWindow? CurrentAppWindow { get; set; }
+    public static Microsoft.UI.Xaml.Window? CurrentNativeWindow { get; set; }
+    private static IntPtr _appHwnd;
 #endif
 
     public App()
@@ -390,26 +392,73 @@ public partial class App : Application
             Height = 800,
             MinimumWidth = 900,
             MinimumHeight = 600,
+            // 清空原生窗口标题文字（用户截图 2026-08-02 仍残留 "独立版 - 正在播放 - ..." 等）；
+            // 即使 WS_CAPTION 还没移除，标题文字也直接变空，避免看到 "CatClawMusic" 之类。
+            Title = "",
         };
 
         window.HandlerChanged += (s, e) =>
         {
             if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window nativeWindow)
             {
+                CurrentNativeWindow = nativeWindow;
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                 var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
                 CurrentAppWindow = appWindow;
                 _appHwnd = hwnd;
 
-                if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+                // ====== 标准 WinUI 3 自定义标题栏方式 ======
+                // 1. 启用深色模式 DWM，让系统边框和标题栏使用深色
+                try
                 {
-                    presenter.SetBorderAndTitleBar(true, false);
-                }
+                    int darkMode = 1;
+                    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode, (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
 
-                // 测量系统任务栏（底部 dock 栏）高度，并在窗口延伸到任务栏下方或最大化时，
-                // 为底部 UI（播放栏等）预留安全区内边距，避免被任务栏遮挡。
-                // 窗口尺寸/位置/状态变化时重新计算。
+                    // 设置窗口边框颜色为深色（#080B1A）
+                    int darkRef = 0x001A0B08;
+                    DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref darkRef, (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
+                    DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref darkRef, (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
+                }
+                catch (Exception ex) { Log.Debug("App", $"DWM dark mode failed: {ex.Message}"); }
+
+                // 2. 关键：让应用内容延伸到标题栏区域
+                nativeWindow.ExtendsContentIntoTitleBar = true;
+                appWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+
+                // 3. 将系统标题栏按钮（最小化/最大化/关闭）的背景设为透明
+                var titleBar = appWindow.TitleBar;
+                var transparentColor = global::Windows.UI.Color.FromArgb(0x00, 0x00, 0x00, 0x00);
+                var darkColor = global::Windows.UI.Color.FromArgb(0xFF, 0x08, 0x0B, 0x1A);
+                // 标题栏背景完全透明，让我们的自定义 UI 显示在下面
+                titleBar.BackgroundColor = transparentColor;
+                titleBar.InactiveBackgroundColor = transparentColor;
+                // 按钮背景透明
+                titleBar.ButtonBackgroundColor = transparentColor;
+                titleBar.ButtonInactiveBackgroundColor = transparentColor;
+                // 按钮悬停/按下时的半透明白色
+                titleBar.ButtonHoverBackgroundColor = global::Windows.UI.Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonPressedBackgroundColor = global::Windows.UI.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
+                // 按钮图标颜色
+                titleBar.ButtonForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x8D, 0x93, 0xB7);
+                titleBar.ButtonHoverForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonPressedForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonInactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x5E, 0x67, 0x88);
+                titleBar.ForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+                titleBar.InactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x8D, 0x93, 0xB7);
+
+                // 4. 设置窗口根背景为深色（覆盖 WinUI 默认的白色背景）
+                var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(darkColor);
+                SetRootWindowBackground(nativeWindow.Content, bgBrush);
+
+                // 5. 清除 SystemBackdrop（Mica/Alt 等材质背景会导致白色）
+                try
+                {
+                    nativeWindow.SystemBackdrop = null;
+                }
+                catch { }
+
+                // 6. 测量系统任务栏高度
                 UpdateWindowsSafeArea(appWindow);
                 appWindow.Changed += (_, args) =>
                 {
@@ -417,14 +466,26 @@ public partial class App : Application
                         UpdateWindowsSafeArea(appWindow);
                 };
 
-                // 通过 P/Invoke 移除 WS_CAPTION，彻底隐藏系统标题栏
+                // 7. 延迟确认设置（等待 MAUI 完成初始化）
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(500);
+                    await Task.Delay(100);
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
-                        RemoveSystemTitleBar(hwnd);
-                        nativeWindow.SizeChanged += (_, _) => RemoveSystemTitleBar(hwnd);
+                        // 确保标题栏扩展仍在生效
+                        if (nativeWindow.Content != null)
+                        {
+                            SetRootWindowBackground(nativeWindow.Content, bgBrush);
+                        }
+                    });
+                    await Task.Delay(300);
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        // 第二次确认，并应用到更深层的容器
+                        if (nativeWindow.Content != null)
+                        {
+                            SetRootWindowBackgroundDeep(nativeWindow.Content, bgBrush);
+                        }
                     });
                 });
             }
@@ -477,6 +538,14 @@ public partial class App : Application
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
 
+    // DWM API for dark mode border
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, uint dwAttribute, ref int pvAttribute, uint cbAttribute);
+
+    private const uint DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    private const uint DWMWA_BORDER_COLOR = 34;
+    private const uint DWMWA_CAPTION_COLOR = 35;
+
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct RECT
     {
@@ -497,7 +566,7 @@ public partial class App : Application
         try
         {
             int style = GetWindowLong(hwnd, GWL_STYLE);
-            // 移除标题栏相关样式，保留可调整大小的边框
+            // 移除标题栏和边框样式（WS_THICKFRAME 保留以支持调整窗口大小）
             style &= ~(WS_CAPTION | WS_BORDER | WS_DLGFRAME);
             SetWindowLong(hwnd, GWL_STYLE, style);
             SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
@@ -506,8 +575,198 @@ public partial class App : Application
         catch (Exception ex) { Log.Debug("App", $"移除系统标题栏失败: {ex.Message}"); }
     }
 
-    /// <summary>主窗口句柄缓存，供 UpdateWindowsSafeArea 计算任务栏高度时使用。</summary>
-    private static IntPtr _appHwnd;
+    /// <summary>
+    /// 设置 WinUI 窗口根元素的背景色，并清除默认 Margin，
+    /// 确保 MAUI 内容能延伸到窗口边缘而不破坏子元素的 UI 样式。
+    /// </summary>
+    private static void SetRootWindowBackground(Microsoft.UI.Xaml.DependencyObject? element, Microsoft.UI.Xaml.Media.Brush bgBrush)
+    {
+        if (element == null) return;
+
+        try
+        {
+            // 清除根元素的 Margin
+            if (element is Microsoft.UI.Xaml.FrameworkElement rootFe)
+            {
+                rootFe.Margin = new Microsoft.UI.Xaml.Thickness(0);
+            }
+
+            // 设置背景色（根面板/控件）
+            if (element is Microsoft.UI.Xaml.Controls.Panel panel)
+            {
+                panel.Background = bgBrush;
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.Control control)
+            {
+                control.Background = bgBrush;
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.Border border)
+            {
+                border.Background = bgBrush;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("App", $"SetRootWindowBackground error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 深度设置窗口背景：遍历前 3 层容器，设置所有 Panel/Border/Control 的背景色，
+    /// 清除 Margin，但不深入到具体 UI 控件内部（避免破坏样式）。
+    /// </summary>
+    private static void SetRootWindowBackgroundDeep(Microsoft.UI.Xaml.DependencyObject? element, Microsoft.UI.Xaml.Media.Brush bgBrush, int depth = 0)
+    {
+        if (element == null || depth > 3) return;
+
+        try
+        {
+            // 清除 Margin
+            if (element is Microsoft.UI.Xaml.FrameworkElement fe)
+            {
+                fe.Margin = new Microsoft.UI.Xaml.Thickness(0);
+            }
+
+            // 设置背景色
+            if (element is Microsoft.UI.Xaml.Controls.Panel panel)
+            {
+                panel.Background = bgBrush;
+                // 递归处理子元素（仅限容器层）
+                foreach (var child in panel.Children)
+                {
+                    // 只深入处理明显是容器的元素
+                    if (child is Microsoft.UI.Xaml.Controls.Panel ||
+                        child is Microsoft.UI.Xaml.Controls.Border ||
+                        child is Microsoft.UI.Xaml.Controls.ContentControl ||
+                        child is Microsoft.UI.Xaml.Controls.ContentPresenter ||
+                        child is Microsoft.UI.Xaml.Controls.ScrollViewer)
+                    {
+                        SetRootWindowBackgroundDeep(child, bgBrush, depth + 1);
+                    }
+                }
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.Border border)
+            {
+                border.Background = bgBrush;
+                border.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                if (border.Child is Microsoft.UI.Xaml.DependencyObject borderChild)
+                {
+                    SetRootWindowBackgroundDeep(borderChild, bgBrush, depth + 1);
+                }
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.ContentControl contentControl)
+            {
+                contentControl.Background = bgBrush;
+                contentControl.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                if (contentControl.Content is Microsoft.UI.Xaml.DependencyObject contentChild)
+                {
+                    SetRootWindowBackgroundDeep(contentChild, bgBrush, depth + 1);
+                }
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.ContentPresenter contentPresenter)
+            {
+                contentPresenter.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                if (contentPresenter.Content is Microsoft.UI.Xaml.DependencyObject cpChild)
+                {
+                    SetRootWindowBackgroundDeep(cpChild, bgBrush, depth + 1);
+                }
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.ScrollViewer scrollViewer)
+            {
+                scrollViewer.Background = bgBrush;
+                scrollViewer.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                scrollViewer.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+                if (scrollViewer.Content is Microsoft.UI.Xaml.DependencyObject svChild)
+                {
+                    SetRootWindowBackgroundDeep(svChild, bgBrush, depth + 1);
+                }
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.Control control)
+            {
+                control.Background = bgBrush;
+                control.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                control.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("App", $"SetRootWindowBackgroundDeep error at depth {depth}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Windows 专属：更新 DWM 标题栏/边框颜色、标题栏按钮颜色及窗口根背景，
+    /// 使其跟随应用的深/浅主题切换。在主题变化时由 ThemeService 调用。
+    /// </summary>
+    public static void UpdateWindowsTheme(bool isDark)
+    {
+#if WINDOWS
+        try
+        {
+            if (_appHwnd == IntPtr.Zero || CurrentAppWindow == null) return;
+
+            // 1. DWM 深色模式开关
+            int darkMode = isDark ? 1 : 0;
+            DwmSetWindowAttribute(_appHwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode,
+                (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
+
+            // 2. DWM 边框和标题栏颜色（ABGR 格式：0xAABBGGRR）
+            int colorRef = isDark ? 0x001A0B08 : 0x00FFEBF8; // 深色:#080B1A, 浅色:#F8F7FF
+            DwmSetWindowAttribute(_appHwnd, DWMWA_BORDER_COLOR, ref colorRef,
+                (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
+            DwmSetWindowAttribute(_appHwnd, DWMWA_CAPTION_COLOR, ref colorRef,
+                (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
+
+            // 3. 标题栏按钮颜色（前景 + 背景）
+            var titleBar = CurrentAppWindow.TitleBar;
+            var transparent = global::Windows.UI.Color.FromArgb(0x00, 0x00, 0x00, 0x00);
+
+            titleBar.BackgroundColor = transparent;
+            titleBar.InactiveBackgroundColor = transparent;
+            titleBar.ButtonBackgroundColor = transparent;
+            titleBar.ButtonInactiveBackgroundColor = transparent;
+
+            if (isDark)
+            {
+                titleBar.ButtonForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x8D, 0x93, 0xB7);
+                titleBar.ButtonHoverForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonPressedForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonInactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x5E, 0x67, 0x88);
+                titleBar.ForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+                titleBar.InactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x8D, 0x93, 0xB7);
+                titleBar.ButtonHoverBackgroundColor = global::Windows.UI.Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
+                titleBar.ButtonPressedBackgroundColor = global::Windows.UI.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
+            }
+            else
+            {
+                titleBar.ButtonForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x4A, 0x52, 0x78);
+                titleBar.ButtonHoverForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x1A, 0x1F, 0x3A);
+                titleBar.ButtonPressedForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x1A, 0x1F, 0x3A);
+                titleBar.ButtonInactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x9A, 0xA0, 0xB4);
+                titleBar.ForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x1A, 0x1F, 0x3A);
+                titleBar.InactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x6B, 0x73, 0x99);
+                titleBar.ButtonHoverBackgroundColor = global::Windows.UI.Color.FromArgb(0x1A, 0x00, 0x00, 0x00);
+                titleBar.ButtonPressedBackgroundColor = global::Windows.UI.Color.FromArgb(0x30, 0x00, 0x00, 0x00);
+            }
+
+            // 4. 窗口根背景色
+            var bgColor = isDark
+                ? global::Windows.UI.Color.FromArgb(0xFF, 0x08, 0x0B, 0x1A)
+                : global::Windows.UI.Color.FromArgb(0xFF, 0xF8, 0xF7, 0xFF);
+            var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(bgColor);
+
+            if (CurrentNativeWindow?.Content != null)
+            {
+                SetRootWindowBackground(CurrentNativeWindow.Content, bgBrush);
+                SetRootWindowBackgroundDeep(CurrentNativeWindow.Content, bgBrush);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("App", $"UpdateWindowsTheme failed: {ex.Message}");
+        }
+#endif
+    }
 
     /// <summary>
     /// Windows 专属：测量系统任务栏（底部 dock 栏）高度，并在窗口延伸到任务栏下方或最大化时，

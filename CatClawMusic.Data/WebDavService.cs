@@ -1561,6 +1561,12 @@ public class WebDavService : INetworkFileService, IDisposable
             {
                 try { rawPath = Uri.UnescapeDataString(new Uri(rawPath).AbsolutePath); } catch { }
             }
+            else if (rawPath.Contains('%'))
+            {
+                // 纯路径也可能是 URL 编码形式（如来自 uri.AbsolutePath 或库中保存的编码路径），
+                // OpenList /api/fs/get 只认解码后的虚拟路径，编码路径会返回 object not found
+                try { rawPath = Uri.UnescapeDataString(rawPath); } catch { }
+            }
             var openListPath = ToOpenListPath(rawPath);
             var baseUrl = BuildApiBaseUrl();
             var url = $"{baseUrl}/api/fs/get";
@@ -1604,12 +1610,18 @@ public class WebDavService : INetworkFileService, IDisposable
                 if (string.IsNullOrEmpty(token)) return null;
             }
 
-            // 输入可能是完整 URL（http://user:pass@host/dav/WEBDAV/file）或纯路径
+            // 输入可能是完整 URL（http://user:pass@host/dav/WEBDAV/file）或纯路径（可能为 URL 编码形式）
             var rawPath = filePath;
             if (rawPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 rawPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
                 try { rawPath = Uri.UnescapeDataString(new Uri(rawPath).AbsolutePath); } catch { }
+            }
+            else if (rawPath.Contains('%'))
+            {
+                // 纯路径也可能是 URL 编码形式（如来自 uri.AbsolutePath 或库中保存的编码路径），
+                // OpenList /api/fs/get 只认解码后的虚拟路径，编码路径会返回 object not found
+                try { rawPath = Uri.UnescapeDataString(rawPath); } catch { }
             }
             // /d/ 端点路径（去掉 WebDAV 挂载前缀）
             var openListPath = ToOpenListPath(rawPath);
@@ -1646,7 +1658,16 @@ public class WebDavService : INetworkFileService, IDisposable
                 openListPath.TrimStart('/').Split('/')
                     .Select(s => Uri.EscapeDataString(Uri.UnescapeDataString(s))));
 
-            // 优先使用 sign（Alist /d/ 端点认证方式）
+            // 优先使用 raw_url（CDN 直链）：同一日志中 GetDownloadUrl 已证明该服务器
+            // 的 raw_url（EOS 直链）HttpClient 可 206 成功；而 sign 302 链在 ExoPlayer
+            // 下曾出现 BAD_HTTP_STATUS（UA 或重定向处理差异）。raw_url 直连 CDN 最稳。
+            if (!string.IsNullOrEmpty(rawUrl))
+            {
+                Log.Debug("WebDavService", $"[OpenList] StreamUrl (raw_url): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
+                return rawUrl;
+            }
+
+            // raw_url 不可用：使用 sign（Alist /d/ 端点认证方式）
             if (!string.IsNullOrEmpty(sign))
             {
                 var url = $"{baseUrl}/d/{encodedPath}?sign={Uri.EscapeDataString(sign)}";
@@ -1654,14 +1675,16 @@ public class WebDavService : INetworkFileService, IDisposable
                 return url;
             }
 
-            // sign 不可用：使用 raw_url（直接 CDN 链接，无需认证）
-            if (!string.IsNullOrEmpty(rawUrl))
+            // 最终回退：优先使用 GetDownloadUrl 的 raw_url（直连 CDN、无需认证，
+            // 同一份日志里已验证该服务器 fs/get 解码路径时能正常返回 EOS 直链）
+            var downloadRaw = await GetOpenListDownloadUrlAsync(filePath);
+            if (!string.IsNullOrEmpty(downloadRaw))
             {
-                Log.Debug("WebDavService", $"[OpenList] StreamUrl (raw_url): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
-                return rawUrl;
+                Log.Debug("WebDavService", $"[OpenList] StreamUrl (raw_url fallback): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
+                return downloadRaw;
             }
 
-            // 最终回退：/d/ + token
+            // 兜底：/d/ + token
             var fallbackUrl = $"{baseUrl}/d/{encodedPath}?token={_openListToken}";
             Log.Debug("WebDavService", $"[OpenList] StreamUrl (token fallback): /d/{openListPath[..Math.Min(40, openListPath.Length)]}");
             return fallbackUrl;

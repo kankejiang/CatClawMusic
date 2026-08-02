@@ -661,16 +661,27 @@ public partial class NowPlayingPage
 
     private void SetupWinDragArea()
     {
-        if (WinDragArea.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement el)
+        // 使用系统 SetTitleBar 让 WinDragArea 成为标题栏拖拽区域
+        // 系统会自动处理窗口拖拽、双击最大化/还原
+        if (App.CurrentNativeWindow is { } win && WinDragArea.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement el)
         {
-            el.PointerPressed -= OnWinDragPointerPressed;
-            el.PointerMoved -= OnWinDragPointerMoved;
-            el.PointerReleased -= OnWinDragPointerReleased;
-            el.DoubleTapped -= OnWinDragDoubleTapped;
-            el.PointerPressed += OnWinDragPointerPressed;
-            el.PointerMoved += OnWinDragPointerMoved;
-            el.PointerReleased += OnWinDragPointerReleased;
-            el.DoubleTapped += OnWinDragDoubleTapped;
+            try
+            {
+                win.SetTitleBar(el);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"NowPlayingPage SetTitleBar failed: {ex.Message}");
+                // 后备：手动拖拽
+                el.PointerPressed -= OnWinDragPointerPressed;
+                el.PointerMoved -= OnWinDragPointerMoved;
+                el.PointerReleased -= OnWinDragPointerReleased;
+                el.DoubleTapped -= OnWinDragDoubleTapped;
+                el.PointerPressed += OnWinDragPointerPressed;
+                el.PointerMoved += OnWinDragPointerMoved;
+                el.PointerReleased += OnWinDragPointerReleased;
+                el.DoubleTapped += OnWinDragDoubleTapped;
+            }
         }
     }
 
@@ -845,7 +856,7 @@ public partial class NowPlayingPage
 
     private void UpdateWinMuteIcon()
     {
-        WinMuteBtn.Source = _winIsMuted ? "ic_volume_mute" : "ic_volume";
+        WinMuteBtn.Source = ImageSourceHelper.FromNameOriginal(_winIsMuted ? "ic_volume_mute" : "ic_volume");
         WinMuteBtn.Opacity = _winIsMuted ? 0.5 : 1.0;
     }
 
@@ -889,19 +900,6 @@ public partial class NowPlayingPage
         WinEq2.HeightRequest = 3 + 9 * (0.5 + 0.5 * Math.Sin(_winEqTime * 4.3 + 1.0));
         WinEq3.HeightRequest = 3 + 9 * (0.5 + 0.5 * Math.Sin(_winEqTime * 3.7 + 2.0));
         WinEq4.HeightRequest = 3 + 9 * (0.5 + 0.5 * Math.Sin(_winEqTime * 5.0 + 0.5));
-    }
-
-    // ═══════════════════════════════════════
-    // 最大化图标
-    // ═══════════════════════════════════════
-
-    private void UpdateWinMaximizeIcon()
-    {
-        if (App.CurrentAppWindow?.Presenter is not Microsoft.UI.Windowing.OverlappedPresenter presenter)
-            return;
-        var isMaximized = presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
-        WinMaximizeIcon.IsVisible = !isMaximized;
-        WinRestoreIcon.IsVisible = isMaximized;
     }
 }
 #endif

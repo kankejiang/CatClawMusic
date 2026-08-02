@@ -1887,6 +1887,8 @@ public partial class NowPlayingViewModel : ObservableObject
             if (changed)
             {
                 await _db.SaveSongAsync(song);
+                // 列表页缓存失效：播放时补全的元数据让"网络音乐"列表立即可见
+                AllSongsViewModel.InvalidateCache();
 
                 // 如果正在播放这首歌，更新 UI
                 if (_loadedSongId == song.Id)

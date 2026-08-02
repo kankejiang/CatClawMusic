@@ -22,8 +22,38 @@ public partial class FullLyricsPage : ContentPage
     private int _lastCoverSize;
     private readonly LyricsSettingsService _settings = LyricsSettingsService.Instance;
 
-    /// <summary>当前活跃的 CollectionView（横屏/竖屏）</summary>
-    private CollectionView ActiveCollectionView => _isLandscape ? LandscapeLyricCollectionView : LyricCollectionView;
+    // 滚动歌词（复刻 Windows）：自绘静态堆叠 + 整体平移 TranslationY。
+    // 行视图/锚点/裁剪区高度按横竖屏各一套，Active* 抽象统一访问。
+    private readonly List<View> _lyricRowViews = new();
+    private readonly List<View> _landscapeLyricRowViews = new();
+    private double[] _lyricRowTops = Array.Empty<double>();
+    private double[] _landscapeLyricRowTops = Array.Empty<double>();
+    private double _lyricClipHeight;
+    private double _landscapeLyricClipHeight;
+    private int _lyricMeasureRetries;
+    private int _landscapeLyricMeasureRetries;
+    private double _panStartY;
+    private bool _panWired;
+
+    // 歌词行视觉层次（与播放页一致）：所有行统一字号（锚点依赖行高恒定），当前行用 Scale 放大 + 行距呼吸。
+    private const double LyricCurrentScale = 1.5;
+    private const double LyricGapExtra = 6;
+    private const uint LyricAnimMs = 380;
+
+    /// <summary>当前活跃的行视图列表（横屏/竖屏）</summary>
+    private List<View> ActiveLyricRowViews => _isLandscape ? _landscapeLyricRowViews : _lyricRowViews;
+
+    /// <summary>当前活跃的行锚点表</summary>
+    private double[] ActiveLyricRowTops => _isLandscape ? _landscapeLyricRowTops : _lyricRowTops;
+
+    /// <summary>当前活跃的裁剪容器</summary>
+    private Grid ActiveLyricClip => _isLandscape ? LandscapeLyricClip : LyricClip;
+
+    /// <summary>当前活跃的裁剪区高度</summary>
+    private double ActiveLyricClipHeight => _isLandscape ? _landscapeLyricClipHeight : _lyricClipHeight;
+
+    /// <summary>当前活跃的测量重试计数（引用返回）</summary>
+    private ref int ActiveMeasureRetries => ref _isLandscape ? ref _landscapeLyricMeasureRetries : ref _lyricMeasureRetries;
 
     /// <summary>当前活跃的 LyricStack（横屏/竖屏）</summary>
     private VerticalStackLayout ActiveLyricStack => _isLandscape ? LandscapeLyricStack : LyricStack;
@@ -31,39 +61,37 @@ public partial class FullLyricsPage : ContentPage
     /// <summary>当前活跃的歌词标签列表</summary>
     private List<KaraokeLabel> ActiveLyricLabels => _isLandscape ? _landscapeLyricLabels : _lyricLabels;
 
-    /// <summary>当前活跃的歌词边框列表</summary>
-    private List<Border> ActiveLyricBorders => _isLandscape ? _landscapeLyricBorders : _lyricBorders;
-
     /// <summary>当前活跃的最后高亮索引</summary>
     private ref int ActiveLastHighlight => ref _isLandscape ? ref _landscapeLastHighlight : ref _lastHighlightIndex;
 
-    /// <summary>竖屏 CollectionView Handler 变化时触发</summary>
+    /// <summary>竖屏裁剪容器 Handler 变化时触发</summary>
     private void OnCollectionViewHandlerChanged(object? sender, EventArgs e)
     {
         if (_isLandscape) return;
-        TriggerScrollIfReady(LyricCollectionView, _lyricLabels);
+        TriggerScrollIfReady(LyricClip, _lyricLabels);
     }
 
-    /// <summary>横屏 CollectionView Handler 变化时触发</summary>
+    /// <summary>横屏裁剪容器 Handler 变化时触发</summary>
     private void OnLandscapeCollectionViewHandlerChanged(object? sender, EventArgs e)
     {
         if (!_isLandscape) return;
-        TriggerScrollIfReady(LandscapeLyricCollectionView, _landscapeLyricLabels);
+        TriggerScrollIfReady(LandscapeLyricClip, _landscapeLyricLabels);
     }
 
-    private void TriggerScrollIfReady(CollectionView cv, List<KaraokeLabel> labels)
+    private void TriggerScrollIfReady(Grid clip, List<KaraokeLabel> labels)
     {
-        if (cv.Handler != null && labels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
+        if (clip.Handler != null && labels.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
         {
 #if ANDROID
-            Android.Util.Log.Info("FLP", "[FullLyricsPage] CollectionView Handler 就绪，延迟滚动到 idx={0}", _viewModel.CurrentLyricIndexObservable);
+            Android.Util.Log.Info("FLP", "[FullLyricsPage] LyricClip Handler 就绪，延迟滚动到 idx={0}", _viewModel.CurrentLyricIndexObservable);
 #endif
             _ = Task.Delay(300).ContinueWith(_ =>
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    if (cv.Handler != null)
+                    if (clip.Handler != null)
                     {
                         HighlightLineWithoutScroll(_viewModel.CurrentLyricIndexObservable);
+                        MeasureLyricRows();
                         ScrollToLine(_viewModel.CurrentLyricIndexObservable);
                     }
                 }));
@@ -82,8 +110,11 @@ public partial class FullLyricsPage : ContentPage
 #endif
 
         // 控件级事件：在构造函数中订阅一次，永不取消
-        LyricCollectionView.HandlerChanged += OnCollectionViewHandlerChanged;
-        LandscapeLyricCollectionView.HandlerChanged += OnLandscapeCollectionViewHandlerChanged;
+        LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
+        LandscapeLyricClip.HandlerChanged += OnLandscapeCollectionViewHandlerChanged;
+
+        // 歌词拖动浏览（暂停跟随 3 秒）
+        WireLyricPanGesture();
 
         // 封面图片打标签确保高分辨率解码
         LandscapeCoverImage.HandlerChanged += (_, _) => TagPlayerCoverViews();
@@ -399,7 +430,9 @@ public partial class FullLyricsPage : ContentPage
         LyricStack.Children.Clear();
         _lyricLabels.Clear();
         _lyricBorders.Clear();
+        _lyricRowViews.Clear();
         _lastHighlightIndex = -1;
+        _lyricRowTops = Array.Empty<double>();
 
         var lines = _viewModel.AllLyricLines;
         if (lines == null || lines.Count == 0)
@@ -420,11 +453,20 @@ public partial class FullLyricsPage : ContentPage
             return;
         }
 
-        BuildLyricStack(LyricStack, lines, _lyricLabels, _lyricBorders);
+        BuildLyricStack(LyricStack, lines, _lyricLabels, _lyricBorders, _lyricRowViews);
 
         var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
         if (!_isLandscape)
             HighlightLineWithoutScroll(idx);
+
+        // 布局完成后实测行高 + 钉当前行（恒钉 1/3 处）
+        _lyricMeasureRetries = 0;
+        _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (LyricClip.Handler == null) return;
+            MeasureLyricRows();
+            ScrollToLine(idx);
+        }));
     }
 
     /// <summary>构建横屏歌词视图</summary>
@@ -433,7 +475,9 @@ public partial class FullLyricsPage : ContentPage
         LandscapeLyricStack.Children.Clear();
         _landscapeLyricLabels.Clear();
         _landscapeLyricBorders.Clear();
+        _landscapeLyricRowViews.Clear();
         _landscapeLastHighlight = -1;
+        _landscapeLyricRowTops = Array.Empty<double>();
 
         var lines = _viewModel.AllLyricLines;
         if (lines == null || lines.Count == 0)
@@ -454,23 +498,35 @@ public partial class FullLyricsPage : ContentPage
             return;
         }
 
-        BuildLyricStack(LandscapeLyricStack, lines, _landscapeLyricLabels, _landscapeLyricBorders);
+        BuildLyricStack(LandscapeLyricStack, lines, _landscapeLyricLabels, _landscapeLyricBorders, _landscapeLyricRowViews);
 
         var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
         if (_isLandscape)
             HighlightLineWithoutScroll(idx);
+
+        // 布局完成后实测行高 + 钉当前行
+        _landscapeLyricMeasureRetries = 0;
+        _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (LandscapeLyricClip.Handler == null) return;
+            MeasureLyricRows();
+            ScrollToLine(idx);
+        }));
     }
 
-    /// <summary>通用歌词栈构建方法</summary>
+    /// <summary>通用歌词栈构建方法（字号在构建时按设置固定 → 行高恒定，滚动锚点稳定）</summary>
     private void BuildLyricStack(VerticalStackLayout stack, IReadOnlyList<LrcLyricLine> lines,
-        List<KaraokeLabel> labelList, List<Border> borderList)
+        List<KaraokeLabel> labelList, List<Border> borderList, List<View> rowViews)
     {
+        var baseSize = _settings.FontSize;
+        var transSize = Math.Max(10, baseSize - 2);
+
         foreach (var line in lines)
         {
             var label = new KaraokeLabel
             {
                 Text = line.Text,
-                FontSize = 15,
+                FontSize = baseSize,
                 FontFamily = "OpenSansRegular",
                 FontAttributes = FontAttributes.None,
                 TextColor = Colors.White,
@@ -483,6 +539,9 @@ public partial class FullLyricsPage : ContentPage
                 Opacity = 0.2,
                 Padding = new Thickness(16, 6)
             };
+            // 缩放锚点（当前行 Scale 放大用）：居中从中心生长，左对齐向右生长
+            label.AnchorX = _settings.ToLayoutOptions().Alignment == LayoutAlignment.Center ? 0.5 : 0;
+            label.AnchorY = 0.5;
 
             var border = new Border
             {
@@ -490,19 +549,20 @@ public partial class FullLyricsPage : ContentPage
                 StrokeThickness = 0,
                 BackgroundColor = Colors.Transparent,
                 Padding = new Thickness(22, 0),
-                HorizontalOptions = _settings.ToLayoutOptions()
+                // 必须 Fill：让 KaraokeLabel 拿到父级宽度约束 → StaticLayout 正常换行（长歌词分行显示）
+                HorizontalOptions = LayoutOptions.Fill
             };
             border.Content = label;
 
             if (!string.IsNullOrEmpty(line.Translation))
             {
-                var vStack = new VerticalStackLayout { Spacing = 4, HorizontalOptions = _settings.ToLayoutOptions() };
+                var vStack = new VerticalStackLayout { Spacing = 4, HorizontalOptions = LayoutOptions.Fill };
                 vStack.Children.Add(border);
 
                 var transLabel = new KaraokeLabel
                 {
                     Text = line.Translation,
-                    FontSize = 13,
+                    FontSize = transSize,
                     FontFamily = "OpenSansRegular",
                     FontAttributes = FontAttributes.None,
                     TextColor = Colors.White,
@@ -521,15 +581,17 @@ public partial class FullLyricsPage : ContentPage
                     StrokeThickness = 0,
                     BackgroundColor = Colors.Transparent,
                     Padding = new Thickness(22, 0),
-                    HorizontalOptions = _settings.ToLayoutOptions()
+                    HorizontalOptions = LayoutOptions.Fill
                 };
                 transBorder.Content = transLabel;
                 vStack.Children.Add(transBorder);
                 stack.Children.Add(vStack);
+                rowViews.Add(vStack);
             }
             else
             {
                 stack.Children.Add(border);
+                rowViews.Add(border);
             }
 
             labelList.Add(label);
@@ -537,65 +599,87 @@ public partial class FullLyricsPage : ContentPage
         }
     }
 
-    /// <summary>仅高亮不滚动</summary>
+    /// <summary>
+    /// 按与当前行的距离设置行级高斯模糊（Android 12+ RenderEffect）：
+    /// 当前行清晰（blur=0），距离 1 行轻微虚化 3.5dp，≥2 行 6.5dp（参照 Windows 景深档位）。
+    /// 低版本 Android 自动无操作，保持透明度分层兜底。
+    /// </summary>
+    private void ApplyRowBlur(KaraokeLabel lbl, int dist)
+    {
+#if ANDROID
+        if (lbl.Handler?.PlatformView is CatClawMusic.Maui.Platforms.Android.KaraokePlatformView pv)
+        {
+            float r = dist <= 0 ? 0f : dist == 1 ? 3.5f : 6.5f;
+            pv.SetRowBlur(r);
+        }
+#endif
+    }
+
+    /// <summary>仅高亮不滚动（构建期/初始化用）</summary>
     private void HighlightLineWithoutScroll(int index)
     {
         var labels = ActiveLyricLabels;
         if (index < 0 || index >= labels.Count) return;
-
-        var baseSize = _settings.FontSize;
 
         for (int i = 0; i < labels.Count; i++)
         {
             var lbl = labels[i];
             if (i == index)
             {
-                lbl.FontSize = baseSize;
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = _viewModel.CurrentLineFillProgress;
                 lbl.Opacity = 1.0;
+                lbl.Scale = LyricCurrentScale;
             }
             else
             {
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                lbl.FontSize = baseSize - 3;
                 lbl.Opacity = 0.35;
+                lbl.Scale = 1.0;
             }
+            ApplyRowBlur(lbl, Math.Abs(i - index));
         }
 
+        ApplyLyricRowGap(index, animate: false);
         ActiveLastHighlight = index;
     }
 
-    /// <summary>高亮并滚动</summary>
+    /// <summary>高亮并滚动（当前行 Scale 放大 + 行距呼吸 + 整体平移钉 1/3 处）</summary>
     private void HighlightLine(int index)
     {
         var labels = ActiveLyricLabels;
         if (index < 0 || index >= labels.Count) return;
 
-        var baseSize = _settings.FontSize;
         ref int lastHl = ref ActiveLastHighlight;
         var affectedMin = Math.Max(0, Math.Min(index, lastHl) - 5);
         var affectedMax = Math.Min(labels.Count - 1, Math.Max(index, lastHl) + 5);
+        var prev = lastHl;
 
         for (int i = affectedMin; i <= affectedMax; i++)
         {
             var lbl = labels[i];
             if (i == index)
             {
-                lbl.FontSize = baseSize;
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = _viewModel.CurrentLineFillProgress;
                 lbl.Opacity = 1.0;
             }
             else
             {
-                lbl.FontAttributes = FontAttributes.None;
                 lbl.FillProgress = 0;
-                lbl.FontSize = baseSize - 3;
                 lbl.Opacity = 0.35;
             }
+
+            // Scale 走缓动动画（跳过当前/旧行，交给 AnimateLyricRowScale 处理）
+            if (i != index && i != prev)
+                lbl.Scale = i == index ? LyricCurrentScale : 1.0;
+
+            ApplyRowBlur(lbl, Math.Abs(i - index));
         }
+
+        AnimateLyricRowScale(index, LyricCurrentScale);
+        if (prev >= 0 && prev != index)
+            AnimateLyricRowScale(prev, 1.0);
+
+        ApplyLyricRowGap(index, animate: true);
 
         lastHl = index;
 
@@ -603,105 +687,141 @@ public partial class FullLyricsPage : ContentPage
             ScrollToLine(index);
     }
 
-    /// <summary>滚动到指定歌词行</summary>
-    private async void ScrollToLine(int index)
+    /// <summary>只把当前行上下两条缝隙撑开 <see cref="LyricGapExtra"/>（行容器 TranslationY，不重排）。</summary>
+    private void ApplyLyricRowGap(int index, bool animate)
+    {
+        var rows = ActiveLyricRowViews;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            double target = i < index ? -LyricGapExtra
+                          : i > index ? LyricGapExtra
+                          : 0;
+
+            var row = rows[i];
+            if (Math.Abs(row.TranslationY - target) < 0.5) continue;
+
+            row.AbortAnimation("TranslateTo");
+            if (animate)
+                _ = row.TranslateTo(0, target, LyricAnimMs, Easing.CubicInOut);
+            else
+                row.TranslationY = target;
+        }
+    }
+
+    /// <summary>缓动把第 i 行缩放到目标倍率（Scale 渲染变换，不影响行高与滚动锚点）。</summary>
+    private void AnimateLyricRowScale(int i, double target)
     {
         var labels = ActiveLyricLabels;
-        var cv = ActiveCollectionView;
-        var lyricStack = ActiveLyricStack;
+        if (i < 0 || i >= labels.Count) return;
+        var lbl = labels[i];
+        if (Math.Abs(lbl.Scale - target) < 0.01) return;
 
+        lbl.AbortAnimation("ScaleTo");
+        _ = lbl.ScaleTo(target, LyricAnimMs, Easing.CubicInOut);
+    }
+
+    /// <summary>
+    /// 实测各行顶部 Y（由实测行高累加）与裁剪区高度，供"当前行恒钉 1/3 处"锚点计算。
+    /// 行高未就绪时自动重试，最多 6 次。
+    /// </summary>
+    private void MeasureLyricRows()
+    {
+        var rows = ActiveLyricRowViews;
+        if (rows.Count == 0) return;
+
+        if (_isLandscape)
+        {
+            _landscapeLyricClipHeight = LandscapeLyricClip.Bounds.Height;
+            _landscapeLyricRowTops = new double[rows.Count];
+        }
+        else
+        {
+            _lyricClipHeight = LyricClip.Bounds.Height;
+            _lyricRowTops = new double[rows.Count];
+        }
+
+        double y = 0;
+        double spacing = ActiveLyricStack.Spacing;   // ⚠ 行间距必须计入锚点累加，否则每行偏差 → 越滚越偏
+        bool needsRetry = false;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            ActiveLyricRowTops[i] = y;               // 由前序行高累加，不读 Bounds.Y
+            var h = rows[i].Height;
+            if (h <= 0.5)
+            {
+                h = 40;                              // 未就绪先用回退值，重试会校正
+                needsRetry = true;
+            }
+            y += h + spacing;
+        }
+
+        if (needsRetry && ActiveMeasureRetries < 6)
+        {
+            ActiveMeasureRetries++;
+            _ = Task.Delay(120).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (ActiveLyricClip.Handler == null) return;
+                MeasureLyricRows();
+                var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
+                ScrollToLine(idx);
+            }));
+        }
+    }
+
+    /// <summary>
+    /// 把歌词缓动钉到指定行：当前行中心**恒定**落在裁剪区 1/3 处。
+    /// 滚动 = 整体平移 LyricStack.TranslationY（合成线程变换，不重排），380ms CubicInOut，
+    /// 首尾不夹紧 → 位置永远一致。用户拖动（_userScrolling）期间不自动滚动。
+    /// </summary>
+    private void ScrollToLine(int index)
+    {
+        var labels = ActiveLyricLabels;
         if (index < 0 || index >= labels.Count) return;
+
+        var rows = ActiveLyricRowViews;
+        if (ActiveLyricRowTops.Length != rows.Count) return;
 
         try
         {
-            var label = labels[index];
+            var clipH = ActiveLyricClipHeight;
+            if (clipH <= 0) return;
 
-#if ANDROID
-            for (int attempt = 0; attempt < 12; attempt++)
-            {
-                var rv = cv.Handler?.PlatformView;
-                var lblHandler = label.Handler?.PlatformView;
-                Android.Util.Log.Info("FLP", "[FullLyricsPage] ScrollToLine idx={0} attempt={1} rv={2} lblHandler={3} lblHeight={4} landscape={5}",
-                    index, attempt, rv != null ? "OK" : "null", lblHandler != null ? "OK" : "null", label.Height, _isLandscape);
+            var rowH = rows[index].Height > 0 ? rows[index].Height : 40;
+            double targetY = clipH * 0.30 - (ActiveLyricRowTops[index] + rowH / 2.0);
 
-                if (rv is global::AndroidX.RecyclerView.Widget.RecyclerView recyclerView
-                    && lblHandler is Android.Views.View nativeLabel
-                    && label.Height > 0)
-                {
-                    var labelLoc = new int[2];
-                    var rvLoc = new int[2];
-                    nativeLabel.GetLocationOnScreen(labelLoc);
-                    recyclerView.GetLocationOnScreen(rvLoc);
-                    var viewportY = labelLoc[1] - rvLoc[1] + nativeLabel.Height / 2;
-                    int dy = (int)(viewportY - recyclerView.Height * 0.30);
-                    Android.Util.Log.Info("FLP", "[FullLyricsPage] ScrollToLine idx={0} 滚动 viewportY={1:F0} rvHeight={2} dy={3}",
-                        index, viewportY, recyclerView.Height, dy);
-                    if (Math.Abs(dy) > 2)
-                    {
-                        recyclerView.SmoothScrollBy(0, dy);
-                    }
-                    return;
-                }
-
-                await Task.Delay(200);
-            }
-            Android.Util.Log.Info("FLP", "[FullLyricsPage] ScrollToLine idx={0} 重试12次仍条件不满足，放弃", index);
-#elif WINDOWS
-            if (cv.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ListViewBase listView)
-            {
-                var scrollViewer = FindScrollViewer(listView);
-                if (scrollViewer != null)
-                {
-                    var y = GetRelativeY(label, lyricStack);
-                    var targetOffset = Math.Max(0, Math.Min(y - cv.Height * 0.30, scrollViewer.ScrollableHeight));
-                    if (Math.Abs(scrollViewer.VerticalOffset - targetOffset) > 4)
-                    {
-                        scrollViewer.ChangeView(null, targetOffset, null, disableAnimation: false);
-                    }
-                }
-            }
-#else
-            var y = GetRelativeY(label, lyricStack);
-            var targetScrollY = y - cv.Height * 0.25;
-            targetScrollY = Math.Max(0, targetScrollY);
-            if (cv.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().Any())
-            {
-                cv.ScrollTo(items.Cast<object>().First(), position: ScrollToPosition.Start, animate: true);
-            }
-#endif
+            ActiveLyricStack.CancelAnimations();
+            ActiveLyricStack.TranslateTo(0, targetY, LyricAnimMs, Easing.CubicInOut);
         }
         catch { }
     }
 
-#if WINDOWS
-    private static Microsoft.UI.Xaml.Controls.ScrollViewer? FindScrollViewer(Microsoft.UI.Xaml.DependencyObject obj)
+    /// <summary>给歌词裁剪区挂平移手势：用户拖动即暂停跟随 3 秒（期间不自动滚动）。</summary>
+    private void WireLyricPanGesture()
     {
-        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(obj); i++)
-        {
-            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(obj, i);
-            if (child is Microsoft.UI.Xaml.Controls.ScrollViewer sv)
-                return sv;
-            var result = FindScrollViewer(child);
-            if (result != null)
-                return result;
-        }
-        return null;
-    }
-#endif
+        if (_panWired) return;
+        _panWired = true;
 
-    /// <summary>获取元素相对于指定 LyricStack 的 Y 坐标</summary>
-    private double GetRelativeY(VisualElement element, VerticalStackLayout targetStack)
+        WirePan(LyricClip, LyricStack);
+        WirePan(LandscapeLyricClip, LandscapeLyricStack);
+    }
+
+    private void WirePan(Grid clip, VerticalStackLayout stack)
     {
-        double y = element.Y + element.Height / 2;
-        var parent = element.Parent as VisualElement;
-        while (parent != null)
+        var pan = new PanGestureRecognizer();
+        pan.PanUpdated += (_, e) =>
         {
-            y += parent.Y;
-            if (parent == targetStack)
-                break;
-            parent = parent.Parent as VisualElement;
-        }
-        return y;
+            if (e.StatusType == GestureStatus.Started)
+            {
+                stack.CancelAnimations();
+                _panStartY = stack.TranslationY;
+                OnUserScrolled(); // 拖动 → 3 秒内不自动跟随
+            }
+            else if (e.StatusType == GestureStatus.Running)
+            {
+                stack.TranslationY = _panStartY + e.TotalY;
+            }
+        };
+        clip.GestureRecognizers.Add(pan);
     }
 
     private void OnUserScrolled()

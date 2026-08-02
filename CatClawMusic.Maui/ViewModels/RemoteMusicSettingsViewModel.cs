@@ -43,6 +43,19 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _syncingProfileName = "";
 
+    /// <summary>是否正在补全元数据（区别于目录扫描，用于进度面板标题切换）</summary>
+    [ObservableProperty]
+    private bool _isBackfilling;
+
+    /// <summary>进度面板标题（扫描同步 / 元数据补全）</summary>
+    public string SyncTitle => IsBackfilling
+        ? $"正在补全元数据「{SyncingProfileName}」"
+        : $"正在同步「{SyncingProfileName}」";
+
+    partial void OnIsBackfillingChanged(bool value) => OnPropertyChanged(nameof(SyncTitle));
+
+    partial void OnSyncingProfileNameChanged(string value) => OnPropertyChanged(nameof(SyncTitle));
+
     /// <summary>已配置的连接列表</summary>
     public ObservableCollection<ConnectionProfile> Profiles { get; } = new();
 
@@ -437,46 +450,35 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
             // 无需再调 ImportSongsAsync 逐首重复插入（1226 首 × 3 次 DB 操作 = 极慢）
             SyncProgress = 1;
             await RefreshAsync();
-            await ToastAsync($"同步完成！发现 {songs.Count} 首歌曲，正在后台补全元数据...");
+            await ToastAsync($"同步完成！发现 {songs.Count} 首歌曲");
 
             // 通知音乐库（Library 页网络音乐库卡片/网络 tab）重新同步：扫描已入库，
             // 解决"网络音乐有缓存但网络音乐库未同步"的问题。
             LocalScanService.NotifyNetworkSyncCompleted(songs.Count);
 
-            // 后台回填元数据（艺术家、专辑、时长等），不阻塞用户操作
-            _ = Task.Run(async () =>
+            // 元数据（时长/艺术家/专辑）不再自动后台回填：歌多时每首都要下载远程文件头，
+            // 海量并发请求会让 App 卡死。改为弹窗让用户确认后【前台】执行，进度条跑完即完成。
+            if (songs.Count > 0)
             {
-                try
+                var doBackfill = await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
-                    var backfillProgress = new Progress<(int done, int total, string status)>(p =>
-                    {
-                        MainThread.BeginInvokeOnMainThread(() =>
-                        {
-                            SyncStatus = p.status;
-                            if (p.total > 0)
-                            {
-                                SyncProgress = (double)p.done / p.total;
-                                HasSyncProgress = true;
-                            }
-                        });
-                    });
-                    await _networkMusicService.BackfillMetadataAsync(profile, backfillProgress);
-                    await MainThread.InvokeOnMainThreadAsync(async () =>
-                    {
-                        await RefreshAsync();
-                        SyncStatus = "";
-                        SyncProgress = 0;
-                        HasSyncProgress = false;
-
-                        // 元数据回填完成，再次通知音乐库刷新以反映艺术家/专辑/时长等更新
-                        LocalScanService.NotifyNetworkSyncCompleted(0);
-                    });
-                }
-                catch (Exception ex)
+                    if (Application.Current?.MainPage is Page page)
+                        return await page.DisplayAlert("补全元数据",
+                            $"已发现 {songs.Count} 首歌曲。是否现在补全元数据（时长/艺术家/专辑）？\n\n将逐首读取远程文件头，歌曲较多时耗时较长，建议连接 Wi-Fi 后执行。",
+                            "立即补全", "稍后再说");
+                    return false;
+                });
+                if (doBackfill)
                 {
-                    Log.Debug("RemoteMusicSettingsViewModel", $"[CatClaw] 元数据回填失败: {ex.Message}");
+                    IsBackfilling = true;
+                    SyncStatus = "正在获取元数据...";
+                    SyncProgress = 0;
+                    HasSyncProgress = false;
+                    await RunBackfillCoreAsync(profile);
+                    IsBackfilling = false;
+                    await ToastAsync("元数据补全完成！");
                 }
-            });
+            }
         }
         catch (Exception ex)
         {
@@ -485,11 +487,100 @@ public partial class RemoteMusicSettingsViewModel : ObservableObject
         finally
         {
             IsSyncing = false;
+            IsBackfilling = false;
             SyncStatus = "";
             SyncProgress = 0;
             HasSyncProgress = false;
             SyncingProfileName = "";
         }
+    }
+
+    /// <summary>手动补全所有已配置 WebDAV/SMB 连接的缓存歌曲元数据（前台执行，带进度条）</summary>
+    [RelayCommand]
+    public async Task BackfillAllMetadataAsync()
+    {
+        if (IsSyncing || IsBackfilling) return;
+
+        var profiles = await _db.GetConnectionProfilesAsync();
+        var targets = profiles.Where(p => p.Protocol == ProtocolType.WebDAV || p.Protocol == ProtocolType.SMB).ToList();
+        if (targets.Count == 0)
+        {
+            await ToastAsync("没有可补全的 WebDAV/SMB 连接");
+            return;
+        }
+
+        var confirm = await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            if (Application.Current?.MainPage is Page page)
+                return await page.DisplayAlert("补全元数据",
+                    $"将为 {targets.Count} 个连接的缓存歌曲补全元数据（时长/艺术家/专辑）。\n\n将逐首读取远程文件头，歌曲较多时耗时较长，是否继续？",
+                    "开始补全", "取消");
+            return false;
+        });
+        if (!confirm) return;
+
+        IsSyncing = true;
+        IsBackfilling = true;
+        SyncStatus = "正在获取元数据...";
+        SyncProgress = 0;
+        HasSyncProgress = false;
+        try
+        {
+            foreach (var p in targets)
+            {
+                SyncingProfileName = p.Name;
+                await RunBackfillCoreAsync(p);
+            }
+            await ToastAsync("元数据补全完成！");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("RemoteMusicSettingsViewModel", $"[CatClaw] 元数据回填失败: {ex.Message}");
+            await ToastAsync($"补全失败：{ex.Message}");
+        }
+        finally
+        {
+            IsSyncing = false;
+            IsBackfilling = false;
+            SyncStatus = "";
+            SyncProgress = 0;
+            HasSyncProgress = false;
+            SyncingProfileName = "";
+        }
+    }
+
+    /// <summary>执行元数据回填核心逻辑（前台等待完成；进度经 Progress 回主线程更新面板）。
+    /// 包含两步：① 补全 Tag 元数据（歌手/专辑/时长）；② 下载封面缓存（列表可见）。</summary>
+    private async Task RunBackfillCoreAsync(ConnectionProfile profile)
+    {
+        var backfillProgress = new Progress<(int done, int total, string status)>(p =>
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                SyncStatus = p.status;
+                if (p.total > 0)
+                {
+                    SyncProgress = (double)p.done / p.total;
+                    HasSyncProgress = true;
+                }
+            });
+        });
+
+        // 1) 补全 Tag 元数据（歌手/专辑/时长）
+        await Task.Run(() => _networkMusicService.BackfillMetadataAsync(profile, backfillProgress));
+
+        // 2) 下载封面到本地缓存（进度面板延续显示，避免"补完元数据列表仍无封面"）
+        var source = profile.Protocol == ProtocolType.SMB ? SongSource.SMB : SongSource.WebDAV;
+        var cached = await _db.GetCachedNetworkSongsAsync();
+        var coverTargets = cached.Where(s => s.Source == source && !string.IsNullOrEmpty(s.RemoteId)).ToList();
+        if (coverTargets.Count > 0)
+            await CoverHelper.DownloadNetworkCoversAsync(coverTargets, backfillProgress);
+
+        // 3) 刷新列表 + 让 AllSongs 列表页缓存失效（否则 2 分钟内进列表仍是补全前的旧数据）
+        await RefreshAsync();
+        AllSongsViewModel.InvalidateCache();
+        // 元数据回填完成，再次通知音乐库刷新以反映艺术家/专辑/时长等更新
+        LocalScanService.NotifyNetworkSyncCompleted(0);
     }
 
     /// <summary>根据协议类型返回显示文本</summary>

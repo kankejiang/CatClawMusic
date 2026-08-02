@@ -15,8 +15,8 @@
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
 		<ApplicationId>com.catclaw.music</ApplicationId>
-		<ApplicationDisplayVersion>1.7.7</ApplicationDisplayVersion>
-		<ApplicationVersion>53</ApplicationVersion>
+		<ApplicationDisplayVersion>1.7.8</ApplicationDisplayVersion>
+		<ApplicationVersion>54</ApplicationVersion>
 
 		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>
@@ -120,19 +120,12 @@
 		<AndroidUseFastDeploy>false</AndroidUseFastDeploy>
 	</PropertyGroup>
 
-	<!-- Windows XAML 编译修复：XamlCompiler.exe 在 .NET 10 上编译成功但退出码为 1
-	     （关闭崩溃），且 output.json 中 GeneratedCodeFiles 为空。
-	     1. 用包装脚本绕过退出码问题
-	     2. 用 AfterBuildFixXamlOutput target 修复 output.json 中缺失的 GeneratedCodeFiles -->
-	<Target Name="FixXamlCompilerOutput" AfterTargets="MarkupCompilePass1"
-			Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
-		<!-- 扫描 obj 目录中的 .g.cs 和 .g.i.cs 文件并添加到 Compile -->
-		<!-- .g.cs = 空的 partial 类声明；.g.i.cs = 含 InitializeComponent 和 Main 的实现 -->
-		<ItemGroup>
-			<GeneratedXamlCodeFiles Include="$(XamlGeneratedOutputPath)**\*.g.cs" />
-			<GeneratedXamlCodeFiles Include="$(XamlGeneratedOutputPath)**\*.g.i.cs" />
-			<Compile Include="@(GeneratedXamlCodeFiles)" />
-		</ItemGroup>
-	</Target>
+	<!-- Windows XAML 编译修复：XamlCompiler.exe 在 .NET 10 Release 模式下
+	     GeneratedCodeFiles 为空，导致缺少 Main 和 InitializeComponent。
+	     App.generated.cs 在 Debug 模式下排除（XAML编译器正常工作），
+	     在 Release 模式下作为生成代码的补充。 -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<Compile Remove="Platforms\Windows\App.generated.cs" />
+	</ItemGroup>
 
 </Project>

@@ -201,6 +201,14 @@ public class ThemeService : IThemeService
                 activity.UpdateDecorViewBackground();
             }
 #endif
+#if WINDOWS
+            try
+            {
+                var isDark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+                CatClawMusic.Maui.App.UpdateWindowsTheme(isDark);
+            }
+            catch { }
+#endif
         });
     }
 

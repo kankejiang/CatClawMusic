@@ -9,21 +9,19 @@
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <!-- Desktop layout: TitleBar / Sidebar | TopBar / Content, with Player at bottom -->
-    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="Auto,52,*,100">
+    <!-- Desktop layout: Sidebar | Content, with Player at bottom. Drag bar overlays on top.
+         沉浸式标题栏：内容背景延伸至窗口顶部，侧边栏从标题栏下方开始。 -->
+    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="32,*,100">
 
-        <!-- ═══ Custom Title Bar ═══ (Windows 桌面端使用；移动端横屏复用时由代码隐藏) -->
-        <controls:TitleBar x:Name="AppTitleBar" Grid.Row="0" Grid.ColumnSpan="2" />
-
-        <!-- ═══ Left Sidebar ═══ -->
-        <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="3" Grid.Column="0"
-                StrokeThickness="1"
+        <!-- ═══ Left Sidebar (starts below title bar for immersive look) ═══ -->
+        <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="2" Grid.Column="0"
+                StrokeThickness="0,0,1,0"
                 Stroke="{DynamicResource DividerColor}"
                 BackgroundColor="{DynamicResource CardBackgroundColor}">
-            <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="0,12,0,0">
+            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="0,0,0,0">
 
                 <!-- App Logo（Windows 桌面端显示；移动端横屏复用时隐藏以节省空间） -->
-                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,8,20,16"
+                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,12,20,16"
                       ColumnDefinitions="Auto,*" ColumnSpacing="10">
                     <Border WidthRequest="36" HeightRequest="36"
                             StrokeShape="RoundRectangle 10"
@@ -131,9 +129,9 @@
         </Border>
 
         <!-- ═══ Top Command Bar ═══ -->
-        <Grid x:Name="TopBar" Grid.Row="1" Grid.Column="1"
+        <Grid x:Name="TopBar" Grid.Row="0" Grid.Column="1"
               ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="16,0,16,0"
-              BackgroundColor="{DynamicResource CardBackgroundColor}">
+              BackgroundColor="Transparent">
             <Entry x:Name="SearchEntry"
                    Placeholder="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopSearchPlaceholder]}"
                    VerticalOptions="Center"
@@ -153,15 +151,15 @@
             </HorizontalStackLayout>
         </Grid>
 
-        <!-- ═══ Main Content Area ═══ -->
-        <Grid x:Name="ContentArea" Grid.Row="2" Grid.Column="1"
+        <!-- ═══ Main Content Area (extends to top for immersive title bar) ═══ -->
+        <Grid x:Name="ContentArea" Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
               Background="{DynamicResource PageBackgroundBrush}"
               IsClippedToBounds="True" />
 
         <!-- ═══ Bottom Player Bar ═══ -->
         <!-- 注意：Windows 平台 Border 不会把测量尺寸传递给其内容，导致内部 Grid 高度为 0。
              因此这里直接使用 Grid（与 TopBar 一致），并在顶部放一条 1px 的分隔线代替 Border 的 Stroke。 -->
-        <Grid x:Name="PlayerBarBorder" Grid.Row="3" Grid.Column="1"
+        <Grid x:Name="PlayerBarBorder" Grid.Row="2" Grid.Column="1"
               RowDefinitions="1,*"
               Background="{DynamicResource HeroBrush}">
             <BoxView Grid.Row="0" HeightRequest="1"
@@ -282,5 +280,12 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- ═══ Title Bar Drag Overlay (transparent, on top of everything, for window dragging) ═══ -->
+        <Grid x:Name="TitleBarDragArea" Grid.Row="0" Grid.ColumnSpan="2"
+              HeightRequest="32"
+              VerticalOptions="Start"
+              BackgroundColor="Transparent"
+              InputTransparent="False" />
     </Grid>
 </ContentPage>

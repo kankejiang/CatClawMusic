@@ -6,6 +6,7 @@
 - 产出 `bin/Release/net10.0-android/publish/*-Signed.apk`(csproj 无自动复制 target)。
 - **构建坑(2026-08-01, 详见当日日志)**: ① `global.json` 原 `rollForward:"latestMajor"` 会滚到 net11 预览 SDK 致 XA0111(aapt2 版本不受支持)→ 已改 `"latestFeature"` 锁定 .NET 10; ② Android 包 36.1.69 的 aapt2 daemon 多实例并行会随机崩(APT2098「failed to open file」, 每次不同文件)→ 必须加 `-p:Aapt2DaemonMaxInstanceCount=0 -m:1`。完整命令:
   `CatClawKeyPass=catclaw123 CatClawStorePass=catclaw123 dotnet publish CatClawMusic.Maui/CatClawMusic.Maui.csproj -c Release -f net10.0-android -p:Aapt2DaemonMaxInstanceCount=0 -m:1`
+- **文件锁真凶(2026-08-03)**: 用户开着 Visual Studio 时，VS(如 PID 22180) 持续锁定 `bin\*.pdb`/obj 下文件 → CLI 构建报 MSB3021/3027(pdb 复制失败)或 XAAMP7019/RemoveDirFixed 系列。绕法（无需关 VS）：构建加 `-p:IntermediateOutputPath=obj/dbg2/ -p:OutputPath=bin/dbg2/` 走全新目录；publish Release 前建议让用户关 VS 再打正式包。
 - apksigner 验证: `/c/Users/lvjin/AppData/Local/Android/Sdk/build-tools/34.0.0/apksigner.bat verify --print-certs <apk>`(Git Bash 需 `MSYS_NO_PATHCONV=1` + Windows 路径)。jarsigner 报「没有清单」是正常的(.NET Android 用 v2/v3 签名, 非 v1 JAR)。
 
 ## Android 16 / 16KB 页对齐 (2026-07-20)

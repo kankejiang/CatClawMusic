@@ -208,9 +208,10 @@ public static class CoverHelper
         }
 
         // 1.5 网络来源歌曲（WebDAV/SMB/Navidrome）：封面缓存在 covers/cover_{id}.jpg
-        // （由播放页 LoadCoverArt 或本方法异步下载）。命中则优先返回尺寸分桶缓存，
-        // 否则异步触发网络封面下载，下载完成后经 song.CoverArtPath 的 INPC 自动刷新可见 cell，
-        // 避免"列表里网络歌曲（如 webdav）始终无封面"的问题。
+        // （由播放页 LoadCoverArt 步骤6 下载并写入）。命中则返回；
+        // 未命中【不再自动触发远程下载】——列表批量加载时若逐首发起远程 Range 请求，
+        // 歌多时会形成请求风暴拖垮网络/线程池（表现为"网络音乐列表一进就卡死"）。
+        // 封面改为播放时获取：播放页会下载封面并写缓存，之后列表自然命中缓存显示。
         if (song.Source != SongSource.Local && !string.IsNullOrEmpty(song.RemoteId))
         {
             var netCached = System.IO.Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
@@ -219,7 +220,7 @@ public static class CoverHelper
                 var bucket = GetCachedPath(song.Id, maxSize);
                 return File.Exists(bucket) ? bucket : netCached;
             }
-            TriggerNetworkCoverResolve(song);
+            // 无缓存：返回 null（列表显示占位图），不触发下载
         }
 
         // 2. 选择可用源：优先使用 >= maxSize 的已有文件，否则从音频文件重新提取全分辨率
@@ -272,6 +273,54 @@ public static class CoverHelper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 批量下载网络歌曲封面到本地缓存（前台流程使用，带进度与取消）。
+    /// 仅处理有 RemoteId 的网络歌曲（已有缓存自动跳过）；每首下载完成后回填
+    /// song.CoverArtPath 触发 INPC，列表可见 cell 自动刷新。
+    /// 并发由 _networkCoverSemaphore(4) 控制，避免请求风暴。
+    /// </summary>
+    /// <param name="songs">待下载封面的歌曲集合</param>
+    /// <param name="progress">进度回调 (done, total, status)</param>
+    /// <param name="ct">取消令牌</param>
+    public static async Task DownloadNetworkCoversAsync(
+        IEnumerable<Song> songs,
+        IProgress<(int done, int total, string status)>? progress = null,
+        CancellationToken ct = default)
+    {
+        var list = songs
+            .Where(s => s.Source != SongSource.Local && !string.IsNullOrEmpty(s.RemoteId))
+            .ToList();
+        if (list.Count == 0) return;
+
+        var total = list.Count;
+        var done = 0;
+        progress?.Report((0, total, $"正在下载封面 0/{total}"));
+
+        var tasks = list.Select(song => Task.Run(async () =>
+        {
+            if (ct.IsCancellationRequested) return;
+            try
+            {
+                await DownloadNetworkCoverAsync(song);
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("CoverHelper", $"[CoverHelper] 网络封面批量下载失败 songId={song.Id}: {ex.Message}");
+            }
+            finally
+            {
+                var d = Interlocked.Increment(ref done);
+                if (progress != null && (d % 10 == 0 || d == total))
+                    progress.Report((d, total, $"正在下载封面 {d}/{total}"));
+            }
+        }, ct));
+
+        await Task.WhenAll(tasks);
+        progress?.Report((total, total, ct.IsCancellationRequested
+            ? $"已跳过封面下载（{done}/{total}）"
+            : $"封面下载完成，共 {total} 首"));
     }
 
     /// <summary>

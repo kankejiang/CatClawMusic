@@ -11,6 +11,7 @@ namespace CatClawMusic.Maui.Services;
 public partial class AudioPlayerService
 {
     private MediaPlayer? _winPlayer;
+    // _smtc 字段保留以避免破坏公共 API（曾用 partial 公共方法签名），但 2026-08-02 起始终为 null。
     private SystemMediaTransportControls? _smtc;
     private double _volume = 1.0;
     /// <summary>淡入淡出当前系数（0.0 ~ 1.0），与 _volume 相乘得到实际播放音量</summary>
@@ -31,26 +32,12 @@ public partial class AudioPlayerService
         _winPlayer.MediaFailed += OnMediaFailed;
         _winPlayer.MediaOpened += OnMediaOpened;
 
-        // 配置 SystemMediaTransportControls（SMTC）：
-        // 提供音量浮层、锁屏控件、硬件媒体键支持，即使应用不在前台也能响应媒体键
-        try
-        {
-            _smtc = _winPlayer.SystemMediaTransportControls;
-            if (_smtc != null)
-            {
-                _smtc.IsPlayEnabled = true;
-                _smtc.IsPauseEnabled = true;
-                _smtc.IsNextEnabled = true;
-                _smtc.IsPreviousEnabled = true;
-                _smtc.IsStopEnabled = false;
-                _smtc.PlaybackStatus = MediaPlaybackStatus.Closed;
-                _smtc.ButtonPressed += OnSmtcButtonPressed;
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] SMTC init failed: {ex.Message}");
-        }
+        // 完全断开 SystemMediaTransportControls 集成（2026-08-02 用户反馈底部大条状 SMTC overlay）。
+        // CommandManager.IsEnabled = false 让 MediaPlayer 不再向 SMTC 注册当前会话，
+        // 操作系统就不会自动渲染全局媒体传输控件 UI（锁屏 / 任务栏角标 / 媒体键浮层 / 屏幕 GSMT overlay）。
+        // 取而代之：所有播放控制走应用自己的 UI；如果要重新启用硬件媒体键或锁屏控件，
+        // 把下面这行注释掉、并恢复旧版 `_smtc = _winPlayer.SystemMediaTransportControls` 初始化即可。
+        try { _winPlayer.CommandManager.IsEnabled = false; } catch { }
     }
 
     private void OnMediaEnded(MediaPlayer sender, object args)
@@ -278,11 +265,6 @@ public partial class AudioPlayerService
         {
             try
             {
-                if (_smtc != null)
-                {
-                    _smtc.ButtonPressed -= OnSmtcButtonPressed;
-                    _smtc.PlaybackStatus = MediaPlaybackStatus.Closed;
-                }
                 _winPlayer.MediaEnded -= OnMediaEnded;
                 _winPlayer.MediaFailed -= OnMediaFailed;
                 _winPlayer.MediaOpened -= OnMediaOpened;
@@ -301,63 +283,35 @@ public partial class AudioPlayerService
 
     // ─── SMTC (SystemMediaTransportControls) 集成 ───
 
-    /// <summary>处理 SMTC 按钮按下事件（播放/暂停/上一首/下一首）</summary>
+    /// <summary>处理 SMTC 按钮按下事件（播放/暂停/上一首/下一首）—— 2026-08-02 起 SMTC 已禁用，
+    /// 硬件媒体键不再触发，但保留回调桩避免 null 解引用（事件已不订阅）。</summary>
     private void OnSmtcButtonPressed(SystemMediaTransportControls sender, SystemMediaTransportControlsButtonPressedEventArgs args)
     {
-        switch (args.Button)
-        {
-            case SystemMediaTransportControlsButton.Play:
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    try { _winPlayer?.Play(); } catch { }
-                    PlaybackStateChanged?.Invoke(this, true);
-                    UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Playing);
-                });
-                break;
-            case SystemMediaTransportControlsButton.Pause:
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
-                    try { _winPlayer?.Pause(); } catch { }
-                    PlaybackStateChanged?.Invoke(this, false);
-                    UpdateSmtcPlaybackStatus(MediaPlaybackStatus.Paused);
-                });
-                break;
-            case SystemMediaTransportControlsButton.Next:
-                _ = PlayNextRequested?.Invoke();
-                break;
-            case SystemMediaTransportControlsButton.Previous:
-                _ = PlayPreviousRequested?.Invoke();
-                break;
-        }
+        // 故意保持空。SMTC overlay 已通过 CommandManager.IsEnabled=false 禁用。
     }
 
-    /// <summary>更新 SMTC 播放状态（线程安全）</summary>
+    /// <summary>更新 SMTC 播放状态——2026-08-02 起 SMTC 已禁用，方法体设为空。</summary>
     private void UpdateSmtcPlaybackStatus(MediaPlaybackStatus status)
     {
-        try
-        {
-            if (_smtc != null)
-                _smtc.PlaybackStatus = status;
-        }
-        catch { }
+        // 故意保持空。SMTC overlay 已通过 CommandManager.IsEnabled=false 禁用。
     }
 
-    /// <summary>更新当前歌曲信息并刷新 SMTC 显示（标题/艺术家/封面）</summary>
+    /// <summary>更新当前歌曲信息并刷新 SMTC 显示（标题/艺术家/封面）—— 2026-08-02 起 SMTC 已禁用，
+    /// 字段保留以维持公共 API 兼容；仅同步本地缓存。</summary>
     /// <param name="title">歌曲标题</param>
     /// <param name="artist">歌曲艺术家</param>
     public void UpdateSongInfo(string title, string artist)
     {
         _currentTitle = title;
         _currentArtist = artist;
-        RefreshSmtcDisplay();
     }
 
-    /// <summary>更新当前歌曲封面路径并刷新 SMTC 显示</summary>
+    /// <summary>更新当前歌曲封面路径——2026-08-02 起 SMTC 已禁用，仅同步本地缓存。
+    /// 保留签名以维持公共 API 兼容。</summary>
     /// <param name="coverPath">封面本地文件路径，为 null 表示无封面</param>
     public void UpdateCoverPath(string? coverPath)
     {
         _currentCoverPath = coverPath;
-        RefreshSmtcDisplay();
     }
 
     /// <summary>更新收藏状态（SMTC 无直接收藏控件，仅保存状态供未来扩展）</summary>
@@ -365,45 +319,5 @@ public partial class AudioPlayerService
     public void UpdateFavoriteState(bool isFavorite)
     {
         // SMTC 标准控件不包含收藏按钮，此处保留方法以与 Android 实现保持接口一致
-    }
-
-    /// <summary>刷新 SMTC 显示 updater（标题/艺术家/封面缩略图）</summary>
-    private void RefreshSmtcDisplay()
-    {
-        if (_smtc == null) return;
-        try
-        {
-            var updater = _smtc.DisplayUpdater;
-            updater.Type = MediaPlaybackType.Music;
-            updater.MusicProperties.Title = _currentTitle ?? "";
-            updater.MusicProperties.Artist = _currentArtist ?? "";
-            updater.MusicProperties.AlbumArtist = _currentArtist ?? "";
-
-            // 设置封面缩略图（从本地文件路径加载）
-            if (!string.IsNullOrEmpty(_currentCoverPath) && File.Exists(_currentCoverPath))
-            {
-                try
-                {
-                    // 用 Task.Run 包裹避免在 UI 线程同步等待 WinRT 异步操作导致 SyncContext 死锁
-                    var file = Task.Run(() => StorageFile.GetFileFromPathAsync(_currentCoverPath).AsTask()).GetAwaiter().GetResult();
-                    updater.Thumbnail = RandomAccessStreamReference.CreateFromFile(file);
-                }
-                catch (Exception ex)
-                {
-                    Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] SMTC thumbnail failed: {ex.Message}");
-                    updater.Thumbnail = null;
-                }
-            }
-            else
-            {
-                updater.Thumbnail = null;
-            }
-
-            updater.Update();
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] RefreshSmtcDisplay failed: {ex.Message}");
-        }
     }
 }

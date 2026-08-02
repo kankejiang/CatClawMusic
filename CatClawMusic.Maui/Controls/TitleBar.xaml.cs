@@ -13,7 +13,19 @@ public partial class TitleBar : ContentView
     private void OnLoaded(object? sender, EventArgs e)
     {
 #if WINDOWS
-        // 给拖动区域绑定事件（按钮区域不响应拖动）
+        // 调用 SetTitleBar() 让 WinUI 框架将 DragArea 识别为标题栏拖拽区域，
+        // 这样系统会正确处理窗口拖拽、双击最大化，且内容会延伸到标题栏区域
+        if (App.CurrentNativeWindow is { } win && DragArea.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement dragElement)
+        {
+            try
+            {
+                win.SetTitleBar(dragElement);
+                win.ExtendsContentIntoTitleBar = true;
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"SetTitleBar failed: {ex.Message}"); }
+        }
+
+        // 给拖动区域绑定事件（SetTitleBar 成功时系统会拦截拖拽事件，这些作为后备）
         if (DragArea.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement dragNative)
         {
             dragNative.PointerPressed += OnDragAreaPointerPressed;

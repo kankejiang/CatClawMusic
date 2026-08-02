@@ -1,8 +1,27 @@
-# 猫爪音乐 Release APK 构建脚本
+﻿# 猫爪音乐 Release APK 构建脚本
 # 用法: .\build-release.ps1
 # 输出: CatClawMusic.Maui\bin\Release\net10.0-android\publish\com.catclaw.music-Signed.apk
+#
+# 说明: 脚本结尾会等待按键再关闭窗口，便于在双击运行时查看构建结果/报错。
+#       若从已打开的终端运行，构建完成后按 Enter 即可退出。
 
 $ErrorActionPreference = "Stop"
+
+# === 暂停并退出（保持窗口不自动关闭） ===
+function Pause-And-Exit {
+    param(
+        [int]$Code = 0
+    )
+    Write-Host ""
+    if ($Code -eq 0) {
+        Write-Host "构建流程结束。" -ForegroundColor Green
+    } else {
+        Write-Host "构建流程异常终止（退出码 $Code）。" -ForegroundColor Red
+    }
+    Write-Host "按 Enter 键关闭窗口..." -ForegroundColor Gray
+    Read-Host | Out-Null
+    exit $Code
+}
 
 # === 配置 ===
 $ProjectPath = "CatClawMusic.Maui\CatClawMusic.Maui.csproj"
@@ -28,22 +47,22 @@ Write-Host ""
 
 if (-not (Test-Path $DotNetPath)) {
     Write-Error "未找到 dotnet.exe: $DotNetPath"
-    exit 1
+    Pause-And-Exit 1
 }
 
 if (-not (Test-Path $AndroidSdk)) {
     Write-Error "未找到 Android SDK: $AndroidSdk"
-    exit 1
+    Pause-And-Exit 1
 }
 
 if (-not (Test-Path $JavaSdk)) {
     Write-Error "未找到 Java SDK: $JavaSdk"
-    exit 1
+    Pause-And-Exit 1
 }
 
 if (-not (Test-Path $KeyStorePath)) {
     Write-Error "未找到签名文件: $KeyStorePath"
-    exit 1
+    Pause-And-Exit 1
 }
 
 Write-Host "[1/4] 清理旧构建..." -ForegroundColor Yellow
@@ -59,6 +78,8 @@ $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 & $DotNetPath publish $ProjectPath `
     -c $Config `
     -f $TargetFramework `
+    -p:Aapt2DaemonMaxInstanceCount=0 `
+    -m:1 `
     -p:AndroidSdkDirectory="$AndroidSdk" `
     -p:JavaSdkDirectory="$JavaSdk" `
     -p:AndroidKeyStore=true `
@@ -72,7 +93,7 @@ $stopwatch.Stop()
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
     Write-Error "构建失败！"
-    exit $LASTEXITCODE
+    Pause-And-Exit $LASTEXITCODE
 }
 
 Write-Host ""
@@ -89,7 +110,7 @@ if (-not (Test-Path $ApkPath)) {
         $ApkPath = $found.FullName
     } else {
         Write-Error "未找到生成的 APK 文件"
-        exit 1
+        Pause-And-Exit 1
     }
 }
 
@@ -104,3 +125,5 @@ Write-Host "  时间: $($apkFile.LastWriteTime)"
 
 Write-Host ""
 Write-Host "=== 构建完成 ===" -ForegroundColor Green
+
+Pause-And-Exit 0

@@ -47,7 +47,7 @@
             <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
 
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <Grid Padding="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
                         <VerticalStackLayout Spacing="2">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[CacheSongs]}"
                                    FontSize="15"
@@ -58,6 +58,17 @@
                                    TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Button Grid.Column="1"
+                                Text="补全元数据"
+                                Command="{Binding BackfillAllMetadataCommand}"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
+                                TextColor="White"
+                                CornerRadius="14"
+                                HeightRequest="36"
+                                Padding="14,0"
+                                FontSize="12"
+                                VerticalOptions="Center"
+                                IsEnabled="{Binding HasCachedSongs}" />
+                        <Button Grid.Column="2"
                                 Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[EmptyCache]}"
                                 Command="{Binding ClearCacheCommand}"
                                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
@@ -96,7 +107,7 @@
                                                HeightRequest="20"
                                                VerticalOptions="Center" />
                             <Label Grid.Column="1"
-                                   Text="{Binding SyncingProfileName, StringFormat='正在同步「{0}」'}"
+                                   Text="{Binding SyncTitle}"
                                    FontSize="13"
                                    FontFamily="OpenSansSemibold"
                                    TextColor="{DynamicResource TextPrimaryColor}"

@@ -69,6 +69,9 @@ public class KaraokePlatformView : AView
     private Typeface? _cachedTypeface;
     private string? _cachedTypefaceFamily;
     private bool _cachedTypefaceBold;
+    // 最近一次布局的真实宽度（px）：父级交叉轴给 UNSPECIFIED（ScrollView/非Fill堆叠）时
+    // 优先用它排版换行，避免按屏幕宽度换行导致横屏等窄歌词区里长句超宽被裁剪（"当前行显示不完整"）
+    private int _realWidth;
 
     public KaraokePlatformView(Context context) : base(context)
     {
@@ -90,6 +93,37 @@ public class KaraokePlatformView : AView
         Invalidate();
     }
 
+    /// <summary>
+    /// 设置行级高斯模糊（Android 13+ RenderEffect，GPU 硬件加速；低版本无操作，保持透明度兜底）。
+    /// radiusDp &lt;= 0 时清除模糊（当前行保持清晰）。
+    /// 模糊是渲染层效果，不影响布局测量与滚动锚点。
+    /// ⚠ 绑定只有 API 33+ 的 3 参 CreateBlurEffect 重载，minSdk=31 时低版本必须跳过，
+    /// 否则 NoSuchMethodError 崩溃（AppPopup 直接调 3 参存在同样隐患）。
+    /// </summary>
+    public void SetRowBlur(float radiusDp)
+    {
+        try
+        {
+            if (OperatingSystem.IsAndroidVersionAtLeast(33))
+            {
+                if (radiusDp > 0.05f)
+                {
+                    var radiusPx = radiusDp * Density;
+                    SetRenderEffect(global::Android.Graphics.RenderEffect.CreateBlurEffect(
+                        radiusPx, radiusPx, global::Android.Graphics.Shader.TileMode.Clamp));
+                }
+                else
+                {
+                    SetRenderEffect(null);
+                }
+            }
+        }
+        catch
+        {
+            try { SetRenderEffect(null); } catch { }
+        }
+    }
+
     private float Density => Resources?.DisplayMetrics?.Density ?? 1f;
 
     protected override void OnMeasure(int widthMeasureSpec, int heightMeasureSpec)
@@ -102,6 +136,23 @@ public class KaraokePlatformView : AView
 
         var density = Density;
         var width = MeasureSpec.GetSize(widthMeasureSpec);
+        var widthMode = MeasureSpec.GetMode(widthMeasureSpec);
+        // 父级交叉轴未给宽度约束（UNSPECIFIED，如 ScrollView 内容/非 Fill 堆叠布局）：
+        // 优先用最近一次布局的真实宽度排版；从未布局过才兜底屏幕宽度（避免 1px 逐字爆炸）。
+        if (widthMode == MeasureSpecMode.Unspecified)
+        {
+            if (_realWidth > 0)
+                width = _realWidth;
+            else
+            {
+                var dm = Resources?.DisplayMetrics;
+                if (dm != null) width = Math.Max(width, dm.WidthPixels);
+            }
+        }
+        else if (width > 0 && width != _realWidth)
+        {
+            _realWidth = width;   // EXACTLY/AT_MOST 时记录真实可用宽，供后续 UNSPECIFIED 测量使用
+        }
         var padding = _view.Padding;
         var paddingLeft = (float)padding.Left * density;
         var paddingRight = (float)padding.Right * density;
@@ -124,6 +175,19 @@ public class KaraokePlatformView : AView
         var finalWidth = ResolveSize(width > 0 ? width : (int)(_layout.Width + paddingLeft + paddingRight), widthMeasureSpec);
         var finalHeight = ResolveSize((int)desiredHeight, heightMeasureSpec);
         SetMeasuredDimension(finalWidth, finalHeight);
+    }
+
+    protected override void OnSizeChanged(int w, int h, int oldw, int oldh)
+    {
+        base.OnSizeChanged(w, h, oldw, oldh);
+        // 布局后的真实宽度：若与测量时假设不同（父级 UNSPECIFIED 场景），
+        // 用真实宽重测重排，保证按实际歌词区宽度换行（长句分行完整显示，横屏不超宽裁剪）
+        if (w > 0 && w != _realWidth)
+        {
+            _realWidth = w;
+            RequestLayout();
+            Invalidate();
+        }
     }
 
     protected override void OnDraw(Canvas? canvas)
