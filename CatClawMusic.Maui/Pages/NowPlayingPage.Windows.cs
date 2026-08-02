@@ -180,13 +180,13 @@ public partial class NowPlayingPage
     // 好处正如需求所述——不必再纠结字号/字体差异，焦点天然落在当前行。
 
     /// <summary>相邻行（距离 1）的模糊半径（DP）。</summary>
-    private const double WinLyricBlurNear = 2.5;
+    private const double WinLyricBlurNear = 3.5;
 
     /// <summary>距离 2 行的模糊半径。</summary>
-    private const double WinLyricBlurMid = 4.5;
+    private const double WinLyricBlurMid = 6.5;
 
     /// <summary>距离 ≥3 行的模糊半径（最远档，不再继续加深，避免糊成一团色块）。</summary>
-    private const double WinLyricBlurFar = 6.5;
+    private const double WinLyricBlurFar = 9.0;
 
     /// <summary>
     /// 模糊生效时是否隐藏"清晰原文"，只留模糊副本。
@@ -366,11 +366,15 @@ public partial class NowPlayingPage
     }
 
     /// <summary>
-    /// 按与当前行的"方向 + 距离"返回层次（颜色 + 透明度）。参考图风格：所有行**同字号**，
-    /// 层次全靠颜色/红点表达。
-    /// - 当前行：白、不透明、红点。
-    /// - 未唱行：偏亮灰，略降透明度（越远越暗）。
-    /// - 已唱行：偏冷灰，更暗（越远越暗）。
+    /// 按与当前行的"方向 + 距离"返回层次（颜色 + 透明度 + 模糊半径）。参考图风格：所有行**同字号**，
+    /// 层次全靠颜色/清晰度/红点表达。
+    /// - 当前行：白、不透明、无模糊、红点。
+    /// - 未唱行：偏亮灰，越远越暗越糊。
+    /// - 已唱行：偏冷灰，更暗更糊。
+    ///
+    /// 注：这里的 Opacity 只作用于**清晰原文层**。模糊副本叠在其上并带 <c>BlurGain</c> 增益
+    /// （见 LyricBlurPlatformEffect），所以非当前行的清晰层刻意压得较低——让模糊层成为视觉主体，
+    /// 原文退化为隐约内核，才能真正呈现失焦感，而不是"一行清楚的字外加一圈光晕"。
     /// </summary>
     private static (Color Color, double Opacity, double Blur) GetWinLyricTier(int i, int index)
     {
@@ -383,10 +387,10 @@ public partial class NowPlayingPage
                  : WinLyricBlurFar;
 
         if (i < index) // 已唱（过去）
-            return (WinLyricFarColor, d == 1 ? 0.55 : 0.40, blur);
+            return (WinLyricFarColor, d == 1 ? 0.40 : 0.28, blur);
 
         // 未唱（未来）
-        return (WinLyricNearColor, d == 1 ? 0.80 : 0.65, blur);
+        return (WinLyricNearColor, d == 1 ? 0.58 : 0.46, blur);
     }
 
     /// <summary>把第 i 行落到它应有的层次（颜色/透明度/红点/缩放）。不触发布局、不做动画。
