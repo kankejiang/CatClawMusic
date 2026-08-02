@@ -142,6 +142,7 @@ public partial class NowPlayingPage
 
         // 歌词构建（自绘静态堆叠 + 平移滚动）
         BuildWindowsLyricViews();
+        ApplyWindowsLyricBackdrop();
         WireWinLyricPanGesture();
 
         // EQ 动画
@@ -351,12 +352,8 @@ public partial class NowPlayingPage
 
         // 新当前行缓缓长大到 1.5，旧当前行缓缓缩回 1.0（与滚动同步的 380ms CubicInOut）
         AnimateWinRowScale(index, WinLyricCurrentScale);
-        AnimateWinRowBlur(index, 0);                       // 新当前行缓缓变清晰
         if (prev >= 0 && prev != index)
-        {
             AnimateWinRowScale(prev, 1.0);
-            AnimateWinRowBlur(prev, GetWinLyricTier(prev, index).Blur); // 旧当前行缓缓失焦
-        }
 
         // 当前行上下呼吸空间随之平滑迁移（同为 380ms，与放大/滚动三者同步）
         ApplyWinRowGap(index, animate: true);
@@ -366,31 +363,25 @@ public partial class NowPlayingPage
     }
 
     /// <summary>
-    /// 按与当前行的"方向 + 距离"返回层次（颜色 + 透明度 + 模糊半径）。参考图风格：所有行**同字号**，
-    /// 层次全靠颜色/清晰度/红点表达。
-    /// - 当前行：白、不透明、无模糊、红点。
-    /// - 未唱行：偏亮灰，越远越暗越糊。
-    /// - 已唱行：偏冷灰，更暗更糊。
-    ///
-    /// 注：这里的 Opacity 只作用于**清晰原文层**。模糊副本叠在其上并带 <c>BlurGain</c> 增益
-    /// （见 LyricBlurPlatformEffect），所以非当前行的清晰层刻意压得较低——让模糊层成为视觉主体，
-    /// 原文退化为隐约内核，才能真正呈现失焦感，而不是"一行清楚的字外加一圈光晕"。
+    /// 按与当前行的"方向 + 距离"返回层次（颜色 + 透明度）。参考图风格：所有行**同字号**，
+    /// 层次全靠颜色/红点 + 整体毛玻璃背景表达（见 OnWindowsStageReady 中给 WinLyricClip
+    /// 套的 AcrylicBrush）。"清晰度"差异由系统级毛玻璃统一提供，每行不单独做模糊。
+    /// - 当前行：白、不透明、红点。
+    /// - 已唱行：偏冷灰（越远越暗），透出毛玻璃后看上去更"远"。
+    /// - 未唱行：偏亮灰（越远越暗），透出毛玻璃后看上去更"远"。
     /// </summary>
-    private static (Color Color, double Opacity, double Blur) GetWinLyricTier(int i, int index)
+    private static (Color Color, double Opacity) GetWinLyricTier(int i, int index)
     {
         if (i == index)
-            return (WinLyricCurrentColor, 1.0, 0);
+            return (WinLyricCurrentColor, 1.0);
 
         var d = Math.Abs(i - index);
-        var blur = d == 1 ? WinLyricBlurNear
-                 : d == 2 ? WinLyricBlurMid
-                 : WinLyricBlurFar;
 
         if (i < index) // 已唱（过去）
-            return (WinLyricFarColor, d == 1 ? 0.40 : 0.28, blur);
+            return (WinLyricFarColor, d == 1 ? 0.55 : 0.40);
 
         // 未唱（未来）
-        return (WinLyricNearColor, d == 1 ? 0.58 : 0.46, blur);
+        return (WinLyricNearColor, d == 1 ? 0.80 : 0.65);
     }
 
     /// <summary>把第 i 行落到它应有的层次（颜色/透明度/红点/缩放）。不触发布局、不做动画。
@@ -398,7 +389,7 @@ public partial class NowPlayingPage
     private void ApplyWinLyricTierInstant(int i, int index, bool setScale = true)
     {
         var row = _winRows[i];
-        var (color, opacity, blur) = GetWinLyricTier(i, index);
+        var (color, opacity) = GetWinLyricTier(i, index);
 
         row.Main.TextColor = color;
         row.Main.Opacity = opacity;
@@ -410,7 +401,6 @@ public partial class NowPlayingPage
         {
             row.Main.AbortAnimation("ScaleTo");
             row.Main.Scale = i == index ? WinLyricCurrentScale : 1.0;
-            SetWinRowBlurInstant(i, blur);
         }
     }
 
@@ -564,6 +554,37 @@ public partial class NowPlayingPage
                     ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable, animate: false);
             }));
         }
+    }
+
+    // ═══════════════════════════════════════
+    // Windows 系统级毛玻璃背景（Acrylic）
+    // ═══════════════════════════════════════
+
+    /// <summary>
+    /// 把 WinLyricClip 的平台 Grid 背景换成 AcrylicBrush（Windows 系统级毛玻璃）。
+    /// 模糊由系统合成，歌词文字因为"透过毛玻璃看"自然柔化——
+    /// 这才是 Windows 自带的真毛玻璃，比手动 Effect 稳得多（之前行级 Effect 实测效果
+    /// 几乎看不出来：清晰原文与模糊副本 1:1 叠加时清晰笔画完全主导）。
+    ///
+    /// WinUI 3 的 AcrylicBrush 默认采宿主背后（无需设 Backdrop 即可模糊整个窗口下面的内容），
+    /// 不支持时自动回退到 <c>FallbackColor</c>。这里用半透明深色 + 0.85 TintOpacity，
+    /// 让磨砂感透出，但又不会把歌词列完全遮住。
+    /// </summary>
+    private void ApplyWindowsLyricBackdrop()
+    {
+        var platform = WinLyricClip.Handler?.PlatformView as Microsoft.UI.Xaml.Controls.Grid;
+        if (platform is null) return;
+
+        // 浅色磨砂 Tint：歌词列底色是 #080B1A，alpha 0xC8（≈78%）让背后透出来
+        var tint = Windows.UI.Color.FromArgb(0xC8, 0x08, 0x0B, 0x1A);
+
+        var brush = new AcrylicBrush
+        {
+            TintColor = tint,
+            TintOpacity = 0.85,
+            FallbackColor = tint,
+        };
+        platform.Background = brush;
     }
 
     // ═══════════════════════════════════════
