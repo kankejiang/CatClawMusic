@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CatClaw Music · PC 播放页重设计原型</title>
+<style>
+  :root{
+    --bg:#05070F;
+    --text-1:#F4F6FF; --text-2:#C9D2F0; --text-3:#9AA6CC; --text-4:#5E6788;
+    --purple:#8C7BFF; --cyan:#55D6FF; --pink:#FF5C7A;
+    --glass:rgba(255,255,255,.055);
+    --glass-strong:rgba(255,255,255,.09);
+    --stroke:rgba(255,255,255,.10);
+    --grad:linear-gradient(135deg,#8C7BFF 0%,#55D6FF 100%);
+    --font:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:var(--font);color:var(--text-1);background:var(--bg);overflow:hidden;user-select:none}
+
+  /* ── 桌面舞台：1440x900 ── */
+  .stage{position:relative;width:1440px;height:900px;overflow:hidden;
+    display:grid;grid-template-rows:52px 1fr 104px}
+
+  /* 极光背景 */
+  .aurora{position:absolute;inset:0;z-index:0;overflow:hidden;
+    background:
+      radial-gradient(900px 600px at 12% -8%,rgba(140,123,255,.28),transparent 60%),
+      radial-gradient(820px 560px at 92% 108%,rgba(85,214,255,.20),transparent 62%),
+      radial-gradient(640px 480px at 78% -12%,rgba(140,123,255,.14),transparent 65%),
+      linear-gradient(180deg,#070A16 0%,#05070F 100%)}
+  .aurora::after{content:"";position:absolute;inset:0;
+    background:
+      linear-gradient(120deg,transparent 40%,rgba(85,214,255,.05) 50%,transparent 60%),
+      radial-gradient(420px 260px at 50% 108%,rgba(140,123,255,.10),transparent 70%);
+    opacity:.8}
+  .grain{position:absolute;inset:0;z-index:0;opacity:.05;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")}
+
+  /* ── 顶栏 ── */
+  .top{position:relative;z-index:2;display:flex;align-items:center;gap:14px;
+    padding:0 18px 0 26px;background:rgba(6,8,17,.42);backdrop-filter:blur(22px);
+    border-bottom:1px solid rgba(255,255,255,.05)}
+  .eq{display:flex;align-items:flex-end;gap:3px;width:26px;height:16px}
+  .eq i{width:3px;border-radius:2px;background:var(--grad)}
+  .eq i:nth-child(1){height:60%}.eq i:nth-child(2){height:100%}
+  .eq i:nth-child(3){height:45%}.eq i:nth-child(4){height:78%}
+  .top-title{font-size:12.5px;font-weight:600;color:var(--text-2);letter-spacing:.2px}
+  .top-title b{color:var(--text-1)}
+  .collapse{display:flex;align-items:center;gap:7px;height:34px;padding:0 16px 0 12px;border-radius:17px;
+    background:var(--glass);border:1px solid var(--stroke);color:var(--text-2);font-size:12.5px;font-weight:600;
+    cursor:default;backdrop-filter:blur(14px);transition:.18s;flex:0 0 auto}
+  .collapse:hover{background:var(--glass-strong);color:#fff;transform:translateY(-1px)}
+  .collapse svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .top-mid{flex:1;display:flex;justify-content:center;gap:8px;align-items:center;min-width:0}
+  .top-mid .track{font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+  .top-mid .dot{color:var(--text-4)}
+  .top-mid .artist{font-size:12.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+  .win-ctl{display:flex;gap:2px}
+  .wc{width:40px;height:30px;border-radius:7px;display:grid;place-items:center;color:var(--text-3);cursor:default;transition:.16s}
+  .wc:hover{background:rgba(255,255,255,.08);color:var(--text-1)}
+  .wc.close:hover{background:rgba(255,80,90,.9);color:#fff}
+  .wc svg{width:11px;height:11px;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round}
+
+  /* ── 主体 ── */
+  .body{position:relative;z-index:2;display:grid;grid-template-columns:1fr 1fr;gap:0;min-height:0}
+  .left{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:26px 58px 22px;min-width:0;position:relative}
+
+  .cover-wrap{position:relative}
+  .cover-glow{position:absolute;inset:18px -26px -34px;z-index:0;
+    background:linear-gradient(135deg,rgba(140,123,255,.55),rgba(85,214,255,.35));
+    filter:blur(58px);opacity:.75;border-radius:40%}
+  .cover{position:relative;z-index:1;width:478px;height:478px;border-radius:24px;overflow:hidden;
+    box-shadow:0 42px 90px -30px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.4) inset;
+    background:
+      radial-gradient(140% 120% at 20% 10%,#FFD08A 0%,#FF7A8A 34%,#7C3AED 68%,#1E1B4B 100%)}
+  .cover .shine{position:absolute;inset:0;
+    background:linear-gradient(150deg,rgba(255,255,255,.32) 0%,transparent 38%);
+    mix-blend-mode:screen}
+  .cover .logo{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:150px;
+    color:rgba(255,255,255,.88);text-shadow:0 6px 30px rgba(0,0,0,.25);font-family:"Segoe UI",var(--font)}
+
+  .meta{margin-top:34px;text-align:center;max-width:478px;min-width:0}
+  .meta .album{font-size:11px;font-weight:700;letter-spacing:2.4px;text-transform:uppercase;
+    color:var(--text-3);margin-bottom:10px}
+  .meta h1{font-size:31px;font-weight:700;letter-spacing:-.3px;line-height:1.22;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .artist{font-size:15px;color:var(--text-2);margin-top:7px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .chips{display:flex;gap:10px;margin-top:22px;justify-content:center}
+  .chip{display:flex;align-items:center;gap:8px;height:36px;padding:0 18px;border-radius:18px;
+    background:var(--glass);border:1px solid var(--stroke);backdrop-filter:blur(14px);
+    font-size:12.5px;color:var(--text-1);cursor:default;transition:.18s}
+  .chip:hover{background:var(--glass-strong);transform:translateY(-1px)}
+  .chip svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .chip.like.on{color:var(--pink)}
+  .chip.like.on svg{fill:var(--pink);stroke:var(--pink)}
+
+  /* 右侧歌词 */
+  .right{display:flex;flex-direction:column;min-width:0;padding:34px 44px 26px 20px;position:relative}
+  .lyr-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .lyr-head .t{font-size:11px;font-weight:700;letter-spacing:2.4px;color:var(--text-3)}
+  .lyr-head .t i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--cyan);
+    margin-right:9px;box-shadow:0 0 10px var(--cyan);vertical-align:1px}
+  .follow{display:flex;align-items:center;gap:7px;height:30px;padding:0 15px;border-radius:15px;
+    background:rgba(140,123,255,.16);border:1px solid rgba(140,123,255,.35);font-size:11.5px;font-weight:600;color:#D7D3FF;
+    cursor:default}
+  .lyrics{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:center;gap:0}
+  .lyr-line{padding:13px 18px;font-size:15.5px;line-height:1.5;color:rgba(201,210,240,.42);
+    transition:all .35s;text-align:left;border-radius:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lyr-line.cur{color:var(--text-1);font-size:19px;font-weight:600;
+    background:linear-gradient(90deg,rgba(140,123,255,.14),rgba(85,214,255,.05) 70%,transparent);
+    box-shadow:inset 3px 0 0 var(--purple)}
+  .lyr-line.cur .kw{background:linear-gradient(90deg,#C4BAFF,#7FE3FF);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lyr-line.prev{color:rgba(201,210,240,.66)}
+
+  /* ── 底部控制坞 ── */
+  .dock{position:relative;z-index:2;display:grid;grid-template-columns:1fr 1.55fr 1fr;align-items:center;
+    padding:0 30px;background:rgba(6,8,17,.46);backdrop-filter:blur(26px);
+    border-top:1px solid rgba(255,255,255,.05)}
+  .transport{display:flex;align-items:center;gap:12px}
+  .icon-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:var(--text-2);cursor:default;transition:.16s}
+  .icon-btn:hover{background:rgba(255,255,255,.07);color:#fff}
+  .icon-btn svg{width:18px;height:18px}
+  .play{width:58px;height:58px;border-radius:50%;background:var(--grad);display:grid;place-items:center;
+    color:#fff;cursor:default;position:relative;transition:.18s;box-shadow:0 10px 30px -8px rgba(140,123,255,.75)}
+  .play:hover{transform:scale(1.05)}
+  .play::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid rgba(255,255,255,.14)}
+  .play svg{width:24px;height:24px;fill:#fff;stroke:none;margin-left:2px}
+  .play.pause svg{margin-left:0}
+
+  .center{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .times{display:flex;justify-content:space-between;font-size:11px;color:var(--text-4);
+    font-variant-numeric:tabular-nums;padding:0 2px}
+  .bar{position:relative;height:14px;display:flex;align-items:center;cursor:default}
+  .bar .track2{width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden;position:relative}
+  .bar .fill2{position:absolute;left:0;top:0;bottom:0;width:34%;border-radius:4px;background:var(--grad);
+    box-shadow:0 0 12px rgba(140,123,255,.9)}
+  .bar .knob{position:absolute;left:34%;top:50%;width:12px;height:12px;border-radius:50%;background:#fff;
+    transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(255,255,255,.12);opacity:0;transition:opacity .15s}
+  .bar:hover .knob{opacity:1}
+
+  .right2{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+  .vol{display:flex;align-items:center;gap:10px;color:var(--text-2)}
+  .vol .vbar{width:88px;height:4px;border-radius:4px;background:rgba(255,255,255,.14);position:relative;cursor:default}
+  .vol .vfill{position:absolute;left:0;top:0;bottom:0;width:62%;border-radius:4px;background:rgba(255,255,255,.92)}
+  .queue{padding:0 14px;height:34px;border-radius:17px;display:flex;align-items:center;gap:7px;
+    background:var(--glass);border:1px solid var(--stroke);font-size:11.5px;color:var(--text-2);cursor:default}
+  .queue svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="aurora"></div>
+    <div class="grain"></div>
+
+    <!-- 顶栏 -->
+    <header class="top">
+      <div class="collapse">
+        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+        收起
+      </div>
+      <div class="eq"><i></i><i></i><i></i><i></i></div>
+      <div class="top-title">正在播放</div>
+      <div class="top-mid">
+        <span class="track">Starlight Drift</span><span class="dot">·</span><span class="artist">Luna Echoes</span>
+      </div>
+      <div class="win-ctl">
+        <div class="wc"><svg><path d="M3 6.5h5"/></svg></div>
+        <div class="wc"><svg><rect x="2.5" y="2.5" width="6" height="6" rx="1"/></svg></div>
+        <div class="wc close"><svg><path d="M3 3l5 5M8 3l-5 5"/></svg></div>
+      </div>
+    </header>
+
+    <!-- 主体 -->
+    <main class="body">
+      <section class="left">
+        <div class="cover-wrap">
+          <div class="cover-glow"></div>
+          <div class="cover">
+            <div class="shine"></div>
+            <div class="logo">L</div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="album">Midnight Tape · Vol.3</div>
+          <h1>Starlight Drift</h1>
+          <div class="artist">Luna Echoes</div>
+        </div>
+        <div class="chips">
+          <div class="chip like on">
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-9C.8 8.6 2.6 5 6 5c2 0 3.4 1.1 4 2 .6-.9 2-2 4-2 3.4 0 5.2 3.6 3.5 7C19 16.4 12 21 12 21z"/></svg>
+            已收藏
+          </div>
+          <div class="chip">
+            <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            歌词
+          </div>
+          <div class="chip">
+            <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            更多
+          </div>
+        </div>
+      </section>
+
+      <section class="right">
+        <div class="lyr-head">
+          <div class="t"><i></i>LYRICS · 同步歌词</div>
+          <div class="follow">◎ 跟随</div>
+        </div>
+        <div class="lyrics">
+          <div class="lyr-line prev">Somewhere in the silver rain</div>
+          <div class="lyr-line prev">I found a light that never fades</div>
+          <div class="lyr-line cur"><span class="kw">Starlight drifts across the sky</span></div>
+          <div class="lyr-line">Carrying dreams we left behind</div>
+          <div class="lyr-line">If you follow every falling star</div>
+          <div class="lyr-line">You'll find me where the rivers are</div>
+          <div class="lyr-line">(instrumental)</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 底部控制坞 -->
+    <footer class="dock">
+      <div class="transport">
+        <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg></div>
+        <div class="icon-btn"><svg viewBox="0 0 24 24"><path d="M19 20 9 12l10-8v16z" fill="currentColor"/><path d="M5 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="#fff"/></svg></div>
+        <div class="icon-btn"><svg viewBox="0 0 24 24"><path d="M5 20 15 12 5 4v16z" fill="currentColor"/><path d="M19 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></div>
+      </div>
+
+      <div class="center">
+        <div class="times"><span>1:24</span><span>4:07</span></div>
+        <div class="bar">
+          <div class="track2"><div class="fill2"></div></div>
+          <div class="knob"></div>
+        </div>
+      </div>
+
+      <div class="right2">
+        <div class="vol">
+          <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/></svg></div>
+          <div class="vbar"><div class="vfill"></div></div>
+        </div>
+        <div class="queue">
+          <svg viewBox="0 0 24 24"><path d="M4 7h12M4 12h9M4 17h6"/><circle cx="17.5" cy="17.5" r="3.5"/></svg>
+          播放队列
+        </div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

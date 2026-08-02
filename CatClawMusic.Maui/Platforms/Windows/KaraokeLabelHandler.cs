@@ -74,14 +74,32 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
         ApplyFillProgress(handler.PlatformView, view.FillProgress, view.TextColor, view.OutlineColor);
     }
 
+    /// <summary>
+    /// 前景色计算。两条铁律：
+    ///
+    /// 1. 绝不设置 tb.Opacity —— 那会覆盖 MAUI View.Opacity 属性绑定，
+    ///    让上层 ViewModel 设的 Opacity 全部失效。
+    /// 2. 前景永远基于 TextColor，绝不切换成 OutlineColor。
+    ///    历史实现在 FillProgress&lt;0.5 时把前景换成 OutlineColor 再乘 0.45 alpha，
+    ///    一旦调用方把 OutlineColor 设为 Transparent（常见做法，因为 Windows 本就不画描边），
+    ///    整行文字会彻底隐形——这正是播放页"歌词只显示两行"的根因。
+    ///
+    /// 未唱行只做轻微减淡（0.75，下限有保证），任何情况下文字都可见。
+    /// </summary>
     private static void ApplyFillProgress(WTextBlock tb, double fillProgress, Color textColor, Color outlineColor)
     {
         var progress = Math.Clamp(fillProgress, 0.0, 1.0);
-        var color = progress >= 0.5
-            ? ToWColor(textColor)
-            : ToWColor(outlineColor);
-        tb.Foreground = new WSolidBrush(color);
-        tb.Opacity = progress >= 0.5 ? 1.0 : 0.45;
+
+        // TextColor 若被设成全透明，退回 OutlineColor；两者都透明则兜底为白色，保证可见
+        var baseColor = textColor;
+        if (baseColor is null || baseColor.Alpha <= 0.01f)
+            baseColor = outlineColor;
+        if (baseColor is null || baseColor.Alpha <= 0.01f)
+            baseColor = Colors.White;
+
+        var alphaScale = progress >= 0.5 ? 1.0f : 0.75f;
+        tb.Foreground = new WSolidBrush(ToWColor(new Color(
+            baseColor.Red, baseColor.Green, baseColor.Blue, baseColor.Alpha * alphaScale)));
     }
 
     private static WColor ToWColor(Color color)

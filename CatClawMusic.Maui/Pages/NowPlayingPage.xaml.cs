@@ -484,12 +484,9 @@ public partial class NowPlayingPage : ContentPage
                     });
                     return;
                 case nameof(NowPlayingViewModel.CurrentLineFillProgress):
-                    {
-                        var idx = _viewModel.CurrentLyricIndexObservable;
-                        if (idx >= 0 && idx < _winLyricLabels.Count)
-                            _winLyricLabels[idx].FillProgress = _viewModel.CurrentLineFillProgress;
-                        return;
-                    }
+                    // Windows 歌词行用原生 Label 渲染，不做逐字填充（WinUI 无空心描边文字支持）。
+                    // 行高亮完全由 CurrentLyricIndexObservable 驱动，这里无需处理。
+                    return;
                 case nameof(NowPlayingViewModel.IsPlaying):
                     MainThread.BeginInvokeOnMainThread(OnWinPlayingChanged);
                     return;

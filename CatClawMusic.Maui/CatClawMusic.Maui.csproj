@@ -88,6 +88,8 @@
 		     注意 2.1.10 仅消除警告但 DB 仍打不开，见 ericsink/SQLitePCL.raw#621）。 -->
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
 		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3.android" Version="2.1.11" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
+		<!-- Windows 歌词行高斯模糊（Win2D 提供 GaussianBlurEffect + Composition） -->
+		<PackageReference Include="Microsoft.Graphics.Win2D" Version="1.3.2" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
 	</ItemGroup>
 
 	<!-- Android-specific: Media3 ExoPlayer -->

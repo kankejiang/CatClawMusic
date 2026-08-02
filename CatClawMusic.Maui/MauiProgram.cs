@@ -70,6 +70,13 @@ public static class MauiProgram
                     typeof(CatClawMusic.Maui.Platforms.Windows.KaraokeLabelHandler));
 #endif
             })
+            .ConfigureEffects(effects =>
+            {
+#if WINDOWS
+                effects.Add<CatClawMusic.Maui.Effects.LyricBlurEffect,
+                    CatClawMusic.Maui.Platforms.Windows.Effects.LyricBlurPlatformEffect>();
+#endif
+            })
             .ConfigureImageSources(images =>
             {
 #if ANDROID
