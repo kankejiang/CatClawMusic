@@ -168,6 +168,13 @@ public partial class NowPlayingPage
     /// <summary>当前行放大/缩回的缓动时长，与滚动 tween 同步，视觉上"缓缓长大"。</summary>
     private const uint WinLyricScaleMs = 380;
 
+    /// <summary>当前行上下额外的呼吸空间（px）。基础行距已减半到 6px，当前行因 Scale=1.5
+    /// 需要更多空间，故让它上方所有行整体上移、下方所有行整体下移各 <c>WinLyricGapExtra</c>，
+    /// 只把当前行上下这两条缝隙撑开（其余缝隙不变）。
+    /// ⚠ 必须用 <c>TranslationY</c> 渲染平移而非 Padding：Padding 会改行高，破坏
+    /// <c>_winRowTops</c> 的"所有行等高"前提，滚动锚点失效并重新引入跳动。</summary>
+    private const double WinLyricGapExtra = 6;
+
     /// <summary>构建 Windows 歌词：所有行一次性代码构建为 WinLyricStack 的子 Grid（自绘静态堆叠，非虚拟化）。</summary>
     private void BuildWindowsLyricViews()
     {
@@ -192,11 +199,11 @@ public partial class NowPlayingPage
         {
             var row = new Grid
             {
-                // 当前行主文本会 Scale 到 1.5，向上下各溢出约半个字高；
-                // padding/RowSpacing 预留缓冲，避免放大后压到相邻行与本行译文。
-                // 注：用户反馈"行距太大"已收紧——上下 7px + RowSpacing 3px 合计 17px
-                // （原 15+6+15=36px），仍给当前行 Scale=1.5 留 7px 上下缓冲。
-                Padding = new Thickness(0, 7, 0, 7),
+                // 行距：上下各 3px → 行间 6px（原 7+7=14px，按需求减半）。
+                // 当前行上下的呼吸空间不靠 Padding，而是靠 ApplyWinRowGap 用
+                // Container.TranslationY 渲染平移撑开——Padding 若随当前行变化会改行高，
+                // 破坏 _winRowTops 等高锚点表并重新引入跳动。
+                Padding = new Thickness(0, 3, 0, 3),
                 RowSpacing = 3,
                 ColumnDefinitions = new ColumnDefinitionCollection
                 {
@@ -284,6 +291,7 @@ public partial class NowPlayingPage
         if (index < 0 || index >= _winRows.Count) return;
         for (int i = 0; i < _winRows.Count; i++)
             ApplyWinLyricTierInstant(i, index);
+        ApplyWinRowGap(index, animate: false);
         _winLastHighlight = index;
     }
 
@@ -306,6 +314,9 @@ public partial class NowPlayingPage
         AnimateWinRowScale(index, WinLyricCurrentScale);
         if (prev >= 0 && prev != index)
             AnimateWinRowScale(prev, 1.0);
+
+        // 当前行上下呼吸空间随之平滑迁移（同为 380ms，与放大/滚动三者同步）
+        ApplyWinRowGap(index, animate: true);
 
         ScrollToWindowsLine(index, animate: true);
         WinLog($"Highlight idx={index}/{_winRows.Count} follow={_winFollow}");
@@ -366,6 +377,33 @@ public partial class NowPlayingPage
         _ = main.ScaleTo(target, WinLyricScaleMs, Easing.CubicInOut);
     }
 
+    /// <summary>
+    /// 只把当前行上下两条缝隙撑开 <see cref="WinLyricGapExtra"/>：
+    /// 当前行以上的行整体上移 -e，以下的行整体下移 +e，当前行自身不动。
+    /// 相邻同侧行之间的相对距离不变 → 其余行距保持"减半"后的紧凑值。
+    /// 用 Container.TranslationY（渲染变换，不重排、不改 _winRowTops），与整体滚动的
+    /// WinLyricStack.TranslationY 独立叠加，互不干扰。
+    /// 切句时实际只有 2 行的目标值发生变化，其余行会被阈值判断跳过。
+    /// </summary>
+    private void ApplyWinRowGap(int index, bool animate)
+    {
+        for (int i = 0; i < _winRows.Count; i++)
+        {
+            double target = i < index ? -WinLyricGapExtra
+                          : i > index ? WinLyricGapExtra
+                          : 0;
+
+            var container = _winRows[i].Container;
+            if (Math.Abs(container.TranslationY - target) < 0.5) continue;
+
+            container.CancelAnimations();
+            if (animate)
+                _ = container.TranslateTo(0, target, WinLyricScaleMs, Easing.CubicInOut);
+            else
+                container.TranslationY = target;
+        }
+    }
+
     // ═══════════════════════════════════════
     // 滚动：整体平移 WinLyricStack.TranslationY（合成线程变换，不重排）
     // ═══════════════════════════════════════
@@ -386,8 +424,9 @@ public partial class NowPlayingPage
         targetY = Math.Min(0, targetY); // 不允许向上越过开头（出现上方空白）
 
         // 底部夹紧：歌词较短时不能滚过最后一行（下方留白）。
+        // 减去 WinLyricGapExtra：当前行下方的行会被 ApplyWinRowGap 下移 e，末行实际底边更低。
         double maxTranslate = (_winClipHeight > 0 && _winStackHeight > _winClipHeight)
-            ? _winClipHeight - _winStackHeight   // 负值
+            ? _winClipHeight - _winStackHeight - WinLyricGapExtra   // 负值
             : 0;
         targetY = Math.Clamp(targetY, maxTranslate, 0);
 
