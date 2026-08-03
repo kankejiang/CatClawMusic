@@ -15,13 +15,17 @@
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
 		<ApplicationId>com.catclaw.music</ApplicationId>
-		<ApplicationDisplayVersion>1.7.8</ApplicationDisplayVersion>
-		<ApplicationVersion>54</ApplicationVersion>
+		<ApplicationDisplayVersion>1.7.9</ApplicationDisplayVersion>
+		<ApplicationVersion>55</ApplicationVersion>
 
 		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>
 		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
 		<EnableMsixTooling>true</EnableMsixTooling>
+		<!-- 手写 App.generated.cs（替代 XamlCompiler 生成的 App.g.i.cs 中的 Program/App，
+		     绕 .NET 10 + WindowsAppSDK 1.7 的 XamlCompiler 退出码问题）。定义 DISABLE_XAML_GENERATED_MAIN
+		     后 XamlCompiler 生成的 Program 部分被 #if 跳过，由手写版本提供，避免重复定义。 -->
+		<DefineConstants Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 		<!-- XAML 编译器包装：Windows App SDK 1.7 的 XamlCompiler.exe 在 .NET 10 上
 		     编译成功但退出码为 1（关闭时崩溃），用包装脚本检查 output.json 是否生成
 		     来判断成功与否，绕过错误的退出码。 -->
@@ -43,7 +47,14 @@
 		<PublishTrimmed Condition="'$(Configuration)' == 'Release'">true</PublishTrimmed>
 		<TrimMode Condition="'$(Configuration)' == 'Release'">partial</TrimMode>
 
-		<!-- Debug 版本使用独立 ApplicationId，支持与 Release 共存 -->
+		<!-- Windows Release：不输出 .pdb/.xml 调试符号，减少发布目录文件数（不影响功能与多语言资源） -->
+		<DebugType Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">None</DebugType>
+		<DebugSymbols Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">false</DebugSymbols>
+		<GenerateDocumentationFile Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">false</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<!-- Debug 版本使用独立 ApplicationId，支持与 Release 共存 -->
+	<PropertyGroup>
 		<ApplicationId Condition="'$(Configuration)' == 'Debug'">com.catclaw.music.debug</ApplicationId>
 		<ApplicationTitle Condition="'$(Configuration)' == 'Debug'">猫爪音乐(Debug)</ApplicationTitle>
 	</PropertyGroup>
