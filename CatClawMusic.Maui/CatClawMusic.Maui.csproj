@@ -21,7 +21,6 @@
 		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>
 		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-		<EnableMsixTooling>true</EnableMsixTooling>
 		<!-- 手写 App.generated.cs（替代 XamlCompiler 生成的 App.g.i.cs 中的 Program/App，
 		     绕 .NET 10 + WindowsAppSDK 1.7 的 XamlCompiler 退出码问题）。定义 DISABLE_XAML_GENERATED_MAIN
 		     后 XamlCompiler 生成的 Program 部分被 #if 跳过，由手写版本提供，避免重复定义。 -->

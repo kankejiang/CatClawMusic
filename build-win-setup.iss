@@ -30,7 +30,7 @@ SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=release\windows
-OutputBaseFilename=猫爪音乐-{#MyAppVersion}-Setup
+OutputBaseFilename=catclaw.music-{#MyAppVersion}-Setup
 LicenseFile=LICENSE.txt
 ; 权限：绿色目录无需管理员即可写入 Program Files 时用 normal，
 ; 但写 {autopf} 需要管理员，故用 admin 权限

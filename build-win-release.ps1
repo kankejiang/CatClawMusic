@@ -1,6 +1,6 @@
 ﻿# 猫爪音乐 Windows Release 一键打包脚本
 # 用法: 双击运行（打包完会暂停等待按键，方便看结果），或 .\build-win-release.ps1
-# 输出: release\windows\猫爪音乐-<版本>-Setup.exe
+# 输出: release\windows\catclaw.music-<版本>-Setup.exe
 # 流程: ① dotnet publish 绿色目录(self-contained, 去pdb, 多语言保留) -> ② ISCC 编译 Inno Setup 安装程序
 # 依赖: .NET SDK(已装) + Inno Setup 7(ISCC.exe, 未装时脚本会提示)
 # 版本号自动从 csproj 读取 ApplicationDisplayVersion，以后发版只需改 csproj
@@ -107,7 +107,7 @@ $sw2.Stop()
 Write-Host "  编译完成（$($sw2.Elapsed.ToString('mm\:ss'))）" -ForegroundColor Green
 
 # 结果
-$setupExe = "release\windows\猫爪音乐-$ver-Setup.exe"
+$setupExe = "release\windows\catclaw.music-$ver-Setup.exe"
 if (Test-Path $setupExe) {
     $f = Get-Item $setupExe
     Write-Host ""
