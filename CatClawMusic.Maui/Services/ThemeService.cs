@@ -35,19 +35,6 @@ public class ThemeService : IThemeService
         [CoreAppTheme.Teal] = new ThemeColors("#26A69A", "#D6F5F0", "#00897B"),
     };
 
-    /// <summary>
-    /// 5 套主题内置静态背景图映射（深色模式用星空，浅色模式用天空）。
-    /// 仅橙/粉/紫/蓝/青 5 个主题有内置背景图；其余主题回退到渐变笔刷。
-    /// </summary>
-    private static readonly Dictionary<CoreAppTheme, (string Starry, string Sky)> BackgroundImageMap = new()
-    {
-        [CoreAppTheme.Orange] = ("bg_orange_starry", "bg_orange_sky"),
-        [CoreAppTheme.Pink]   = ("bg_pink_starry", "bg_pink_sky"),
-        [CoreAppTheme.Purple] = ("bg_purple_starry", "bg_purple_sky"),
-        [CoreAppTheme.Blue]   = ("bg_blue_starry", "bg_blue_sky"),
-        [CoreAppTheme.Teal]   = ("bg_teal_starry", "bg_teal_sky"),
-    };
-
     /// <summary>获取当前主题色枚举</summary>
     public CoreAppTheme CurrentTheme => _currentTheme;
     /// <summary>获取当前暗黑模式设置</summary>
@@ -214,26 +201,158 @@ public class ThemeService : IThemeService
 
     /// <summary>
     /// 根据当前主题色与深/浅模式，设置 ThemeBackgroundImage 资源。
-    /// 5 个有内置图的主题（橙/粉/紫/蓝/青）→ 对应的星空(暗)或天空(亮)静态图；
-    /// 其余主题 → 不设置（保留渐变 PageBackgroundBrush 作为 fallback）。
+    /// v1.7.8 起不再使用静态星空/天空图片，改为代码绘制的渐变位图
+    /// （深色模式：主题色氛围渐变 + 星空点；浅色模式：主题浅色渐变 + 柔和光晕）。
     /// </summary>
-    private static void ApplyThemeBackgroundImage(ResourceDictionary resources, CoreAppTheme theme, bool isDark)
+    private void ApplyThemeBackgroundImage(ResourceDictionary resources, CoreAppTheme theme, bool isDark)
     {
-        if (BackgroundImageMap.TryGetValue(theme, out var pair))
+        resources["ThemeBackgroundImage"] = GetOrCreateBackgroundImage(theme, isDark);
+        resources["ThemeBackgroundEnabled"] = true;
+    }
+
+    /// <summary>代码绘制背景缓存（主题色 + 深/浅模式 双键）</summary>
+    private static readonly Dictionary<(CoreAppTheme Theme, bool IsDark), ImageSource> BackgroundImageCache = new();
+
+    /// <summary>获取（或生成并缓存）代码绘制的主题背景 ImageSource</summary>
+    private static ImageSource GetOrCreateBackgroundImage(CoreAppTheme theme, bool isDark)
+    {
+        var key = (theme, isDark);
+        if (BackgroundImageCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var source = ImageSource.FromStream(() => new MemoryStream(RenderThemeBackgroundPng(theme, isDark)));
+        BackgroundImageCache[key] = source;
+        return source;
+    }
+
+    /// <summary>
+    /// 用代码绘制主题背景 PNG：
+    /// 顶部主题色氛围 → 底部基底色的垂直渐变；
+    /// 深色模式叠加随机星空点（按主题色播种，固定不变），浅色模式叠加柔和光斑。
+    /// Windows 用 Win2D（项目已引用 Microsoft.Graphics.Win2D），Android 用系统 Canvas。
+    /// </summary>
+    private static byte[] RenderThemeBackgroundPng(CoreAppTheme theme, bool isDark)
+    {
+        const int width = 720, height = 1280;
+        var colors = ThemeMap[theme];
+        var rand = new Random(theme.GetHashCode());
+
+#if ANDROID
+        using var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
+        using var canvas = new Android.Graphics.Canvas(bitmap);
+        using var paint = new Android.Graphics.Paint { AntiAlias = true };
+
+        // 垂直渐变：主题色氛围 → 基底色
+        int startColor = Android.Graphics.Color.ParseColor($"#{(isDark ? "30" : "4A")}{colors.Primary[1..]}");
+        int endColor = Android.Graphics.Color.ParseColor(isDark ? "#FF080914" : "#FFF8F7FF");
+        using var shader = new Android.Graphics.LinearGradient(0, 0, 0, height, startColor, endColor, Android.Graphics.Shader.TileMode.Clamp);
+        paint.SetShader(shader);
+        canvas.DrawRect(0, 0, width, height, paint);
+        paint.SetShader(null);
+
+        if (isDark)
         {
-            string resName = isDark ? pair.Starry : pair.Sky;
-            // 注意：必须用纯字符串，让 Image.Source 经 ImageSourceConverter 从 MauiImage 资源目录按名解析。
-            // ImageSource.FromFile(resName) 会按“设备文件系统路径”查找，MauiImage 不在文件系统中，会返回空白→黑屏。
-            resources["ThemeBackgroundImage"] = resName;
-            resources["ThemeBackgroundEnabled"] = true;
+            // 星空：白色小圆点，越靠上越亮
+            for (int i = 0; i < 150; i++)
+            {
+                float x = (float)(rand.NextDouble() * width);
+                float y = (float)(rand.NextDouble() * height);
+                float r = (float)(0.5 + rand.NextDouble() * 1.4);
+                float alpha = (float)(0.10 + rand.NextDouble() * 0.35) * (1f - y / height * 0.6f);
+                paint.SetARGB((byte)(alpha * 255), 255, 255, 255);
+                canvas.DrawCircle(x, y, r, paint);
+            }
         }
         else
         {
-            // 无内置背景图的主题：禁用主题图片层，回退到渐变笔刷
-            resources["ThemeBackgroundEnabled"] = false;
-            resources["ThemeBackgroundImage"] = null;
+            // 浅色模式：柔和光斑
+            for (int i = 0; i < 5; i++)
+            {
+                float x = (float)(rand.NextDouble() * width);
+                float y = (float)(rand.NextDouble() * height * 0.6f);
+                float r = (float)(120 + rand.NextDouble() * 200);
+                float alpha = (float)(0.05 + rand.NextDouble() * 0.08);
+                paint.SetARGB((int)(alpha * 255), 255, 255, 255);
+                canvas.DrawCircle(x, y, r, paint);
+            }
         }
+
+        using var stream = new MemoryStream();
+        bitmap.Compress(Android.Graphics.Bitmap.CompressFormat.Png, 100, stream);
+        return stream.ToArray();
+#elif WINDOWS
+        var device = Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+        // CanvasDevice 只实现 ICanvasResourceCreator（无 Dpi 变体），用带 DPI 参数的构造函数重载
+        using var renderTarget = new Microsoft.Graphics.Canvas.CanvasRenderTarget(
+            (Microsoft.Graphics.Canvas.ICanvasResourceCreator)device, width, height, 96f);
+        using (var ds = renderTarget.CreateDrawingSession())
+        {
+            // 垂直渐变：主题色氛围 → 基底色
+            var startWinColor = WindowsColorFromHex($"#{(isDark ? "30" : "4A")}{colors.Primary[1..]}");
+            var endWinColor = WindowsColorFromHex(isDark ? "#080914" : "#F8F7FF");
+            using var gradient = new Microsoft.Graphics.Canvas.Brushes.CanvasLinearGradientBrush(renderTarget, startWinColor, endWinColor)
+            {
+                StartPoint = new System.Numerics.Vector2(0, 0),
+                EndPoint = new System.Numerics.Vector2(0, height),
+            };
+            ds.FillRectangle(0, 0, width, height, gradient);
+
+            if (isDark)
+            {
+                // 星空：白色小圆点，越靠上越亮
+                for (int i = 0; i < 150; i++)
+                {
+                    float x = (float)(rand.NextDouble() * width);
+                    float y = (float)(rand.NextDouble() * height);
+                    float r = (float)(0.5 + rand.NextDouble() * 1.4);
+                    float alpha = (float)(0.10 + rand.NextDouble() * 0.35) * (1f - y / height * 0.6f);
+                    ds.FillCircle(x, y, r, WindowsColorFromArgb((byte)(alpha * 255), 255, 255, 255));
+                }
+            }
+            else
+            {
+                // 浅色模式：柔和光斑
+                for (int i = 0; i < 5; i++)
+                {
+                    float x = (float)(rand.NextDouble() * width);
+                    float y = (float)(rand.NextDouble() * height * 0.6f);
+                    float r = (float)(120 + rand.NextDouble() * 200);
+                    float alpha = (float)(0.05 + rand.NextDouble() * 0.08);
+                    ds.FillCircle(x, y, r, WindowsColorFromArgb((byte)(alpha * 255), 255, 255, 255));
+                }
+            }
+        }
+
+        // 导出 PNG 字节（经 InMemoryRandomAccessStream 中转，SaveAsync 需要 IRandomAccessStream）
+        var ras = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+        renderTarget.SaveAsync(ras, Microsoft.Graphics.Canvas.CanvasBitmapFileFormat.Png).AsTask().GetAwaiter().GetResult();
+        ras.Seek(0);
+        using var reader = new Windows.Storage.Streams.DataReader(ras.GetInputStreamAt(0));
+        reader.LoadAsync((uint)ras.Size).AsTask().GetAwaiter().GetResult();
+        var bytes = new byte[ras.Size];
+        reader.ReadBytes(bytes);
+        return bytes;
+#else
+        // 其他平台兜底：返回 1x1 透明 PNG
+        return Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+#endif
     }
+
+#if WINDOWS
+    private static Windows.UI.Color WindowsColorFromArgb(byte a, byte r, byte g, byte b)
+        => Windows.UI.Color.FromArgb(a, r, g, b);
+
+    private static Windows.UI.Color WindowsColorFromHex(string hex)
+    {
+        hex = hex.TrimStart('#');
+        byte a = hex.Length >= 8 ? Convert.ToByte(hex[..2], 16) : (byte)0xFF;
+        int offset = hex.Length >= 8 ? 2 : 0;
+        byte r = Convert.ToByte(hex.Substring(offset, 2), 16);
+        byte g = Convert.ToByte(hex.Substring(offset + 2, 2), 16);
+        byte b = Convert.ToByte(hex.Substring(offset + 4, 2), 16);
+        return Windows.UI.Color.FromArgb(a, r, g, b);
+    }
+#endif
 
     /// <summary>获取系统当前是否处于暗黑模式</summary>
     /// <returns>系统暗黑模式返回 true；否则返回 false</returns>

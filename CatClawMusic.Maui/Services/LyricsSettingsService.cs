@@ -41,7 +41,7 @@ public class LyricsSettingsService
     private const string KeyDesktopPosY = "desktop_lyric_pos_y";
 
     /// <summary>默认字体大小（当前行）</summary>
-    public const double DefaultFontSize = 26;
+    public const double DefaultFontSize = 22;
     /// <summary>最小字体大小</summary>
     public const double MinFontSize = 18;
     /// <summary>最大字体大小</summary>

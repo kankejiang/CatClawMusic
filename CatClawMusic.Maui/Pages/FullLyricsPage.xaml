@@ -91,7 +91,7 @@
                     <TapGestureRecognizer Tapped="OnLyricsAreaTapped" />
                 </Grid.GestureRecognizers>
                 <VerticalStackLayout x:Name="LyricStack"
-                                     Padding="24,10,24,10"
+                                     Padding="30,10,30,10"
                                      Spacing="14"
                                      HorizontalOptions="Fill"
                                      VerticalOptions="Start" />
@@ -115,7 +115,7 @@
               IsVisible="False"
               ColumnDefinitions="1*,1.15*"
               ColumnSpacing="32"
-              Padding="48,0,48,0">
+              Padding="12,0,48,0">
 
             <!-- 左：封面（正方形，顶部贴状态栏下方，左边距=状态栏高度+5px，底部贴底部安全区上方） -->
             <Grid Grid.Column="0"
@@ -157,7 +157,7 @@
                         <TapGestureRecognizer Tapped="OnLyricsAreaTapped" />
                     </Grid.GestureRecognizers>
                     <VerticalStackLayout x:Name="LandscapeLyricStack"
-                                         Padding="24,10,24,10"
+                                         Padding="12,10,12,10"
                                          Spacing="14"
                                          HorizontalOptions="Fill"
                                          VerticalOptions="Start" />
