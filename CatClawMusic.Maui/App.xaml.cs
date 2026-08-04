@@ -19,6 +19,17 @@ public partial class App : Application
     private static IntPtr _appHwnd;
 #endif
 
+    /// <summary>
+    /// 全局「应用从后台回到前台」事件。
+    /// Application 基类只提供 OnResume 虚方法（子类覆写），没有对外可订阅的事件，
+    /// 这里显式暴露出来，供播放页/歌词页等订阅，用来在锁屏解锁或切回前台时
+    /// 校正歌词锚点与高亮位置（Activity/Handler 重建后旧锚点失效导致高亮漂移）。
+    /// </summary>
+    public static event EventHandler? Resumed;
+
+    /// <summary>触发 Resumed 全局事件（只在 OnResume 里调用）。</summary>
+    private static void RaiseResumed() => Resumed?.Invoke(null, EventArgs.Empty);
+
     public App()
     {
         StartupLog("App.ctor: InitializeComponent start");
@@ -161,6 +172,9 @@ public partial class App : Application
         {
             Log.Debug("App.xaml", $"[OnResume] 重启听歌计时失败: {ex.Message}");
         }
+
+        // 触发全局 Resumed：让播放页/歌词页有机会校正锚点与高亮位置
+        RaiseResumed();
     }
 
     private static void StartupLog(string msg)

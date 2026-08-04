@@ -165,7 +165,7 @@ public partial class NowPlayingPage
     /// <summary>当前行主文本放大倍率（视觉上字号 +50%）。
     /// 用 Scale 渲染变换而非改 FontSize：Scale 不参与布局测量 → 行高恒定 → 滚动锚点稳定，
     /// 若直接改 FontSize 会让当前行变高、整列重排，滚动必然出现跳动。</summary>
-    private const double WinLyricCurrentScale = 1.5;
+    private const double WinLyricCurrentScale = 1.25;
 
     /// <summary>当前行放大/缩回的缓动时长，与滚动 tween 同步，视觉上"缓缓长大"。</summary>
     private const uint WinLyricScaleMs = 380;
