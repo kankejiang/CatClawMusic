@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猫爪音乐 · 10 套渐变背景主题（5 深 5 浅）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #e9e9ef;
+    color: #222;
+    line-height: 1.6;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 36px 24px 72px; }
+
+  /* ===== 页头 ===== */
+  header { text-align: center; margin-bottom: 44px; }
+  header h1 { font-size: 28px; letter-spacing: 1px; }
+  header p { color: #666; margin-top: 8px; font-size: 14px; }
+
+  /* ===== 分组标题 ===== */
+  .group-title {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0 20px; font-size: 18px; font-weight: 600;
+  }
+  .group-title::after { content: ""; flex: 1; height: 1px; background: #ccc; }
+  .group-title .badge {
+    font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; color: #fff;
+  }
+  .badge.dark { background: #3b2f63; }
+  .badge.light { background: #f0a0ae; }
+
+  /* ===== 背景卡片 ===== */
+  .theme {
+    position: relative;
+    height: 520px;
+    border-radius: 22px;
+    margin-bottom: 34px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,.14);
+  }
+  /* 标注卡：深色背景用半透明深底白字，浅色背景用半透明白底深字 */
+  .label {
+    position: absolute;
+    left: 22px; bottom: 22px;
+    max-width: 460px;
+    padding: 16px 20px;
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .theme.dark .label { background: rgba(7, 10, 24, .58); color: #fff; }
+  .theme.light .label { background: rgba(255, 255, 255, .74); color: #222; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+  .label .no { font-size: 12px; opacity: .65; letter-spacing: 2px; }
+  .label h2 { font-size: 20px; margin: 2px 0 6px; }
+  .label p { font-size: 13px; opacity: .9; }
+  .label .css-hint {
+    margin-top: 8px; font-size: 11px; opacity: .7;
+    font-family: Consolas, "Courier New", monospace;
+    word-break: break-all;
+  }
+  /* 色板 */
+  .swatches { display: flex; gap: 8px; margin-top: 12px; }
+  .swatch { width: 46px; }
+  .swatch .chip { width: 46px; height: 46px; border-radius: 10px; border: 1px solid rgba(0,0,0,.14); }
+  .swatch .hex { font-size: 10px; margin-top: 3px; opacity: .75; font-family: Consolas, monospace; }
+
+  /* ======================================================================
+     动态背景层（背景持续流动）
+     ----------------------------------------------------------------------
+     方案：渐变背景移到 .theme::before 伪元素（独立合成层），用 CSS keyframes
+           无限交替动画做「缓慢平移 + 微缩放」，仅 transform（GPU 合成，
+           不触发布局/重绘，主线程零开销）。
+     速度 / 方向 / 循环控制：
+       - 4 种漂移方向变体 drift-a（左上）/ b（右下）/ c（垂直）/ d（对角）
+       - 每套周期 24~44s（数值越大越慢，形成"近乎察觉不到、但确实在动"的流动感）
+       - 负 animation-delay 错开各卡片相位 → 滚动浏览时各背景流速/方向不同，
+         自然产生视差层级的观感
+       - infinite alternate：来回往返循环，无跳变衔接
+     前景可读性：背景层 inset:-6% 放大，动画位移 ≤3%，明暗对比保留；
+       标注卡 z-index:1 保持在背景之上。
+     ====================================================================== */
+  .theme::before {
+    content: "";
+    position: absolute;
+    inset: -6%;
+    z-index: 0;
+    will-change: transform;
+    pointer-events: none; /* 不拦截卡片的点击 / 悬停 */
+  }
+  .theme .label { z-index: 1; }
+
+  /* 漂移方向变体：a 左上 / b 右下 / c 垂直 / d 对角 */
+  @keyframes drift-a {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to   { transform: translate3d(-2.4%, -1.6%, 0) scale(1.07); }
+  }
+  @keyframes drift-b {
+    from { transform: translate3d(0, 0, 0) scale(1.06); }
+    to   { transform: translate3d(2.2%, 1.4%, 0) scale(1); }
+  }
+  @keyframes drift-c {
+    from { transform: translate3d(0, 0, 0) scale(1.09); }
+    to   { transform: translate3d(0, -2.8%, 0) scale(1); }
+  }
+  @keyframes drift-d {
+    from { transform: translate3d(0, 0, 0) scale(1.05); }
+    to   { transform: translate3d(2.6%, -1.8%, 0) scale(1); }
+  }
+  /* 每套：漂移方向 + 周期（s）+ 相位（负 delay 错峰，避免所有卡片同步运动） */
+  .t1::before  { animation: drift-a 30s ease-in-out infinite alternate; }
+  .t2::before  { animation: drift-b 36s ease-in-out infinite alternate; animation-delay: -9s; }
+  .t3::before  { animation: drift-c 26s ease-in-out infinite alternate; animation-delay: -13s; }
+  .t4::before  { animation: drift-d 32s ease-in-out infinite alternate; animation-delay: -4s; }
+  .t5::before  { animation: drift-b 40s ease-in-out infinite alternate; animation-delay: -20s; }
+  .t6::before  { animation: drift-a 24s ease-in-out infinite alternate; animation-delay: -6s; }
+  .t7::before  { animation: drift-c 34s ease-in-out infinite alternate; animation-delay: -17s; }
+  .t8::before  { animation: drift-d 28s ease-in-out infinite alternate; animation-delay: -2s; }
+  .t9::before  { animation: drift-b 38s ease-in-out infinite alternate; animation-delay: -19s; }
+  .t10::before { animation: drift-a 44s ease-in-out infinite alternate; animation-delay: -22s; }
+
+  /* ===== 深色系 5 套 ===== */
+  .t1::before {
+    background:
+      radial-gradient(70% 60% at 74% 16%, rgba(140, 123, 255, .34) 0%, rgba(140, 123, 255, 0) 58%),
+      radial-gradient(50% 45% at 20% 30%, rgba(85, 214, 255, .16) 0%, rgba(85, 214, 255, 0) 60%),
+      linear-gradient(135deg, #070a18 0%, #141b3a 48%, #2b2e60 100%);
+  }
+  .t2::before {
+    background:
+      radial-gradient(90% 70% at 24% 86%, rgba(168, 66, 226, .30) 0%, rgba(168, 66, 226, 0) 58%),
+      radial-gradient(60% 50% at 80% 20%, rgba(236, 145, 255, .14) 0%, rgba(236, 145, 255, 0) 60%),
+      linear-gradient(180deg, #170f26 0%, #331a4a 55%, #5a2770 100%);
+  }
+  .t3::before {
+    background:
+      radial-gradient(80% 90% at 84% 82%, rgba(38, 166, 154, .30) 0%, rgba(38, 166, 154, 0) 55%),
+      radial-gradient(55% 50% at 18% 22%, rgba(85, 214, 255, .12) 0%, rgba(85, 214, 255, 0) 62%),
+      linear-gradient(200deg, #05141b 0%, #0b2a33 55%, #0f3d46 100%);
+  }
+  .t4::before {
+    background:
+      radial-gradient(100% 70% at 58% 92%, rgba(255, 112, 67, .26) 0%, rgba(255, 112, 67, 0) 58%),
+      radial-gradient(55% 45% at 78% 18%, rgba(255, 202, 158, .10) 0%, rgba(255, 202, 158, 0) 60%),
+      linear-gradient(45deg, #190b0f 0%, #3a1520 55%, #6a1f2e 100%);
+  }
+  .t5::before {
+    background:
+      radial-gradient(110% 80% at 30% 8%, rgba(96, 150, 205, .20) 0%, rgba(96, 150, 205, 0) 55%),
+      radial-gradient(60% 60% at 82% 88%, rgba(120, 140, 170, .12) 0%, rgba(120, 140, 170, 0) 62%),
+      linear-gradient(120deg, #0d1017 0%, #1e2530 50%, #36404f 100%);
+  }
+
+  /* ===== 浅色系 5 套 ===== */
+  .t6::before {
+    background:
+      radial-gradient(70% 60% at 80% 14%, rgba(255, 255, 255, .95) 0%, rgba(255, 255, 255, 0) 58%),
+      linear-gradient(180deg, #fff3f5 0%, #ffdde4 55%, #ffc6d2 100%);
+  }
+  .t7::before {
+    background:
+      radial-gradient(75% 65% at 70% 18%, rgba(255, 255, 255, .96) 0%, rgba(255, 255, 255, 0) 55%),
+      radial-gradient(60% 55% at 90% 80%, rgba(120, 190, 255, .22) 0%, rgba(120, 190, 255, 0) 60%),
+      linear-gradient(160deg, #f0faff 0%, #cfe9ff 55%, #9fd2ff 100%);
+  }
+  .t8::before {
+    background:
+      radial-gradient(85% 75% at 50% 100%, rgba(255, 244, 214, .95) 0%, rgba(255, 244, 214, 0) 58%),
+      radial-gradient(55% 50% at 82% 16%, rgba(255, 255, 255, .8) 0%, rgba(255, 255, 255, 0) 60%),
+      linear-gradient(90deg, #fffcf3 0%, #fbf1d6 55%, #f2dfbb 100%);
+  }
+  .t9::before {
+    background:
+      radial-gradient(80% 70% at 18% 86%, rgba(255, 255, 255, .88) 0%, rgba(255, 255, 255, 0) 55%),
+      radial-gradient(60% 55% at 80% 20%, rgba(140, 225, 190, .20) 0%, rgba(140, 225, 190, 0) 60%),
+      linear-gradient(200deg, #f2fcf8 0%, #d7f4e7 55%, #b4e7cf 100%);
+  }
+  .t10::before {
+    background:
+      radial-gradient(70% 60% at 75% 14%, rgba(255, 255, 255, .94) 0%, rgba(255, 255, 255, 0) 56%),
+      radial-gradient(65% 60% at 20% 88%, rgba(200, 170, 255, .26) 0%, rgba(200, 170, 255, 0) 58%),
+      linear-gradient(135deg, #f8f5ff 0%, #e9e1ff 55%, #d2c2ff 100%);
+  }
+
+  footer { text-align: center; color: #999; font-size: 12px; margin-top: 12px; }
+
+  /* ======================================================================
+     动效系统
+     ----------------------------------------------------------------------
+     原则：
+     - 只对 transform / opacity / box-shadow 做动画（GPU 合成，不触发重排/重绘）
+     - 时长 200-500ms，缓动函数：入场 cubic-bezier(.22,.61,.36,1)（先快后缓），
+       回弹 cubic-bezier(.34,1.56,.64,1)（过冲回弹）
+     - prefers-reduced-motion 全局降级（见文件末尾媒体查询）
+     ====================================================================== */
+
+  /* --- 1. 页面加载：头部标题淡入下滑（fade-in-down）
+         触发：页面加载时（延迟 0.05s）
+         参数：0.7s / cubic-bezier(.22,.61,.36,1)，animation-fill-mode:both 避免闪烁 --- */
+  @keyframes fade-in-down {
+    from { opacity: 0; transform: translateY(-26px); }
+    to   { opacity: 1; transform: none; }
+  }
+  header {
+    animation: fade-in-down .7s cubic-bezier(.22, .61, .36, 1) .05s both;
+  }
+
+  /* --- 2. 分组标题淡入（两个分组错峰：深色组 0.12s、浅色组 0.2s）--- */
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .group-title { opacity: 0; animation: fade-in .6s ease-out .12s forwards; }
+  .group-title.light { animation-delay: .2s; }
+
+  /* --- 3. 滚动入场：卡片淡入 + 上滑 + 微缩放
+         触发：IntersectionObserver 检测卡片进入视口约 18%（距底部 40px 内），
+               一次性入场，见文件底部 <script>
+         参数：transform .5s 回弹缓动 / opacity .6s；标注卡延迟 0.15s 跟随滑入 --- */
+  .theme {
+    opacity: 0;
+    transform: translateY(46px) scale(.98);
+    transition:
+      transform .5s cubic-bezier(.22, .61, .36, 1),
+      opacity .6s ease,
+      box-shadow .45s ease;
+    will-change: transform, opacity;
+  }
+  .theme.visible { opacity: 1; transform: none; }
+  .theme .label {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      transform .45s cubic-bezier(.22, .61, .36, 1) .15s,
+      opacity .45s ease .15s;
+  }
+  .theme.visible .label { opacity: 1; transform: none; }
+
+  /* --- 4. 悬停（鼠标指向）
+         - 卡片：上浮 6px + 阴影加深（0.45s），光晕感更强
+         - 标注卡：背景更实（深色 .58→.72 / 浅色 .74→.88），文字更清晰
+         - 色板色块：放大 1.14 + 轻旋转 8°（回弹缓动 0.35s）
+         - 分组标签：悬停旋转 360°（装饰性，0.6s 回弹）--- */
+  .theme:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .22);
+  }
+  .theme.dark:hover .label { background: rgba(7, 10, 24, .72); }
+  .theme.light:hover .label { background: rgba(255, 255, 255, .88); }
+  .swatch .chip { transition: transform .35s cubic-bezier(.34, 1.56, .64, 1); }
+  .swatch .chip:hover { transform: scale(1.14) rotate(8deg); }
+  .group-title .badge { display: inline-block; transition: transform .6s cubic-bezier(.34, 1.56, .64, 1); }
+  .group-title .badge:hover { transform: rotate(360deg); }
+
+  /* --- 5. 点击反馈
+         - 卡片按下：瞬时微缩（0.08s 点按手感）
+         - 卡片点击：弹性回弹 pop（JS 触发，0.45s：scale 1→1.02→.985→1）
+         - 色块按下：缩小（0.08s）--- */
+  .theme:active { transform: scale(.992) translateY(-2px); transition-duration: .08s; }
+  .chip:active { transform: scale(.92); transition-duration: .08s; }
+  @keyframes pop {
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.02); }
+    60%  { transform: scale(.985); }
+    100% { transform: scale(1); }
+  }
+  .theme.pop { animation: pop .45s cubic-bezier(.34, 1.56, .64, 1); }
+
+  /* --- 6. 无障碍降级：偏好减少动效时，所有动画/过渡瞬间完成，元素直接呈现最终态 --- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001s !important;
+      animation-delay: 0s !important;
+      transition-duration: .001s !important;
+    }
+    .theme, .theme .label { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>猫爪音乐 · 10 套渐变背景主题</h1>
+    <p>5 套深色系 + 5 套浅色系 ｜ 全部由 CSS linear/radial 渐变叠加实现 ｜ 适合作为网页 / 应用的视觉底层</p>
+  </header>
+
+  <!-- ============ 深色系 ============ -->
+  <h2 class="group-title"><span class="badge dark">深色系</span> 5 套 — 暗色调，适合夜间 / 沉浸式聆听场景</h2>
+
+  <section class="theme dark t1">
+    <div class="label">
+      <div class="no">01 · DEEP SPACE</div>
+      <h2>深空蓝 Deep Space</h2>
+      <p>品牌主基调：深蓝夜空 + 紫蓝双光晕。径向光晕模拟星空光源，对角渐变拉开明暗层次，低饱和不抢内容。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#070a18"></div><div class="hex">#070A18</div></div>
+        <div class="swatch"><div class="chip" style="background:#141b3a"></div><div class="hex">#141B3A</div></div>
+        <div class="swatch"><div class="chip" style="background:#2b2e60"></div><div class="hex">#2B2E60</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(140,123,255,.34)"></div><div class="hex">#8C7BFF 34%</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(85,214,255,.16)"></div><div class="hex">#55D6FF 16%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 135°</div>
+    </div>
+  </section>
+
+  <section class="theme dark t2">
+    <div class="label">
+      <div class="no">02 · VIOLET DUSK</div>
+      <h2>暗紫罗兰 Violet Dusk</h2>
+      <p>暗紫由下而上渐亮，底部紫罗兰光晕如舞台灯光，右上点缀淡紫微光。氛围浪漫、适合抒情与夜间歌单。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#170f26"></div><div class="hex">#170F26</div></div>
+        <div class="swatch"><div class="chip" style="background:#331a4a"></div><div class="hex">#331A4A</div></div>
+        <div class="swatch"><div class="chip" style="background:#5a2770"></div><div class="hex">#5A2770</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(168,66,226,.30)"></div><div class="hex">#A842E2 30%</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(236,145,255,.14)"></div><div class="hex">#EC91FF 14%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 180°</div>
+    </div>
+  </section>
+
+  <section class="theme dark t3">
+    <div class="label">
+      <div class="no">03 · TEAL ABYSS</div>
+      <h2>墨夜青 Teal Abyss</h2>
+      <p>深青墨色垂直渐变，右下青蓝光晕如深海微光，左上角一抹冷青。冷静克制，适合工具型 / 阅读型页面。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#05141b"></div><div class="hex">#05141B</div></div>
+        <div class="swatch"><div class="chip" style="background:#0b2a33"></div><div class="hex">#0B2A33</div></div>
+        <div class="swatch"><div class="chip" style="background:#0f3d46"></div><div class="hex">#0F3D46</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(38,166,154,.30)"></div><div class="hex">#26A69A 30%</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(85,214,255,.12)"></div><div class="hex">#55D6FF 12%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 200°</div>
+    </div>
+  </section>
+
+  <section class="theme dark t4">
+    <div class="label">
+      <div class="no">04 · EMBER NOIR</div>
+      <h2>暗夜绯红 Ember Noir</h2>
+      <p>暗红酒红对角渐变，底部暖橙光晕如余烬火光，右上极淡暖光。炽热而不刺眼，适合现场 / 摇滚场景。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#190b0f"></div><div class="hex">#190B0F</div></div>
+        <div class="swatch"><div class="chip" style="background:#3a1520"></div><div class="hex">#3A1520</div></div>
+        <div class="swatch"><div class="chip" style="background:#6a1f2e"></div><div class="hex">#6A1F2E</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(255,112,67,.26)"></div><div class="hex">#FF7043 26%</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(255,202,158,.10)"></div><div class="hex">#FFCA9E 10%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 45°</div>
+    </div>
+  </section>
+
+  <section class="theme dark t5">
+    <div class="label">
+      <div class="no">05 · GRAPHITE STEEL</div>
+      <h2>石墨钢蓝 Graphite Steel</h2>
+      <p>石墨灰蓝对角渐变，左上冷钢光、右下暗灰光。中性百搭，高级感强，适合列表 / 数据密集界面。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#0d1017"></div><div class="hex">#0D1017</div></div>
+        <div class="swatch"><div class="chip" style="background:#1e2530"></div><div class="hex">#1E2530</div></div>
+        <div class="swatch"><div class="chip" style="background:#36404f"></div><div class="hex">#36404F</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(96,150,205,.20)"></div><div class="hex">#6096CD 20%</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(120,140,170,.12)"></div><div class="hex">#788CAA 12%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 120°</div>
+    </div>
+  </section>
+
+  <!-- ============ 浅色系 ============ -->
+  <h2 class="group-title"><span class="badge light">浅色系</span> 5 套 — 明亮色调，适合白天 / 清新阅读场景</h2>
+
+  <section class="theme light t6">
+    <div class="label">
+      <div class="no">06 · MORNING BLUSH</div>
+      <h2>晨雾粉 Morning Blush</h2>
+      <p>柔粉三段垂直渐变，顶部白色晨光如雾。温柔轻快，适合女性向 / 轻音乐 / 播放列表封面底。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#fff3f5"></div><div class="hex">#FFF3F5</div></div>
+        <div class="swatch"><div class="chip" style="background:#ffdde4"></div><div class="hex">#FFDDE4</div></div>
+        <div class="swatch"><div class="chip" style="background:#ffc6d2"></div><div class="hex">#FFC6D2</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(255,255,255,.95)"></div><div class="hex">#FFF 95%</div></div>
+      </div>
+      <div class="css-hint">radial + linear 180°</div>
+    </div>
+  </section>
+
+  <section class="theme light t7">
+    <div class="label">
+      <div class="no">07 · SKY BREEZE</div>
+      <h2>晴空蓝 Sky Breeze</h2>
+      <p>天蓝斜向渐变，右上白色高光如太阳，右下淡蓝光晕。明快通透，适合首页 / 发现页等大面积背景。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#f0faff"></div><div class="hex">#F0FAFF</div></div>
+        <div class="swatch"><div class="chip" style="background:#cfe9ff"></div><div class="hex">#CFE9FF</div></div>
+        <div class="swatch"><div class="chip" style="background:#9fd2ff"></div><div class="hex">#9FD2FF</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(120,190,255,.22)"></div><div class="hex">#78BEFF 22%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 160°</div>
+    </div>
+  </section>
+
+  <section class="theme light t8">
+    <div class="label">
+      <div class="no">08 · CREAM VANILLA</div>
+      <h2>奶油米 Cream Vanilla</h2>
+      <p>米白 / 奶油色水平渐变，底部暖金光晕、右上白亮。暖而不腻，适合播客 / 有声书 / 治愈系内容。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#fffcf3"></div><div class="hex">#FFFCF3</div></div>
+        <div class="swatch"><div class="chip" style="background:#fbf1d6"></div><div class="hex">#FBF1D6</div></div>
+        <div class="swatch"><div class="chip" style="background:#f2dfbb"></div><div class="hex">#F2DFBB</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(255,244,214,.95)"></div><div class="hex">#FFF4D6 95%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 90°</div>
+    </div>
+  </section>
+
+  <section class="theme light t9">
+    <div class="label">
+      <div class="no">09 · MINT FRESH</div>
+      <h2>薄荷青 Mint Fresh</h2>
+      <p>薄荷绿渐变，左下白色光晕如晨露、右上淡绿微光。清新健康，适合自然 / 助眠 / 冥想场景。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#f2fcf8"></div><div class="hex">#F2FCF8</div></div>
+        <div class="swatch"><div class="chip" style="background:#d7f4e7"></div><div class="hex">#D7F4E7</div></div>
+        <div class="swatch"><div class="chip" style="background:#b4e7cf"></div><div class="hex">#B4E7CF</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(140,225,190,.20)"></div><div class="hex">#8CE1BE 20%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 200°</div>
+    </div>
+  </section>
+
+  <section class="theme light t10">
+    <div class="label">
+      <div class="no">10 · LAVENDER MIST</div>
+      <h2>薰衣草雾 Lavender Mist</h2>
+      <p>淡紫渐变，右上白色光晕、左下薰衣草紫光。梦幻轻柔，适合轻音乐 / 弹唱 / 温柔歌单场景。</p>
+      <div class="swatches">
+        <div class="swatch"><div class="chip" style="background:#f8f5ff"></div><div class="hex">#F8F5FF</div></div>
+        <div class="swatch"><div class="chip" style="background:#e9e1ff"></div><div class="hex">#E9E1FF</div></div>
+        <div class="swatch"><div class="chip" style="background:#d2c2ff"></div><div class="hex">#D2C2FF</div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(200,170,255,.26)"></div><div class="hex">#C8AAFF 26%</div></div>
+      </div>
+      <div class="css-hint">radial ×2 + linear 135°</div>
+    </div>
+  </section>
+
+  <footer>猫爪音乐 · 渐变背景原型 — 色值可直接移植到 MAUI ThemeService（Android Canvas / Windows Win2D）</footer>
+</div>
+
+<script>
+  // ============================================================
+  // 动效脚本（轻量、零依赖）
+  // 职责：
+  //   1) IntersectionObserver 滚动入场：.theme → .visible
+  //   2) 卡片点击弹性回弹：.theme → .pop（动画结束自动移除）
+  // 降级：无 IntersectionObserver 或 JS 异常时，卡片直接可见（不卡内容）
+  // 性能：只切换 class，动画全部由 CSS 完成（transform/opacity，GPU 合成），
+  //       主线程无持续开销；入场后 unobserve 停止监听
+  // ============================================================
+  (function () {
+    'use strict';
+    var themes = document.querySelectorAll('.theme');
+
+    // --- 1. 滚动入场（threshold 0.18 = 卡片进入视口 18%；rootMargin -40px = 距视口底部 40px 内才算进入）---
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            io.unobserve(entry.target); // 只入场一次，之后 hover 过渡接管
+          }
+        });
+      }, { threshold: 0.18, rootMargin: '0px 0px -40px 0px' });
+      themes.forEach(function (t) { io.observe(t); });
+    } else {
+      themes.forEach(function (t) { t.classList.add('visible'); });
+    }
+
+    // --- 2. 点击弹性回弹（pop 动画由 CSS keyframes 播放，结束后移除 class）---
+    themes.forEach(function (t) {
+      t.addEventListener('click', function () {
+        t.classList.remove('pop');
+        void t.offsetWidth; // 强制重排，保证连续点击时动画可重复触发
+        t.classList.add('pop');
+      });
+    });
+    document.addEventListener('animationend', function (ev) {
+      if (ev.target && ev.target.classList && ev.target.classList.contains('pop')) {
+        ev.target.classList.remove('pop');
+      }
+    });
+  })();
+</script>
+
+<noscript>
+  <style>
+    /* JS 不可用时（含偏好减少动效的系统设置）所有内容直接可见，不依赖脚本入场 */
+    .theme, .theme .label { opacity: 1 !important; transform: none !important; }
+  </style>
+</noscript>
+</body>
+</html>

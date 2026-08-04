@@ -23,8 +23,11 @@
 		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
 		<!-- 手写 App.generated.cs（替代 XamlCompiler 生成的 App.g.i.cs 中的 Program/App，
 		     绕 .NET 10 + WindowsAppSDK 1.7 的 XamlCompiler 退出码问题）。定义 DISABLE_XAML_GENERATED_MAIN
-		     后 XamlCompiler 生成的 Program 部分被 #if 跳过，由手写版本提供，避免重复定义。 -->
-		<DefineConstants Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+		     后 XamlCompiler 生成的 Program 部分被 #if 跳过，由手写版本提供，避免重复定义。
+		     注意：宏必须仅 Release 定义——Debug 下 XamlCompiler 正常生成 App.g.i.cs（含 Main），
+		     且 csproj 下方 Compile Remove 排除了手写文件；若宏在 Debug 也定义，两个入口点
+		     都被裁剪，报 CS5001（程序不包含适合入口点的 Main）。 -->
+		<DefineConstants Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 		<!-- XAML 编译器包装：Windows App SDK 1.7 的 XamlCompiler.exe 在 .NET 10 上
 		     编译成功但退出码为 1（关闭时崩溃），用包装脚本检查 output.json 是否生成
 		     来判断成功与否，绕过错误的退出码。 -->
@@ -130,11 +133,24 @@
 	</PropertyGroup>
 
 	<!-- Windows XAML 编译修复：XamlCompiler.exe 在 .NET 10 Release 模式下
-	     GeneratedCodeFiles 为空，导致缺少 Main 和 InitializeComponent。
-	     App.generated.cs 在 Debug 模式下排除（XAML编译器正常工作），
-	     在 Release 模式下作为生成代码的补充。 -->
-	<ItemGroup Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
-		<Compile Remove="Platforms\Windows\App.generated.cs" />
+	     output.json 的 GeneratedCodeFiles 为空（但 App.g.cs/App.g.i.cs 实际仍生成并
+	     参与编译）。手写 App.generated.cs 只提供 Program 入口点兜底（DISABLE_XAML_GENERATED_MAIN），
+	     App 的 InitializeComponent 由生成的 App.g.i.cs 提供。
+	     - App.generated.cs 在 Debug 模式下排除（XAML编译器正常工作，避免重复入口点）；
+	     - App.InitializeComponent.fallback.cs 默认排除，仅当 XamlCompiler 极端情况下
+	       未产出 App.g.i.cs 时，由 EnsureAppInitializeComponent target 动态启用，
+	       避免 CS0103（InitializeComponent 缺失）。 -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<Compile Remove="Platforms\Windows\App.generated.cs" Condition="'$(Configuration)' == 'Debug'" />
+		<Compile Remove="Platforms\Windows\App.InitializeComponent.fallback.cs" />
 	</ItemGroup>
+
+	<Target Name="EnsureAppInitializeComponent" BeforeTargets="CoreCompile"
+	        Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<ItemGroup>
+			<Compile Include="Platforms\Windows\App.InitializeComponent.fallback.cs"
+			         Condition="!Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.i.cs') And !Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.cs')" />
+		</ItemGroup>
+	</Target>
 
 </Project>

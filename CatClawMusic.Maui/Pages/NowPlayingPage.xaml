@@ -194,9 +194,9 @@
                             Minimum="0"
                             Maximum="1"
                             Value="0"
-                            ThumbColor="White"
-                            MinimumTrackColor="White"
-                            MaximumTrackColor="#40FFFFFF"
+                            ThumbColor="{DynamicResource PlayerSliderThumb}"
+                            MinimumTrackColor="{DynamicResource PlayerSliderProgress}"
+                            MaximumTrackColor="{DynamicResource PlayerSliderTrack}"
                             HeightRequest="24"
                             DragStarted="OnSliderDragStarted"
                             DragCompleted="OnSliderDragCompleted" />
@@ -510,9 +510,9 @@
                     <Grid x:Name="LandscapeProgressRow" Grid.Row="4" RowDefinitions="Auto,Auto" RowSpacing="1">
                         <Slider x:Name="LandscapeProgressSlider"
                                 Minimum="0" Maximum="1" Value="0"
-                                ThumbColor="White"
-                                MinimumTrackColor="White"
-                                MaximumTrackColor="#40FFFFFF"
+                                ThumbColor="{DynamicResource PlayerSliderThumb}"
+                                MinimumTrackColor="{DynamicResource PlayerSliderProgress}"
+                                MaximumTrackColor="{DynamicResource PlayerSliderTrack}"
                                 HeightRequest="16"
                                 DragStarted="OnSliderDragStarted"
                                 DragCompleted="OnSliderDragCompleted" />
@@ -803,8 +803,8 @@
                         <Label Text="{Binding CurrentTimeDisplay}" FontSize="11.5" FontFamily="OpenSansSemibold"
                                TextColor="#8D93B7" />
                         <Slider Grid.Column="1" x:Name="WinProgressSlider" Minimum="0" Maximum="1" Value="0"
-                                ThumbColor="White" MinimumTrackColor="{DynamicResource PrimaryColor}"
-                                MaximumTrackColor="#24FFFFFF" HeightRequest="24"
+                                ThumbColor="{DynamicResource PlayerSliderThumb}" MinimumTrackColor="{DynamicResource PrimaryColor}"
+                                MaximumTrackColor="{DynamicResource PlayerSliderTrackDim}" HeightRequest="24"
                                 DragStarted="OnSliderDragStarted" DragCompleted="OnSliderDragCompleted" />
                         <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}" FontSize="11.5"
                                FontFamily="OpenSansSemibold" TextColor="#8D93B7" />
@@ -816,7 +816,7 @@
                                      Padding="10" Aspect="AspectFit" BackgroundColor="Transparent"
                                      Clicked="OnWinMuteTapped" />
                         <Slider x:Name="WinVolumeSlider" WidthRequest="92" Minimum="0" Maximum="1" Value="1"
-                                ThumbColor="White" MinimumTrackColor="White" MaximumTrackColor="#24FFFFFF"
+                                ThumbColor="{DynamicResource PlayerSliderThumb}" MinimumTrackColor="{DynamicResource PlayerSliderProgress}" MaximumTrackColor="{DynamicResource PlayerSliderTrackDim}"
                                 HeightRequest="24" ValueChanged="OnWinVolumeChanged" />
                         <Border HeightRequest="34" Padding="0,0,14,0"
                                 StrokeThickness="1" Stroke="#1FFFFFFF" BackgroundColor="#0FFFFFFF"

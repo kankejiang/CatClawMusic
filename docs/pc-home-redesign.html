@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猫爪音乐 · PC 端 / 横屏首页重设计原型</title>
+<style>
+  :root {
+    --bg1: #070a18; --bg2: #141b3a; --bg3: #2b2e60;
+    --primary: #8c7bff; --accent: #55d6ff;
+    --glass: rgba(255,255,255,.10);
+    --glass-strong: rgba(255,255,255,.16);
+    --stroke: rgba(255,255,255,.16);
+    --text: #f5f6ff; --text2: #bcc0dd; --text3: #868cae;
+    --radius: 20px;
+    --font: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font);
+    background: #0b0d20;
+    color: var(--text);
+    padding: 32px 24px 60px;
+  }
+  .page-title { text-align: center; margin-bottom: 8px; font-size: 22px; letter-spacing: 1px; }
+  .page-sub { text-align: center; color: var(--text3); font-size: 13px; margin-bottom: 36px; }
+  .view-label {
+    display: flex; align-items: center; gap: 10px;
+    margin: 34px 0 16px; font-size: 15px; font-weight: 600; color: var(--text2);
+  }
+  .view-label::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,.12); }
+  .view-label .tag {
+    font-size: 11px; font-weight: 600; padding: 3px 12px; border-radius: 999px;
+    background: linear-gradient(135deg, #8c7bff, #55d6ff); color: #fff;
+  }
+
+  /* ══════════ 窗口模拟 ══════════ */
+  .window {
+    width: 1280px; max-width: 100%;
+    margin: 0 auto;
+    border-radius: 18px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 30px 80px rgba(0,0,0,.55);
+    background: var(--bg1);
+  }
+  .win-chrome {
+    height: 36px; display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 12px; gap: 8px;
+    background: rgba(7,10,24,.7);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .win-chrome i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .win-chrome .min { background: #4a4f68; } .win-chrome .max { background: #4a4f68; } .win-chrome .cls { background: #e05a6d; }
+
+  /* ══════════ 应用骨架 ══════════ */
+  .app { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: 1fr 92px; height: 780px; }
+  .app.landscape { grid-template-columns: 168px 1fr; height: 392px; }
+
+  /* ── 侧边栏 ── */
+  .sidebar {
+    grid-row: 1 / 3;
+    background: rgba(255,255,255,.06);
+    border-right: 1px solid var(--stroke);
+    padding: 16px 10px 14px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; padding: 2px 10px 14px; }
+  .logo .mark {
+    width: 36px; height: 36px; border-radius: 10px; flex: none;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .logo b { font-size: 15px; letter-spacing: .5px; }
+  .logo span { font-size: 10px; color: var(--text3); display: block; }
+  .nav-cap { font-size: 10px; color: var(--text3); letter-spacing: 2px; padding: 8px 12px 4px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 9px; font-size: 13.5px; color: var(--text2);
+    cursor: pointer; transition: background .2s, color .2s, transform .2s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.07); transform: translateX(2px); }
+  .nav-item.active { background: rgba(140,123,255,.18); color: #fff; font-weight: 600; }
+  .nav-item .ico { width: 18px; text-align: center; }
+  .side-spacer { flex: 1; }
+  .version { font-size: 10px; color: var(--text3); padding: 6px 12px 0; }
+
+  /* ── 主内容 ── */
+  .main { padding: 18px 26px 10px; overflow-y: auto; background:
+    radial-gradient(70% 60% at 74% 16%, rgba(140,123,255,.34) 0%, rgba(140,123,255,0) 58%),
+    linear-gradient(135deg, #070a18 0%, #141b3a 48%, #2b2e60 100%); }
+  .app.landscape .main { padding: 12px 18px 8px; }
+
+  /* Header */
+  .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .head h1 { font-size: 24px; font-weight: 600; letter-spacing: .5px; }
+  .head .greet { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .head-actions { display: flex; align-items: center; gap: 8px; }
+  .pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 14px; border-radius: 999px; font-size: 12px; color: var(--text2);
+    background: var(--glass); border: 1px solid var(--stroke); cursor: pointer;
+    transition: background .2s, transform .2s;
+  }
+  .pill:hover { background: var(--glass-strong); transform: translateY(-1px); }
+  .pill .ai { width: 20px; height: 20px; border-radius: 50%; font-size: 9px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 12px; flex: none;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+    background: var(--glass); border: 1px solid var(--stroke); cursor: pointer;
+    transition: background .2s, transform .2s;
+  }
+  .icon-btn:hover { background: var(--glass-strong); transform: translateY(-1px) rotate(4deg); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab {
+    padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    color: var(--text2); background: var(--glass); border: 1px solid var(--stroke); cursor: pointer;
+    transition: all .25s;
+  }
+  .tab:hover { color: #fff; }
+  .tab.on { background: linear-gradient(135deg, rgba(140,123,255,.85), rgba(85,214,255,.75)); color: #fff; border-color: transparent; box-shadow: 0 4px 18px rgba(140,123,255,.35); }
+
+  /* ══ Hero ══ */
+  .hero {
+    position: relative; height: 250px; border-radius: 24px; overflow: hidden;
+    margin-bottom: 20px; display: flex; align-items: center;
+    background:
+      radial-gradient(90% 120% at 82% 20%, rgba(85,214,255,.35) 0%, rgba(85,214,255,0) 55%),
+      linear-gradient(120deg, #3b2f8f 0%, #6a4fd0 55%, #3aa7d8 100%);
+    box-shadow: 0 14px 44px rgba(80,60,190,.35);
+  }
+  .app.landscape .hero { height: 200px; }
+  .hero .h-content { padding: 0 34px; max-width: 60%; }
+  .hero .h-tag {
+    display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+    background: rgba(255,255,255,.22); color: #fff; margin-bottom: 12px; letter-spacing: 1px;
+  }
+  .hero h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; line-height: 1.25; }
+  .app.landscape .hero h2 { font-size: 22px; }
+  .hero p { font-size: 13px; color: rgba(255,255,255,.82); max-width: 380px; margin-bottom: 16px; line-height: 1.6; }
+  .hero .h-play {
+    display: inline-flex; align-items: center; gap: 8px; padding: 9px 22px; border-radius: 999px;
+    background: #fff; color: #4a2fa8; font-size: 13px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 6px 22px rgba(0,0,0,.25); transition: transform .2s, box-shadow .2s;
+  }
+  .hero .h-play:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 10px 28px rgba(0,0,0,.3); }
+  .hero .h-cover {
+    position: absolute; right: 44px; width: 170px; height: 170px; border-radius: 22px;
+    background:
+      radial-gradient(70% 70% at 30% 30%, rgba(255,255,255,.5), rgba(255,255,255,0)),
+      linear-gradient(140deg, #ffe3f1, #b7a6ff 60%, #6fd8ff);
+    display: flex; align-items: center; justify-content: center; font-size: 64px;
+    box-shadow: 0 18px 46px rgba(0,0,0,.35); transform: rotate(3deg);
+  }
+  .app.landscape .hero .h-cover { width: 130px; height: 130px; right: 30px; font-size: 48px; }
+  .hero .h-dots { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+  .hero .h-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.35); }
+  .hero .h-dots i.on { background: #fff; width: 20px; border-radius: 4px; }
+
+  /* ══ Section ══ */
+  .sec { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; }
+  .sec .bar { width: 4px; height: 18px; border-radius: 2px; background: linear-gradient(180deg, var(--primary), var(--accent)); }
+  .sec h3 { font-size: 17px; font-weight: 600; }
+  .sec .more { margin-left: auto; font-size: 12px; color: var(--text2); cursor: pointer; padding: 5px 10px; border-radius: 999px; background: var(--glass); border: 1px solid var(--stroke); transition: background .2s; }
+  .sec .more:hover { background: var(--glass-strong); }
+  .sec .nav-arrows { display: flex; gap: 6px; margin-left: 10px; }
+  .arrow {
+    width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    background: var(--glass); border: 1px solid var(--stroke); cursor: pointer; font-size: 13px; color: var(--text2);
+    transition: background .2s;
+  }
+  .arrow:hover { background: var(--glass-strong); color: #fff; }
+
+  /* 横向卡片轨 */
+  .rail { display: flex; gap: 14px; overflow-x: hidden; padding: 4px 2px 14px; }
+  /* 每日推荐卡 */
+  .card {
+    width: 158px; flex: none; border-radius: 16px; overflow: hidden; cursor: pointer;
+    background: var(--glass); border: 1px solid var(--stroke);
+    transition: transform .25s, box-shadow .25s, background .25s;
+  }
+  .card:hover { transform: translateY(-5px); box-shadow: 0 14px 34px rgba(0,0,0,.4); background: var(--glass-strong); }
+  .card .cv { position: relative; width: 158px; height: 158px; }
+  .card .cv img, .card .cv .ph { width: 100%; height: 100%; border-radius: 0; display: block; }
+  .card .ph { display: flex; align-items: center; justify-content: center; font-size: 40px; }
+  .card .play {
+    position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+    opacity: 0; transform: translateY(6px); transition: all .25s; box-shadow: 0 6px 18px rgba(0,0,0,.4);
+  }
+  .card:hover .play { opacity: 1; transform: translateY(0); }
+  .card .meta { padding: 9px 10px 10px; }
+  .card .meta b { font-size: 12.5px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .meta span { font-size: 10.5px; color: var(--text3); display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 艺人 */
+  .artist { width: 96px; flex: none; text-align: center; cursor: pointer; transition: transform .25s; }
+  .artist:hover { transform: translateY(-4px); }
+  .artist .av {
+    width: 84px; height: 84px; margin: 0 auto; border-radius: 50%; overflow: hidden;
+    border: 2px solid rgba(255,255,255,.2);
+    display: flex; align-items: center; justify-content: center; font-size: 32px;
+  }
+  .artist b { font-size: 12.5px; display: block; margin-top: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .artist span { font-size: 10.5px; color: var(--text3); display: block; margin-top: 2px; }
+
+  /* 最近播放（横卡） */
+  .recent {
+    width: 230px; flex: none; display: flex; align-items: center; gap: 10px; padding: 8px;
+    border-radius: 14px; cursor: pointer; background: var(--glass); border: 1px solid var(--stroke);
+    transition: transform .25s, background .25s;
+  }
+  .recent:hover { transform: translateY(-3px); background: var(--glass-strong); }
+  .recent .rc { width: 52px; height: 52px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .recent b { font-size: 12.5px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent span { font-size: 10.5px; color: var(--text3); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 占位封面色 */
+  .ph1 { background: linear-gradient(140deg, #8c7bff, #55d6ff); }
+  .ph2 { background: linear-gradient(140deg, #ff9a76, #ff5f8f); }
+  .ph3 { background: linear-gradient(140deg, #26a69a, #55d6ff); }
+  .ph4 { background: linear-gradient(140deg, #f5a623, #ff5f8f); }
+  .ph5 { background: linear-gradient(140deg, #6a4fd0, #3aa7d8); }
+  .ph6 { background: linear-gradient(140deg, #e85d9a, #8c7bff); }
+
+  /* ── 播放器条 ── */
+  .player {
+    grid-column: 2; display: grid; grid-template-columns: 250px 1fr 230px; align-items: center;
+    padding: 0 22px; gap: 18px;
+    background: rgba(15,18,38,.72); border-top: 1px solid rgba(255,255,255,.1);
+    backdrop-filter: blur(14px);
+  }
+  .app.landscape .player { grid-template-columns: 200px 1fr 150px; padding: 0 14px; gap: 12px; }
+  .p-info { display: flex; align-items: center; gap: 12px; }
+  .p-info .cov { width: 46px; height: 46px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .p-info b { font-size: 13.5px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .p-info span { font-size: 11px; color: var(--text3); display: block; }
+  .p-ctrl { display: flex; align-items: center; justify-content: center; gap: 12px; }
+  .p-ctrl button {
+    width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+    background: transparent; color: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center;
+    transition: background .2s, transform .15s;
+  }
+  .p-ctrl button:hover { background: rgba(255,255,255,.14); transform: scale(1.08); }
+  .p-ctrl .main-btn {
+    width: 46px; height: 46px; border-radius: 50%; font-size: 17px;
+    background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2);
+  }
+  .p-ctrl .main-btn:hover { background: rgba(255,255,255,.26); }
+  .p-right { display: flex; align-items: center; gap: 10px; }
+  .p-right .time { font-size: 10.5px; color: var(--text3); }
+  .bar { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); position: relative; }
+  .bar i { position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--primary), var(--accent)); width: 34%; }
+  .bar i.dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; top: -3px; left: 34%; }
+
+  /* 入场动画 */
+  @keyframes fade-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  .app { animation: fade-up .6s cubic-bezier(.22,.61,.36,1) both; }
+  .app.landscape { animation-delay: .12s; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">🐾 猫爪音乐 · 首页重设计原型</div>
+<div class="page-sub">PC 端（1280×780）+ 手机横屏（复用桌面布局）· 深空蓝玻璃拟态 · 保留现有全部模块，升级视觉层级</div>
+
+<!-- ══════════ PC 端 ══════════ -->
+<div class="view-label"><span class="tag">PC 端</span> 1280 × 780 窗口 · 全功能首页（推荐 Tab）</div>
+<div class="window">
+  <div class="win-chrome"><i class="min"></i><i class="max"></i><i class="cls"></i></div>
+  <div class="app">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="logo"><div class="mark">🐾</div><div><b>猫爪音乐</b><span>CatClaw Music</span></div></div>
+      <div class="nav-cap">导航</div>
+      <div class="nav-item active"><span class="ico">🔍</span>发现</div>
+      <div class="nav-item"><span class="ico">📋</span>歌单</div>
+      <div class="nav-item"><span class="ico">🎵</span>音乐库</div>
+      <div class="nav-cap">我的歌单</div>
+      <div class="nav-item"><span class="ico">💜</span>心动收藏</div>
+      <div class="nav-item"><span class="ico">🎧</span>深夜电台</div>
+      <div class="side-spacer"></div>
+      <div class="nav-item"><span class="ico">⚙️</span>设置</div>
+      <div class="version">v1.7.9</div>
+    </aside>
+
+    <!-- 主内容 -->
+    <div class="main">
+      <!-- Header -->
+      <div class="head">
+        <div><h1>发现</h1><div class="greet">晚上好，猫爪 🐾 今天想听点什么？</div></div>
+        <div class="head-actions">
+          <div class="pill">智能推荐 <span class="ai">AI</span> ●</div>
+          <div class="icon-btn">🔍</div>
+          <div class="icon-btn">↻</div>
+          <div class="icon-btn">🌙</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab on">推荐</div>
+        <div class="tab">排行</div>
+        <div class="tab">歌手</div>
+        <div class="tab">专辑</div>
+        <div class="tab">报告</div>
+      </div>
+
+      <!-- Hero -->
+      <div class="hero">
+        <div class="h-content">
+          <span class="h-tag">🎵 今日精选</span>
+          <h2>在深夜里，<br>听见心动</h2>
+          <p>为你挑选的 20 首温柔旋律，适合一个人的夜晚慢慢听。</p>
+          <div class="h-play">▶ 播放</div>
+        </div>
+        <div class="h-cover">🎧</div>
+        <div class="h-dots"><i class="on"></i><i></i><i></i></div>
+      </div>
+
+      <!-- 每日推荐 -->
+      <div class="sec"><span class="bar"></span><h3>每日推荐</h3><div class="nav-arrows"><span class="arrow">‹</span><span class="arrow">›</span></div><span class="more">换一批 ↻</span></div>
+      <div class="rail">
+        <div class="card"><div class="cv"><div class="ph ph1">🎶</div><span class="play">▶</span></div><div class="meta"><b>晴天</b><span>周杰伦</span></div></div>
+        <div class="card"><div class="cv"><div class="ph ph2">🎧</div><span class="play">▶</span></div><div class="meta"><b>起风了</b><span>买辣椒也用券</span></div></div>
+        <div class="card"><div class="cv"><div class="ph ph3">🌊</div><span class="play">▶</span></div><div class="meta"><b>水星记</b><span>郭顶</span></div></div>
+        <div class="card"><div class="cv"><div class="ph ph4">✨</div><span class="play">▶</span></div><div class="meta"><b>夜空中最亮的星</b><span>逃跑计划</span></div></div>
+        <div class="card"><div class="cv"><div class="ph ph5">🌙</div><span class="play">▶</span></div><div class="meta"><b>月亮代表我的心</b><span>邓丽君</span></div></div>
+        <div class="card"><div class="cv"><div class="ph ph6">💫</div><span class="play">▶</span></div><div class="meta"><b>慢慢喜欢你</b><span>莫文蔚</span></div></div>
+      </div>
+
+      <!-- 最近播放 -->
+      <div class="sec"><span class="bar"></span><h3>最近播放</h3><div class="nav-arrows"><span class="arrow">‹</span><span class="arrow">›</span></div></div>
+      <div class="rail">
+        <div class="recent"><div class="rc ph5">🎶</div><div><b>稻香</b><span>周杰伦 · 魔杰座</span></div></div>
+        <div class="recent"><div class="rc ph2">🎧</div><div><b>光年之外</b><span>邓紫棋 · 光年之外</span></div></div>
+        <div class="recent"><div class="rc ph1">🎹</div><div><b>成都</b><span>赵雷 · 无法长大</span></div></div>
+        <div class="recent"><div class="rc ph4">🌆</div><div><b>平凡之路</b><span>朴树 · 猎户星座</span></div></div>
+        <div class="recent"><div class="rc ph6">💜</div><div><b>小幸运</b><span>田馥甄 · 小幸运</span></div></div>
+      </div>
+
+      <!-- 推荐艺人 -->
+      <div class="sec"><span class="bar"></span><h3>推荐艺人</h3><span class="more">查看全部 ›</span></div>
+      <div class="rail">
+        <div class="artist"><div class="av ph3">🎤</div><b>周杰伦</b><span>华语 · 流行</span></div>
+        <div class="artist"><div class="av ph1">🎙️</div><b>林俊杰</b><span>华语 · 流行</span></div>
+        <div class="artist"><div class="av ph2">🎸</div><b>邓紫棋</b><span>华语 · 创作</span></div>
+        <div class="artist"><div class="av ph6">🎹</div><b>薛之谦</b><span>华语 · 情歌</span></div>
+        <div class="artist"><div class="av ph5">🥁</div><b>陈奕迅</b><span>粤语 · 流行</span></div>
+        <div class="artist"><div class="av ph4">🎷</div><b>方大同</b><span>华语 · R&B</span></div>
+        <div class="artist"><div class="av ph1">🎻</div><b>毛不易</b><span>华语 · 民谣</span></div>
+      </div>
+    </div>
+
+    <!-- 播放器条 -->
+    <div class="player">
+      <div class="p-info">
+        <div class="cov ph5">🎶</div>
+        <div><b>无问</b><span>毛不易 · 平凡的一天</span></div>
+      </div>
+      <div class="p-ctrl">
+        <button>🔀</button><button>⏮</button><button class="main-btn">⏸</button><button>⏭</button><button>❤️</button>
+      </div>
+      <div class="p-right">
+        <span class="time">1:24</span><div class="bar"><i></i><i class="dot"></i></div><span class="time">4:26</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 手机横屏 ══════════ -->
+<div class="view-label"><span class="tag">手机横屏</span> 复用桌面布局（Android 横屏）· 侧栏收窄、Hero 压缩、播放器条更紧凑</div>
+<div class="window" style="max-width: 900px;">
+  <div class="app landscape">
+    <aside class="sidebar">
+      <div class="logo"><div class="mark">🐾</div><div><b>猫爪音乐</b><span>CatClaw</span></div></div>
+      <div class="nav-item active"><span class="ico">🔍</span>发现</div>
+      <div class="nav-item"><span class="ico">📋</span>歌单</div>
+      <div class="nav-item"><span class="ico">🎵</span>音乐库</div>
+      <div class="side-spacer"></div>
+      <div class="nav-item"><span class="ico">⚙️</span>设置</div>
+    </aside>
+    <div class="main">
+      <div class="head" style="margin-bottom:10px">
+        <div><h1 style="font-size:20px">发现</h1><div class="greet">晚上好 🐾</div></div>
+        <div class="head-actions">
+          <div class="pill" style="padding:5px 10px;font-size:11px">智能推荐 <span class="ai">AI</span></div>
+          <div class="icon-btn" style="width:30px;height:30px">🔍</div>
+          <div class="icon-btn" style="width:30px;height:30px">🌙</div>
+        </div>
+      </div>
+      <div class="tabs" style="margin-bottom:12px">
+        <div class="tab on" style="padding:6px 14px;font-size:12px">推荐</div>
+        <div class="tab" style="padding:6px 14px;font-size:12px">排行</div>
+        <div class="tab" style="padding:6px 14px;font-size:12px">歌手</div>
+        <div class="tab" style="padding:6px 14px;font-size:12px">专辑</div>
+      </div>
+      <div class="hero" style="height:200px">
+        <div class="h-content"><span class="h-tag">🎵 今日精选</span><h2>在深夜里，听见心动</h2>
+          <div class="h-play" style="padding:7px 18px;font-size:12px">▶ 播放</div></div>
+        <div class="h-cover"></div>
+      </div>
+      <div class="sec" style="margin-bottom:8px"><span class="bar"></span><h3 style="font-size:15px">每日推荐</h3><span class="more">换一批 ↻</span></div>
+      <div class="rail" style="gap:10px;padding-bottom:8px">
+        <div class="card" style="width:132px"><div class="cv" style="width:132px;height:132px"><div class="ph ph1">🎶</div><span class="play">▶</span></div><div class="meta"><b>晴天</b><span>周杰伦</span></div></div>
+        <div class="card" style="width:132px"><div class="cv" style="width:132px;height:132px"><div class="ph ph2">🎧</div><span class="play">▶</span></div><div class="meta"><b>起风了</b><span>买辣椒也用券</span></div></div>
+        <div class="card" style="width:132px"><div class="cv" style="width:132px;height:132px"><div class="ph ph3">🌊</div><span class="play">▶</span></div><div class="meta"><b>水星记</b><span>郭顶</span></div></div>
+        <div class="card" style="width:132px"><div class="cv" style="width:132px;height:132px"><div class="ph ph4">✨</div><span class="play">▶</span></div><div class="meta"><b>夜空中最亮的星</b><span>逃跑计划</span></div></div>
+      </div>
+    </div>
+    <div class="player" style="grid-template-columns:170px 1fr 130px;padding:0 12px;gap:10px">
+      <div class="p-info"><div class="cov ph5">🎶</div><div><b>无问</b><span>毛不易</span></div></div>
+      <div class="p-ctrl" style="gap:8px">
+        <button>⏮</button><button class="main-btn" style="width:40px;height:40px">⏸</button><button>⏭</button>
+      </div>
+      <div class="p-right"><div class="bar"><i></i></div></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

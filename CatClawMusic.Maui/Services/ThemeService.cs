@@ -35,6 +35,126 @@ public class ThemeService : IThemeService
         [CoreAppTheme.Teal] = new ThemeColors("#26A69A", "#D6F5F0", "#00897B"),
     };
 
+    // ======================================================================
+    // 主题背景渐变设计（10 套：5 主题 × 深/浅模式）
+    // 与 docs/theme-backgrounds-10.html 原型一一对应：
+    //   Purple → 深:深空蓝 / 浅:薰衣草雾    Pink → 深:暗紫罗兰 / 浅:晨雾粉
+    //   Blue   → 深:石墨钢蓝 / 浅:晴空蓝    Orange → 深:暗夜绯红 / 浅:奶油米
+    //   Teal   → 深:墨夜青 / 浅:薄荷青
+    // 每套 = 1 层多停靠线性渐变（主基调，From→To 为归一化坐标 0~1）
+    //      + 1~2 层径向光晕（中心带透明度色 → 全透明边缘，Cx/Cy/Radius 归一化）。
+    // 颜色统一 #AARRGGBB 格式，便于 Android Color.ParseColor / Win2D 直接解析。
+    // ======================================================================
+    private sealed record BgStop(string Argb, float Offset);
+    private sealed record BgGlow(float Cx, float Cy, float Radius, string CenterArgb, string EdgeArgb = "#00000000");
+    private sealed record BgDesign((float X, float Y) From, (float X, float Y) To, BgStop[] Stops, BgGlow[] Glows);
+
+    private static readonly BgDesign DeepSpace = new((0, 1), (1, 0), new[]
+    {
+        new BgStop("#FF070A18", 0f), new BgStop("#FF141B3A", 0.48f), new BgStop("#FF2B2E60", 1f),
+    }, new[]
+    {
+        new BgGlow(0.74f, 0.16f, 0.70f, "#6A8C7BFF"),
+        new BgGlow(0.20f, 0.30f, 0.50f, "#3355D6FF"),
+    });
+
+    private static readonly BgDesign VioletDusk = new((0, 0), (0, 1), new[]
+    {
+        new BgStop("#FF170F26", 0f), new BgStop("#FF331A4A", 0.55f), new BgStop("#FF5A2770", 1f),
+    }, new[]
+    {
+        new BgGlow(0.24f, 0.86f, 0.70f, "#61A842E2"),
+        new BgGlow(0.80f, 0.20f, 0.50f, "#2EEC91FF"),
+    });
+
+    private static readonly BgDesign TealAbyss = new((1, 0.15f), (0, 0.85f), new[]
+    {
+        new BgStop("#FF05141B", 0f), new BgStop("#FF0B2A33", 0.55f), new BgStop("#FF0F3D46", 1f),
+    }, new[]
+    {
+        new BgGlow(0.84f, 0.82f, 0.70f, "#6126A69A"),
+        new BgGlow(0.18f, 0.22f, 0.50f, "#2955D6FF"),
+    });
+
+    private static readonly BgDesign EmberNoir = new((0, 0), (1, 1), new[]
+    {
+        new BgStop("#FF190B0F", 0f), new BgStop("#FF3A1520", 0.55f), new BgStop("#FF6A1F2E", 1f),
+    }, new[]
+    {
+        new BgGlow(0.58f, 0.92f, 0.70f, "#52FF7043"),
+        new BgGlow(0.78f, 0.18f, 0.45f, "#22FFCA9E"),
+    });
+
+    private static readonly BgDesign GraphiteSteel = new((0, 0), (1, 1), new[]
+    {
+        new BgStop("#FF0D1017", 0f), new BgStop("#FF1E2530", 0.50f), new BgStop("#FF36404F", 1f),
+    }, new[]
+    {
+        new BgGlow(0.30f, 0.08f, 0.70f, "#426096CD"),
+        new BgGlow(0.82f, 0.88f, 0.55f, "#29788CAA"),
+    });
+
+    private static readonly BgDesign MorningBlush = new((0, 0), (0, 1), new[]
+    {
+        new BgStop("#FFFFF3F5", 0f), new BgStop("#FFFFDDE4", 0.55f), new BgStop("#FFFFC6D2", 1f),
+    }, new[]
+    {
+        new BgGlow(0.80f, 0.14f, 0.70f, "#F2FFFFFF"),
+    });
+
+    private static readonly BgDesign SkyBreeze = new((0, 0.10f), (1, 0.90f), new[]
+    {
+        new BgStop("#FFF0FAFF", 0f), new BgStop("#FFCFE9FF", 0.55f), new BgStop("#FF9FD2FF", 1f),
+    }, new[]
+    {
+        new BgGlow(0.70f, 0.18f, 0.70f, "#F5FFFFFF"),
+        new BgGlow(0.90f, 0.80f, 0.55f, "#3878BEFF"),
+    });
+
+    private static readonly BgDesign CreamVanilla = new((0, 0), (1, 0), new[]
+    {
+        new BgStop("#FFFFFCF3", 0f), new BgStop("#FFFBF1D6", 0.55f), new BgStop("#FFF2DFBB", 1f),
+    }, new[]
+    {
+        new BgGlow(0.50f, 1.00f, 0.75f, "#F2FFF4D6"),
+        new BgGlow(0.82f, 0.16f, 0.50f, "#CCFFFFFF"),
+    });
+
+    private static readonly BgDesign MintFresh = new((1, 0.15f), (0, 0.85f), new[]
+    {
+        new BgStop("#FFF2FCF8", 0f), new BgStop("#FFD7F4E7", 0.55f), new BgStop("#FFB4E7CF", 1f),
+    }, new[]
+    {
+        new BgGlow(0.18f, 0.86f, 0.70f, "#E0FFFFFF"),
+        new BgGlow(0.80f, 0.20f, 0.55f, "#338CE1BE"),
+    });
+
+    private static readonly BgDesign LavenderMist = new((0, 1), (1, 0), new[]
+    {
+        new BgStop("#FFF8F5FF", 0f), new BgStop("#FFE9E1FF", 0.55f), new BgStop("#FFD2C2FF", 1f),
+    }, new[]
+    {
+        new BgGlow(0.75f, 0.14f, 0.70f, "#F0FFFFFF"),
+        new BgGlow(0.20f, 0.88f, 0.60f, "#42C8AAFF"),
+    });
+
+    /// <summary>主题 + 深浅模式 → 背景渐变设计（10 套映射）</summary>
+    private static BgDesign GetBackgroundDesign(CoreAppTheme theme, bool isDark)
+        => (theme, isDark) switch
+        {
+            (CoreAppTheme.Purple, true) => DeepSpace,
+            (CoreAppTheme.Pink, true) => VioletDusk,
+            (CoreAppTheme.Blue, true) => GraphiteSteel,
+            (CoreAppTheme.Orange, true) => EmberNoir,
+            (CoreAppTheme.Teal, true) => TealAbyss,
+            (CoreAppTheme.Purple, false) => LavenderMist,
+            (CoreAppTheme.Pink, false) => MorningBlush,
+            (CoreAppTheme.Blue, false) => SkyBreeze,
+            (CoreAppTheme.Orange, false) => CreamVanilla,
+            (CoreAppTheme.Teal, false) => MintFresh,
+            _ => DeepSpace,
+        };
+
     /// <summary>获取当前主题色枚举</summary>
     public CoreAppTheme CurrentTheme => _currentTheme;
     /// <summary>获取当前暗黑模式设置</summary>
@@ -156,6 +276,18 @@ public class ThemeService : IThemeService
             // 雾面动态背景开关（供播放页/歌词页 DynamicResource 绑定）
             app.Resources["FrostedBackgroundEnabled"] = _frostedBackgroundEnabled;
 
+            // 播放器条/播放页控件颜色（深浅两套，供 DynamicResource 绑定——
+            // 避免 AppThemeBinding 在 Windows XamlC 上的兼容性问题）
+            app.Resources["PlayerIconColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1A1F3A");
+            app.Resources["PlayerLikeColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#E91E63");
+            app.Resources["PlayerPlayBtnBg"] = isDark ? Color.FromArgb("#26FFFFFF") : Color.FromArgb("#22000000");
+            app.Resources["PlayerTitleColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1A1F3A");
+            app.Resources["PlayerSubColor"] = isDark ? Color.FromArgb("#CCFFFFFF") : Color.FromArgb("#4A5278");
+            app.Resources["PlayerSliderThumb"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1A1F3A");
+            app.Resources["PlayerSliderProgress"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#7B7CCE");
+            app.Resources["PlayerSliderTrack"] = isDark ? Color.FromArgb("#40FFFFFF") : Color.FromArgb("#1F000000");
+            app.Resources["PlayerSliderTrackDim"] = isDark ? Color.FromArgb("#24FFFFFF") : Color.FromArgb("#14000000");
+
             if (isDark)
             {
                 ApplyDarkPalette(app.Resources, colors);
@@ -226,100 +358,111 @@ public class ThemeService : IThemeService
     }
 
     /// <summary>
-    /// 用代码绘制主题背景 PNG：
-    /// 顶部主题色氛围 → 底部基底色的垂直渐变；
-    /// 深色模式叠加随机星空点（按主题色播种，固定不变），浅色模式叠加柔和光斑。
+    /// 用代码绘制主题背景 PNG（10 套渐变设计，见 GetBackgroundDesign）：
+    /// 每套 = 1 层多停靠线性渐变（主基调）+ 1~2 层径向光晕（透明度叠加），
+    /// 与 docs/theme-backgrounds-10.html 原型配色一致。
     /// Windows 用 Win2D（项目已引用 Microsoft.Graphics.Win2D），Android 用系统 Canvas。
     /// </summary>
     private static byte[] RenderThemeBackgroundPng(CoreAppTheme theme, bool isDark)
     {
-        const int width = 720, height = 1280;
-        var colors = ThemeMap[theme];
-        var rand = new Random(theme.GetHashCode());
+        // 1080x1920（2K 竖屏）：手机端约 1:1 显示；PC 横屏拉伸后仍保持清晰。
+        // 光晕半径按 max(w,h) 计算，PC 宽屏下光晕也能铺开，避免竖屏参数拉伸后不明显。
+        const int width = 1080, height = 1920;
+        var design = GetBackgroundDesign(theme, isDark);
 
 #if ANDROID
         using var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
         using var canvas = new Android.Graphics.Canvas(bitmap);
         using var paint = new Android.Graphics.Paint { AntiAlias = true };
 
-        // 垂直渐变：主题色氛围 → 基底色
-        int startColor = Android.Graphics.Color.ParseColor($"#{(isDark ? "30" : "4A")}{colors.Primary[1..]}");
-        int endColor = Android.Graphics.Color.ParseColor(isDark ? "#FF080914" : "#FFF8F7FF");
-        using var shader = new Android.Graphics.LinearGradient(0, 0, 0, height, startColor, endColor, Android.Graphics.Shader.TileMode.Clamp);
+        // 1) 主基调：多停靠线性渐变（From→To 归一化坐标映射到位图尺寸）
+        var stopColors = new int[design.Stops.Length];
+        var stopOffsets = new float[design.Stops.Length];
+        for (int i = 0; i < design.Stops.Length; i++)
+        {
+            stopColors[i] = Android.Graphics.Color.ParseColor(design.Stops[i].Argb);
+            stopOffsets[i] = design.Stops[i].Offset;
+        }
+        using var shader = new Android.Graphics.LinearGradient(
+            design.From.X * width, design.From.Y * height,
+            design.To.X * width, design.To.Y * height,
+            stopColors, stopOffsets, Android.Graphics.Shader.TileMode.Clamp);
         paint.SetShader(shader);
         canvas.DrawRect(0, 0, width, height, paint);
-        paint.SetShader(null);
 
-        if (isDark)
+        // 2) 径向光晕叠加：中心色 → 全透明边缘（Clamp 保证圆外为边缘透明色）
+        // 半径按 max(w,h) 归一化，宽屏（PC）下光晕铺得更开、层次更明显
+        float unit = Math.Max(width, height);
+        foreach (var glow in design.Glows)
         {
-            // 星空：白色小圆点，越靠上越亮
-            for (int i = 0; i < 150; i++)
-            {
-                float x = (float)(rand.NextDouble() * width);
-                float y = (float)(rand.NextDouble() * height);
-                float r = (float)(0.5 + rand.NextDouble() * 1.4);
-                float alpha = (float)(0.10 + rand.NextDouble() * 0.35) * (1f - y / height * 0.6f);
-                paint.SetARGB((byte)(alpha * 255), 255, 255, 255);
-                canvas.DrawCircle(x, y, r, paint);
-            }
-        }
-        else
-        {
-            // 浅色模式：柔和光斑
-            for (int i = 0; i < 5; i++)
-            {
-                float x = (float)(rand.NextDouble() * width);
-                float y = (float)(rand.NextDouble() * height * 0.6f);
-                float r = (float)(120 + rand.NextDouble() * 200);
-                float alpha = (float)(0.05 + rand.NextDouble() * 0.08);
-                paint.SetARGB((int)(alpha * 255), 255, 255, 255);
-                canvas.DrawCircle(x, y, r, paint);
-            }
+            using var glowShader = new Android.Graphics.RadialGradient(
+                glow.Cx * width, glow.Cy * height, glow.Radius * unit,
+                Android.Graphics.Color.ParseColor(glow.CenterArgb),
+                Android.Graphics.Color.ParseColor(glow.EdgeArgb),
+                Android.Graphics.Shader.TileMode.Clamp);
+            paint.SetShader(glowShader);
+            canvas.DrawRect(0, 0, width, height, paint);
         }
 
         using var stream = new MemoryStream();
         bitmap.Compress(Android.Graphics.Bitmap.CompressFormat.Png, 100, stream);
         return stream.ToArray();
 #elif WINDOWS
+        try
+        {
+            return RenderThemeBackgroundPngWin2D(design, width, height);
+        }
+        catch (Exception winEx)
+        {
+            // 记录确切异常消息（输出窗口搜索 "[ThemeBg] Win2D" 即可定位），
+            // 失败时回退 1x1 透明 PNG，不影响其余主题逻辑（背景图缺失，页面用纯渐变兜底）
+            Log.Debug("ThemeService", $"[ThemeBg] Win2D render failed: {winEx}");
+            return Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+        }
+#else
+        // 其他平台兜底：返回 1x1 透明 PNG
+        return Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+#endif
+    }
+
+#if WINDOWS
+    /// <summary>Windows 端 Win2D 渲染主题背景 PNG（10 套渐变设计）</summary>
+    private static byte[] RenderThemeBackgroundPngWin2D(BgDesign design, int width, int height)
+    {
         var device = Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
         // CanvasDevice 只实现 ICanvasResourceCreator（无 Dpi 变体），用带 DPI 参数的构造函数重载
         using var renderTarget = new Microsoft.Graphics.Canvas.CanvasRenderTarget(
             (Microsoft.Graphics.Canvas.ICanvasResourceCreator)device, width, height, 96f);
         using (var ds = renderTarget.CreateDrawingSession())
         {
-            // 垂直渐变：主题色氛围 → 基底色
-            var startWinColor = WindowsColorFromHex($"#{(isDark ? "30" : "4A")}{colors.Primary[1..]}");
-            var endWinColor = WindowsColorFromHex(isDark ? "#080914" : "#F8F7FF");
-            using var gradient = new Microsoft.Graphics.Canvas.Brushes.CanvasLinearGradientBrush(renderTarget, startWinColor, endWinColor)
+            // 1) 主基调：多停靠线性渐变（Win2D 1.3 通过 CanvasGradientStop[] 构造传入）
+            var gradientStops = design.Stops
+                .Select(s => new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop
+                {
+                    Color = WindowsColorFromHex(s.Argb),
+                    Position = s.Offset,
+                })
+                .ToArray();
+            using var gradient = new Microsoft.Graphics.Canvas.Brushes.CanvasLinearGradientBrush(renderTarget, gradientStops)
             {
-                StartPoint = new System.Numerics.Vector2(0, 0),
-                EndPoint = new System.Numerics.Vector2(0, height),
+                StartPoint = new System.Numerics.Vector2(design.From.X * width, design.From.Y * height),
+                EndPoint = new System.Numerics.Vector2(design.To.X * width, design.To.Y * height),
             };
             ds.FillRectangle(0, 0, width, height, gradient);
 
-            if (isDark)
+            // 2) 径向光晕叠加：中心色 → 全透明边缘
+            // 半径按 max(w,h) 归一化，宽屏（PC）下光晕铺得更开、层次更明显
+            float unit = Math.Max(width, height);
+            foreach (var glow in design.Glows)
             {
-                // 星空：白色小圆点，越靠上越亮
-                for (int i = 0; i < 150; i++)
+                using var glowBrush = new Microsoft.Graphics.Canvas.Brushes.CanvasRadialGradientBrush(
+                    renderTarget, WindowsColorFromHex(glow.CenterArgb), WindowsColorFromHex(glow.EdgeArgb))
                 {
-                    float x = (float)(rand.NextDouble() * width);
-                    float y = (float)(rand.NextDouble() * height);
-                    float r = (float)(0.5 + rand.NextDouble() * 1.4);
-                    float alpha = (float)(0.10 + rand.NextDouble() * 0.35) * (1f - y / height * 0.6f);
-                    ds.FillCircle(x, y, r, WindowsColorFromArgb((byte)(alpha * 255), 255, 255, 255));
-                }
-            }
-            else
-            {
-                // 浅色模式：柔和光斑
-                for (int i = 0; i < 5; i++)
-                {
-                    float x = (float)(rand.NextDouble() * width);
-                    float y = (float)(rand.NextDouble() * height * 0.6f);
-                    float r = (float)(120 + rand.NextDouble() * 200);
-                    float alpha = (float)(0.05 + rand.NextDouble() * 0.08);
-                    ds.FillCircle(x, y, r, WindowsColorFromArgb((byte)(alpha * 255), 255, 255, 255));
-                }
+                    Center = new System.Numerics.Vector2(glow.Cx * width, glow.Cy * height),
+                    RadiusX = glow.Radius * unit,
+                    RadiusY = glow.Radius * unit,
+                };
+                ds.FillRectangle(0, 0, width, height, glowBrush);
             }
         }
 
@@ -332,13 +475,8 @@ public class ThemeService : IThemeService
         var bytes = new byte[ras.Size];
         reader.ReadBytes(bytes);
         return bytes;
-#else
-        // 其他平台兜底：返回 1x1 透明 PNG
-        return Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
-#endif
     }
 
-#if WINDOWS
     private static Windows.UI.Color WindowsColorFromArgb(byte a, byte r, byte g, byte b)
         => Windows.UI.Color.FromArgb(a, r, g, b);
 

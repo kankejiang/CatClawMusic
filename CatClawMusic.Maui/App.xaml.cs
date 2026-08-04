@@ -32,6 +32,23 @@ public partial class App : Application
 
     public App()
     {
+#if DEBUG
+        // 首次异常诊断：定位被 try-catch 吞掉的异常（输出窗口搜 [FC]）
+        AppDomain.CurrentDomain.FirstChanceException += (_, e) =>
+        {
+            var ex = e.Exception;
+            if (ex is InvalidOperationException or Microsoft.Maui.Controls.Xaml.XamlParseException)
+            {
+                System.Diagnostics.Debug.WriteLine($"[FC] {ex.GetType().Name}: {ex.Message}");
+                if (ex is Microsoft.Maui.Controls.Xaml.XamlParseException xpe)
+                    System.Diagnostics.Debug.WriteLine($"[FC] XAML-FULL: {xpe}");
+                System.Diagnostics.Debug.WriteLine($"[FC] SRC: {ex.Source}");
+                System.Diagnostics.Debug.WriteLine($"[FC] STACK: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                    System.Diagnostics.Debug.WriteLine($"[FC] INNER: {ex.InnerException}");
+            }
+        };
+#endif
         StartupLog("App.ctor: InitializeComponent start");
         InitializeComponent();
         StartupLog("App.ctor: InitializeComponent done");

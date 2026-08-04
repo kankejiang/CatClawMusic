@@ -289,19 +289,21 @@
                                 </VerticalStackLayout>
                             </Grid>
 
-                            <!-- 操作按钮 -->
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
-                                <Button Grid.Column="0" Grid.ColumnSpan="2"
-                                        Text="生成诊断包并分享"
-                                        Style="{StaticResource PrimaryButtonStyle}"
-                                        Command="{Binding ShareDiagnosticPackageCommand}" />
-                                <Button Grid.Column="0" Grid.Row="1"
+                            <!-- 操作按钮：3 个按钮各自带玻璃背景分隔，避免糊在一起 -->
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                <Button Grid.Column="0"
                                         Text="复制日志"
                                         Style="{StaticResource SecondaryButtonStyle}"
+                                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                                         Command="{Binding CopyLogsCommand}" />
-                                <Button Grid.Column="1" Grid.Row="1"
+                                <Button Grid.Column="1"
+                                        Text="生成诊断并分享"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Command="{Binding ShareDiagnosticPackageCommand}" />
+                                <Button Grid.Column="2"
                                         Text="清空日志"
                                         Style="{StaticResource SecondaryButtonStyle}"
+                                        BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                                         Command="{Binding ClearLogsCommand}" />
                             </Grid>
                         </VerticalStackLayout>

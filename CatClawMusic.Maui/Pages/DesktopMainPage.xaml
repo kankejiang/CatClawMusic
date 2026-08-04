@@ -184,11 +184,11 @@
                     <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="2" VerticalOptions="Center">
                         <Label Grid.Row="0" Text="{Binding Title}"
                                FontSize="14" FontFamily="OpenSansSemibold"
-                               TextColor="White"
+                               TextColor="{DynamicResource PlayerTitleColor}"
                                MaxLines="1" />
                         <Label Grid.Row="1" Text="{Binding Artist}"
                                FontSize="12"
-                               TextColor="#CCFFFFFF"
+                               TextColor="{DynamicResource PlayerSubColor}"
                                MaxLines="1" />
                     </Grid>
                     <!-- 透明按钮覆盖整个歌曲信息区，负责捕获点击 -->
@@ -205,77 +205,91 @@
                 <!-- Controls + Progress (center) -->
                 <Grid x:Name="PlayerControlsGrid" Grid.Column="1" RowDefinitions="Auto,Auto"
                       VerticalOptions="Center" RowSpacing="6" Padding="0">
-                    <!-- Control buttons -->
+                    <!-- Control buttons（Image 而非 ImageButton：ImageButton 无 TintColor 属性，
+                         明暗主题着色用 Image.TintColor + DynamicResource） -->
                     <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
-                          ColumnSpacing="16" HorizontalOptions="Center">
-                        <ImageButton Grid.Column="0" WidthRequest="32" HeightRequest="32"
-                                CornerRadius="16" Padding="6"
+                          ColumnSpacing="14" HorizontalOptions="Center">
+                        <Image Grid.Column="0" WidthRequest="32" HeightRequest="32"
                                 Aspect="AspectFit"
-                                BackgroundColor="Transparent"
-                                Source="{Binding PlayModeIconSourceWhite}"
-                                Command="{Binding CyclePlayModeCommand}"
-                                HorizontalOptions="Center" VerticalOptions="Center" />
-                        <ImageButton Grid.Column="1" WidthRequest="32" HeightRequest="32"
-                                CornerRadius="16" Padding="6"
+                                Source="{Binding PlayModeIconSource}"
+                                HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding CyclePlayModeCommand}" />
+                            </Image.GestureRecognizers>
+                        </Image>
+                        <Image Grid.Column="1" WidthRequest="32" HeightRequest="32"
                                 Aspect="AspectFit"
-                                BackgroundColor="Transparent"
-                                Source="{Binding PlayPreviousIconSourceWhite}"
-                                Command="{Binding PlayPreviousCommand}"
-                                HorizontalOptions="Center" VerticalOptions="Center" />
-                        <ImageButton Grid.Column="2" WidthRequest="40" HeightRequest="40"
-                                CornerRadius="20" Padding="8"
+                                Source="{Binding PlayPreviousIconSource}"
+                                HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding PlayPreviousCommand}" />
+                            </Image.GestureRecognizers>
+                        </Image>
+                        <!-- 主播放键：半透明白圆形（深色）/ 深玻璃（浅色），图标恒白反衬 -->
+                        <Border Grid.Column="2" WidthRequest="46" HeightRequest="46"
+                                StrokeThickness="0" StrokeShape="RoundRectangle 23"
+                                BackgroundColor="{DynamicResource PlayerPlayBtnBg}"
+                                HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image WidthRequest="24" HeightRequest="24"
+                                    Aspect="AspectFit"
+                                    Source="{Binding PlayPauseIconSourceWhite}"
+                                    HorizontalOptions="Center" VerticalOptions="Center">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding TogglePlayPauseCommand}" />
+                                </Image.GestureRecognizers>
+                            </Image>
+                        </Border>
+                        <Image Grid.Column="3" WidthRequest="32" HeightRequest="32"
                                 Aspect="AspectFit"
-                                BackgroundColor="Transparent"
-                                Source="{Binding PlayPauseIconSourceWhite}"
-                                Command="{Binding TogglePlayPauseCommand}"
-                                HorizontalOptions="Center" VerticalOptions="Center" />
-                        <ImageButton Grid.Column="3" WidthRequest="32" HeightRequest="32"
-                                CornerRadius="16" Padding="6"
+                                Source="{Binding PlayNextIconSource}"
+                                HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding PlayNextCommand}" />
+                            </Image.GestureRecognizers>
+                        </Image>
+                        <Image Grid.Column="4" WidthRequest="32" HeightRequest="32"
                                 Aspect="AspectFit"
-                                BackgroundColor="Transparent"
-                                Source="{Binding PlayNextIconSourceWhite}"
-                                Command="{Binding PlayNextCommand}"
-                                HorizontalOptions="Center" VerticalOptions="Center" />
-                        <ImageButton Grid.Column="4" WidthRequest="32" HeightRequest="32"
-                                CornerRadius="16" Padding="6"
-                                Aspect="AspectFit"
-                                BackgroundColor="Transparent"
-                                Source="{Binding LikeIconSourceWhite}"
-                                Command="{Binding ToggleLikeCommand}"
-                                HorizontalOptions="Center" VerticalOptions="Center" />
+                                Source="{Binding LikeIconSource}"
+                                HorizontalOptions="Center" VerticalOptions="Center">
+                            <Image.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding ToggleLikeCommand}" />
+                            </Image.GestureRecognizers>
+                        </Image>
                     </Grid>
                     <!-- Progress bar -->
                     <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <Label Text="{Binding CurrentTimeDisplay}"
-                               FontSize="11" TextColor="#CCFFFFFF"
+                               FontSize="11"
+                               TextColor="{DynamicResource PlayerSubColor}"
                                WidthRequest="36" HorizontalTextAlignment="End" />
                         <Slider Grid.Column="1" x:Name="DesktopProgressSlider"
                                 Minimum="0"
                                 Maximum="{Binding Duration, Mode=OneWay}"
                                 Value="{Binding Progress, Mode=TwoWay}"
-                                ThumbColor="White"
-                                MinimumTrackColor="White"
-                                MaximumTrackColor="#40FFFFFF"
+                                ThumbColor="{DynamicResource PlayerSliderThumb}"
+                                MinimumTrackColor="{DynamicResource PlayerSliderProgress}"
+                                MaximumTrackColor="{DynamicResource PlayerSliderTrack}"
                                 HorizontalOptions="Fill" MinimumWidthRequest="240"
                                 DragStarted="OnDesktopSliderDragStarted"
                                 DragCompleted="OnDesktopSliderDragCompleted" />
                         <Label Grid.Column="2" Text="{Binding TotalTimeDisplay}"
-                               FontSize="11" TextColor="#CCFFFFFF"
+                               FontSize="11"
+                               TextColor="{DynamicResource PlayerSubColor}"
                                WidthRequest="36" />
                     </Grid>
                 </Grid>
 
                 <!-- Volume (right) -->
-                <Grid x:Name="VolumeGrid" Grid.Column="2" ColumnDefinitions="Auto,*" ColumnSpacing="12"
-                      VerticalOptions="Center" WidthRequest="240" MinimumWidthRequest="120">
+                <Grid x:Name="VolumeGrid" Grid.Column="2" ColumnDefinitions="Auto,*" ColumnSpacing="10"
+                      VerticalOptions="Center" WidthRequest="220" MinimumWidthRequest="110">
                     <Image Source="{helpers:ThemedIcon Name=ic_music_note, Original=True}" WidthRequest="18" HeightRequest="18"
-                           Opacity="0.5" VerticalOptions="Center" />
+                           Opacity="0.7" VerticalOptions="Center" />
                     <Slider Grid.Column="1" x:Name="VolumeSlider"
                             Minimum="0" Maximum="1"
-                            ThumbColor="White"
-                            MinimumTrackColor="White"
-                            MaximumTrackColor="#40FFFFFF"
-                            HorizontalOptions="Fill" MinimumWidthRequest="160"
+                            ThumbColor="{DynamicResource PlayerSliderThumb}"
+                            MinimumTrackColor="{DynamicResource PlayerSliderProgress}"
+                            MaximumTrackColor="{DynamicResource PlayerSliderTrack}"
+                            HorizontalOptions="Fill" MinimumWidthRequest="120"
                             VerticalOptions="Center" />
                 </Grid>
             </Grid>

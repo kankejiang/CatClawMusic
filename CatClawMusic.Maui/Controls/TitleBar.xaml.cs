@@ -8,6 +8,21 @@ public partial class TitleBar : ContentView
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        // Path.Stroke 不支持 AppThemeBinding（XamlC 运行时 TargetProperty 为 null 抛
+        // "Cannot determine property to provide the value for."），改代码按主题赋值
+        ApplyStrokeColors();
+        Application.Current.RequestedThemeChanged += (_, _) => ApplyStrokeColors();
+    }
+
+    private void ApplyStrokeColors()
+    {
+        var dark = Application.Current.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        var color = dark ? Color.FromArgb("#CCFFFFFF") : Color.FromArgb("#FF1B2140");
+        var brush = new SolidColorBrush(color);
+        MinimizePath.Stroke = brush;
+        MaximizeIcon.Stroke = brush;
+        RestoreIcon.Stroke = brush;
+        ClosePath.Stroke = brush;
     }
 
     private void OnLoaded(object? sender, EventArgs e)

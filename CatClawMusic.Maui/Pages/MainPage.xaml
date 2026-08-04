@@ -87,32 +87,35 @@
                     Clicked="OnMiniPlayerTapped"
                     HorizontalOptions="Fill" VerticalOptions="Fill" />
 
-            <!-- 上一曲 -->
-            <Button Grid.Column="2"
+            <!-- 上一曲（Image 而非 ImageButton：ImageButton 无 TintColor，主题着色需 Image.TintColor） -->
+            <Image Grid.Column="2"
                     WidthRequest="28" HeightRequest="28"
-                    CornerRadius="14" Padding="0"
-                    BackgroundColor="Transparent"
-                    ImageSource="{Binding PlayPreviousIconSourceWhite}"
-                    Command="{Binding PlayPreviousCommand}"
-                    VerticalOptions="Center" HorizontalOptions="Center" />
+                    Source="{Binding PlayPreviousIconSource}"
+                    VerticalOptions="Center" HorizontalOptions="Center">
+                <Image.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding PlayPreviousCommand}" />
+                </Image.GestureRecognizers>
+            </Image>
 
-            <!-- 播放/暂停：透明背景 + 白色图标 -->
-            <Button Grid.Column="3"
+            <!-- 播放/暂停：透明背景 + 主题反色图标（浅色深图标 / 深色白图标） -->
+            <Image Grid.Column="3"
                     WidthRequest="36" HeightRequest="36"
-                    CornerRadius="18" Padding="0"
-                    BackgroundColor="Transparent"
-                    ImageSource="{Binding PlayPauseIconSourceWhite}"
-                    Command="{Binding TogglePlayPauseCommand}"
-                    VerticalOptions="Center" HorizontalOptions="Center" />
+                    Source="{Binding PlayPauseIconSource}"
+                    VerticalOptions="Center" HorizontalOptions="Center">
+                <Image.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding TogglePlayPauseCommand}" />
+                </Image.GestureRecognizers>
+            </Image>
 
             <!-- 下一曲 -->
-            <Button Grid.Column="4"
+            <Image Grid.Column="4"
                     WidthRequest="28" HeightRequest="28"
-                    CornerRadius="14" Padding="0"
-                    BackgroundColor="Transparent"
-                    ImageSource="{Binding PlayNextIconSourceWhite}"
-                    Command="{Binding PlayNextCommand}"
-                    VerticalOptions="Center" HorizontalOptions="Center" />
+                    Source="{Binding PlayNextIconSource}"
+                    VerticalOptions="Center" HorizontalOptions="Center">
+                <Image.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding PlayNextCommand}" />
+                </Image.GestureRecognizers>
+            </Image>
         </Grid>
 
         <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库），半透明毛玻璃底 + 模糊层 -->
@@ -127,7 +130,6 @@
                                         Source="{DynamicResource ThemeBackgroundImage}"
                                         IsActive="{DynamicResource ThemeBackgroundEnabled}"
                                         IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                                        TintColor="{DynamicResource TabBarGlassTint}"
                                         TintOpacity="0.18"
                                         DimAmount="0"
                                         Opacity="0.35"
