@@ -546,13 +546,43 @@ public partial class ArtistsViewModel : ObservableObject
             Key = key;
             Label = label;
             IsActive = active;
+            SubscribeTheme();
         }
 
-        public Color TextColor => IsActive ? Color.FromArgb("#EAF0FF") : Color.FromArgb("#7A85B0");
-        public Color BackgroundColor => IsActive ? Color.FromArgb("#33FFFFFF") : Color.FromArgb("#22FFFFFF");
-        public Color BorderColor => IsActive ? AccentColor : TransparentColor;
+        ~SortOption() => UnsubscribeTheme();
+
+        // 主题色从 Application.Current.Resources 实时读取，跟随 ThemeService 主题切换。
+        private static Color Accent() => (Color)(Application.Current?.Resources["PrimaryColor"] ?? Color.FromArgb("#8C7BFF"));
+        private static Color AccentDark() => (Color)(Application.Current?.Resources["PrimaryDarkColor"] ?? Color.FromArgb("#6250F6"));
+        private static Color AccentLight() => (Color)(Application.Current?.Resources["PrimaryLightColor"] ?? Color.FromArgb("#B7AEFF"));
+        private static Color TextHint() => (Color)(Application.Current?.Resources["TextHintColor"] ?? Color.FromArgb("#8D93B7"));
+
+        public Color BackgroundColor => IsActive
+            ? Accent()
+            : AccentLight().WithAlpha(0.18f);
+        public Color TextColor => IsActive ? Colors.White : TextHint();
+        public Color BorderColor => IsActive
+            ? AccentDark()
+            : AccentLight().WithAlpha(0.30f);
 
         partial void OnIsActiveChanged(bool value)
+        {
+            OnPropertyChanged(nameof(BackgroundColor));
+            OnPropertyChanged(nameof(TextColor));
+            OnPropertyChanged(nameof(BorderColor));
+        }
+
+        private void SubscribeTheme()
+        {
+            if (Application.Current != null)
+                Application.Current.RequestedThemeChanged += OnAppThemeChanged;
+        }
+        private void UnsubscribeTheme()
+        {
+            if (Application.Current != null)
+                Application.Current.RequestedThemeChanged -= OnAppThemeChanged;
+        }
+        private void OnAppThemeChanged(object? sender, AppThemeChangedEventArgs e)
         {
             OnPropertyChanged(nameof(BackgroundColor));
             OnPropertyChanged(nameof(TextColor));

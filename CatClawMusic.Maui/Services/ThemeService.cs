@@ -283,8 +283,9 @@ public class ThemeService : IThemeService
             app.Resources["PlayerPlayBtnBg"] = isDark ? Color.FromArgb("#26FFFFFF") : Color.FromArgb("#22000000");
             app.Resources["PlayerTitleColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1A1F3A");
             app.Resources["PlayerSubColor"] = isDark ? Color.FromArgb("#CCFFFFFF") : Color.FromArgb("#4A5278");
-            app.Resources["PlayerSliderThumb"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1A1F3A");
-            app.Resources["PlayerSliderProgress"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#7B7CCE");
+            // 浅色模式下拇指与已播进度使用当前主题主色（避免固定深色"黑点"难看，跟随 5 套主题）
+            app.Resources["PlayerSliderThumb"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
+            app.Resources["PlayerSliderProgress"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
             app.Resources["PlayerSliderTrack"] = isDark ? Color.FromArgb("#40FFFFFF") : Color.FromArgb("#1F000000");
             app.Resources["PlayerSliderTrackDim"] = isDark ? Color.FromArgb("#24FFFFFF") : Color.FromArgb("#14000000");
 
@@ -302,7 +303,7 @@ public class ThemeService : IThemeService
 
             ApplyCustomBackground(app.Resources, isDark);
 
-            UpdatePlatformStatusBar();
+            UpdatePlatformStatusBar(isDark);
         }
         catch (Exception ex)
         {
@@ -310,7 +311,7 @@ public class ThemeService : IThemeService
         }
     }
 
-    private static void UpdatePlatformStatusBar()
+    private static void UpdatePlatformStatusBar(bool isDark)
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
@@ -321,11 +322,9 @@ public class ThemeService : IThemeService
             }
 #endif
 #if WINDOWS
-            try
-            {
-                var isDark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
-                CatClawMusic.Maui.App.UpdateWindowsTheme(isDark);
-            }
+            // 用 ApplyTheme 已算好的最终生效值，而不是 RequestedTheme——
+            // 后者在"跟随系统"以外的场景可能与应用设置不一致，会让窗口 chrome 跑偏。
+            try { CatClawMusic.Maui.App.UpdateWindowsTheme(isDark); }
             catch { }
 #endif
         });

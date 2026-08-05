@@ -10,7 +10,7 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid>
-        <VerticalStackLayout x:Name="RootStack" Padding="26,8,26,26" Spacing="0">
+        <VerticalStackLayout x:Name="RootStack" Padding="26,4,26,26" Spacing="0">
 
             <!-- ═══ Page Head: 发现 + 问候 + AI 开关 + 主题按钮 ═══ -->
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,2">

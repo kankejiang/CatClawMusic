@@ -52,9 +52,6 @@ public partial class DesktopMainPage : ContentPage
     {
         InitializeComponent();
 #if ANDROID
-        // 移动端横屏复用桌面布局：隐藏 Windows 专属标题栏拖拽区
-        TitleBarDragArea.IsVisible = false;
-
         // 隐藏侧栏顶部的 App Logo 区，降低底部播放器高度，并压缩手机横屏下的控件尺寸
         SidebarLogo.IsVisible = false;
         RootGrid.RowDefinitions[2].Height = new GridLength(72);
@@ -62,11 +59,6 @@ public partial class DesktopMainPage : ContentPage
 
         // 初始侧栏宽度直接设为较窄值，避免首次渲染闪烁
         RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
-#endif
-
-        // Windows: 设置标题栏拖拽区域，让系统标题栏按钮浮在内容上方
-#if WINDOWS
-        Loaded += OnWindowsLoaded;
 #endif
 
         // 顶部搜索/命令栏在两个平台都移除：发现页已有独立搜索框，顶部为重复入口
@@ -121,25 +113,6 @@ public partial class DesktopMainPage : ContentPage
 
         _ = LoadPlaylistsAsync();
     }
-
-#if WINDOWS
-    private void OnWindowsLoaded(object? sender, EventArgs e)
-    {
-        // 页面加载完成后，将透明拖拽区设置为系统标题栏区域，
-        // 这样系统会处理窗口拖拽、双击最大化，系统最小化/最大化/关闭按钮浮在右上角
-        if (App.CurrentNativeWindow is { } win && TitleBarDragArea.Handler?.PlatformView is Microsoft.UI.Xaml.UIElement dragElement)
-        {
-            try
-            {
-                win.SetTitleBar(dragElement);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"SetTitleBar failed: {ex.Message}");
-            }
-        }
-    }
-#endif
 
     private bool _isFirstAppearing = true;
 

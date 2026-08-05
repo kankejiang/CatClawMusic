@@ -34,7 +34,7 @@
                             HeightRequest="110"
                             HorizontalOptions="Center"
                             Padding="0">
-                        <Image Source="avatar_yuki"
+                        <Image Source="avatar_yuki.png"
                                WidthRequest="104"
                                HeightRequest="104"
                                Aspect="AspectFill"
@@ -73,29 +73,42 @@
                                  Spacing="16">
 
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <VerticalStackLayout Spacing="10">
-                        <Button Text="📄 开源协议"
+                    <Grid RowDefinitions="Auto,Auto,Auto"
+                          ColumnDefinitions="*,*"
+                          RowSpacing="10"
+                          ColumnSpacing="10">
+
+                        <!-- Row 0: 开源协议 | 交流群 -->
+                        <Button Grid.Row="0" Grid.Column="0"
+                                Text="📄 开源协议"
                                 Command="{Binding ViewLicenseCommand}"
                                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                                 TextColor="{DynamicResource TextPrimaryColor}"
                                 CornerRadius="16"
                                 HeightRequest="48"
                                 FontSize="14" />
-                        <Button Text="💬 交流群"
+                        <Button Grid.Row="0" Grid.Column="1"
+                                Text="💬 交流群"
                                 Command="{Binding JoinGroupCommand}"
                                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                                 TextColor="{DynamicResource TextPrimaryColor}"
                                 CornerRadius="16"
                                 HeightRequest="48"
                                 FontSize="14" />
-                        <Button Text="⭐ GitHub"
+
+                        <!-- Row 1: GitHub 单独一格（占双列），给后续扩展预留对称 -->
+                        <Button Grid.Row="1" Grid.ColumnSpan="2"
+                                Text="⭐ GitHub"
                                 Command="{Binding OpenGitHubCommand}"
                                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                                 TextColor="{DynamicResource TextPrimaryColor}"
                                 CornerRadius="16"
                                 HeightRequest="48"
                                 FontSize="14" />
-                        <Button Text="检查更新"
+
+                        <!-- Row 2: 检查更新（主操作，跨双列） -->
+                        <Button Grid.Row="2" Grid.ColumnSpan="2"
+                                Text="检查更新"
                                 Command="{Binding CheckUpdateCommand}"
                                 BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                 TextColor="White"
@@ -103,7 +116,7 @@
                                 HeightRequest="48"
                                 FontSize="14"
                                 FontAttributes="Bold" />
-                    </VerticalStackLayout>
+                    </Grid>
                 </Border>
 
                 <Label Text="{Binding Copyright}"

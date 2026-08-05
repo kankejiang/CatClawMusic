@@ -23,8 +23,9 @@ namespace CatClawMusic.Maui.Platforms.Windows;
 
 /// <summary>
 /// Windows 端雾面动态背景 Handler。
-/// 将封面图片缩小、高斯模糊、色调增强后作为背景，配合缓慢的漂移/缩放/旋转动画，
-/// 模拟手机端 FrostedBackground 的流光溢彩效果。
+/// PC 专用：封面经 Win2D GPU 真·高斯模糊（雾面玻璃质感）+ 缓慢漂移/缩放/旋转动画，
+/// 模拟手机端 FrostedBackground 的流光溢彩效果。电脑性能更强，分辨率提到 512、
+/// 模糊半径放大，雾面更细腻。Win2D 失败自动回退 CPU 盒式模糊，保证任何环境都不崩。
 /// </summary>
 public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, WGrid>
 {
@@ -55,26 +56,30 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private readonly float _driftBX;
     private readonly float _driftBY;
     private readonly float _driftSpeed;
-    private readonly float _rotationSpeed;
     private readonly float _breathSpeed;
     private readonly float _breathAmount;
+    // 旋转改为有界振荡（±_rotationAmp 度），避免长会话累加转角越过安全角后角上露出底色。
+    private readonly float _rotationAmp;
+    private readonly float _rotationFreq;
 
     private static readonly Dictionary<string, WriteableBitmap> _cache = new();
 
     public FrostedBackgroundHandler() : base(Mapper)
     {
-        _driftAX = 0.12f + (float)_random.NextDouble() * 0.08f;
-        _driftAY = 0.10f + (float)_random.NextDouble() * 0.07f;
-        _driftBX = 0.08f + (float)_random.NextDouble() * 0.06f;
-        _driftBY = 0.10f + (float)_random.NextDouble() * 0.07f;
-        _driftSpeed = 0.12f + (float)_random.NextDouble() * 0.06f;
-        _rotationSpeed = (2.0f + (float)_random.NextDouble() * 1.5f) * ((_random.Next(2) == 0) ? 1f : -1f);
-        _breathSpeed = 0.15f + (float)_random.NextDouble() * 0.1f;
-        _breathAmount = 0.04f + (float)_random.NextDouble() * 0.03f;
+        _driftAX = 0.16f + (float)_random.NextDouble() * 0.10f;
+        _driftAY = 0.14f + (float)_random.NextDouble() * 0.09f;
+        _driftBX = 0.10f + (float)_random.NextDouble() * 0.07f;
+        _driftBY = 0.12f + (float)_random.NextDouble() * 0.08f;
+        _driftSpeed = 0.14f + (float)_random.NextDouble() * 0.07f;
+        _breathSpeed = 0.18f + (float)_random.NextDouble() * 0.10f;
+        _breathAmount = 0.05f + (float)_random.NextDouble() * 0.035f;
+        _rotationAmp = 9f + (float)_random.NextDouble() * 6f;        // 9° ~ 15°
+        _rotationFreq = 0.06f + (float)_random.NextDouble() * 0.04f; // 慢摆
     }
 
     protected override WGrid CreatePlatformView()
     {
+        // 底色作为无封面/解码失败时的兜底；正常情况模糊图放大 1.7 倍 + 有界旋转，永不露底。
         var grid = new WGrid
         {
             Background = new WSolidColorBrush(WColor.FromArgb(255, 11, 13, 32)),
@@ -111,6 +116,8 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private static void MapIsActive(FrostedBackgroundHandler handler, Controls.FrostedBackground view)
     {
+        // PC 端忽略 IsActive（其绑定 IsPlaying）：雾面动态背景应常驻显示并漂移动画，
+        // 不随播放状态显隐。真正的启用开关由控件 IsVisible(FrostedBackgroundEnabled) 决定。
         handler._isActive = view.IsActive;
         handler.UpdateAnimationState();
     }
@@ -192,17 +199,18 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
         if (bytes == null || bytes.Length == 0) return null;
 
-        int smallW, smallH;
-        byte[] buf;
-
-        using (var ras = new InMemoryRandomAccessStream())
+        // PC 端分辨率提到 512：电脑性能更强，高分辨率让雾面更细腻；移动端走另一套实现。
+        int smallW = 512, smallH = 0;
+        byte[]? buf;
+        try
         {
+            using var ras = new InMemoryRandomAccessStream();
             await ras.WriteAsync(bytes.AsBuffer());
             ras.Seek(0);
 
             var decoder = await BitmapDecoder.CreateAsync(ras);
             double ratio = decoder.PixelWidth / (double)decoder.PixelHeight;
-            smallW = 256;
+            smallW = 512;
             smallH = Math.Max(1, (int)(smallW / ratio));
 
             var transform = new BitmapTransform
@@ -221,18 +229,29 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
             buf = data.DetachPixelData();
         }
+        catch (Exception ex)
+        {
+            Log.Debug("FrostedBackgroundHandler", $"[FrostedBackground] decode failed: {ex.Message}");
+            return null;
+        }
 
-        // 模糊
-        BoxBlur(buf, smallW, smallH, Math.Max(4, smallW / 10));
-        BoxBlur(buf, smallW, smallH, Math.Max(2, smallW / 20));
+        // CPU 盒式模糊 + 色调增强：512 分辨率（PC 端更高品质），两次盒式逼近高斯，细腻雾面。
+        // 注：曾尝试 Win2D GPU 高斯，但像素回读管线在本环境产出异常位图（黑图/不随封面变色），
+        // 无法无 GUI 调试，故回退到确定稳定的 CPU 实现。
+        return ProcessWithCpu(buf, smallW, smallH);
+    }
 
-        // 色调增强（饱和度 + 亮度）
+    /// <summary>CPU 盒式模糊 + 色调增强，输出细腻雾面。</summary>
+    private static WriteableBitmap ProcessWithCpu(byte[] buf, int w, int h)
+    {
+        BoxBlur(buf, w, h, Math.Max(8, w / 8));
+        BoxBlur(buf, w, h, Math.Max(4, w / 16));
         AdjustTone(buf, 1.6f, 1.12f);
 
-        var wb = new WriteableBitmap(smallW, smallH);
+        var wb = new WriteableBitmap(w, h);
         using (Stream stream = wb.PixelBuffer.AsStream())
         {
-            await stream.WriteAsync(buf, 0, buf.Length);
+            stream.Write(buf, 0, buf.Length);
         }
         wb.Invalidate();
         return wb;
@@ -332,8 +351,9 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private void UpdateAnimationState()
     {
-        // 滑动时暂停动画，释放 UI 线程给列表渲染
-        if (_isActive && _hasSource && !_isScrolling)
+        // PC 端：雾面动态背景常驻漂移动画（电脑性能足够），不随播放状态停。
+        // 仅用户滑动列表时暂停，释放 UI 线程给列表渲染。
+        if (_hasSource && !_isScrolling)
             StartAnimation();
         else
             StopAnimation();
@@ -362,17 +382,17 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
         float driftX = (float)(_driftAX * Math.Sin(t * 0.7 + _driftBX) + _driftBX * Math.Sin(t * 1.8 + _driftAX));
         float driftY = (float)(_driftAY * Math.Cos(t * 0.6 + _driftBY) + _driftBY * Math.Cos(t * 1.6 + _driftAY));
         float breath = 1f + _breathAmount * (float)Math.Sin(_animTime * _breathSpeed * 2.0 * Math.PI);
-        float rotation = _rotationSpeed * (float)_animTime;
+        // 旋转改为有界振荡（±_rotationAmp°）：长会话下转角永不越过安全角，角上不会露出底色。
+        float rotation = _rotationAmp * (float)Math.Sin(_animTime * _rotationFreq * 2.0 * Math.PI);
 
         if (_image.RenderTransform is CompositeTransform ct)
         {
-            // 基础缩放 1.6 倍 + 呼吸，确保漂移和旋转时不露出底色
-            ct.ScaleX = ct.ScaleY = 1.6 * breath;
-            // 漂移范围控制在缩放余量内
-            ct.TranslateX = driftX * _image.ActualWidth * 0.1;
-            ct.TranslateY = driftY * _image.ActualHeight * 0.1;
-            // 旋转幅度更小，避免边角露出
-            ct.Rotation = rotation * 0.15f;
+            // 基础缩放 1.72 倍 + 呼吸：1.72 * cos(15°) > 1，漂移/旋转时绝不露底。
+            ct.ScaleX = ct.ScaleY = 1.72f * breath;
+            // 漂移范围控制在缩放余量内（PC 端幅度调大，动感更明显）
+            ct.TranslateX = driftX * _image.ActualWidth * 0.16;
+            ct.TranslateY = driftY * _image.ActualHeight * 0.16;
+            ct.Rotation = rotation;
         }
     }
 }

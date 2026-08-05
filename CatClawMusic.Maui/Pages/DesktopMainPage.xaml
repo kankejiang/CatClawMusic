@@ -11,7 +11,7 @@
 
     <!-- Desktop layout: Sidebar | Content, with Player at bottom. Drag bar overlays on top.
          沉浸式标题栏：内容背景延伸至窗口顶部，侧边栏从标题栏下方开始。 -->
-    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="32,*,100">
+    <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="0,*,100">
 
         <!-- ═══ Left Sidebar (starts below title bar for immersive look) ═══ -->
         <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="2" Grid.Column="0"
@@ -21,7 +21,7 @@
             <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="0,0,0,0">
 
                 <!-- App Logo（Windows 桌面端显示；移动端横屏复用时隐藏以节省空间） -->
-                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,12,20,16"
+                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,4,20,16"
                       ColumnDefinitions="Auto,*" ColumnSpacing="10">
                     <Border WidthRequest="36" HeightRequest="36"
                             StrokeShape="RoundRectangle 10"
@@ -295,11 +295,5 @@
             </Grid>
         </Grid>
 
-        <!-- ═══ Title Bar Drag Overlay (transparent, on top of everything, for window dragging) ═══ -->
-        <Grid x:Name="TitleBarDragArea" Grid.Row="0" Grid.ColumnSpan="2"
-              HeightRequest="32"
-              VerticalOptions="Start"
-              BackgroundColor="Transparent"
-              InputTransparent="False" />
     </Grid>
 </ContentPage>

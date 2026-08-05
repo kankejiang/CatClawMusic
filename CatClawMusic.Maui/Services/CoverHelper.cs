@@ -26,6 +26,17 @@ public static class CoverHelper
     /// </summary>
     public static bool IsValidImageFilePublic(string? path) => IsValidImageFile(path);
 
+    /// <summary>读取图片最长边像素（解码失败返回 0——多为解码器不认识的合法图，交由 UI 解码器自行裁决）。</summary>
+    public static int MaxDimensionPublic(string path) => MaxDimension(path);
+
+    /// <summary>
+    /// 校验路径是否是一个"可识别的图片文件"。
+    /// 只判"是不是图"（文件头 magic + 非空尺寸），不再苛求文件尾严格收尾：
+    /// 很多真实封面（尤其内嵌封面提取/刻录工具产出）会在 EOI/IEND 后带填充字节、
+    /// 或省略 EOI 标记，严格尾校验会把它们误判为非法 → 播放页回退默认封面，
+    /// 而发现页（直接解码、不过此校验）却正常显示。
+    /// 解码正确性交给各平台图片解码器自行裁决（解码失败只显示空白/占位，不会崩溃）。
+    /// </summary>
     private static bool IsValidImageFile(string? path)
     {
         if (string.IsNullOrEmpty(path)) return false;
@@ -40,26 +51,13 @@ public static class CoverHelper
             int read = fs.Read(header);
             if (read < 4) return false;
 
-            // JPEG: FF D8 FF，文件尾应为 FF D9（EOI 标记）
+            // JPEG: FF D8 FF（EOI 标记可能缺失或被尾随字节覆盖，不苛求）
             if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
-            {
-                if (fi.Length < 2) return false;
-                fs.Seek(-2, SeekOrigin.End);
-                Span<byte> tail = stackalloc byte[2];
-                return fs.Read(tail) == 2 && tail[0] == 0xFF && tail[1] == 0xD9;
-            }
+                return true;
 
-            // PNG: 89 50 4E 47 0D 0A 1A 0A，文件尾含 IEND chunk + AE 42 60 82
+            // PNG: 89 50 4E 47（IEND 后可能有尾随 chunk，不苛求）
             if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
-            {
-                if (fi.Length < 12) return false;
-                fs.Seek(-12, SeekOrigin.End);
-                Span<byte> tail = stackalloc byte[12];
-                if (fs.Read(tail) != 12) return false;
-                // tail[0..3] = "IEND", tail[8..11] = PNG 文件尾 magic
-                return tail[0] == 0x49 && tail[1] == 0x45 && tail[2] == 0x4E && tail[3] == 0x44
-                    && tail[8] == 0xAE && tail[9] == 0x42 && tail[10] == 0x60 && tail[11] == 0x82;
-            }
+                return true;
 
             // BMP: 42 4D（无简单尾标记，至少检查头部大小字段合理）
             if (header[0] == 0x42 && header[1] == 0x4D)
@@ -74,14 +72,9 @@ public static class CoverHelper
                 return declaredSize == 0 || Math.Abs((long)declaredSize - fi.Length) <= 4096;
             }
 
-            // GIF: 47 49 46 38，文件尾应为 3B
+            // GIF: 47 49 46 38（尾部 3B 标记可被填充字节覆盖，不苛求）
             if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38)
-            {
-                if (fi.Length < 1) return false;
-                fs.Seek(-1, SeekOrigin.End);
-                Span<byte> tail = stackalloc byte[1];
-                return fs.Read(tail) == 1 && tail[0] == 0x3B;
-            }
+                return true;
 
             // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50，文件大小在 header[4..7]
             if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
@@ -249,9 +242,11 @@ public static class CoverHelper
             }
         }
 
-        // 3. 兜底：退而求其次使用任意已有的封面文件（可能小于 maxSize，但不至于无图）
+        // 3. 兜底：退而求其次使用任意已有的封面文件（可能小于 maxSize，但不至于无图）。
+        // 注意：小缩略图（< maxSize）【只直接返回、不写入 maxSize 尺寸桶】——
+        // 否则会把缩略图内容"冒充"成 1000px 缓存，播放页盲目信任该桶后放大显示 = 低清。
         if (source == null && !string.IsNullOrEmpty(song.CoverArtPath) && File.Exists(song.CoverArtPath))
-            source = song.CoverArtPath;
+            return song.CoverArtPath;
 
         if (source != null)
         {

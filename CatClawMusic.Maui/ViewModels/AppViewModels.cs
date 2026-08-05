@@ -1069,22 +1069,29 @@ public partial class NowPlayingViewModel : ObservableObject
         Log.Debug("AppViewModels", $"[CoverArt] 开始加载封面: {song.Title} (Id={song.Id}, Protocol={song.Protocol}, CoverArtPath={song.CoverArtPath?[..Math.Min(60, song.CoverArtPath?.Length ?? 0)] ?? "null"})");
         string? coverPath = null;
 
-        // 缓存命中：已下采样到播放页尺寸（1000px）的封面文件，直接复用避免重复解码大图
+        // 缓存命中：已下采样到播放页尺寸（1000px）的封面文件，直接复用避免重复解码大图。
+        // ⚠ 信任条件增加"实际尺寸校验"：旧版会把 300px 缩略图误拷进 1000px 桶
+        //（DownsampleToCache 对源≤目标只做 File.Copy，配合解码失败的回退路径），
+        // 播放页盲目信任后放大显示 = 低清。实际尺寸 <400（低于任何显示需求）视为污染 → 删除重取。
         var npCached = Services.CoverHelper.GetCachedPath(song.Id, Services.CoverHelper.NowPlayingSize);
         if (File.Exists(npCached) && Services.CoverHelper.IsValidImageFilePublic(npCached))
         {
-            CurrentCoverPath = npCached;
-            await MainThread.InvokeOnMainThreadAsync(() =>
+            var dim = Services.CoverHelper.MaxDimensionPublic(npCached);
+            if (dim >= 400 || dim == 0) // 0 = 解码器读不出尺寸（多为合法但头部怪异的图），交给 UI 解码，不误删
             {
-                CoverImage = ImageSource.FromFile(npCached);
-                HasCover = true;
-            });
+                CurrentCoverPath = npCached;
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    CoverImage = ImageSource.FromFile(npCached);
+                    HasCover = true;
+                });
 #if ANDROID || WINDOWS
-            try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(npCached); } catch { }
+                try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(npCached); } catch { }
 #endif
-            return;
+                return;
+            }
         }
-        // npCached 损坏则删除，继续重新提取
+        // npCached 损坏或实际尺寸过小（旧污染）→ 删除，走完整解析管线（含内嵌封面全分辨率提取）
         if (File.Exists(npCached))
         {
             try { File.Delete(npCached); } catch { }

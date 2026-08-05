@@ -564,42 +564,9 @@
                   Padding="0"
                   ZIndex="5">
 
-                <!-- 极光背景层：深空蓝渐变 + 紫/青光晕 -->
-                <Grid Grid.RowSpan="3" InputTransparent="True">
-                    <Grid.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Color="#070A16" Offset="0" />
-                            <GradientStop Color="#05070F" Offset="1" />
-                        </LinearGradientBrush>
-                    </Grid.Background>
-                    <Ellipse WidthRequest="900" HeightRequest="620" HorizontalOptions="Start" VerticalOptions="Start"
-                             Margin="-180,-220,0,0" InputTransparent="True">
-                        <Ellipse.Fill>
-                            <RadialGradientBrush Center="0.5,0.5" Radius="0.9">
-                                <GradientStop Color="#408C7BFF" Offset="0" />
-                                <GradientStop Color="Transparent" Offset="1" />
-                            </RadialGradientBrush>
-                        </Ellipse.Fill>
-                    </Ellipse>
-                    <Ellipse WidthRequest="840" HeightRequest="600" HorizontalOptions="End" VerticalOptions="End"
-                             Margin="0,0,-160,-200" InputTransparent="True">
-                        <Ellipse.Fill>
-                            <RadialGradientBrush Center="0.5,0.5" Radius="0.9">
-                                <GradientStop Color="#3855D6FF" Offset="0" />
-                                <GradientStop Color="Transparent" Offset="1" />
-                            </RadialGradientBrush>
-                        </Ellipse.Fill>
-                    </Ellipse>
-                    <Ellipse WidthRequest="560" HeightRequest="380" HorizontalOptions="End" VerticalOptions="Start"
-                             Margin="0,-240,-140,0" InputTransparent="True">
-                        <Ellipse.Fill>
-                            <RadialGradientBrush Center="0.5,0.5" Radius="0.9">
-                                <GradientStop Color="#228C7BFF" Offset="0" />
-                                <GradientStop Color="Transparent" Offset="1" />
-                            </RadialGradientBrush>
-                        </Ellipse.Fill>
-                    </Ellipse>
-                </Grid>
+                <!-- 背景层：透明，露出底层 FrostedBackground 的雾面动态背景（Win2D GPU 虚化专辑封面 + 漂移动画）。
+                     原本的纯色深空蓝渐变已移除——PC 端由真正的雾面动态背景取代，更贴合"正在播放"氛围。 -->
+                <Grid Grid.RowSpan="3" InputTransparent="True" Background="Transparent" />
 
                 <!-- Row 0：顶栏（收起 + EQ + 正在播放信息） -->
                 <Grid x:Name="WinTitleBar" Grid.Row="0" HeightRequest="48"

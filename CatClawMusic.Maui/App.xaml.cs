@@ -423,8 +423,8 @@ public partial class App : Application
             Height = 800,
             MinimumWidth = 900,
             MinimumHeight = 600,
-            // 清空原生窗口标题文字（用户截图 2026-08-02 仍残留 "独立版 - 正在播放 - ..." 等）；
-            // 即使 WS_CAPTION 还没移除，标题文字也直接变空，避免看到 "CatClawMusic" 之类。
+            // 清空原生窗口标题文字（避免任务栏/Alt+Tab 显示 "CatClawMusic"）；
+            // 窗口已进入沉浸式（ExtendsContentIntoTitleBar=true），不再绘制系统 caption 栏。
             Title = "",
         };
 
@@ -433,63 +433,34 @@ public partial class App : Application
             if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window nativeWindow)
             {
                 CurrentNativeWindow = nativeWindow;
+                // 沉浸式：内容延伸至窗口顶部，系统默认 caption 栏不再绘制（消除顶部黑条）
+                try { nativeWindow.ExtendsContentIntoTitleBar = true; } catch { }
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                 var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
                 CurrentAppWindow = appWindow;
                 _appHwnd = hwnd;
 
-                // ====== 标准 WinUI 3 自定义标题栏方式 ======
-                // 1. 启用深色模式 DWM，让系统边框和标题栏使用深色
-                try
+                // 应用窗口 chrome（DWM 沉浸式暗色 + 系统按钮色 + 根背景）—— 跟随当前主题
+                // 注意：DI 只注册了 IThemeService（见 MauiProgram），按具体类型 GetService<ThemeService>()
+                // 会拿到 null，导致此处静默回退成深色。必须按接口解析。
+                var themeService = MauiProgram.Services.GetService<IThemeService>();
+                UpdateWindowsTheme(ResolveIsDark(themeService));
+
+                // 此刻 WinUI 的 Content 根面板未必已建好，根背景可能刷不上；
+                // 首次激活后再补刷一次（一次性，避免每次切前后台都重来）。
+                global::Windows.Foundation.TypedEventHandler<object, Microsoft.UI.Xaml.WindowActivatedEventArgs>? firstActivated = null;
+                firstActivated = (_, _) =>
                 {
-                    int darkMode = 1;
-                    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode, (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
+                    nativeWindow.Activated -= firstActivated;
+                    UpdateWindowsTheme(ResolveIsDark(themeService));
+                };
+                nativeWindow.Activated += firstActivated;
 
-                    // 设置窗口边框颜色为深色（#080B1A）
-                    int darkRef = 0x001A0B08;
-                    DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref darkRef, (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
-                    DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref darkRef, (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
-                }
-                catch (Exception ex) { Log.Debug("App", $"DWM dark mode failed: {ex.Message}"); }
+                // 清除 SystemBackdrop（Mica/Alt 等材质背景会导致白色）
+                try { nativeWindow.SystemBackdrop = null; } catch { }
 
-                // 2. 关键：让应用内容延伸到标题栏区域
-                nativeWindow.ExtendsContentIntoTitleBar = true;
-                appWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-
-                // 3. 将系统标题栏按钮（最小化/最大化/关闭）的背景设为透明
-                var titleBar = appWindow.TitleBar;
-                var transparentColor = global::Windows.UI.Color.FromArgb(0x00, 0x00, 0x00, 0x00);
-                var darkColor = global::Windows.UI.Color.FromArgb(0xFF, 0x08, 0x0B, 0x1A);
-                // 标题栏背景完全透明，让我们的自定义 UI 显示在下面
-                titleBar.BackgroundColor = transparentColor;
-                titleBar.InactiveBackgroundColor = transparentColor;
-                // 按钮背景透明
-                titleBar.ButtonBackgroundColor = transparentColor;
-                titleBar.ButtonInactiveBackgroundColor = transparentColor;
-                // 按钮悬停/按下时的半透明白色
-                titleBar.ButtonHoverBackgroundColor = global::Windows.UI.Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
-                titleBar.ButtonPressedBackgroundColor = global::Windows.UI.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
-                // 按钮图标颜色
-                titleBar.ButtonForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x8D, 0x93, 0xB7);
-                titleBar.ButtonHoverForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
-                titleBar.ButtonPressedForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
-                titleBar.ButtonInactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x5E, 0x67, 0x88);
-                titleBar.ForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
-                titleBar.InactiveForegroundColor = global::Windows.UI.Color.FromArgb(0xFF, 0x8D, 0x93, 0xB7);
-
-                // 4. 设置窗口根背景为深色（覆盖 WinUI 默认的白色背景）
-                var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(darkColor);
-                SetRootWindowBackground(nativeWindow.Content, bgBrush);
-
-                // 5. 清除 SystemBackdrop（Mica/Alt 等材质背景会导致白色）
-                try
-                {
-                    nativeWindow.SystemBackdrop = null;
-                }
-                catch { }
-
-                // 6. 测量系统任务栏高度
+                // 测量系统任务栏高度
                 UpdateWindowsSafeArea(appWindow);
                 appWindow.Changed += (_, args) =>
                 {
@@ -497,28 +468,13 @@ public partial class App : Application
                         UpdateWindowsSafeArea(appWindow);
                 };
 
-                // 7. 延迟确认设置（等待 MAUI 完成初始化）
-                _ = Task.Run(async () =>
+                // 首次订阅主题切换 → 主题变化时重应用 chrome（防重复订阅）
+                if (!_chromeSubscribed && Application.Current != null)
                 {
-                    await Task.Delay(100);
-                    MainThread.BeginInvokeOnMainThread(() =>
-                    {
-                        // 确保标题栏扩展仍在生效
-                        if (nativeWindow.Content != null)
-                        {
-                            SetRootWindowBackground(nativeWindow.Content, bgBrush);
-                        }
-                    });
-                    await Task.Delay(300);
-                    MainThread.BeginInvokeOnMainThread(() =>
-                    {
-                        // 第二次确认，并应用到更深层的容器
-                        if (nativeWindow.Content != null)
-                        {
-                            SetRootWindowBackgroundDeep(nativeWindow.Content, bgBrush);
-                        }
-                    });
-                });
+                    _chromeSubscribed = true;
+                    Application.Current.RequestedThemeChanged += (_, _) =>
+                        UpdateWindowsTheme(ResolveIsDark(themeService));
+                }
             }
         };
 #else
@@ -538,25 +494,20 @@ public partial class App : Application
     }
 
 #if WINDOWS
-    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
-    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
-    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-    private const int GWL_STYLE = -16;
-    private const int WS_BORDER = 0x00800000;
-    private const int WS_CAPTION = 0x00C00000;
-    private const int WS_DLGFRAME = 0x00400000;
-    private const int WS_THICKFRAME = 0x00040000;
-    private const uint SWP_NOSIZE = 0x0001;
-    private const uint SWP_NOMOVE = 0x0002;
-    private const uint SWP_NOZORDER = 0x0004;
-    private const uint SWP_NOACTIVATE = 0x0010;
-    private const uint SWP_FRAMECHANGED = 0x0020;
+    /// <summary>
+    /// 解析当前是否深色：优先用 ThemeService 的最终生效值（含"跟随系统"判定），
+    /// 服务不可用时回退到 MAUI 的 RequestedTheme —— 绝不能盲目回退 true，
+    /// 否则浅色模式启动时窗口 chrome 会被强制刷成深色。
+    /// </summary>
+    private static bool ResolveIsDark(IThemeService? themeService)
+    {
+        try
+        {
+            if (themeService != null) return themeService.IsEffectivelyDark();
+        }
+        catch { }
+        return Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+    }
 
     private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
 
@@ -590,20 +541,6 @@ public partial class App : Application
         public RECT rcMonitor;
         public RECT rcWork;
         public uint dwFlags;
-    }
-
-    private static void RemoveSystemTitleBar(IntPtr hwnd)
-    {
-        try
-        {
-            int style = GetWindowLong(hwnd, GWL_STYLE);
-            // 移除标题栏和边框样式（WS_THICKFRAME 保留以支持调整窗口大小）
-            style &= ~(WS_CAPTION | WS_BORDER | WS_DLGFRAME);
-            SetWindowLong(hwnd, GWL_STYLE, style);
-            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-        }
-        catch (Exception ex) { Log.Debug("App", $"移除系统标题栏失败: {ex.Message}"); }
     }
 
     /// <summary>
@@ -742,7 +679,11 @@ public partial class App : Application
                 (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
 
             // 2. DWM 边框和标题栏颜色（ABGR 格式：0xAABBGGRR）
-            int colorRef = isDark ? 0x001A0B08 : 0x00FFEBF8; // 深色:#080B1A, 浅色:#F8F7FF
+            // 沉浸式（ExtendsContentIntoTitleBar=true）下，caption 已被内容覆盖，
+            // 不能再给 DWM 边框/标题栏设固定色——否则会在窗口最外圈那一圈像素出现
+            // 与内容色不一致的"白边/深边"色差。应设 CLR_NONE（-1 / 0xFFFFFFFF）让 DWM
+            // 完全不绘制边框色，由 MAUI 内容自然贴边铺满。
+            int colorRef = isDark ? unchecked((int)0xFFFFFFFF) : unchecked((int)0xFFFFFFFF); // CLR_NONE：深浅色下都不画边框
             DwmSetWindowAttribute(_appHwnd, DWMWA_BORDER_COLOR, ref colorRef,
                 (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
             DwmSetWindowAttribute(_appHwnd, DWMWA_CAPTION_COLOR, ref colorRef,
@@ -798,6 +739,8 @@ public partial class App : Application
         }
 #endif
     }
+
+    private static bool _chromeSubscribed; // 防止重复订阅 RequestedThemeChanged
 
     /// <summary>
     /// Windows 专属：测量系统任务栏（底部 dock 栏）高度，并在窗口延伸到任务栏下方或最大化时，
