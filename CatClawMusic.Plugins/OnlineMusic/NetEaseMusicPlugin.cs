@@ -74,7 +74,7 @@ public class NetEaseMusicPlugin : OnlineMusicPluginBase
             var outer = $"https://music.163.com/song/media/outer/url?id={song.Id}.mp3";
             using var resp = await Http.GetAsync(outer, HttpCompletionOption.ResponseHeadersRead);
             if (resp.StatusCode is System.Net.HttpStatusCode.OK or System.Net.HttpStatusCode.PartialContent)
-                return resp.RequestMessage?.RequestUri?.ToString() ?? outer;
+                return ToHttps(resp.RequestMessage?.RequestUri?.ToString() ?? outer);
         }
         catch { }
 
@@ -94,7 +94,7 @@ public class NetEaseMusicPlugin : OnlineMusicPluginBase
                 if (item.TryGetProperty("url", out var u))
                 {
                     var playUrl = u.GetString();
-                    if (!string.IsNullOrWhiteSpace(playUrl)) return playUrl;
+                    if (!string.IsNullOrWhiteSpace(playUrl)) return ToHttps(playUrl);
                 }
             }
         }
@@ -114,7 +114,7 @@ public class NetEaseMusicPlugin : OnlineMusicPluginBase
                     if (item.TryGetProperty("url", out var u))
                     {
                         var playUrl = u.GetString();
-                        if (!string.IsNullOrWhiteSpace(playUrl)) return playUrl;
+                        if (!string.IsNullOrWhiteSpace(playUrl)) return ToHttps(playUrl);
                     }
                 }
             }

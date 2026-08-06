@@ -47,7 +47,7 @@ public abstract class OnlineMusicPluginBase : IOnlineMusicPlugin
     public virtual Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50)
         => Task.FromResult<List<OnlineSong>?>(null);
 
-    /// <summary>构造搜索结果条目（填充平台标识与显示名）</summary>
+    /// <summary>构造搜索结果条目（填充平台标识与显示名；封面统一转 https，规避 WinUI/Android 明文 http 被拒）</summary>
     protected OnlineSong MakeSong(string id, string title, string artist, string album, long durationMs, string? coverUrl = null)
     {
         return new OnlineSong
@@ -59,7 +59,16 @@ public abstract class OnlineMusicPluginBase : IOnlineMusicPlugin
             Artist = artist,
             Album = album ?? string.Empty,
             DurationMs = durationMs,
-            CoverUrl = coverUrl
+            CoverUrl = ToHttps(coverUrl)
         };
+    }
+
+    /// <summary>http 明文链接统一转 https（网易云 CDN 等均支持 https；WinUI Image/播放器与 Android 9+ 默认拒绝明文 http）</summary>
+    protected static string? ToHttps(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return url;
+        return url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            ? "https://" + url.Substring(7)
+            : url;
     }
 }
