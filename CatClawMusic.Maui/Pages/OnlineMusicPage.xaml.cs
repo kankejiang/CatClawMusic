@@ -37,19 +37,30 @@ public partial class OnlineMusicPage : ContentPage
         await _vm.LoadProvidersAsync();
     }
 
+    /// <summary>WinUI handler 附加后触发一次（首次 Layout 时机），确保初始列数正确。</summary>
+    protected override void OnHandlerChanged()
+    {
+        base.OnHandlerChanged();
+        AdjustPlaylistSpan();
+    }
+
+    private void OnPageLoaded(object? sender, EventArgs e) => AdjustPlaylistSpan();
+
     /// <summary>页面尺寸变化时按宽度自适应歌单列数（窄屏 2/3 列，宽屏 4-6 列）。</summary>
     private void OnPageSizeChanged(object? sender, EventArgs e) => AdjustPlaylistSpan();
 
     private void AdjustPlaylistSpan()
     {
-        var w = Content?.Width ?? 0;
+        // 用页面自身的 Width（ContentPage.Width），更准确地反映实际可用宽度；
+        // 退而求其次用 Content.Width；都没有就跳过
+        var w = Width > 0 ? Width : (Content?.Width ?? 0);
         if (w <= 0) return;
         int span = w switch
         {
-            < 500 => 2,    // 手机竖屏
-            < 800 => 3,    // 手机横屏 / 小平板
+            < 600 => 2,    // 手机竖屏
+            < 900 => 3,    // 手机横屏 / 小平板
             < 1200 => 4,   // 平板横屏 / 中等窗口
-            < 1600 => 5,   // 桌面端标准宽度
+            < 1500 => 5,   // 桌面端常见尺寸（~1280）
             _ => 6,        // 桌面端大屏 / 4K
         };
         if (PlaylistsLayout.Span != span) PlaylistsLayout.Span = span;
