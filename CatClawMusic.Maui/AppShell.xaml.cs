@@ -42,6 +42,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("library/playlist", typeof(Pages.PlaylistPage));
         Routing.RegisterRoute("library/playlistdetail", typeof(Pages.PlaylistDetailPage));
         Routing.RegisterRoute("library/songdetail", typeof(Pages.SongDetailPage));
+        Routing.RegisterRoute("library/downloads", typeof(Pages.DownloadsPage));
 
         // ── 播放 Tab 子页面 ──
         Routing.RegisterRoute("nowplaying/fullyrics", typeof(Pages.FullLyricsPage));

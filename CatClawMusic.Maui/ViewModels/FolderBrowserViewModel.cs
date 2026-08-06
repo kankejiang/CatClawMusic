@@ -138,7 +138,7 @@ public partial class FolderBrowserViewModel : ObservableObject, IQueryAttributab
         }
     }
 
-    /// <summary>选择当前目录作为目标：在音乐模式下将路径加入自定义文件夹列表并返回上一页</summary>
+    /// <summary>选择当前目录作为目标：按模式处理（music=加入音乐文件夹，download=设为下载路径）并返回上一页</summary>
     [RelayCommand]
     public async Task SelectCurrentFolderAsync()
     {
@@ -147,6 +147,11 @@ public partial class FolderBrowserViewModel : ObservableObject, IQueryAttributab
             if (Mode == "music")
             {
                 LocalMusicSettingsViewModel.AddCustomFolder(CurrentPath);
+            }
+            else if (Mode == "download")
+            {
+                // 与 DownloadManager.GetDownloadFolderPath() 读取同一偏好键，保持路径设置全局一致
+                Preferences.Default.Set(Services.DownloadManager.PrefKey, CurrentPath.TrimEnd('/', '\\'));
             }
             await Shell.Current.GoToAsync("..");
         }

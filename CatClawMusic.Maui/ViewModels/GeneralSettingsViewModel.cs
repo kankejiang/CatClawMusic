@@ -71,6 +71,12 @@ public partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isClearingImageCache = false;
 
+    /// <summary>下载路径（读 DownloadManager 偏好，默认 /storage/emulated/0/CatClawMusic）</summary>
+    public string DownloadPath => Services.DownloadManager.GetDownloadFolderPath();
+
+    /// <summary>刷新下载路径展示（从文件夹浏览器返回后调用）</summary>
+    public void RefreshDownloadPath() => OnPropertyChanged(nameof(DownloadPath));
+
     /// <summary>
     /// 初始化 <see cref="GeneralSettingsViewModel"/> 实例，并立即刷新缓存大小。
     /// </summary>

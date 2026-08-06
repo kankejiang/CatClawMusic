@@ -269,6 +269,7 @@ public partial class AudioPlayerService
         // 避免把上一首的实时进度/时长透传到通知栏与 MediaSession（锁屏旧时间）。
         _isPrepared = false;
         _cachedPositionMs = 0;
+        _cachedDurationSec = 0;
         // 取消上一次 PlayInternalAsync（若仍在 await FFmpeg/网络），并启动新任务；
         // _playLock 保证新旧任务不会并发操作 ExoPlayer。
         _playCts?.Cancel();
@@ -297,6 +298,7 @@ public partial class AudioPlayerService
         _isPrepared = false;
         _isActuallyPlaying = false;
         _cachedPositionMs = 0;
+        _cachedDurationSec = 0;
         _lastSeekTicks = 0;
         _currentPath = source.ToString();
         _currentSourceUri = source; // 记录原始源，供重新烘焙/重载使用
@@ -596,6 +598,7 @@ public partial class AudioPlayerService
             _isPrepared = false;
             _isActuallyPlaying = false;
             _cachedPositionMs = 0;
+            _cachedDurationSec = 0;
             ReleaseWakeLock();
         }
         catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] PlatformStop error: {ex.Message}"); }
@@ -649,27 +652,36 @@ public partial class AudioPlayerService
         return _cachedPositionMs / 1000.0;
     }
 
-    /// <summary>获取音频总时长（秒），仅当 ExoPlayer 报告的时长大于 0 时返回</summary>
-    /// <returns>音频总时长（秒），无法获取时返回 0</returns>
+    /// <summary>缓存最近一次 ExoPlayer 报告的有效时长（秒）。
+    /// 缓冲（BUFFERING）/未就绪间隙 `GetPlatformDurationSeconds` 回退该值而非 0，
+    /// 避免通知栏/锁屏进度条在播放中卡顿时显示 00:00。切歌时必须重置（见 NotifySongSwitching/PlayInternalAsync）。</summary>
+    private double _cachedDurationSec;
+
+    /// <summary>获取音频总时长（秒），优先取 ExoPlayer 实时时长，失败/未就绪时回退缓存的有效时长</summary>
+    /// <returns>音频总时长（秒），无法获取且无缓存时返回 0</returns>
     private partial double GetPlatformDurationSeconds()
     {
-        // 未准备完成时返回 0，避免切歌间隙把上一首时长泄露到通知栏与 MediaSession。
+        // 未准备完成（切歌间隙）时回退缓存的有效时长，避免把时长透传为 0（通知栏 00:00）；
+        // 切歌时缓存已被重置为 0，不会把上一首时长透传给新歌。
         if (!_isPrepared)
-            return 0;
+            return _cachedDurationSec;
         try
         {
             if (_player != null)
             {
                 var dur = _player.Duration;
                 if (dur > 0)
-                    return dur / 1000.0;
+                {
+                    _cachedDurationSec = dur / 1000.0;
+                    return _cachedDurationSec;
+                }
             }
         }
         catch (Exception ex)
         {
             Log.Debug("AudioPlayerService.Android", $"[ExoPlayer] GetDuration error: {ex.Message}");
         }
-        return 0;
+        return _cachedDurationSec;
     }
 
     /// <summary>获取当前音量（0.0 ~ 1.0）</summary>
@@ -826,7 +838,11 @@ public partial class AudioPlayerService
         public void OnPlaybackStateChanged(int playbackState)
         {
             // STATE_IDLE=1, STATE_BUFFERING=2, STATE_READY=3, STATE_ENDED=4
-            _owner._isPrepared = playbackState == 3 || playbackState == 4;
+            // 仅 STATE_IDLE（媒体项被清除/未设置）视为"未准备"。缓冲（BUFFERING）只是加载中断，
+            // 歌曲时长元数据仍有效——若此时把 _isPrepared 置 false，GetPlatformDurationSeconds 返回 0，
+            // 网络卡顿缓冲触发 OnIsPlayingChanged(false)→UpdateForegroundNotification 时会把 duration=0
+            // 推给通知栏 MediaSession → 进度条显示 00:00（切下一曲恢复正常、再缓冲又复发）。
+            _owner._isPrepared = playbackState != 1;
             if (playbackState == 4)
             {
                 _owner._isActuallyPlaying = false;
@@ -1218,6 +1234,7 @@ public partial class AudioPlayerService
     {
         _isPrepared = false;
         _cachedPositionMs = 0;
+        _cachedDurationSec = 0;
     }
 
     /// <summary>更新前台通知的播放状态与歌曲信息</summary>

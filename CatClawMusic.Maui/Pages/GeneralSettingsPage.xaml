@@ -56,6 +56,35 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <!-- 下载路径 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <VerticalStackLayout Grid.Column="0"
+                                            Spacing="4"
+                                            VerticalOptions="Center">
+                            <Label Text="下载路径"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding DownloadPath}"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   LineBreakMode="MiddleTruncation" />
+                            <Label Text="下载管理保存文件的位置，默认 /storage/emulated/0/CatClawMusic"
+                                   FontSize="10.5"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="更改"
+                                Clicked="OnChangeDownloadPathClicked"
+                                BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
+                                TextColor="White"
+                                CornerRadius="16"
+                                HeightRequest="38"
+                                FontSize="12" />
+                    </Grid>
+                </Border>
+
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid ColumnDefinitions="*,Auto">
                         <VerticalStackLayout Grid.Column="0"

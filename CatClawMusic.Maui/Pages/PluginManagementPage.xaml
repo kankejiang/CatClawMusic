@@ -55,6 +55,83 @@
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
 
+                <!-- ═══ 插件商店（在线安装） ═══ -->
+                <VerticalStackLayout Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Text="🛒 插件商店"
+                               FontSize="15"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Grid.Column="1" Text="{Binding StoreStatus}"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextHintColor}"
+                               VerticalOptions="Center" />
+                    </Grid>
+                    <Label Text="{Binding IsLoadingStore, StringFormat='正在加载插件商店...'}"
+                           IsVisible="{Binding IsLoadingStore}"
+                           FontSize="12" TextColor="{DynamicResource TextHintColor}" />
+                    <VerticalStackLayout Spacing="8"
+                                         BindableLayout.ItemsSource="{Binding StoreItems}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StoreItemView">
+                                <Border Style="{StaticResource GlassCardStyle}">
+                                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                        <Label Text="{Binding Icon}" FontSize="26" VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                            <Label Text="{Binding Name}"
+                                                   FontSize="15" FontFamily="OpenSansSemibold"
+                                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                                            <Label Text="{Binding Description}"
+                                                   FontSize="11" TextColor="{DynamicResource TextHintColor}"
+                                                   LineBreakMode="TailTruncation" MaxLines="2" />
+                                            <HorizontalStackLayout Spacing="8">
+                                                <Label Text="{Binding Version, StringFormat='v{0}'}"
+                                                       FontSize="10" TextColor="{DynamicResource TextHintColor}" />
+                                                <Label Text="{Binding Author, StringFormat='by {0}'}"
+                                                       FontSize="10" TextColor="{DynamicResource TextHintColor}" />
+                                                <Label Text="{Binding Category}"
+                                                       FontSize="10" TextColor="#B8C7FF" />
+                                            </HorizontalStackLayout>
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="2"
+                                                             Spacing="4"
+                                                             VerticalOptions="Center"
+                                                             MinimumWidthRequest="64">
+                                            <Label Text="✓ 已安装"
+                                                   FontSize="12"
+                                                   FontFamily="OpenSansSemibold"
+                                                   TextColor="#4CAF50"
+                                                   HorizontalOptions="Center"
+                                                   IsVisible="{Binding IsInstalled}" />
+                                            <Button Text="安装"
+                                                    FontSize="12"
+                                                    HeightRequest="32"
+                                                    CornerRadius="16"
+                                                    Padding="12,0"
+                                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                                    TextColor="White"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.InstallFromStoreCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    IsVisible="{Binding IsInstalling, Converter={StaticResource InvertedBoolConverter}}"
+                                                    IsEnabled="{Binding IsInstalled, Converter={StaticResource InvertedBoolConverter}}" />
+                                            <VerticalStackLayout Spacing="2"
+                                                                 IsVisible="{Binding IsInstalling}">
+                                                <Label Text="{Binding ProgressText}"
+                                                       FontSize="10"
+                                                       TextColor="{DynamicResource TextHintColor}"
+                                                       HorizontalOptions="Center" />
+                                                <ProgressBar Progress="{Binding Progress}"
+                                                               ProgressColor="{DynamicResource PrimaryColor}"
+                                                               HeightRequest="4" />
+                                            </VerticalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+
                 <VerticalStackLayout Spacing="10"
                                      BindableLayout.ItemsSource="{Binding Plugins}">
                     <BindableLayout.ItemTemplate>

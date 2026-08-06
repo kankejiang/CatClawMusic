@@ -1,0 +1,56 @@
+{
+  "name": "猫爪音乐插件商店",
+  "homepage": "https://github.com/kankejiang/CatClawMusic",
+  "plugins": [
+    {
+      "id": "OnlineMusic.netEaseMusic",
+      "name": "网易云音乐",
+      "version": "1.0.0",
+      "author": "CatClawMusic",
+      "description": "网易云音乐在线音源：搜索 / 播放直链 / 歌词（含翻译）。",
+      "category": "OnlineMusic",
+      "icon": "🌐",
+      "installUrl": "https://github.com/kankejiang/CatClawMusic/raw/master/plugins/CatClawMusic.Plugins.OnlineMusic.dll"
+    },
+    {
+      "id": "OnlineMusic.qqMusic",
+      "name": "QQ音乐",
+      "version": "1.0.0",
+      "author": "CatClawMusic",
+      "description": "QQ音乐在线音源：搜索 / 播放直链（vkey）/ 歌词（含翻译）。",
+      "category": "OnlineMusic",
+      "icon": "🌐",
+      "installUrl": "https://github.com/kankejiang/CatClawMusic/raw/master/plugins/CatClawMusic.Plugins.OnlineMusic.dll"
+    },
+    {
+      "id": "OnlineMusic.appleMusic",
+      "name": "Apple Music",
+      "version": "1.0.0",
+      "author": "CatClawMusic",
+      "description": "Apple Music 在线音源：搜索 / 30秒预览播放 / 歌词。",
+      "category": "OnlineMusic",
+      "icon": "🌐",
+      "installUrl": "https://github.com/kankejiang/CatClawMusic/raw/master/plugins/CatClawMusic.Plugins.OnlineMusic.dll"
+    },
+    {
+      "id": "OnlineMusic.kuGouMusic",
+      "name": "酷狗音乐",
+      "version": "1.0.0",
+      "author": "CatClawMusic",
+      "description": "酷狗音乐在线音源：搜索 / 歌词（播放直链待接入）。",
+      "category": "OnlineMusic",
+      "icon": "🌐",
+      "installUrl": "https://github.com/kankejiang/CatClawMusic/raw/master/plugins/CatClawMusic.Plugins.OnlineMusic.dll"
+    },
+    {
+      "id": "OnlineMusic.sodaMusic",
+      "name": "汽水音乐",
+      "version": "1.0.0",
+      "author": "CatClawMusic",
+      "description": "汽水音乐（抖音音乐）在线音源：搜索（播放/歌词待接入）。",
+      "category": "OnlineMusic",
+      "icon": "🌐",
+      "installUrl": "https://github.com/kankejiang/CatClawMusic/raw/master/plugins/CatClawMusic.Plugins.OnlineMusic.dll"
+    }
+  ]
+}

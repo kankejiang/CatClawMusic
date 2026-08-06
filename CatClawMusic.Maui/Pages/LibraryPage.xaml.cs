@@ -381,6 +381,9 @@ public partial class LibraryPage : ContentPage
             case "network":
                 OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=network", source: "network");
                 break;
+            case "downloads":
+                OpenLibrarySubPage(typeof(DownloadsPage), "library/downloads");
+                break;
             case "favorite":
                 OpenLibrarySubPage(typeof(AllSongsPage), "library/allsongs?source=favorites", source: "favorites");
                 break;

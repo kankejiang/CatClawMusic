@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:converters="clr-namespace:CatClawMusic.Maui.Converters"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
+             x:Class="CatClawMusic.Maui.Pages.DownloadsPage"
+             Title="下载管理"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid RowDefinitions="Auto,*"
+          Background="{DynamicResource PageBackgroundBrush}">
+
+        <!-- Frosted glass background -->
+        <controls:FrostedBackground Grid.RowSpan="2"
+            Source="{DynamicResource ThemeBackgroundImage}"
+            IsActive="{DynamicResource ThemeBackgroundEnabled}"
+            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+            TintColor="{DynamicResource TabBarGlassTint}"
+            TintOpacity="0.45"
+            DimAmount="0.25"
+            Opacity="0.8"
+            Aspect="AspectFill"
+            UseNativeBlur="True"
+            InputTransparent="True" />
+
+        <controls:HeroCard Grid.Row="0">
+            <controls:HeroCard.CardContent>
+                <Grid Padding="44,0,0,0" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="下载管理"
+                               Style="{StaticResource PageTitleStyle}"
+                               TextColor="White" />
+                        <Label Text="{Binding DownloadPath}"
+                               Style="{StaticResource PageSubtitleStyle}"
+                               TextColor="#F3F5FF"
+                               LineBreakMode="TailTruncation" />
+                        <Label Text="{Binding TotalCount, StringFormat='共 {0} 个任务 · 进行中 {1} · 已完成 {2}'}"
+                               FontSize="12"
+                               TextColor="#B8C7FF" />
+                    </VerticalStackLayout>
+                    <Border Grid.Column="1"
+                            Style="{StaticResource GlassIconContainerStyle}"
+                            BackgroundColor="#24FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnAddDownloadTapped" />
+                        </Border.GestureRecognizers>
+                        <Label Text="＋" FontSize="26" HorizontalOptions="Center" VerticalOptions="Center" TextColor="White" />
+                    </Border>
+                </Grid>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,8,16,22" Spacing="12">
+
+                <!-- 下载路径 -->
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="2">
+                        <Label Text="📁" FontSize="20" VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="下载位置" FontSize="13" FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding DownloadPath}"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   LineBreakMode="MiddleTruncation" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="2"
+                                Text="更改"
+                                FontSize="11"
+                                HeightRequest="30"
+                                CornerRadius="15"
+                                Padding="14,0"
+                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                TextColor="White"
+                                Clicked="OnChangePathClicked" />
+                    </Grid>
+                </Border>
+
+                <!-- 下载任务列表 -->
+                <VerticalStackLayout Spacing="10"
+                                     BindableLayout.ItemsSource="{Binding Tasks}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="services:DownloadTaskItem">
+                            <Border Style="{StaticResource GlassCardStyle}">
+                                <VerticalStackLayout Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <Label Text="{Binding DisplayName}"
+                                               FontSize="15"
+                                               FontFamily="OpenSansSemibold"
+                                               TextColor="{DynamicResource TextPrimaryColor}"
+                                               LineBreakMode="TailTruncation" />
+                                        <Label Grid.Column="1" Text="{Binding StatusText}"
+                                               FontSize="11"
+                                               TextColor="{Binding StatusColor}"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+
+                                    <!-- 进度条（下载中/排队/暂停） -->
+                                    <ProgressBar Progress="{Binding Progress}"
+                                                 ProgressColor="{DynamicResource PrimaryColor}"
+                                                 HeightRequest="5"
+                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Queued,Downloading,Paused}" />
+
+                                    <!-- 大小/速度 -->
+                                    <Label Text="{Binding DownloadingText}"
+                                           FontSize="11"
+                                           TextColor="{DynamicResource TextHintColor}"
+                                           IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Queued,Downloading,Paused}" />
+
+                                    <!-- 保存路径（已完成） -->
+                                    <Label Text="{Binding CompletedText}"
+                                           FontSize="10.5"
+                                           TextColor="{DynamicResource TextHintColor}"
+                                           LineBreakMode="MiddleTruncation"
+                                           IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Completed}" />
+
+                                    <!-- 失败原因 -->
+                                    <Label Text="{Binding StatusText}"
+                                           FontSize="11"
+                                           TextColor="#F44336"
+                                           LineBreakMode="TailTruncation"
+                                           IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Failed}" />
+
+                                    <!-- 操作按钮 -->
+                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="End">
+                                        <Button Text="暂停"
+                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
+                                                BackgroundColor="{DynamicResource GlassButtonColor}"
+                                                TextColor="{DynamicResource TextPrimaryColor}"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.PauseTaskCommand}"
+                                                CommandParameter="{Binding Id}"
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Downloading}" />
+                                        <Button Text="继续"
+                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
+                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                TextColor="White"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ResumeTaskCommand}"
+                                                CommandParameter="{Binding Id}"
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Paused}" />
+                                        <Button Text="取消"
+                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
+                                                BackgroundColor="{DynamicResource GlassButtonColor}"
+                                                TextColor="{DynamicResource TextPrimaryColor}"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CancelTaskCommand}"
+                                                CommandParameter="{Binding Id}"
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Queued,Downloading,Paused}" />
+                                        <Button Text="重试"
+                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
+                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                TextColor="White"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RetryTaskCommand}"
+                                                CommandParameter="{Binding Id}"
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Failed}" />
+                                        <Button Text="删除"
+                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
+                                                BackgroundColor="{DynamicResource GlassButtonColor}"
+                                                TextColor="{DynamicResource TextPrimaryColor}"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteTaskCommand}"
+                                                CommandParameter="{Binding Id}"
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Failed,Canceled}" />
+                                        <Button Text="删除（含文件）"
+                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
+                                                BackgroundColor="{DynamicResource GlassButtonColor}"
+                                                TextColor="{DynamicResource TextPrimaryColor}"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteTaskWithFileCommand}"
+                                                CommandParameter="{Binding Id}"
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Completed}" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <!-- 空状态 -->
+                <Border Style="{StaticResource GlassCardStyle}"
+                        IsVisible="{Binding IsEmpty}">
+                    <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
+                        <Label Text="⬇️" FontSize="34" HorizontalOptions="Center" />
+                        <Label Text="暂无下载任务" Style="{StaticResource PageSubtitleStyle}"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="点击右上角 ＋ 输入文件地址即可下载，网络歌曲也可一键下载到本地"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextHintColor}"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

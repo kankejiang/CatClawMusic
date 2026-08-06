@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Helpers;
+using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
@@ -21,6 +22,7 @@ public partial class LibraryViewModel : ObservableObject
     private readonly MusicDatabase _db;
     private readonly PlayQueue _queue;
     private readonly ExploreDataService? _exploreDataService;
+    private readonly DownloadManager? _downloadManager;
 
     [ObservableProperty]
     private ObservableCollection<Song> _songs = new();
@@ -98,10 +100,11 @@ public partial class LibraryViewModel : ObservableObject
     public event Action<Song>? SongPlayRequested;
     public event Action? DiscoverSourceChanged;
 
-    public LibraryViewModel(MusicDatabase db, PlayQueue queue, ExploreDataService? exploreDataService = null)
+    public LibraryViewModel(MusicDatabase db, PlayQueue queue, DownloadManager? downloadManager = null, ExploreDataService? exploreDataService = null)
     {
         _db = db;
         _queue = queue;
+        _downloadManager = downloadManager;
         _exploreDataService = exploreDataService;
 
         DiscoverSource = Preferences.Default.Get("discover_source", "auto");
@@ -662,6 +665,9 @@ public partial class LibraryViewModel : ObservableObject
                         "linear-gradient(135deg,#6250F6,#8C7BFF)", "ic_folder", "local"),
                     new("网络音乐库", netSubtitle, netStatusText, netStatusType,
                         "linear-gradient(135deg,#1E9FE0,#55D6FF)", "ic_wifi", "network"),
+                    new("下载管理", BuildDownloadCardSubtitle(), BuildDownloadCardStatus(),
+                        BuildDownloadCardStatusType(),
+                        "linear-gradient(135deg,#3A6EA5,#55D6FF)", "ic_download", "downloads"),
                     new("我喜欢的", $"{favCount} 首 · 智能歌单", $"{favCount}首", "ok",
                         "linear-gradient(135deg,#FF5C8A,#FF7AAE)", "ic_favorite", "favorite"),
                     new("最近播放", $"{recCount} 首 · 自动记录", $"{recCount}首", "ok",
@@ -891,6 +897,34 @@ public partial class LibraryViewModel : ObservableObject
         "FLAC" or "APE" or "WAV" or "AIFF" or "DSD" or "TTA" or "WV" => true,
         _ => false
     };
+
+    // ═══════════════════════════════════════════════════════
+    // 下载管理卡片文案
+    // ═══════════════════════════════════════════════════════
+
+    private string BuildDownloadCardSubtitle()
+    {
+        var active = _downloadManager?.Tasks.Count(t => t.Status is DownloadStatus.Queued or DownloadStatus.Downloading) ?? 0;
+        var done = _downloadManager?.Tasks.Count(t => t.Status == DownloadStatus.Completed) ?? 0;
+        return active > 0
+            ? $"{active} 个任务进行中 · 已下载 {done} 个"
+            : "下载网络音乐与文件 · 管理下载任务";
+    }
+
+    private string BuildDownloadCardStatus()
+    {
+        var active = _downloadManager?.Tasks.Count(t => t.Status is DownloadStatus.Queued or DownloadStatus.Downloading) ?? 0;
+        var done = _downloadManager?.Tasks.Count(t => t.Status == DownloadStatus.Completed) ?? 0;
+        if (active > 0) return $"{active} 进行中";
+        if (done > 0) return $"{done} 完成";
+        return "下载";
+    }
+
+    private string BuildDownloadCardStatusType()
+    {
+        var active = _downloadManager?.Tasks.Count(t => t.Status is DownloadStatus.Queued or DownloadStatus.Downloading) ?? 0;
+        return active > 0 ? "sync" : "ok";
+    }
 }
 
 public class LibraryCardItem

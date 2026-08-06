@@ -171,6 +171,7 @@
     <converters:SearchSectionHeightConverter x:Key="SearchSectionHeightConverter" />
     <converters:CountToBoolConverter x:Key="CountToBoolConverter" />
     <converters:PlaylistIconConverter x:Key="PlaylistIconConverter" />
+    <converters:DownloadStatusConverter x:Key="DownloadStatusConverter" />
     <converters:IsAssistantConverter x:Key="IsAssistantConverter" />
     <converters:IsUserConverter x:Key="IsUserConverter" />
     <converters:ChatBubbleColorConverter x:Key="ChatBubbleColorConverter" />
