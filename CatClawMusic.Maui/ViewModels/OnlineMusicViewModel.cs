@@ -211,6 +211,64 @@ public partial class OnlineMusicViewModel : ObservableObject
         ShowPlaylists = true;
     }
 
+    /// <summary>私人漫游（随机推荐）：结果展示在歌曲列表模式</summary>
+    [RelayCommand]
+    public async Task LoadPrivateFmAsync()
+    {
+        if (_currentProvider == null) return;
+        IsLoading = true;
+        SongsStatus = "正在获取私人漫游...";
+        CurrentListTitle = "🎧 私人漫游";
+        Songs.Clear();
+        try
+        {
+            var songs = await _currentProvider.GetPrivateFmAsync(15);
+            foreach (var s in songs ?? new List<OnlineSong>())
+                Songs.Add(new OnlineSongView(s));
+            SongsStatus = Songs.Count == 0 ? "私人漫游暂无歌曲，稍后再试" : "";
+        }
+        catch (Exception ex)
+        {
+            SongsStatus = $"私人漫游获取失败：{ex.Message}";
+            Log.Debug("OnlineMusicViewModel", $"[OnlineMusic] FM failed: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+        ShowPlaylists = false;
+        ShowSongs = true;
+    }
+
+    /// <summary>每日推荐：结果展示在歌曲列表模式</summary>
+    [RelayCommand]
+    public async Task LoadDailyRecommendAsync()
+    {
+        if (_currentProvider == null) return;
+        IsLoading = true;
+        SongsStatus = "正在获取每日推荐...";
+        CurrentListTitle = "📅 每日推荐";
+        Songs.Clear();
+        try
+        {
+            var songs = await _currentProvider.GetDailyRecommendAsync(20);
+            foreach (var s in songs ?? new List<OnlineSong>())
+                Songs.Add(new OnlineSongView(s));
+            SongsStatus = Songs.Count == 0 ? "每日推荐暂无歌曲" : "";
+        }
+        catch (Exception ex)
+        {
+            SongsStatus = $"每日推荐获取失败：{ex.Message}";
+            Log.Debug("OnlineMusicViewModel", $"[OnlineMusic] Daily failed: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+        ShowPlaylists = false;
+        ShowSongs = true;
+    }
+
     /// <summary>音源内搜索：结果展示在歌曲列表模式</summary>
     [RelayCommand]
     public async Task SearchSongsAsync()

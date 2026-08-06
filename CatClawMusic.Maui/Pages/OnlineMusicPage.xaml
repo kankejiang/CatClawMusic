@@ -96,8 +96,42 @@
             </VerticalStackLayout>
 
             <!-- ── 歌单浏览模式 ── -->
-            <Grid IsVisible="{Binding ShowPlaylists}" RowDefinitions="Auto,Auto,*" Spacing="0">
-                <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never" HeightRequest="42">
+            <Grid IsVisible="{Binding ShowPlaylists}" RowDefinitions="Auto,Auto,Auto,*" Spacing="0">
+                <!-- 私人漫游 / 每日推荐 入口 -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,*" ColumnSpacing="10" Padding="16,2,16,8">
+                    <Border StrokeThickness="0" StrokeShape="RoundRectangle 16" Padding="14,12">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#667eea" Offset="0" />
+                                <GradientStop Color="#764ba2" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding LoadPrivateFmCommand}" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="🎧 私人漫游" FontSize="15" FontFamily="OpenSansSemibold" TextColor="White" />
+                            <Label Text="随机推荐，想听就听" FontSize="11" TextColor="#CCFFFFFF" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <Border Grid.Column="1" StrokeThickness="0" StrokeShape="RoundRectangle 16" Padding="14,12">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#f7971e" Offset="0" />
+                                <GradientStop Color="#ffd200" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding LoadDailyRecommendCommand}" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="3">
+                            <Label Text="📅 每日推荐" FontSize="15" FontFamily="OpenSansSemibold" TextColor="White" />
+                            <Label Text="今天想听什么" FontSize="11" TextColor="#CCFFFFFF" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+
+                <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never" HeightRequest="42">
                     <HorizontalStackLayout Spacing="6" Padding="16,4,16,6"
                                            BindableLayout.ItemsSource="{Binding Categories}">
                         <BindableLayout.ItemTemplate>
@@ -130,12 +164,12 @@
                     </HorizontalStackLayout>
                 </ScrollView>
 
-                <Label Grid.Row="1" Text="{Binding PlaylistStatus}"
+                <Label Grid.Row="2" Text="{Binding PlaylistStatus}"
                        FontSize="12" TextColor="{DynamicResource TextHintColor}"
                        HorizontalOptions="Center" Margin="0,10,0,4"
                        IsVisible="{Binding PlaylistStatus, Converter={StaticResource StringToBoolConverter}}" />
 
-                <CollectionView Grid.Row="2" ItemsSource="{Binding Playlists}"
+                <CollectionView Grid.Row="3" ItemsSource="{Binding Playlists}"
                                 SelectionMode="Single"
                                 SelectionChanged="OnPlaylistSelected"
                                 Margin="0,6,0,0">

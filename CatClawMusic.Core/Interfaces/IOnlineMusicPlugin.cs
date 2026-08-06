@@ -46,4 +46,10 @@ public interface IOnlineMusicPlugin : IPlugin
     /// <param name="page">页码（从 1 开始）</param>
     /// <param name="pageSize">每页数量</param>
     Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50);
+
+    /// <summary>私人漫游（随机推荐歌曲，类似私人 FM）；未实现返回 null</summary>
+    Task<List<OnlineSong>?> GetPrivateFmAsync(int num = 10) => Task.FromResult<List<OnlineSong>?>(null);
+
+    /// <summary>每日推荐歌曲；未实现返回 null</summary>
+    Task<List<OnlineSong>?> GetDailyRecommendAsync(int num = 20) => Task.FromResult<List<OnlineSong>?>(null);
 }
