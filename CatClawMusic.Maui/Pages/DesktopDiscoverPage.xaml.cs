@@ -516,6 +516,62 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         }
     }
 
+    // === 在线音乐 ===
+
+    /// <summary>点击顶栏 🎵 入口时触发，进入在线音乐中心（歌单/漫游/搜索）。</summary>
+    private async void OnOnlineMusicTapped(object? sender, TappedEventArgs e)
+    {
+        try
+        {
+            await Shell.Current.GoToAsync("onlinemusic");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopDiscoverPage.xaml", $"[OnlineMusic] 打开在线音乐中心失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>选中在线音乐搜索结果时触发：取播放直链 → 构造临时 Song → 接入现有播放链路。</summary>
+    private async void OnOnlineSearchResultSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is CollectionView cv) cv.SelectedItem = null;
+        if (e.CurrentSelection.FirstOrDefault() is not OnlineSong song) return;
+
+        string? playUrl = null;
+        try
+        {
+            playUrl = await _services.GetRequiredService<OnlineMusicAggregator>().GetPlayUrlAsync(song);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopDiscoverPage.xaml", $"[OnlineMusic] GetPlayUrl failed: {ex.Message}");
+        }
+
+        if (string.IsNullOrWhiteSpace(playUrl))
+        {
+            await DisplayAlert("暂不可播放", $"{song.PlatformName} 当前未接入播放直链，可尝试其他音源", "确定");
+            return;
+        }
+
+        SearchBox.Text = "";
+        _vm.ClearSearchDropdown();
+
+        // 构造临时 Song 接入现有播放链路（不落库；FilePath 为临时直链）
+        var tmp = new Song
+        {
+            Id = -1,
+            Title = song.Title,
+            Artist = song.Artist,
+            Album = song.Album,
+            Duration = (int)(song.DurationMs / 1000),
+            FilePath = playUrl,
+            RemoteId = $"{song.Platform}:{song.Id}",
+            Source = SongSource.Local,
+            AllArtists = song.Artist
+        };
+        await PlaySongAsync(tmp, new List<Song> { tmp });
+    }
+
     // === 刷新 ===
 
     private async void OnRefreshClicked(object? sender, EventArgs e)
