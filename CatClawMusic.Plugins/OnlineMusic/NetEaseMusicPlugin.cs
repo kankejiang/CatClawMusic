@@ -60,11 +60,25 @@ public class NetEaseMusicPlugin : OnlineMusicPluginBase
     public override async Task<string?> GetPlayUrlAsync(OnlineSong song, int quality = 0)
     {
         if (string.IsNullOrWhiteSpace(song.Id)) return null;
+
+        // 方案1：免登录外链（302 到 CDN，免 cookie，实测成功率最高）
         try
         {
-            // br 档位：0=默认(320k) 1=128k 2=320k（quality 仅作占位，统一按 320k 取）
-            var url = $"https://music.163.com/api/song/enhance/player/url?id={song.Id}&ids=[{song.Id}]&br=320000";
-            var json = await Http.GetStringAsync(url);
+            var outer = $"https://music.163.com/song/media/outer/url?id={song.Id}.mp3";
+            using var resp = await Http.GetAsync(outer, HttpCompletionOption.ResponseHeadersRead);
+            if (resp.StatusCode is System.Net.HttpStatusCode.OK or System.Net.HttpStatusCode.PartialContent)
+                return resp.RequestMessage?.RequestUri?.ToString() ?? outer;
+        }
+        catch { }
+
+        // 方案2：enhance/player/url + 静态 cookie（免登录接口不带 cookie 会风控返回空 url）
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get,
+                $"https://music.163.com/api/song/enhance/player/url?id={song.Id}&ids=[{song.Id}]&br=320000");
+            req.Headers.TryAddWithoutValidation("Cookie", "os=pc; appver=8.9.70");
+            using var resp = await Http.SendAsync(req);
+            var json = await resp.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
                 return null;
