@@ -6,7 +6,8 @@
              xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              x:Class="CatClawMusic.Maui.Pages.OnlineMusicPage"
              Title="在线音乐"
-             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             SizeChanged="OnPageSizeChanged">
 
     <Grid RowDefinitions="Auto,*" Background="{DynamicResource PageBackgroundBrush}">
 
@@ -138,7 +139,7 @@
                                 SelectionChanged="OnPlaylistSelected"
                                 Margin="0,6,0,0">
                     <CollectionView.ItemsLayout>
-                        <GridItemsLayout Orientation="Vertical" Span="2" HorizontalItemSpacing="10" VerticalItemSpacing="10" />
+                        <GridItemsLayout x:Name="PlaylistsLayout" Orientation="Vertical" Span="2" HorizontalItemSpacing="10" VerticalItemSpacing="10" />
                     </CollectionView.ItemsLayout>
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:OnlinePlaylist">
@@ -149,7 +150,7 @@
                                             HeightRequest="120">
                                         <Image Source="{Binding CoverUrl, TargetNullValue='ic_music_note'}"
                                                Aspect="AspectFill"
-                                               WidthRequest="120" HeightRequest="120" />
+                                               HorizontalOptions="Fill" VerticalOptions="Fill" />
                                     </Border>
                                     <Label Text="{Binding Name}"
                                            FontSize="12" FontFamily="OpenSansSemibold"

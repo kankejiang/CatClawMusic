@@ -33,7 +33,26 @@ public partial class OnlineMusicPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        AdjustPlaylistSpan(); // 先按当前宽度设列数，再加载数据（避免首次布局跳变）
         await _vm.LoadProvidersAsync();
+    }
+
+    /// <summary>页面尺寸变化时按宽度自适应歌单列数（窄屏 2/3 列，宽屏 4-6 列）。</summary>
+    private void OnPageSizeChanged(object? sender, EventArgs e) => AdjustPlaylistSpan();
+
+    private void AdjustPlaylistSpan()
+    {
+        var w = Content?.Width ?? 0;
+        if (w <= 0) return;
+        int span = w switch
+        {
+            < 500 => 2,    // 手机竖屏
+            < 800 => 3,    // 手机横屏 / 小平板
+            < 1200 => 4,   // 平板横屏 / 中等窗口
+            < 1600 => 5,   // 桌面端标准宽度
+            _ => 6,        // 桌面端大屏 / 4K
+        };
+        if (PlaylistsLayout.Span != span) PlaylistsLayout.Span = span;
     }
 
     private async void OnBackTapped(object? sender, TappedEventArgs e)
