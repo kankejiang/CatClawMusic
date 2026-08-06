@@ -57,6 +57,13 @@ public class NetEaseMusicPlugin : OnlineMusicPluginBase
         catch { return null; }
     }
 
+    /// <summary>公共 NeteaseCloudMusicApi 实例（社区维护，播放直链兜底；实测 2026-08 zm.wwoyun.cn / iwenwiki.com:3000 可用）</summary>
+    private static readonly string[] PublicApiBases =
+    {
+        "https://zm.wwoyun.cn",
+        "http://iwenwiki.com:3000",
+    };
+
     public override async Task<string?> GetPlayUrlAsync(OnlineSong song, int quality = 0)
     {
         if (string.IsNullOrWhiteSpace(song.Id)) return null;
@@ -90,9 +97,30 @@ public class NetEaseMusicPlugin : OnlineMusicPluginBase
                     if (!string.IsNullOrWhiteSpace(playUrl)) return playUrl;
                 }
             }
-            return null;
         }
-        catch { return null; }
+        catch { }
+
+        // 方案3：公共 NeteaseCloudMusicApi 实例兜底（逐个尝试，返回 data[].url 播放直链）
+        foreach (var api in PublicApiBases)
+        {
+            try
+            {
+                var json = await Http.GetStringAsync($"{api}/song/url?id={song.Id}");
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+                    continue;
+                foreach (var item in data.EnumerateArray())
+                {
+                    if (item.TryGetProperty("url", out var u))
+                    {
+                        var playUrl = u.GetString();
+                        if (!string.IsNullOrWhiteSpace(playUrl)) return playUrl;
+                    }
+                }
+            }
+            catch { }
+        }
+        return null;
     }
 
     public override async Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song)
