@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
+             x:Class="CatClawMusic.Maui.Pages.OnlineMusicPage"
+             Title="在线音乐"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <Grid RowDefinitions="Auto,*" Background="{DynamicResource PageBackgroundBrush}">
+
+        <controls:FrostedBackground Grid.RowSpan="2"
+            Source="{DynamicResource ThemeBackgroundImage}"
+            IsActive="{DynamicResource ThemeBackgroundEnabled}"
+            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+            TintColor="{DynamicResource TabBarGlassTint}"
+            TintOpacity="0.45"
+            DimAmount="0.25"
+            Opacity="0.8"
+            Aspect="AspectFill"
+            UseNativeBlur="True"
+            InputTransparent="True" />
+
+        <!-- ═══ 顶部：返回 + 标题 + 音源切换 ═══ -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,Auto,Auto" Padding="16,12,16,8" RowSpacing="10">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Border Style="{StaticResource GlassIconContainerStyle}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnBackTapped" />
+                    </Border.GestureRecognizers>
+                    <Label Text="‹" FontSize="26" TextColor="{DynamicResource TextPrimaryColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" Margin="0,-4,0,0" />
+                </Border>
+                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                    <Label Text="在线音乐" FontSize="17" FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Label Text="搜索全网音源 · 歌单 · 在线播放"
+                           FontSize="11" TextColor="{DynamicResource TextHintColor}" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <!-- 音源 chips -->
+            <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
+                        IsVisible="{Binding HasProviders}">
+                <HorizontalStackLayout Spacing="8"
+                                       BindableLayout.ItemsSource="{Binding Providers}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="vm:OnlineProviderItem">
+                            <Border Padding="12,7"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 16"
+                                    BackgroundColor="{DynamicResource SurfaceColor}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectProviderCommand}"
+                                                          CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                                <HorizontalStackLayout Spacing="6">
+                                    <Label Text="{Binding Icon}" FontSize="14" VerticalOptions="Center" />
+                                    <Label Text="{Binding Name}" FontSize="12" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </HorizontalStackLayout>
+            </ScrollView>
+
+            <!-- 音源内搜索 -->
+            <Border Grid.Row="2" Style="{StaticResource GlassInputStyle}" IsVisible="{Binding HasProviders}">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <Image Source="ic_search" WidthRequest="16" HeightRequest="16" Opacity="0.8" VerticalOptions="Center" />
+                    <Entry Grid.Column="1" Text="{Binding SearchQuery, Mode=TwoWay}"
+                           Placeholder="在当前音源搜索歌曲..."
+                           ReturnType="Search"
+                           Completed="OnSearchCompleted" />
+                    <ImageButton Grid.Column="2" Source="ic_search" WidthRequest="20" HeightRequest="20"
+                                 BackgroundColor="Transparent" Clicked="OnSearchClicked"
+                                 Opacity="0.9" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══ 内容区 ═══ -->
+        <Grid Grid.Row="1" IsVisible="{Binding HasProviders}">
+
+            <!-- 无音源提示 -->
+            <VerticalStackLayout IsVisible="{Binding HasProviders, Converter={StaticResource InvertedBoolConverter}}"
+                                 Spacing="8" VerticalOptions="Center" HorizontalOptions="Center">
+                <Label Text="🎵" FontSize="40" HorizontalOptions="Center" />
+                <Label Text="{Binding StatusText}"
+                       FontSize="13" TextColor="{DynamicResource TextHintColor}"
+                       HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+
+            <!-- ── 歌单浏览模式 ── -->
+            <VerticalStackLayout IsVisible="{Binding ShowPlaylists}" Spacing="0">
+                <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never" HeightRequest="42">
+                    <HorizontalStackLayout Spacing="6" Padding="16,4,16,6"
+                                           BindableLayout.ItemsSource="{Binding Categories}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CategoryChipItem">
+                                <Border Padding="10,5"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 12"
+                                        BackgroundColor="{DynamicResource SurfaceColor}">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsSelected}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="{DynamicResource PrimaryColor}" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectCategoryCommand}"
+                                                              CommandParameter="{Binding Name}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="{Binding Name}" FontSize="11"
+                                           TextColor="{DynamicResource TextSecondaryColor}"
+                                           VerticalOptions="Center">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsSelected}" Value="True">
+                                                <Setter Property="TextColor" Value="White" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </HorizontalStackLayout>
+                </ScrollView>
+
+                <Label Text="{Binding PlaylistStatus}"
+                       FontSize="12" TextColor="{DynamicResource TextHintColor}"
+                       HorizontalOptions="Center" Margin="0,10,0,4"
+                       IsVisible="{Binding PlaylistStatus, Converter={StaticResource StringToBoolConverter}}" />
+
+                <CollectionView ItemsSource="{Binding Playlists}"
+                                SelectionMode="Single"
+                                SelectionChanged="OnPlaylistSelected"
+                                Margin="0,6,0,0">
+                    <CollectionView.ItemsLayout>
+                        <GridItemsLayout Orientation="Vertical" Span="2" HorizontalItemSpacing="10" VerticalItemSpacing="10" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:OnlinePlaylist">
+                            <Border Style="{StaticResource GlassCardStyle}" Padding="8">
+                                <VerticalStackLayout Spacing="6">
+                                    <Border StrokeThickness="0" StrokeShape="RoundRectangle 12"
+                                            BackgroundColor="{DynamicResource SurfaceColor}"
+                                            HeightRequest="120">
+                                        <Image Source="{Binding CoverUrl, TargetNullValue='ic_music_note'}"
+                                               Aspect="AspectFill"
+                                               WidthRequest="120" HeightRequest="120" />
+                                    </Border>
+                                    <Label Text="{Binding Name}"
+                                           FontSize="12" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           MaxLines="2" LineBreakMode="TailTruncation" />
+                                    <Label Text="{Binding SongCount, StringFormat='{0} 首'}"
+                                           FontSize="10" TextColor="{DynamicResource TextHintColor}" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+
+            <!-- ── 歌曲列表模式 ── -->
+            <VerticalStackLayout IsVisible="{Binding ShowSongs}" Spacing="0">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="16,4,16,8">
+                    <Border Padding="10,5" StrokeThickness="0" StrokeShape="RoundRectangle 12"
+                            BackgroundColor="{DynamicResource SurfaceColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding BackToPlaylistsCommand}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="‹ 歌单" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" />
+                    </Border>
+                    <Label Grid.Column="1" Text="{Binding CurrentListTitle}"
+                           FontSize="14" FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}"
+                           MaxLines="1" LineBreakMode="TailTruncation"
+                           VerticalOptions="Center" />
+                </Grid>
+
+                <Label Text="{Binding SongsStatus}"
+                       FontSize="12" TextColor="{DynamicResource TextHintColor}"
+                       HorizontalOptions="Center" Margin="0,10,0,4"
+                       IsVisible="{Binding SongsStatus, Converter={StaticResource StringToBoolConverter}}" />
+
+                <CollectionView ItemsSource="{Binding Songs}"
+                                SelectionMode="Single"
+                                SelectionChanged="OnSongSelected">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:OnlineSongView">
+                            <Grid Padding="14,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                    <Image Source="{Binding CoverUrl, TargetNullValue='ic_music_note'}"
+                                           Aspect="AspectFill" WidthRequest="40" HeightRequest="40" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                    <Label Text="{Binding Title}" FontSize="14" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                    <Label Text="{Binding Artist}" FontSize="11"
+                                           TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="2" Spacing="2" VerticalOptions="Center">
+                                    <Label Text="{Binding PlatformName}" FontSize="10"
+                                           TextColor="{DynamicResource PrimaryColor}"
+                                           HorizontalTextAlignment="End" />
+                                    <Label Text="{Binding DurationText}" FontSize="10"
+                                           TextColor="{DynamicResource TextHintColor}"
+                                           HorizontalTextAlignment="End" />
+                                </VerticalStackLayout>
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- 加载指示 -->
+        <ActivityIndicator IsRunning="{Binding IsLoading}"
+                           IsVisible="{Binding IsLoading}"
+                           Color="{DynamicResource PrimaryColor}"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Center"
+                           WidthRequest="36" HeightRequest="36" />
+    </Grid>
+</ContentPage>

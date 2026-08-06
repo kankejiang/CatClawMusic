@@ -427,6 +427,7 @@ public static class MauiProgram
         services.AddTransient<Pages.NowPlayingPage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();
+        services.AddTransient<Pages.OnlineMusicPage>();
         services.AddTransient<Pages.DesktopDiscoverPage>();
         services.AddTransient<Pages.SettingsPage>();
         services.AddTransient<Pages.DesktopSettingsPage>();

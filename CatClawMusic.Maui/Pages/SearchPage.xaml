@@ -6,6 +6,7 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              x:Class="CatClawMusic.Maui.Pages.SearchPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}"
              BackgroundColor="Transparent">
@@ -42,12 +43,92 @@
                     <Border x:Name="SearchBoxContainer" Margin="18,0,18,10" Style="{StaticResource GlassInputStyle}" IsVisible="{Binding IsSearchOpen}">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                             <Image Source="ic_search" WidthRequest="18" HeightRequest="18" Opacity="0.9" VerticalOptions="Center" />
-                            <Entry Grid.Column="1" x:Name="SearchBox" Text="{Binding SearchQuery, Mode=TwoWay}" Placeholder="搜索歌曲、歌手、专辑..." ReturnType="Search" TextChanged="OnSearchTextChanged" Completed="OnSearchCompleted" />
+                            <Entry Grid.Column="1" x:Name="SearchBox" Text="{Binding SearchQuery, Mode=TwoWay}" Placeholder="搜索歌曲、歌手、专辑，或在线音乐..." ReturnType="Search" TextChanged="OnSearchTextChanged" Completed="OnSearchCompleted" />
                             <ImageButton Grid.Column="2" Source="ic_close" WidthRequest="24" HeightRequest="24" BackgroundColor="Transparent" IsVisible="{Binding ShowSearchResults}" Clicked="OnClearSearchClicked" />
                         </Grid>
                     </Border>
 
-                    <Border Margin="18,0,18,10" Padding="0" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding ShowSearchResults}">
+                    <!-- 在线音乐入口：无搜索输入时显示（已启用音源 + 示例搜索） -->
+                    <Border Margin="18,0,18,10" Padding="16,14" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding ShowOnlineEntry}">
+                        <VerticalStackLayout Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="🎵 在线音乐" FontSize="15" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" />
+                                    <Label Text="搜索全网音源，点击即可在线播放" FontSize="11" TextColor="{DynamicResource TextHintColor}" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1"
+                                       Text="{Binding OnlineProviders.Count, StringFormat='{0} 个音源'}"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource PrimaryColor}"
+                                       VerticalOptions="Center"
+                                       IsVisible="{Binding HasOnlineProviders}" />
+                            </Grid>
+
+                            <!-- 已启用音源 chips -->
+                            <HorizontalStackLayout Spacing="8"
+                                                    BindableLayout.ItemsSource="{Binding OnlineProviders}"
+                                                    IsVisible="{Binding HasOnlineProviders}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:OnlineProviderView">
+                                        <Border Padding="10,6" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="{DynamicResource SurfaceColor}">
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding Icon}" FontSize="14" VerticalOptions="Center" />
+                                                <Label Text="{Binding Name}" FontSize="12" TextColor="{DynamicResource TextPrimaryColor}" VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </HorizontalStackLayout>
+
+                            <!-- 无音源插件引导 -->
+                            <Label Text="还没有可用的在线音源，去「设置 → 插件管理」添加插件"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}"
+                                   IsVisible="{Binding HasOnlineProviders, Converter={StaticResource InvertedBoolConverter}}" />
+
+                            <!-- 示例搜索 -->
+                            <FlexLayout Wrap="Wrap" JustifyContent="Start" AlignItems="Center" ColumnSpacing="8" RowSpacing="8">
+                                <Label Text="试试搜索：" FontSize="12" TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
+                                <Border Padding="12,6" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="{DynamicResource PrimaryColor}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SearchKeywordCommand}" CommandParameter="周杰伦" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="周杰伦" FontSize="12" TextColor="White" />
+                                </Border>
+                                <Border Padding="12,6" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="{DynamicResource PrimaryColor}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SearchKeywordCommand}" CommandParameter="林俊杰" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="林俊杰" FontSize="12" TextColor="White" />
+                                </Border>
+                                <Border Padding="12,6" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="{DynamicResource PrimaryColor}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SearchKeywordCommand}" CommandParameter="陈奕迅" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="陈奕迅" FontSize="12" TextColor="White" />
+                                </Border>
+                                <Border Padding="12,6" StrokeThickness="0" StrokeShape="RoundRectangle 14" BackgroundColor="{DynamicResource PrimaryColor}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SearchKeywordCommand}" CommandParameter="热歌" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="热歌" FontSize="12" TextColor="White" />
+                                </Border>
+                            </FlexLayout>
+
+                            <!-- 进入在线音乐中心（歌单/漫游浏览） -->
+                            <Border Padding="12,9" StrokeThickness="0" StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="{DynamicResource PrimaryColor}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOpenOnlineMusicTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="进入在线音乐中心 ›"
+                                       FontSize="12" FontFamily="OpenSansSemibold"
+                                       TextColor="White" HorizontalOptions="Center" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Margin="18,0,18,10" Padding="0" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding ShowSearchDropdown}">
                         <ScrollView MaximumHeightRequest="380">
                             <VerticalStackLayout Spacing="0">
                                 <VerticalStackLayout IsVisible="{Binding SearchArtistResults.Count, Converter={StaticResource CountToBoolConverter}}">

@@ -260,6 +260,7 @@ public partial class SearchPage : DiscoverPageBase
     {
         base.OnAppearing();
         _vm.GreetingText = CalculateGreeting();
+        _vm.RefreshOnlineProviders(); // 刷新已启用在线音源（插件安装/启用后入口即时更新）
 
         if (_vm.HeroCards.Count > 0)
         {
@@ -313,6 +314,19 @@ public partial class SearchPage : DiscoverPageBase
             .Concat(_vm.RecentAddedSongs)
             .ToList();
         await PlaySongAsync(song, allSongs);
+    }
+
+    /// <summary>点击在线音乐入口卡时触发，进入在线音乐中心（歌单/漫游/搜索）。</summary>
+    private async void OnOpenOnlineMusicTapped(object? sender, TappedEventArgs e)
+    {
+        try
+        {
+            await Shell.Current.GoToAsync("onlinemusic");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("SearchPage.xaml", $"[OnlineMusic] 打开在线音乐中心失败: {ex.Message}");
+        }
     }
 
     /// <summary>选中在线音乐搜索结果时触发：取播放直链 → 构造临时 Song → 接入现有播放链路。</summary>

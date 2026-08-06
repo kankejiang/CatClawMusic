@@ -57,6 +57,9 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("discover/artistdetail", typeof(Pages.ArtistDetailPage));
         Routing.RegisterRoute("discover/albumdetail", typeof(Pages.AlbumDetailPage));
 
+        // ── 在线音乐中心（发现页入口进入） ──
+        Routing.RegisterRoute("onlinemusic", typeof(Pages.OnlineMusicPage));
+
         // ── 全局子页面（不属于特定 Tab）──
         Routing.RegisterRoute("folderbrowser", typeof(Pages.FolderBrowserPage));
         Routing.RegisterRoute("desktoplyric", typeof(Pages.DesktopLyricPage));

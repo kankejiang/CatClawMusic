@@ -43,6 +43,10 @@ public abstract class OnlineMusicPluginBase : IOnlineMusicPlugin
     public virtual Task<List<OnlinePlaylist>> GetPlaylistsAsync(string? category = null)
         => Task.FromResult(new List<OnlinePlaylist>());
 
+    /// <summary>默认不支持歌单内歌曲</summary>
+    public virtual Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50)
+        => Task.FromResult<List<OnlineSong>?>(null);
+
     /// <summary>构造搜索结果条目（填充平台标识与显示名）</summary>
     protected OnlineSong MakeSong(string id, string title, string artist, string album, long durationMs, string? coverUrl = null)
     {

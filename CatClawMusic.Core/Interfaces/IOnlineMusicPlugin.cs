@@ -38,6 +38,12 @@ public interface IOnlineMusicPlugin : IPlugin
     Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song);
 
     /// <summary>获取歌单列表（无歌单能力返回空列表）</summary>
-    /// <param name="category">歌单分类（平台相关，可为 null 取默认）</param>
+    /// <param name="category">歌单分类（平台相关，可为 null 取默认/全部）</param>
     Task<List<OnlinePlaylist>> GetPlaylistsAsync(string? category = null);
+
+    /// <summary>获取歌单内歌曲列表（无歌单能力返回空列表）</summary>
+    /// <param name="playlist">歌单（由 GetPlaylistsAsync 返回）</param>
+    /// <param name="page">页码（从 1 开始）</param>
+    /// <param name="pageSize">每页数量</param>
+    Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50);
 }

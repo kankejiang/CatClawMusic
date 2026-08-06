@@ -1586,6 +1586,34 @@ public class PluginManager : IPluginManager
             }
             return new();
         }
+
+        /// <summary>异步获取歌单内歌曲</summary>
+        public async Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50)
+        {
+            var method = _targetType.GetMethod("GetPlaylistSongsAsync");
+            if (method == null) return null;
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(OnlinePlaylist).FullName)
+                invokeArgs = new[] { ConvertType(playlist, paramType), page, pageSize };
+            else
+                invokeArgs = new object?[] { playlist, page, pageSize };
+
+            var result = await InvokeAsyncMethod(_target, "GetPlaylistSongsAsync", invokeArgs);
+            if (result is List<OnlineSong> typed) return typed;
+            if (result is System.Collections.IList list)
+            {
+                var songs = new List<OnlineSong>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<OnlineSong>(item);
+                    if (converted != null) songs.Add(converted);
+                }
+                return songs;
+            }
+            return null;
+        }
     }
 
     #endregion

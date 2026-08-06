@@ -47,6 +47,7 @@ public partial class SearchViewModel : ObservableObject
 
     /// <summary>搜索关键字</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOnlineEntry))]
     private string _searchQuery = "";
 
     /// <summary>是否正在加载数据</summary>
@@ -160,6 +161,8 @@ public partial class SearchViewModel : ObservableObject
 
     /// <summary>是否显示搜索下拉结果</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSearchDropdown))]
+    [NotifyPropertyChangedFor(nameof(ShowOnlineEntry))]
     private bool _showSearchResults;
 
     /// <summary>搜索框非空但无任何匹配结果时为 true，用于展示"问问 Yuki"入口</summary>
@@ -168,15 +171,38 @@ public partial class SearchViewModel : ObservableObject
 
     /// <summary>在线音乐搜索结果（音源插件聚合搜索，多平台合并）</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSearchDropdown))]
+    [NotifyPropertyChangedFor(nameof(ShowOnlineEntry))]
     private ObservableCollection<OnlineSong> _onlineSearchResults = new();
 
     /// <summary>是否正在在线搜索（展示加载提示）</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSearchDropdown))]
     private bool _isSearchingOnline;
 
     /// <summary>是否有在线搜索结果（控制在线区块可见性）</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSearchDropdown))]
+    [NotifyPropertyChangedFor(nameof(ShowOnlineEntry))]
     private bool _hasOnlineSearchResults;
+
+    /// <summary>已启用的在线音源插件列表（入口卡展示）</summary>
+    [ObservableProperty]
+    private ObservableCollection<OnlineProviderView> _onlineProviders = new();
+
+    /// <summary>是否有已启用的在线音源插件</summary>
+    [ObservableProperty]
+    private bool _hasOnlineProviders;
+
+    /// <summary>搜索下拉区显隐：本地结果 / 在线结果 / 在线搜索中任一为真即显示（在线结果不再被本地空结果挡住）</summary>
+    public bool ShowSearchDropdown => ShowSearchResults || HasOnlineSearchResults || IsSearchingOnline;
+
+    /// <summary>无搜索输入时是否显示"在线音乐"入口卡（音源列表 + 示例搜索）</summary>
+    public bool ShowOnlineEntry =>
+        !IsSearchOpen
+        && string.IsNullOrWhiteSpace(SearchQuery)
+        && !ShowSearchResults
+        && !HasOnlineSearchResults;
 
     /// <summary>当前分类索引（0=推荐, 1=排行榜, 2=歌手, 3=推荐专辑）</summary>
     [ObservableProperty]
@@ -196,6 +222,7 @@ public partial class SearchViewModel : ObservableObject
 
     /// <summary>搜索框是否展开</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOnlineEntry))]
     private bool _isSearchOpen;
 
     /// <summary>是否启用 AI 智能推荐 Hero 卡</summary>
@@ -285,7 +312,49 @@ public partial class SearchViewModel : ObservableObject
 
         GreetingText = CalculateGreeting();
 
+        RefreshOnlineProviders();
+
         _ = LoadDataAsync();
+    }
+
+    /// <summary>刷新已启用在线音源列表（入口卡展示；插件安装/启用状态变化后调用）</summary>
+    public void RefreshOnlineProviders()
+    {
+        var list = new List<OnlineProviderView>();
+        try
+        {
+            foreach (var p in _onlineMusic.GetProviders())
+            {
+                var name = string.IsNullOrWhiteSpace(p.PlatformName) ? "在线音源" : p.PlatformName;
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                list.Add(new OnlineProviderView { Name = name, Icon = ProviderIcon(name) });
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("SearchViewModel", $"[SearchVM] RefreshOnlineProviders failed: {ex.Message}");
+        }
+        OnlineProviders = new ObservableCollection<OnlineProviderView>(list);
+        HasOnlineProviders = list.Count > 0;
+    }
+
+    private static string ProviderIcon(string name)
+    {
+        if (name.Contains("Apple", StringComparison.OrdinalIgnoreCase)) return "🍎";
+        if (name.Contains("酷狗", StringComparison.OrdinalIgnoreCase)) return "🐶";
+        if (name.Contains("网易", StringComparison.OrdinalIgnoreCase)) return "🎵";
+        if (name.Contains("QQ", StringComparison.OrdinalIgnoreCase)) return "🐧";
+        if (name.Contains("Soda", StringComparison.OrdinalIgnoreCase)) return "🧃";
+        return "🎧";
+    }
+
+    /// <summary>从在线音乐入口卡点击示例关键词/音源触发搜索</summary>
+    [RelayCommand]
+    public void SearchKeyword(string? keyword)
+    {
+        if (string.IsNullOrWhiteSpace(keyword)) return;
+        SearchQuery = keyword.Trim();
+        IsSearchOpen = true;
     }
 
     private void SwitchTab(int index)
@@ -1733,6 +1802,15 @@ public class HeroCardItem
     public Color GradientEnd { get; set; } = Colors.Purple;
     /// <summary>播放按钮图标（WinUI 需代码赋值，XAML 字面量不渲染）</summary>
     public ImageSource? PlayIcon { get; set; }
+}
+
+/// <summary>在线音源入口展示项（名称 + 图标）</summary>
+public class OnlineProviderView
+{
+    /// <summary>音源展示名（如 网易云 / QQ音乐）</summary>
+    public string Name { get; set; } = "";
+    /// <summary>音源图标 Emoji</summary>
+    public string Icon { get; set; } = "🎧";
 }
 
 public class ChatHistoryLoadedEventArgs : EventArgs

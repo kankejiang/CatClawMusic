@@ -100,4 +100,74 @@ public class NetEaseMusicPlugin : OnlineMusicPluginBase
         }
         catch { return null; }
     }
+
+    /// <summary>热门歌单（支持分类；"全部"/空 = 全部分类）</summary>
+    public override async Task<List<OnlinePlaylist>> GetPlaylistsAsync(string? category = null)
+    {
+        try
+        {
+            var cat = string.IsNullOrWhiteSpace(category) || category == "全部" ? "全部" : category.Trim();
+            var url = $"https://music.163.com/api/playlist/list?cat={Uri.EscapeDataString(cat)}&order=hot&limit=60&offset=0";
+            var json = await Http.GetStringAsync(url);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("playlists", out var pls) || pls.ValueKind != JsonValueKind.Array)
+                return new List<OnlinePlaylist>();
+
+            var list = new List<OnlinePlaylist>();
+            foreach (var pl in pls.EnumerateArray())
+            {
+                list.Add(new OnlinePlaylist
+                {
+                    Id = pl.TryGetProperty("id", out var idEl) ? idEl.GetInt64().ToString() : "",
+                    Platform = PlatformName,
+                    Name = pl.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                    CoverUrl = pl.TryGetProperty("coverImgUrl", out var c) ? c.GetString() : null,
+                    Description = pl.TryGetProperty("description", out var d) ? d.GetString() : null,
+                    SongCount = pl.TryGetProperty("trackCount", out var tc) ? tc.GetInt32() : 0,
+                });
+            }
+            return list;
+        }
+        catch { return new List<OnlinePlaylist>(); }
+    }
+
+    /// <summary>歌单内歌曲（v6 歌单详情，n=1000 拉全量，支持分页）</summary>
+    public override async Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50)
+    {
+        if (string.IsNullOrWhiteSpace(playlist.Id)) return null;
+        try
+        {
+            var url = $"https://music.163.com/api/v6/playlist/detail?id={playlist.Id}&n=1000&s=8";
+            var json = await Http.GetStringAsync(url);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("playlist", out var pl) ||
+                !pl.TryGetProperty("tracks", out var tracks) || tracks.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var all = new List<OnlineSong>();
+            foreach (var s in tracks.EnumerateArray())
+            {
+                var artists = new List<string>();
+                if (s.TryGetProperty("ar", out var ar))
+                    foreach (var a in ar.EnumerateArray())
+                    {
+                        var an = a.TryGetProperty("name", out var anEl) ? anEl.GetString() : null;
+                        if (!string.IsNullOrWhiteSpace(an)) artists.Add(an);
+                    }
+
+                all.Add(MakeSong(
+                    id: s.TryGetProperty("id", out var idEl) ? idEl.GetInt64().ToString() : "",
+                    title: s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                    artist: string.Join(" / ", artists),
+                    album: s.TryGetProperty("al", out var al) && al.TryGetProperty("name", out var aln) ? aln.GetString() : null,
+                    durationMs: s.TryGetProperty("dt", out var dt) ? dt.GetInt64() : 0,
+                    coverUrl: s.TryGetProperty("al", out var alc) && alc.TryGetProperty("picUrl", out var pic) ? pic.GetString() : null));
+            }
+
+            var start = (page - 1) * pageSize;
+            if (start >= all.Count) return new List<OnlineSong>();
+            return all.Skip(start).Take(pageSize).ToList();
+        }
+        catch { return null; }
+    }
 }
