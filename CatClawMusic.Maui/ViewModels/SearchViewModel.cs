@@ -26,6 +26,8 @@ public partial class SearchViewModel : ObservableObject
     private readonly ChatMemoryService _chatMemoryService;
     private readonly MusicDatabase _database;
     private readonly OnlineMusicAggregator _onlineMusic;
+    private readonly IPluginManager _pluginManager;
+    private readonly IServiceProvider _services;
 
     private List<Song> _allDailyRecommendSongs = [];
     private List<SearchArtistItem> _allArtists = [];
@@ -194,6 +196,20 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasOnlineProviders;
 
+    /// <summary>
+    /// 已启用的视图贡献者插件入口列表（IViewContributorPlugin）。
+    /// <para>
+    /// 每个插件提供一个完整页面入口，用户点击后宿主调用 CreateEntryPage 获取页面并 PushAsync。
+    /// 这取代了原来客户端内置的"在线音乐入口"——现在由插件自治提供 UI。
+    /// </para>
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<ViewContributorView> _viewContributors = new();
+
+    /// <summary>是否有已启用的视图贡献者插件（控制入口列表可见性）</summary>
+    [ObservableProperty]
+    private bool _hasViewContributors;
+
     /// <summary>搜索下拉区显隐：本地结果 / 在线结果 / 在线搜索中任一为真即显示（在线结果不再被本地空结果挡住）</summary>
     public bool ShowSearchDropdown => ShowSearchResults || HasOnlineSearchResults || IsSearchingOnline;
 
@@ -287,7 +303,7 @@ public partial class SearchViewModel : ObservableObject
     /// <param name="agentService">Agent 服务，用于 AI 聊天</param>
     /// <param name="libraryService">音乐库服务</param>
     /// <param name="chatMemoryService">聊天记忆服务</param>
-    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService, ChatMemoryService chatMemoryService, MusicDatabase database, OnlineMusicAggregator onlineMusic)
+    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService, ChatMemoryService chatMemoryService, MusicDatabase database, OnlineMusicAggregator onlineMusic, IPluginManager pluginManager, IServiceProvider services)
     {
         _exploreDataService = exploreDataService;
         _agentService = agentService;
@@ -295,6 +311,8 @@ public partial class SearchViewModel : ObservableObject
         _chatMemoryService = chatMemoryService;
         _database = database;
         _onlineMusic = onlineMusic;
+        _pluginManager = pluginManager;
+        _services = services;
         AgentName = _agentService.GetCurrentAgent().Name;
 
         SwitchTabCommand = new RelayCommand<int>(SwitchTab);
@@ -336,6 +354,68 @@ public partial class SearchViewModel : ObservableObject
         }
         OnlineProviders = new ObservableCollection<OnlineProviderView>(list);
         HasOnlineProviders = list.Count > 0;
+
+        // 同步刷新视图贡献者入口（IViewContributorPlugin）
+        RefreshViewContributors();
+    }
+
+    /// <summary>
+    /// 刷新已启用的视图贡献者插件入口列表。
+    /// <para>
+    /// 取代原来客户端内置的"在线音乐"入口：现在每个 IViewContributorPlugin 插件
+    /// 自行提供入口标题、图标和完整页面，宿主只负责渲染入口列表和导航。
+    /// </para>
+    /// </summary>
+    public void RefreshViewContributors()
+    {
+        var list = new List<ViewContributorView>();
+        try
+        {
+            foreach (var plugin in _pluginManager.GetEnabledPlugins<IViewContributorPlugin>())
+            {
+                list.Add(new ViewContributorView
+                {
+                    Title = string.IsNullOrWhiteSpace(plugin.EntryTitle) ? plugin.Name : plugin.EntryTitle,
+                    Icon = string.IsNullOrWhiteSpace(plugin.EntryIcon) ? "📦" : plugin.EntryIcon,
+                    Plugin = plugin
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("SearchViewModel", $"[SearchVM] RefreshViewContributors failed: {ex.Message}");
+        }
+        ViewContributors = new ObservableCollection<ViewContributorView>(list);
+        HasViewContributors = list.Count > 0;
+    }
+
+    /// <summary>
+    /// 打开视图贡献者插件提供的入口页面。
+    /// <para>
+    /// 调用插件的 CreateEntryPage(IServiceProvider) 获取页面实例，
+    /// 强制转换为 Page 后通过 Shell.Current.Navigation.PushAsync 推入导航栈。
+    /// </para>
+    /// </summary>
+    [RelayCommand]
+    public async Task OpenViewContributorAsync(ViewContributorView? item)
+    {
+        if (item?.Plugin == null) return;
+        try
+        {
+            var pageObj = item.Plugin.CreateEntryPage(_services);
+            if (pageObj is Microsoft.Maui.Controls.Page page)
+            {
+                await Shell.Current.Navigation.PushAsync(page);
+            }
+            else
+            {
+                Log.Debug("SearchViewModel", $"[SearchVM] 插件 {item.Title} 返回的页面类型无效: {pageObj?.GetType().Name ?? "null"}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("SearchViewModel", $"[SearchVM] OpenViewContributor failed: {ex.Message}");
+        }
     }
 
     private static string ProviderIcon(string name)
@@ -1811,6 +1891,22 @@ public class OnlineProviderView
     public string Name { get; set; } = "";
     /// <summary>音源图标 Emoji</summary>
     public string Icon { get; set; } = "🎧";
+}
+
+/// <summary>
+/// 视图贡献者入口展示项：对应一个 IViewContributorPlugin 插件。
+/// <para>
+/// 用户点击后，宿主调用对应插件的 CreateEntryPage 获取页面实例并 PushAsync。
+/// </para>
+/// </summary>
+public class ViewContributorView
+{
+    /// <summary>入口标题（如"在线音乐"）</summary>
+    public string Title { get; set; } = "";
+    /// <summary>入口图标 Emoji</summary>
+    public string Icon { get; set; } = "📦";
+    /// <summary>对应的插件实例（点击时用于调用 CreateEntryPage）</summary>
+    public IViewContributorPlugin? Plugin { get; set; }
 }
 
 public class ChatHistoryLoadedEventArgs : EventArgs

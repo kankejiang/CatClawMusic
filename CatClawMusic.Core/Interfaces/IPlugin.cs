@@ -87,6 +87,43 @@ public interface IMenuContributorPlugin : IPlugin
 }
 
 /// <summary>
+/// 视图贡献者插件接口：插件向宿主贡献一个完整的入口页面。
+/// <para>
+/// 宿主在发现页/导航栏渲染所有已启用的 <see cref="IViewContributorPlugin"/> 入口，
+/// 用户点击后宿主调用 <see cref="CreateEntryPage"/> 获取页面实例（实际类型为 MAUI ContentPage），
+/// 通过 <c>Shell.Current.Navigation.PushAsync</c> 推入导航栈。
+/// </para>
+/// <para>
+/// 设计动机：客户端不再内置"在线音乐"页面，由插件自行提供完整 UI 与逻辑，
+/// 实现真正的"客户端空壳，插件自治"。
+/// </para>
+/// <para>
+/// 注意：返回类型为 <see cref="object"/> 而非 <c>ContentPage</c>，
+/// 是为了避免 Core 项目依赖 Microsoft.Maui.Controls。宿主收到实例后强制转换为
+/// <c>Microsoft.Maui.Controls.Page</c> 即可。
+/// </para>
+/// </summary>
+public interface IViewContributorPlugin : IPlugin
+{
+    /// <summary>入口显示标题（如"在线音乐"）</summary>
+    string EntryTitle { get; }
+
+    /// <summary>入口图标（Emoji 或图片资源名）</summary>
+    string EntryIcon { get; }
+
+    /// <summary>
+    /// 创建并返回入口页面实例。
+    /// <para>
+    /// 每次调用应返回新实例。宿主会将其强制转换为 <c>Microsoft.Maui.Controls.Page</c>。
+    /// 通过 <paramref name="services"/> 可获取宿主注册的服务（如 PlayQueue、IAudioPlayerService 等）。
+    /// </para>
+    /// </summary>
+    /// <param name="services">宿主的服务提供者，用于解析宿主服务</param>
+    /// <returns>MAUI ContentPage 实例（以 object 形式返回避免 Core 依赖 Maui）</returns>
+    object CreateEntryPage(IServiceProvider services);
+}
+
+/// <summary>
 /// 菜单项条目
 /// </summary>
 public class MenuItemEntry

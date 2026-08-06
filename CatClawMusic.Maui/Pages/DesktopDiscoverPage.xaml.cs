@@ -517,19 +517,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     }
 
     // === 在线音乐 ===
-
-    /// <summary>点击顶栏 🎵 入口时触发，进入在线音乐中心（歌单/漫游/搜索）。</summary>
-    private async void OnOnlineMusicTapped(object? sender, TappedEventArgs e)
-    {
-        try
-        {
-            await Shell.Current.GoToAsync("onlinemusic");
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("DesktopDiscoverPage.xaml", $"[OnlineMusic] 打开在线音乐中心失败: {ex.Message}");
-        }
-    }
+    // OnOnlineMusicTapped 已移除：在线音乐入口由 IViewContributorPlugin 插件提供
 
     /// <summary>选中在线音乐搜索结果时触发：取播放直链 → 构造临时 Song → 接入现有播放链路。</summary>
     private async void OnOnlineSearchResultSelected(object? sender, SelectionChangedEventArgs e)

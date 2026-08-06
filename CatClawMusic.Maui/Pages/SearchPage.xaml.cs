@@ -316,19 +316,6 @@ public partial class SearchPage : DiscoverPageBase
         await PlaySongAsync(song, allSongs);
     }
 
-    /// <summary>点击在线音乐入口（顶栏 🎵 / 入口卡按钮）时触发，进入在线音乐中心（歌单/漫游/搜索）。</summary>
-    private async void OnOnlineMusicTapped(object? sender, TappedEventArgs e)
-    {
-        try
-        {
-            await Shell.Current.GoToAsync("onlinemusic");
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("SearchPage.xaml", $"[OnlineMusic] 打开在线音乐中心失败: {ex.Message}");
-        }
-    }
-
     /// <summary>选中在线音乐搜索结果时触发：取播放直链 → 构造临时 Song → 接入现有播放链路。</summary>
     private async void OnOnlineSearchResultSelected(object? sender, SelectionChangedEventArgs e)
     {

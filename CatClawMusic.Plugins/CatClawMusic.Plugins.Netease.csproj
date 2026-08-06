@@ -6,12 +6,17 @@
     <Nullable>enable</Nullable>
     <RootNamespace>CatClawMusic.Plugins.Netease</RootNamespace>
     <AssemblyName>CatClawMusic.Plugins.Netease</AssemblyName>
-    <!-- 插件以独立 DLL 交付，不携带依赖（Core 由宿主提供） -->
+    <!-- 插件以独立 DLL 交付，不携带依赖（Core/MAUI 由宿主提供） -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
+    <!-- 引用 MAUI Controls：插件用 C# 代码构建 UI（不用 XAML，避免跨程序集编译问题）。
+         版本与宿主一致（10.0.20），CopyLocalLockFileAssemblies=false 保证不随插件分发。 -->
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
+    <!-- MVVM Toolkit：插件 ViewModel 使用 ObservableObject/RelayCommand -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
   <ItemGroup>

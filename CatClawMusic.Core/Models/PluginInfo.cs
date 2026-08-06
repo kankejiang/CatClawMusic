@@ -73,6 +73,8 @@ public enum PluginCategory
     MenuContributor,
     /// <summary>在线音乐音源提供者</summary>
     OnlineMusic,
+    /// <summary>视图贡献者（插件提供完整页面入口）</summary>
+    ViewContributor,
     /// <summary>其他</summary>
     Other
 }

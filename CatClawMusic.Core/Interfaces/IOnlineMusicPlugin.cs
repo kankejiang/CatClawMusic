@@ -52,4 +52,32 @@ public interface IOnlineMusicPlugin : IPlugin
 
     /// <summary>每日推荐歌曲；未实现返回 null</summary>
     Task<List<OnlineSong>?> GetDailyRecommendAsync(int num = 20) => Task.FromResult<List<OnlineSong>?>(null);
+
+    /// <summary>排行榜列表（榜单可当作歌单打开）；未实现返回空列表</summary>
+    Task<List<OnlinePlaylist>> GetToplistsAsync() => Task.FromResult(new List<OnlinePlaylist>());
+
+    // ── 账号登录（浏览器登录方式；由插件提供配置，宿主打开 WebView） ──
+
+    /// <summary>
+    /// 获取浏览器登录配置（登录页 URL、Cookie 域名、成功标识 Cookie 等）。
+    /// 宿主据此打开 WebView 让用户在真实网页中登录，登录成功后提取 Cookie 回传。
+    /// 未实现返回 null，宿主提示"该音源暂不支持登录"。
+    /// </summary>
+    Task<BrowserLoginInfo?> GetBrowserLoginInfoAsync() => Task.FromResult<BrowserLoginInfo?>(null);
+
+    /// <summary>
+    /// 接收宿主从 WebView 提取的完整 Cookie 字符串并完成登录。
+    /// 插件负责持久化 Cookie、刷新账号状态。
+    /// </summary>
+    /// <param name="cookie">WebView 中指定域名的完整 Cookie（形如 "key1=val1; key2=val2"）</param>
+    Task SetLoginCookieAsync(string cookie) => Task.CompletedTask;
+
+    /// <summary>当前是否已登录</summary>
+    Task<bool> IsLoggedInAsync() => Task.FromResult(false);
+
+    /// <summary>已登录账号昵称；未登录返回 null</summary>
+    Task<string?> GetAccountNameAsync() => Task.FromResult<string?>(null);
+
+    /// <summary>退出登录</summary>
+    Task LogoutAsync() => Task.CompletedTask;
 }

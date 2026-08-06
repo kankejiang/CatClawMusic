@@ -46,7 +46,11 @@
 		<!-- 使用 Mono 运行时（.NET 10 Android 默认，CoreCLR 实验性且调试器有问题） -->
 		<!-- Android release build settings -->
 		<RunAOTCompilation Condition="'$(Configuration)' == 'Release'">false</RunAOTCompilation>
-		<PublishTrimmed Condition="'$(Configuration)' == 'Release'">true</PublishTrimmed>
+		<!-- 插件系统依赖运行时动态加载（Assembly.Load 独立 .ccp 程序集）。
+		     裁剪（trimmer）无法分析插件代码，会重写/移除插件引用的宿主类型，
+		     导致安装插件时报"未找到有效的IPlugin实现"（typeref 解析失败）。
+		     故关闭 Android Release 裁剪，保证所有类型完整保留。 -->
+		<PublishTrimmed Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</PublishTrimmed>
 		<TrimMode Condition="'$(Configuration)' == 'Release'">partial</TrimMode>
 
 		<!-- Windows Release：不输出 .pdb/.xml 调试符号，减少发布目录文件数（不影响功能与多语言资源） -->
@@ -145,11 +149,9 @@
 		<Compile Remove="Platforms\Windows\App.InitializeComponent.fallback.cs" />
 	</ItemGroup>
 
-	<Target Name="EnsureAppInitializeComponent" BeforeTargets="CoreCompile"
-	        Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+	<Target Name="EnsureAppInitializeComponent" BeforeTargets="CoreCompile" Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
 		<ItemGroup>
-			<Compile Include="Platforms\Windows\App.InitializeComponent.fallback.cs"
-			         Condition="!Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.i.cs') And !Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.cs')" />
+			<Compile Include="Platforms\Windows\App.InitializeComponent.fallback.cs" Condition="!Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.i.cs') And !Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.cs')" />
 		</ItemGroup>
 	</Target>
 

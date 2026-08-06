@@ -45,15 +45,7 @@
                         <Image Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}"
                                WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
-                    <!-- 在线音乐入口（插件驱动：装有音源插件才显示，客户端只提供 UI 接口） -->
-                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="0"
-                            BackgroundColor="{DynamicResource PrimaryColor}" VerticalOptions="Center"
-                            IsVisible="{Binding HasOnlineProviders}">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnOnlineMusicTapped" />
-                        </Border.GestureRecognizers>
-                        <Label Text="🎵" FontSize="15" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
-                    </Border>
+                    <!-- 在线音乐入口已移除：由 IViewContributorPlugin 插件提供入口 -->
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Label x:Name="ThemeIcon" Text="&#x1f319;" FontSize="14" HorizontalOptions="Center" VerticalOptions="Center" />
@@ -172,7 +164,7 @@
             </Border>
 
             <!-- ═══ Segmented Tabs ═══ -->
-            <Grid x:Name="CategoryTabBar" ColumnDefinitions="*,*,*,*,*" ColumnSpacing="8" Margin="0,16,0,16">
+            <Grid x:Name="CategoryTabBar" ColumnDefinitions="*,*,*,*,*,Auto" ColumnSpacing="8" Margin="0,16,0,16">
                 <Border Grid.Column="0" x:Name="TabRec" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
                     <Label x:Name="TabRecLabel" Text="推荐" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="0" /></Border.GestureRecognizers>
@@ -193,6 +185,22 @@
                     <Label x:Name="TabStatsLabel" Text="报告" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="4" /></Border.GestureRecognizers>
                 </Border>
+                <!-- 插件贡献的子 tab：每个 IViewContributorPlugin 自动出现一个，点击打开其入口页。
+                     主程序这里只提供通用槽位，不硬编码任何插件。 -->
+                <HorizontalStackLayout Grid.Column="5" Spacing="8" IsVisible="{Binding HasViewContributors}"
+                                      BindableLayout.ItemsSource="{Binding ViewContributors}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="models:ViewContributorView">
+                            <Border Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                                <Label Text="{Binding Title}" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenViewContributorCommand}"
+                                                          CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </HorizontalStackLayout>
             </Grid>
 
             <!-- ═══ 推荐面板 ═══ -->

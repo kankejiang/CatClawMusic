@@ -68,17 +68,6 @@ public class PluginManager : IPluginManager
     private readonly HashSet<string> _installedPluginIds = new();
 
     /// <summary>
-    /// 宿主程序集名称集合。当插件 DLL 触发 AssemblyResolve 请求这些程序集时，
-    /// 直接返回当前 AppDomain 中已加载的版本，避免版本冲突导致加载失败
-    /// </summary>
-    private static readonly HashSet<string> _hostAssemblyNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CatClawMusic.Core",
-        "CatClawMusic.Data",
-        "CatClawMusic.UI"
-    };
-
-    /// <summary>
     /// IPlugin 接口的全限定名，用于反射适配器模式中的第二级匹配（按名称匹配）
     /// </summary>
     private static readonly string IPluginFullName = typeof(IPlugin).FullName!;
@@ -112,6 +101,11 @@ public class PluginManager : IPluginManager
     /// IOnlineMusicPlugin 接口的全限定名，用于反射匹配在线音乐音源插件
     /// </summary>
     private static readonly string IOnlineMusicFullName = typeof(IOnlineMusicPlugin).FullName!;
+
+    /// <summary>
+    /// IViewContributorPlugin 接口的全限定名，用于反射匹配视图贡献者插件（提供完整页面入口）
+    /// </summary>
+    private static readonly string IViewContributorFullName = typeof(IViewContributorPlugin).FullName!;
 
     /// <summary>
     /// 插件管理器构造函数。完成初始化流程：
@@ -175,17 +169,27 @@ public class PluginManager : IPluginManager
     /// <returns>已加载的宿主程序集，或不属于宿主程序集时返回 null</returns>
     private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)
     {
-        var name = new AssemblyName(args.Name).Name;
-        if (name != null && _hostAssemblyNames.Contains(name))
+        try
         {
-            // 在当前 AppDomain 中查找已加载的同名程序集
+            var name = new AssemblyName(args.Name).Name;
+            if (string.IsNullOrWhiteSpace(name)) return null;
+
+            // 泛化解析：返回当前 AppDomain 已加载的同名程序集。
+            // 覆盖宿主程序集（CatClawMusic.Core 等）以及插件引用的框架程序集
+            // （Microsoft.Maui.Controls、CommunityToolkit.Mvvm、
+            //  Microsoft.Extensions.DependencyInjection 等），确保插件加载时
+            // 所有依赖都能解析到宿主进程内已加载的版本。
             var loaded = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name == name);
+                .FirstOrDefault(a => string.Equals(a.GetName().Name, name, StringComparison.OrdinalIgnoreCase));
             if (loaded != null)
             {
                 Log.Debug("PluginManager", $"[PluginManager] AssemblyResolve: {args.Name} -> {loaded.FullName}");
                 return loaded;
             }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManager", $"[PluginManager] AssemblyResolve 异常: {ex.Message}");
         }
         return null;
     }
@@ -320,7 +324,14 @@ public class PluginManager : IPluginManager
 
             var fileName = Path.GetFileName(filePath);
             if (!fileName.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("仅支持 .ccp 格式的插件文件");
+            {
+                // Android 文件选择器把所选文件复制到缓存目录时，文件名可能丢失扩展名
+                // 或变成随机名；此时校验文件内容（PE 程序集 MZ 头）而非文件名。
+                if (!IsAssemblyFile(filePath))
+                    throw new InvalidOperationException("仅支持 .ccp 格式的插件文件");
+                // 内容合法但扩展名缺失：复制时规范化补上 .ccp，保证后续按插件包处理
+                fileName = Path.GetFileNameWithoutExtension(fileName) + ".ccp";
+            }
 
             var destPath = Path.Combine(_pluginsDir, fileName);
             // 若目标路径已存在同名文件，添加时间戳后缀避免覆盖
@@ -340,9 +351,28 @@ public class PluginManager : IPluginManager
         }
         catch (Exception ex)
         {
+            // 记录完整异常信息（含类型与堆栈），便于诊断 Android 端安装失败的真实原因
+            Log.Debug("PluginManager", $"[PluginManager] InstallFromLocalFileAsync 失败: 文件={filePath} 异常={ex.GetType().Name}: {ex.Message}\n{ex}");
             progress?.Report(($"安装失败: {ex.Message}", 100));
-            return null;
+            // 重新抛出，让调用方能向用户展示具体失败原因（而非笼统的"格式不受支持"）
+            throw;
         }
+    }
+
+    /// <summary>
+    /// 检查文件是否为有效的 PE 程序集（.ccp 插件包本质就是托管程序集）。
+    /// 用于 Android 文件选择器缓存导致文件名丢失扩展名时的内容校验。
+    /// </summary>
+    private static bool IsAssemblyFile(string filePath)
+    {
+        try
+        {
+            using var fs = File.OpenRead(filePath);
+            if (fs.Length < 2) return false;
+            // 判断 DOS 头 MZ 标记（0x4D 0x5A）
+            return fs.ReadByte() == 0x4D && fs.ReadByte() == 0x5A;
+        }
+        catch { return false; }
     }
 
     /// <summary>
@@ -503,7 +533,11 @@ public class PluginManager : IPluginManager
         {
             // 当某些类型无法加载时，只取成功加载的类型
             allTypes = rtle.Types.Where(t => t != null).ToArray()!;
-            Log.Debug("PluginManager", $"[PluginManager] ReflectionTypeLoadException: {rtle.LoaderExceptions.Length} type(s) failed to load");
+            var details = string.Join(" | ", rtle.LoaderExceptions
+                .Where(e => e != null)
+                .Select(e => e!.Message)
+                .Take(5));
+            Log.Debug("PluginManager", $"[PluginManager] ReflectionTypeLoadException: {rtle.LoaderExceptions.Length} type(s) failed to load: {details}");
         }
 
         // 使用两级匹配策略创建插件实例
@@ -515,8 +549,10 @@ public class PluginManager : IPluginManager
             File.Delete(localPath);
             throw new InvalidOperationException(
                 "插件程序集中未找到有效的IPlugin实现。\n" +
-                "可能原因：插件编译时引用了不同版本的 CatClawMusic.Core.dll。\n" +
-                "请确保插件项目引用宿主的 CatClawMusic.Core.dll 而非独立副本。");
+                "可能原因：插件编译时引用了不同版本的 CatClawMusic.Core.dll，\n" +
+                "或宿主 Release 构建裁剪导致插件引用的类型被移除（需关闭裁剪）。\n" +
+                "请确保插件项目引用宿主的 CatClawMusic.Core.dll 而非独立副本。\n" +
+                "详细原因请查看诊断日志（debug.log）中的 ReflectionTypeLoadException 记录。");
         }
 
         progress?.Report(("正在初始化插件...", 85));
@@ -595,8 +631,17 @@ public class PluginManager : IPluginManager
             List<IPlugin> instances = new();
             foreach (var type in directTypes)
             {
-                if (Activator.CreateInstance(type) is IPlugin pluginInstance)
-                    instances.Add(pluginInstance);
+                try
+                {
+                    if (Activator.CreateInstance(type) is IPlugin pluginInstance)
+                        instances.Add(pluginInstance);
+                }
+                catch (Exception ex)
+                {
+                    // 单个类型创建失败（如实现的接口在宿主程序集中无法解析）不中断整个安装，
+                    // 记录诊断日志便于定位问题。
+                    Log.Debug("PluginManager", $"[PluginManager] 创建插件实例失败 {type.FullName}: {ex.GetType().Name}: {ex.Message}");
+                }
             }
             return instances;
         }
@@ -623,25 +668,29 @@ public class PluginManager : IPluginManager
 
                 // 获取该类型实现的所有接口的全限定名
                 var interfaceNames = type.GetInterfaces().Select(i => i.FullName).ToHashSet();
-                IPlugin wrapped;
 
-                // 按优先级匹配具体接口，选择最特化的适配器
+                // 一个插件类型可同时实现多个宿主接口（如 IOnlineMusicPlugin + IViewContributorPlugin），
+                // 为每个已实现的接口创建对应适配器：第一个作为主插件，其余作为子插件。
+                // 这样 GetEnabledPlugins<每个接口>() 都能找到对应能力，避免接口链丢失。
+                var wrappers = new List<IPlugin>();
                 if (interfaceNames.Contains(ICoverProviderFullName))
-                    wrapped = new CoverProviderAdapter(rawInstance);
-                else if (interfaceNames.Contains(ILyricsProviderFullName))
-                    wrapped = new LyricsProviderAdapter(rawInstance);
-                else if (interfaceNames.Contains(IMenuContributorFullName))
-                    wrapped = new MenuContributorAdapter(rawInstance);
-                else if (interfaceNames.Contains(IProtocolProviderFullName))
-                    wrapped = new ProtocolProviderAdapter(rawInstance);
-                else if (interfaceNames.Contains(IAudioEnhancerFullName))
-                    wrapped = new AudioEnhancerAdapter(rawInstance);
-                else if (interfaceNames.Contains(IOnlineMusicFullName))
-                    wrapped = new OnlineMusicAdapter(rawInstance);
-                else
-                    wrapped = new BasicPluginAdapter(rawInstance);
+                    wrappers.Add(new CoverProviderAdapter(rawInstance));
+                if (interfaceNames.Contains(ILyricsProviderFullName))
+                    wrappers.Add(new LyricsProviderAdapter(rawInstance));
+                if (interfaceNames.Contains(IMenuContributorFullName))
+                    wrappers.Add(new MenuContributorAdapter(rawInstance));
+                if (interfaceNames.Contains(IProtocolProviderFullName))
+                    wrappers.Add(new ProtocolProviderAdapter(rawInstance));
+                if (interfaceNames.Contains(IAudioEnhancerFullName))
+                    wrappers.Add(new AudioEnhancerAdapter(rawInstance));
+                if (interfaceNames.Contains(IOnlineMusicFullName))
+                    wrappers.Add(new OnlineMusicAdapter(rawInstance));
+                if (interfaceNames.Contains(IViewContributorFullName))
+                    wrappers.Add(new ViewContributorAdapter(rawInstance));
+                if (wrappers.Count == 0)
+                    wrappers.Add(new BasicPluginAdapter(rawInstance));
 
-                instances2.Add(wrapped);
+                instances2.AddRange(wrappers);
             }
             catch (Exception ex)
             {
@@ -883,6 +932,12 @@ public class PluginManager : IPluginManager
             pluginTypeId = $"OnlineMusic.{plugin.PluginId}";
             category = PluginCategory.OnlineMusic;
             iconEmoji = "🌐";
+        }
+        else if (plugin is IViewContributorPlugin)
+        {
+            pluginTypeId = $"ViewContributor.{plugin.PluginId}";
+            category = PluginCategory.ViewContributor;
+            iconEmoji = "📱";
         }
         else
         {
@@ -1613,6 +1668,126 @@ public class PluginManager : IPluginManager
                 return songs;
             }
             return null;
+        }
+
+        /// <summary>异步获取私人漫游（随机推荐）</summary>
+        public async Task<List<OnlineSong>?> GetPrivateFmAsync(int num = 10)
+        {
+            var result = await InvokeAsyncMethod(_target, "GetPrivateFmAsync", num);
+            if (result is List<OnlineSong> typed) return typed;
+            if (result is System.Collections.IList list)
+            {
+                var songs = new List<OnlineSong>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<OnlineSong>(item);
+                    if (converted != null) songs.Add(converted);
+                }
+                return songs;
+            }
+            return null;
+        }
+
+        /// <summary>异步获取每日推荐歌曲</summary>
+        public async Task<List<OnlineSong>?> GetDailyRecommendAsync(int num = 20)
+        {
+            var result = await InvokeAsyncMethod(_target, "GetDailyRecommendAsync", num);
+            if (result is List<OnlineSong> typed) return typed;
+            if (result is System.Collections.IList list)
+            {
+                var songs = new List<OnlineSong>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<OnlineSong>(item);
+                    if (converted != null) songs.Add(converted);
+                }
+                return songs;
+            }
+            return null;
+        }
+
+        /// <summary>异步获取排行榜列表</summary>
+        public async Task<List<OnlinePlaylist>> GetToplistsAsync()
+        {
+            var result = await InvokeAsyncMethod(_target, "GetToplistsAsync");
+            if (result is List<OnlinePlaylist> typed) return typed;
+            if (result is System.Collections.IList list)
+            {
+                var items = new List<OnlinePlaylist>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<OnlinePlaylist>(item);
+                    if (converted != null) items.Add(converted);
+                }
+                return items;
+            }
+            return new();
+        }
+
+        /// <summary>获取浏览器登录配置（反射调用插件方法；未实现返回 null）</summary>
+        public async Task<BrowserLoginInfo?> GetBrowserLoginInfoAsync()
+        {
+            var result = await InvokeAsyncMethod(_target, "GetBrowserLoginInfoAsync");
+            return ConvertType<BrowserLoginInfo>(result);
+        }
+
+        /// <summary>接收宿主从 WebView 提取的 Cookie，回传插件完成登录</summary>
+        public async Task SetLoginCookieAsync(string cookie)
+            => await InvokeAsyncMethod(_target, "SetLoginCookieAsync", cookie);
+
+        /// <summary>当前是否已登录</summary>
+        public async Task<bool> IsLoggedInAsync()
+        {
+            var result = await InvokeAsyncMethod(_target, "IsLoggedInAsync");
+            return result is bool b && b;
+        }
+
+        /// <summary>已登录账号昵称</summary>
+        public async Task<string?> GetAccountNameAsync()
+        {
+            var result = await InvokeAsyncMethod(_target, "GetAccountNameAsync");
+            return result as string;
+        }
+
+        /// <summary>退出登录</summary>
+        public async Task LogoutAsync() => await InvokeAsyncMethod(_target, "LogoutAsync");
+    }
+
+    /// <summary>
+    /// 视图贡献者适配器：通过反射代理不同版本的 IViewContributorPlugin 实现。
+    /// <para>
+    /// EntryTitle/EntryIcon 属性通过反射读取；CreateEntryPage 通过反射调用目标方法，
+    /// 直接返回目标对象创建的页面实例（object 形式），由宿主强制转换为 Page。
+    /// </para>
+    /// </summary>
+    private class ViewContributorAdapter : BasicPluginAdapter, IViewContributorPlugin
+    {
+        /// <summary>初始化视图贡献者适配器</summary>
+        /// <param name="target">要代理的目标视图贡献者对象实例</param>
+        public ViewContributorAdapter(object target) : base(target) { }
+
+        /// <summary>入口显示标题，通过反射读取目标对象的 EntryTitle 属性</summary>
+        public string EntryTitle => (string?)_targetType.GetProperty("EntryTitle")?.GetValue(_target) ?? "插件";
+
+        /// <summary>入口图标，通过反射读取目标对象的 EntryIcon 属性</summary>
+        public string EntryIcon => (string?)_targetType.GetProperty("EntryIcon")?.GetValue(_target) ?? "📦";
+
+        /// <summary>
+        /// 创建并返回入口页面实例。
+        /// 通过反射调用目标对象的 CreateEntryPage(IServiceProvider) 方法，
+        /// 直接返回目标对象创建的页面实例（object 形式）。
+        /// </summary>
+        /// <param name="services">宿主的服务提供者</param>
+        /// <returns>MAUI ContentPage 实例（以 object 形式返回）</returns>
+        public object CreateEntryPage(IServiceProvider services)
+        {
+            var method = _targetType.GetMethod("CreateEntryPage");
+            if (method == null)
+                throw new InvalidOperationException("插件未实现 CreateEntryPage 方法");
+
+            // 反射调用 CreateEntryPage(IServiceProvider)
+            return method.Invoke(_target, new object[] { services })
+                ?? throw new InvalidOperationException("CreateEntryPage 返回 null");
         }
     }
 

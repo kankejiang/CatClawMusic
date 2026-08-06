@@ -320,6 +320,24 @@ public partial class PluginManagementViewModel : ObservableObject
     {
         try
         {
+            // 记录文件诊断信息：路径、文件名、大小、前两字节（判断是否 PE 程序集 MZ 头）
+            long size = -1;
+            string headHex = "N/A";
+            try
+            {
+                var fi = new FileInfo(path);
+                size = fi.Exists ? fi.Length : -1;
+                if (fi.Exists && fi.Length >= 2)
+                {
+                    using var fs = File.OpenRead(path);
+                    var b0 = fs.ReadByte();
+                    var b1 = fs.ReadByte();
+                    headHex = $"0x{b0:X2} 0x{b1:X2} (MZ={(b0 == 0x4D && b1 == 0x5A ? "是" : "否")})";
+                }
+            }
+            catch { }
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 开始安装: 路径={path} 大小={size} 头={headHex}");
+
             var progress = new Progress<(string, int)>(_ => { /* 无进度 UI，忽略 */ });
             var info = await _pluginManager.InstallFromLocalFileAsync(path, progress);
             if (info != null)
@@ -334,7 +352,7 @@ public partial class PluginManagementViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 安装失败: {ex.Message}");
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 安装失败: {ex.GetType().Name}: {ex.Message}\n{ex}");
             await ShowAlertAsync("插件", $"安装失败：{ex.Message}");
         }
     }
