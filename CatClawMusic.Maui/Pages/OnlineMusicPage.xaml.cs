@@ -78,6 +78,56 @@ public partial class OnlineMusicPage : ContentPage
 
     private async void OnSearchCompleted(object? sender, EventArgs e) => await _vm.SearchSongsAsync();
 
+    /// <summary>歌单/搜索结果"全部播放"：按当前顺序取所有歌曲播放直链，构造临时 Song 入队并从第一首开始播。</summary>
+    private async void OnPlayAllTapped(object? sender, TappedEventArgs e)
+    {
+        var views = _vm.Songs.ToList();
+        if (views.Count == 0) return;
+        try
+        {
+            var tempSongs = new List<Song>();
+            var failed = new List<string>();
+            foreach (var view in views)
+            {
+                string? url = null;
+                try { url = await _onlineMusic.GetPlayUrlAsync(view.Song); }
+                catch { }
+                if (string.IsNullOrWhiteSpace(url)) { failed.Add(view.Title); continue; }
+                tempSongs.Add(new Song
+                {
+                    Id = -1,
+                    Title = view.Song.Title,
+                    Artist = view.Song.Artist,
+                    Album = view.Song.Album,
+                    Duration = (int)(view.Song.DurationMs / 1000),
+                    FilePath = url,
+                    RemoteId = $"{view.Song.Platform}:{view.Song.Id}",
+                    Source = SongSource.Local,
+                    AllArtists = view.Song.Artist
+                });
+            }
+
+            if (tempSongs.Count == 0)
+            {
+                await DisplayAlert("暂不可播放", $"全部 {views.Count} 首歌曲都无法获取播放直链", "确定");
+                return;
+            }
+
+            _queue.SetSongs(tempSongs);
+            _queue.SelectSong(tempSongs[0].Id);
+            await _audioPlayer.PlayAsync(tempSongs[0].FilePath);
+
+            if (failed.Count > 0)
+            {
+                await DisplayAlert("部分失败", $"已添加 {tempSongs.Count} 首到队列，{failed.Count} 首获取播放直链失败（可换其他音源）", "确定");
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("播放失败", ex.Message, "确定");
+        }
+    }
+
     /// <summary>在线播放：取播放直链 → 构造临时 Song → 接入现有播放链路（不落库）。</summary>
     private async Task PlayOnlineSongAsync(OnlineSong song)
     {

@@ -180,6 +180,18 @@
                            TextColor="{DynamicResource TextPrimaryColor}"
                            MaxLines="1" LineBreakMode="TailTruncation"
                            VerticalOptions="Center" />
+                    <Border Grid.Column="2" Padding="12,6" StrokeThickness="0" StrokeShape="RoundRectangle 14"
+                            BackgroundColor="{DynamicResource PrimaryColor}"
+                            IsVisible="{Binding HasPlaylistSongs}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPlayAllTapped" />
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="5">
+                            <Label Text="▶" FontSize="11" TextColor="White" VerticalOptions="Center" />
+                            <Label Text="全部播放" FontSize="12" FontFamily="OpenSansSemibold"
+                                   TextColor="White" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </Border>
                 </Grid>
 
                 <Label Text="{Binding SongsStatus}"

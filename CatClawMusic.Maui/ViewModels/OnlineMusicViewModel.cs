@@ -76,6 +76,9 @@ public partial class OnlineMusicViewModel : ObservableObject
     [ObservableProperty]
     private string _songsStatus = "";
 
+    /// <summary>当前歌曲列表是否有歌曲（控制"全部播放"按钮可见性）</summary>
+    public bool HasPlaylistSongs => Songs.Count > 0;
+
     /// <summary>搜索关键词（音源内搜索）</summary>
     [ObservableProperty]
     private string _searchQuery = "";
@@ -87,6 +90,7 @@ public partial class OnlineMusicViewModel : ObservableObject
     public OnlineMusicViewModel(OnlineMusicAggregator onlineMusic)
     {
         _onlineMusic = onlineMusic;
+        Songs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasPlaylistSongs));
     }
 
     /// <summary>刷新已启用音源并默认选中第一个（页面出现/插件变化后调用）</summary>
