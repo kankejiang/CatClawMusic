@@ -391,8 +391,7 @@ public partial class AllSongsViewModel : ObservableObject
         if (Songs.Count == 0) return;
         _queue.SetSongs([.. Songs]);
         // 仅设置 Shuffle 模式即可触发洗牌（PlayQueue.PlayMode 的 setter 内会 EnableShuffle，
-        // 此时无当前曲 → 随机起点）。切勿再额外调用 EnableShuffle：二次洗牌会把原列表第一首
-        // 固定到洗牌后的第 0 位，导致"随机播放"总是从第一首开始。
+        // 空闲态下随机选起点，不再固定从列表第一首开始）。
         _queue.PlayMode = PlayMode.Shuffle;
         var first = _queue.CurrentSong;
         if (first != null)

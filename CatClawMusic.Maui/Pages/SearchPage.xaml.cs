@@ -5,6 +5,7 @@ using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Pages.Base;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls;
 using CatClawMusic.Core.Interfaces;
 
@@ -312,6 +313,47 @@ public partial class SearchPage : DiscoverPageBase
             .Concat(_vm.RecentAddedSongs)
             .ToList();
         await PlaySongAsync(song, allSongs);
+    }
+
+    /// <summary>选中在线音乐搜索结果时触发：取播放直链 → 构造临时 Song → 接入现有播放链路。</summary>
+    private async void OnOnlineSearchResultSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is CollectionView cv) cv.SelectedItem = null;
+        if (e.CurrentSelection.FirstOrDefault() is not OnlineSong song) return;
+
+        string? playUrl = null;
+        try
+        {
+            playUrl = await _services.GetRequiredService<OnlineMusicAggregator>().GetPlayUrlAsync(song);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("SearchPage.xaml", $"[OnlineMusic] GetPlayUrl failed: {ex.Message}");
+        }
+
+        if (string.IsNullOrWhiteSpace(playUrl))
+        {
+            await DisplayAlert("暂不可播放", $"{song.PlatformName} 当前未接入播放直链，可尝试其他音源", "确定");
+            return;
+        }
+
+        SearchBox.Text = "";
+        _vm.ClearSearchDropdown();
+
+        // 构造临时 Song 接入现有播放链路（不落库；FilePath 为临时直链，播放页正常显示标题/进度）
+        var tmp = new Song
+        {
+            Id = -1,
+            Title = song.Title,
+            Artist = song.Artist,
+            Album = song.Album,
+            Duration = (int)(song.DurationMs / 1000),
+            FilePath = playUrl,
+            RemoteId = $"{song.Platform}:{song.Id}",
+            Source = SongSource.Local,
+            AllArtists = song.Artist
+        };
+        await PlaySongAsync(tmp, new List<Song> { tmp });
     }
 
     /// <summary>点击 AI 助手头像时触发，进入 AI 聊天模式。</summary>

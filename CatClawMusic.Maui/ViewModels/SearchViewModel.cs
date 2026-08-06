@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,6 +25,7 @@ public partial class SearchViewModel : ObservableObject
     private readonly IMusicLibraryService _libraryService;
     private readonly ChatMemoryService _chatMemoryService;
     private readonly MusicDatabase _database;
+    private readonly OnlineMusicAggregator _onlineMusic;
 
     private List<Song> _allDailyRecommendSongs = [];
     private List<SearchArtistItem> _allArtists = [];
@@ -164,6 +166,18 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasNoSearchResults;
 
+    /// <summary>在线音乐搜索结果（音源插件聚合搜索，多平台合并）</summary>
+    [ObservableProperty]
+    private ObservableCollection<OnlineSong> _onlineSearchResults = new();
+
+    /// <summary>是否正在在线搜索（展示加载提示）</summary>
+    [ObservableProperty]
+    private bool _isSearchingOnline;
+
+    /// <summary>是否有在线搜索结果（控制在线区块可见性）</summary>
+    [ObservableProperty]
+    private bool _hasOnlineSearchResults;
+
     /// <summary>当前分类索引（0=推荐, 1=排行榜, 2=歌手, 3=推荐专辑）</summary>
     [ObservableProperty]
     private int _currentCategory;
@@ -246,13 +260,14 @@ public partial class SearchViewModel : ObservableObject
     /// <param name="agentService">Agent 服务，用于 AI 聊天</param>
     /// <param name="libraryService">音乐库服务</param>
     /// <param name="chatMemoryService">聊天记忆服务</param>
-    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService, ChatMemoryService chatMemoryService, MusicDatabase database)
+    public SearchViewModel(ExploreDataService exploreDataService, IAgentService agentService, IMusicLibraryService libraryService, ChatMemoryService chatMemoryService, MusicDatabase database, OnlineMusicAggregator onlineMusic)
     {
         _exploreDataService = exploreDataService;
         _agentService = agentService;
         _libraryService = libraryService;
         _chatMemoryService = chatMemoryService;
         _database = database;
+        _onlineMusic = onlineMusic;
         AgentName = _agentService.GetCurrentAgent().Name;
 
         SwitchTabCommand = new RelayCommand<int>(SwitchTab);
@@ -782,6 +797,8 @@ public partial class SearchViewModel : ObservableObject
             SearchResults.Clear();
             SearchArtistResults.Clear();
             SearchAlbumResults.Clear();
+            OnlineSearchResults.Clear();
+            HasOnlineSearchResults = false;
             return;
         }
 
@@ -842,6 +859,9 @@ public partial class SearchViewModel : ObservableObject
                 ShowSearchResults = hasResults;
                 HasNoSearchResults = !hasResults;
             });
+
+            // 在线搜索：聚合已启用的音源插件（不阻塞本地结果展示）
+            _ = SearchOnlineAsync(q, ct);
         }
         catch (OperationCanceledException)
         {
@@ -861,6 +881,35 @@ public partial class SearchViewModel : ObservableObject
         SearchResults.Clear();
         SearchArtistResults.Clear();
         SearchAlbumResults.Clear();
+        OnlineSearchResults.Clear();
+        HasOnlineSearchResults = false;
+    }
+
+    /// <summary>在线搜索：并行请求所有已启用的音源插件并合并结果（失败静默，不阻塞本地搜索）</summary>
+    private async Task SearchOnlineAsync(string keyword, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(keyword)) return;
+        try
+        {
+            MainThread.BeginInvokeOnMainThread(() => IsSearchingOnline = true);
+            var results = await _onlineMusic.SearchAllAsync(keyword).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (ct.IsCancellationRequested) return;
+                OnlineSearchResults = new ObservableCollection<OnlineSong>(results);
+                HasOnlineSearchResults = OnlineSearchResults.Count > 0;
+                IsSearchingOnline = false;
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            MainThread.BeginInvokeOnMainThread(() => IsSearchingOnline = false);
+        }
+        catch
+        {
+            MainThread.BeginInvokeOnMainThread(() => IsSearchingOnline = false);
+        }
     }
 
     /// <summary>从搜索入口直接发送消息（自动进入聊天模式）</summary>

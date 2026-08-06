@@ -107,10 +107,10 @@ public class PlayQueue
     }
     
     /// <summary>
-    /// 开启随机播放（洗牌）。洗牌后播放列表的第一首固定为原始播放列表里的第一首歌，
-    /// 其余歌曲保持随机顺序。若当前正在播放某首歌，则保持该歌曲继续播放（其索引落在
-    /// 洗牌列表中的对应位置），不强行跳转到第一首；若当前没有正在播放的歌曲（空闲态），
-    /// 则播放位置落在洗牌列表首位，即原始播放列表的第一首歌。
+    /// 开启随机播放（洗牌）。洗牌后整表完全随机，**不**把原列表第一首固定到首位——
+    /// 那会导致"随机播放"每次都是从列表第一首开始。若当前正在播放某首歌，则按歌曲 Id
+    /// 在洗牌列表中重新定位，保持该歌曲继续播放（不强行跳转）；若当前空闲（无播放曲目），
+    /// 则随机选一首作为起点，而非固定从洗牌列表首位开始。
     /// </summary>
     public void EnableShuffle()
     {
@@ -122,36 +122,24 @@ public class PlayQueue
             return;
         }
 
-        var firstSong = _originalList[0];
+        // 洗牌前记住当前正在播放的歌曲（若有），洗牌后按 Id 重新定位。
+        // 不能用 _originalList[_currentIndex] 直接取：_currentIndex 在重复洗牌时
+        // 可能已是洗牌列表中的位置，索引到原始列表会错位取到别的歌。
+        var playingSong = CurrentSong;
+
         _shuffledList = ShuffleService.Shuffle(_originalList);
         _history.Clear();
 
-        // 洗牌后第一首固定为播放列表里的第一首歌（其余保持随机顺序）
-        var firstIdx = _shuffledList.FindIndex(s => s.Id == firstSong.Id);
-        if (firstIdx > 0)
-        {
-            _shuffledList.RemoveAt(firstIdx);
-            _shuffledList.Insert(0, firstSong);
-        }
-
-        if (_currentIndex >= 0)
+        if (playingSong != null)
         {
             // 当前有正在播放的歌曲：保持它继续播放，避免显示与音频不一致
-            var currentSong = _originalList.ElementAtOrDefault(_currentIndex);
-            if (currentSong != null)
-            {
-                var idx = _shuffledList.FindIndex(s => s.Id == currentSong.Id);
-                _currentIndex = idx >= 0 ? idx : 0;
-            }
-            else
-            {
-                _currentIndex = 0;
-            }
+            var idx = _shuffledList.FindIndex(s => s.Id == playingSong.Id);
+            _currentIndex = idx >= 0 ? idx : 0;
         }
         else
         {
-            // 空闲态：从洗牌列表首位（即播放列表第一首歌）开始
-            _currentIndex = 0;
+            // 空闲态：随机选一首作为起点，避免"随机播放"总是从列表第一首开始
+            _currentIndex = Random.Shared.Next(_shuffledList.Count);
         }
     }
     

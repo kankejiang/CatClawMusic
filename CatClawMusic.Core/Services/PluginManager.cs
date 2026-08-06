@@ -109,6 +109,11 @@ public class PluginManager : IPluginManager
     private static readonly string IAudioEnhancerFullName = typeof(IAudioEnhancerPlugin).FullName!;
 
     /// <summary>
+    /// IOnlineMusicPlugin 接口的全限定名，用于反射匹配在线音乐音源插件
+    /// </summary>
+    private static readonly string IOnlineMusicFullName = typeof(IOnlineMusicPlugin).FullName!;
+
+    /// <summary>
     /// 插件管理器构造函数。完成初始化流程：
     /// <list type="number">
     ///   <item>验证并保存偏好读写委托和插件目录</item>
@@ -633,6 +638,8 @@ public class PluginManager : IPluginManager
                     wrapped = new ProtocolProviderAdapter(rawInstance);
                 else if (interfaceNames.Contains(IAudioEnhancerFullName))
                     wrapped = new AudioEnhancerAdapter(rawInstance);
+                else if (interfaceNames.Contains(IOnlineMusicFullName))
+                    wrapped = new OnlineMusicAdapter(rawInstance);
                 else
                     wrapped = new BasicPluginAdapter(rawInstance);
 
@@ -872,6 +879,12 @@ public class PluginManager : IPluginManager
             pluginTypeId = $"MenuContributor.{plugin.PluginId}";
             category = PluginCategory.MenuContributor;
             iconEmoji = "📋";
+        }
+        else if (plugin is IOnlineMusicPlugin)
+        {
+            pluginTypeId = $"OnlineMusic.{plugin.PluginId}";
+            category = PluginCategory.OnlineMusic;
+            iconEmoji = "🌐";
         }
         else
         {
@@ -1457,6 +1470,123 @@ public class PluginManager : IPluginManager
         {
             var method = _targetType.GetMethod("Reset");
             method?.Invoke(_target, null);
+        }
+    }
+
+    /// <summary>
+    /// 在线音乐音源适配器 —— 代理 IOnlineMusicPlugin 接口。
+    /// <para>
+    /// 在 BasicPluginAdapter 基础上，额外代理以下成员：
+    /// <list type="bullet">
+    ///   <item>PlatformName —— 来源平台标识</item>
+    ///   <item>SearchAsync(string, int, int) —— 搜索歌曲</item>
+    ///   <item>GetPlayUrlAsync(OnlineSong, int) —— 取播放直链</item>
+    ///   <item>GetLyricsAsync(OnlineSong) —— 取歌词（含翻译）</item>
+    ///   <item>GetPlaylistsAsync(string?) —— 取歌单列表</item>
+    /// </list>
+    /// OnlineSong / OnlinePlaylist 参数与返回值通过 JSON 跨版本转换（同现有适配器模式）；
+    /// GetLyricsAsync 的返回元组按 ValueTuple 字段 Item1/Item2 反射读取。
+    /// </para>
+    /// </summary>
+    private class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
+    {
+        /// <summary>初始化在线音乐音源适配器</summary>
+        /// <param name="target">要代理的目标在线音乐音源对象实例</param>
+        public OnlineMusicAdapter(object target) : base(target) { }
+
+        /// <summary>来源平台标识，通过反射读取目标对象的 PlatformName 属性</summary>
+        public string PlatformName => (string?)_targetType.GetProperty("PlatformName")?.GetValue(_target) ?? "";
+
+        /// <summary>异步搜索歌曲</summary>
+        public async Task<List<OnlineSong>?> SearchAsync(string keyword, int page = 1, int pageSize = 8)
+        {
+            var result = await InvokeAsyncMethod(_target, "SearchAsync", keyword, page, pageSize);
+            if (result is List<OnlineSong> typed) return typed;
+            if (result is System.Collections.IList list)
+            {
+                var songs = new List<OnlineSong>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<OnlineSong>(item);
+                    if (converted != null) songs.Add(converted);
+                }
+                return songs;
+            }
+            return null;
+        }
+
+        /// <summary>异步获取播放直链</summary>
+        public async Task<string?> GetPlayUrlAsync(OnlineSong song, int quality = 0)
+        {
+            var method = _targetType.GetMethod("GetPlayUrlAsync");
+            if (method == null) return null;
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(OnlineSong).FullName)
+                invokeArgs = new[] { ConvertType(song, paramType), quality };
+            else
+                invokeArgs = new object?[] { song, quality };
+
+            var result = await InvokeAsyncMethod(_target, "GetPlayUrlAsync", invokeArgs);
+            return result as string;
+        }
+
+        /// <summary>异步获取歌词（LRC 原文 + 翻译）</summary>
+        public async Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song)
+        {
+            var method = _targetType.GetMethod("GetLyricsAsync");
+            if (method == null) return null;
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(OnlineSong).FullName)
+                invokeArgs = new[] { ConvertType(song, paramType) };
+            else
+                invokeArgs = new object?[] { song };
+
+            var result = await InvokeAsyncMethod(_target, "GetLyricsAsync", invokeArgs);
+            if (result == null) return null;
+
+            string? lrc = null, tlrrc = null;
+            var type = result.GetType();
+            if (type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                // Nullable<ValueTuple<string,string>>：读取 Value 属性
+                var hasValue = type.GetProperty("HasValue")?.GetValue(result) as bool? ?? true;
+                if (!hasValue) return null;
+                var valueObj = type.GetProperty("Value")?.GetValue(result);
+                if (valueObj != null)
+                {
+                    lrc = valueObj.GetType().GetField("Item1")?.GetValue(valueObj) as string;
+                    tlrrc = valueObj.GetType().GetField("Item2")?.GetValue(valueObj) as string;
+                }
+            }
+            else
+            {
+                // 直接是 ValueTuple<string,string>
+                lrc = type.GetField("Item1")?.GetValue(result) as string;
+                tlrrc = type.GetField("Item2")?.GetValue(result) as string;
+            }
+            return (lrc, tlrrc);
+        }
+
+        /// <summary>异步获取歌单列表</summary>
+        public async Task<List<OnlinePlaylist>> GetPlaylistsAsync(string? category = null)
+        {
+            var result = await InvokeAsyncMethod(_target, "GetPlaylistsAsync", category);
+            if (result is List<OnlinePlaylist> typed) return typed;
+            if (result is System.Collections.IList list)
+            {
+                var items = new List<OnlinePlaylist>();
+                foreach (var item in list)
+                {
+                    var converted = ConvertType<OnlinePlaylist>(item);
+                    if (converted != null) items.Add(converted);
+                }
+                return items;
+            }
+            return new();
         }
     }
 

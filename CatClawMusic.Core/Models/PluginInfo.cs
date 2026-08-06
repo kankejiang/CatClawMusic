@@ -71,6 +71,8 @@ public enum PluginCategory
     AudioEnhancer,
     /// <summary>菜单贡献者</summary>
     MenuContributor,
+    /// <summary>在线音乐音源提供者</summary>
+    OnlineMusic,
     /// <summary>其他</summary>
     Other
 }

@@ -837,12 +837,15 @@ public partial class FullLyricsPage : ContentPage
 
         // ⚠ 当前行变窄（WidthRequest 从满宽→屏宽/1.5）导致 StaticLayout 多分一行、行高变大。
         // 紧接着的 ScrollToLine/PinActiveLine 仍用旧锚点表 tops + 旧 rowH，计算的位置比实际偏高
-        // → 布局完成后（下一帧）强制重测锚点 + 再钉一次，保证不顶出裁剪区
-        RelayoutAndRepinAfterHighlightChange(index);
+        // → 布局完成后（下一帧）强制重测锚点 + 再钉一次，保证不顶出裁剪区。
+        // 构建/初始化场景用 animate=false（立即钉行，不缓动）。
+        RelayoutAndRepinAfterHighlightChange(index, animate: false);
     }
 
-    /// <summary>高亮切换导致行高/宽度变化：下一帧强制重排 + 重测锚点 + 重新钉行（保证锚点与真实行高一致）。</summary>
-    private void RelayoutAndRepinAfterHighlightChange(int index)
+    /// <summary>高亮切换导致行高/宽度变化：下一帧强制重排 + 重测锚点 + 重新定位。
+    /// <paramref name="animate"/>=true（切句）时用 <see cref="ScrollToLine"/> 缓动到新位置，
+    /// 保持滚动的平滑过渡；=false（构建/初始化/恢复）时用 <see cref="PinActiveLineNow"/> 立即钉行。</summary>
+    private void RelayoutAndRepinAfterHighlightChange(int index, bool animate = true)
     {
         // 1) 先行高扩展：把动态 Margin 设好（必须先设，后面 MeasureLyricRows 才能读到正确行高）
         ApplyLyricRowGap(index, animate: false);
@@ -858,7 +861,13 @@ public partial class FullLyricsPage : ContentPage
             retries = 0;
             MeasureLyricRows();
             if (ActiveLyricRowTops.Length == ActiveLyricRowViews.Count && index >= 0 && index < ActiveLyricRowViews.Count)
-                PinActiveLineNow(index); // 3) 以新锚点 + 新行高正确钉行
+            {
+                // 3) 以新锚点 + 新行高重新定位：切句时缓动（保持平滑），构建/恢复时立即钉
+                if (animate)
+                    ScrollToLine(index);
+                else
+                    PinActiveLineNow(index);
+            }
         });
     }
 
@@ -924,7 +933,8 @@ public partial class FullLyricsPage : ContentPage
             ScrollToLine(index);
 
         // 当前行变窄 → StaticLayout 多分一行，行高变大，上一步 ScrollToLine 用的还是旧锚点+旧rowH（位置偏上被切）。
-        // 下一帧强制重排、重测锚点、再钉一次，保证正确显示。
+        // 下一帧强制重排、重测锚点，再用 ScrollToLine 缓动到新位置（而非 PinActiveLineNow 直接跳），
+        // 保证位置正确的同时保持平滑过渡——与 Windows 端 ScrollToWindowsLine 的 380ms 缓动行为一致。
         RelayoutAndRepinAfterHighlightChange(index);
     }
 

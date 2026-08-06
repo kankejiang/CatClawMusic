@@ -229,7 +229,16 @@ public static class MauiProgram
         // Data services
         // ═══════════════════════════════════════════════════
         services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
+        // 旧的多源硬编码搜索服务已迁移为内置 IOnlineMusicPlugin（见 Data/OnlineMusic），保留注册以兼容潜在引用
         services.AddSingleton<MultiSourceSearchService>();
+
+        // ═══════════════════════════════════════════════════
+        // Online music (empty shell)
+        // ═══════════════════════════════════════════════════
+        // 宿主为"空壳"：不内置任何音源插件。音源以独立 .dll（CatClawMusic.Plugins.OnlineMusic）
+        // 通过「插件管理 → 安装」导入后自动被 PluginManager 收集，OnlineMusicAggregator 统一聚合。
+        services.AddSingleton<Core.Services.OnlineMusicAggregator>();
+        services.AddSingleton<Services.PluginStoreService>();
 
         var appDataDir = FileSystem.AppDataDirectory;
         var artistCoversDir = Path.Combine(appDataDir, "artist_covers");
