@@ -163,6 +163,22 @@
                                                    TextColor="#FF6B6B"
                                                    HorizontalOptions="Center" />
                                         </Border>
+                                        <Border IsVisible="{Binding CanConfigure}"
+                                                Padding="9,4"
+                                                StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 12"
+                                                BackgroundColor="#24FFFFFF"
+                                                HorizontalOptions="End">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ConfigurePluginCommand}"
+                                                                      CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="⚙ 配置"
+                                                   FontSize="11"
+                                                   FontFamily="OpenSansSemibold"
+                                                   TextColor="{DynamicResource PrimaryColor}"
+                                                   HorizontalOptions="Center" />
+                                        </Border>
                                     </VerticalStackLayout>
                                 </Grid>
                                 <Border.GestureRecognizers>

@@ -385,6 +385,37 @@ public partial class PluginManagementViewModel : ObservableObject
         }
     }
 
+    /// <summary>配置插件（当前仅网易云：粘贴网页版 Cookie 增强推荐个性化）</summary>
+    [RelayCommand]
+    public async Task ConfigurePluginAsync(PluginItemView? item)
+    {
+        if (item == null || !item.CanConfigure) return;
+        try
+        {
+            var page = CurrentPage();
+            if (page == null) return;
+            var cookie = await page.DisplayPromptAsync(
+                "配置网易云 Cookie",
+                "在浏览器登录 music.163.com，按 F12 → 控制台输入 document.cookie，复制结果粘贴到此处。\n可提升推荐个性化与播放完整度（可留空清除）。",
+                "保存", "取消",
+                maxLength: 2000);
+            if (cookie == null) return;
+
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CatClawMusic.Maui");
+            Directory.CreateDirectory(dir);
+            var cfg = Path.Combine(dir, "netease_cookie.txt");
+            var text = cookie.Trim();
+            if (text.Length == 0) { try { File.Delete(cfg); } catch { } }
+            else File.WriteAllText(cfg, text);
+            await ShowAlertAsync("配置完成", text.Length == 0 ? "已清除 Cookie" : "Cookie 已保存，重启插件后生效");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 配置失败: {ex.Message}");
+            await ShowAlertAsync("配置失败", ex.Message);
+        }
+    }
+
     private void UpdateSummary()
     {
         var enabled = Plugins.Count(x => x.IsEnabled);
@@ -454,6 +485,9 @@ public partial class PluginItemView : ObservableObject
 
     /// <summary>是否可卸载（仅动态安装的插件可卸载，内置插件不可）</summary>
     public bool CanUninstall => Info.Source == PluginSource.Installed;
+
+    /// <summary>是否可配置（当前仅网易云插件支持 Cookie 配置）</summary>
+    public bool CanConfigure => CanUninstall && Info.PluginTypeId.Contains("netEase", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>该插件是否已启用</summary>
     [ObservableProperty]
