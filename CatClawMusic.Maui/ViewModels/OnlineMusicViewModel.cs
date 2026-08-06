@@ -183,7 +183,9 @@ public partial class OnlineMusicViewModel : ObservableObject
         Songs.Clear();
         try
         {
-            var songs = await _currentProvider.GetPlaylistSongsAsync(playlist);
+            // 外面显示多少首（SongCount），点进去就拉多少首；无 SongCount 时兜底 200
+            var pageSize = playlist.SongCount > 0 ? playlist.SongCount : 200;
+            var songs = await _currentProvider.GetPlaylistSongsAsync(playlist, 1, pageSize);
             foreach (var s in songs ?? new List<OnlineSong>())
                 Songs.Add(new OnlineSongView(s));
             SongsStatus = Songs.Count == 0 ? "歌单为空，或该音源暂无法获取歌单歌曲" : "";

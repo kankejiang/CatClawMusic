@@ -83,13 +83,12 @@
             </Border>
         </Grid>
 
-        <!-- ═══ 内容区（外层 ScrollView 让整页可滚） ═══ -->
-        <ScrollView Grid.Row="1" IsVisible="{Binding HasProviders}">
-            <VerticalStackLayout Spacing="0">
+        <!-- ═══ 内容区（CollectionView 占剩余行自行滚动，避免外层 ScrollView 截断） ═══ -->
+        <Grid Grid.Row="1" IsVisible="{Binding HasProviders}">
 
             <!-- 无音源提示 -->
             <VerticalStackLayout IsVisible="{Binding HasProviders, Converter={StaticResource InvertedBoolConverter}}"
-                                 Spacing="8" VerticalOptions="Center" Padding="0,40,0,0">
+                                 Spacing="8" VerticalOptions="Center" HorizontalOptions="Center">
                 <Label Text="🎵" FontSize="40" HorizontalOptions="Center" />
                 <Label Text="{Binding StatusText}"
                        FontSize="13" TextColor="{DynamicResource TextHintColor}"
@@ -97,7 +96,7 @@
             </VerticalStackLayout>
 
             <!-- ── 歌单浏览模式 ── -->
-            <VerticalStackLayout IsVisible="{Binding ShowPlaylists}" Spacing="0">
+            <Grid IsVisible="{Binding ShowPlaylists}" RowDefinitions="Auto,Auto,*" Spacing="0">
                 <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never" HeightRequest="42">
                     <HorizontalStackLayout Spacing="6" Padding="16,4,16,6"
                                            BindableLayout.ItemsSource="{Binding Categories}">
@@ -131,12 +130,12 @@
                     </HorizontalStackLayout>
                 </ScrollView>
 
-                <Label Text="{Binding PlaylistStatus}"
+                <Label Grid.Row="1" Text="{Binding PlaylistStatus}"
                        FontSize="12" TextColor="{DynamicResource TextHintColor}"
                        HorizontalOptions="Center" Margin="0,10,0,4"
                        IsVisible="{Binding PlaylistStatus, Converter={StaticResource StringToBoolConverter}}" />
 
-                <CollectionView ItemsSource="{Binding Playlists}"
+                <CollectionView Grid.Row="2" ItemsSource="{Binding Playlists}"
                                 SelectionMode="Single"
                                 SelectionChanged="OnPlaylistSelected"
                                 Margin="0,6,0,0">
@@ -167,11 +166,11 @@
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
-            </VerticalStackLayout>
+            </Grid>
 
             <!-- ── 歌曲列表模式 ── -->
-            <VerticalStackLayout IsVisible="{Binding ShowSongs}" Spacing="0">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="16,4,16,8">
+            <Grid IsVisible="{Binding ShowSongs}" RowDefinitions="Auto,Auto,*" Spacing="0">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="16,4,16,8">
                     <Border Padding="10,5" StrokeThickness="0" StrokeShape="RoundRectangle 12"
                             BackgroundColor="{DynamicResource SurfaceColor}">
                         <Border.GestureRecognizers>
@@ -198,12 +197,12 @@
                     </Border>
                 </Grid>
 
-                <Label Text="{Binding SongsStatus}"
+                <Label Grid.Row="1" Text="{Binding SongsStatus}"
                        FontSize="12" TextColor="{DynamicResource TextHintColor}"
                        HorizontalOptions="Center" Margin="0,10,0,4"
                        IsVisible="{Binding SongsStatus, Converter={StaticResource StringToBoolConverter}}" />
 
-                <CollectionView ItemsSource="{Binding Songs}"
+                <CollectionView Grid.Row="2" ItemsSource="{Binding Songs}"
                                 SelectionMode="Single"
                                 SelectionChanged="OnSongSelected">
                     <CollectionView.ItemTemplate>
@@ -232,9 +231,8 @@
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
-            </VerticalStackLayout>
-        </VerticalStackLayout>
-        </ScrollView>
+            </Grid>
+        </Grid>
 
         <!-- 加载指示 -->
         <ActivityIndicator IsRunning="{Binding IsLoading}"
