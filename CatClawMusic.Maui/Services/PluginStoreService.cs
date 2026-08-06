@@ -1,31 +1,53 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
 namespace CatClawMusic.Maui.Services;
 
-/// <summary>插件商店条目（来自商店清单 plugins.json）</summary>
+/// <summary>插件商店条目（来自商店清单，支持 v1 数组与 v2 字典两种格式）</summary>
 public class PluginStoreItem
 {
     /// <summary>插件类型 ID（与 PluginManager 的 PluginTypeId 对应，如 OnlineMusic.netEaseMusic）</summary>
     public string Id { get; set; } = string.Empty;
     /// <summary>插件名称</summary>
     public string Name { get; set; } = string.Empty;
-    /// <summary>插件版本</summary>
+    /// <summary>插件版本（如 1.1.0）</summary>
     public string Version { get; set; } = string.Empty;
     /// <summary>插件作者</summary>
     public string Author { get; set; } = string.Empty;
-    /// <summary>插件描述</summary>
+    /// <summary>插件完整描述</summary>
     public string Description { get; set; } = string.Empty;
-    /// <summary>插件分类</summary>
+    /// <summary>短描述（卡片一句话，AstrBot short_desc 对齐；缺省回退 Description）</summary>
+    public string ShortDescription { get; set; } = string.Empty;
+    /// <summary>插件分类（OnlineMusic / Lyrics / ...）</summary>
     public string Category { get; set; } = string.Empty;
-    /// <summary>插件图标 Emoji</summary>
+    /// <summary>图标 Emoji（缺省 🧩；有 LogoUrl 时优先显示图片）</summary>
     public string Icon { get; set; } = "🧩";
-    /// <summary>插件安装包下载地址（.dll 直链）</summary>
+    /// <summary>图片 Logo 地址（256x256，可选）</summary>
+    public string LogoUrl { get; set; } = string.Empty;
+    /// <summary>标签（用于搜索与分类筛选）</summary>
+    public List<string> Tags { get; set; } = new();
+    /// <summary>兼容的应用最低版本（PEP440 子集，如 "&gt;=1.7.10"；空 = 不限）</summary>
+    public string MinAppVersion { get; set; } = string.Empty;
+    /// <summary>插件主页</summary>
+    public string Homepage { get; set; } = string.Empty;
+    /// <summary>更新时间（ISO 字符串）</summary>
+    public string UpdatedAt { get; set; } = string.Empty;
+    /// <summary>安装包下载地址（.dll / .ccp 直链或 GitHub Release asset）</summary>
     public string InstallUrl { get; set; } = string.Empty;
+    /// <summary>安装包 sha256（十六进制，可选；提供则安装前校验）</summary>
+    public string FileHash { get; set; } = string.Empty;
+    /// <summary>来源市场名称（内置 / 自定义源地址），由服务端填充</summary>
+    public string SourceName { get; set; } = "内置市场";
+
+    /// <summary>由安装地址派生的稳定文件名（如 CatClawMusic.Plugins.OnlineMusic.dll），用于覆盖安装避免堆积</summary>
+    public string PackageFileName =>
+        string.IsNullOrWhiteSpace(InstallUrl) ? string.Empty : InstallUrl.TrimEnd('/').Split('/').Last();
 }
 
 /// <summary>
-/// 插件商店服务 —— 从 GitHub 仓库的 plugins/plugins.json 清单拉取可用插件列表。
+/// 插件商店服务 —— 从多个市场源拉取清单（GitHub 仓库 JSON），合并去重后提供安装。
+/// 参考 AstrBot 插件市场：索引即 JSON 文件、仓库即分发渠道、多源订阅。
 /// 安装由 PluginManager.InstallFromLocalFileAsync 完成（先下载 .dll 到本地）。
 /// 国内网络对 raw.githubusercontent.com 不稳定，所有请求均带多源回退：
 /// raw 直链 → jsDelivr CDN 镜像 → GitHub API（清单 base64 / dll 下载跳过 API）。
@@ -37,6 +59,8 @@ public class PluginStoreService
         "https://raw.githubusercontent.com/kankejiang/CatClawMusic/master/plugins/plugins.json";
 
     private const string RawPrefix = "https://raw.githubusercontent.com/";
+    private static readonly string CustomSourcesPath =
+        Path.Combine(FileSystem.AppDataDirectory, "plugin_sources.json");
 
     private readonly HttpClient _http;
 
@@ -67,12 +91,74 @@ public class PluginStoreService
         return urls;
     }
 
-    /// <summary>拉取商店清单，返回可用插件列表（所有源均失败时抛异常由调用方处理）</summary>
-    public async Task<List<PluginStoreItem>> FetchAsync(string? storeUrl = null)
+    // ═══════════════════════════════════════
+    // 自定义市场源（持久化到文件，规避未打包 Windows Preferences 失效）
+    // ═══════════════════════════════════════
+
+    public List<string> GetCustomSources()
     {
-        var url = string.IsNullOrWhiteSpace(storeUrl) ? DefaultStoreUrl : storeUrl;
+        try
+        {
+            if (!File.Exists(CustomSourcesPath)) return new List<string>();
+            var json = File.ReadAllText(CustomSourcesPath);
+            return JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+        }
+        catch { return new List<string>(); }
+    }
+
+    public void SaveCustomSources(IEnumerable<string> sources)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(CustomSourcesPath)!);
+            File.WriteAllText(CustomSourcesPath, JsonSerializer.Serialize(sources.Distinct().ToList()));
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginStoreService", $"[PluginStore] 保存自定义源失败: {ex.Message}");
+        }
+    }
+
+    public string[] GetAllSourceUrls()
+        => new[] { DefaultStoreUrl }.Concat(GetCustomSources()).ToArray();
+
+    // ═══════════════════════════════════════
+    // 清单拉取与合并
+    // ═══════════════════════════════════════
+
+    /// <summary>拉取全部市场源并合并：按 id 去重，同 id 保留最高版本；所有源均失败时抛异常。</summary>
+    public async Task<List<PluginStoreItem>> FetchAllAsync()
+    {
+        var merged = new Dictionary<string, PluginStoreItem>(StringComparer.OrdinalIgnoreCase);
         Exception? last = null;
-        foreach (var candidate in BuildCandidateUrls(url, excludeApi: false))
+        var urls = GetAllSourceUrls();
+        foreach (var url in urls)
+        {
+            try
+            {
+                var items = await FetchSourceAsync(url);
+                foreach (var item in items)
+                {
+                    if (string.IsNullOrWhiteSpace(item.Id)) continue;
+                    if (!merged.TryGetValue(item.Id, out var exist)
+                        || CompareVersions(item.Version, exist.Version) > 0)
+                    {
+                        item.SourceName = url == DefaultStoreUrl ? "内置市场" : url;
+                        merged[item.Id] = item;
+                    }
+                }
+            }
+            catch (Exception ex) { last = ex; }
+        }
+        if (merged.Count == 0 && last != null) throw last;
+        return merged.Values.OrderBy(x => x.Name).ToList();
+    }
+
+    /// <summary>拉取单个市场源清单并解析（v1 数组 / v2 字典均支持）</summary>
+    public async Task<List<PluginStoreItem>> FetchSourceAsync(string storeUrl)
+    {
+        Exception? last = null;
+        foreach (var candidate in BuildCandidateUrls(storeUrl, excludeApi: false))
         {
             try
             {
@@ -82,7 +168,7 @@ public class PluginStoreService
             }
             catch (Exception ex) { last = ex; }
         }
-        throw last ?? new Exception("无法连接插件商店");
+        throw last ?? new Exception($"无法连接市场源: {storeUrl}");
     }
 
     /// <summary>获取 JSON 文本：GitHub API 的 contents 端点返回 base64 编码，需解码</summary>
@@ -103,32 +189,59 @@ public class PluginStoreService
         return await _http.GetStringAsync(url).ConfigureAwait(false);
     }
 
-    /// <summary>解析商店清单 JSON</summary>
+    /// <summary>解析商店清单 JSON：兼容 v1 数组（["plugins"] 数组）与 v2 字典（{"pluginId": {...}}）</summary>
     private static List<PluginStoreItem> Parse(string json)
     {
         using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("plugins", out var arr) || arr.ValueKind != JsonValueKind.Array)
-            return new List<PluginStoreItem>();
-
         var items = new List<PluginStoreItem>();
-        foreach (var p in arr.EnumerateArray())
+        var root = doc.RootElement;
+
+        // v2 字典：{ "plugin_id": { ... } }
+        if (root.ValueKind == JsonValueKind.Object && !root.TryGetProperty("plugins", out _))
         {
-            try
+            foreach (var prop in root.EnumerateObject())
             {
-                var item = JsonSerializer.Deserialize<PluginStoreItem>(p.GetRawText());
-                if (item != null && !string.IsNullOrWhiteSpace(item.InstallUrl))
-                    items.Add(item);
+                try
+                {
+                    var item = JsonSerializer.Deserialize<PluginStoreItem>(prop.Value.GetRawText());
+                    if (item != null)
+                    {
+                        if (string.IsNullOrWhiteSpace(item.Id)) item.Id = prop.Name;
+                        if (!string.IsNullOrWhiteSpace(item.InstallUrl)) items.Add(item);
+                    }
+                }
+                catch { }
             }
-            catch { }
+            return items;
+        }
+
+        // v1 数组 / 带 plugins 包裹的数组
+        if (root.TryGetProperty("plugins", out var arr) && arr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var p in arr.EnumerateArray())
+            {
+                try
+                {
+                    var item = JsonSerializer.Deserialize<PluginStoreItem>(p.GetRawText());
+                    if (item != null && !string.IsNullOrWhiteSpace(item.InstallUrl))
+                        items.Add(item);
+                }
+                catch { }
+            }
         }
         return items;
     }
 
-    /// <summary>下载插件 .dll 到本地临时文件，返回文件路径（供 InstallFromLocalFileAsync 安装）</summary>
-    public async Task<string> DownloadPluginAsync(string downloadUrl, IProgress<(string, int)>? progress = null)
+    // ═══════════════════════════════════════
+    // 下载与校验
+    // ═══════════════════════════════════════
+
+    /// <summary>下载插件包到本地临时文件，返回文件路径。
+    /// <paramref name="fileName"/> 指定稳定文件名（默认从 URL 派生），便于覆盖安装避免旧副本堆积。</summary>
+    public async Task<string> DownloadPluginAsync(string downloadUrl, IProgress<(string, int)>? progress = null, string? fileName = null)
     {
-        var tmpPath = Path.Combine(Path.GetTempPath(),
-            $"catclaw_plugin_{DateTime.Now:yyyyMMddHHmmss}_{Guid.NewGuid():N[..6]}.dll");
+        var name = string.IsNullOrWhiteSpace(fileName) ? "plugin.dll" : SanitizeFileName(fileName);
+        var tmpPath = Path.Combine(Path.GetTempPath(), name);
 
         Exception? last = null;
         foreach (var candidate in BuildCandidateUrls(downloadUrl, excludeApi: true))
@@ -143,6 +256,51 @@ public class PluginStoreService
 
         try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
         throw last ?? new Exception("插件下载失败");
+    }
+
+    /// <summary>校验文件 sha256 是否匹配（hex 不区分大小写）。期望值为空时跳过校验返回 true。</summary>
+    public bool VerifyHash(string filePath, string? expectedSha256)
+    {
+        if (string.IsNullOrWhiteSpace(expectedSha256)) return true;
+        try
+        {
+            var expected = expectedSha256.Trim();
+            if (expected.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+                expected = expected["sha256:".Length..].Trim();
+            using var sha = SHA256.Create();
+            using var fs = File.OpenRead(filePath);
+            var actual = Convert.ToHexString(sha.ComputeHash(fs));
+            return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>当前应用版本是否满足插件兼容范围。</summary>
+    public (bool Ok, string Message) CheckCompatibility(PluginStoreItem item)
+    {
+        var host = AppInfo.Current.VersionString;
+        var ok = PluginVersionRange.IsSatisfied(item.MinAppVersion, host);
+        var msg = string.IsNullOrWhiteSpace(item.MinAppVersion)
+            ? string.Empty
+            : $"该插件要求应用版本 {item.MinAppVersion}，当前 {host}，可能无法正常工作";
+        return (ok, msg);
+    }
+
+    private static int CompareVersions(string? a, string? b)
+    {
+        if (Version.TryParse(a?.TrimStart('v', 'V'), out var va)
+            && Version.TryParse(b?.TrimStart('v', 'V'), out var vb))
+            return va.CompareTo(vb);
+        return string.CompareOrdinal(a ?? string.Empty, b ?? string.Empty);
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sb = new StringBuilder(name.Length);
+        foreach (var ch in name)
+            sb.Append(invalid.Contains(ch) ? '_' : ch);
+        return sb.ToString();
     }
 
     /// <summary>从单个 URL 流式下载到目标文件</summary>

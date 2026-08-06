@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>插件商店 v2 原型 · 参考 AstrBot</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#080B1A; --bg2:#0d1228; --card:rgba(255,255,255,.05); --card2:rgba(255,255,255,.08);
+    --line:rgba(255,255,255,.08); --txt:#EAECFF; --sub:#9aa0c5; --dim:#6b7099;
+    --p1:#8C7BFF; --p2:#55D6FF; --ok:#4CAF50; --warn:#FFB74D; --err:#FF6B6B;
+    --grad:linear-gradient(135deg,#8C7BFF,#55D6FF);
+  }
+  html,body{ height:100%; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--txt);
+    display:flex; align-items:center; justify-content:center; padding:24px; min-height:100vh;
+  }
+  .phone{
+    width:390px; height:844px; background:
+      radial-gradient(120% 80% at 80% -10%, rgba(140,123,255,.18), transparent 60%),
+      radial-gradient(120% 80% at -10% 10%, rgba(85,214,255,.12), transparent 55%),
+      var(--bg);
+    border-radius:44px; position:relative; overflow:hidden;
+    box-shadow:0 40px 80px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .scroll{ height:100%; overflow-y:auto; overflow-x:hidden; padding-bottom:90px; }
+  .scroll::-webkit-scrollbar{ display:none; }
+
+  /* 顶栏 */
+  .bar{ position:sticky; top:0; z-index:20; padding:16px 18px 10px;
+    background:linear-gradient(180deg, rgba(8,11,26,.95), rgba(8,11,26,.65) 75%, transparent);
+    backdrop-filter:blur(14px); }
+  .bar-top{ display:flex; align-items:center; gap:12px; }
+  .icon-btn{ width:38px; height:38px; border-radius:12px; background:var(--card); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; color:var(--txt); flex:0 0 auto; font-size:16px; }
+  .bar h1{ font-size:19px; font-weight:700; letter-spacing:.3px; }
+  .bar .count{ font-size:12px; color:var(--sub); font-weight:500; margin-top:1px; }
+  .bar .spacer{ flex:1; }
+
+  /* 搜索框 */
+  .search{ display:flex; align-items:center; gap:8px; margin-top:12px;
+    background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:0 12px; height:42px; }
+  .search input{ flex:1; background:transparent; border:none; outline:none; color:var(--txt); font-size:14px; }
+  .search input::placeholder{ color:var(--dim); }
+  .search .k{ font-size:11px; color:var(--dim); background:var(--card); border:1px solid var(--line);
+    border-radius:6px; padding:2px 6px; }
+
+  /* 分类 chips */
+  .chips{ display:flex; gap:8px; overflow-x:auto; padding:12px 18px 2px; }
+  .chips::-webkit-scrollbar{ display:none; }
+  .chip{ flex:0 0 auto; padding:6px 14px; border-radius:16px; font-size:12.5px; color:var(--sub);
+    background:var(--card); border:1px solid var(--line); cursor:pointer; }
+  .chip.on{ background:var(--p1); border-color:var(--p1); color:#fff; font-weight:600; }
+
+  .sec{ padding:14px 18px 4px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .sec .hint{ font-size:11px; color:var(--dim); font-weight:500; margin-left:auto; }
+
+  /* 商店卡片 */
+  .card{ margin:8px 16px; padding:14px; border-radius:18px; background:var(--card);
+    border:1px solid var(--line); display:flex; gap:12px; align-items:center; }
+  .logo{ width:46px; height:46px; border-radius:12px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    font-size:24px; background:linear-gradient(135deg, rgba(140,123,255,.28), rgba(85,214,255,.16));
+    border:1px solid var(--line); overflow:hidden; }
+  .logo img{ width:100%; height:100%; object-fit:cover; }
+  .body{ flex:1; min-width:0; }
+  .body .name{ font-size:15px; font-weight:700; display:flex; align-items:center; gap:6px; }
+  .badge{ font-size:9.5px; padding:2px 7px; border-radius:8px; font-weight:600; flex:0 0 auto; }
+  .badge.ok{ background:rgba(76,175,80,.16); color:var(--ok); border:1px solid rgba(76,175,80,.35); }
+  .badge.warn{ background:rgba(255,183,77,.14); color:var(--warn); border:1px solid rgba(255,183,77,.35); }
+  .badge.err{ background:rgba(255,107,107,.14); color:var(--err); border:1px solid rgba(255,107,107,.35); }
+  .body .short{ font-size:11.5px; color:var(--sub); margin-top:4px; line-height:1.5; display:-webkit-box;
+    -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .meta{ display:flex; align-items:center; gap:8px; margin-top:6px; font-size:10.5px; color:var(--dim); flex-wrap:wrap; }
+  .meta .tag{ background:var(--card2); border:1px solid var(--line); padding:1px 7px; border-radius:7px; color:var(--sub); }
+  .right{ flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:7px; min-width:74px; }
+  .btn{ border:none; outline:none; cursor:pointer; border-radius:16px; height:32px; padding:0 14px;
+    font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:5px; }
+  .btn.primary{ background:var(--p1); color:#fff; }
+  .btn.ghost{ background:transparent; color:var(--sub); border:1px solid var(--line); }
+  .btn.installed{ background:rgba(76,175,80,.14); color:var(--ok); border:1px solid rgba(76,175,80,.35); }
+  .btn.update{ background:rgba(85,214,255,.14); color:var(--p2); border:1px solid rgba(85,214,255,.4); }
+  .btn.danger{ background:rgba(255,107,107,.12); color:var(--err); border:1px solid rgba(255,107,107,.3); }
+  .btn:disabled{ opacity:.55; cursor:default; }
+  .prog{ width:74px; }
+  .prog .track{ height:4px; border-radius:2px; background:var(--card2); overflow:hidden; }
+  .prog .fill{ height:100%; width:58%; background:var(--grad); border-radius:2px; }
+  .prog .pt{ font-size:9.5px; color:var(--dim); margin-top:4px; text-align:right; }
+
+  /* 已安装列表 */
+  .inst .card{ padding:11px 14px; }
+  .inst .name{ font-size:14px; }
+  .sw{ width:40px; height:22px; border-radius:11px; position:relative; flex:0 0 auto; cursor:pointer; }
+  .sw.on{ background:var(--p1); } .sw.off{ background:var(--card2); border:1px solid var(--line); }
+  .sw::after{ content:''; position:absolute; top:2px; width:18px; height:18px; border-radius:50%; background:#fff;
+    transition:left .18s; }
+  .sw.on::after{ left:20px; } .sw.off::after{ left:2px; }
+  .row-actions{ display:flex; gap:6px; }
+  .mini{ font-size:10px; height:24px; padding:0 9px; border-radius:12px; }
+
+  /* 兼容提示条 */
+  .warnbar{ margin:6px 16px; padding:9px 12px; border-radius:12px; font-size:11px; line-height:1.55;
+    background:rgba(255,183,77,.1); border:1px solid rgba(255,183,77,.3); color:var(--warn); }
+
+  /* 底部市场源 */
+  .foot{ position:absolute; bottom:0; left:0; right:0; padding:10px 18px 16px; text-align:center;
+    font-size:10.5px; color:var(--dim); background:linear-gradient(0deg, rgba(8,11,26,.96), transparent); }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scroll">
+
+    <div class="bar">
+      <div class="bar-top">
+        <div class="icon-btn">←</div>
+        <div>
+          <h1>插件商店</h1>
+          <div class="count">内置市场 · 共 6 个插件 · 已安装 5 · 可更新 1</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="icon-btn">🔄</div>
+      </div>
+      <div class="search">
+        <span style="color:var(--dim)">🔍</span>
+        <input placeholder="搜索插件名称、作者、描述…" />
+        <span class="k">搜索</span>
+      </div>
+    </div>
+
+    <div class="chips">
+      <div class="chip on">全部</div>
+      <div class="chip">在线音源</div>
+      <div class="chip">歌词</div>
+      <div class="chip">协议</div>
+      <div class="chip">封面</div>
+      <div class="chip">音效</div>
+      <div class="chip">菜单</div>
+    </div>
+
+    <div class="sec">🛒 商店 <span class="hint">参考 AstrBot：元数据 v2 + 更新/卸载 + 兼容性</span></div>
+
+    <!-- 可更新：版本比较 + 更新按钮 -->
+    <div class="card">
+      <div class="logo"><img src="https://picsum.photos/seed/netease/96" alt="logo" /></div>
+      <div class="body">
+        <div class="name">网易云音乐 <span class="badge warn">可更新</span></div>
+        <div class="short">网易云音乐在线音源：搜索 / 播放直链 / 歌词（含翻译）。新增无损音质直链与歌单搜索。</div>
+        <div class="meta">
+          <span>v1.0.0 → v1.1.0</span><span class="tag">在线音源</span><span>by CatClawMusic</span>
+        </div>
+      </div>
+      <div class="right"><button class="btn update">⬆ 更新</button><button class="btn ghost mini">卸载</button></div>
+    </div>
+
+    <!-- 未安装：图片 logo + 安装按钮 -->
+    <div class="card">
+      <div class="logo"><img src="https://picsum.photos/seed/qq/96" alt="logo" /></div>
+      <div class="body">
+        <div class="name">QQ 音乐<span class="badge err">需 ≥1.7.10</span></div>
+        <div class="short">QQ 音乐在线音源：搜索 / 播放直链（vkey）/ 歌词（含翻译）。</div>
+        <div class="meta"><span>v1.1.0</span><span class="tag">在线音源</span><span>by CatClawMusic</span></div>
+      </div>
+      <div class="right"><button class="btn primary">安装</button></div>
+    </div>
+
+    <!-- 安装中：进度 -->
+    <div class="card">
+      <div class="logo">🌐</div>
+      <div class="body">
+        <div class="name">Apple Music</div>
+        <div class="short">Apple Music 在线音源：搜索 / 30 秒预览播放 / 歌词。</div>
+        <div class="meta"><span>v1.0.0</span><span class="tag">在线音源</span><span>by CatClawMusic</span></div>
+      </div>
+      <div class="right">
+        <div class="prog"><div class="track"><div class="fill"></div></div><div class="pt">正在下载… 58%</div></div>
+      </div>
+    </div>
+
+    <!-- 已安装（同版本）：已安装状态 -->
+    <div class="card">
+      <div class="logo">🌐</div>
+      <div class="body">
+        <div class="name">酷狗音乐 <span class="badge ok">已安装</span></div>
+        <div class="short">酷狗音乐在线音源：搜索 / 歌词（播放直链待接入）。</div>
+        <div class="meta"><span>v1.0.0</span><span class="tag">在线音源</span><span>by CatClawMusic</span></div>
+      </div>
+      <div class="right"><button class="btn installed">✓ 已安装</button><button class="btn ghost mini">卸载</button></div>
+    </div>
+
+    <!-- 不兼容警告示例 -->
+    <div class="warnbar">⚠ 汽水音乐 要求应用版本 <b>≥ 1.7.12</b>，当前 1.7.10，可能无法正常工作。<span style="color:var(--p2);text-decoration:underline">无视警告，继续安装</span></div>
+
+    <div class="sec">🧩 已安装插件 <span class="hint">共 5 · 已启用 4</span></div>
+
+    <div class="inst">
+      <div class="card">
+        <div class="logo">🌐</div>
+        <div class="body">
+          <div class="name">在线音乐源（NetEase / QQ / Apple / KuGou / Soda）</div>
+          <div class="short">单个 .dll 内含 5 个在线音源插件，统一管理与启用。</div>
+          <div class="meta"><span>v1.1.0</span><span class="tag">在线音源</span></div>
+        </div>
+        <div class="sw on"></div>
+      </div>
+      <div class="card">
+        <div class="logo">🧩</div>
+        <div class="body">
+          <div class="name">演示歌词插件</div>
+          <div class="short">歌词显示与翻译。</div>
+          <div class="meta"><span>v0.9.0</span><span class="tag">歌词</span></div>
+        </div>
+        <div class="sw off"></div>
+      </div>
+      <div class="card">
+        <div class="logo">🧩</div>
+        <div class="body">
+          <div class="name">演示封面插件</div>
+          <div class="short">封面获取与缓存。</div>
+          <div class="meta"><span>v1.2.0</span><span class="tag">封面</span></div>
+        </div>
+        <div class="row-actions">
+          <div class="sw on"></div>
+          <button class="btn ghost mini">···</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot">内置市场 · plugins.json · 支持自定义市场源（设置 → 插件市场）</div>
+</div>
+</body>
+</html>

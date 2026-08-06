@@ -35,6 +35,7 @@
 
 ## 功能设施
 - 歌词 LRC+TTML; 艺术家抓取未接通(`SearchArtistsAsync` 无调用); 猫爪圈 P2P UDP37821/TCP37822/HTTP37823/STUN37824; README 纯 markdown 禁更新日志; UI 改动先出 HTML 原型(品牌深空蓝 #8C7BFF/#55D6FF/#080B1A)。
+- 插件商店(2026-08-06, 参考 AstrBot)：索引 JSON(plugins.json, v1数组/v2字典兼容)+多市场源(自定义源存 `plugin_sources.json`)+`PluginVersionRange`(PEP440子集)兼容检查+安装/更新/卸载闭环。**更新/卸载按包维度**——同一 dll 下所有插件条目一起卸载(OnlineMusic 1 dll 5 源)。分发是 dll 二进制(非 AstrBot 的 git clone 源码模式)。`InstallFromLocalFileAsync` 同名文件自动加时间戳不覆盖→更新必须先整包卸载再装；下载用稳定文件名避免堆积。
 
 ## 横屏/竖屏
 - `App.xaml.cs` `_manualLandscape`+`_manualPortrait` 互斥; `ToggleManualLandscape()` 切 `MainPage`/`DesktopMainPage`; `OnDisplayOrientationChanged` 实际到达方向后释放标志。

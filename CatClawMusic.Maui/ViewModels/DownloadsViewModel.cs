@@ -46,7 +46,8 @@ public partial class DownloadsViewModel : ObservableObject, IDisposable
     private void OnTasksChanged() => RefreshStats();
     private void OnTaskUpdated(DownloadTaskItem _) => RefreshStats();
 
-    private void RefreshStats()
+    /// <summary>刷新下载统计（由 DownloadsPage 在 Windows 选择下载目录后调用）</summary>
+    public void RefreshStats()
     {
         TotalCount = Tasks.Count;
         ActiveCount = Tasks.Count(t => t.Status is DownloadStatus.Queued or DownloadStatus.Downloading);
