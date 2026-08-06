@@ -66,11 +66,11 @@ public class PluginStoreService
 
     public PluginStoreService()
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
         _http.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
     }
 
-    /// <summary>根据 raw 直链生成候选源列表：raw → jsDelivr CDN → GitHub API（dll 下载跳过 API，因其返回 base64 文本）</summary>
+    /// <summary>根据 raw 直链生成候选源列表：raw → jsDelivr CDN → gh-proxy.com 反代（国内友好）→ GitHub API（dll 下载跳过 API，因其返回 base64 文本）</summary>
     private static List<string> BuildCandidateUrls(string rawUrl, bool excludeApi)
     {
         var urls = new List<string> { rawUrl };
@@ -84,6 +84,8 @@ public class PluginStoreService
                 var branch = parts[2];
                 var path = string.Join("/", parts.Skip(3));
                 urls.Add($"https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}");
+                // 国内友好反代镜像：把原始 URL 挂在 gh-proxy.com 后面作为路径
+                urls.Add($"https://gh-proxy.com/{rawUrl}");
                 if (!excludeApi)
                     urls.Add($"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={branch}");
             }
