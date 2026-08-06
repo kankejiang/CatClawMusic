@@ -44,9 +44,12 @@
                             BackgroundColor="#24FFFFFF"
                             Stroke="{DynamicResource GlassStrokeColor}">
                         <Border.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding RefreshCommand}" />
+                            <TapGestureRecognizer Command="{Binding AddPluginCommand}" />
                         </Border.GestureRecognizers>
-                        <Label Text="🔄" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+                        <VerticalStackLayout Spacing="0" HorizontalOptions="Center" VerticalOptions="Center">
+                            <Label Text="＋" FontSize="18" HorizontalOptions="Center" />
+                            <Label Text="添加" FontSize="10" HorizontalOptions="Center" />
+                        </VerticalStackLayout>
                     </Border>
                 </Grid>
             </controls:HeroCard.CardContent>
@@ -55,219 +58,23 @@
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Padding="16,8,16,22" Spacing="14">
 
-                <!-- ═══ 插件商店（多市场源 · 搜索/分类 · 安装/更新/卸载） ═══ -->
-                <VerticalStackLayout Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                        <VerticalStackLayout Spacing="1">
-                            <Label Text="🛒 插件商店"
-                                   FontSize="15"
-                                   FontFamily="OpenSansSemibold"
-                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="{Binding StoreStatus}"
-                                   FontSize="10.5"
-                                   TextColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-                        <!-- 添加自定义市场源 -->
-                        <Border Grid.Column="1"
-                                Padding="10,5"
-                                Stroke="{DynamicResource GlassStrokeColor}"
-                                StrokeShape="RoundRectangle 12"
-                                BackgroundColor="#1AFFFFFF"
-                                VerticalOptions="Center">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding AddSourceCommand}" />
-                            </Border.GestureRecognizers>
-                            <Label Text="＋ 市场源" FontSize="11" TextColor="{DynamicResource TextPrimaryColor}" />
-                        </Border>
-                        <Border Grid.Column="2"
-                                Padding="10,5"
-                                Stroke="{DynamicResource GlassStrokeColor}"
-                                StrokeShape="RoundRectangle 12"
-                                BackgroundColor="#1AFFFFFF"
-                                VerticalOptions="Center">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding RefreshCommand}" />
-                            </Border.GestureRecognizers>
-                            <Label Text="🔄" FontSize="13" TextColor="{DynamicResource TextPrimaryColor}" />
-                        </Border>
-                    </Grid>
-
-                    <!-- 搜索框 -->
-                    <Border BackgroundColor="#14FFFFFF"
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Label Text="🧩 已安装插件"
+                           FontSize="15"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}" />
+                    <Border Grid.Column="1"
+                            Padding="10,5"
                             Stroke="{DynamicResource GlassStrokeColor}"
                             StrokeShape="RoundRectangle 12"
-                            Padding="0">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Padding="12,0">
-                            <Label Text="🔍" FontSize="14" VerticalOptions="Center" />
-                            <Entry Grid.Column="1"
-                                   Text="{Binding SearchText}"
-                                   Placeholder="搜索插件名称、作者、描述…"
-                                   PlaceholderColor="{DynamicResource TextHintColor}"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   BackgroundColor="Transparent"
-                                   HeightRequest="40"
-                                   FontSize="13" />
-                        </Grid>
+                            BackgroundColor="#1AFFFFFF"
+                            VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding RefreshCommand}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="🔄" FontSize="13" TextColor="{DynamicResource TextPrimaryColor}" />
                     </Border>
-
-                    <!-- 分类筛选 chips（横滑） -->
-                    <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
-                        <HorizontalStackLayout Spacing="8" Padding="0,2,0,2"
-                                                BindableLayout.ItemsSource="{Binding CategoryChips}">
-                            <BindableLayout.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CategoryChipView">
-                                    <Border StrokeThickness="1"
-                                            Stroke="{DynamicResource GlassStrokeColor}"
-                                            StrokeShape="RoundRectangle 16"
-                                            BackgroundColor="Transparent"
-                                            Padding="12,5">
-                                        <Border.Triggers>
-                                            <DataTrigger TargetType="Border" Binding="{Binding IsSelected}" Value="True">
-                                                <Setter Property="BackgroundColor" Value="{DynamicResource PrimaryColor}" />
-                                                <Setter Property="Stroke" Value="{DynamicResource PrimaryColor}" />
-                                            </DataTrigger>
-                                        </Border.Triggers>
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectCategoryCommand}"
-                                                                  CommandParameter="{Binding Text}" />
-                                        </Border.GestureRecognizers>
-                                        <Label Text="{Binding Text}"
-                                               FontSize="12.5"
-                                               TextColor="{DynamicResource TextPrimaryColor}">
-                                            <Label.Triggers>
-                                                <DataTrigger TargetType="Label" Binding="{Binding IsSelected}" Value="True">
-                                                    <Setter Property="TextColor" Value="White" />
-                                                </DataTrigger>
-                                            </Label.Triggers>
-                                        </Label>
-                                    </Border>
-                                </DataTemplate>
-                            </BindableLayout.ItemTemplate>
-                        </HorizontalStackLayout>
-                    </ScrollView>
-
-                    <Label Text="{Binding IsLoadingStore, StringFormat='正在加载插件商店...'}"
-                           IsVisible="{Binding IsLoadingStore}"
-                           FontSize="12" TextColor="{DynamicResource TextHintColor}" />
-
-                    <!-- 商店卡片列表（过滤后） -->
-                    <VerticalStackLayout Spacing="8"
-                                         BindableLayout.ItemsSource="{Binding FilteredStoreItems}">
-                        <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="vm:StoreItemView">
-                                <Border Style="{StaticResource GlassCardStyle}">
-                                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                                        <!-- Logo（当前用 Emoji，后续支持图片 LogoUrl） -->
-                                        <Label Text="{Binding Icon}"
-                                               FontSize="26"
-                                               VerticalOptions="Center"
-                                               WidthRequest="46"
-                                               HorizontalTextAlignment="Center" />
-
-                                        <VerticalStackLayout Grid.Column="1" Spacing="3">
-                                            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="6">
-                                                <Label Text="{Binding Name}"
-                                                       FontSize="15" FontFamily="OpenSansSemibold"
-                                                       TextColor="{DynamicResource TextPrimaryColor}" />
-                                                <Label Grid.Column="1"
-                                                       Text="{Binding StateText}"
-                                                       FontSize="9.5" FontFamily="OpenSansSemibold"
-                                                       TextColor="{Binding StateColor}"
-                                                       VerticalOptions="Center" />
-                                            </Grid>
-                                            <Label Text="{Binding ShortDescription}"
-                                                   FontSize="11" TextColor="{DynamicResource TextHintColor}"
-                                                   LineBreakMode="TailTruncation" MaxLines="2" />
-                                            <HorizontalStackLayout Spacing="8">
-                                                <Label Text="{Binding Version, StringFormat='v{0}'}"
-                                                       FontSize="10" TextColor="{DynamicResource TextHintColor}" />
-                                                <Label Text="{Binding Author, StringFormat='by {0}'}"
-                                                       FontSize="10" TextColor="{DynamicResource TextHintColor}" />
-                                                <Label Text="{Binding TagsText}"
-                                                       FontSize="10" TextColor="#B8C7FF"
-                                                       IsVisible="{Binding TagsText, Converter={StaticResource StringToBoolConverter}}" />
-                                            </HorizontalStackLayout>
-                                        </VerticalStackLayout>
-
-                                        <VerticalStackLayout Grid.Column="2"
-                                                             Spacing="4"
-                                                             VerticalOptions="Center"
-                                                             MinimumWidthRequest="66">
-                                            <!-- 安装中：进度 -->
-                                            <VerticalStackLayout Spacing="2" IsVisible="{Binding IsInstalling}">
-                                                <Label Text="{Binding ProgressText}"
-                                                       FontSize="10"
-                                                       TextColor="{DynamicResource TextHintColor}"
-                                                       HorizontalOptions="Center" />
-                                                <ProgressBar Progress="{Binding Progress}"
-                                                             ProgressColor="{DynamicResource PrimaryColor}"
-                                                             HeightRequest="4" />
-                                            </VerticalStackLayout>
-                                            <!-- 未安装：安装按钮 -->
-                                            <Button Text="安装"
-                                                    FontSize="12"
-                                                    HeightRequest="30"
-                                                    CornerRadius="15"
-                                                    Padding="12,0"
-                                                    BackgroundColor="{DynamicResource PrimaryColor}"
-                                                    TextColor="White"
-                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.InstallAsyncCommand}"
-                                                    CommandParameter="{Binding .}"
-                                                    IsVisible="{Binding ShowInstallButton}" />
-                                            <!-- 可更新：更新按钮 -->
-                                            <Button Text="{Binding StateText}"
-                                                    FontSize="11"
-                                                    HeightRequest="30"
-                                                    CornerRadius="15"
-                                                    Padding="10,0"
-                                                    BackgroundColor="#2255D6FF"
-                                                    TextColor="#55D6FF"
-                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.UpdateAsyncCommand}"
-                                                    CommandParameter="{Binding .}"
-                                                    IsVisible="{Binding ShowUpdateButton}" />
-                                            <!-- 已安装（无更新）：状态标签 -->
-                                            <Label Text="✓ 已安装"
-                                                   FontSize="12"
-                                                   FontFamily="OpenSansSemibold"
-                                                   TextColor="#4CAF50"
-                                                   HorizontalOptions="Center"
-                                                   IsVisible="{Binding ShowInstalledLabel}" />
-                                            <!-- 卸载 -->
-                                            <Button Text="卸载"
-                                                    FontSize="10.5"
-                                                    HeightRequest="26"
-                                                    CornerRadius="13"
-                                                    Padding="8,0"
-                                                    BackgroundColor="Transparent"
-                                                    TextColor="{DynamicResource TextHintColor}"
-                                                    BorderColor="#22FFFFFF"
-                                                    BorderWidth="1"
-                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.UninstallAsyncCommand}"
-                                                    CommandParameter="{Binding .}"
-                                                    IsVisible="{Binding ShowUninstallButton}" />
-                                        </VerticalStackLayout>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </BindableLayout.ItemTemplate>
-                    </VerticalStackLayout>
-
-                    <!-- 过滤后无结果 -->
-                    <Border Style="{StaticResource GlassCardStyle}"
-                            IsVisible="{Binding FilteredStoreItems.Count, Converter={StaticResource InvertedBoolConverter}}">
-                        <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
-                            <Label Text="🔍" FontSize="26" HorizontalOptions="Center" />
-                            <Label Text="没有匹配的插件"
-                                   FontSize="13"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   HorizontalTextAlignment="Center" />
-                            <Label Text="换个关键字或分类试试"
-                                   FontSize="11"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   HorizontalTextAlignment="Center" />
-                        </VerticalStackLayout>
-                    </Border>
-                </VerticalStackLayout>
+                </Grid>
 
                 <VerticalStackLayout Spacing="10"
                                      BindableLayout.ItemsSource="{Binding Plugins}">

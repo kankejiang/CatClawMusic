@@ -238,7 +238,6 @@ public static class MauiProgram
         // 宿主为"空壳"：不内置任何音源插件。音源以独立 .dll（CatClawMusic.Plugins.OnlineMusic）
         // 通过「插件管理 → 安装」导入后自动被 PluginManager 收集，OnlineMusicAggregator 统一聚合。
         services.AddSingleton<Core.Services.OnlineMusicAggregator>();
-        services.AddSingleton<Services.PluginStoreService>();
 
         var appDataDir = FileSystem.AppDataDirectory;
         var artistCoversDir = Path.Combine(appDataDir, "artist_covers");
