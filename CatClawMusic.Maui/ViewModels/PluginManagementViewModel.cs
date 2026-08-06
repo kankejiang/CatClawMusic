@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,12 +9,22 @@ using CommunityToolkit.Mvvm.Input;
 namespace CatClawMusic.Maui.ViewModels;
 
 /// <summary>
-/// 插件管理页 ViewModel：展示已安装插件列表、启用/禁用开关、状态标签，并支持从本地文件添加插件。
-/// （在线插件商店已于 2026-08-06 移除：多市场源/联网拉取在国内网络不可靠，改为本地 .dll/.ccp 导入。）
+/// 插件管理页 ViewModel：展示已安装插件列表、启用/禁用开关、状态标签，并支持两种方式添加插件：
+/// 本地安装（FilePicker 选 .dll/.ccp）与网络安装（GitHub 仓库地址自动拉取最新 Release 附件，或直接输入直链）。
+/// （在线插件商店已于 2026-08-06 移除：多市场源/联网拉取在国内网络不可靠，改为按需网络安装。）
 /// </summary>
 public partial class PluginManagementViewModel : ObservableObject
 {
     private readonly IPluginManager _pluginManager;
+
+    private static readonly HttpClient s_http = CreateHttpClient();
+
+    private static HttpClient CreateHttpClient()
+    {
+        var hc = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        hc.DefaultRequestHeaders.UserAgent.ParseAdd("CatClawMusic/1.7");
+        return hc;
+    }
 
     /// <summary>插件项展示列表（已安装）</summary>
     public ObservableCollection<PluginItemView> Plugins { get; } = new();
@@ -24,6 +36,14 @@ public partial class PluginManagementViewModel : ObservableObject
     /// <summary>插件汇总文本（如"共 N 个插件，已启用 M 个"）</summary>
     [ObservableProperty]
     private string _summary = "加载中...";
+
+    /// <summary>是否正在网络安装（解析地址/下载/安装中）</summary>
+    [ObservableProperty]
+    private bool _isInstalling;
+
+    /// <summary>网络安装过程状态文本</summary>
+    [ObservableProperty]
+    private string _installStatusText = "";
 
     /// <summary>
     /// 初始化 <see cref="PluginManagementViewModel"/> 实例。
@@ -69,9 +89,29 @@ public partial class PluginManagementViewModel : ObservableObject
         }
     }
 
-    /// <summary>从本地文件添加插件（.dll / .ccp），安装后刷新列表</summary>
+    /// <summary>添加插件入口：弹出选择（本地安装 / 网络安装）</summary>
     [RelayCommand]
     public async Task AddPluginAsync()
+    {
+        try
+        {
+            var page = CurrentPage();
+            if (page == null) return;
+            var choice = await page.DisplayActionSheet("添加插件", "取消", null, "📁 本地安装", "🌐 网络安装");
+            if (choice == "📁 本地安装")
+                await InstallFromLocalAsync();
+            else if (choice == "🌐 网络安装")
+                await InstallFromNetworkAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 添加插件失败: {ex.Message}");
+            await ShowAlertAsync("插件", $"添加失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>本地安装：FilePicker 选择 .dll / .ccp 后安装</summary>
+    private async Task InstallFromLocalAsync()
     {
         try
         {
@@ -80,14 +120,208 @@ public partial class PluginManagementViewModel : ObservableObject
                 PickerTitle = "选择插件文件",
                 FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
                 {
-                    [DevicePlatform.WinUI] = new[] { ".dll", ".ccp" },
+                    [DevicePlatform.WinUI] = new[] { ".ccp" },
                     [DevicePlatform.Android] = new[] { "application/octet-stream", "application/x-msdownload", "*/*" },
                 }),
             });
             if (result == null) return;
+            await InstallFileAsync(result.FullPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 本地安装失败: {ex.Message}");
+            await ShowAlertAsync("插件", $"本地安装失败：{ex.Message}");
+        }
+    }
 
+    /// <summary>
+    /// 网络安装：输入 GitHub 仓库地址（自动拉取最新 Release 中的 .dll/.ccp 附件）
+    /// 或插件包直链，下载后安装。
+    /// </summary>
+    private async Task InstallFromNetworkAsync()
+    {
+        try
+        {
+            var page = CurrentPage();
+            if (page == null) return;
+            var input = await page.DisplayPromptAsync(
+                "网络安装插件",
+                "输入 GitHub 仓库地址，自动拉取最新 Release 中的插件包（.ccp）；\n也可直接粘贴插件包下载直链：\n\n仓库示例：https://github.com/owner/repo\n直链示例：https://.../xxx.ccp",
+                "下一步", "取消",
+                placeholder: "https://github.com/owner/repo",
+                keyboard: Keyboard.Url);
+            if (string.IsNullOrWhiteSpace(input)) return;
+            input = input.Trim();
+
+            IsInstalling = true;
+            try
+            {
+                InstallStatusText = "正在解析下载地址...";
+                var urls = await ResolveDownloadUrlsAsync(input);
+                if (urls.Count == 0)
+                {
+                    await ShowAlertAsync("网络安装", "该仓库的最新 Release 中没有 .ccp 插件包");
+                    return;
+                }
+
+                InstallStatusText = "正在下载插件...";
+                var (fileName, localPath) = await DownloadFirstAsync(urls);
+
+                InstallStatusText = "正在安装...";
+                await InstallFileAsync(localPath);
+
+                try { File.Delete(localPath); } catch { }
+            }
+            finally
+            {
+                IsInstalling = false;
+                InstallStatusText = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 网络安装失败: {ex.Message}");
+            await ShowAlertAsync("网络安装", $"安装失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>解析用户输入为候选下载地址列表（仓库地址 → 查 Release API 找附件；否则视为直链）</summary>
+    private static async Task<List<string>> ResolveDownloadUrlsAsync(string input)
+    {
+        var m = Regex.Match(input, @"github\.com/([^/]+)/([^/?#]+?)(?:/releases/tag/([^/?#]+))?",
+            RegexOptions.IgnoreCase);
+        if (!m.Success)
+            return new List<string> { input.Trim() };
+
+        var owner = m.Groups[1].Value;
+        var repo = m.Groups[2].Value.TrimEnd('/');
+        var tag = m.Groups[3].Success ? m.Groups[3].Value : null;
+        var api = tag != null
+            ? $"https://api.github.com/repos/{owner}/{repo}/releases/tags/{Uri.EscapeDataString(tag)}"
+            : $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
+
+        var json = await GetJsonAsync(new[] { api, $"https://gh-proxy.com/{api}" });
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+            return new List<string>();
+
+        var urls = new List<string>();
+        foreach (var asset in assets.EnumerateArray())
+        {
+            if (!asset.TryGetProperty("name", out var nameEl)) continue;
+            var name = nameEl.GetString() ?? "";
+            if (!name.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase)) continue;
+            if (asset.TryGetProperty("browser_download_url", out var urlEl))
+            {
+                var url = urlEl.GetString();
+                if (!string.IsNullOrWhiteSpace(url)) urls.Add(url.Trim());
+            }
+        }
+        return urls;
+    }
+
+    /// <summary>依次尝试候选下载地址，保存插件文件到临时目录；全部失败抛异常（含逐候选诊断）</summary>
+    private static async Task<(string fileName, string localPath)> DownloadFirstAsync(List<string> urls)
+    {
+        var failures = new List<string>();
+        foreach (var u in urls)
+        {
+            foreach (var mirror in BuildDownloadMirrors(u))
+            {
+                try
+                {
+                    var fileName = PickFileName(u);
+                    var dir = Path.Combine(FileSystem.CacheDirectory, "plugin-downloads");
+                    Directory.CreateDirectory(dir);
+                    var localPath = Path.Combine(dir, fileName);
+
+                    using var resp = await s_http.GetAsync(mirror, HttpCompletionOption.ResponseHeadersRead);
+                    resp.EnsureSuccessStatusCode();
+                    await using (var fs = File.Create(localPath))
+                    await using (var src = await resp.Content.ReadAsStreamAsync())
+                        await src.CopyToAsync(fs);
+
+                    // 轻量校验：.ccp 内容应为 PE 程序集（MZ 头）
+                    if (fileName.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
+                    {
+                        using var fs = File.OpenRead(localPath);
+                        Span<byte> head = stackalloc byte[2];
+                        if (fs.Read(head) != 2 || head[0] != 0x4D || head[1] != 0x5A)
+                        {
+                            failures.Add($"{ShortUrl(mirror)}=非PE程序集");
+                            try { File.Delete(localPath); } catch { }
+                            continue;
+                        }
+                    }
+                    return (fileName, localPath);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{ShortUrl(mirror)}={ex.GetType().Name}");
+                }
+            }
+        }
+        throw new Exception($"所有下载地址均不可用：\n{string.Join("\n→ ", failures)}");
+    }
+
+    /// <summary>GET 请求候选列表，返回第一个成功响应的文本；全部失败抛异常（含逐候选诊断）</summary>
+    private static async Task<string> GetJsonAsync(IEnumerable<string> candidates)
+    {
+        var failures = new List<string>();
+        foreach (var c in candidates)
+        {
+            try
+            {
+                using var resp = await s_http.GetAsync(c);
+                resp.EnsureSuccessStatusCode();
+                return await resp.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"{ShortUrl(c)}={ex.GetType().Name}");
+            }
+        }
+        throw new Exception($"无法访问发布信息：\n{string.Join("\n→ ", failures)}");
+    }
+
+    /// <summary>为下载地址构造镜像候选（GitHub 地址追加 gh-proxy.com 反代）</summary>
+    private static IEnumerable<string> BuildDownloadMirrors(string url)
+    {
+        yield return url;
+        if (url.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("http://github.com/", StringComparison.OrdinalIgnoreCase))
+            yield return "https://gh-proxy.com/" + url;
+    }
+
+    /// <summary>从下载 URL 提取稳定文件名（无扩展名时回退 plugin_{guid}.ccp）</summary>
+    private static string PickFileName(string url)
+    {
+        var name = "";
+        try { name = Path.GetFileName(new Uri(url).AbsolutePath); } catch { }
+        if (string.IsNullOrWhiteSpace(name) || name is "/" or "\\")
+            name = $"plugin_{Guid.NewGuid():N}.ccp";
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c.ToString(), "_");
+        if (name.Length > 80) name = name[^80..];
+        if (!name.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
+            name += ".ccp";
+        return name;
+    }
+
+    private static string ShortUrl(string url)
+    {
+        var u = url.Replace("https://", "").Replace("http://", "");
+        return u.Length <= 70 ? u : u[..70] + "...";
+    }
+
+    /// <summary>安装本地插件文件（本地选择或网络下载后共用），成功则刷新列表</summary>
+    private async Task InstallFileAsync(string path)
+    {
+        try
+        {
             var progress = new Progress<(string, int)>(_ => { /* 无进度 UI，忽略 */ });
-            var info = await _pluginManager.InstallFromLocalFileAsync(result.FullPath, progress);
+            var info = await _pluginManager.InstallFromLocalFileAsync(path, progress);
             if (info != null)
             {
                 await RefreshAsync();
@@ -95,13 +329,13 @@ public partial class PluginManagementViewModel : ObservableObject
             }
             else
             {
-                await ShowAlertAsync("插件", "安装失败：插件文件无效或格式不受支持（仅支持 .dll / .ccp）");
+                await ShowAlertAsync("插件", "安装失败：插件文件无效或格式不受支持（仅支持 .ccp 格式插件包）");
             }
         }
         catch (Exception ex)
         {
-            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 添加插件失败: {ex.Message}");
-            await ShowAlertAsync("插件", $"添加失败：{ex.Message}");
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 安装失败: {ex.Message}");
+            await ShowAlertAsync("插件", $"安装失败：{ex.Message}");
         }
     }
 

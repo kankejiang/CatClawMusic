@@ -76,6 +76,13 @@
                     </Border>
                 </Grid>
 
+                <Label Text="{Binding InstallStatusText}"
+                       FontSize="12"
+                       FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource PrimaryColor}"
+                       HorizontalOptions="Center"
+                       IsVisible="{Binding IsInstalling}" />
+
                 <VerticalStackLayout Spacing="10"
                                      BindableLayout.ItemsSource="{Binding Plugins}">
                     <BindableLayout.ItemTemplate>

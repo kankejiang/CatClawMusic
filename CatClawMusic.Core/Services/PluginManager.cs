@@ -11,7 +11,7 @@ namespace CatClawMusic.Core.Services;
 /// 职责概述：
 /// <list type="bullet">
 ///   <item>管理插件的完整生命周期：发现、加载、启用/禁用、初始化、关闭、卸载</item>
-///   <item>支持两种安装方式：从本地文件（.dll/.ccp）安装 和 从 GitHub Release 下载安装</item>
+///   <item>支持两种安装方式：从本地文件（.ccp）安装 和 从 GitHub Release 下载安装</item>
 ///   <item>实现「反射适配器模式」：当插件 DLL 引用了不同版本的宿主程序集时，
 ///         通过 FullName 匹配接口并使用反射代理调用，避免类型转换失败</item>
 ///   <item>实现「两级匹配策略」：优先使用宿主端 IPlugin 接口直接匹配（isAssignableFrom），
@@ -50,7 +50,7 @@ public class PluginManager : IPluginManager
     private readonly Action<string, bool> _setPrefFunc;
 
     /// <summary>
-    /// 插件文件存放目录，用于存储动态安装的 .dll/.ccp 文件和 installed.json 索引
+    /// 插件文件存放目录，用于存储动态安装的 .ccp 插件包和 installed.json 索引
     /// </summary>
     private readonly string _pluginsDir;
 
@@ -301,7 +301,7 @@ public class PluginManager : IPluginManager
     /// <summary>
     /// 从本地文件安装插件。
     /// <para>
-    /// 支持的文件格式：.dll（标准程序集）和 .ccp（CatClawMusic 插件包）。
+    /// 支持的文件格式：.ccp（CatClawMusic 插件包，内容为插件程序集）。
     /// 安装流程：验证文件 → 复制到插件目录 → 加载并注册插件。
     /// 若目标目录已存在同名文件，会自动添加时间戳后缀避免覆盖。
     /// </para>
@@ -319,9 +319,8 @@ public class PluginManager : IPluginManager
                 throw new FileNotFoundException("未找到插件文件", filePath);
 
             var fileName = Path.GetFileName(filePath);
-            if (!fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-                && !fileName.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("仅支持 .dll 或 .ccp 格式的插件文件");
+            if (!fileName.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("仅支持 .ccp 格式的插件文件");
 
             var destPath = Path.Combine(_pluginsDir, fileName);
             // 若目标路径已存在同名文件，添加时间戳后缀避免覆盖
@@ -353,7 +352,7 @@ public class PluginManager : IPluginManager
     /// <list type="number">
     ///   <item>解析 GitHub 仓库 URL，提取 owner 和 repo 名称</item>
     ///   <item>调用 GitHub API 获取最新 Release 信息</item>
-    ///   <item>在 Release Assets 中查找 .dll 或 .ccp 文件</item>
+    ///   <item>在 Release Assets 中查找 .ccp 文件</item>
     ///   <item>下载插件文件到本地插件目录（支持进度回调）</item>
     ///   <item>加载并注册插件</item>
     /// </list>
@@ -405,18 +404,17 @@ public class PluginManager : IPluginManager
             {
                 throw new InvalidOperationException(
                     $"仓库 {owner}/{repo} 的最新 Release 没有包含附件。\n" +
-                    "请先在 GitHub 上创建 Release 并上传编译好的 .dll 文件。\n" +
-                    "或使用「从本地安装」导入已编译的 DLL。");
+                    "请先在 GitHub 上创建 Release 并上传编译好的 .ccp 插件包。\n" +
+                    "或使用「从本地安装」导入已编译的插件。");
             }
 
-            // 在 Release Assets 中查找 .dll 或 .ccp 文件
+            // 在 Release Assets 中查找 .ccp 文件（客户端统一只认 .ccp 格式）
             string? dllUrl = null;
             string? dllName = null;
             foreach (var asset in assets.EnumerateArray())
             {
                 var name = asset.GetProperty("name").GetString() ?? "";
-                if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-                    || name.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
+                if (name.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
                 {
                     dllUrl = asset.GetProperty("browser_download_url").GetString();
                     dllName = name;
@@ -427,14 +425,14 @@ public class PluginManager : IPluginManager
             if (dllUrl == null)
             {
                 throw new InvalidOperationException(
-                    $"仓库 {owner}/{repo} 的 Release 中没有找到 .dll 或 .ccp 文件。\n" +
-                    "请上传编译好的插件到 Release Assets。");
+                    $"仓库 {owner}/{repo} 的 Release 中没有找到 .ccp 插件文件。\n" +
+                    "请上传编译好的插件（.ccp 格式）到 Release Assets。");
             }
 
             progress?.Report(("正在下载插件...", 30));
 
             // 下载插件文件，支持进度回调
-            var destPath = Path.Combine(_pluginsDir, dllName ?? "plugin.dll");
+            var destPath = Path.Combine(_pluginsDir, dllName ?? "plugin.ccp");
 
             using var downloadResponse = await _httpClient.GetAsync(dllUrl);
             downloadResponse.EnsureSuccessStatusCode();

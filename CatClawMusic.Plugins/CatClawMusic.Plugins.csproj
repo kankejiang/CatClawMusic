@@ -14,4 +14,15 @@
     <ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 客户端只认 .ccp 插件包：构建后把程序集复制为 .ccp 作为发布产物 -->
+    <None Include="$(TargetPath)" Pack="false" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
+  <Target Name="PackageCcp" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFiles="$(OutDir)CatClawMusic.Plugins.OnlineMusic.ccp"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>
