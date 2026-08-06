@@ -79,6 +79,19 @@ public partial class AudioPlayerService
     {
         if (_winPlayer == null) InitializePlatform();
 
+        // 网络流：先下载到本地缓存再播（WinUI MediaPlayer/AudioGraph 播网络流
+        // 存在 30s 断流/时长短算问题；且 CDN 直链有时效。本地文件 100% 稳定）
+        if (source.Scheme is "http" or "https")
+        {
+            _ = PlayNetworkCachedAsync(source);
+            return;
+        }
+
+        PlayLocalSource(source);
+    }
+
+    private void PlayLocalSource(Uri source)
+    {
         if (EqualizerSettings.Enabled)
         {
             // EQ 开启：走 AudioGraph DSP 管线（异步加载，失败回退 MediaPlayer）
@@ -88,6 +101,47 @@ public partial class AudioPlayerService
 
         StopEqEngine();
         PlayWithMediaPlayer(source);
+    }
+
+    /// <summary>下载网络音频到本地缓存目录后播放（失败回退原 URL 直播）</summary>
+    private async Task PlayNetworkCachedAsync(Uri source)
+    {
+        Uri? local = null;
+        try
+        {
+            var dir = Path.Combine(FileSystem.CacheDirectory, "online-cache");
+            Directory.CreateDirectory(dir);
+            var name = SanitizeFileName(Path.GetFileName(source.AbsolutePath));
+            if (string.IsNullOrWhiteSpace(name) || name is "/" or "\\")
+                name = $"audio_{source.AbsolutePath.GetHashCode():x8}.mp3";
+            var dest = Path.Combine(dir, name);
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+            var bytes = await http.GetByteArrayAsync(source);
+            await File.WriteAllBytesAsync(dest, bytes);
+            local = new Uri(dest);
+            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] 网络音频已缓存: {bytes.Length} bytes -> {dest}");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] 网络音频缓存失败，回退直播: {ex.Message}");
+        }
+
+        var target = local ?? source;
+        if (EqualizerSettings.Enabled)
+            _ = PlayWithEqEngineAsync(target);
+        else
+        {
+            StopEqEngine();
+            PlayWithMediaPlayer(target);
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c.ToString(), "_");
+        return name.Length > 80 ? name[^80..] : name;
     }
 
     private async Task PlayWithEqEngineAsync(Uri source)
