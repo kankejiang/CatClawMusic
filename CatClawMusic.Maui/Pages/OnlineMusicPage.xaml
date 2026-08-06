@@ -82,12 +82,13 @@
             </Border>
         </Grid>
 
-        <!-- ═══ 内容区 ═══ -->
-        <Grid Grid.Row="1" IsVisible="{Binding HasProviders}">
+        <!-- ═══ 内容区（外层 ScrollView 让整页可滚） ═══ -->
+        <ScrollView Grid.Row="1" IsVisible="{Binding HasProviders}">
+            <VerticalStackLayout Spacing="0">
 
             <!-- 无音源提示 -->
             <VerticalStackLayout IsVisible="{Binding HasProviders, Converter={StaticResource InvertedBoolConverter}}"
-                                 Spacing="8" VerticalOptions="Center" HorizontalOptions="Center">
+                                 Spacing="8" VerticalOptions="Center" Padding="0,40,0,0">
                 <Label Text="🎵" FontSize="40" HorizontalOptions="Center" />
                 <Label Text="{Binding StatusText}"
                        FontSize="13" TextColor="{DynamicResource TextHintColor}"
@@ -143,11 +144,11 @@
                     </CollectionView.ItemsLayout>
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:OnlinePlaylist">
-                            <Border Style="{StaticResource GlassCardStyle}" Padding="8">
+                            <Border Style="{StaticResource GlassCardStyle}" Padding="0">
                                 <VerticalStackLayout Spacing="6">
+                                    <!-- 封面 1:1 正方形（QQ 音乐风格） -->
                                     <Border StrokeThickness="0" StrokeShape="RoundRectangle 12"
-                                            BackgroundColor="{DynamicResource SurfaceColor}"
-                                            HeightRequest="120">
+                                            AspectRatio="1" BackgroundColor="{DynamicResource SurfaceColor}">
                                         <Image Source="{Binding CoverUrl, TargetNullValue='ic_music_note'}"
                                                Aspect="AspectFill"
                                                HorizontalOptions="Fill" VerticalOptions="Fill" />
@@ -155,9 +156,11 @@
                                     <Label Text="{Binding Name}"
                                            FontSize="12" FontFamily="OpenSansSemibold"
                                            TextColor="{DynamicResource TextPrimaryColor}"
-                                           MaxLines="2" LineBreakMode="TailTruncation" />
+                                           MaxLines="2" LineBreakMode="TailTruncation"
+                                           Padding="6,0,6,6" />
                                     <Label Text="{Binding SongCount, StringFormat='{0} 首'}"
-                                           FontSize="10" TextColor="{DynamicResource TextHintColor}" />
+                                           FontSize="10" TextColor="{DynamicResource TextHintColor}"
+                                           Padding="6,0,6,6" />
                                 </VerticalStackLayout>
                             </Border>
                         </DataTemplate>
@@ -229,7 +232,8 @@
                     </CollectionView.ItemTemplate>
                 </CollectionView>
             </VerticalStackLayout>
-        </Grid>
+        </VerticalStackLayout>
+        </ScrollView>
 
         <!-- 加载指示 -->
         <ActivityIndicator IsRunning="{Binding IsLoading}"
