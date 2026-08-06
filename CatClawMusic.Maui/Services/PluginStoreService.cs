@@ -156,10 +156,11 @@ public class PluginStoreService
         return merged.Values.OrderBy(x => x.Name).ToList();
     }
 
-    /// <summary>拉取单个市场源清单并解析（v1 数组 / v2 字典均支持）</summary>
+    /// <summary>拉取单个市场源清单并解析（v1 数组 / v2 字典均支持）。
+    /// 失败时把每个候选的成败写入异常消息，便于线上定位"哪个镜像、什么错"。</summary>
     public async Task<List<PluginStoreItem>> FetchSourceAsync(string storeUrl)
     {
-        Exception? last = null;
+        var attempts = new List<string>();
         foreach (var candidate in BuildCandidateUrls(storeUrl, excludeApi: false))
         {
             try
@@ -167,10 +168,27 @@ public class PluginStoreService
                 var json = await GetJsonAsync(candidate).ConfigureAwait(false);
                 var items = Parse(json);
                 if (items.Count > 0) return items;
+                attempts.Add($"{ShortUrl(candidate)}=空清单");
             }
-            catch (Exception ex) { last = ex; }
+            catch (Exception ex)
+            {
+                attempts.Add($"{ShortUrl(candidate)}={ex.GetType().Name}");
+            }
         }
-        throw last ?? new Exception($"无法连接市场源: {storeUrl}");
+        var detail = string.Join(" → ", attempts);
+        throw new Exception($"无法连接市场源[{storeUrl}]：{detail}");
+    }
+
+    /// <summary>把 URL 截成"host/..."的紧凑形式，便于在错误消息里展示</summary>
+    private static string ShortUrl(string url)
+    {
+        try
+        {
+            var u = new Uri(url);
+            var path = u.AbsolutePath;
+            return path.Length > 40 ? $"{u.Host}{path[..40]}…" : $"{u.Host}{path}";
+        }
+        catch { return url; }
     }
 
     /// <summary>获取 JSON 文本：GitHub API 的 contents 端点返回 base64 编码，需解码</summary>
