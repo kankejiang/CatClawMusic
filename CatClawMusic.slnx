@@ -1,4 +1,4 @@
 <Solution>
   <Project Path="CatClawMusic.Core/CatClawMusic.Core.csproj" />
-  <Project Path="CatClawMusic.Plugins/CatClawMusic.Plugins.csproj" />
+  <Project Path="CatClawMusic.Plugins/CatClawMusic.Plugins.OnlineMusic.csproj" />
 </Solution>
