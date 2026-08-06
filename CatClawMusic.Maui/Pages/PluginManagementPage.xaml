@@ -141,12 +141,29 @@
                                                    TextColor="{Binding StatusColor}" />
                                         </HorizontalStackLayout>
                                     </VerticalStackLayout>
-                                    <Switch Grid.Column="2"
-                                            IsToggled="{Binding IsEnabled}"
-                                            OnColor="{DynamicResource PrimaryColor}"
-                                            ThumbColor="White"
-                                            VerticalOptions="Center"
-                                            IsEnabled="False" />
+                                    <VerticalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
+                                        <Switch IsToggled="{Binding IsEnabled}"
+                                                OnColor="{DynamicResource PrimaryColor}"
+                                                ThumbColor="White"
+                                                VerticalOptions="Center"
+                                                IsEnabled="False" />
+                                        <Border IsVisible="{Binding CanUninstall}"
+                                                Padding="9,4"
+                                                StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 12"
+                                                BackgroundColor="#22FF6B6B"
+                                                HorizontalOptions="End">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.UninstallPluginCommand}"
+                                                                      CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="🗑 删除"
+                                                   FontSize="11"
+                                                   FontFamily="OpenSansSemibold"
+                                                   TextColor="#FF6B6B"
+                                                   HorizontalOptions="Center" />
+                                        </Border>
+                                    </VerticalStackLayout>
                                 </Grid>
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleEnabledCommand}"

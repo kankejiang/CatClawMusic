@@ -357,6 +357,34 @@ public partial class PluginManagementViewModel : ObservableObject
         }
     }
 
+    /// <summary>卸载（删除）已安装插件：删文件、清启用偏好与索引，刷新列表</summary>
+    [RelayCommand]
+    public async Task UninstallPluginAsync(PluginItemView? item)
+    {
+        if (item == null || !item.CanUninstall) return;
+        var ok = await ShowConfirmAsync("卸载插件",
+            $"确定要卸载「{item.DisplayName}」吗？\n插件文件将被删除，相关功能立即停用。");
+        if (!ok) return;
+        try
+        {
+            var success = await _pluginManager.UninstallPluginAsync(item.PluginTypeId);
+            if (success)
+            {
+                await RefreshAsync();
+                await ShowAlertAsync("卸载成功", $"已卸载「{item.DisplayName}」");
+            }
+            else
+            {
+                await ShowAlertAsync("卸载失败", "插件卸载失败（可能正在使用）");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 卸载失败: {ex.Message}");
+            await ShowAlertAsync("卸载失败", ex.Message);
+        }
+    }
+
     private void UpdateSummary()
     {
         var enabled = Plugins.Count(x => x.IsEnabled);
@@ -378,6 +406,17 @@ public partial class PluginManagementViewModel : ObservableObject
             if (page != null) await page.DisplayAlertAsync(title, message, "确定");
         }
         catch { }
+    }
+
+    private async Task<bool> ShowConfirmAsync(string title, string message, string accept = "卸载")
+    {
+        try
+        {
+            var page = CurrentPage();
+            if (page == null) return false;
+            return await page.DisplayAlertAsync(title, message, accept, "取消");
+        }
+        catch { return false; }
     }
 }
 
@@ -412,6 +451,9 @@ public partial class PluginItemView : ObservableObject
     public string IconEmoji => string.IsNullOrWhiteSpace(Info.IconEmoji) ? "🧩" : Info.IconEmoji;
     /// <summary>插件来源展示文本（内置 / 已安装）</summary>
     public string SourceText => Info.Source == PluginSource.BuiltIn ? "内置" : "已安装";
+
+    /// <summary>是否可卸载（仅动态安装的插件可卸载，内置插件不可）</summary>
+    public bool CanUninstall => Info.Source == PluginSource.Installed;
 
     /// <summary>该插件是否已启用</summary>
     [ObservableProperty]

@@ -316,8 +316,8 @@ public partial class SearchPage : DiscoverPageBase
         await PlaySongAsync(song, allSongs);
     }
 
-    /// <summary>点击在线音乐入口卡时触发，进入在线音乐中心（歌单/漫游/搜索）。</summary>
-    private async void OnOpenOnlineMusicTapped(object? sender, TappedEventArgs e)
+    /// <summary>点击在线音乐入口（顶栏 🎵 / 入口卡按钮）时触发，进入在线音乐中心（歌单/漫游/搜索）。</summary>
+    private async void OnOnlineMusicTapped(object? sender, TappedEventArgs e)
     {
         try
         {

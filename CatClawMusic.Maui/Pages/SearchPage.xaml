@@ -34,6 +34,16 @@
                             <Border Style="{StaticResource GlassIconContainerStyle}">
                                 <ImageButton Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked" />
                             </Border>
+                            <!-- 在线音乐入口（插件驱动：仅安装了音源插件时显示，客户端只提供 UI 接口） -->
+                            <Border Style="{StaticResource GlassIconContainerStyle}"
+                                    IsVisible="{Binding HasOnlineProviders}"
+                                    BackgroundColor="{DynamicResource PrimaryColor}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOnlineMusicTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="🎵" FontSize="18" TextColor="White"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
                                 <ImageButton Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked" />
                             </Border>
@@ -115,11 +125,12 @@
                                 </Border>
                             </FlexLayout>
 
-                            <!-- 进入在线音乐中心（歌单/漫游浏览） -->
+                            <!-- 进入在线音乐中心（插件驱动：有音源插件才显示） -->
                             <Border Padding="12,9" StrokeThickness="0" StrokeShape="RoundRectangle 14"
-                                    BackgroundColor="{DynamicResource PrimaryColor}">
+                                    BackgroundColor="{DynamicResource PrimaryColor}"
+                                    IsVisible="{Binding HasOnlineProviders}">
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnOpenOnlineMusicTapped" />
+                                    <TapGestureRecognizer Tapped="OnOnlineMusicTapped" />
                                 </Border.GestureRecognizers>
                                 <Label Text="进入在线音乐中心 ›"
                                        FontSize="12" FontFamily="OpenSansSemibold"
