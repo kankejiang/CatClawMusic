@@ -27,7 +27,7 @@
                             <Label Text="发现" Style="{StaticResource PageTitleStyle}" />
                             <Label Text="{Binding GreetingText}" Style="{StaticResource PageSubtitleStyle}" Margin="0,2,0,0" />
                         </VerticalStackLayout>
-                        <HorizontalStackLayout Grid.Column="1" Spacing="10" VerticalOptions="Center">
+                        <HorizontalStackLayout x:Name="PluginEntriesBar" Grid.Column="1" Spacing="10" VerticalOptions="Center">
                             <Border Style="{StaticResource GlassIconContainerStyle}">
                                 <ImageButton Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked" />
                             </Border>
@@ -49,34 +49,6 @@
                         </Grid>
                     </Border>
 
-                    <!-- 插件入口：由 IViewContributorPlugin 插件提供完整页面入口（取代原客户端内置"在线音乐"卡片） -->
-                    <Border Margin="18,0,18,10" Padding="16,14" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding HasViewContributors}">
-                        <VerticalStackLayout Spacing="10">
-                            <Label Text="插件入口" FontSize="11" TextColor="{DynamicResource TextHintColor}" />
-                            <VerticalStackLayout Spacing="8"
-                                                 BindableLayout.ItemsSource="{Binding ViewContributors}">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:ViewContributorView">
-                                        <Border Padding="14,10" StrokeThickness="0" StrokeShape="RoundRectangle 14"
-                                                BackgroundColor="{DynamicResource PrimaryColor}">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenViewContributorCommand}"
-                                                                      CommandParameter="{Binding .}" />
-                                            </Border.GestureRecognizers>
-                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                                                <Label Text="{Binding Icon}" FontSize="16" VerticalOptions="Center" />
-                                                <Label Grid.Column="1" Text="{Binding Title}" FontSize="13" FontFamily="OpenSansSemibold"
-                                                       TextColor="White" VerticalOptions="Center" />
-                                                <Label Grid.Column="2" Text="›" FontSize="18" TextColor="#CCFFFFFF" VerticalOptions="Center" />
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </VerticalStackLayout>
-                        </VerticalStackLayout>
-                    </Border>
-
-                    <!-- 无插件时本区域完全不显示（HasViewContributors=false 隐藏上方入口卡片） -->
 
                     <Border Margin="18,0,18,10" Padding="0" StrokeShape="RoundRectangle 18" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}" IsVisible="{Binding ShowSearchDropdown}">
                         <ScrollView MaximumHeightRequest="380">

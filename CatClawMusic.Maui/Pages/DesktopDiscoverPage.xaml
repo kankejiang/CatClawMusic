@@ -18,7 +18,7 @@
                     <Label Text="发现" FontSize="24" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" />
                     <Label Text="{Binding GreetingText}" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
                 </VerticalStackLayout>
-                <HorizontalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="8">
+                <HorizontalStackLayout x:Name="PluginEntriesBar" Grid.Column="1" VerticalOptions="Center" Spacing="8">
                     <Border StrokeShape="RoundRectangle 999" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" Padding="8,5">
                         <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
@@ -164,7 +164,7 @@
             </Border>
 
             <!-- ═══ Segmented Tabs ═══ -->
-            <Grid x:Name="CategoryTabBar" ColumnDefinitions="*,*,*,*,*,Auto" ColumnSpacing="8" Margin="0,16,0,16">
+            <Grid x:Name="CategoryTabBar" ColumnDefinitions="*,*,*,*,*" ColumnSpacing="8" Margin="0,16,0,16">
                 <Border Grid.Column="0" x:Name="TabRec" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
                     <Label x:Name="TabRecLabel" Text="推荐" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="0" /></Border.GestureRecognizers>
@@ -185,22 +185,6 @@
                     <Label x:Name="TabStatsLabel" Text="报告" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="4" /></Border.GestureRecognizers>
                 </Border>
-                <!-- 插件贡献的子 tab：每个 IViewContributorPlugin 自动出现一个，点击打开其入口页。
-                     主程序这里只提供通用槽位，不硬编码任何插件。 -->
-                <HorizontalStackLayout Grid.Column="5" Spacing="8" IsVisible="{Binding HasViewContributors}"
-                                      BindableLayout.ItemsSource="{Binding ViewContributors}">
-                    <BindableLayout.ItemTemplate>
-                        <DataTemplate x:DataType="models:ViewContributorView">
-                            <Border Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
-                                <Label Text="{Binding Title}" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenViewContributorCommand}"
-                                                          CommandParameter="{Binding .}" />
-                                </Border.GestureRecognizers>
-                            </Border>
-                        </DataTemplate>
-                    </BindableLayout.ItemTemplate>
-                </HorizontalStackLayout>
             </Grid>
 
             <!-- ═══ 推荐面板 ═══ -->

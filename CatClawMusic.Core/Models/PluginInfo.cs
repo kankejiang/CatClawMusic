@@ -75,6 +75,12 @@ public enum PluginCategory
     OnlineMusic,
     /// <summary>视图贡献者（插件提供完整页面入口）</summary>
     ViewContributor,
+    /// <summary>主题提供者（插件提供皮肤/主题）</summary>
+    ThemeProvider,
+    /// <summary>播放页提供者（插件提供可替换的播放页内容）</summary>
+    PlayerPage,
+    /// <summary>音频可视化提供者（插件提供可视化视图）</summary>
+    AudioVisualizer,
     /// <summary>其他</summary>
     Other
 }

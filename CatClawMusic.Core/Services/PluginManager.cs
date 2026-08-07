@@ -108,6 +108,26 @@ public class PluginManager : IPluginManager
     private static readonly string IViewContributorFullName = typeof(IViewContributorPlugin).FullName!;
 
     /// <summary>
+    /// IThemeProviderPlugin 接口的全限定名，用于反射匹配主题提供者插件
+    /// </summary>
+    private static readonly string IThemeProviderFullName = typeof(IThemeProviderPlugin).FullName!;
+
+    /// <summary>
+    /// IPlayerPagePlugin 接口的全限定名，用于反射匹配播放页提供者插件
+    /// </summary>
+    private static readonly string IPlayerPageFullName = typeof(IPlayerPagePlugin).FullName!;
+
+    /// <summary>
+    /// IAudioVisualizerPlugin 接口的全限定名，用于反射匹配音频可视化插件
+    /// </summary>
+    private static readonly string IAudioVisualizerFullName = typeof(IAudioVisualizerPlugin).FullName!;
+
+    /// <summary>
+    /// IPluginConfigurable 接口的全限定名，用于反射匹配可配置插件
+    /// </summary>
+    private static readonly string IConfigurableFullName = typeof(IPluginConfigurable).FullName!;
+
+    /// <summary>
     /// 插件管理器构造函数。完成初始化流程：
     /// <list type="number">
     ///   <item>验证并保存偏好读写委托和插件目录</item>
@@ -687,6 +707,14 @@ public class PluginManager : IPluginManager
                     wrappers.Add(new OnlineMusicAdapter(rawInstance));
                 if (interfaceNames.Contains(IViewContributorFullName))
                     wrappers.Add(new ViewContributorAdapter(rawInstance));
+                if (interfaceNames.Contains(IThemeProviderFullName))
+                    wrappers.Add(new ThemeProviderAdapter(rawInstance));
+                if (interfaceNames.Contains(IPlayerPageFullName))
+                    wrappers.Add(new PlayerPageAdapter(rawInstance));
+                if (interfaceNames.Contains(IAudioVisualizerFullName))
+                    wrappers.Add(new AudioVisualizerAdapter(rawInstance));
+                if (interfaceNames.Contains(IConfigurableFullName))
+                    wrappers.Add(new ConfigurableAdapter(rawInstance));
                 if (wrappers.Count == 0)
                     wrappers.Add(new BasicPluginAdapter(rawInstance));
 
@@ -932,6 +960,24 @@ public class PluginManager : IPluginManager
             pluginTypeId = $"OnlineMusic.{plugin.PluginId}";
             category = PluginCategory.OnlineMusic;
             iconEmoji = "🌐";
+        }
+        else if (plugin is IThemeProviderPlugin)
+        {
+            pluginTypeId = $"ThemeProvider.{plugin.PluginId}";
+            category = PluginCategory.ThemeProvider;
+            iconEmoji = "🎨";
+        }
+        else if (plugin is IPlayerPagePlugin)
+        {
+            pluginTypeId = $"PlayerPage.{plugin.PluginId}";
+            category = PluginCategory.PlayerPage;
+            iconEmoji = "🎬";
+        }
+        else if (plugin is IAudioVisualizerPlugin)
+        {
+            pluginTypeId = $"AudioVisualizer.{plugin.PluginId}";
+            category = PluginCategory.AudioVisualizer;
+            iconEmoji = "📊";
         }
         else if (plugin is IViewContributorPlugin)
         {
@@ -1788,6 +1834,137 @@ public class PluginManager : IPluginManager
             // 反射调用 CreateEntryPage(IServiceProvider)
             return method.Invoke(_target, new object[] { services })
                 ?? throw new InvalidOperationException("CreateEntryPage 返回 null");
+        }
+    }
+
+    /// <summary>
+    /// 主题提供者适配器：通过反射代理不同版本的 IThemeProviderPlugin 实现。
+    /// <para>
+    /// ThemeId/ThemeName/ThemeOrder 属性通过反射读取；GetThemeColorsAsync/GetThemeBackgroundAsync
+    /// 通过 InvokeAsyncMethod 反射调用。色板为 BCL 类型（Dictionary&lt;string,string&gt;），
+    /// 不涉自定义类型跨版本问题，可直接使用。
+    /// </para>
+    /// </summary>
+    private class ThemeProviderAdapter : BasicPluginAdapter, IThemeProviderPlugin
+    {
+        /// <summary>初始化主题提供者适配器</summary>
+        /// <param name="target">要代理的目标主题提供者对象实例</param>
+        public ThemeProviderAdapter(object target) : base(target) { }
+
+        /// <summary>主题唯一标识，通过反射读取</summary>
+        public string ThemeId => (string?)_targetType.GetProperty("ThemeId")?.GetValue(_target) ?? "";
+
+        /// <summary>主题显示名称，通过反射读取</summary>
+        public string ThemeName => (string?)_targetType.GetProperty("ThemeName")?.GetValue(_target) ?? "插件主题";
+
+        /// <summary>排序权重，通过反射读取</summary>
+        public int ThemeOrder => (int?)_targetType.GetProperty("ThemeOrder")?.GetValue(_target) ?? 100;
+
+        /// <summary>获取主题色板（资源键 → 色值），通过反射调用目标方法</summary>
+        public async Task<Dictionary<string, string>?> GetThemeColorsAsync()
+        {
+            if (_targetType.GetMethod("GetThemeColorsAsync") == null) return null;
+            var result = await InvokeAsyncMethod(_target, "GetThemeColorsAsync", null);
+            return result as Dictionary<string, string>;
+        }
+
+        /// <summary>获取主题背景图片源，通过反射调用目标方法</summary>
+        public async Task<string?> GetThemeBackgroundAsync()
+        {
+            if (_targetType.GetMethod("GetThemeBackgroundAsync") == null) return null;
+            var result = await InvokeAsyncMethod(_target, "GetThemeBackgroundAsync", null);
+            return result as string;
+        }
+    }
+
+    /// <summary>
+    /// 播放页提供者适配器：通过反射代理不同版本的 IPlayerPagePlugin 实现。
+    /// <para>
+    /// PlayerPageName/Priority 属性通过反射读取；CreatePlayerView 通过反射调用目标方法，
+    /// 直接返回目标对象创建的视图实例（object 形式），由宿主强制转换为 View。
+    /// </para>
+    /// </summary>
+    private class PlayerPageAdapter : BasicPluginAdapter, IPlayerPagePlugin
+    {
+        /// <summary>初始化播放页提供者适配器</summary>
+        /// <param name="target">要代理的目标播放页提供者对象实例</param>
+        public PlayerPageAdapter(object target) : base(target) { }
+
+        /// <summary>播放页显示名称，通过反射读取</summary>
+        public string PlayerPageName => (string?)_targetType.GetProperty("PlayerPageName")?.GetValue(_target) ?? "插件播放页";
+
+        /// <summary>优先级，通过反射读取</summary>
+        public int Priority => (int?)_targetType.GetProperty("Priority")?.GetValue(_target) ?? 0;
+
+        /// <summary>创建并返回播放页内容视图，通过反射调用目标方法</summary>
+        public object CreatePlayerView(IServiceProvider services)
+        {
+            var method = _targetType.GetMethod("CreatePlayerView");
+            if (method == null)
+                throw new InvalidOperationException("插件未实现 CreatePlayerView 方法");
+            return method.Invoke(_target, new object[] { services })
+                ?? throw new InvalidOperationException("CreatePlayerView 返回 null");
+        }
+    }
+
+    /// <summary>
+    /// 音频可视化适配器：通过反射代理不同版本的 IAudioVisualizerPlugin 实现。
+    /// <para>
+    /// VisualizerName/IsEnabled 属性通过反射读写；CreateVisualizerView 通过反射调用目标方法，
+    /// 直接返回目标对象创建的视图实例（object 形式），由宿主强制转换为 View。
+    /// </para>
+    /// </summary>
+    private class AudioVisualizerAdapter : BasicPluginAdapter, IAudioVisualizerPlugin
+    {
+        /// <summary>初始化音频可视化适配器</summary>
+        /// <param name="target">要代理的目标音频可视化对象实例</param>
+        public AudioVisualizerAdapter(object target) : base(target) { }
+
+        /// <summary>可视化名称，通过反射读取</summary>
+        public string VisualizerName => (string?)_targetType.GetProperty("VisualizerName")?.GetValue(_target) ?? "可视化";
+
+        /// <summary>是否启用可视化，通过反射读写</summary>
+        public bool IsEnabled
+        {
+            get => (bool?)_targetType.GetProperty("IsEnabled")?.GetValue(_target) ?? false;
+            set => _targetType.GetProperty("IsEnabled")?.SetValue(_target, value);
+        }
+
+        /// <summary>创建并返回可视化视图，通过反射调用目标方法</summary>
+        public object CreateVisualizerView(IServiceProvider services)
+        {
+            var method = _targetType.GetMethod("CreateVisualizerView");
+            if (method == null)
+                throw new InvalidOperationException("插件未实现 CreateVisualizerView 方法");
+            return method.Invoke(_target, new object[] { services })
+                ?? throw new InvalidOperationException("CreateVisualizerView 返回 null");
+        }
+    }
+
+    /// <summary>
+    /// 可配置插件适配器：通过反射代理不同版本的 IPluginConfigurable 实现。
+    /// <para>
+    /// CanConfigure 属性通过反射读取；CreateConfigView 通过反射调用目标方法，
+    /// 直接返回目标对象创建的配置视图实例（object 形式），由宿主强制转换为 View。
+    /// </para>
+    /// </summary>
+    private class ConfigurableAdapter : BasicPluginAdapter, IPluginConfigurable
+    {
+        /// <summary>初始化可配置插件适配器</summary>
+        /// <param name="target">要代理的目标可配置插件对象实例</param>
+        public ConfigurableAdapter(object target) : base(target) { }
+
+        /// <summary>是否可配置，通过反射读取</summary>
+        public bool CanConfigure => (bool?)_targetType.GetProperty("CanConfigure")?.GetValue(_target) ?? false;
+
+        /// <summary>创建并返回配置视图，通过反射调用目标方法</summary>
+        public object CreateConfigView(IServiceProvider services)
+        {
+            var method = _targetType.GetMethod("CreateConfigView");
+            if (method == null)
+                throw new InvalidOperationException("插件未实现 CreateConfigView 方法");
+            return method.Invoke(_target, new object[] { services })
+                ?? throw new InvalidOperationException("CreateConfigView 返回 null");
         }
     }
 

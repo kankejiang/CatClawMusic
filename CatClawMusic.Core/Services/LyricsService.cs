@@ -77,6 +77,46 @@ public class LyricsService : ILyricsService
             }
         }
 
+        // 在线音乐插件歌词：临时 Song 的 RemoteId 形如 "{platform}:{onlineId}"（搜索/发现页播放时构造）。
+        // 命中则优先路由到对应 IOnlineMusicPlugin 取歌词（原文+翻译合并），避免对 http 直链做本地内嵌探测。
+        if (PluginManager != null && !string.IsNullOrEmpty(song.RemoteId) && song.RemoteId.Contains(':'))
+        {
+            var parts = song.RemoteId.Split(':', 2);
+            var platform = parts[0];
+            var onlineId = parts.Length > 1 ? parts[1] : null;
+            if (!string.IsNullOrEmpty(onlineId))
+            {
+                foreach (var provider in PluginManager.GetEnabledPlugins<IOnlineMusicPlugin>())
+                {
+                    if (!string.Equals(provider.PlatformName, platform, StringComparison.OrdinalIgnoreCase)) continue;
+                    try
+                    {
+                        var onlineSong = new OnlineSong
+                        {
+                            Id = onlineId,
+                            Platform = platform,
+                            Title = song.Title,
+                            Artist = song.Artist,
+                            Album = song.Album
+                        };
+                        var onlineLyrics = await provider.GetLyricsAsync(onlineSong);
+                        if (onlineLyrics != null && !string.IsNullOrWhiteSpace(onlineLyrics.Value.Lrc))
+                        {
+                            var merged = onlineLyrics.Value.Lrc;
+                            if (!string.IsNullOrWhiteSpace(onlineLyrics.Value.TLrc))
+                                merged += "\n" + onlineLyrics.Value.TLrc;
+                            var parsed = await Task.Run(() => TryParseLyrics(merged));
+                            if (parsed != null) return parsed;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("LyricsService", $"[Lyrics] 在线插件歌词获取失败: {ex.Message}");
+                    }
+                }
+            }
+        }
+
         var lyrics = await GetLocalLyricsAsync(song);
         if (lyrics != null) return lyrics;
 

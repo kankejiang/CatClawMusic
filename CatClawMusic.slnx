@@ -1,4 +1,3 @@
 <Solution>
   <Project Path="CatClawMusic.Core/CatClawMusic.Core.csproj" />
-  <Project Path="CatClawMusic.Plugins/CatClawMusic.Plugins.Netease.csproj" />
 </Solution>

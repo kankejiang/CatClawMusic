@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.ViewModels;
+using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Pages.Base;
 
@@ -29,6 +30,23 @@ public abstract class DiscoverPageBase : ContentPage
     /// <summary>分类标签页控件数组（Border, Label），按 [推荐, 排行, 歌手, 专辑, 报告] 顺序。</summary>
     protected abstract (Border border, Label label)[] TabControls { get; }
 
+    /// <summary>宿主服务提供者（子类构造函数注入），插件创建视图/入口时用于解析服务。</summary>
+    protected abstract IServiceProvider Services { get; }
+
+    /// <summary>发现页顶部分类 Tab 栏（Grid），插件子 tab 动态插入"推荐"右侧。</summary>
+    protected abstract Grid CategoryTabBarControl { get; }
+
+    /// <summary>顶栏插件入口按钮容器（HorizontalStackLayout），IViewContributorPlugin 入口动态加入。</summary>
+    protected abstract Layout PluginEntriesRootControl { get; }
+
+    // === 插件子 tab / 整页入口状态（开放所有接口） ===
+
+    /// <summary>动态插件子 tab 控件（追加在固定 5 tab 之后，逻辑索引从 5 起）。</summary>
+    protected readonly List<(Border border, Label label)> _pluginTabControls = new();
+
+    /// <summary>插件面板（逻辑索引 → 容器），显隐随 CurrentCategory 控制。</summary>
+    private readonly List<(int logicalIndex, VerticalStackLayout panel)> _pluginPanels = new();
+
     // === Tab 切换 ===
 
     protected void OnCategoryTapped(object? sender, TappedEventArgs e)
@@ -55,6 +73,251 @@ public abstract class DiscoverPageBase : ContentPage
         {
             TabControls[i].border.BackgroundColor = selectedIndex == i ? primary : cardBg;
             TabControls[i].label.TextColor = selectedIndex == i ? Colors.White : textSecondary;
+        }
+    }
+
+    // === 插件子 tab / 整页入口（开放所有接口，横竖屏发现页共用） ===
+
+    /// <summary>
+    /// 初始化插件 UI：渲染发现子 tab（鸭子类型探测 IDiscoverTabPlugin）与整页入口（IViewContributorPlugin）。
+    /// 由子类构造函数 InitializeComponent 之后调用；任何异常不阻断页面。
+    /// </summary>
+    protected void InitializePluginUi()
+    {
+        try
+        {
+            InitializePluginTabs();
+            InitializePluginEntries();
+            // 统一监听 CurrentCategory 控制插件面板显隐（固定面板走 XAML IntToBoolConverter 绑定，互不干扰）
+            Vm.PropertyChanged += OnPluginVmPropertyChanged;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PluginUi] 初始化失败: {ex}");
+        }
+    }
+
+    private void OnPluginVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Vm.CurrentCategory))
+            UpdatePluginPanelVisibility(Vm.CurrentCategory);
+    }
+
+    /// <summary>
+    /// 发现页插件子 tab：鸭子类型探测插件实例的 TabTitle/TabIcon/TabOrder/CreateTabView 成员，
+    /// 存在即视为发现子 tab 贡献者（对应插件侧 IDiscoverTabPlugin，宿主零 Core 改动）。
+    /// 插件 tab 逻辑索引从 5 起（固定 5 tab 占 0-4），视觉列插入"推荐"(0)右侧。
+    /// </summary>
+    private void InitializePluginTabs()
+    {
+        if (Services.GetService(typeof(IPluginManager)) is not IPluginManager pluginManager) return;
+
+        // 收集所有发现子 tab 贡献者（鸭子类型探测）
+        var tabs = new List<(object instance, string title, string icon, int order, System.Reflection.MethodInfo create)>();
+        foreach (var info in pluginManager.GetAllPlugins())
+        {
+            if (!info.IsEnabled) continue;
+            var type = info.Plugin.GetType();
+            var titleProp = type.GetProperty("TabTitle");
+            var createMethod = type.GetMethod("CreateTabView");
+            if (titleProp == null || createMethod == null) continue;
+            tabs.Add((
+                info.Plugin,
+                (string?)titleProp.GetValue(info.Plugin) ?? "插件",
+                (string?)type.GetProperty("TabIcon")?.GetValue(info.Plugin) ?? "🧩",
+                (int?)type.GetProperty("TabOrder")?.GetValue(info.Plugin) ?? 100,
+                createMethod));
+        }
+        if (tabs.Count == 0) return;
+
+        // 按 TabOrder 升序、同序按标题排序
+        tabs = tabs.OrderBy(t => t.order).ThenBy(t => t.title).ToList();
+
+        // 视觉列：推荐(0) 右侧依次插插件 tab(1..N)，固定 tab 排行/歌手/专辑/报告右移 N 列
+        int pluginCount = tabs.Count;
+        for (int i = 0; i < pluginCount; i++)
+            CategoryTabBarControl.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        Grid.SetColumn(TabControls[1].border, 1 + pluginCount);
+        Grid.SetColumn(TabControls[2].border, 2 + pluginCount);
+        Grid.SetColumn(TabControls[3].border, 3 + pluginCount);
+        Grid.SetColumn(TabControls[4].border, 4 + pluginCount);
+
+        // 面板父容器 = CategoryTabBar 的父容器（Desktop 为 RootStack，Search 为 CollectionView.Header）
+        if (CategoryTabBarControl.Parent is not Layout root) return;
+        int tabBarIndex = root.Children.IndexOf(CategoryTabBarControl);
+
+        for (int i = 0; i < pluginCount; i++)
+        {
+            var tab = tabs[i];
+            int logicalIndex = 5 + i;   // 固定 5 tab 占 0-4，插件 tab 从 5 起
+            int visualColumn = 1 + i;   // 推荐(0) 右侧
+
+            // 插件 tab Border（样式对齐固定 tab，背景色由 UpdateTabVisualState 统一管理）
+            var tabLabel = new Label
+            {
+                Text = $"{tab.icon} {tab.title}",
+                FontSize = 14,
+                FontAttributes = FontAttributes.Bold,
+                HorizontalOptions = LayoutOptions.Center
+            };
+            tabLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
+            var tabBorder = new Border
+            {
+                Style = (Style)Application.Current!.Resources["GlassCardStyle"],
+                Padding = new Thickness(12, 10),
+                Content = tabLabel
+            };
+            tabBorder.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
+            int capturedLogical = logicalIndex;
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) =>
+            {
+                Vm.CurrentCategory = capturedLogical;
+                UpdateTabVisualState(capturedLogical);
+            };
+            tabBorder.GestureRecognizers.Add(tap);
+            Grid.SetColumn(tabBorder, visualColumn);
+            CategoryTabBarControl.Children.Add(tabBorder);
+            _pluginTabControls.Add((tabBorder, tabLabel));
+
+            // 插件面板：挂插件 CreateTabView 返回的 View，显隐由 UpdatePluginPanelVisibility 统一控制
+            var panel = new VerticalStackLayout { Spacing = 0, IsVisible = false };
+            try
+            {
+                if (tab.create.Invoke(tab.instance, new object[] { Services }) is View pluginView)
+                    panel.Children.Add(pluginView);
+            }
+            catch (Exception ex)
+            {
+                panel.Children.Add(new Label { Text = $"插件内容加载失败：{ex.Message}", FontSize = 12 });
+            }
+            root.Children.Insert(tabBarIndex + 1 + i, panel);
+            _pluginPanels.Add((logicalIndex, panel));
+        }
+
+        // 刷新一次视觉，纳入新增插件 tab
+        UpdateTabVisualState(Vm.CurrentCategory);
+    }
+
+    /// <summary>插件面板显隐：随 CurrentCategory 变化，仅显示匹配逻辑索引的插件面板。</summary>
+    private void UpdatePluginPanelVisibility(int currentCategory)
+    {
+        foreach (var (logicalIndex, panel) in _pluginPanels)
+            panel.IsVisible = currentCategory == logicalIndex;
+    }
+
+    /// <summary>
+    /// 渲染 IViewContributorPlugin 整页入口：在顶栏按钮区为每个已启用的视图贡献者插件
+    /// 动态添加入口按钮，点击后调用 CreateEntryPage 并 Push 到导航栈。
+    /// </summary>
+    private void InitializePluginEntries()
+    {
+        if (Services.GetService(typeof(IPluginManager)) is not IPluginManager pluginManager) return;
+        var contributors = pluginManager.GetEnabledPlugins<IViewContributorPlugin>().ToList();
+        foreach (var contributor in contributors)
+        {
+            var entryButton = new Border
+            {
+                WidthRequest = 32,
+                HeightRequest = 32,
+                StrokeShape = new RoundRectangle { CornerRadius = 16 },
+                StrokeThickness = 1,
+                VerticalOptions = LayoutOptions.Center,
+                Content = CreateEntryIcon(contributor.EntryIcon)
+            };
+            entryButton.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
+            entryButton.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundColor");
+            ToolTipProperties.SetText(entryButton, contributor.EntryTitle);
+            var captured = contributor;
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += async (_, _) => await OpenPluginEntryAsync(captured);
+            entryButton.GestureRecognizers.Add(tap);
+            PluginEntriesRootControl.Children.Insert(0, entryButton);
+        }
+    }
+
+    /// <summary>
+    /// 构造入口按钮的图标 View：EntryIcon 含路径分隔符 / http(s) / 图片扩展名时用 <see cref="Image"/> 渲染，
+    /// 否则保持 emoji/字符兼容（<see cref="Label"/>）。让插件端自由指定图标源（本地 png/http），宿主零硬编码。
+    /// </summary>
+    private static View CreateEntryIcon(string entryIcon)
+    {
+        // res:// 嵌入式资源：png 打包进插件 DLL（.ccp），在已加载程序集里按资源名后缀模糊匹配，
+        // 用 ImageSource.FromResource 加载。找不到时回落 emoji/文本展示，避免空白。
+        if (!string.IsNullOrEmpty(entryIcon) && entryIcon.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+        {
+            var resKey = entryIcon["res://".Length..].Trim();
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.IsDynamic) continue;
+                string[] names;
+                try { names = asm.GetManifestResourceNames(); } catch { continue; }
+                var match = names.FirstOrDefault(n => n.EndsWith(resKey, StringComparison.OrdinalIgnoreCase));
+                if (match == null) continue;
+                return new Image
+                {
+                    Source = ImageSource.FromResource(match, asm),
+                    Aspect = Aspect.AspectFit,
+                    WidthRequest = 22,
+                    HeightRequest = 22,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center
+                };
+            }
+            return new Label
+            {
+                Text = entryIcon,
+                FontSize = 14,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            };
+        }
+
+        bool isImageIcon = !string.IsNullOrEmpty(entryIcon) && (
+            entryIcon.Contains('/') || entryIcon.Contains('\\') ||
+            entryIcon.StartsWith("http", StringComparison.OrdinalIgnoreCase) ||
+            entryIcon.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+            entryIcon.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+            entryIcon.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+            entryIcon.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
+            entryIcon.EndsWith(".gif", StringComparison.OrdinalIgnoreCase));
+
+        if (isImageIcon)
+        {
+            return new Image
+            {
+                Source = entryIcon,  // ImageSourceConverter 自动解析 File/Uri/Resource
+                Aspect = Aspect.AspectFit,
+                WidthRequest = 22,
+                HeightRequest = 22,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            };
+        }
+        return new Label
+        {
+            Text = entryIcon,
+            FontSize = 14,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
+        };
+    }
+
+    /// <summary>打开 IViewContributorPlugin 贡献的整页（CreateEntryPage → PushAsync）。</summary>
+    private async Task OpenPluginEntryAsync(IViewContributorPlugin contributor)
+    {
+        try
+        {
+            if (contributor.CreateEntryPage(Services) is not Page page) return;
+            if (Shell.Current != null)
+                await Shell.Current.Navigation.PushAsync(page);
+            else
+                await Navigation.PushModalAsync(page);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PluginEntry] 打开失败: {ex.Message}");
+            try { await DisplayAlert("打开插件页面失败", ex.Message, "确定"); } catch { }
         }
     }
 

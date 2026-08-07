@@ -104,6 +104,9 @@ public partial class SearchPage : DiscoverPageBase
                 Log.Debug("SearchPage.xaml", $"Settings prewarm error: {ex.Message}");
             }
         });
+
+        // 开放所有接口：渲染插件贡献的发现子 tab（鸭子类型 IDiscoverTabPlugin）与整页入口（IViewContributorPlugin）
+        InitializePluginUi();
     }
 
     // === 基类抽象属性实现 ===
@@ -121,7 +124,11 @@ public partial class SearchPage : DiscoverPageBase
         (TabArtist, TabArtistLabel),
         (TabAlbum, TabAlbumLabel),
         (TabStats, TabStatsLabel)
-    };
+    }.Concat(_pluginTabControls).ToArray();
+
+    protected override IServiceProvider Services => _services;
+    protected override Grid CategoryTabBarControl => CategoryTabBar;
+    protected override Layout PluginEntriesRootControl => PluginEntriesBar;
 
     /// <summary>覆盖基类播放逻辑：确保被点击的歌曲（如 AI 推荐歌）一定在播放队列里，
     /// 否则 PlayQueue.SelectSong 找不到该 Id 会把 CurrentSong 置空，导致声音在播但歌词/封面无法刷新。</summary>

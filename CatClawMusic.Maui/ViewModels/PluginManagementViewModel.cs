@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CatClawMusic.Core.Interfaces;
@@ -18,6 +19,18 @@ public partial class PluginManagementViewModel : ObservableObject
     private readonly IPluginManager _pluginManager;
 
     private static readonly HttpClient s_http = CreateHttpClient();
+
+    /// <summary>GitHub API 直链（仅直连，不使用任何镜像）</summary>
+    private static readonly string[] s_apiMirrors =
+    {
+        "https://api.github.com/",
+    };
+
+    /// <summary>GitHub 资源下载直链（空字符串表示原地址，不使用任何镜像）</summary>
+    private static readonly string[] s_downloadMirrors =
+    {
+        "",
+    };
 
     private static HttpClient CreateHttpClient()
     {
@@ -188,7 +201,7 @@ public partial class PluginManagementViewModel : ObservableObject
     /// <summary>解析用户输入为候选下载地址列表（仓库地址 → 查 Release API 找附件；否则视为直链）</summary>
     private static async Task<List<string>> ResolveDownloadUrlsAsync(string input)
     {
-        var m = Regex.Match(input, @"github\.com/([^/]+)/([^/?#]+?)(?:/releases/tag/([^/?#]+))?",
+        var m = Regex.Match(input, @"github\.com/([^/]+)/([^/?#]+)(?:/releases/tag/([^/?#]+))?",
             RegexOptions.IgnoreCase);
         if (!m.Success)
             return new List<string> { input.Trim() };
@@ -196,11 +209,22 @@ public partial class PluginManagementViewModel : ObservableObject
         var owner = m.Groups[1].Value;
         var repo = m.Groups[2].Value.TrimEnd('/');
         var tag = m.Groups[3].Success ? m.Groups[3].Value : null;
-        var api = tag != null
-            ? $"https://api.github.com/repos/{owner}/{repo}/releases/tags/{Uri.EscapeDataString(tag)}"
-            : $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
+        var apiPath = tag != null
+            ? $"repos/{owner}/{repo}/releases/tags/{Uri.EscapeDataString(tag)}"
+            : $"repos/{owner}/{repo}/releases/latest";
 
-        var json = await GetJsonAsync(new[] { api, $"https://gh-proxy.com/{api}" });
+        string json;
+        try
+        {
+            json = await GetJsonAsync(s_apiMirrors.Select(b => b + apiPath));
+        }
+        catch (Exception ex) when (ex.Message.Contains("无法访问发布信息"))
+        {
+            // API 全失败时，尝试从 release 页面 HTML 解析最新 tag 与资源直链
+            json = await ResolveReleaseFromHtmlAsync(owner, repo, tag);
+            if (string.IsNullOrWhiteSpace(json))
+                throw;
+        }
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
@@ -285,13 +309,57 @@ public partial class PluginManagementViewModel : ObservableObject
         throw new Exception($"无法访问发布信息：\n{string.Join("\n→ ", failures)}");
     }
 
-    /// <summary>为下载地址构造镜像候选（GitHub 地址追加 gh-proxy.com 反代）</summary>
+    /// <summary>为下载地址构造镜像候选（GitHub 地址追加多个反代镜像）</summary>
     private static IEnumerable<string> BuildDownloadMirrors(string url)
     {
-        yield return url;
-        if (url.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase) ||
-            url.StartsWith("http://github.com/", StringComparison.OrdinalIgnoreCase))
-            yield return "https://gh-proxy.com/" + url;
+        var isGitHub = url.Contains("github.com", StringComparison.OrdinalIgnoreCase);
+        foreach (var prefix in s_downloadMirrors)
+        {
+            if (string.IsNullOrEmpty(prefix))
+                yield return url;
+            else if (isGitHub)
+                yield return prefix + url;
+        }
+    }
+
+    /// <summary>当 GitHub API 不可用时，尝试从 release 页面 HTML 解析 .ccp 资源直链并返回伪 JSON</summary>
+    private static async Task<string> ResolveReleaseFromHtmlAsync(string owner, string repo, string? tag)
+    {
+        var releasePage = tag != null
+            ? $"https://github.com/{owner}/{repo}/releases/tag/{Uri.EscapeDataString(tag)}"
+            : $"https://github.com/{owner}/{repo}/releases/latest";
+        var candidates = s_downloadMirrors.Select(p => p + releasePage).Distinct();
+
+        foreach (var c in candidates)
+        {
+            try
+            {
+                using var resp = await s_http.GetAsync(c);
+                resp.EnsureSuccessStatusCode();
+                var html = await resp.Content.ReadAsStringAsync();
+
+                var pattern = $"href=\"/{Regex.Escape(owner)}/{Regex.Escape(repo)}/releases/download/([^\"]+?)/([^\"]+?\\.ccp)\"";
+                var matches = Regex.Matches(html, pattern, RegexOptions.IgnoreCase);
+                if (matches.Count == 0) continue;
+
+                var sb = new StringBuilder();
+                sb.Append("{\"assets\":[");
+                for (int i = 0; i < matches.Count; i++)
+                {
+                    var m = matches[i];
+                    var assetTag = m.Groups[1].Value;
+                    var assetName = m.Groups[2].Value;
+                    var url = $"https://github.com/{owner}/{repo}/releases/download/{assetTag}/{assetName}";
+                    if (i > 0) sb.Append(',');
+                    sb.Append("{\"name\":\"").Append(JsonEncodedText.Encode(assetName)).Append("\",");
+                    sb.Append("\"browser_download_url\":\"").Append(JsonEncodedText.Encode(url)).Append("\"}");
+                }
+                sb.Append("]}");
+                return sb.ToString();
+            }
+            catch { }
+        }
+        return "";
     }
 
     /// <summary>从下载 URL 提取稳定文件名（无扩展名时回退 plugin_{guid}.ccp）</summary>

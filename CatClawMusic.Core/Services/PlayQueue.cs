@@ -48,6 +48,23 @@ public class PlayQueue
     }
     
     /// <summary>
+    /// 是否处于私人漫游（FM）电台模式——激活时仅允许「单曲循环 ↔ 无限」切换，禁用随机/列表循环；模式按钮显示"无限"
+    /// </summary>
+    private bool _isFmMode;
+    public bool IsFmMode
+    {
+        get => _isFmMode;
+        set
+        {
+            if (_isFmMode == value) return;
+            _isFmMode = value;
+            IsFmModeChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+    /// <summary>FM 模式变化事件（宿主 NowPlayingViewModel 订阅以刷新模式按钮显示）</summary>
+    public event EventHandler? IsFmModeChanged;
+
+    /// <summary>
     /// 当前歌曲
     /// </summary>
     public Song? CurrentSong

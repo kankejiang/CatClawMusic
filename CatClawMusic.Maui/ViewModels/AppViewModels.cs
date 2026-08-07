@@ -249,6 +249,7 @@ public partial class NowPlayingViewModel : ObservableObject
         _audioService.PositionChanged += OnPositionChanged;
         _audioService.DurationChanged += OnDurationChanged;
         _audioService.PlaybackCompleted += OnPlaybackCompleted;
+        _queue.IsFmModeChanged += OnIsFmModeChanged;
 
 #if ANDROID
         // 订阅通知栏媒体控件回调（下一首/上一首/收藏），由 ForegroundPlayerService 触发
@@ -565,6 +566,14 @@ public partial class NowPlayingViewModel : ObservableObject
 
             // 播放完成：先 flush 当前歌曲的聆听时长，再切下一首
             await FlushListeningAsync(isFinalFlush: true);
+            var next = _queue.PeekNextSong();
+            if (next == null)
+            {
+                // 顺序播放（PlayMode.Sequential）播到队尾：停止，不循环。
+                // 避免 FM/顺序队列耗尽后宿主无条件 Next() 导致的"从头重播"。
+                await _audioService.StopAsync();
+                return;
+            }
             _queue.Next();
             await LoadCurrentSongAsync();
         });
@@ -633,13 +642,23 @@ public partial class NowPlayingViewModel : ObservableObject
 
     private void CyclePlayMode()
     {
-        _queue.PlayMode = _queue.PlayMode switch
+        if (_queue.IsFmMode)
         {
-            PlayMode.ListRepeat => PlayMode.SingleRepeat,
-            PlayMode.SingleRepeat => PlayMode.Shuffle,
-            PlayMode.Shuffle => PlayMode.ListRepeat,
-            _ => PlayMode.ListRepeat
-        };
+            // 私人漫游（FM）电台模式：仅在「单曲循环 ↔ 无限（Sequential）」之间切换，禁用随机/列表循环
+            _queue.PlayMode = _queue.PlayMode == PlayMode.SingleRepeat
+                ? PlayMode.Sequential
+                : PlayMode.SingleRepeat;
+        }
+        else
+        {
+            _queue.PlayMode = _queue.PlayMode switch
+            {
+                PlayMode.ListRepeat => PlayMode.SingleRepeat,
+                PlayMode.SingleRepeat => PlayMode.Shuffle,
+                PlayMode.Shuffle => PlayMode.ListRepeat,
+                _ => PlayMode.ListRepeat
+            };
+        }
 
         if (_queue.PlayMode == PlayMode.Shuffle)
             _queue.EnableShuffle();
@@ -647,13 +666,21 @@ public partial class NowPlayingViewModel : ObservableObject
         RefreshPlayModeDisplay();
     }
 
+    /// <summary>FM 模式切换时刷新模式按钮（无限 ↔ 单曲循环 显示）</summary>
+    private void OnIsFmModeChanged(object? sender, EventArgs e)
+    {
+        RefreshPlayModeDisplay();
+    }
+
     private void RefreshPlayModeDisplay()
     {
+        bool fm = _queue.IsFmMode;
         (PlayModeIcon, PlayModeLabel, PlayModeIconSource) = _queue.PlayMode switch
         {
             PlayMode.ListRepeat => ("\U0001f501", "列表循环", ImageSourceHelper.FromNameThemed("ic_repeat_all")),
             PlayMode.SingleRepeat => ("\U0001f502", "单曲循环", ImageSourceHelper.FromNameThemed("ic_repeat_one")),
             PlayMode.Shuffle => ("\U0001f500", "随机播放", ImageSourceHelper.FromNameThemed("ic_shuffle")),
+            PlayMode.Sequential when fm => ("\u221e", "无限", ImageSourceHelper.FromNameThemed("ic_infinite")),
             PlayMode.Sequential => ("\u27a1", "顺序播放", ImageSourceHelper.FromNameThemed("ic_repeat_all")),
             _ => ("\U0001f501", "列表循环", ImageSourceHelper.FromNameThemed("ic_repeat_all"))
         };
@@ -662,6 +689,7 @@ public partial class NowPlayingViewModel : ObservableObject
             PlayMode.ListRepeat => ImageSourceHelper.FromNameOriginal("ic_repeat_all"),
             PlayMode.SingleRepeat => ImageSourceHelper.FromNameOriginal("ic_repeat_one"),
             PlayMode.Shuffle => ImageSourceHelper.FromNameOriginal("ic_shuffle"),
+            PlayMode.Sequential when fm => ImageSourceHelper.FromNameOriginal("ic_infinite"),
             PlayMode.Sequential => ImageSourceHelper.FromNameOriginal("ic_repeat_all"),
             _ => ImageSourceHelper.FromNameOriginal("ic_repeat_all")
         };

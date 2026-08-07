@@ -6,6 +6,7 @@ using CatClawMusic.Maui.Pages.Base;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -71,6 +72,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         // 注意：本页被 DesktopMainPage 提取 Content 后，ContentPage 自身脱离可视化树，
         // 因此监听 HeroScroll（仍留在树中）的尺寸变化来重排 Hero 卡片宽度。
         HeroScroll.SizeChanged += OnHeroSizeChanged;
+
+        // 开放所有接口：渲染插件贡献的发现子 tab（鸭子类型 IDiscoverTabPlugin）与整页入口（IViewContributorPlugin）
+        InitializePluginUi();
     }
 
     // === 基类抽象属性实现 ===
@@ -88,7 +92,11 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         (TabArtist, TabArtistLabel),
         (TabAlbum, TabAlbumLabel),
         (TabStats, TabStatsLabel)
-    };
+    }.Concat(_pluginTabControls).ToArray();
+
+    protected override IServiceProvider Services => _services;
+    protected override Grid CategoryTabBarControl => CategoryTabBar;
+    protected override Layout PluginEntriesRootControl => PluginEntriesBar;
 
     // === Hero carousel（横屏专属：ScrollView + BindableLayout 多卡同屏） ===
 
