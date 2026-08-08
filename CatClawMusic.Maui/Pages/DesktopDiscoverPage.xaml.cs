@@ -73,8 +73,10 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         // 因此监听 HeroScroll（仍留在树中）的尺寸变化来重排 Hero 卡片宽度。
         HeroScroll.SizeChanged += OnHeroSizeChanged;
 
+#if WINDOWS
         // 聊天列表 Handler 建立后挂接 WinUI 滚轮反转 + 隐藏滚动条（幂等，见 FixChatMouseWheelDirection）
         ChatMessagesList.HandlerChanged += OnChatMessagesListHandlerChanged;
+#endif
 
         // 开放所有接口：渲染插件贡献的发现子 tab（鸭子类型 IDiscoverTabPlugin）与整页入口（IViewContributorPlugin）
         InitializePluginUi();
@@ -153,12 +155,14 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         }
         else if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
         {
+#if WINDOWS
             // 聊天模式开启后 ChatOverlay 可见，ChatMessagesList 的 WinUI Handler 此时才建立；
             // 延迟到渲染完成后挂接滚轮反转 + 隐藏滚动条（幂等，_chatWheelFixed 防重复）
             Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(150), () =>
             {
                 if (_vm.IsChatMode) FixChatMouseWheelDirection();
             });
+#endif
         }
     }
 

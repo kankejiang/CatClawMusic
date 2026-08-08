@@ -32,7 +32,7 @@
                     </VerticalStackLayout>
                     <Border Grid.Column="1"
                             WidthRequest="48" HeightRequest="48"
-                            CornerRadius="14"
+                            StrokeShape="RoundRectangle 14"
                             BackgroundColor="#20FFFFFF"
                             Stroke="{DynamicResource GlassStrokeColor}"
                             VerticalOptions="Center">
@@ -54,7 +54,7 @@
                 <!-- ═══ Section: 内容与服务 ═══ -->
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="4,8,0,0">
                     <Border WidthRequest="26" HeightRequest="26"
-                            CornerRadius="8"
+                            StrokeShape="RoundRectangle 8"
                             BackgroundColor="#20B7AEFF"
                             Stroke="{DynamicResource GlassStrokeColor}"
                             VerticalOptions="Center">
@@ -76,7 +76,7 @@
                 <!-- 外观与个性化 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#20C4B5FD" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_edit_light, Dark=ic_edit}"
@@ -101,7 +101,7 @@
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{OnPlatform Default=false, Android=true}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#2042A5F5" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_lyrics_light, Dark=ic_lyrics}"
@@ -125,7 +125,7 @@
                 <!-- 本地音乐 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#2026A69A" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}"
@@ -149,7 +149,7 @@
                 <!-- 远程音乐服务 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#2042A5F5" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}"
@@ -173,7 +173,7 @@
                 <!-- 插件管理 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#20FF7043" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_equalizer_light, Dark=ic_equalizer}"
@@ -197,7 +197,7 @@
                 <!-- AI 设置 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#20E84393" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_play_light, Dark=ic_play}"
@@ -223,7 +223,7 @@
                 <!-- ═══ Section: 系统与维护 ═══ -->
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="4,10,0,0">
                     <Border WidthRequest="26" HeightRequest="26"
-                            CornerRadius="8"
+                            StrokeShape="RoundRectangle 8"
                             BackgroundColor="#2063D39E"
                             Stroke="{DynamicResource GlassStrokeColor}"
                             VerticalOptions="Center">
@@ -246,7 +246,7 @@
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{OnPlatform Default=false, Android=true}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#20F44336" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_lock_locked_light, Dark=ic_lock_locked}"
@@ -270,7 +270,7 @@
                 <!-- 通用设置 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="{DynamicResource CardBackgroundColor}"
                                 Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
@@ -295,7 +295,7 @@
                 <!-- 备份与恢复 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#2026A69A" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}"
@@ -326,7 +326,7 @@
                 <!-- 诊断日志 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="{DynamicResource CardBackgroundColor}"
                                 Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
@@ -359,7 +359,7 @@
                 <!-- 关于 -->
                 <Border Style="{StaticResource GlassCardStyle}">
                     <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
-                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                        <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 12"
                                 BackgroundColor="#20C4B5FD" Stroke="{DynamicResource GlassStrokeColor}"
                                 VerticalOptions="Center">
                             <Image Source="{helpers:ThemedIcon Light=ic_check_light, Dark=ic_check}"
