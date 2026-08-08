@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CatClawMusic.Core": {
+      "commandName": "Project",
+      "remoteDebugEnabled": true
+    }
+  }
+}

@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猫爪音乐 · 主题重设计方案</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   猫爪音乐 主题重设计方案 v2
+   设计哲学：深邃但不死黑 · 有色温的暗 · 渐变穿透到底
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 设计令牌 ── */
+:root {
+  /* 基础色温：偏暖的深色（不再用纯黑） */
+  --bg-base: #12101F;          /* 深紫黑底色，有色温 */
+  --bg-elevated: #1A1830;      /* 卡片层 */
+  --bg-surface: #221F3A;       /* 表面层 */
+  --bg-hover: #2A2745;         /* 悬浮层 */
+
+  /* 主题色：紫罗兰（默认主题） */
+  --primary: #9B7ED8;
+  --primary-light: #C4B5FD;
+  --primary-deep: #7C5DCE;
+  --accent: #55D6FF;
+
+  /* 文本 */
+  --text-primary: #F0EEFF;
+  --text-secondary: #B8B4D8;
+  --text-hint: #7A7596;
+
+  /* 玻璃材质 */
+  --glass-bg: rgba(255,255,255,0.06);
+  --glass-strong: rgba(255,255,255,0.10);
+  --glass-stroke: rgba(255,255,255,0.08);
+  --glass-stroke-strong: rgba(255,255,255,0.14);
+
+  /* 底部导航专用：不再用纯黑 */
+  --tabbar-bg: rgba(26,24,48,0.85);
+  --tabbar-tint: #1A1830;
+  --tabbar-stroke: rgba(255,255,255,0.06);
+
+  /* 阴影 */
+  --shadow-soft: 0 2px 8px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.20);
+  --shadow-hover: 0 4px 12px rgba(0,0,0,0.30), 0 16px 40px rgba(0,0,0,0.35);
+  --shadow-glow: 0 0 24px rgba(155,126,216,0.15);
+
+  /* 渐变 */
+  --grad-page: linear-gradient(180deg,
+    #1E1A38 0%,
+    #1A1730 30%,
+    #15122A 60%,
+    #1A1730 90%,
+    #221F3A 100%
+  );
+  --grad-hero: linear-gradient(135deg,
+    rgba(155,126,216,0.35) 0%,
+    rgba(85,214,255,0.15) 100%
+  );
+  --grad-tabbar: linear-gradient(180deg,
+    rgba(26,24,48,0.70) 0%,
+    rgba(34,31,58,0.90) 100%
+  );
+
+  --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: #0D0B18; color: var(--text-primary); padding: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   页面容器
+   ═══════════════════════════════════════════════════════════════ */
+.page-wrap {
+  max-width: 440px;
+  margin: 0 auto;
+  background: var(--grad-page);
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+/* 极光背景层（贯穿整个页面，包括底部） */
+.page-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(50% 30% at 80% 8%, rgba(155,126,216,0.20) 0%, transparent 60%),
+    radial-gradient(40% 25% at 15% 35%, rgba(85,214,255,0.10) 0%, transparent 60%),
+    radial-gradient(45% 35% at 70% 75%, rgba(155,126,216,0.12) 0%, transparent 60%);
+}
+
+/* 星点层 */
+.page-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 12% 10%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 28% 4%, rgba(255,255,255,0.35), transparent),
+    radial-gradient(1.2px 1.2px at 42% 22%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 58% 8%, rgba(255,255,255,0.45), transparent),
+    radial-gradient(1px 1px at 86% 16%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1.2px 1.2px at 8% 50%, rgba(255,255,255,0.25), transparent),
+    radial-gradient(1px 1px at 94% 46%, rgba(255,255,255,0.2), transparent),
+    radial-gradient(1px 1px at 64% 70%, rgba(255,255,255,0.25), transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   顶部状态栏区域
+   ═══════════════════════════════════════════════════════════════ */
+.top-bar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 10px;
+}
+.top-bar .app-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  background: linear-gradient(100deg, #F0EEFF 30%, #C4B5FD 70%, #55D6FF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.top-bar .top-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-stroke);
+  cursor: pointer;
+  transition: all 0.22s;
+}
+.icon-btn:hover {
+  background: var(--glass-strong);
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hero 卡片（发现页顶部推荐）
+   ═══════════════════════════════════════════════════════════════ */
+.hero {
+  position: relative;
+  z-index: 1;
+  margin: 4px 18px 20px;
+  height: 220px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  background:
+    radial-gradient(80% 140% at 85% 10%, rgba(85,214,255,0.18) 0%, transparent 50%),
+    radial-gradient(120% 120% at 0% 100%, rgba(155,126,216,0.30) 0%, transparent 55%),
+    linear-gradient(115deg, #1E1A45 0%, #2A2555 55%, #1E3A5E 100%);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Hero 旋转描边 */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 25px;
+  padding: 1.2px;
+  background: conic-gradient(from 0deg,
+    rgba(155,126,216,0.50), rgba(85,214,255,0.30),
+    rgba(155,126,216,0.10), rgba(155,126,216,0.50));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.hero-content { position: relative; z-index: 3; max-width: 60%; }
+.hero-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255,255,255,0.12);
+  color: #D9DCFF;
+  margin-bottom: 12px;
+  letter-spacing: 2px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.hero h2 {
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  line-height: 1.3;
+  margin-bottom: 8px;
+}
+.hero p {
+  font-size: 12px;
+  color: rgba(240,238,255,0.65);
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+.hero-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(155,126,216,0.40);
+  transition: all 0.25s;
+}
+.hero-play:hover { transform: translateY(-2px) scale(1.03); }
+
+/* 黑胶唱片 */
+.vinyl {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+}
+.vinyl-disc {
+  width: 140px; height: 140px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle at 50% 50%, #0D0B18 0 2px, #1A1730 2px 4px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.50), inset 0 0 0 1px rgba(255,255,255,0.10);
+  animation: spin 14s linear infinite;
+  position: relative;
+}
+.vinyl-disc::before {
+  content: "";
+  position: absolute;
+  inset: 24px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.60), rgba(255,255,255,0.05) 55%),
+    linear-gradient(140deg, #C4B5FD, #9B7ED8 55%, #55D6FF);
+}
+.vinyl-disc::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #F0EEFF, #7A7596 70%);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════════
+   分节标题
+   ═══════════════════════════════════════════════════════════════ */
+.section-title {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 20px;
+  margin-bottom: 12px;
+}
+.section-title .no {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+.section-title h3 {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.section-title .more {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-hint);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-stroke);
+  transition: all 0.2s;
+}
+.section-title .more:hover { color: var(--text-primary); background: var(--glass-strong); }
+
+/* ═══════════════════════════════════════════════════════════════
+   每日推荐横滑卡片
+   ═══════════════════════════════════════════════════════════════ */
+.card-rail {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 12px;
+  padding: 0 18px 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.card-rail::-webkit-scrollbar { display: none; }
+
+.music-card {
+  position: relative;
+  width: 130px;
+  flex: none;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-stroke);
+  transition: all 0.28s cubic-bezier(0.22,0.61,0.36,1);
+}
+.music-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  background: var(--glass-strong);
+}
+.music-card .cover {
+  width: 130px; height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  position: relative;
+  overflow: hidden;
+}
+.music-card .cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.30) 100%);
+}
+.music-card .info {
+  padding: 8px 10px 10px;
+}
+.music-card .info .title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.music-card .info .artist {
+  font-size: 10px;
+  color: var(--text-hint);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 封面色 */
+.cv-1 { background: linear-gradient(135deg, #6C5CE7, #a29bfe); }
+.cv-2 { background: linear-gradient(135deg, #E17055, #fab1a0); }
+.cv-3 { background: linear-gradient(135deg, #00b894, #55efc4); }
+.cv-4 { background: linear-gradient(135deg, #0984e3, #74b9ff); }
+.cv-5 { background: linear-gradient(135deg, #e84393, #fd79a8); }
+
+/* ═══════════════════════════════════════════════════════════════
+   推荐艺人网格
+   ═══════════════════════════════════════════════════════════════ */
+.artist-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 0 18px 16px;
+}
+.artist-card {
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.artist-card:hover { transform: translateY(-3px); }
+.artist-avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.artist-avatar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.12);
+}
+.artist-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.artist-meta {
+  font-size: 9px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   迷你播放器（底部悬浮胶囊）
+   ═══════════════════════════════════════════════════════════════ */
+.mini-player {
+  position: relative;
+  z-index: 5;
+  margin: 0 18px 6px;
+  height: 64px;
+  border-radius: 14px;
+  background: rgba(26,24,48,0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+.mini-player .mp-cover {
+  width: 42px; height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #9B7ED8, #55D6FF);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: none;
+}
+.mini-player .mp-info {
+  flex: 1;
+  min-width: 0;
+}
+.mini-player .mp-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-player .mp-artist {
+  font-size: 11px;
+  color: var(--text-hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-player .mp-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.mp-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.mp-btn:hover { background: var(--glass-strong); }
+.mp-btn.play {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(155,126,216,0.35);
+}
+.mp-btn.play:hover { transform: scale(1.05); }
+
+/* 进度条 */
+.mp-progress {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 0 0 14px 14px;
+  overflow: hidden;
+}
+.mp-progress::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 42%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 0 2px 2px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   底部导航栏（重点修复区域）
+   不再使用纯黑底色，改为有温度的深色玻璃
+   ═══════════════════════════════════════════════════════════════ */
+.tab-bar {
+  position: relative;
+  z-index: 5;
+  margin: 0 18px 8px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--grad-tabbar);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--tabbar-stroke);
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.20);
+}
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 48px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s;
+  color: var(--text-hint);
+}
+.tab-item:hover { color: var(--text-secondary); }
+.tab-item.active {
+  color: var(--text-primary);
+  background: rgba(155,126,216,0.12);
+}
+.tab-item .tab-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.tab-item .tab-label {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   底部安全区填充（同样不再纯黑）
+   ═══════════════════════════════════════════════════════════════ */
+.bottom-safe {
+  height: 8px;
+  background: rgba(34,31,58,0.50);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   色板展示区
+   ═══════════════════════════════════════════════════════════════ */
+.palette-section {
+  position: relative;
+  z-index: 1;
+  padding: 8px 20px 24px;
+}
+.palette-section h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.palette-card {
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid var(--glass-stroke);
+  background: var(--glass-bg);
+}
+.palette-card .swatch-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.palette-card .swatch {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.palette-card .pal-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.palette-card .pal-desc {
+  font-size: 10px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+.palette-card .pal-hex {
+  font-size: 9px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  font-family: Consolas, monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   对比展示：修复前 vs 修复后
+   ═══════════════════════════════════════════════════════════════ */
+.compare-section {
+  position: relative;
+  z-index: 1;
+  padding: 0 20px 24px;
+}
+.compare-section h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.compare-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.compare-card {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--glass-stroke);
+}
+.compare-card .cmp-label {
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.compare-card.bad .cmp-label {
+  background: rgba(255,87,87,0.15);
+  color: #FF7A7A;
+}
+.compare-card.good .cmp-label {
+  background: rgba(99,211,158,0.15);
+  color: #63D39E;
+}
+.compare-card .cmp-visual {
+  height: 80px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding: 8px 12px;
+}
+.compare-card.bad .cmp-visual {
+  background: linear-gradient(180deg, #2A2555 0%, #3A2B6E 50%, #000000 100%);
+}
+.compare-card.good .cmp-visual {
+  background: linear-gradient(180deg, #1E1A38 0%, #1A1730 40%, #221F3A 80%, #2A2745 100%);
+}
+.compare-card .cmp-note {
+  padding: 8px 12px;
+  font-size: 10px;
+  color: var(--text-hint);
+  line-height: 1.6;
+  background: var(--glass-bg);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   五套主题色展示
+   ═══════════════════════════════════════════════════════════════ */
+.themes-section {
+  position: relative;
+  z-index: 1;
+  padding: 0 20px 32px;
+}
+.themes-section h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.themes-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.theme-chip {
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.theme-chip:hover { transform: translateY(-3px); }
+.theme-circle {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  margin: 0 auto 6px;
+  position: relative;
+  border: 2px solid transparent;
+  transition: all 0.25s;
+}
+.theme-chip.active .theme-circle {
+  border-color: rgba(255,255,255,0.40);
+  box-shadow: 0 0 16px rgba(255,255,255,0.15);
+}
+.theme-chip .theme-name {
+  font-size: 9px;
+  color: var(--text-hint);
+}
+.theme-chip.active .theme-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   渐变背景方案展示
+   ═══════════════════════════════════════════════════════════════ */
+.bg-section {
+  position: relative;
+  z-index: 1;
+  padding: 0 20px 32px;
+}
+.bg-section h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.bg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.bg-card {
+  height: 100px;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  border: 1px solid var(--glass-stroke);
+  transition: all 0.25s;
+}
+.bg-card:hover { transform: scale(1.02); }
+.bg-card .bg-label {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.bg-deep-space {
+  background: linear-gradient(160deg, #070A18 0%, #141B3A 48%, #2B2E60 100%);
+}
+.bg-violet-dusk {
+  background: linear-gradient(180deg, #170F26 0%, #331A4A 55%, #5A2770 100%);
+}
+.bg-teal-abyss {
+  background: linear-gradient(160deg, #05141B 0%, #0B2A33 55%, #0F3D46 100%);
+}
+.bg-ember-noir {
+  background: linear-gradient(135deg, #190B0F 0%, #3A1520 55%, #6A1F2E 100%);
+}
+.bg-graphite {
+  background: linear-gradient(135deg, #0D1017 0%, #1E2530 50%, #36404F 100%);
+}
+
+/* 新增：改良版深色渐变（不再到底变黑） */
+.bg-deep-space-v2 {
+  background: linear-gradient(180deg,
+    #1E1A38 0%, #1A1730 30%, #15122A 60%, #1A1730 90%, #221F3A 100%);
+}
+.bg-violet-dusk-v2 {
+  background: linear-gradient(180deg,
+    #1F1530 0%, #2A1F48 30%, #1F1838 60%, #2A1F48 90%, #332858 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   底部说明区
+   ═══════════════════════════════════════════════════════════════ */
+.footer-note {
+  position: relative;
+  z-index: 1;
+  padding: 0 20px 40px;
+  font-size: 11px;
+  color: var(--text-hint);
+  line-height: 1.8;
+}
+.footer-note h4 {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.footer-note ul {
+  list-style: none;
+  padding: 0;
+}
+.footer-note li {
+  padding: 3px 0;
+  padding-left: 16px;
+  position: relative;
+}
+.footer-note li::before {
+  content: "·";
+  position: absolute;
+  left: 4px;
+  color: var(--primary);
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- 顶部栏 -->
+  <div class="top-bar">
+    <div class="app-name">🐾 猫爪音乐</div>
+    <div class="top-actions">
+      <div class="icon-btn">🔍</div>
+      <div class="icon-btn">⚙️</div>
+    </div>
+  </div>
+
+  <!-- Hero 卡片 -->
+  <div class="hero">
+    <div class="hero-content">
+      <span class="hero-tag">DAILY MIX</span>
+      <h2>和 Yuki 聊聊<br>今日歌单</h2>
+      <p>AI 根据你的听歌偏好，为你精选了 30 首歌曲</p>
+      <div class="hero-play">▶ 播放全部</div>
+    </div>
+    <div class="vinyl">
+      <div class="vinyl-disc"></div>
+    </div>
+  </div>
+
+  <!-- 每日推荐 -->
+  <div class="section-title">
+    <span class="no">01</span>
+    <h3>每日推荐</h3>
+    <span class="more">更多 ›</span>
+  </div>
+  <div class="card-rail">
+    <div class="music-card">
+      <div class="cover cv-1">🎵</div>
+      <div class="info">
+        <div class="title">夜空中最亮的星</div>
+        <div class="artist">逃跑计划</div>
+      </div>
+    </div>
+    <div class="music-card">
+      <div class="cover cv-2">🎸</div>
+      <div class="info">
+        <div class="title">海阔天空</div>
+        <div class="artist">Beyond</div>
+      </div>
+    </div>
+    <div class="music-card">
+      <div class="cover cv-3">🎹</div>
+      <div class="info">
+        <div class="title">River Flows</div>
+        <div class="artist">Yiruma</div>
+      </div>
+    </div>
+    <div class="music-card">
+      <div class="cover cv-4">🥁</div>
+      <div class="info">
+        <div class="title">Bohemian</div>
+        <div class="artist">Queen</div>
+      </div>
+    </div>
+    <div class="music-card">
+      <div class="cover cv-5">🎺</div>
+      <div class="info">
+        <div class="title">Shape of You</div>
+        <div class="artist">Ed Sheeran</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 推荐艺人 -->
+  <div class="section-title">
+    <span class="no">02</span>
+    <h3>推荐艺人</h3>
+    <span class="more">更多 ›</span>
+  </div>
+  <div class="artist-grid">
+    <div class="artist-card">
+      <div class="artist-avatar cv-1">🎤</div>
+      <div class="artist-name">周杰伦</div>
+      <div class="artist-meta">华语 · 128 首</div>
+    </div>
+    <div class="artist-card">
+      <div class="artist-avatar cv-4">🎤</div>
+      <div class="artist-name">Taylor Swift</div>
+      <div class="artist-meta">Pop · 86 首</div>
+    </div>
+    <div class="artist-card">
+      <div class="artist-avatar cv-5">🎤</div>
+      <div class="artist-name">Adele</div>
+      <div class="artist-meta">Soul · 42 首</div>
+    </div>
+  </div>
+
+  <!-- 迷你播放器 -->
+  <div class="mini-player">
+    <div class="mp-cover">🎵</div>
+    <div class="mp-info">
+      <div class="mp-title">夜空中最亮的星</div>
+      <div class="mp-artist">逃跑计划 · 一颗会发光的星</div>
+    </div>
+    <div class="mp-controls">
+      <div class="mp-btn">⏮</div>
+      <div class="mp-btn play">▶</div>
+      <div class="mp-btn">⏭</div>
+    </div>
+    <div class="mp-progress"></div>
+  </div>
+
+  <!-- 底部导航栏 -->
+  <div class="tab-bar">
+    <div class="tab-item active">
+      <span class="tab-icon">▶</span>
+      <span class="tab-label">播放</span>
+    </div>
+    <div class="tab-item">
+      <span class="tab-icon">🏠</span>
+      <span class="tab-label">发现</span>
+    </div>
+    <div class="tab-item">
+      <span class="tab-icon">📋</span>
+      <span class="tab-label">歌单</span>
+    </div>
+    <div class="tab-item">
+      <span class="tab-icon">📚</span>
+      <span class="tab-label">音乐库</span>
+    </div>
+  </div>
+  <div class="bottom-safe"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       设计方案展示区
+       ═══════════════════════════════════════════════════════════ -->
+
+  <!-- 对比：修复前 vs 修复后 -->
+  <div class="compare-section" style="margin-top: 8px;">
+    <h3>🔄 底部颜色对比</h3>
+    <div class="compare-row">
+      <div class="compare-card bad">
+        <div class="cmp-label">修复前 · 纯黑断层</div>
+        <div class="cmp-visual"></div>
+        <div class="cmp-note">渐变到 #3A2B6E 后突然跳到 #000000，底部导航栏与上方内容完全断裂</div>
+      </div>
+      <div class="compare-card good">
+        <div class="cmp-label">修复后 · 渐变穿透</div>
+        <div class="cmp-visual"></div>
+        <div class="cmp-note">渐变从顶部浅紫一路过渡到底部 #221F3A，导航栏融入整体色调</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设计令牌色板 -->
+  <div class="palette-section">
+    <h3>🎨 深色模式色板</h3>
+    <div class="palette-grid">
+      <div class="palette-card">
+        <div class="swatch-row">
+          <div class="swatch" style="background:#12101F"></div>
+          <div class="swatch" style="background:#1A1830"></div>
+          <div class="swatch" style="background:#221F3A"></div>
+          <div class="swatch" style="background:#2A2745"></div>
+        </div>
+        <div class="pal-name">背景层级</div>
+        <div class="pal-desc">base → elevated → surface → hover</div>
+        <div class="pal-hex">#12101F → #2A2745</div>
+      </div>
+      <div class="palette-card">
+        <div class="swatch-row">
+          <div class="swatch" style="background:#9B7ED8"></div>
+          <div class="swatch" style="background:#C4B5FD"></div>
+          <div class="swatch" style="background:#7C5DCE"></div>
+          <div class="swatch" style="background:#55D6FF"></div>
+        </div>
+        <div class="pal-name">主题色</div>
+        <div class="pal-desc">primary / light / deep / accent</div>
+        <div class="pal-hex">#9B7ED8 + #55D6FF</div>
+      </div>
+      <div class="palette-card">
+        <div class="swatch-row">
+          <div class="swatch" style="background:#F0EEFF"></div>
+          <div class="swatch" style="background:#B8B4D8"></div>
+          <div class="swatch" style="background:#7A7596"></div>
+        </div>
+        <div class="pal-name">文本层级</div>
+        <div class="pal-desc">primary / secondary / hint</div>
+        <div class="pal-hex">#F0EEFF → #7A7596</div>
+      </div>
+      <div class="palette-card">
+        <div class="swatch-row">
+          <div class="swatch" style="background:rgba(26,24,48,0.85)"></div>
+          <div class="swatch" style="background:rgba(34,31,58,0.90)"></div>
+          <div class="swatch" style="background:rgba(155,126,216,0.12)"></div>
+        </div>
+        <div class="pal-name">底部导航</div>
+        <div class="pal-desc">tabbar bg / tint / active</div>
+        <div class="pal-hex">#1A1830 85% + 紫 12%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 五套主题 -->
+  <div class="themes-section">
+    <h3>🎭 五套主题色</h3>
+    <div class="themes-grid">
+      <div class="theme-chip active">
+        <div class="theme-circle" style="background:linear-gradient(135deg,#9B7ED8,#55D6FF)"></div>
+        <div class="theme-name">紫罗兰</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-circle" style="background:linear-gradient(135deg,#EC407A,#FFCA9E)"></div>
+        <div class="theme-name">玫瑰粉</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-circle" style="background:linear-gradient(135deg,#42A5F5,#5C6BC0)"></div>
+        <div class="theme-name">天际蓝</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-circle" style="background:linear-gradient(135deg,#FF7043,#FFCA9E)"></div>
+        <div class="theme-name">夕阳橙</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-circle" style="background:linear-gradient(135deg,#26A69A,#66BB6A)"></div>
+        <div class="theme-name">深海青</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 渐变背景方案 -->
+  <div class="bg-section">
+    <h3>🌌 深色模式渐变方案</h3>
+    <div class="bg-grid">
+      <div class="bg-card bg-deep-space">
+        <div class="bg-label">深空蓝（原版）</div>
+      </div>
+      <div class="bg-card bg-deep-space-v2">
+        <div class="bg-label">深空蓝 v2 ✨</div>
+      </div>
+      <div class="bg-card bg-violet-dusk">
+        <div class="bg-label">暗紫罗兰（原版）</div>
+      </div>
+      <div class="bg-card bg-violet-dusk-v2">
+        <div class="bg-label">暗紫罗兰 v2 ✨</div>
+      </div>
+      <div class="bg-card bg-teal-abyss">
+        <div class="bg-label">墨夜青</div>
+      </div>
+      <div class="bg-card bg-graphite">
+        <div class="bg-label">石墨钢</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 说明 -->
+  <div class="footer-note">
+    <h4>📋 设计变更说明</h4>
+    <ul>
+      <li><b>底部不再纯黑</b>：TabBarGlassTint 从 #000000 → #1A1830，与页面底色统一</li>
+      <li><b>渐变穿透到底</b>：PageBackgroundBrush 底部从 #3A2B6E 改为 U 型回弹，底部反而比中段稍亮</li>
+      <li><b>毛玻璃暗化减半</b>：DimAmount 0.65 → 0.40，TintOpacity 0.25 → 0.18</li>
+      <li><b>色温偏暖</b>：所有深色基底从冷黑(#080B1A)调整为带紫调的暖黑(#12101F)</li>
+      <li><b>层级可读性</b>：背景四层(base/elevated/surface/hover)每层 ΔL≈4%，肉眼可区分但不刺眼</li>
+      <li><b>v2 渐变特色</b>：底部颜色回弹（比中段更亮），消除"越往下越黑"的沉闷感</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+// 主题切换交互
+document.querySelectorAll('.theme-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.theme-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// Tab 切换
+document.querySelectorAll('.tab-item').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猫爪音乐 · 设置页重设计</title>
+<style>
+:root {
+  --bg-base: #12101F;
+  --bg-card: rgba(255,255,255,0.06);
+  --bg-card-hover: rgba(255,255,255,0.10);
+  --bg-section: rgba(155,126,216,0.05);
+  --primary: #9B7DE8;
+  --primary-light: #C4B5FD;
+  --accent: #55D6FF;
+  --text-pri: #F0EEFF;
+  --text-sec: #B8B4D8;
+  --text-hint: #7A7596;
+  --stroke: rgba(255,255,255,0.08);
+  --stroke-strong: rgba(255,255,255,0.14);
+  --radius: 16px;
+  --radius-lg: 22px;
+  --font: "Segoe UI", "PingFang SC", system-ui, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg-base); color: var(--text-pri); }
+
+.page { max-width: 420px; margin: 0 auto; min-height: 100vh; position: relative; overflow: hidden; }
+.page::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(50% 25% at 80% 8%, rgba(155,126,216,0.18) 0%, transparent 60%),
+              radial-gradient(40% 20% at 15% 30%, rgba(85,214,255,0.08) 0%, transparent 60%);
+}
+
+/* ═══ Hero Header ═══ */
+.hero {
+  position: relative; z-index: 1;
+  margin: 14px 20px 4px;
+  padding: 22px 24px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg,
+    rgba(155,126,216,0.22) 0%,
+    rgba(85,214,255,0.12) 100%);
+  border: 1px solid rgba(155,126,216,0.18);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.hero-left h1 { font-size: 26px; font-weight: 700; letter-spacing: 1px; line-height: 1.3; }
+.hero-left p { font-size: 13px; color: var(--text-sec); margin-top: 6px; line-height: 1.5; max-width: 260px; }
+.theme-toggle {
+  width: 52px; height: 52px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; cursor: pointer;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.15);
+  transition: all 0.25s;
+  flex-shrink: 0;
+}
+.theme-toggle:hover { transform: scale(1.06); background: rgba(255,255,255,0.18); }
+
+/* ═══ Section Panel ═══ */
+.section-panel {
+  position: relative; z-index: 1;
+  margin: 6px 20px 0;
+  padding: 4px 0 16px;
+}
+.section-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 4px 8px;
+}
+.section-icon {
+  width: 28px; height: 28px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.section-icon.content { background: linear-gradient(135deg, rgba(155,126,216,0.25), rgba(85,214,255,0.15)); }
+.section-icon.system { background: linear-gradient(135deg, rgba(99,211,158,0.2), rgba(85,214,255,0.12)); }
+.section-header span {
+  font-size: 11px; font-weight: 600; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-hint);
+}
+
+/* ═══ Setting Row ═══ */
+.setting-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  border: 1px solid var(--stroke);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.22,0.61,0.36,1);
+  position: relative; overflow: hidden;
+}
+.setting-row:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--stroke-strong);
+  transform: translateY(-1px);
+}
+.setting-row:last-child { margin-bottom: 0; }
+
+/* Icon container */
+.row-icon {
+  width: 40px; height: 40px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; flex-shrink: 0;
+  position: relative;
+}
+.row-icon::after {
+  content: ""; position: absolute; inset: 0;
+  border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+.row-icon.purple { background: linear-gradient(145deg, rgba(155,126,216,0.28), rgba(124,93,206,0.15)); }
+.row-icon.blue { background: linear-gradient(145deg, rgba(66,165,245,0.25), rgba(92,107,192,0.15)); }
+.row-icon.teal { background: linear-gradient(145deg, rgba(38,166,154,0.25), rgba(102,187,106,0.12)); }
+.row-icon.orange { background: linear-gradient(145deg, rgba(255,112,67,0.25), rgba(255,202,158,0.12)); }
+.row-icon.pink { background: linear-gradient(145deg, rgba(232,67,147,0.25), rgba(253,121,168,0.12)); }
+.row-icon.red { background: linear-gradient(145deg, rgba(244,67,54,0.25), rgba(239,83,80,0.12)); }
+.row-icon.gray { background: linear-gradient(145deg, rgba(158,158,158,0.18), rgba(97,97,97,0.10)); }
+
+.row-info { flex: 1; min-width: 0; }
+.row-title { font-size: 15px; font-weight: 600; color: var(--text-pri); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-desc { font-size: 12px; color: var(--text-hint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.row-arrow { font-size: 14px; color: var(--text-hint); opacity: 0.5; transition: all 0.2s; }
+.setting-row:hover .row-arrow { opacity: 0.8; transform: translateX(2px); }
+
+/* Badge / dot */
+.badge-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #FF6B6B; flex-shrink: 0;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* Switch toggle */
+.toggle-switch {
+  width: 44px; height: 26px; border-radius: 13px;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.10);
+  position: relative; cursor: pointer; transition: all 0.3s;
+  flex-shrink: 0;
+}
+.toggle-switch.on { background: var(--primary); border-color: transparent; }
+.toggle-knob {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; position: absolute;
+  top: 2px; left: 2px; transition: all 0.3s cubic-bezier(0.68,-0.55,0.27,1.55);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+.toggle-switch.on .toggle-knob { left: 20px; }
+
+/* Version footer */
+.version-footer {
+  text-align: center; padding: 20px 0 40px;
+  font-size: 11px; color: var(--text-hint);
+  letter-spacing: 0.5px;
+}
+.version-footer .app-name { color: var(--primary-light); font-weight: 600; }
+
+/* Bottom safe area */
+.bottom-safe { height: 12px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Hero Header -->
+  <div class="hero">
+    <div class="hero-left">
+      <h1>设置</h1>
+      <p>切换主题、管理音乐来源与插件，把猫爪音乐打造成你喜欢的样子。</p>
+    </div>
+    <div class="theme-toggle">🌙</div>
+  </div>
+
+  <!-- Section: 内容与服务 -->
+  <div class="section-panel">
+    <div class="section-header">
+      <div class="section-icon content">✦</div>
+      <span>内容与服务</span>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon purple">✏️</div>
+      <div class="row-info"><div class="row-title">外观与个性化</div><div class="row-desc">主题配色、启动页设置</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon blue">🎤</div>
+      <div class="row-info"><div class="row-title">桌面歌词设置</div><div class="row-desc">悬浮显示歌词、逐字高亮、拖动定位</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon teal">📁</div>
+      <div class="row-info"><div class="row-title">本地音乐</div><div class="row-desc">已添加音乐 | 共48首歌曲</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon blue">🔍</div>
+      <div class="row-info"><div class="row-title">远程音乐服务</div><div class="row-desc">尚未保存远程音乐</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon orange">🎛️</div>
+      <div class="row-info"><div class="row-title">插件管理</div><div class="row-desc">已启用 1/1 个插件</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon pink">▶️</div>
+      <div class="row-info"><div class="row-title">AI 设置</div><div class="row-desc">AI 助手未配置</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+  </div>
+
+  <!-- Section: 系统与维护 -->
+  <div class="section-panel">
+    <div class="section-header">
+      <div class="section-icon system">⚙️</div>
+      <span>系统与维护</span>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon red">🔒</div>
+      <div class="row-info"><div class="row-title">权限管理</div><div class="row-desc" style="color:#FF8A80;">部分权限待处理</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon gray">⚙️</div>
+      <div class="row-info"><div class="row-title">通用设置</div><div class="row-desc">通用行为、播放偏好与系统选项</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon teal">💾</div>
+      <div class="row-info"><div class="row-title">备份与恢复</div><div class="row-desc">导出或导入应用数据与配置</div></div>
+      <div class="row-right">
+        <div class="badge-dot"></div>
+        <span class="row-arrow">›</span>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon gray">📋</div>
+      <div class="row-info"><div class="row-title">诊断日志</div><div class="row-desc">开启后实时记录运行日志</div></div>
+      <div class="row-right">
+        <div class="toggle-switch on"><div class="toggle-knob"></div></div>
+        <span class="row-arrow">›</span>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <div class="row-icon purple">ℹ️</div>
+      <div class="row-info"><div class="row-title">关于</div><div class="row-desc">版本信息、开源许可与致谢</div></div>
+      <div class="row-right"><span class="row-arrow">›</span></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="version-footer">
+    <span class="app-name">猫爪音乐</span> v3.2.1 · Made with 🐾
+  </div>
+
+  <div class="bottom-safe"></div>
+
+</div>
+
+<script>
+// Toggle switch interaction
+document.querySelectorAll('.toggle-switch').forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
+// Row click feedback
+document.querySelectorAll('.setting-row').forEach(r => r.addEventListener('click', function() {
+  this.style.transform = 'scale(0.98)';
+  setTimeout(() => this.style.transform = '', 120);
+}));
+</script>
+
+</body>
+</html>

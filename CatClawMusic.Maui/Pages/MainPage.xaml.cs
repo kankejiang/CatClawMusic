@@ -158,11 +158,20 @@ public partial class MainPage : ContentPage
         _nativePager.PageSelected += (s, e) => OnNativePageSelected(e);
         _nativePager.ScrollStateChanged += (s, e) => OnNativeScrollStateChanged(e);
 
-        // 放入主网格第 0 行（与 ViewPagerGrid 同区域），隐藏旧的手动容器
+        // 放入主网格第 0 行（与 ViewPagerGrid 同区域），隐藏旧的手动容器。
+        // 外层包一个 IsClippedToBounds 容器：ViewPager2 若测量/绘制越界，内容被裁剪在 Row 0 内。
+        // 关键：必须 Insert 到 MiniPlayer 之前（MAUI Grid 按 Children 顺序绘制，后加在 Z 上层），
+        // 否则后加的 pagerHost 会覆盖 Row 1 MiniPlayer 的封面/按钮区。
         if (this.Content is Grid rootGrid)
         {
-            rootGrid.Children.Add(_nativePager);
-            Grid.SetRow(_nativePager, 0);
+            var pagerHost = new Grid { IsClippedToBounds = true };
+            Grid.SetRow(pagerHost, 0);
+            pagerHost.Children.Add(_nativePager);
+
+            // 找到 MiniPlayer 的索引位置，pagerHost 插入到它前一位
+            var miniIdx = rootGrid.Children.IndexOf(MiniPlayer);
+            if (miniIdx < 0) miniIdx = rootGrid.Children.Count;
+            rootGrid.Children.Insert(miniIdx, pagerHost);
         }
         ViewPagerGrid.IsVisible = false;
 #else
@@ -202,6 +211,8 @@ public partial class MainPage : ContentPage
         InvokeLifecycle(_tabPages[_currentIndex], "OnAppearing");
         UpdateTabBarVisibility();
         UpdateTabBarSelection();
+        // 切到播放页（index 1）或歌词页（index 0）时 MiniPlayer 必须隐藏，否则被全屏播放页压住
+        UpdateMiniPlayerVisibility();
     }
 
     /// <summary>原生 ViewPager2 滑动状态变化：拖拽/归位期间暂停 FrostedBackground 动画，空闲恢复。</summary>
@@ -332,6 +343,8 @@ public partial class MainPage : ContentPage
         UpdatePagePositions(0);
         UpdateTabBarVisibility();
         UpdateTabBarSelection();
+        // 主题色可能在设置页切换后返回，这里按当前主题/深浅模式刷新播放控制条图标
+        _nowPlayingVm.RefreshPlayerCtrlIcons();
 
         // 启动后兜底：窗口稳定后反复强制 Edge-to-Edge，复刻「导航到二级页再返回」的全屏效果
         // （MAUI 在窗口就绪前会把 DecorFitsSystemWindows 重置为 true，导致启动首帧露白）。
@@ -713,6 +726,8 @@ public partial class MainPage : ContentPage
             InvokeLifecycle(_tabPages[_currentIndex], "OnAppearing");
             UpdateTabBarVisibility();
             UpdateTabBarSelection();
+            // 切到播放页（index 1）或歌词页（index 0）时 MiniPlayer 必须隐藏，否则被全屏播放页压住
+            UpdateMiniPlayerVisibility();
             // 切页后更新懒加载可见范围：新相邻页显示、远页隐藏
             UpdatePageVisibility();
         }
@@ -799,6 +814,8 @@ public partial class MainPage : ContentPage
         _currentIndex = discoverIndex;
         InvokeLifecycle(_tabPages[_currentIndex], "OnAppearing");
         UpdateTabBarVisibility();
+        // 收起抽屉后回到发现页（index 2）应重新显示 MiniPlayer
+        UpdateMiniPlayerVisibility();
         // 收起后切换可见范围：发现页相邻页显示、远页隐藏
         UpdatePageVisibility();
         UpdateTabBarSelection();
@@ -999,8 +1016,8 @@ public partial class MainPage : ContentPage
         // HeightRequest(56+bottom) 让毛玻璃表面覆盖导航栏区域；
         // Padding(bottom+4) 把内部图标抬离导航栏，内容区高度保持恒定 46dp（不变形）。
         // 当 bottom=0（手势导航）时退化为 56+0 / 4+0，视觉与旧版完全一致。
-        var tabBarHeight = hideTabBar ? 0 : (56 + bottom);
-        var tabBarBottomPad = hideTabBar ? 0 : (4 + bottom);
+        var tabBarHeight = hideTabBar ? 0 : (76 + bottom);
+        var tabBarBottomPad = hideTabBar ? 0 : (6 + bottom);
         var tabBarPadding = new Thickness(0, 6, 0, tabBarBottomPad);
 
         bool tabBarChanged = TabBar.Padding != _lastTabBarPadding || Math.Abs(TabBar.HeightRequest - tabBarHeight) > 0.01;
@@ -1093,11 +1110,15 @@ public partial class MainPage : ContentPage
 
         var labels = new[] { TabLabel0, TabLabel1, TabLabel2, TabLabel3 };
         var icons = new[] { TabIcon0, TabIcon1, TabIcon2, TabIcon3 };
+        var tabBgs = new[] { TabBg0, TabBg1, TabBg2, TabBg3 };
 
         for (int i = 0; i < 4; i++)
         {
             var isActive = (i + 1) == _currentIndex;
             labels[i].TextColor = isActive ? activeColor : inactiveColor;
+
+            // 选中态：胶囊高亮背景（accent 色 28% 透明度）+ 缩放，未选中透明
+            tabBgs[i].BackgroundColor = isActive ? activeColor.WithAlpha(0.28f) : Colors.Transparent;
 
             if (isActive)
                 icons[i].Source = $"{DarkIconSources[i]}_{activeHex.TrimStart('#')}_active";

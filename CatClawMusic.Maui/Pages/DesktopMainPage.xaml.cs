@@ -159,6 +159,8 @@ public partial class DesktopMainPage : ContentPage
         base.OnAppearing();
 
         _ = _npVm.LoadCurrentSongAsync();
+        // 主题色可能在设置页切换后返回，这里按当前主题/深浅模式刷新播放控制条图标
+        _npVm.RefreshPlayerCtrlIcons();
         // 回到桌面主页时刷新歌单（例如从歌单详情页返回）
         _ = _playlistVm.RefreshIfChangedAsync()
             .ContinueWith(_ => MainThread.BeginInvokeOnMainThread(BuildPlaylistList));

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
@@ -40,177 +40,238 @@
             </Grid.GestureRecognizers>
         </Grid>
 
-        <!-- 迷你播放器：封面 + 歌曲信息 + 上一曲/播放暂停/下一曲 -->
+        <!-- 迷你播放器：圆角悬浮胶囊（左右留白 18，与 TabBar 间距 2） -->
         <Grid Grid.Row="1" x:Name="MiniPlayer"
-              ColumnDefinitions="Auto,*,Auto,Auto,Auto"
-              ColumnSpacing="10"
-              Padding="10,6"
-              HeightRequest="52"
-              Background="{DynamicResource HeroBrush}"
+              Margin="18,0,18,2"
+              MaximumHeightRequest="88"
               IsVisible="False"
               SafeAreaEdges="None">
 
-            <!-- 封面 -->
-            <Border Grid.Column="0"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 8"
-                    WidthRequest="40" HeightRequest="40"
-                    BackgroundColor="{DynamicResource ChipInactiveColor}">
-                <Image Source="{Binding CoverImage}"
-                       Aspect="AspectFill" />
+<Border StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource BottomBarStrokeColor}"
+                    Background="Transparent">
+
+                <Grid>
+                    <!-- 毛玻璃背景：与底部 TabBar 共用同一套磨砂参数，视觉上连为一体 -->
+                    <controls:FrostedBackground Source="{DynamicResource ThemeBackgroundImage}"
+                                                IsActive="{DynamicResource ThemeBackgroundEnabled}"
+                                                IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+                                                TintOpacity="{DynamicResource BottomBarTintOpacity}"
+                                                DimAmount="{DynamicResource BottomBarDimAmount}"
+                                                TintColor="{DynamicResource TabBarGlassTint}"
+                                                Opacity="1.0"
+                                                UseNativeBlur="True"
+                                                Aspect="AspectFill"
+                                                InputTransparent="True" />
+
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                          ColumnSpacing="16"
+                          Padding="14,10,14,10"
+                          HeightRequest="88"
+                          Background="Transparent">
+
+                <!-- 封面 -->
+                <Border Grid.Column="0"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 12"
+                        WidthRequest="48" HeightRequest="48"
+                        BackgroundColor="{DynamicResource ChipInactiveColor}">
+                    <Image Source="{Binding CoverImage}"
+                           Aspect="AspectFill" />
+                </Border>
+
+                <!-- 歌曲标题/艺术家 -->
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="2"
+                                     VerticalOptions="Center">
+                    <Label Text="{Binding Title}"
+                           FontSize="15"
+                           FontFamily="OpenSansSemibold"
+                           TextColor="White"
+                           MaxLines="1"
+                           LineBreakMode="TailTruncation" />
+                    <Label Text="{Binding Artist}"
+                           FontSize="12"
+                           TextColor="#CCFFFFFF"
+                           MaxLines="1"
+                           LineBreakMode="TailTruncation" />
+                </VerticalStackLayout>
+
+                <!-- 透明按钮覆盖封面+歌曲信息区域，避免 Grid 级 TapGestureRecognizer 在嵌套布局中失效 -->
+                <Button Grid.Column="0" Grid.ColumnSpan="2"
+                        BackgroundColor="Transparent"
+                        Text=""
+                        BorderWidth="0"
+                        CornerRadius="0"
+                        Padding="0"
+                        Clicked="OnMiniPlayerTapped"
+                        HorizontalOptions="Fill" VerticalOptions="Fill" />
+
+                <!-- 上一曲（Image 而非 ImageButton：ImageButton 无 TintColor，主题着色需 Image.TintColor） -->
+                <Image Grid.Column="2"
+                        WidthRequest="32" HeightRequest="32"
+                        Source="{Binding PlayPreviousIconSource}"
+                        VerticalOptions="Center" HorizontalOptions="Center">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding PlayPreviousCommand}" />
+                    </Image.GestureRecognizers>
+                </Image>
+
+                <!-- 播放/暂停：透明背景 + 主题反色图标（浅色深图标 / 深色白图标） -->
+                <Image Grid.Column="3"
+                        WidthRequest="42" HeightRequest="42"
+                        Source="{Binding PlayPauseIconSource}"
+                        VerticalOptions="Center" HorizontalOptions="Center">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding TogglePlayPauseCommand}" />
+                    </Image.GestureRecognizers>
+                </Image>
+
+                <!-- 下一曲 -->
+                <Image Grid.Column="4"
+                        WidthRequest="32" HeightRequest="32"
+                        Source="{Binding PlayNextIconSource}"
+                        VerticalOptions="Center" HorizontalOptions="Center">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding PlayNextCommand}" />
+                    </Image.GestureRecognizers>
+                </Image>
+                </Grid>
+
+                <!-- 播放进度条：贴胶囊底部（3px，主题色） -->
+                <ProgressBar Progress="{Binding MiniPlayerProgress}"
+                             HeightRequest="3"
+                             ProgressColor="{DynamicResource PrimaryColor}"
+                             BackgroundColor="Transparent"
+                             VerticalOptions="End"
+                             HorizontalOptions="Fill"
+                             Margin="0,0,0,-2" />
+                </Grid>
             </Border>
-
-            <!-- 歌曲标题/艺术家 -->
-            <VerticalStackLayout Grid.Column="1"
-                                 Spacing="1"
-                                 VerticalOptions="Center">
-                <Label Text="{Binding Title}"
-                       FontSize="13"
-                       FontFamily="OpenSansSemibold"
-                       TextColor="White"
-                       MaxLines="1"
-                       LineBreakMode="TailTruncation" />
-                <Label Text="{Binding Artist}"
-                       FontSize="11"
-                       TextColor="#CCFFFFFF"
-                       MaxLines="1"
-                       LineBreakMode="TailTruncation" />
-            </VerticalStackLayout>
-
-            <!-- 透明按钮覆盖封面+歌曲信息区域，避免 Grid 级 TapGestureRecognizer 在嵌套布局中失效 -->
-            <Button Grid.Column="0" Grid.ColumnSpan="2"
-                    BackgroundColor="Transparent"
-                    Text=""
-                    BorderWidth="0"
-                    CornerRadius="0"
-                    Padding="0"
-                    Clicked="OnMiniPlayerTapped"
-                    HorizontalOptions="Fill" VerticalOptions="Fill" />
-
-            <!-- 上一曲（Image 而非 ImageButton：ImageButton 无 TintColor，主题着色需 Image.TintColor） -->
-            <Image Grid.Column="2"
-                    WidthRequest="28" HeightRequest="28"
-                    Source="{Binding PlayPreviousIconSource}"
-                    VerticalOptions="Center" HorizontalOptions="Center">
-                <Image.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding PlayPreviousCommand}" />
-                </Image.GestureRecognizers>
-            </Image>
-
-            <!-- 播放/暂停：透明背景 + 主题反色图标（浅色深图标 / 深色白图标） -->
-            <Image Grid.Column="3"
-                    WidthRequest="36" HeightRequest="36"
-                    Source="{Binding PlayPauseIconSource}"
-                    VerticalOptions="Center" HorizontalOptions="Center">
-                <Image.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding TogglePlayPauseCommand}" />
-                </Image.GestureRecognizers>
-            </Image>
-
-            <!-- 下一曲 -->
-            <Image Grid.Column="4"
-                    WidthRequest="28" HeightRequest="28"
-                    Source="{Binding PlayNextIconSource}"
-                    VerticalOptions="Center" HorizontalOptions="Center">
-                <Image.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding PlayNextCommand}" />
-                </Image.GestureRecognizers>
-            </Image>
         </Grid>
 
-        <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库），半透明毛玻璃底 + 模糊层 -->
+        <!-- 自定义底部 TabBar（4个Tab：播放/发现/歌单/音乐库），圆角悬浮胶囊（左右留白 18，底部悬浮 4） -->
         <Grid Grid.Row="2" x:Name="TabBar"
-              ColumnDefinitions="*,*,*,*"
-              BackgroundColor="{DynamicResource TabBarBackgroundColor}"
-              Padding="0,4,0,4"
+              Margin="18,0,18,4"
               SafeAreaEdges="None">
 
-            <!-- 毛玻璃层：复用同一张主题背景图做模糊磨砂，跟随深浅模式压暗/提亮 -->
-            <controls:FrostedBackground Grid.ColumnSpan="4"
-                                        Source="{DynamicResource ThemeBackgroundImage}"
+            <!-- 圆角胶囊容器：毛玻璃由内层 Border 圆角裁剪 -->
+<Border StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="{DynamicResource BottomBarStrokeColor}"
+                    Background="Transparent">
+                <Grid>
+            <!-- 毛玻璃背景：与迷你播放器共用同一套磨砂参数，视觉上连为一体 -->
+            <controls:FrostedBackground Source="{DynamicResource ThemeBackgroundImage}"
                                         IsActive="{DynamicResource ThemeBackgroundEnabled}"
                                         IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                                        TintOpacity="0.18"
-                                        DimAmount="0"
-                                        Opacity="0.35"
+                                        TintOpacity="{DynamicResource BottomBarTintOpacity}"
+                                        DimAmount="{DynamicResource BottomBarDimAmount}"
+                                        TintColor="{DynamicResource TabBarGlassTint}"
+                                        Opacity="1.0"
+                                        UseNativeBlur="True"
                                         Aspect="AspectFill"
                                         InputTransparent="True" />
 
-            <!-- 顶部分隔细线，增强与内容区的视觉区分 -->
-            <BoxView Grid.ColumnSpan="4"
-                     HeightRequest="1"
-                     VerticalOptions="Start"
-                     BackgroundColor="{DynamicResource TabInactiveColor}"
-                     Opacity="0.22"
-                     InputTransparent="True" />
+            <Grid ColumnDefinitions="*,*,*,*"
+                  Padding="4,0,4,0"
+                  Background="Transparent">
 
-            <Grid Grid.Column="0" x:Name="TabItem0"
-                  HorizontalOptions="Fill" VerticalOptions="Fill">
-                <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnTabTapped" />
-                </Grid.GestureRecognizers>
-                <VerticalStackLayout x:Name="TabContent0" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                                 x:Name="TabIcon0"
-                                 Source="ic_play"
-                                 BackgroundColor="Transparent"
-                                 BorderWidth="0"
-                                 Padding="0"
-                                 InputTransparent="True" />
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaying]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
-                </VerticalStackLayout>
-            </Grid>
+                <Grid Grid.Column="0" x:Name="TabItem0"
+                      HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabTapped" />
+                    </Grid.GestureRecognizers>
+                    <!-- 选中高亮胶囊背景（code-behind 控制） -->
+                    <Border x:Name="TabBg0"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12"
+                            BackgroundColor="Transparent"
+                            Margin="4,3,4,3" />
+                    <VerticalStackLayout x:Name="TabContent0" Spacing="4" Margin="0,6,0,6" HorizontalOptions="Center" VerticalOptions="Center">
+                        <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                     x:Name="TabIcon0"
+                                     Source="ic_play"
+                                     BackgroundColor="Transparent"
+                                     BorderWidth="0"
+                                     Padding="0"
+                                     InputTransparent="True" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaying]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel0" />
+                    </VerticalStackLayout>
+                </Grid>
 
-            <Grid Grid.Column="1" x:Name="TabItem1"
-                  HorizontalOptions="Fill" VerticalOptions="Fill">
-                <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnTabTapped" />
-                </Grid.GestureRecognizers>
-                <VerticalStackLayout x:Name="TabContent1" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                                 x:Name="TabIcon1"
-                                 Source="ic_home"
-                                 BackgroundColor="Transparent"
-                                 BorderWidth="0"
-                                 Padding="0"
-                                 InputTransparent="True" />
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
-                </VerticalStackLayout>
-            </Grid>
+                <Grid Grid.Column="1" x:Name="TabItem1"
+                      HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabTapped" />
+                    </Grid.GestureRecognizers>
+                    <!-- 选中高亮胶囊背景（code-behind 控制） -->
+                    <Border x:Name="TabBg1"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12"
+                            BackgroundColor="Transparent"
+                            Margin="4,3,4,3" />
+                    <VerticalStackLayout x:Name="TabContent1" Spacing="4" Margin="0,6,0,6" HorizontalOptions="Center" VerticalOptions="Center">
+                        <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                     x:Name="TabIcon1"
+                                     Source="ic_home"
+                                     BackgroundColor="Transparent"
+                                     BorderWidth="0"
+                                     Padding="0"
+                                     InputTransparent="True" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabDiscover]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel1" />
+                    </VerticalStackLayout>
+                </Grid>
 
-            <Grid Grid.Column="2" x:Name="TabItem2"
-                  HorizontalOptions="Fill" VerticalOptions="Fill">
-                <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnTabTapped" />
-                </Grid.GestureRecognizers>
-                <VerticalStackLayout x:Name="TabContent2" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                                 x:Name="TabIcon2"
-                                 Source="ic_playlist"
-                                 BackgroundColor="Transparent"
-                                 BorderWidth="0"
-                                 Padding="0"
-                                 InputTransparent="True" />
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
-                </VerticalStackLayout>
-            </Grid>
+                <Grid Grid.Column="2" x:Name="TabItem2"
+                      HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabTapped" />
+                    </Grid.GestureRecognizers>
+                    <!-- 选中高亮胶囊背景（code-behind 控制） -->
+                    <Border x:Name="TabBg2"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12"
+                            BackgroundColor="Transparent"
+                            Margin="4,3,4,3" />
+                    <VerticalStackLayout x:Name="TabContent2" Spacing="4" Margin="0,6,0,6" HorizontalOptions="Center" VerticalOptions="Center">
+                        <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                     x:Name="TabIcon2"
+                                     Source="ic_playlist"
+                                     BackgroundColor="Transparent"
+                                     BorderWidth="0"
+                                     Padding="0"
+                                     InputTransparent="True" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel2" />
+                    </VerticalStackLayout>
+                </Grid>
 
-            <Grid Grid.Column="3" x:Name="TabItem3"
-                  HorizontalOptions="Fill" VerticalOptions="Fill">
-                <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnTabTapped" />
-                </Grid.GestureRecognizers>
-                <VerticalStackLayout x:Name="TabContent3" Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
-                    <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
-                                 x:Name="TabIcon3"
-                                 Source="ic_library"
-                                 BackgroundColor="Transparent"
-                                 BorderWidth="0"
-                                 Padding="0"
-                                 InputTransparent="True" />
-                    <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
-                </VerticalStackLayout>
+                <Grid Grid.Column="3" x:Name="TabItem3"
+                      HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabTapped" />
+                    </Grid.GestureRecognizers>
+                    <!-- 选中高亮胶囊背景（code-behind 控制） -->
+                    <Border x:Name="TabBg3"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12"
+                            BackgroundColor="Transparent"
+                            Margin="4,3,4,3" />
+                    <VerticalStackLayout x:Name="TabContent3" Spacing="4" Margin="0,6,0,6" HorizontalOptions="Center" VerticalOptions="Center">
+                        <ImageButton WidthRequest="24" HeightRequest="24" HorizontalOptions="Center"
+                                     x:Name="TabIcon3"
+                                     Source="ic_library"
+                                     BackgroundColor="Transparent"
+                                     BorderWidth="0"
+                                     Padding="0"
+                                     InputTransparent="True" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabLibrary]}" FontSize="10" HorizontalTextAlignment="Center" x:Name="TabLabel3" />
+                    </VerticalStackLayout>
+                </Grid>
             </Grid>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- 启动加载页：纯文字品牌 Splash Screen -->
@@ -239,3 +300,4 @@
 
     </Grid>
 </ContentPage>
+

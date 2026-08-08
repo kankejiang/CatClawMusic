@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
@@ -519,40 +519,7 @@ public partial class SearchPage : DiscoverPageBase
     /// <summary>点击汉堡菜单按钮，从左到右滑出设置面板</summary>
     private async void OnHamburgerClicked(object? sender, EventArgs e)
     {
-        if (_isSettingsPanelOpen) return;
-
-        // 首次打开时创建设置页面内容（正常情况下已在空闲时预热，见构造函数）
-        EnsureSettingsContent();
-
-        // 每次打开面板时刷新设置状态（嵌入面板不会触发 OnAppearing）
-        if (_settingsPage?.BindingContext is SettingsViewModel svm)
-            _ = svm.LoadStatusCommand.ExecuteAsync(null);
-
-        // 设置面板宽度为屏幕宽度的 85%
-        var panelWidth = Width > 0 ? Width * 0.85 : 300;
-        SettingsPanel.WidthRequest = panelWidth;
-        SettingsPanel.TranslationX = -panelWidth;
-
-        _isSettingsPanelOpen = true;
-        SettingsPanelOverlay.IsVisible = true;
-        // 抽屉遮住了英雄卡，暂停自动轮播（关闭时恢复）
-        _heroAutoScrollTimer?.Stop();
-
-        // 确保布局已计算完成
-        await Task.Delay(16);
-
-        // 背景渐入 + 面板从左侧滑入。先启动动画再应用模糊，
-        // 让 RenderEffect 的设置开销与动画并行，而不是卡在动画开始前
-        var animationTask = Task.WhenAll(
-            SettingsBackdrop.FadeTo(0.5, 250, Easing.CubicOut),
-            SettingsPanel.TranslateTo(0, 0, 280, Easing.CubicOut)
-        );
-
-#if ANDROID
-        ApplyBlurToSettingsSiblings();
-#endif
-
-        await animationTask;
+        await Shell.Current.GoToAsync("settings");
     }
 
     /// <summary>创建并嵌入设置页面内容（幂等）。点击汉堡按钮与空闲预热时调用。</summary>

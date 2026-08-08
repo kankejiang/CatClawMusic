@@ -1,4 +1,4 @@
-using CatClawMusic.Core.Interfaces;
+﻿using CatClawMusic.Core.Interfaces;
 using CoreAppTheme = CatClawMusic.Core.Interfaces.AppTheme;
 using MauiAppTheme = Microsoft.Maui.ApplicationModel.AppTheme;
 using Microsoft.Maui.Controls;
@@ -546,14 +546,14 @@ public class ThemeService : IThemeService
     private static void ApplyDarkPalette(ResourceDictionary resources, ThemeColors colors)
     {
         var primary = Color.FromArgb(colors.Primary);
-        var darkBase = Color.FromArgb("#080914");
+        var darkBase = Color.FromArgb("#1A1838");
         var midTone = Color.FromArgb("#0F1228");
         var primaryTint = primary.WithAlpha(0.18f);
         var accentTint = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.1f);
 
         resources["WindowBackgroundColor"] = darkBase;
-        resources["WindowBackgroundAltColor"] = Color.FromArgb("#131735");
-        resources["SurfaceColor"] = Color.FromArgb("#171B33");
+        resources["WindowBackgroundAltColor"] = Color.FromArgb("#1E1C42");
+        resources["SurfaceColor"] = Color.FromArgb("#2A2755");
         resources["CardBackgroundColor"] = Color.FromArgb("#1AFFFFFF");
         resources["CardBackgroundStrongColor"] = Color.FromArgb("#2DFFFFFF");
         resources["GlassButtonColor"] = Color.FromArgb("#26FFFFFF");
@@ -577,20 +577,25 @@ public class ThemeService : IThemeService
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
         resources["TabInactiveColor"] = Color.FromArgb("#FFFFFF"); // 深色模式：未选中图标/文字为白色
         // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
-        resources["TabBarBackgroundColor"] = Color.FromArgb("#3DFFFFFF");
-        // 导航栏毛玻璃色调：深色模式压暗（与页面遮罩同为黑色），浅色模式提亮（白色）
-        resources["TabBarGlassTint"] = Colors.Black;
+        resources["TabBarBackgroundColor"] = Color.FromArgb("#30FFFFFF");
+        // 导航栏毛玻璃色调：深色模式=白色反差，浅色模式=主题色
+        resources["TabBarGlassTint"] = Colors.White; // 深色模式：浅色毛玻璃（白底反差）
+        resources["BottomBarTintOpacity"] = 0.18; // 深色模式：白色着色 18%（通透磨砂）
+        resources["BottomBarDimAmount"] = 0.0;    // 深色模式：不暗化
+        resources["BottomBarStrokeColor"] = primary.WithAlpha(0.50f); // 深色模式：主题色 50% 描边
 
-        // 深色模式基底：垂直氛围渐变（顶部主题色调 → 深色基底），让半透明毛玻璃卡片有层次可循
+        // 深色模式基底：垂直纯紫渐变（与 HeroCard 同款配色，顶浅紫 → 底深紫）
         resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
         {
-            new(Color.FromArgb($"#26{colors.Primary[1..]}"), 0f),
-            new(Color.FromArgb("#0B0D20"), 0.45f),
-            new(darkBase, 1f)
+            new(Color.FromArgb("#2E2A58"), 0f),    // 上：暖深紫
+            new(Color.FromArgb("#282450"), 0.35f),  // 中上：深紫
+            new(Color.FromArgb("#201D40"), 0.65f),  // 中下：最暗点
+            new(Color.FromArgb("#252248"), 0.88f),  // 回弹
+            new(Color.FromArgb("#2B2860"), 1f)      // 底：U型回弹（比中段亮）
         }, new Point(0.5, 0), new Point(0.5, 1));
 
-        // 主题背景图遮罩：深色模式下用半透明黑色压暗图片，确保文字可读
-        resources["CustomBackgroundMaskColor"] = Colors.Black.WithAlpha(0.45f);
+        // 主题背景图遮罩：深色模式下用低透明黑色微微压暗图片（保持背景层次，不再黑漆漆）
+        resources["CustomBackgroundMaskColor"] = Colors.Transparent; // 纯色渐变不需要遮罩
 
         // 英雄卡/顶部卡片：半透明毛玻璃（主题色低透明渐变，透出背景图）
         resources["HeroBrush"] = BuildLinearBrush($"{AlphaHex(0x59)}{colors.Primary[1..]}", $"{AlphaHex(0x24)}{GetAccentColorHex(colors.Primary)[1..]}", 0.0f, 1.0f);
@@ -639,7 +644,10 @@ public class ThemeService : IThemeService
         // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
         resources["TabBarBackgroundColor"] = Color.FromArgb("#A6FFFFFF");
         // 导航栏毛玻璃色调：浅色模式提亮（与页面遮罩同为白色），深色模式压暗（黑色）
-        resources["TabBarGlassTint"] = Colors.White;
+        resources["TabBarGlassTint"] = primary; // 浅色模式：主题色毛玻璃
+        resources["BottomBarTintOpacity"] = 0.12; // 浅色模式：主题色着色 12%（通透磨砂）
+        resources["BottomBarDimAmount"] = 0.0;    // 浅色模式：不暗化
+        resources["BottomBarStrokeColor"] = primary.WithAlpha(0.35f); // 浅色模式：主题色 35% 描边
 
         // 浅色模式基底：垂直氛围渐变（顶部主题浅色调 → 浅色基底），让半透明毛玻璃卡片有层次可循
         resources["PageBackgroundBrush"] = new LinearGradientBrush(new GradientStopCollection
@@ -650,7 +658,7 @@ public class ThemeService : IThemeService
         }, new Point(0.5, 0), new Point(0.5, 1));
 
         // 主题背景图遮罩：浅色模式下用半透明白色提亮图片，确保文字可读
-        resources["CustomBackgroundMaskColor"] = Colors.White.WithAlpha(0.40f);
+        resources["CustomBackgroundMaskColor"] = Colors.Transparent; // 纯色渐变不需要遮罩
 
         // 英雄卡/顶部卡片：半透明毛玻璃（主题色低透明渐变，透出背景图）
         resources["HeroBrush"] = BuildLinearBrush($"{AlphaHex(0x66)}{colors.Primary[1..]}", $"{AlphaHex(0x33)}{colors.Light[1..]}", 0.0f, 1.0f);
@@ -706,7 +714,7 @@ public class ThemeService : IThemeService
                 return;
             }
 
-            double maskAlpha = isDark ? 0.55 : 0.35;
+            double maskAlpha = isDark ? 0.25 : 0.35;
             resources["CustomBackgroundMaskColor"] = isDark
                 ? Colors.Black.WithAlpha((float)maskAlpha)
                 : Colors.White.WithAlpha((float)maskAlpha);
@@ -799,3 +807,8 @@ public class ThemeService : IThemeService
     /// <summary>主题颜色组</summary>
     private record ThemeColors(string Primary, string Light, string Dark);
 }
+
+
+
+
+

@@ -18,6 +18,19 @@
 		<ApplicationDisplayVersion>1.7.10</ApplicationDisplayVersion>
 		<ApplicationVersion>56</ApplicationVersion>
 
+		<!-- Android 打包：禁用快速部署（Fast Deployment），Debug APK 也完整打包 .NET 程序集。
+		     否则 VS 调试（F5）能启动（程序集靠 adb push 到设备 .override 目录），
+		     但不挂调试器直接运行（桌面点图标 / Ctrl+F5 / APK 重装后启动）时
+		     monodroid 报 "No assemblies found in .../.override ... Assuming this is part of Fast Deployment. Exiting"
+		     然后 SIGABRT 闪退（见 dotnet/android#10708）。 -->
+		<AndroidUseFastDeployment>false</AndroidUseFastDeployment>
+		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+		<AndroidPackageFormats>apk</AndroidPackageFormats>
+		<!-- 禁用热重载：Hot Reload 通过 FastDev 通道推送增量程序集，与 APK 构建时生成的 ACW
+		     类型注册表不一致，导致 JNIEnv::RegisterNatives() returned -1（ShellItemRenderer 等）。
+		     完整打包 + 禁热重载后 VS 调试部署的也是自洽的完整包。 -->
+		<HotReloadEnabled>false</HotReloadEnabled>
+
 		<!-- Windows-specific settings -->
 		<WindowsPackageType>None</WindowsPackageType>
 		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
@@ -153,6 +166,31 @@
 		<ItemGroup>
 			<Compile Include="Platforms\Windows\App.InitializeComponent.fallback.cs" Condition="!Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.i.cs') And !Exists('$(XamlGeneratedOutputPath)Platforms\Windows\App.g.cs')" />
 		</ItemGroup>
+	</Target>
+
+	<!-- 自动识别调试目标设备 ABI（Debug + Android 专用）：
+	     探测唯一在线设备，若为 x86_64 且开启 ARM 翻译层（ro.enable.native.bridge.exec=1，
+	     如 MuMu 模拟器——其包管理器对双 ABI APK 强制把 primaryCpuAbi 定为 arm64-v8a 走
+	     libnb/houdini 翻译执行，mono 调试器连不上宿主 vsdbg 会超时卡死并崩溃），
+	     则本构建只打 android-x64，模拟器只能原生执行，F5 调试恢复；其余情况（真机 / 多设备 /
+	     无设备 / adb 不可用）保持双 ABI（android-arm64;android-x64），ARM64 真机可正常调试。
+	     探测由 AutoAndroidRid.ps1 完成，决策与上次不同时自动删除旧 APK 强制重新打包。
+	     如需关闭自动识别：构建传 /p:DisableAutoAndroidRid=true 或删除本 Target。 -->
+	<Target Name="AutoAndroidRid"
+	    BeforeTargets="_ResolveAndroidTooling"
+	    Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(DesignTimeBuild)' != 'true' And '$(_ComputeFilesToPublishForRuntimeIdentifiers)' != 'true' And '$(DisableAutoAndroidRid)' != 'true'">
+		<PropertyGroup>
+			<_AutoAdbPath>$([MSBuild]::EnsureTrailingSlash('$(AndroidSdkDirectory)'))platform-tools\adb.exe</_AutoAdbPath>
+		</PropertyGroup>
+		<Exec
+		    Command="&quot;$(SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\AutoAndroidRid.ps1&quot; -AdbPath &quot;$(_AutoAdbPath)&quot; -DecisionFile &quot;$(IntermediateOutputPath)auto-rid.txt&quot; -ObjApkDir &quot;$(IntermediateOutputPath)android\bin&quot; -BinApkDir &quot;$(OutputPath)&quot;"
+		    ConsoleToMSBuild="true" />
+		<ReadLinesFromFile File="$(IntermediateOutputPath)auto-rid.txt" Condition="Exists('$(IntermediateOutputPath)auto-rid.txt')">
+			<Output TaskParameter="Lines" PropertyName="_AutoAndroidRidDecision" />
+		</ReadLinesFromFile>
+		<PropertyGroup Condition="'$(_AutoAndroidRidDecision)' == 'x64-only'">
+			<RuntimeIdentifiers>android-x64</RuntimeIdentifiers>
+		</PropertyGroup>
 	</Target>
 
 </Project>

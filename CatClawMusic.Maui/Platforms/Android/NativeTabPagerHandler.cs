@@ -40,6 +40,8 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
     {
         var vp = new ViewPager2(Context!)
         {
+            // 高度 MatchParent：占满宿主容器。MainPage 已把 NativeTabPager 包进一个
+            // IsClippedToBounds 的 pagerHost（Grid.Row=0），越界绘制被裁剪，不会覆盖 Row 1 迷你播放器。
             LayoutParameters = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.MatchParent)

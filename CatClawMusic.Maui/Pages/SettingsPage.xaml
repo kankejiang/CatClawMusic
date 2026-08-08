@@ -9,61 +9,88 @@
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid Background="{DynamicResource PageBackgroundBrush}"
-          RowDefinitions="*,Auto">
+    <Grid RowDefinitions="Auto,*,Auto"
+          Background="{DynamicResource PageBackgroundBrush}">
         <Grid.Behaviors>
             <controls:SafeAreaPaddingBehavior />
         </Grid.Behaviors>
 
-        <ScrollView Grid.Row="0">
-            <VerticalStackLayout Padding="16,12,16,16" Spacing="10">
+        <!-- ═══ 顶部英雄卡（含返回按钮，复用 HeroCard，与设置二级菜单一致）═══ -->
+        <controls:HeroCard Grid.Row="0" ShowBackButton="True">
+            <controls:HeroCard.CardContent>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="44,0,4,0">
+                    <VerticalStackLayout Spacing="6" VerticalOptions="Center">
+                        <Label Text="设置"
+                               FontSize="28"
+                               FontAttributes="Bold"
+                               FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SettingsSubtitle]}"
+                               FontSize="14"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                    <Border Grid.Column="1"
+                            WidthRequest="48" HeightRequest="48"
+                            CornerRadius="14"
+                            BackgroundColor="#20FFFFFF"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnDarkModeToggleClicked" />
+                        </Border.GestureRecognizers>
+                        <Image Source="{Binding DarkModeIcon}"
+                               WidthRequest="28" HeightRequest="28"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                </Grid>
+            </controls:HeroCard.CardContent>
+        </controls:HeroCard>
 
-                <!-- Hero Header -->
-                <Border Style="{StaticResource GlassCardStrongStyle}"
-                        Background="{DynamicResource HeroBrush}">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                        <VerticalStackLayout Spacing="8">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}"
-                                   Style="{StaticResource PageTitleStyle}"
-                                   TextColor="White" />
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SettingsSubtitle]}"
-                                   Style="{StaticResource PageSubtitleStyle}"
-                                   TextColor="#F2F4FF" />
-                        </VerticalStackLayout>
-                        <Border Grid.Column="1"
-                                Style="{StaticResource GlassIconContainerStyle}"
-                                BackgroundColor="#24FFFFFF"
-                                Stroke="{DynamicResource GlassStrokeColor}"
-                                VerticalOptions="Start">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnDarkModeToggleClicked" />
-                            </Border.GestureRecognizers>
-                            <Image Source="{Binding DarkModeIcon}"
-                                   WidthRequest="40" HeightRequest="40"
-                                   HorizontalOptions="Center" VerticalOptions="Center" />
-                        </Border>
-                    </Grid>
-                </Border>
+        <!-- ═══ 内容滚动区 ═══ -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,4,16,16" Spacing="10">
 
-                <!-- Section: 内容与服务 -->
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ContentAndServices]}"
-                       Style="{StaticResource SectionTitleStyle}"
-                       Margin="4,4,0,0" />
+                <!-- ═══ Section: 内容与服务 ═══ -->
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="4,8,0,0">
+                    <Border WidthRequest="26" HeightRequest="26"
+                            CornerRadius="8"
+                            BackgroundColor="#20B7AEFF"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            VerticalOptions="Center">
+                        <Label Text="✦" FontSize="12"
+                               HorizontalOptions="Center" VerticalOptions="Center"
+                               TextColor="{DynamicResource PrimaryColor}" />
+                    </Border>
+                    <Label Grid.Column="1"
+                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ContentAndServices]}"
+                           FontSize="12"
+                           FontAttributes="Bold"
+                           CharacterSpacing="2"
+                           TextColor="{DynamicResource TextHintColor}"
+                           VerticalOptions="Center" />
+                </Grid>
 
-                <VerticalStackLayout x:Name="Section1Items" Spacing="10">
+                <VerticalStackLayout x:Name="Section1Items" Spacing="8">
 
                 <!-- 外观与个性化 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_edit_light, Dark=ic_edit}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Appearance]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppearanceDesc]}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#20C4B5FD" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_edit_light, Dark=ic_edit}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Appearance]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppearanceDesc]}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnAppearanceSettingsClicked" />
@@ -73,16 +100,22 @@
                 <!-- 桌面歌词 -->
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{OnPlatform Default=false, Android=true}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_lyrics_light, Dark=ic_lyrics}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricDesc]}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#2042A5F5" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_lyrics_light, Dark=ic_lyrics}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[PageTitleDesktopLyric]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricDesc]}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnDesktopLyricClicked" />
@@ -91,16 +124,22 @@
 
                 <!-- 本地音乐 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusic]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding LocalMusicStatus}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#2026A69A" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[LocalMusic]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding LocalMusicStatus}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnLocalMusicClicked" />
@@ -109,16 +148,22 @@
 
                 <!-- 远程音乐服务 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding RemoteMusicStatus}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#2042A5F5" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[RemoteMusic]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding RemoteMusicStatus}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnRemoteMusicClicked" />
@@ -127,34 +172,46 @@
 
                 <!-- 插件管理 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_equalizer_light, Dark=ic_equalizer}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Plugins]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding PluginStatus}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#20FF7043" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_equalizer_light, Dark=ic_equalizer}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Plugins]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding PluginStatus}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnPluginManagementClicked" />
                     </Border.GestureRecognizers>
                 </Border>
 
-                <!-- 探索设置 (AI) -->
+                <!-- AI 设置 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_play_light, Dark=ic_play}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ExploreSettings]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding AiStatus}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#20E84393" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_play_light, Dark=ic_play}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[ExploreSettings]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding AiStatus}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnAiSettingsClicked" />
@@ -163,27 +220,47 @@
 
                 </VerticalStackLayout>
 
-                <!-- Section: 系统与维护 -->
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SystemAndMaintenance]}"
-                       Style="{StaticResource SectionTitleStyle}"
-                       Margin="4,6,0,0" />
+                <!-- ═══ Section: 系统与维护 ═══ -->
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="4,10,0,0">
+                    <Border WidthRequest="26" HeightRequest="26"
+                            CornerRadius="8"
+                            BackgroundColor="#2063D39E"
+                            Stroke="{DynamicResource GlassStrokeColor}"
+                            VerticalOptions="Center">
+                        <Label Text="⚙" FontSize="13"
+                               HorizontalOptions="Center" VerticalOptions="Center"
+                               TextColor="#63D39E" />
+                    </Border>
+                    <Label Grid.Column="1"
+                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[SystemAndMaintenance]}"
+                           FontSize="12"
+                           FontAttributes="Bold"
+                           CharacterSpacing="2"
+                           TextColor="{DynamicResource TextHintColor}"
+                           VerticalOptions="Center" />
+                </Grid>
 
-                <VerticalStackLayout x:Name="Section2Items" Spacing="10">
+                <VerticalStackLayout x:Name="Section2Items" Spacing="8">
 
-                <!-- 权限管理（仅 Android 需要运行时权限；Windows/PC 无意义，隐藏） -->
+                <!-- 权限管理 -->
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{OnPlatform Default=false, Android=true}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_lock_locked_light, Dark=ic_lock_locked}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}" FontSize="15" FontFamily="OpenSansSemibold" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#20F44336" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_lock_locked_light, Dark=ic_lock_locked}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Permissions]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
                             <Label Text="{Binding PermissionStatus}" FontSize="12"
                                    TextColor="{Binding PermissionStatusColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnPermissionManagementClicked" />
@@ -192,16 +269,23 @@
 
                 <!-- 通用设置 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettings]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsDesc]}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="{DynamicResource CardBackgroundColor}"
+                                Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettings]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[GeneralSettingsDesc]}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <Image Grid.Column="2" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnGeneralSettingsClicked" />
@@ -210,22 +294,29 @@
 
                 <!-- 备份与恢复 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto, Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestoreDesc]}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#2026A69A" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_folder_light, Dark=ic_folder}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestoreDesc]}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <BoxView Grid.Column="2"
                                  x:Name="UpdateRedDot"
-                                 WidthRequest="10" HeightRequest="10"
+                                 WidthRequest="8" HeightRequest="8"
+                                 CornerRadius="4"
                                  Color="{DynamicResource ErrorColor}"
                                  IsVisible="{Binding IsUpdateAvailable}"
                                  VerticalOptions="Center" />
                         <Image Grid.Column="3" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnBackupRestoreClicked" />
@@ -234,16 +325,22 @@
 
                 <!-- 诊断日志 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_info_light, Dark=ic_info}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8">
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
-                            </Image.GestureRecognizers>
-                        </Image>
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="{DynamicResource CardBackgroundColor}"
+                                Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_info_light, Dark=ic_info}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
+                                </Image.GestureRecognizers>
+                            </Image>
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                             <Label Text="诊断日志" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="开关开启后实时记录运行日志，可在文件管理器取 debug.log 发送" Style="{StaticResource PageSubtitleStyle}" />
+                            <Label Text="开启后实时记录运行日志" FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                             <VerticalStackLayout.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
                             </VerticalStackLayout.GestureRecognizers>
@@ -251,8 +348,7 @@
                         <Switch Grid.Column="2" x:Name="DiagnosticLogSwitch"
                                 Toggled="OnDiagnosticLogToggled" VerticalOptions="Center" />
                         <Image Grid.Column="3" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5">
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4">
                             <Image.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnDiagnosticLogClicked" />
                             </Image.GestureRecognizers>
@@ -262,22 +358,29 @@
 
                 <!-- 关于 -->
                 <Border Style="{StaticResource GlassCardStyle}">
-                    <Grid Padding="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
-                        <Image Source="{helpers:ThemedIcon Light=ic_check_light, Dark=ic_check}" WidthRequest="22" HeightRequest="22"
-                               VerticalOptions="Center" Opacity="0.8" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[About]}" FontSize="15" FontFamily="OpenSansSemibold" />
-                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AboutDesc]}" Style="{StaticResource PageSubtitleStyle}" />
+                    <Grid Padding="14,12,14,12" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                        <Border WidthRequest="40" HeightRequest="40" CornerRadius="12"
+                                BackgroundColor="#20C4B5FD" Stroke="{DynamicResource GlassStrokeColor}"
+                                VerticalOptions="Center">
+                            <Image Source="{helpers:ThemedIcon Light=ic_check_light, Dark=ic_check}"
+                                   WidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[About]}"
+                                   FontSize="15" FontFamily="OpenSansSemibold" />
+                            <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AboutDesc]}"
+                                   FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                         </VerticalStackLayout>
                         <BoxView Grid.Column="2"
                                  x:Name="UpdateRedDot2"
-                                 WidthRequest="10" HeightRequest="10"
+                                 WidthRequest="8" HeightRequest="8"
+                                 CornerRadius="4"
                                  Color="{DynamicResource ErrorColor}"
                                  IsVisible="{Binding IsUpdateAvailable}"
                                  VerticalOptions="Center" />
                         <Image Grid.Column="3" Source="{helpers:ThemedIcon Light=ic_arrow_forward_light, Dark=ic_arrow_forward}"
-                               WidthRequest="18" HeightRequest="18"
-                               VerticalOptions="Center" Opacity="0.5" />
+                               WidthRequest="16" HeightRequest="16" VerticalOptions="Center" Opacity="0.4" />
                     </Grid>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnAboutClicked" />
@@ -289,8 +392,8 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- 底部毛玻璃底栏（纯视觉，与主 TabBar 同款）：覆盖 Android 系统导航条区域，保持底部磨砂一致性 -->
-        <Grid Grid.Row="1" x:Name="BottomGlassBar"
+        <!-- 底部毛玻璃底栏 -->
+        <Grid Grid.Row="2" x:Name="BottomGlassBar"
               HeightRequest="52"
               BackgroundColor="{DynamicResource TabBarBackgroundColor}"
               IsVisible="{OnPlatform Default=false, Android=true}"
@@ -300,8 +403,8 @@
                 IsActive="{DynamicResource ThemeBackgroundEnabled}"
                 IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                 TintColor="{DynamicResource TabBarGlassTint}"
-                TintOpacity="0.28"
-                DimAmount="0"
+                TintOpacity="{DynamicResource BottomBarTintOpacity}"
+                DimAmount="{DynamicResource BottomBarDimAmount}"
                 Opacity="0.45"
                 Aspect="AspectFill"
                 UseNativeBlur="True"

@@ -80,4 +80,12 @@ public interface IOnlineMusicPlugin : IPlugin
 
     /// <summary>退出登录</summary>
     Task LogoutAsync() => Task.CompletedTask;
+
+    /// <summary>红心/取消红心歌曲（写「我喜欢的音乐」；未实现或未登录返回 false，宿主本地收藏不受影响）</summary>
+    /// <param name="songId">平台歌曲 id（RemoteId 冒号后段）</param>
+    /// <param name="like">true=红心，false=取消</param>
+    Task<bool> LikeSongAsync(string songId, bool like) => Task.FromResult(false);
+
+    /// <summary>私人漫游（FM）歌曲红心/取消红心（影响推荐；未实现返回 false）</summary>
+    Task<bool> FmLikeAsync(string songId, bool like) => Task.FromResult(false);
 }

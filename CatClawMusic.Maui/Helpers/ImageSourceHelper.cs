@@ -31,7 +31,7 @@ public static class ImageSourceHelper
     {
         "ic_play", "ic_pause",
         "ic_skip_previous", "ic_skip_next",
-        "ic_repeat_all", "ic_repeat_one", "ic_shuffle",
+        "ic_repeat_all", "ic_repeat_one", "ic_shuffle", "ic_infinite",
         "ic_search", "ic_refresh",
         "ic_arrow_forward", "ic_arrow_left", "ic_check",
     };
@@ -100,5 +100,43 @@ public static class ImageSourceHelper
     {
         if (string.IsNullOrEmpty(name)) return null;
         return FromName(name);
+    }
+
+    /// <summary>
+    /// 播放控制条图标着色：深色模式用 <paramref name="whiteName"/>（白色原版），
+    /// 浅色模式用当前主题色预生成变体 <c>{name}_{hex}_active</c>（构建期由 MauiImage 转为 PNG）。
+    /// <para>
+    /// 不依赖平台 Image.TintColor（MAUI 的 Image 并无该属性，仅 ImageButton 有且 Windows 上行为不稳），
+    /// 复用项目既有的「按主题色预生成 SVG 变体 + 运行时切 Source」模式（同 TabBar 的 ic_*_active 图标）。
+    /// </para>
+    /// </summary>
+    public static ImageSource? FromNamePlayerCtrl(string name, string whiteName, bool? isDark = null)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+
+        var dark = isDark ?? Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        if (dark) return FromName(whiteName);
+
+        var hex = GetPrimaryTintHex();
+        if (string.IsNullOrEmpty(hex)) return FromName(whiteName);
+        return FromName($"{name}_{hex}_active");
+    }
+
+    /// <summary>读取当前主题色 PrimaryColor 的 #rrggbb（小写），取不到返回 null</summary>
+    private static string? GetPrimaryTintHex()
+    {
+        try
+        {
+            if (Application.Current?.Resources.TryGetValue("PrimaryColor", out var value) == true &&
+                value is Color c)
+            {
+                var r = (byte)Math.Round(c.Red * 255);
+                var g = (byte)Math.Round(c.Green * 255);
+                var b = (byte)Math.Round(c.Blue * 255);
+                return $"{r:x2}{g:x2}{b:x2}";
+            }
+        }
+        catch { }
+        return null;
     }
 }

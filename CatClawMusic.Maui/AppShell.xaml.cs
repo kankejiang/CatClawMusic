@@ -13,6 +13,7 @@ public partial class AppShell : Shell
         // 不再在构造函数中硬编码 MainPage。
 
         Routing.RegisterRoute("search", typeof(Pages.SearchPage));
+        Routing.RegisterRoute("settings", typeof(Pages.SettingsPage));
         Routing.RegisterRoute("discover", typeof(Pages.SearchPage));
 
         // ── 设置 Tab 子页面 ──

@@ -30,6 +30,30 @@ public class ThemedIconExtension : IMarkupExtension<ImageSource>
 
     public ImageSource? ProvideValue(IServiceProvider serviceProvider)
     {
+        var source = ResolveImageSource();
+        if (source == null) return null;
+
+        // 动态主题刷新：标记扩展只在 XAML 加载时求值一次，深浅模式切换后已加载页面不会重建。
+        // 这里挂到全局 RequestedThemeChanged，主题变化时给目标 Image 重新求值图标；
+        // Image 卸载时退订，防止事件泄漏。
+        if (serviceProvider.GetService(typeof(IProvideValueTarget)) is IProvideValueTarget target &&
+            target.TargetObject is Image image &&
+            Application.Current != null)
+        {
+            var refresh = new EventHandler<AppThemeChangedEventArgs>((_, _) =>
+            {
+                image.Source = ResolveImageSource();
+            });
+            Application.Current.RequestedThemeChanged += refresh;
+            image.Unloaded += (_, _) => Application.Current.RequestedThemeChanged -= refresh;
+        }
+
+        return source;
+    }
+
+    /// <summary>按当前深浅模式解析图标名并转为 ImageSource</summary>
+    private ImageSource? ResolveImageSource()
+    {
         string? selectedName;
         if (!string.IsNullOrEmpty(Light) || !string.IsNullOrEmpty(Dark))
         {

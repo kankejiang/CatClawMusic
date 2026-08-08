@@ -258,8 +258,8 @@ public abstract class DiscoverPageBase : ContentPage
                 {
                     Source = ImageSource.FromResource(match, asm),
                     Aspect = Aspect.AspectFit,
-                    WidthRequest = 22,
-                    HeightRequest = 22,
+                    WidthRequest = 16,
+                    HeightRequest = 16,
                     HorizontalOptions = LayoutOptions.Center,
                     VerticalOptions = LayoutOptions.Center
                 };

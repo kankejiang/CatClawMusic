@@ -19,6 +19,10 @@ public partial class WebViewLoginPage : ContentPage
 {
     private readonly WebViewLoginViewModel _vm;
 
+    /// <summary>登录 Cookie 轮询定时器：扫码确认后服务端即 Set-Cookie（MUSIC_U），
+    /// 即使 SPA hash 路由跳转不触发 WebNavigated，也能检测到登录完成。</summary>
+    private IDispatcherTimer? _cookieTimer;
+
     public WebViewLoginPage(WebViewLoginViewModel vm)
     {
         InitializeComponent();
@@ -43,11 +47,57 @@ public partial class WebViewLoginPage : ContentPage
             if (!string.Equals(LoginWebView.Source?.ToString(), url, StringComparison.OrdinalIgnoreCase))
                 LoginWebView.Source = new UrlWebViewSource { Url = url };
             StatusHint.Text = "请在下方页面完成登录，登录成功后自动返回";
+            StartCookiePolling();
         }
         else
         {
             StatusHint.Text = "该音源暂不支持登录";
         }
+    }
+
+    /// <summary>启动 Cookie 轮询（每 1.5 秒检测一次成功标识 Cookie；不依赖 SPA hash 路由跳转）</summary>
+    private void StartCookiePolling()
+    {
+        if (_cookieTimer != null || _vm.LoginInfo == null) return;
+        _cookieTimer = Dispatcher.CreateTimer();
+        _cookieTimer.Interval = TimeSpan.FromMilliseconds(1500);
+        _cookieTimer.IsRepeating = true;
+        _cookieTimer.Tick += async (_, _) => await CheckLoginByCookieAsync();
+        _cookieTimer.Start();
+    }
+
+    private void StopCookiePolling()
+    {
+        if (_cookieTimer == null) return;
+        _cookieTimer.Stop();
+        _cookieTimer.Tick -= async (_, _) => await CheckLoginByCookieAsync();
+        _cookieTimer = null;
+    }
+
+    /// <summary>轮询检查：指定域名的 Cookie 已包含全部成功标识（如 MUSIC_U）即完成登录</summary>
+    private async Task CheckLoginByCookieAsync()
+    {
+        var info = _vm.LoginInfo;
+        if (_vm.LoginCompleted || info == null) { StopCookiePolling(); return; }
+        try
+        {
+            var cookie = await ExtractCookieAsync(info.CookieDomain);
+            if (!string.IsNullOrWhiteSpace(cookie)
+                && info.SuccessCookieNames.Count > 0
+                && info.SuccessCookieNames.All(n => cookie.Contains(n + "=", StringComparison.OrdinalIgnoreCase)))
+            {
+                StopCookiePolling();
+                await TryExtractCookieAndReturnAsync();
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>页面离开：停止轮询，避免悬挂定时器</summary>
+    protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
+    {
+        StopCookiePolling();
+        base.OnNavigatedFrom(args);
     }
 
     /// <summary>返回按钮：直接返回上一页</summary>

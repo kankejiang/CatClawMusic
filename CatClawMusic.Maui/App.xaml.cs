@@ -48,6 +48,20 @@ public partial class App : Application
                     System.Diagnostics.Debug.WriteLine($"[FC] INNER: {ex.InnerException}");
             }
         };
+        // 全局未捕获异常落盘：不挂调试器直接运行（Ctrl+F5 / 桌面点图标）时闪退，
+        // 堆栈写入 crash.log（Android: /data/data/<pkg>/files/crash.log，可 adb pull），
+        // 替代"必须挂调试器才能看到异常"。Debug/Release 都生效。
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            try
+            {
+                var text = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] UnhandledException\n{e.ExceptionObject}";
+                File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "crash.log"), text);
+            }
+            catch { }
+        };
+        // 后台 Task 异常统一标记已观察，避免吞掉的异常影响稳定（仅防二次触发）
+        TaskScheduler.UnobservedTaskException += (_, e) => e.SetObserved();
 #endif
         StartupLog("App.ctor: InitializeComponent start");
         InitializeComponent();
