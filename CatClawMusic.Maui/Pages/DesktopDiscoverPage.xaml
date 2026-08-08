@@ -10,7 +10,10 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Grid>
-        <VerticalStackLayout x:Name="RootStack" Padding="26,4,26,26" Spacing="0">
+        <!-- 发现模式：内部 ScrollView 滚动发现内容（本页已加入 DesktopMainPage 白名单不再包外层
+             ScrollView，避免聊天模式下滚动链把 header/输入框一起带滚） -->
+        <ScrollView IsVisible="{Binding IsChatMode, Converter={StaticResource InvertedBoolConverter}}">
+            <VerticalStackLayout x:Name="RootStack" Padding="26,4,26,26" Spacing="0">
 
             <!-- ═══ Page Head: 发现 + 问候 + AI 开关 + 主题按钮 ═══ -->
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,2">
@@ -458,14 +461,22 @@
 
             <ActivityIndicator Margin="0,10" IsVisible="{Binding IsLoading}" IsRunning="{Binding IsLoading}" Color="{DynamicResource PrimaryColor}" HorizontalOptions="Center" />
         </VerticalStackLayout>
+        </ScrollView>
 
-        <!-- Chat Overlay: AI 聊天覆盖层 -->
+        <!-- Chat Overlay: 不透明背景覆盖发现页；顶栏(返回/头像)/消息/输入框各自独立一行，
+             互不重叠。IsClippedToBounds 裁剪旋转列表的越界绘制/命中，防其干扰相邻行控件。 -->
         <Grid x:Name="ChatOverlay"
               IsVisible="{Binding IsChatMode}"
-              Background="{DynamicResource PageBackgroundBrush}"
-              RowDefinitions="Auto,*,Auto">
+              BackgroundColor="{DynamicResource WindowBackgroundColor}"
+              RowDefinitions="Auto,*,Auto"
+              IsClippedToBounds="True">
 
-            <Grid Grid.Row="0" Margin="0,10,0,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <!-- Chat Header（独立顶栏行 Row 0）：返回按钮 / Yuki 头像 / 标题，与聊天记录不在同一行 -->
+            <Grid x:Name="ChatHeader"
+                  Grid.Row="0"
+                  Margin="0,10,0,6"
+                  ColumnDefinitions="Auto,*,Auto"
+                  ColumnSpacing="10">
                 <controls:BackButton x:Name="ChatBackButton"
                                      VerticalOptions="Center"
                                      Clicked="OnChatBackClicked" />
@@ -480,8 +491,8 @@
             </Grid>
 
             <CollectionView x:Name="ChatMessagesList" Grid.Row="1" Margin="0,0,0,0"
-                            ItemsSource="{Binding ChatMessages}"
-                            SelectionMode="None"
+                        ItemsSource="{Binding ChatMessages}"
+                        SelectionMode="None"
                             ItemsUpdatingScrollMode="KeepItemsInView"
                             Scrolled="OnChatMessagesScrolled"
                             Rotation="180">
@@ -507,36 +518,36 @@
                                 <VerticalStackLayout Spacing="6">
                                     <!-- 思考/工具调用过程区块（仅助手消息且有步骤时可见，点击折叠/展开） -->
                                     <Border IsVisible="{Binding HasThinkingSteps}"
-                                            Padding="10,8" StrokeThickness="1" Stroke="#33FFFFFF"
-                                            StrokeShape="RoundRectangle 10" BackgroundColor="#22FFFFFF">
+                                            Padding="10,8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                                            StrokeShape="RoundRectangle 10" BackgroundColor="{DynamicResource ButtonOverlayColor}">
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Command="{Binding ToggleThinkingCommand}" />
                                         </Border.GestureRecognizers>
                                         <VerticalStackLayout Spacing="4">
                                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                                                 <ActivityIndicator Grid.Column="0" IsRunning="{Binding IsThinking}" IsVisible="{Binding IsThinking}"
-                                                                   Color="White" WidthRequest="12" HeightRequest="12" />
-                                                <Label Grid.Column="0" Text="✓" FontSize="11" TextColor="White"
+                                                                   Color="{DynamicResource PrimaryColor}" WidthRequest="12" HeightRequest="12" />
+                                                <Label Grid.Column="0" Text="✓" FontSize="11" TextColor="{DynamicResource TextPrimaryColor}"
                                                        IsVisible="{Binding IsThinking, Converter={StaticResource InvertedBoolConverter}}"
                                                        VerticalOptions="Center" WidthRequest="12" HorizontalTextAlignment="Center" />
-                                                <Label Grid.Column="1" Text="{Binding ThinkingSummary}" FontSize="11" TextColor="#E6FFFFFF"
+                                                <Label Grid.Column="1" Text="{Binding ThinkingSummary}" FontSize="11" TextColor="{DynamicResource TextPrimaryColor}"
                                                        VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                                                <Label Grid.Column="2" Text="▲" FontSize="9" TextColor="#B3FFFFFF" VerticalOptions="Center"
+                                                <Label Grid.Column="2" Text="▲" FontSize="9" TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center"
                                                        IsVisible="{Binding IsThinkingExpanded}" />
-                                                <Label Grid.Column="2" Text="▼" FontSize="9" TextColor="#B3FFFFFF" VerticalOptions="Center"
+                                                <Label Grid.Column="2" Text="▼" FontSize="9" TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center"
                                                        IsVisible="{Binding IsThinkingExpanded, Converter={StaticResource InvertedBoolConverter}}" />
                                             </Grid>
                                             <CollectionView IsVisible="{Binding IsThinkingExpanded}" ItemsSource="{Binding ThinkingSteps}"
                                                             MaximumHeightRequest="160" Margin="0,2,0,0">
                                                 <CollectionView.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Label Text="{Binding}" FontSize="10" TextColor="#CCFFFFFF" Padding="2,2" />
+                                                        <Label Text="{Binding}" FontSize="10" TextColor="{DynamicResource TextSecondaryColor}" Padding="2,2" />
                                                     </DataTemplate>
                                                 </CollectionView.ItemTemplate>
                                             </CollectionView>
                                         </VerticalStackLayout>
                                     </Border>
-                                    <Label Text="{Binding Content}" FontSize="14" TextColor="White" LineBreakMode="WordWrap"
+                                    <Label Text="{Binding Content}" FontSize="14" TextColor="{Binding Role, Converter={StaticResource ChatBubbleTextColorConverter}}" LineBreakMode="WordWrap"
                                            IsVisible="{Binding Content, Converter={StaticResource StringToBoolConverter}}" />
                                 </VerticalStackLayout>
                             </Border>

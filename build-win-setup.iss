@@ -4,7 +4,7 @@
 
 #define MyAppName "猫爪音乐"
 #ifndef MyAppVersion
-#define MyAppVersion "1.7.10"
+#define MyAppVersion "1.8.0"
 #endif
 #ifndef MyPublishDir
 #define MyPublishDir "CatClawMusic.Maui\bin\winpub3\publish"

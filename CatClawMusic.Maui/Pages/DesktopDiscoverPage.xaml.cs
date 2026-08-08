@@ -73,6 +73,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         // 因此监听 HeroScroll（仍留在树中）的尺寸变化来重排 Hero 卡片宽度。
         HeroScroll.SizeChanged += OnHeroSizeChanged;
 
+        // 聊天列表 Handler 建立后挂接 WinUI 滚轮反转 + 隐藏滚动条（幂等，见 FixChatMouseWheelDirection）
+        ChatMessagesList.HandlerChanged += OnChatMessagesListHandlerChanged;
+
         // 开放所有接口：渲染插件贡献的发现子 tab（鸭子类型 IDiscoverTabPlugin）与整页入口（IViewContributorPlugin）
         InitializePluginUi();
     }
@@ -146,6 +149,15 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             {
                 LayoutHeroCards();
                 _ = ScrollHeroTo(0);
+            });
+        }
+        else if (e.PropertyName == nameof(_vm.IsChatMode) && _vm.IsChatMode)
+        {
+            // 聊天模式开启后 ChatOverlay 可见，ChatMessagesList 的 WinUI Handler 此时才建立；
+            // 延迟到渲染完成后挂接滚轮反转 + 隐藏滚动条（幂等，_chatWheelFixed 防重复）
+            Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(150), () =>
+            {
+                if (_vm.IsChatMode) FixChatMouseWheelDirection();
             });
         }
     }
@@ -335,6 +347,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         // PC 端：将横向 CollectionView 的纵向滚轮事件转发给父级 ScrollView，
         // 解决"鼠标滚轮被横向内容截获、无法翻页"的问题
         FixHorizontalMouseWheelCapture();
+
+        // PC 端：聊天消息列表（Rotation=180 翻转）滚轮方向反转，恢复自然滚动
+        FixChatMouseWheelDirection();
 #endif
 
         if (LocalScanService.NeedsReload)
@@ -437,6 +452,78 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
         }
         return null;
+    }
+
+    // ─── 聊天列表（Rotation=180）滚轮方向反转 + 隐藏滚动条 ───
+
+    private bool _chatWheelFixed;
+
+    private void OnChatMessagesListHandlerChanged(object? sender, EventArgs e)
+    {
+        FixChatMouseWheelDirection();
+    }
+
+    /// <summary>
+    /// 聊天消息列表用 Rotation=180 翻转展示（倒序数据），WinUI 下鼠标滚轮方向随之反转：
+    /// 拦截滚轮事件并按反方向滚动，恢复"向上滚看更旧消息"的自然手感；同时隐藏滚动条。
+    /// 关键：**禁用内部滚动容器的滚轮响应（VerticalScrollMode=Disabled，编程 ScrollTo 不受影响）**，
+    /// 否则内部先按默认方向滚一段、我们再反向滚 = 来回冲突 = 抽搐。
+    /// 幂等：ChatOverlay 在非聊天模式下 IsVisible=false，列表 Handler 可能尚未建立，
+    /// 由 HandlerChanged / IsChatMode 变更 / OnAppearing 三处触发，找到滚动容器才置位。
+    /// </summary>
+    private void FixChatMouseWheelDirection()
+    {
+        if (_chatWheelFixed) return;
+        if (ChatMessagesList?.Handler?.PlatformView is not Microsoft.UI.Xaml.FrameworkElement cvEl) return;
+
+        // 新结构：ItemsView → ScrollView/ScrollPresenter（WinAppSDK 1.4+，MAUI CollectionView 实际使用）
+        var scrollView = FindWinUIChild<Microsoft.UI.Xaml.Controls.ScrollView>(cvEl);
+        if (scrollView != null)
+        {
+            scrollView.VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollingScrollBarVisibility.Hidden;
+            scrollView.VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollingScrollMode.Disabled;
+            scrollView.AddHandler(Microsoft.UI.Xaml.UIElement.PointerWheelChangedEvent,
+                new Microsoft.UI.Xaml.Input.PointerEventHandler(OnChatWheelChangedScrollView), true);
+            _chatWheelFixed = true;
+            return;
+        }
+
+        // 旧结构：ScrollViewer（MAUI 旧版 Windows CollectionView 内部）
+        var scrollViewer = FindWinUIChild<Microsoft.UI.Xaml.Controls.ScrollViewer>(cvEl);
+        if (scrollViewer != null)
+        {
+            scrollViewer.VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Hidden;
+            scrollViewer.VerticalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled;
+            scrollViewer.AddHandler(Microsoft.UI.Xaml.UIElement.PointerWheelChangedEvent,
+                new Microsoft.UI.Xaml.Input.PointerEventHandler(OnChatWheelChangedScrollViewer), true);
+            _chatWheelFixed = true;
+        }
+    }
+
+    private void OnChatWheelChangedScrollViewer(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(sender as Microsoft.UI.Xaml.UIElement);
+        var delta = point.Properties.MouseWheelDelta;
+        if (Math.Abs(delta) < 0.1) return;
+        e.Handled = true;
+        if (sender is Microsoft.UI.Xaml.Controls.ScrollViewer sv)
+        {
+            // 旋转 180 后滚动方向视觉反转：滚轮向上（delta>0）应看更旧消息 = 视觉顶部 = offset 增大。
+            // WinUI 默认滚轮向上是 offset 减小，这里必须取反（+delta）。
+            sv.ChangeView(null, Math.Max(0, sv.VerticalOffset + delta), null, disableAnimation: true);
+        }
+    }
+
+    private void OnChatWheelChangedScrollView(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(sender as Microsoft.UI.Xaml.UIElement);
+        var delta = point.Properties.MouseWheelDelta;
+        if (Math.Abs(delta) < 0.1) return;
+        e.Handled = true;
+        if (sender is Microsoft.UI.Xaml.Controls.ScrollView sv)
+        {
+            sv.ScrollTo(sv.HorizontalOffset, Math.Max(0, sv.VerticalOffset + delta));
+        }
     }
 #endif
 

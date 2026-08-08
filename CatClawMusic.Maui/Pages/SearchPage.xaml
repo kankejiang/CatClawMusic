@@ -432,13 +432,20 @@
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <!-- Chat Overlay -->
+        <!-- Chat Overlay: 不透明背景覆盖发现页；顶栏(返回/头像)/消息/迷你播放器/输入框各自独立一行，
+             互不重叠。IsClippedToBounds 裁剪旋转列表的越界绘制/命中，防其干扰相邻行控件。 -->
         <Grid x:Name="ChatOverlay"
               IsVisible="{Binding IsChatMode}"
-              Background="{DynamicResource PageBackgroundBrush}"
-              RowDefinitions="Auto,*,Auto,Auto">
+              BackgroundColor="{DynamicResource WindowBackgroundColor}"
+              RowDefinitions="Auto,*,Auto,Auto"
+              IsClippedToBounds="True">
 
-            <Grid Grid.Row="0" Margin="16,10,16,6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <!-- Chat Header（独立顶栏行 Row 0）：返回按钮 / Yuki 头像 / 标题，与聊天记录不在同一行 -->
+            <Grid x:Name="ChatHeader"
+                  Grid.Row="0"
+                  Margin="16,10,16,6"
+                  ColumnDefinitions="Auto,*,Auto"
+                  ColumnSpacing="10">
                 <controls:BackButton x:Name="ChatBackButton"
                                      VerticalOptions="Center" />
                 <VerticalStackLayout Grid.Column="1"
@@ -492,9 +499,9 @@
                                     <Border IsVisible="{Binding HasThinking}"
                                             Padding="10,8"
                                             StrokeThickness="1"
-                                            Stroke="#33FFFFFF"
+                                            Stroke="{DynamicResource GlassStrokeColor}"
                                             StrokeShape="RoundRectangle 10"
-                                            BackgroundColor="#22FFFFFF">
+                                            BackgroundColor="{DynamicResource ButtonOverlayColor}">
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Command="{Binding ToggleThinkingCommand}" />
                                         </Border.GestureRecognizers>
@@ -504,11 +511,11 @@
                                                 <ActivityIndicator Grid.Column="0"
                                                                    IsRunning="{Binding IsThinking}"
                                                                    IsVisible="{Binding IsThinking}"
-                                                                   Color="White"
+                                                                   Color="{DynamicResource PrimaryColor}"
                                                                    WidthRequest="12" HeightRequest="12" />
                                                 <Label Grid.Column="0" Text="✓"
                                                        FontSize="11"
-                                                       TextColor="White"
+                                                       TextColor="{DynamicResource TextPrimaryColor}"
                                                        IsVisible="{Binding IsThinking, Converter={StaticResource InvertedBoolConverter}}"
                                                        VerticalOptions="Center"
                                                        WidthRequest="12"
@@ -516,17 +523,17 @@
                                                 <Label Grid.Column="1"
                                                        Text="{Binding ThinkingSummary}"
                                                        FontSize="11"
-                                                       TextColor="#E6FFFFFF"
+                                                       TextColor="{DynamicResource TextPrimaryColor}"
                                                        VerticalOptions="Center"
                                                        LineBreakMode="TailTruncation" />
                                                 <Label Grid.Column="2" Text="▲"
                                                        FontSize="9"
-                                                       TextColor="#B3FFFFFF"
+                                                       TextColor="{DynamicResource TextSecondaryColor}"
                                                        VerticalOptions="Center"
                                                        IsVisible="{Binding IsThinkingExpanded}" />
                                                 <Label Grid.Column="2" Text="▼"
                                                        FontSize="9"
-                                                       TextColor="#B3FFFFFF"
+                                                       TextColor="{DynamicResource TextSecondaryColor}"
                                                        VerticalOptions="Center"
                                                        IsVisible="{Binding IsThinkingExpanded, Converter={StaticResource InvertedBoolConverter}}" />
                                             </Grid>
@@ -534,7 +541,7 @@
                                             <Label IsVisible="{Binding ShowReasoning}"
                                                    Text="{Binding ReasoningContent}"
                                                    FontSize="11"
-                                                   TextColor="#CCFFFFFF"
+                                                   TextColor="{DynamicResource TextSecondaryColor}"
                                                    LineBreakMode="WordWrap"
                                                    Margin="0,4,0,2" />
                                             <!-- 展开详情：思考步骤列表 -->
@@ -546,7 +553,7 @@
                                                     <DataTemplate>
                                                         <Label Text="{Binding}"
                                                                FontSize="10"
-                                                               TextColor="#CCFFFFFF"
+                                                               TextColor="{DynamicResource TextSecondaryColor}"
                                                                Padding="2,2" />
                                                     </DataTemplate>
                                                 </CollectionView.ItemTemplate>
@@ -557,7 +564,7 @@
                                     <!-- 消息正文（思考中时不显示，避免空白） -->
                                     <Label Text="{Binding Content}"
                                            FontSize="14"
-                                           TextColor="White"
+                                           TextColor="{Binding Role, Converter={StaticResource ChatBubbleTextColorConverter}}"
                                            LineBreakMode="WordWrap"
                                            IsVisible="{Binding Content, Converter={StaticResource StringToBoolConverter}}" />
 
@@ -576,8 +583,8 @@
                                                         <Image Source="{Binding CoverArtPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="40" HeightRequest="40" />
                                                     </Border>
                                                     <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
-                                                        <Label Text="{Binding Title}" FontSize="13" TextColor="White" MaxLines="1" LineBreakMode="TailTruncation" />
-                                                        <Label Text="{Binding Artist}" FontSize="10" TextColor="#B3FFFFFF" MaxLines="1" LineBreakMode="TailTruncation" />
+                                                        <Label Text="{Binding Title}" FontSize="13" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" LineBreakMode="TailTruncation" />
+                                                        <Label Text="{Binding Artist}" FontSize="10" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" LineBreakMode="TailTruncation" />
                                                     </VerticalStackLayout>
                                                     <Border Grid.Column="2" WidthRequest="30" HeightRequest="30" StrokeShape="RoundRectangle 15" BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
                                                         <Image Source="ic_play" WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
@@ -607,7 +614,7 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <!-- 聊天模式迷你播放器：有歌曲播放时显示在输入框上方 -->
+            <!-- 聊天模式迷你播放器：有歌曲播放时显示在输入框上方（独立行 Row 2） -->
             <Grid Grid.Row="2" x:Name="ChatMiniPlayer"
                   ColumnDefinitions="Auto,*,Auto,Auto,Auto"
                   ColumnSpacing="10"
@@ -631,12 +638,12 @@
                     <Label Text="{Binding Title}"
                            FontSize="13"
                            FontFamily="OpenSansSemibold"
-                           TextColor="White"
+                           TextColor="{DynamicResource TextPrimaryColor}"
                            MaxLines="1"
                            LineBreakMode="TailTruncation" />
                     <Label Text="{Binding Artist}"
                            FontSize="11"
-                           TextColor="#CCFFFFFF"
+                           TextColor="{DynamicResource TextSecondaryColor}"
                            MaxLines="1"
                            LineBreakMode="TailTruncation" />
                 </VerticalStackLayout>

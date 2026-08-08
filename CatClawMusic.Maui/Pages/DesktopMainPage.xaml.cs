@@ -281,11 +281,14 @@ public partial class DesktopMainPage : ContentPage
         // 再包一层 ScrollView：外层 ScrollView 会把内层 CollectionView 的高度撑成无限，导致虚拟化
         // 失效、一次性创建全部歌曲行并加载全部封面，大曲库下「我的音乐 / 歌单」会卡好几秒。
         // 这类页面直接放进有界高度的 ContentArea，让内部 CollectionView 自行滚动即可。
-        // （DesktopDiscoverPage 是整页纵向滚动的 VerticalStackLayout，仍需要外层 ScrollView。）
+        // DesktopDiscoverPage 发现模式由内部 ScrollView 滚动；聊天模式必须固定整页
+        // （消息列表内部滚动、输入框/顶栏固定），若再包外层 ScrollView，聊天列表滚到边界后
+        // 滚动链会带动整页（header/输入框跟着聊天记录滚动）。
         if (content is ScrollView
             || page is LibraryPage or PlaylistPage or PlaylistDetailPage
             || page is DesktopPlaylistPage or DesktopLibraryPage
-            || page is DesktopArtistsPage or DesktopAlbumsPage or DesktopAllSongsPage)
+            || page is DesktopArtistsPage or DesktopAlbumsPage or DesktopAllSongsPage
+            || page is DesktopDiscoverPage)
         {
             return content;
         }
