@@ -7,7 +7,7 @@
 ![平台](https://img.shields.io/badge/平台-Android-green)
 ![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-13.0-blue)
-![版本](https://img.shields.io/badge/版本-1.7.6-ff69b4)
+![版本](https://img.shields.io/badge/版本-1.8.0-ff69b4)
 ![最低版本](https://img.shields.io/badge/最低版本-Android%2012%20(API%2031)-orange)
 ![协议](https://img.shields.io/badge/协议-MIT-yellow)
 
@@ -26,25 +26,9 @@
 - **AI 对话式搜索**：18 个 Agent 工具，8 个内置 LLM 供应商，猫娘人格
 - **Navidrome / WebDAV / SMB**：三种远程协议，增量扫描 + 流媒体播放
 - **音效系统**：5 频段均衡器 + 低音增强 + 环绕声 + 混响，12 种预设
-- **插件体系**：歌词/封面/协议/音频增强/菜单 5 种插件接口，GitHub 安装
+- **插件生态**：插件自治架构，在线音源/歌词/封面等独立插件，GitHub Release 一键安装（见下方插件生态）
 - **动态主题**：封面取色 + 流光背景 + 5 色主题无重启切换
 - **备份恢复**：6 类数据 ZIP 打包，跨设备智能匹配
-
----
-
-## 📱 截图
-
-<div align="center">
-
-| 播放页 | 歌词页 | 发现页 |
-|:---:|:---:|:---:|
-| ![](images/213D14E63AAD1FD2FB2431EBDE73589C.jpg) | ![](images/e4fc2f068444f8a1e1b82338bf5fa380.jpg) | ![](images/a62d0758c743118ed18ef74234f1f7b3.jpg) |
-
-| 歌单 | 音乐库 | 艺术家 |
-|:---:|:---:|:---:|
-| ![](images/714ab1a33c755ee2066e232b640ec131.jpg) | ![](images/c618969189f5baec852f3186c4852e3b.jpg) | ![](images/a9bcd724c3a3ba7668b0c29e473b2151.jpg) |
-
-</div>
 
 ---
 
@@ -58,6 +42,18 @@ CatClawMusic/
 ```
 
 **技术栈**：.NET 10 · C# 13 · MAUI 10 · ExoPlayer 1.10 · CommunityToolkit.Mvvm · TagLibSharp · SQLite · SMBLibrary · NativeAOT
+
+---
+
+## 🧩 插件生态
+
+猫爪音乐采用「宿主空壳，插件自治」架构：客户端不内置任何在线音源，音源、歌词、封面、协议、音频增强等能力均由独立插件（`.ccp` / `.dll`）提供。
+
+| 插件 | 说明 | 仓库 |
+|------|------|------|
+| 网易云音乐音源 | 在线搜索 · 试听播放 · 歌词 · 内置入口页 | [CatClawMusic.Plugins.Netease](https://github.com/kankejiang/CatClawMusic.Plugins.Netease) |
+
+**安装方式**：设置 → 插件管理 → 安装，选择本地 `.ccp` 文件；或直接添加 GitHub Release 源在线安装（保持与宿主版本兼容，自动检查版本范围）。
 
 ---
 
@@ -98,7 +94,7 @@ HyperOS 5 按钮通知 · MediaStyle 大封面 · 蓝牙/车载/穿戴设备控�
 对话式布局 · 8 个 LLM 供应商 · 18 个 Agent 工具 · 猫娘人格 · 流式文本 · 多配置故障转移 · 向导式添加
 
 ### 插件
-5 种接口（歌词/封面/协议/音频增强/菜单）· 本地 .dll/.ccp 安装 · GitHub Release 安装 · 反射兼容适配 · 子插件支持
+多类插件接口（歌词/封面/协议/音频增强/菜单/在线音源/入口页）· 本地 `.dll`/`.ccp` 安装 · GitHub Release 源安装 · 版本范围兼容检查 · 反射兼容适配 · 子插件支持
 
 ### 备份恢复
 ZIP 打包 6 类数据 · 分类独立恢复 · 进度实时上报 · 跨设备歌曲匹配 · 旧版 .json 兼容
