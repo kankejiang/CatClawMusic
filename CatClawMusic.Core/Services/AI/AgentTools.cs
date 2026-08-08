@@ -513,14 +513,12 @@ public class WebSearchTool : IAgentTool
 
         try
         {
-            // 优先使用 DuckDuckGo HTML 接口（POST 方式，更稳定）
-            var results = await SearchDuckDuckGoHtmlAsync(query);
-
-            // 若 HTML 接口无结果，回退到 Lite 版本
-            if (results.Count == 0)
-            {
-                results = await SearchDuckDuckGoLiteAsync(query);
-            }
+            // 多源回退：Bing（国内可用）→ 百度（国内可用）→ DuckDuckGo HTML → DuckDuckGo Lite。
+            // 此前仅用 DuckDuckGo，国内网络下 html/lite 均超时不可达，导致"网络搜索失败/无网络"。
+            var results = await SearchBingAsync(query);
+            if (results.Count == 0) results = await SearchBaiduAsync(query);
+            if (results.Count == 0) results = await SearchDuckDuckGoHtmlAsync(query);
+            if (results.Count == 0) results = await SearchDuckDuckGoLiteAsync(query);
 
             if (results.Count > 0)
             {
@@ -543,7 +541,8 @@ public class WebSearchTool : IAgentTool
         }
         catch (Exception ex)
         {
-            return JsonSerializer.Serialize(new { error = $"网络搜索失败: {ex.Message}" });
+            // 明确说明是搜索源不可达而非设备断网，避免误导"无网络"
+            return JsonSerializer.Serialize(new { error = $"联网搜索暂不可用（所有搜索源都无法访问，请稍后重试）：{ex.Message}" });
         }
     }
 
@@ -679,6 +678,104 @@ public class WebSearchTool : IAgentTool
         // 压缩空白
         text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
         return text;
+    }
+
+    /// <summary>
+    /// 通过必应（Bing）搜索（国内可直连，结果结构稳定）
+    /// </summary>
+    private async Task<List<object>> SearchBingAsync(string query)
+    {
+        try
+        {
+            var url = $"https://www.bing.com/search?q={Uri.EscapeDataString(query)}&setlang=zh-hans&count=10";
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            var html = await response.Content.ReadAsStringAsync();
+            return ParseBingResults(html);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AgentTools", $"[WebSearch] Bing 搜索失败: {ex.Message}");
+            return new List<object>();
+        }
+    }
+
+    /// <summary>
+    /// 解析 Bing 搜索结果页（li class="b_algo" 块，h2>a 为标题链接，p 为摘要）
+    /// </summary>
+    private List<object> ParseBingResults(string html)
+    {
+        var results = new List<object>();
+        try
+        {
+            var blockPattern = @"<li class=""b_algo[\s\S]*?</li>";
+            foreach (System.Text.RegularExpressions.Match block in System.Text.RegularExpressions.Regex.Matches(html, blockPattern))
+            {
+                var seg = block.Value;
+                var aMatch = System.Text.RegularExpressions.Regex.Match(seg,
+                    @"<h2[^>]*>\s*<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>");
+                if (!aMatch.Success) continue;
+                var url = aMatch.Groups[1].Value;
+                var title = CleanHtmlText(aMatch.Groups[2].Value);
+                if (string.IsNullOrEmpty(title)) continue;
+                var pMatch = System.Text.RegularExpressions.Regex.Match(seg, @"<p[^>]*>([\s\S]*?)</p>");
+                var snippet = pMatch.Success ? CleanHtmlText(pMatch.Groups[1].Value) : "";
+                results.Add(new { title, url, snippet });
+                if (results.Count >= 5) break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AgentTools", $"[WebSearch] 解析 Bing 结果失败: {ex.Message}");
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// 通过百度搜索（国内可直连；摘要结构多变，仅提取标题与链接）
+    /// </summary>
+    private async Task<List<object>> SearchBaiduAsync(string query)
+    {
+        try
+        {
+            var url = $"https://www.baidu.com/s?wd={Uri.EscapeDataString(query)}&rn=10";
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            var html = await response.Content.ReadAsStringAsync();
+            return ParseBaiduResults(html);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AgentTools", $"[WebSearch] 百度搜索失败: {ex.Message}");
+            return new List<object>();
+        }
+    }
+
+    /// <summary>
+    /// 解析百度搜索结果页（h3 内 a 为标题链接；链接为百度跳转链接，可直接点击）
+    /// </summary>
+    private List<object> ParseBaiduResults(string html)
+    {
+        var results = new List<object>();
+        try
+        {
+            var linkPattern = @"<h3[^>]*>[\s\S]*?<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>[\s\S]*?</h3>";
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(html, linkPattern))
+            {
+                var url = m.Groups[1].Value;
+                var title = CleanHtmlText(m.Groups[2].Value);
+                if (string.IsNullOrEmpty(title)) continue;
+                // 百度可能返回相对路径（如 /sf/vsearch?...），补全为绝对地址
+                if (url.StartsWith("/")) url = "https://www.baidu.com" + url;
+                results.Add(new { title, url, snippet = "" });
+                if (results.Count >= 5) break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AgentTools", $"[WebSearch] 解析百度结果失败: {ex.Message}");
+        }
+        return results;
     }
 
     /// <summary>解码 DuckDuckGo 重定向 URL（//duckduckgo.com/l/?uddg=ENCODED_URL）</summary>
