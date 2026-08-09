@@ -466,6 +466,25 @@ public partial class App : Application
                 _appHwnd = hwnd;
                 try
                 {
+                    // ⓪ 启动固定分辨率 1600×900（物理像素 = 逻辑 × DPI）：平台层强制 MoveAndResize。
+                    //    MAUI Window.Width/Height 在 Windows 上不保证生效（OpenWindow/Handler 时序问题），
+                    //    必须用 AppWindow 物理像素设置才可靠；小屏保护：工作区不足时按工作区收窄，位置居中。
+                    try
+                    {
+                        var scale = Win32.GetScaleAdjustment(nativeWindow);
+                        var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+                        var winW = Math.Min((int)(1600 * scale), work.Width);
+                        var winH = Math.Min((int)(900 * scale), work.Height);
+                        appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32
+                        {
+                            X = work.X + (work.Width - winW) / 2,
+                            Y = work.Y + (work.Height - winH) / 2,
+                            Width = winW,
+                            Height = winH,
+                        });
+                    }
+                    catch { /* 尺寸设置失败不影响显示 */ }
+
                     // ① 内容延伸到标题栏区域（隐藏系统标题栏绘制）
                     appWindow.TitleBar.ExtendsContentIntoTitleBar = true;
                     // ② 保留标题栏实体（原生拖拽前提）：不调用 SetBorderAndTitleBar(false,false)！

@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 
@@ -49,6 +50,7 @@ public partial class DesktopBlankPage : ContentPage
         Instance = this;
 
         InitVolumeSlider();
+        UpdateDesktopLyricIcon();
 
         // 构造时仅创建默认 tab 内容（发现页），不触发生命周期
         _currentTab = DesktopTab.Discover;
@@ -445,6 +447,22 @@ public partial class DesktopBlankPage : ContentPage
         catch (Exception ex)
         {
             Log.Debug("DesktopBlankPage.xaml", $"[Desktop] InitVolumeSlider failed: {ex}");
+        }
+    }
+
+    /// <summary>主页底部播放器歌词按钮图标：安卓通知栏媒体控件同款 ic_notif_lyric_on
+    /// （主题感知：深色=白色原版，浅色=主题色变体，与 VM 播放控件图标同一机制）。</summary>
+    private void UpdateDesktopLyricIcon()
+    {
+        try
+        {
+            if (DesktopLyricIcon == null) return;
+            DesktopLyricIcon.Source =
+                ImageSourceHelper.FromNamePlayerCtrl("ic_notif_lyric_on", "ic_notif_lyric_on");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] UpdateDesktopLyricIcon failed: {ex}");
         }
     }
 

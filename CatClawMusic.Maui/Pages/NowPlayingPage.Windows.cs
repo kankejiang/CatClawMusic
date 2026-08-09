@@ -801,11 +801,11 @@ public partial class NowPlayingPage
         UpdateWinDesktopLyricIcon();
     }
 
-    /// <summary>刷新桌面歌词按钮图标（用户要求固定白色，无状态切换）。</summary>
+    /// <summary>刷新桌面歌词按钮图标（安卓通知栏媒体控件同款 ic_notif_lyric_on，固定无状态切换）。</summary>
     private void UpdateWinDesktopLyricIcon()
     {
         if (WinDesktopLyricBtn == null) return;
-        WinDesktopLyricBtn.Source = ImageSourceHelper.FromNameOriginal("ic_lyrics_white");
+        WinDesktopLyricBtn.Source = ImageSourceHelper.FromNameOriginal("ic_notif_lyric_on");
     }
 
     // ═══════════════════════════════════════

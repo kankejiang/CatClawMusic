@@ -194,7 +194,8 @@ public static class ImageSourceHelper
 
         var hex = GetPrimaryTintHex();
         if (string.IsNullOrEmpty(hex)) return FromName(whiteName);
-        return FromName($"{name}_{hex}_active");
+        // 主题色预生成变体缺失时回退白色原版（避免浅色模式下图标空白）
+        return FromName($"{name}_{hex}_active") ?? FromName(whiteName);
     }
 
     /// <summary>读取当前主题色 PrimaryColor 的 #rrggbb（小写），取不到返回 null</summary>

@@ -111,9 +111,9 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>播放/暂停按钮图标字符（▶ 或 ⏸）</summary>
     [ObservableProperty] private string _playPauseIcon = "\u25b6"; // ▶
     /// <summary>播放/暂停按钮图标 ImageSource（由资源名转换）</summary>
-    [ObservableProperty] private ImageSource? _playPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_play", "ic_play");
+    [ObservableProperty] private ImageSource? _playPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_play", "ic_notif_play");
     /// <summary>播放/暂停按钮白色图标 ImageSource（恒白，专给播放页等已有深色遮罩的场景）</summary>
-    [ObservableProperty] private ImageSource? _playPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_play");
+    [ObservableProperty] private ImageSource? _playPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_play");
 
     // === Like ===
     /// <summary>当前歌曲是否已收藏</summary>
@@ -121,19 +121,19 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>收藏按钮图标字符（♡ 或 ♥）</summary>
     [ObservableProperty] private string _likeIcon = "\u2661"; // ♡
     /// <summary>收藏按钮图标 ImageSource（由资源名转换）</summary>
-    [ObservableProperty] private ImageSource? _likeIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_favorite_border", "ic_favorite_border_white");
+    [ObservableProperty] private ImageSource? _likeIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_favorite_border", "ic_notif_favorite_border");
     /// <summary>收藏按钮白色图标 ImageSource（恒白，专给播放页等已有深色遮罩的场景）</summary>
-    [ObservableProperty] private ImageSource? _likeIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_favorite_border_white");
+    [ObservableProperty] private ImageSource? _likeIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_favorite_border");
 
     // === Previous / Next ===
     /// <summary>上一首按钮图标 ImageSource</summary>
-    [ObservableProperty] private ImageSource? _playPreviousIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_skip_previous", "ic_skip_previous");
+    [ObservableProperty] private ImageSource? _playPreviousIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_previous", "ic_notif_previous");
     /// <summary>上一首按钮白色图标 ImageSource（恒白，专给播放页等已有深色遮罩的场景）</summary>
-    [ObservableProperty] private ImageSource? _playPreviousIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_previous");
+    [ObservableProperty] private ImageSource? _playPreviousIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_previous");
     /// <summary>下一首按钮图标 ImageSource</summary>
-    [ObservableProperty] private ImageSource? _playNextIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_skip_next", "ic_skip_next");
+    [ObservableProperty] private ImageSource? _playNextIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_next", "ic_notif_next");
     /// <summary>下一首按钮白色图标 ImageSource（恒白，专给播放页等已有深色遮罩的场景）</summary>
-    [ObservableProperty] private ImageSource? _playNextIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_next");
+    [ObservableProperty] private ImageSource? _playNextIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_next");
     /// <summary>播放列表按钮图标 ImageSource</summary>
     [ObservableProperty] private ImageSource? _playlistIconSource = ImageSourceHelper.FromNameOriginal("ic_playlist");
     /// <summary>歌词按钮图标 ImageSource（与通知栏媒体控件一致，使用 ic_notif_lyric_on）</summary>
@@ -339,15 +339,15 @@ public partial class NowPlayingViewModel : ObservableObject
         try
         {
             var isPlaying = _audioService.IsPlaying;
-            PlayPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl(isPlaying ? "ic_pause" : "ic_play", isPlaying ? "ic_pause" : "ic_play");
-            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(isPlaying ? "ic_pause" : "ic_play");
-            PlayPreviousIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_skip_previous", "ic_skip_previous");
-            PlayPreviousIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_previous");
-            PlayNextIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_skip_next", "ic_skip_next");
-            PlayNextIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_skip_next");
+            PlayPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl(isPlaying ? "ic_notif_pause" : "ic_notif_play", isPlaying ? "ic_notif_pause" : "ic_notif_play");
+            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(isPlaying ? "ic_notif_pause" : "ic_notif_play");
+            PlayPreviousIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_previous", "ic_notif_previous");
+            PlayPreviousIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_previous");
+            PlayNextIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_next", "ic_notif_next");
+            PlayNextIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_next");
             RefreshPlayModeDisplay();
-            LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(IsLiked ? "ic_favorite" : "ic_favorite_border", IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
-            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
+            LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border", IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
+            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
         }
         catch (Exception ex)
         {
@@ -391,8 +391,8 @@ public partial class NowPlayingViewModel : ObservableObject
                 await _db.SetFavoriteAsync(song.Id, isFavorite);
                 IsLiked = isFavorite;
                 LikeIcon = isFavorite ? "\u2665" : "\u2661";
-                LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(isFavorite ? "ic_favorite" : "ic_favorite_border", isFavorite ? "ic_favorite_white" : "ic_favorite_border_white");
-                LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(isFavorite ? "ic_favorite_white" : "ic_favorite_border_white");
+                LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(isFavorite ? "ic_notif_favorite" : "ic_notif_favorite_border", isFavorite ? "ic_notif_favorite" : "ic_notif_favorite_border");
+                LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(isFavorite ? "ic_notif_favorite" : "ic_notif_favorite_border");
             }
             catch (Exception ex) { Log.Debug("AppViewModels", $"[NowPlayingVM] NotifFav: {ex.Message}"); }
         });
@@ -445,8 +445,8 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             IsPlaying = isPlaying;
             PlayPauseIcon = isPlaying ? "\u23f8" : "\u25b6"; // ⏸ or ▶
-            PlayPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl(isPlaying ? "ic_pause" : "ic_play", isPlaying ? "ic_pause" : "ic_play");
-            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(isPlaying ? "ic_pause" : "ic_play");
+            PlayPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl(isPlaying ? "ic_notif_pause" : "ic_notif_play", isPlaying ? "ic_notif_pause" : "ic_notif_play");
+            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(isPlaying ? "ic_notif_pause" : "ic_notif_play");
 
             // 听歌时长追踪：播放开始时记录起点，暂停时累积时长
             lock (_listenRecordLock)
@@ -731,8 +731,8 @@ public partial class NowPlayingViewModel : ObservableObject
         await _db.SetFavoriteAsync(song.Id, newFav);
         IsLiked = newFav;
         LikeIcon = newFav ? "\u2665" : "\u2661"; // ♥ or ♡
-        LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(newFav ? "ic_favorite" : "ic_favorite_border", newFav ? "ic_favorite_white" : "ic_favorite_border_white");
-        LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(newFav ? "ic_favorite_white" : "ic_favorite_border_white");
+        LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(newFav ? "ic_notif_favorite" : "ic_notif_favorite_border", newFav ? "ic_notif_favorite" : "ic_notif_favorite_border");
+        LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(newFav ? "ic_notif_favorite" : "ic_notif_favorite_border");
 
         // 同步到在线音源插件（如网易云服务器红心）：RemoteId 形如 "netease:{onlineId}"。
         // 本地收藏是权威，插件同步失败（未登录/接口拒绝）静默，不影响本地红心状态。
@@ -955,8 +955,8 @@ public partial class NowPlayingViewModel : ObservableObject
 
             // 更新收藏图标
             LikeIcon = IsLiked ? "\u2665" : "\u2661";
-            LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(IsLiked ? "ic_favorite" : "ic_favorite_border", IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
-            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_favorite_white" : "ic_favorite_border_white");
+            LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border", IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
+            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
 
             // 换歌时加载歌词（封面已在上方预加载），网络歌曲先缓存到本地再处理
             _ = Task.Run(async () =>
@@ -1040,8 +1040,8 @@ public partial class NowPlayingViewModel : ObservableObject
         {
             // 同一首歌回到播放页：恢复正确的播放/暂停状态图标
             PlayPauseIcon = _audioService.IsPlaying ? "\u23f8" : "\u25b6";
-            PlayPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl(_audioService.IsPlaying ? "ic_pause" : "ic_play", _audioService.IsPlaying ? "ic_pause" : "ic_play");
-            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(_audioService.IsPlaying ? "ic_pause" : "ic_play");
+            PlayPauseIconSource = ImageSourceHelper.FromNamePlayerCtrl(_audioService.IsPlaying ? "ic_notif_pause" : "ic_notif_play", _audioService.IsPlaying ? "ic_notif_pause" : "ic_notif_play");
+            PlayPauseIconSourceWhite = ImageSourceHelper.FromNameOriginal(_audioService.IsPlaying ? "ic_notif_pause" : "ic_notif_play");
         }
 
         // 重置启动恢复标志

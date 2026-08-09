@@ -270,13 +270,13 @@
                       ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="14"
                       VerticalOptions="Center">
 
-                    <!-- 歌词（预留：后续接歌词页/歌词面板） -->
+                    <!-- 歌词（预留：后续接歌词页/歌词面板；图标=安卓通知栏媒体控件同款 ic_notif_lyric_on，主题感知见 code-behind） -->
                     <Grid Grid.Column="0" WidthRequest="32" HeightRequest="32">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnLyricsTapped" />
                         </Grid.GestureRecognizers>
-                        <Label Text="🔤" FontSize="15" Opacity="0.75"
-                               TextColor="#9C9CA1"
+                        <Image x:Name="DesktopLyricIcon" WidthRequest="20" HeightRequest="20"
+                               Aspect="AspectFit" Opacity="0.55"
                                HorizontalOptions="Center" VerticalOptions="Center" />
                     </Grid>
 
