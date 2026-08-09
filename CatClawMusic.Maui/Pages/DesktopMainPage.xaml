@@ -13,14 +13,10 @@
          沉浸式标题栏：内容背景延伸至窗口顶部，侧边栏从标题栏下方开始。 -->
     <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="0,*,100">
 
-        <!-- ═══ Left Sidebar (starts below title bar for immersive look) ═══ -->
-        <!-- 自定义标题栏拖拽区（WinUI 3 SetTitleBar 模式） -->
-        <Grid x:Name="CustomTitleBar"
-              Grid.Row="0" Grid.ColumnSpan="2"
-              HeightRequest="32"
-              Background="Transparent"
-              IsVisible="{OnPlatform Default=false, WinUI=true}" />
-        <Border x:Name="SidebarBorder" Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
+        <!-- ═══ Left Sidebar (starts below title bar) ═══ -->
+        <!-- 顶部标题栏由 MAUI 官方 TitleBar 控件提供（App.xaml.cs SetupWindowTitleBar），
+            Row0 保留 44px 占位（Windows）避免内容被标题栏遮挡；Android 为 0 -->
+        <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="2" Grid.Column="0"
                 StrokeThickness="0,0,1,0"
                 Stroke="{DynamicResource DividerColor}"
                 BackgroundColor="{DynamicResource CardBackgroundColor}">
@@ -157,8 +153,8 @@
             </HorizontalStackLayout>
         </Grid>
 
-        <!-- ═══ Main Content Area (extends to top for immersive title bar) ═══ -->
-        <Grid x:Name="ContentArea" Grid.Row="1" Grid.RowSpan="1" Grid.Column="1"
+        <!-- ═══ Main Content Area (below title bar) ═══ -->
+        <Grid x:Name="ContentArea" Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
               Background="{DynamicResource PageBackgroundBrush}"
               IsClippedToBounds="True" />
 

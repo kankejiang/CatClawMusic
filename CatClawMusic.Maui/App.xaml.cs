@@ -17,6 +17,10 @@ public partial class App : Application
     public static Microsoft.UI.Windowing.AppWindow? CurrentAppWindow { get; set; }
     public static Microsoft.UI.Xaml.Window? CurrentNativeWindow { get; set; }
     private static IntPtr _appHwnd;
+
+    /// <summary>MAUI 官方 TitleBar 控件实例（Windows 自定义标题栏；主题切换时更新配色）</summary>
+    private static Microsoft.Maui.Controls.TitleBar? _mauiTitleBar;
+    private static Microsoft.Maui.Controls.Entry? _titleBarSearchEntry;
 #endif
 
     /// <summary>
@@ -442,6 +446,9 @@ public partial class App : Application
             Title = "",
         };
 
+        // MAUI 官方 TitleBar 控件（仅 Windows）：网易云式自定义标题栏（logo/搜索/主题/头像）
+        SetupWindowTitleBar(window);
+
         window.HandlerChanged += (s, e) =>
         {
             if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window nativeWindow)
@@ -684,6 +691,152 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// 构建网易云式自定义标题栏（MAUI 10 官方 TitleBar 控件，仅 Windows；文档：
+    /// learn.microsoft.com/dotnet/maui/user-interface/controls/titlebar）。
+    /// LeadingContent：logo 徽标；Content：全局搜索框（绑定单例 SearchViewModel.SearchQuery，
+    /// 防抖搜索与发现页下拉自动联动）；TrailingContent：主题切换 + 头像。
+    /// 系统 caption 按钮（最小化/最大化/关闭）由控件在右端自动保留，双击标题栏=最大化/还原。
+    /// 深浅色配色由 UpdateWindowsTheme 统一更新。
+    /// </summary>
+    private static void SetupWindowTitleBar(Microsoft.Maui.Controls.Window window)
+    {
+#if WINDOWS
+        try
+        {
+            var vm = MauiProgram.Services.GetService<ViewModels.SearchViewModel>();
+            var themeService = MauiProgram.Services.GetService<IThemeService>();
+            var isDark = ResolveIsDark(themeService);
+
+            var logoMark = new Microsoft.Maui.Controls.Border
+            {
+                WidthRequest = 26,
+                HeightRequest = 26,
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+                Background = new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromArgb("#8C7BFF"), 0f),
+                        new GradientStop(Color.FromArgb("#55D6FF"), 1f)
+                    },
+                    new Point(0, 0), new Point(1, 1)),
+                Content = new Label
+                {
+                    Text = "\U0001F43E", // 🐾
+                    FontSize = 13,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center
+                }
+            };
+            var logoName = new Label
+            {
+                Text = "猫爪音乐",
+                FontSize = 13.5,
+                FontAttributes = FontAttributes.Bold,
+                VerticalOptions = LayoutOptions.Center,
+                TextColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A")
+            };
+            var leading = new HorizontalStackLayout
+            {
+                Spacing = 9,
+                Padding = new Thickness(16, 0, 0, 0),
+                VerticalOptions = LayoutOptions.Center,
+                Children = { logoMark, logoName }
+            };
+
+            var searchEntry = new Entry
+            {
+                Placeholder = "搜索歌曲、歌手、歌单…",
+                FontSize = 12.5,
+                HeightRequest = 32,
+                Margin = new Thickness(12, 0),
+                VerticalOptions = LayoutOptions.Center,
+                ClearButtonVisibility = ClearButtonVisibility.WhileEditing,
+                BackgroundColor = isDark ? Color.FromArgb("#15FFFFFF") : Color.FromArgb("#15000000"),
+                TextColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A"),
+                PlaceholderColor = isDark ? Color.FromArgb("#6B7298") : Color.FromArgb("#9AA0B4")
+            };
+            if (vm != null)
+            {
+                searchEntry.BindingContext = vm;
+                searchEntry.SetBinding(Entry.TextProperty, nameof(ViewModels.SearchViewModel.SearchQuery), BindingMode.TwoWay);
+                // 聚焦标题栏搜索框时展开发现页搜索下拉
+                searchEntry.Focused += (_, _) => vm.IsSearchOpen = true;
+            }
+            _titleBarSearchEntry = searchEntry;
+
+            var themeBtn = new Button
+            {
+                Text = isDark ? "\U0001F319" : "\u2600\uFE0F", // 🌙 / ☀️
+                FontSize = 13,
+                WidthRequest = 30,
+                HeightRequest = 30,
+                CornerRadius = 8,
+                Padding = 0,
+                BackgroundColor = Colors.Transparent,
+                VerticalOptions = LayoutOptions.Center
+            };
+            themeBtn.Clicked += (_, _) =>
+            {
+                if (themeService == null) return;
+                var next = themeService.IsEffectivelyDark() ? DarkModeSetting.Light : DarkModeSetting.Dark;
+                themeService.SetDarkModeSetting(next);
+                themeBtn.Text = themeService.IsEffectivelyDark() ? "\U0001F319" : "\u2600\uFE0F";
+            };
+
+            var avatar = new Microsoft.Maui.Controls.Border
+            {
+                WidthRequest = 26,
+                HeightRequest = 26,
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 13 },
+                Background = new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromArgb("#8C7BFF"), 0f),
+                        new GradientStop(Color.FromArgb("#FF6B9D"), 1f)
+                    },
+                    new Point(0, 0), new Point(1, 1)),
+                VerticalOptions = LayoutOptions.Center,
+                Content = new Label
+                {
+                    Text = "猫",
+                    FontSize = 10,
+                    FontAttributes = FontAttributes.Bold,
+                    TextColor = Colors.White,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center
+                }
+            };
+            var trailing = new HorizontalStackLayout
+            {
+                Spacing = 4,
+                Padding = new Thickness(0, 0, 16, 0),
+                VerticalOptions = LayoutOptions.Center,
+                Children = { themeBtn, avatar }
+            };
+
+            var titleBar = new Microsoft.Maui.Controls.TitleBar
+            {
+                HeightRequest = 44,
+                Title = "",
+                BackgroundColor = isDark ? Color.FromArgb("#F211172B") : Color.FromArgb("#F2F8F7FF"),
+                ForegroundColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A"),
+                LeadingContent = leading,
+                Content = searchEntry,
+                TrailingContent = trailing
+            };
+            window.TitleBar = titleBar;
+            _mauiTitleBar = titleBar;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("App", $"SetupWindowTitleBar failed: {ex.Message}");
+        }
+#endif
+    }
+
+    /// <summary>
     /// Windows 专属：更新 DWM 标题栏/边框颜色、标题栏按钮颜色及窗口根背景，
     /// 使其跟随应用的深/浅主题切换。在主题变化时由 ThemeService 调用。
     /// </summary>
@@ -752,6 +905,29 @@ public partial class App : Application
             {
                 SetRootWindowBackground(CurrentNativeWindow.Content, bgBrush);
                 SetRootWindowBackgroundDeep(CurrentNativeWindow.Content, bgBrush);
+            }
+
+            // 5. MAUI TitleBar 控件配色跟随主题（含搜索框）
+            if (_mauiTitleBar != null)
+            {
+                _mauiTitleBar.BackgroundColor = isDark
+                    ? Microsoft.Maui.Graphics.Color.FromArgb("#F211172B")
+                    : Microsoft.Maui.Graphics.Color.FromArgb("#F2F8F7FF");
+                _mauiTitleBar.ForegroundColor = isDark
+                    ? Microsoft.Maui.Graphics.Color.FromArgb("#EEF0FB")
+                    : Microsoft.Maui.Graphics.Color.FromArgb("#1A1F3A");
+                if (_titleBarSearchEntry != null)
+                {
+                    _titleBarSearchEntry.BackgroundColor = isDark
+                        ? Microsoft.Maui.Graphics.Color.FromArgb("#15FFFFFF")
+                        : Microsoft.Maui.Graphics.Color.FromArgb("#15000000");
+                    _titleBarSearchEntry.TextColor = isDark
+                        ? Microsoft.Maui.Graphics.Color.FromArgb("#EEF0FB")
+                        : Microsoft.Maui.Graphics.Color.FromArgb("#1A1F3A");
+                    _titleBarSearchEntry.PlaceholderColor = isDark
+                        ? Microsoft.Maui.Graphics.Color.FromArgb("#6B7298")
+                        : Microsoft.Maui.Graphics.Color.FromArgb("#9AA0B4");
+                }
             }
         }
         catch (Exception ex)
