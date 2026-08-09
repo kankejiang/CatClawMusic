@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
@@ -45,6 +45,13 @@
                   ColumnDefinitions="*,Auto"
                   HeightRequest="40">
                 <!-- 歌曲信息（左侧） -->
+                <!-- 顶部栏毛玻璃：确保与下方内容区视觉统一 -->
+                <Grid.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#50000000" Offset="0" />
+                        <GradientStop Color="#20000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Grid.Background>
                 <Grid Grid.Column="0" ColumnDefinitions="Auto" VerticalOptions="Center">
                     <Grid Grid.Column="0" RowDefinitions="Auto,Auto" RowSpacing="0">
                         <Label Grid.Row="0"

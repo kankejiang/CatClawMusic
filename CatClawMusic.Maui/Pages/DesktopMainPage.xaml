@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
@@ -14,14 +14,20 @@
     <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="0,*,100">
 
         <!-- ═══ Left Sidebar (starts below title bar for immersive look) ═══ -->
-        <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="2" Grid.Column="0"
+        <!-- 自定义标题栏拖拽区（WinUI 3 SetTitleBar 模式） -->
+        <Grid x:Name="CustomTitleBar"
+              Grid.Row="0" Grid.ColumnSpan="2"
+              HeightRequest="32"
+              Background="Transparent"
+              IsVisible="{OnPlatform Default=false, WinUI=true}" />
+        <Border x:Name="SidebarBorder" Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                 StrokeThickness="0,0,1,0"
                 Stroke="{DynamicResource DividerColor}"
                 BackgroundColor="{DynamicResource CardBackgroundColor}">
             <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="0,0,0,0">
 
                 <!-- App Logo（Windows 桌面端显示；移动端横屏复用时隐藏以节省空间） -->
-                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,4,20,16"
+                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,2,20,12"
                       ColumnDefinitions="Auto,*" ColumnSpacing="10">
                     <Border WidthRequest="36" HeightRequest="36"
                             StrokeShape="RoundRectangle 10"
@@ -152,7 +158,7 @@
         </Grid>
 
         <!-- ═══ Main Content Area (extends to top for immersive title bar) ═══ -->
-        <Grid x:Name="ContentArea" Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+        <Grid x:Name="ContentArea" Grid.Row="1" Grid.RowSpan="1" Grid.Column="1"
               Background="{DynamicResource PageBackgroundBrush}"
               IsClippedToBounds="True" />
 

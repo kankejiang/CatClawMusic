@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 using CatClawMusic.Core.Interfaces;
@@ -72,7 +72,15 @@ public partial class DesktopMainPage : ContentPage
         BindingContext = _npVm;
         Instance = this;
 
-        SizeChanged += OnPageSizeChanged;
+        #if WINDOWS
+            // Windows: 32px title bar drag region at top
+            RootGrid.RowDefinitions[0].Height = new GridLength(32);
+            SizeChanged += UpdateDragRectangles;
+#else
+            // Android: no title bar area
+            RootGrid.RowDefinitions[0].Height = new GridLength(0);
+#endif
+            SizeChanged += OnPageSizeChanged;
         InitVolumeSlider();
 
 #if ANDROID || WINDOWS
@@ -95,6 +103,10 @@ public partial class DesktopMainPage : ContentPage
 #if ANDROID || WINDOWS
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
                 SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+#endif
+#if WINDOWS
+                // Handler 就绪后注册标题栏拖拽区域
+                UpdateDragRectangles(this, EventArgs.Empty);
 #endif
             }
         };
@@ -927,4 +939,42 @@ public partial class DesktopMainPage : ContentPage
     /// <summary>非 Android 平台空实现。</summary>
     private void ShowSystemStatusBar() { }
 #endif
+
+#if WINDOWS
+    private Microsoft.UI.Xaml.Controls.Grid? _nativeTitleBar;
+    private bool _titleBarRegistered;
+    private int _titleBarRetryCount;
+
+    /// <summary>注册自定义标题栏拖拽区域（WinUI 3 SetTitleBar 模式，官方方案）。
+    /// 将 XAML 中的 CustomTitleBar Grid 注册为窗口拖拽区域，系统自动排除右上角
+    /// caption 按钮区域（最小化/最大化/关闭）；双击拖拽区 = 最大化/还原。
+    /// 幂等 + 延迟重试：HandlerChanged/SizeChanged 触发时子元素 Handler 可能尚未建立，
+    /// SetTitleBar 需在 ExtendsContentIntoTitleBar=true（App 层已设置）之后调用。</summary>
+    private void UpdateDragRectangles(object? sender, EventArgs e)
+    {
+        if (_titleBarRegistered) return;
+        try
+        {
+            if (App.CurrentNativeWindow == null) return;
+
+            // 将 MAUI Grid 转换为原生 WinUI UIElement
+            if (CustomTitleBar.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.Grid nativeGrid)
+            {
+                _nativeTitleBar = nativeGrid;
+                App.CurrentNativeWindow.SetTitleBar(nativeGrid);
+                _titleBarRegistered = true;
+            }
+            else if (_titleBarRetryCount++ < 3)
+            {
+                // 子元素 Handler 尚未就绪：稍后重试（最多 3 次）
+                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(120), () => UpdateDragRectangles(this, EventArgs.Empty));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"SetTitleBar failed: {ex.Message}");
+        }
+    }
+#endif
+
 }

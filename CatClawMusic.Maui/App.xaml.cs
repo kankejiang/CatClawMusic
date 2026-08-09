@@ -1,4 +1,4 @@
-using CatClawMusic.Core.Interfaces;
+﻿using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
@@ -454,6 +454,13 @@ public partial class App : Application
                 var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
                 CurrentAppWindow = appWindow;
                 _appHwnd = hwnd;
+                // 完全自定义标题栏（官方方案，见 learn.microsoft.com/windows/apps/develop/title-bar）：
+                // 上方已设置 ExtendsContentIntoTitleBar=true → 隐藏系统标题栏但保留系统 caption
+                // 按钮（最小化/最大化/关闭）；按钮颜色由 UpdateWindowsTheme 设为透明融入自定义标题栏；
+                // 拖拽区由 DesktopMainPage 的 SetTitleBar(CustomTitleBar) 注册（系统自动排除 caption 区，
+                // 双击拖拽区=最大化/还原）。
+                // ⚠️ 切勿用 OverlappedPresenter.CreateForContextMenu() 替换 presenter——那是右键菜单
+                // 窗口模式，会破坏最大化/任务栏交互。
 
                 // 应用窗口 chrome（DWM 沉浸式暗色 + 系统按钮色 + 根背景）—— 跟随当前主题
                 // 注意：DI 只注册了 IThemeService（见 MauiProgram），按具体类型 GetService<ThemeService>()
