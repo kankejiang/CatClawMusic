@@ -20,7 +20,6 @@ public partial class App : Application
 
     /// <summary>MAUI 官方 TitleBar 控件实例（Windows 自定义标题栏；主题切换时更新配色）</summary>
     private static Microsoft.Maui.Controls.TitleBar? _mauiTitleBar;
-    private static Microsoft.Maui.Controls.Entry? _titleBarSearchEntry;
 #endif
 
     /// <summary>
@@ -693,8 +692,8 @@ public partial class App : Application
     /// <summary>
     /// 构建网易云式自定义标题栏（MAUI 10 官方 TitleBar 控件，仅 Windows；文档：
     /// learn.microsoft.com/dotnet/maui/user-interface/controls/titlebar）。
-    /// LeadingContent：logo 徽标；Content：全局搜索框（绑定单例 SearchViewModel.SearchQuery，
-    /// 防抖搜索与发现页下拉自动联动）；TrailingContent：主题切换 + 头像。
+    /// LeadingContent：logo 徽标；TrailingContent：主题切换 + 头像；
+    /// 中间区域为标题栏拖拽区（无输入控件）。
     /// 系统 caption 按钮（最小化/最大化/关闭）由控件在右端自动保留，双击标题栏=最大化/还原。
     /// 深浅色配色由 UpdateWindowsTheme 统一更新。
     /// </summary>
@@ -703,7 +702,6 @@ public partial class App : Application
 #if WINDOWS
         try
         {
-            var vm = MauiProgram.Services.GetService<ViewModels.SearchViewModel>();
             var themeService = MauiProgram.Services.GetService<IThemeService>();
             var isDark = ResolveIsDark(themeService);
 
@@ -743,27 +741,6 @@ public partial class App : Application
                 VerticalOptions = LayoutOptions.Center,
                 Children = { logoMark, logoName }
             };
-
-            var searchEntry = new Entry
-            {
-                Placeholder = "搜索歌曲、歌手、歌单…",
-                FontSize = 12.5,
-                HeightRequest = 32,
-                Margin = new Thickness(12, 0),
-                VerticalOptions = LayoutOptions.Center,
-                ClearButtonVisibility = ClearButtonVisibility.WhileEditing,
-                BackgroundColor = isDark ? Color.FromArgb("#15FFFFFF") : Color.FromArgb("#15000000"),
-                TextColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A"),
-                PlaceholderColor = isDark ? Color.FromArgb("#6B7298") : Color.FromArgb("#9AA0B4")
-            };
-            if (vm != null)
-            {
-                searchEntry.BindingContext = vm;
-                searchEntry.SetBinding(Entry.TextProperty, nameof(ViewModels.SearchViewModel.SearchQuery), BindingMode.TwoWay);
-                // 聚焦标题栏搜索框时展开发现页搜索下拉
-                searchEntry.Focused += (_, _) => vm.IsSearchOpen = true;
-            }
-            _titleBarSearchEntry = searchEntry;
 
             var themeBtn = new Button
             {
@@ -823,7 +800,6 @@ public partial class App : Application
                 BackgroundColor = isDark ? Color.FromArgb("#F211172B") : Color.FromArgb("#F2F8F7FF"),
                 ForegroundColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A"),
                 LeadingContent = leading,
-                Content = searchEntry,
                 TrailingContent = trailing
             };
             window.TitleBar = titleBar;
@@ -907,7 +883,7 @@ public partial class App : Application
                 SetRootWindowBackgroundDeep(CurrentNativeWindow.Content, bgBrush);
             }
 
-            // 5. MAUI TitleBar 控件配色跟随主题（含搜索框）
+            // 5. MAUI TitleBar 控件配色跟随主题
             if (_mauiTitleBar != null)
             {
                 _mauiTitleBar.BackgroundColor = isDark
@@ -916,18 +892,6 @@ public partial class App : Application
                 _mauiTitleBar.ForegroundColor = isDark
                     ? Microsoft.Maui.Graphics.Color.FromArgb("#EEF0FB")
                     : Microsoft.Maui.Graphics.Color.FromArgb("#1A1F3A");
-                if (_titleBarSearchEntry != null)
-                {
-                    _titleBarSearchEntry.BackgroundColor = isDark
-                        ? Microsoft.Maui.Graphics.Color.FromArgb("#15FFFFFF")
-                        : Microsoft.Maui.Graphics.Color.FromArgb("#15000000");
-                    _titleBarSearchEntry.TextColor = isDark
-                        ? Microsoft.Maui.Graphics.Color.FromArgb("#EEF0FB")
-                        : Microsoft.Maui.Graphics.Color.FromArgb("#1A1F3A");
-                    _titleBarSearchEntry.PlaceholderColor = isDark
-                        ? Microsoft.Maui.Graphics.Color.FromArgb("#6B7298")
-                        : Microsoft.Maui.Graphics.Color.FromArgb("#9AA0B4");
-                }
             }
         }
         catch (Exception ex)
