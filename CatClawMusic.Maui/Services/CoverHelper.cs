@@ -1,6 +1,8 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using CatClawMusic.Core.Interfaces;
 
 namespace CatClawMusic.Maui.Services;
@@ -500,6 +502,21 @@ public static class CoverHelper
     public static string GetCachedPath(int songId, int maxSize = DefaultMaxSize)
     {
         return System.IO.Path.Combine(_coverCacheDir, $"cover_{songId}_{maxSize}.jpg");
+    }
+
+    /// <summary>
+    /// 网络 http(s) 封面缓存路径（URL 指纹化）：cover_{songId}_{sha256(url)前8位}.jpg。
+    /// URL 变化时缓存 key 自动变化 → 旧图不再命中（修复"同 Id 换封面 URL 后仍显示旧缓存图"的问题）。
+    /// url 为 null/空 时退化为 cover_{songId}.jpg（兼容非 URL 封面源的旧行为）。
+    /// </summary>
+    public static string GetHttpCoverCachePath(int songId, string? url)
+    {
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(url)))[..8];
+            return System.IO.Path.Combine(_coverCacheDir, $"cover_{songId}_{hash}.jpg");
+        }
+        return System.IO.Path.Combine(_coverCacheDir, $"cover_{songId}.jpg");
     }
 
     /// <summary>

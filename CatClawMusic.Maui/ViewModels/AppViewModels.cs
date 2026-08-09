@@ -1171,13 +1171,15 @@ public partial class NowPlayingViewModel : ObservableObject
             coverPath = song.CoverArtPath;
         }
 
-        // 1b. Navidrome/Subsonic: CoverArtPath 是 getCoverArt URL，下载并缓存
+        // 1b. Navidrome/Subsonic/在线插件: CoverArtPath 是 http(s) 封面 URL，下载并缓存
+        // ⚠ 缓存 key 带 URL 指纹（cover_{Id}_{urlHash8}.jpg）：同一首歌的封面 URL 变化时
+        // （如插件版本升级/封面数据校正）旧缓存自动失效，避免"清缓存前一直显示旧封面图"。
         if (coverPath == null
             && !string.IsNullOrEmpty(song.CoverArtPath)
             && (song.CoverArtPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
                 || song.CoverArtPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
         {
-            var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+            var cachedPath = Services.CoverHelper.GetHttpCoverCachePath(song.Id, song.CoverArtPath);
             if (!File.Exists(cachedPath))
             {
                 try
@@ -1201,10 +1203,15 @@ public partial class NowPlayingViewModel : ObservableObject
                 coverPath = cachedPath;
         }
 
-        // 2. Check cached cover
+        // 2. Check cached cover（带 URL 指纹：URL 变化时不会命中旧图；非 URL 封面源回退旧格式 cover_{Id}.jpg）
         if (coverPath == null)
         {
-            var cachedPath = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+            var cachedPath = Services.CoverHelper.GetHttpCoverCachePath(song.Id, song.CoverArtPath);
+            if (!File.Exists(cachedPath))
+            {
+                var legacy = Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
+                if (File.Exists(legacy)) cachedPath = legacy;
+            }
             if (File.Exists(cachedPath))
                 coverPath = cachedPath;
         }
