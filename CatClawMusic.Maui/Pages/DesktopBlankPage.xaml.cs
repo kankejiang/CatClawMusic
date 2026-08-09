@@ -84,10 +84,16 @@ public partial class DesktopBlankPage : ContentPage
         }
         catch { }
 #endif
+#if WINDOWS
         UpDateTitlebar();
+#endif
     }
 
+#if WINDOWS
     private void OnSizeChanged(object? sender, EventArgs e) => UpDateTitlebar();
+#else
+    private void OnSizeChanged(object? sender, EventArgs e) { }
+#endif
 
     protected override void OnAppearing()
     {
@@ -309,6 +315,46 @@ public partial class DesktopBlankPage : ContentPage
             case "删除":
                 await DeletePlaylistAsync(pl);
                 break;
+        }
+    }
+
+    /// <summary>
+    /// 桌面无 Shell 模式：把子页面 Content 摘出嵌入 MainArea（保留左侧导航栏）。
+    /// 供发现页等无 Shell 页面打开专辑/艺术家等详情页；返回按钮的隐藏由调用方按页面结构处理。
+    /// </summary>
+    public void OpenEmbeddedPage(ContentPage page)
+    {
+        try
+        {
+            if (page == null) return;
+            var content = page.Content;
+            if (content == null) return;
+            page.Content = null;
+            content.BindingContext = page.BindingContext;
+            content.VerticalOptions = LayoutOptions.Fill;
+            content.HorizontalOptions = LayoutOptions.Fill;
+
+            MainArea.Children.Clear();
+            MainArea.Children.Add(content);
+
+            InvokeLifecycle(page, "OnAppearing");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] OpenEmbeddedPage failed: {ex}");
+        }
+    }
+
+    /// <summary>桌面无 Shell 模式：关闭嵌入的子页面，恢复当前 tab 的默认内容（子页面返回按钮调用）。</summary>
+    public void CloseEmbeddedPage()
+    {
+        try
+        {
+            SwitchTab(_currentTab);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] CloseEmbeddedPage failed: {ex}");
         }
     }
 

@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 
@@ -45,7 +46,8 @@ public partial class DesktopPlaylistView : ContentPage
             {
                 collectionView.SelectedItem = null;
             }
-            await Shell.Current.GoToAsync($"playlistdetail?playlistId={playlist.Id}&name={Uri.EscapeDataString(playlist.Name)}");
+            if (DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={playlist.Id}&name={Uri.EscapeDataString(playlist.Name)}")) return;
+            DesktopNavigation.OpenPlaylistDetail(playlist.Id, playlist.Name ?? string.Empty);
         }
     }
 
@@ -227,17 +229,26 @@ public partial class DesktopPlaylistView : ContentPage
 
             if (newId > 0)
             {
-                await Shell.Current.GoToAsync($"playlistdetail?playlistId={newId}&name={Uri.EscapeDataString(name)}");
+                if (DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={newId}&name={Uri.EscapeDataString(name)}")) return;
+                DesktopNavigation.OpenPlaylistDetail(newId, name);
             }
         }
         catch { }
     }
 
     /// <summary>
-    /// 打开音乐库二级页：竖屏走 Shell 导航；横屏嵌入 ContentArea。
+    /// 打开音乐库二级页：竖屏走 Shell 导航；横屏嵌入 ContentArea；Windows 桌面嵌入 BlankPage MainArea。
     /// </summary>
     private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
     {
+#if WINDOWS
+        var page = (ContentPage)_sp.GetRequiredService(typeof(DesktopAllSongsPage));
+        if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
+            desktopAllSongs.Source = source;
+
+        DesktopNavigation.OpenEmbedded(page);
+        return;
+#else
         if (App.IsLandscapeMode())
         {
             Type desktopType = pageType.Name switch
@@ -255,5 +266,6 @@ public partial class DesktopPlaylistView : ContentPage
         }
 
         _ = Shell.Current.GoToAsync(fallbackRoute);
+#endif
     }
 }

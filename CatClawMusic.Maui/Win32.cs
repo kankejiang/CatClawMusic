@@ -1,3 +1,4 @@
+#if WINDOWS
 using System.Runtime.InteropServices;
 using System;
 using Microsoft.UI.Windowing;
@@ -41,3 +42,4 @@ public static class Win32
         return scaleFactorPercent / 100.0;
     }
 }
+#endif

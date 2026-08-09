@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:ctrl="clr-namespace:CatClawMusic.Maui.Controls"
+             x:Class="CatClawMusic.Maui.Pages.DesktopLyricOverlay"
+             Title="" NavigationPage.HasNavigationBar="False"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="Transparent">
+    <Grid x:Name="RootLayout" BackgroundColor="Transparent"
+          RowDefinitions="*,Auto">
+        <Grid.GestureRecognizers>
+            <PanGestureRecognizer PanUpdated="OnPanUpdated" />
+        </Grid.GestureRecognizers>
+        <ctrl:SwapChainHost x:Name="SwapChainHost" Grid.RowSpan="2" />
+        <Label x:Name="LyricLabel"
+               Text="欢迎使用猫爪音乐"
+               HorizontalOptions="Center"
+               VerticalOptions="Center"
+               FontSize="28"
+               TextColor="White"
+               FontAttributes="Bold" />
+        <HorizontalStackLayout x:Name="Toolbar"
+                               Grid.Row="1"
+                               HorizontalOptions="Center"
+                               Margin="0,0,0,6"
+                               IsVisible="false">
+            <Label Text="⏮" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnPrev" />
+                </Label.GestureRecognizers>
+            </Label>
+            <Label x:Name="PlayPauseBtn" Text="▶" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnPlayPause" />
+                </Label.GestureRecognizers>
+            </Label>
+            <Label Text="⏭" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnNext" />
+                </Label.GestureRecognizers>
+            </Label>
+            <Label x:Name="LockBtn" Text="🔓" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnLock" />
+                </Label.GestureRecognizers>
+            </Label>
+            <Label Text="✕" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnClose" />
+                </Label.GestureRecognizers>
+            </Label>
+        </HorizontalStackLayout>
+    </Grid>
+</ContentPage>

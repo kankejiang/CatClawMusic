@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 
@@ -485,14 +486,21 @@ public abstract class DiscoverPageBase : ContentPage
     {
         if (e.CurrentSelection.FirstOrDefault() is not SearchArtistItem artist) return;
         if (sender is CollectionView cv) cv.SelectedItem = null;
-        await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name)}");
+
+        var name = artist.Name ?? string.Empty;
+        // Android/Shell 环境走 GoToAsync；Windows 桌面（无 Shell）走嵌入式详情页。
+        if (DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(name)}")) return;
+        DesktopNavigation.OpenArtistDetail(name);
     }
 
     protected async void OnAlbumSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is not SearchAlbumItem album) return;
         if (sender is CollectionView cv) cv.SelectedItem = null;
-        await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title)}");
+
+        var title = album.Title ?? string.Empty;
+        if (DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(title)}")) return;
+        DesktopNavigation.OpenAlbumDetail(title);
     }
 
     // === AI 入口 ===

@@ -2,11 +2,12 @@ using System;
 using System.Threading.Tasks;
 using CatClawMusic.Maui.ViewModels;
 using CatClawMusic.Maui.Services;
+using CatClawMusic.Maui.Helpers;
 using Microsoft.Maui.Controls;
 
 namespace CatClawMusic.Maui.Pages;
 
-/// <summary>横屏桌面模式专用设置页：双列紧凑布局，子页面经 Shell 导航。</summary>
+/// <summary>横屏桌面模式专用设置页：双列紧凑布局，子页面经 Shell 导航（桌面无 Shell 则嵌入主区域）。</summary>
 public partial class DesktopSettingsPage : ContentPage
 {
     private readonly SettingsViewModel _vm;
@@ -38,40 +39,40 @@ public partial class DesktopSettingsPage : ContentPage
     private void OnDarkModeToggleClicked(object? sender, EventArgs e)
         => _vm.ToggleDarkModeCommand.Execute(null);
 
-    private async void OnAppearanceSettingsClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/appearancesettings");
+    private void OnAppearanceSettingsClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/appearancesettings", typeof(AppearanceSettingsPage));
 
-    private async void OnDesktopLyricClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("desktoplyric");
+    private void OnDesktopLyricClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("desktoplyric", typeof(DesktopLyricPage));
 
-    private async void OnLocalMusicClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/localmusicsettings");
+    private void OnLocalMusicClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/localmusicsettings", typeof(LocalMusicSettingsPage));
 
-    private async void OnRemoteMusicClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/remotemusicsettings");
+    private void OnRemoteMusicClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/remotemusicsettings", typeof(RemoteMusicSettingsPage));
 
-    private async void OnPluginManagementClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/pluginmanagement");
+    private void OnPluginManagementClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/pluginmanagement", typeof(PluginManagementPage));
 
-    private async void OnAiSettingsClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/aisettings");
+    private void OnAiSettingsClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/aisettings", typeof(AiSettingsPage));
 
-    private async void OnPermissionManagementClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/permissionmanagement");
+    private void OnPermissionManagementClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/permissionmanagement", typeof(PermissionManagementPage));
 
-    private async void OnGeneralSettingsClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/generalsettings");
+    private void OnGeneralSettingsClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/generalsettings", typeof(GeneralSettingsPage));
 
-    private async void OnBackupRestoreClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/backuprestore");
+    private void OnBackupRestoreClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/backuprestore", typeof(BackupRestorePage));
 
-    private async void OnDiagnosticLogClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("settings/diagnosticlog");
+    private void OnDiagnosticLogClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoOrEmbed("settings/diagnosticlog", typeof(LogPage));
 
-    private async void OnAboutClicked(object? sender, EventArgs e)
+    private void OnAboutClicked(object? sender, EventArgs e)
     {
         _vm.ClearUpdateRedDot();
-        await Shell.Current.GoToAsync("settings/about");
+        DesktopNavigation.GoOrEmbed("settings/about", typeof(AboutPage));
     }
 
     private void OnDiagnosticLogToggled(object? sender, ToggledEventArgs e)

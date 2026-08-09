@@ -1,4 +1,4 @@
-using CatClawMusic.Core.Interfaces;
+﻿using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Core.Services.AI;
 using CatClawMusic.Data;
@@ -68,6 +68,8 @@ public static class MauiProgram
                     typeof(CatClawMusic.Maui.Platforms.Windows.FrostedBackgroundHandler));
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.KaraokeLabel),
                     typeof(CatClawMusic.Maui.Platforms.Windows.KaraokeLabelHandler));
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.SwapChainHost),
+                    typeof(CatClawMusic.Maui.Platforms.Windows.SwapChainHostHandler));
 #endif
             })
             .ConfigureEffects(effects =>
@@ -327,7 +329,7 @@ public static class MauiProgram
 #if ANDROID
         services.AddSingleton<Core.Interfaces.IDesktopLyricService, Platforms.Android.DesktopLyricService>();
 #elif WINDOWS
-        services.AddSingleton<Core.Interfaces.IDesktopLyricService, Services.WindowsDesktopLyricService>();
+        services.AddSingleton<Core.Interfaces.IDesktopLyricService, Services.WindowsDesktopLyricServiceV2>();
 #else
         services.AddSingleton<Core.Interfaces.IDesktopLyricService, Services.EmptyDesktopLyricService>();
 #endif
@@ -456,6 +458,7 @@ public static class MauiProgram
         services.AddTransient<Pages.PluginManagementPage>();
         services.AddTransient<Pages.AiSettingsPage>();
         services.AddTransient<Pages.PermissionManagementPage>();
+        services.AddTransient<Pages.LogPage>();
         services.AddTransient<Pages.FullLyricsPage>();
         services.AddTransient<Pages.FolderBrowserPage>();
         services.AddTransient<Pages.ArtistMatchPage>();

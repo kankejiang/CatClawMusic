@@ -161,6 +161,11 @@
 		<Compile Remove="Platforms\Windows\App.generated.cs" Condition="'$(Configuration)' == 'Debug'" />
 		<Compile Remove="Platforms\Windows\App.InitializeComponent.fallback.cs" />
 	</ItemGroup>
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+	  <!-- WinUIEx：仅 Windows TFM（桌面歌词半透明 TransparentTintBackdrop；2.7.0 对齐 WinAppSDK 1.7，
+	       2.8+ 需 WinUI 1.8 与 MAUI 10 冲突） -->
+	  <PackageReference Include="WinUIEx" Version="2.7.0" />
+	</ItemGroup>
 
 	<Target Name="EnsureAppInitializeComponent" BeforeTargets="CoreCompile" Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
 		<ItemGroup>
@@ -176,15 +181,11 @@
 	     无设备 / adb 不可用）保持双 ABI（android-arm64;android-x64），ARM64 真机可正常调试。
 	     探测由 AutoAndroidRid.ps1 完成，决策与上次不同时自动删除旧 APK 强制重新打包。
 	     如需关闭自动识别：构建传 /p:DisableAutoAndroidRid=true 或删除本 Target。 -->
-	<Target Name="AutoAndroidRid"
-	    BeforeTargets="_ResolveAndroidTooling"
-	    Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(DesignTimeBuild)' != 'true' And '$(_ComputeFilesToPublishForRuntimeIdentifiers)' != 'true' And '$(DisableAutoAndroidRid)' != 'true'">
+	<Target Name="AutoAndroidRid" BeforeTargets="_ResolveAndroidTooling" Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(DesignTimeBuild)' != 'true' And '$(_ComputeFilesToPublishForRuntimeIdentifiers)' != 'true' And '$(DisableAutoAndroidRid)' != 'true'">
 		<PropertyGroup>
 			<_AutoAdbPath>$([MSBuild]::EnsureTrailingSlash('$(AndroidSdkDirectory)'))platform-tools\adb.exe</_AutoAdbPath>
 		</PropertyGroup>
-		<Exec
-		    Command="&quot;$(SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\AutoAndroidRid.ps1&quot; -AdbPath &quot;$(_AutoAdbPath)&quot; -DecisionFile &quot;$(IntermediateOutputPath)auto-rid.txt&quot; -ObjApkDir &quot;$(IntermediateOutputPath)android\bin&quot; -BinApkDir &quot;$(OutputPath)&quot;"
-		    ConsoleToMSBuild="true" />
+		<Exec Command="&quot;$(SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\AutoAndroidRid.ps1&quot; -AdbPath &quot;$(_AutoAdbPath)&quot; -DecisionFile &quot;$(IntermediateOutputPath)auto-rid.txt&quot; -ObjApkDir &quot;$(IntermediateOutputPath)android\bin&quot; -BinApkDir &quot;$(OutputPath)&quot;" ConsoleToMSBuild="true" />
 		<ReadLinesFromFile File="$(IntermediateOutputPath)auto-rid.txt" Condition="Exists('$(IntermediateOutputPath)auto-rid.txt')">
 			<Output TaskParameter="Lines" PropertyName="_AutoAndroidRidDecision" />
 		</ReadLinesFromFile>

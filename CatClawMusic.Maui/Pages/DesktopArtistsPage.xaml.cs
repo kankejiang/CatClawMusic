@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
@@ -38,7 +39,9 @@ public partial class DesktopArtistsPage : ContentPage
             DesktopMainPage.Instance.CloseEmbeddedSubPage("library");
             return;
         }
-        _ = Shell.Current.GoToAsync("..");
+        // Shell 环境（Android 竖屏）GoToAsync；桌面无 Shell 关闭嵌入恢复原 tab
+        if (DesktopNavigation.TryGoToShell("..")) return;
+        DesktopNavigation.CloseEmbedded();
     }
 
     // FlexLayout 筛选项点击：从 sender 的 BindingContext 中获取 FilterChip
@@ -60,7 +63,9 @@ public partial class DesktopArtistsPage : ContentPage
         if (sender is BindableObject bo && bo.BindingContext is ArtistWithCount artist)
         {
             _viewModel.SelectedArtist = artist;
-            await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name ?? string.Empty)}");
+            var name = artist.Name ?? string.Empty;
+            if (DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(name)}")) return;
+            DesktopNavigation.OpenArtistDetail(name);
         }
     }
 
@@ -72,7 +77,9 @@ public partial class DesktopArtistsPage : ContentPage
 
     private async void OnMostPlayedTapped(object? sender, EventArgs e)
     {
-        if (_viewModel.MostPlayedArtist != null)
-            await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(_viewModel.MostPlayedArtist.Name ?? string.Empty)}");
+        if (_viewModel.MostPlayedArtist == null) return;
+        var name = _viewModel.MostPlayedArtist.Name ?? string.Empty;
+        if (DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(name)}")) return;
+        DesktopNavigation.OpenArtistDetail(name);
     }
 }

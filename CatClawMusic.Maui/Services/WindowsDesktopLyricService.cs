@@ -14,6 +14,7 @@ namespace CatClawMusic.Maui.Services;
 public class WindowsDesktopLyricService : IDesktopLyricService
 {
     private const string Tag = "WinDesktopLyric";
+
     private static readonly Lazy<ILogService> Log = new(() =>
         MauiProgram.Services.GetRequiredService<ILogService>());
 
@@ -185,6 +186,14 @@ public class WindowsDesktopLyricService : IDesktopLyricService
             appWindow.TitleBar.ExtendsContentIntoTitleBar = true;
             nativeWin.SetTitleBar(null);
 
+            // ①+ 完全隐藏系统标题栏（OverlappedPresenter.CreateForContextMenu 模式）
+            // 参考: https://www.zhihu.com/tardis/bd/art/604236195
+            try
+            {
+                var customPresenter = Microsoft.UI.Windowing.OverlappedPresenter.CreateForContextMenu();
+                appWindow.SetPresenter(customPresenter);
+            }
+            catch { }
             // ② 置顶（Win32 HWND_TOPMOST，兼容所有 Windows App SDK 版本）
             NativeMethods.SetTopMost(hwnd);
 

@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 
@@ -40,7 +41,9 @@ public partial class DesktopAllSongsPage : ContentPage
             return;
         }
 
-        _ = Shell.Current.GoToAsync("..");
+        // Shell 环境（Android 竖屏）GoToAsync；桌面无 Shell 关闭嵌入恢复原 tab
+        if (DesktopNavigation.TryGoToShell("..")) return;
+        DesktopNavigation.CloseEmbedded();
     }
 
     // FlexLayout 排序项点击：从 sender 的 BindingContext 中获取 SortOption
@@ -130,8 +133,12 @@ public partial class DesktopAllSongsPage : ContentPage
         switch (action)
         {
             case "查看歌曲详情":
-                await Shell.Current.GoToAsync($"songdetail?songId={song.Id}");
-                break;
+                {
+                    var songId = song.Id.ToString();
+                    if (DesktopNavigation.TryGoToShell($"songdetail?songId={songId}")) break;
+                    DesktopNavigation.OpenSongDetail(songId);
+                    break;
+                }
             case "添加到播放队列":
                 // TODO: 添加到播放队列
                 break;

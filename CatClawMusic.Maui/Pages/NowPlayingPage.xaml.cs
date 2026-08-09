@@ -1836,5 +1836,8 @@ public partial class NowPlayingPage : ContentPage
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     private const int SW_MINIMIZE = 6;
+#else
+    // 桌面歌词按钮仅 Windows 存在（XAML 已 OnPlatform 隐藏），Android 空实现兜底防 XamlC XC0002
+    private void OnWinDesktopLyricTapped(object? sender, EventArgs e) { }
 #endif
 }

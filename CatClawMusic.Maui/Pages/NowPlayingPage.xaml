@@ -745,6 +745,7 @@
                         <!-- 桌面歌词（Windows：悬浮歌词窗口开关；图标=安卓通知栏媒体控件同款 ic_notif_lyric_on） -->
                         <ImageButton x:Name="WinDesktopLyricBtn" WidthRequest="42" HeightRequest="42" CornerRadius="21"
                                      Padding="10" Aspect="AspectFit" BackgroundColor="Transparent"
+                                     IsVisible="{OnPlatform Default=false, WinUI=true}"
                                      Source="ic_notif_lyric_on" Clicked="OnWinDesktopLyricTapped" />
                     </HorizontalStackLayout>
 

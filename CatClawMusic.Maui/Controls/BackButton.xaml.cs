@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Helpers;
 namespace CatClawMusic.Maui.Controls;
 
 public partial class BackButton : ContentView
@@ -46,7 +47,10 @@ public partial class BackButton : ContentView
                 return;
             }
 
-            if (Shell.Current != null && Shell.Current.CurrentState?.Location != null)
+            // Shell.Current 在无 Shell 的窗口（Windows 桌面 Window(Page) 模式）会抛异常，
+            // 必须用 TryGetShell 探测；桌面无 Shell 时关闭嵌入恢复原 tab。
+            var shell = DesktopNavigation.TryGetShell();
+            if (shell != null && shell.CurrentState?.Location != null)
             {
                 // 若当前处于某 overlay PagerNavigator（如设置/音乐库的二级页）内，
                 // 优先用原生 ViewPager2 平滑滑出，而非 Shell 默认 push/pop 动画。
@@ -55,7 +59,13 @@ public partial class BackButton : ContentView
                     nav.PopAsync();
                     return;
                 }
-                await Shell.Current.GoToAsync("..");
+                await shell.GoToAsync("..");
+                return;
+            }
+
+            if (shell == null)
+            {
+                DesktopNavigation.CloseEmbedded();
                 return;
             }
 

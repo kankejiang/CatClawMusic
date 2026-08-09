@@ -1,6 +1,7 @@
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Helpers;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -59,10 +60,19 @@ public partial class SongDetailPage : ContentPage
     {
         try
         {
-            if (Shell.Current.Navigation.NavigationStack.Count > 1)
-                await Shell.Current.Navigation.PopAsync();
-            else
-                await Shell.Current.GoToAsync("..");
+            // Android/Shell：优先 PopAsync 弹栈；Windows 桌面无 Shell：关闭嵌入恢复原 tab
+            var shell = DesktopNavigation.TryGetShell();
+            if (shell != null && shell.Navigation.NavigationStack.Count > 1)
+            {
+                await shell.Navigation.PopAsync();
+                return;
+            }
+            if (shell != null)
+            {
+                await shell.GoToAsync("..");
+                return;
+            }
+            DesktopNavigation.CloseEmbedded();
         }
         catch (Exception ex)
         {

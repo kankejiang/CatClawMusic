@@ -7,25 +7,6 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <!-- ════════════════════════════════════════════════════════════════
-<<<<<<< HEAD
-         全新空白画布（桌面端重建设计第 2 步：三分区框架）
-         左侧导航栏区（30%）| 垂直分割线 | 右侧主页区（70%）
-         ════════════════════════════════════════════════════════════════ -->
-    <Grid x:Name="BlankRoot" ColumnDefinitions="3*,1,7*">
-
-        <!-- 左侧导航栏区域（30%，待填充） -->
-        <Grid x:Name="NavZone" Grid.Column="0" />
-
-        <!-- 垂直分割线 -->
-        <BoxView Grid.Column="1"
-                 Color="{DynamicResource DividerColor}"
-                 VerticalOptions="Fill" />
-
-        <!-- 右侧主页区域（70%，待填充） -->
-        <Grid x:Name="ContentZone" Grid.Column="2" />
-
-    </Grid>
-=======
          桌面端重建（原 DesktopMainPage 的布局原型）：
          ┌──────┬───────────────────┐
          │ 导航区│ 自定义标题栏(48px)  │ ← Row0（标题栏可拖窗）
@@ -39,7 +20,6 @@
          ════════════════════════════════════════════════════════════════ -->
     <Grid x:Name="BlankRoot"
           RowDefinitions="48,*,100" ColumnDefinitions="1.5*,1,8.5*">
->>>>>>> 0d48953 (feat(桌面端重建): 第 2 步——3:7 左右分区 + 垂直分割线)
 
         <!-- ═══ 左侧栏：贯穿标题栏行 + 内容行（拖动区由 SetDragRectangles 原生指定）═══ -->
         <Grid x:Name="NavArea" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"

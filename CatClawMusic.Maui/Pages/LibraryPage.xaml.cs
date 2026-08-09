@@ -1108,6 +1108,23 @@ public partial class LibraryPage : ContentPage
     /// </summary>
     private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
     {
+#if WINDOWS
+        // Windows 桌面无 Shell：嵌入 DesktopBlankPage.MainArea，保留左侧导航栏。
+        Type desktopType = pageType.Name switch
+        {
+            nameof(AllSongsPage) => typeof(DesktopAllSongsPage),
+            nameof(ArtistsPage) => typeof(DesktopArtistsPage),
+            nameof(AlbumsPage) => typeof(DesktopAlbumsPage),
+            _ => pageType
+        };
+
+        var page = (ContentPage)_sp.GetRequiredService(desktopType);
+        if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
+            desktopAllSongs.Source = source;
+
+        DesktopNavigation.OpenEmbedded(page);
+        return;
+#else
         if (App.IsLandscapeMode())
         {
             Type desktopType = pageType.Name switch
@@ -1128,5 +1145,6 @@ public partial class LibraryPage : ContentPage
         }
 
         _ = Shell.Current.GoToAsync(fallbackRoute);
+#endif
     }
 }

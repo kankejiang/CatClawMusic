@@ -1,5 +1,6 @@
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 
@@ -39,7 +40,9 @@ public partial class DesktopAlbumsPage : ContentPage
             DesktopMainPage.Instance.CloseEmbeddedSubPage("library");
             return;
         }
-        _ = Shell.Current.GoToAsync("..");
+        // Shell 环境（Android 竖屏）GoToAsync；桌面无 Shell 关闭嵌入恢复原 tab
+        if (DesktopNavigation.TryGoToShell("..")) return;
+        DesktopNavigation.CloseEmbedded();
     }
 
     // FlexLayout 筛选项点击：从 sender 的 BindingContext 中获取 FilterChip
@@ -61,7 +64,9 @@ public partial class DesktopAlbumsPage : ContentPage
         if (sender is BindableObject bo && bo.BindingContext is AlbumWithCount album)
         {
             _viewModel.SelectedAlbum = album;
-            await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
+            var title = album.Title ?? string.Empty;
+            if (DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(title)}")) return;
+            DesktopNavigation.OpenAlbumDetail(title);
         }
     }
 
@@ -127,8 +132,12 @@ public partial class DesktopAlbumsPage : ContentPage
         switch (action)
         {
             case "查看详情":
-                await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
-                break;
+                {
+                    var title = album.Title ?? string.Empty;
+                    if (DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(title)}")) break;
+                    DesktopNavigation.OpenAlbumDetail(title);
+                    break;
+                }
             case "播放全部歌曲":
                 // TODO: 播放该专辑全部歌曲
                 break;
