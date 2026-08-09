@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.DesktopBlankPage"
+             Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <!-- ════════════════════════════════════════════════════════════════
+<<<<<<< HEAD
          全新空白画布（桌面端重建设计第 2 步：三分区框架）
          左侧导航栏区（30%）| 垂直分割线 | 右侧主页区（70%）
          ════════════════════════════════════════════════════════════════ -->
@@ -22,5 +25,326 @@
         <Grid x:Name="ContentZone" Grid.Column="2" />
 
     </Grid>
+=======
+         桌面端重建（原 DesktopMainPage 的布局原型）：
+         ┌──────┬───────────────────┐
+         │ 导航区│ 自定义标题栏(48px)  │ ← Row0（标题栏可拖窗）
+         │ (贯穿)├───────────────────┤
+         │ Row0+1│ 主页内容区         │ ← Row1（首页=发现页）
+         ├──────┴───────────────────┤
+         │ 播放器区域（100px，全宽）   │ ← Row2
+         └──────────────────────────┘
+         导航区 + 分割线跨 Row0/Row1；配色全走主题 DynamicResource。
+         拖拽：AppWindow.TitleBar.SetDragRectangles（NavArea 整条 + TitleBarHost）。
+         ════════════════════════════════════════════════════════════════ -->
+    <Grid x:Name="BlankRoot"
+          RowDefinitions="48,*,100" ColumnDefinitions="1.5*,1,8.5*">
+>>>>>>> 0d48953 (feat(桌面端重建): 第 2 步——3:7 左右分区 + 垂直分割线)
 
+        <!-- ═══ 左侧栏：贯穿标题栏行 + 内容行（拖动区由 SetDragRectangles 原生指定）═══ -->
+        <Grid x:Name="NavArea" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
+              BackgroundColor="{DynamicResource CardBackgroundColor}">
+            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+                <!-- App Logo -->
+                <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,10,20,12"
+                      ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <Border WidthRequest="36" HeightRequest="36"
+                            StrokeShape="RoundRectangle 10"
+                            StrokeThickness="0"
+                            Background="{DynamicResource HeroBrush}"
+                            VerticalOptions="Center">
+                        <Label Text="&#x1f43e;" FontSize="18"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <VerticalStackLayout x:Name="LogoText" Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                        <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
+                               FontSize="16" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Text="CatClaw Music"
+                               FontSize="10"
+                               TextColor="{DynamicResource TextHintColor}" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Navigation -->
+                <VerticalStackLayout Grid.Row="1" Spacing="2" Padding="8,0">
+                    <Label x:Name="NavHeader" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Navigation]}" FontSize="10"
+                           TextColor="{DynamicResource TextHintColor}"
+                           CharacterSpacing="2" Padding="12,4,12,2" />
+
+                    <Border x:Name="NavDiscover" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="12,7" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavDiscoverTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x1f50d;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="NavDiscoverLabel" Grid.Column="1" Text="发现" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="NavPlaylists" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="12,7" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavPlaylistsTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x1f4cb;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="NavPlaylistsLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="NavLibrary" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="12,7" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavLibraryTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x1f3b5;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="NavLibraryLabel" Grid.Column="1" Text="音乐库" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- User Playlists (scrollable) -->
+                <VerticalStackLayout Grid.Row="2" Spacing="2" Padding="8,4,8,0">
+                    <Grid ColumnDefinitions="*,Auto" Padding="12,2,8,2">
+                        <Label x:Name="PlaylistHeader" Grid.Column="0" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[MyPlaylists]}" FontSize="10"
+                               TextColor="{DynamicResource TextHintColor}"
+                               CharacterSpacing="2" VerticalOptions="Center" />
+                        <Label x:Name="AddPlaylistButton" Grid.Column="1" Text="＋"
+                               FontSize="18" TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalOptions="End" VerticalOptions="Center"
+                               WidthRequest="24" HeightRequest="28">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnAddPlaylistTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+                    <ScrollView x:Name="PlaylistScroll">
+                        <VerticalStackLayout x:Name="PlaylistHost" Spacing="2" />
+                    </ScrollView>
+                </VerticalStackLayout>
+
+                <!-- Settings at bottom -->
+                <VerticalStackLayout Grid.Row="3" Spacing="2" Padding="8,0,8,12">
+                    <Border x:Name="NavSettings" StrokeThickness="0" StrokeShape="RoundRectangle 8"
+                            Padding="12,7" BackgroundColor="Transparent">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Text="&#x2699;&#xfe0f;" FontSize="16" VerticalOptions="Center" />
+                            <Label x:Name="SettingsLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}" FontSize="14"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+            </Grid>
+        </Grid>
+
+        <BoxView x:Name="NavDivider" Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                 Color="{DynamicResource DividerColor}" />
+
+        <!-- ═══ 右上：自定义标题栏（透明，内容延伸；拖动区由 SetDragRectangles 原生指定）═══ -->
+        <Grid x:Name="TitleBarHost" Grid.Row="0" Grid.Column="2" BackgroundColor="Transparent" />
+
+        <!-- ═══ 右中：主页内容区（tab 内容/子页面嵌入）═══ -->
+        <Grid x:Name="MainArea" Grid.Row="1" Grid.Column="2" IsClippedToBounds="True" />
+
+        <!-- ═══ 底部：播放器区域（全宽，按用户确认原型：网易云 PC 客户端风格）═══
+             结构：1px 分隔线 / 主行（封面|喜欢|控制组|工具） / 贴底细进度条 -->
+        <Grid x:Name="PlayerArea" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
+              RowDefinitions="1,*,10" BackgroundColor="{DynamicResource PlayerBarBackgroundColor}">
+            <BoxView Grid.Row="0" HeightRequest="1"
+                     Color="{DynamicResource DividerColor}"
+                     VerticalOptions="Start" />
+
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*,Auto" Padding="24,0" ColumnSpacing="24">
+
+                <!-- 空白区域点击 → 播放页（最底层透明层；后续控件声明在其上，按钮区域各自响应） -->
+                <Button Grid.ColumnSpan="4"
+                        BackgroundColor="Transparent"
+                        Text=""
+                        BorderWidth="0"
+                        CornerRadius="0"
+                        Padding="0"
+                        Clicked="OnPlayerSongInfoTapped"
+                        HorizontalOptions="Fill" VerticalOptions="Fill" />
+
+                <!-- ① 左：圆形封面 + 歌名/VIP + 艺术家 -->
+                <Grid x:Name="PlayerInfoGrid" Grid.Column="0" ColumnDefinitions="Auto,Auto" ColumnSpacing="12"
+                      VerticalOptions="Center">
+                    <Border WidthRequest="56" HeightRequest="56"
+                            StrokeShape="RoundRectangle 12"
+                            StrokeThickness="1.5" Stroke="#33000000"
+                            BackgroundColor="{DynamicResource SurfaceColor}"
+                            Padding="2"
+                            VerticalOptions="Center" HorizontalOptions="Center">
+                        <!-- Border Padding 2px 让深色环/圆角露出来（Border 不裁剪内容） -->
+                        <Image x:Name="PlayerCover"
+                               Source="{Binding CoverImage}"
+                               Aspect="AspectFill"
+                               WidthRequest="52" HeightRequest="52"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+                    <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="2" VerticalOptions="Center">
+                        <Label Grid.Row="0" Text="{Binding Title}"
+                               FontSize="14" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource PlayerTitleColor}"
+                               MaxLines="1" VerticalOptions="Center" />
+                        <Label Grid.Row="1" Text="{Binding Artist}"
+                               FontSize="12"
+                               TextColor="{DynamicResource PlayerSubColor}"
+                               MaxLines="1" />
+                    </Grid>
+                </Grid>
+
+                <!-- ② 中左：喜欢（红心，状态跟随 VM） -->
+                <Image Grid.Column="1" WidthRequest="22" HeightRequest="22" Aspect="AspectFit"
+                       Source="{Binding LikeIconSource}" VerticalOptions="Center">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ToggleLikeCommand}" />
+                    </Image.GestureRecognizers>
+                </Image>
+
+                <!-- ③ 中央：5 键控制组（全套复制自安卓播放页 NowPlayingPage：
+                     模式40 / 上一首52 / 播放73 / 下一首52 / 播放列表40，ImageButton 透明圆角） -->
+                <Grid x:Name="PlayerControlsGrid" Grid.Column="2"
+                      ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"
+                      ColumnSpacing="14" HorizontalOptions="Center" VerticalOptions="Center">
+                    <!-- 播放模式 -->
+                    <ImageButton Grid.Column="0" WidthRequest="40" HeightRequest="40"
+                            CornerRadius="20" Padding="8"
+                            Aspect="AspectFit"
+                            BackgroundColor="Transparent"
+                            Source="{Binding PlayModeIconSource}"
+                            Command="{Binding CyclePlayModeCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
+                    <!-- 上一首 -->
+                    <ImageButton Grid.Column="1" WidthRequest="52" HeightRequest="52"
+                            CornerRadius="26" Padding="10"
+                            Aspect="AspectFit"
+                            BackgroundColor="Transparent"
+                            Source="{Binding PlayPreviousIconSource}"
+                            Command="{Binding PlayPreviousCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
+                    <!-- 播放/暂停（最大） -->
+                    <ImageButton Grid.Column="2" WidthRequest="73" HeightRequest="73"
+                            CornerRadius="36" Padding="16"
+                            Aspect="AspectFit"
+                            BackgroundColor="Transparent"
+                            Source="{Binding PlayPauseIconSource}"
+                            Command="{Binding TogglePlayPauseCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
+                    <!-- 下一首 -->
+                    <ImageButton Grid.Column="3" WidthRequest="52" HeightRequest="52"
+                            CornerRadius="26" Padding="10"
+                            Aspect="AspectFit"
+                            BackgroundColor="Transparent"
+                            Source="{Binding PlayNextIconSource}"
+                            Command="{Binding PlayNextCommand}"
+                            HorizontalOptions="Center" VerticalOptions="Center" />
+                    <!-- 播放列表（预留） -->
+                    <Grid Grid.Column="4" WidthRequest="40" HeightRequest="40"
+                          HorizontalOptions="Center" VerticalOptions="Center">
+                        <Label Text="☰" FontSize="18"
+                               TextColor="#9C9CA1"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Grid>
+                </Grid>
+
+                <!-- ④ 右：歌词 | 音量（hover 向上弹音量条） | ⋯ 更多（预留） -->
+                <Grid x:Name="ToolsGrid" Grid.Column="3"
+                      ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="14"
+                      VerticalOptions="Center">
+
+                    <!-- 歌词（预留：后续接歌词页/歌词面板） -->
+                    <Grid Grid.Column="0" WidthRequest="32" HeightRequest="32">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnLyricsTapped" />
+                        </Grid.GestureRecognizers>
+                        <Label Text="🔤" FontSize="15" Opacity="0.75"
+                               TextColor="#9C9CA1"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- 音量：图标 + hover 向上弹出垂直音量条 -->
+                    <Grid x:Name="VolumeWrap" Grid.Column="1" WidthRequest="32" HeightRequest="32">
+                        <Grid.GestureRecognizers>
+                            <PointerGestureRecognizer PointerEntered="OnVolumePointerEntered"
+                                                      PointerExited="OnVolumePointerExited" />
+                        </Grid.GestureRecognizers>
+                        <Label Text="🔊" FontSize="16" Opacity="0.8"
+                               TextColor="#9C9CA1"
+                               HorizontalOptions="Center" VerticalOptions="Center" />
+                        <!-- 悬停弹层：按钮上方 -->
+                        <Border x:Name="VolumePop" IsVisible="False"
+                                WidthRequest="96" HeightRequest="140"
+                                StrokeShape="RoundRectangle 10"
+                                StrokeThickness="1" Stroke="{DynamicResource DividerColor}"
+                                BackgroundColor="{DynamicResource SurfaceColor}"
+                                VerticalOptions="End" HorizontalOptions="Center"
+                                Margin="0,0,0,38"
+                                Padding="12,10">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="🔊" FontSize="14"
+                                       TextColor="#9C9CA1"
+                                       HorizontalOptions="Center" />
+                                <!-- 旋转 -90° 变垂直滑条 -->
+                                <Slider x:Name="VolumePopSlider"
+                                        Minimum="0" Maximum="1"
+                                        ThumbColor="#9C9CA1"
+                                        MinimumTrackColor="#9C9CA1"
+                                        MaximumTrackColor="{DynamicResource PlayerSliderTrack}"
+                                        Rotation="-90"
+                                        WidthRequest="80" HeightRequest="80"
+                                        HorizontalOptions="Center" />
+                                <Label x:Name="VolumePctLabel" Text="60%" FontSize="11"
+                                       TextColor="#9C9CA1"
+                                       HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </Grid>
+
+                    <!-- ⋯ 更多（预留） -->
+                    <Label Grid.Column="2" Text="⋯" FontSize="20"
+                           TextColor="#9C9CA1"
+                           VerticalOptions="Center" WidthRequest="24" HorizontalTextAlignment="Center" />
+                </Grid>
+            </Grid>
+
+            <!-- 贴底细进度条（全宽，浅灰） -->
+            <Slider Grid.Row="2" x:Name="DesktopProgressSlider"
+                    Minimum="0"
+                    Maximum="{Binding Duration, Mode=OneWay}"
+                    Value="{Binding Progress, Mode=TwoWay}"
+                    HeightRequest="8"
+                    ThumbColor="#9C9CA1"
+                    MinimumTrackColor="#9C9CA1"
+                    MaximumTrackColor="{DynamicResource PlayerSliderTrack}"
+                    HorizontalOptions="Fill"
+                    DragStarted="OnDesktopSliderDragStarted"
+                    DragCompleted="OnDesktopSliderDragCompleted" />
+        </Grid>
+
+        <!-- ═══ 播放页覆盖层（嵌入主页窗口内部，全窗覆盖含播放器条——播放页不显示底部播放条）═══ -->
+        <Grid x:Name="PlayerOverlay" Grid.Row="0" Grid.RowSpan="3" Grid.Column="0" Grid.ColumnSpan="3"
+              IsVisible="False" BackgroundColor="Black">
+            <!-- 内容由 code-behind 动态填充（NowPlayingPage 的 Content）；
+                 关闭用播放页自带的收起按钮（WinCollapseBtn/CollapseButton，已 hook 到覆盖层关闭） -->
+        </Grid>
+
+    </Grid>
 </ContentPage>

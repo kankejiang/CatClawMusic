@@ -18,4 +18,5 @@
     <!-- 主页面：包含 ViewPager + 自定义 TabBar + 迷你播放器，通过 code-behind 从 DI 注入 -->
     <ShellContent Route="main" x:Name="MainShellContent" />
 
+    
 </Shell>

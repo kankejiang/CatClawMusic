@@ -58,6 +58,8 @@ public partial class NowPlayingPage
     // EQ 频谱动画定时器（WinUI DispatcherTimer，已在 FrostedBackgroundHandler 中验证可用）
     private DispatcherTimer? _winEqTimer;
     private double _winEqTime;
+    // 覆盖层嵌入模式下的 ViewModel 订阅标记（HandlerChanged 订阅在 Handler 就绪时才生效，嵌入时永不就绪）
+    private bool _winVmSubscribed;
 
     // ═══════════════════════════════════════
     // 布局接入
@@ -114,6 +116,15 @@ public partial class NowPlayingPage
     /// <summary>WindowsStage 就绪初始化：构建歌词、同步滑块、初始化音量与图标状态。</summary>
     private void OnWindowsStageReady()
     {
+        // 覆盖层嵌入模式下页面 Handler 不会就绪，HandlerChanged 里的 PropertyChanged 订阅不生效
+        // → 播放状态变化不会更新图标/EQ。这里补订阅（幂等，先 -= 再 += 防重复）。
+        if (!_winVmSubscribed)
+        {
+            _winVmSubscribed = true;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
         ApplyWindowsSafeArea();
 
         // 播放图标
@@ -122,6 +133,9 @@ public partial class NowPlayingPage
 
         // 收藏图标
         UpdateWinLikeIcon();
+
+        // 桌面歌词图标状态（Windows 悬浮歌词）
+        UpdateWinDesktopLyricIcon();
 
         // 进度滑块
         if (_viewModel.Duration > 0)
@@ -758,12 +772,12 @@ public partial class NowPlayingPage
         _viewModel.TogglePlayPauseCommand.Execute(null);
     }
 
-    /// <summary>刷新播放按钮图标（白色圆按钮 + 深色图标）与 EQ 动画状态。</summary>
+    /// <summary>刷新播放按钮图标（白色图标，播放页深色背景）与 EQ 动画状态。</summary>
     private void UpdateWinPlayIcon()
     {
         WinPlayIcon.Source = _winIsPlaying
-            ? ImageSourceHelper.FromNameOriginal("ic_pause_light")
-            : ImageSourceHelper.FromNameOriginal("ic_play_light");
+            ? ImageSourceHelper.FromNameOriginal("ic_pause")
+            : ImageSourceHelper.FromNameOriginal("ic_play");
     }
 
     /// <summary>播放状态变化：更新图标与 EQ 动画。</summary>
@@ -775,6 +789,26 @@ public partial class NowPlayingPage
     }
 
     // ═══════════════════════════════════════
+    // 桌面歌词（Windows 悬浮歌词窗口）
+    // ═══════════════════════════════════════
+
+    private void OnWinDesktopLyricTapped(object? sender, EventArgs e)
+    {
+        if (_desktopLyricManager.IsShowing)
+            _desktopLyricManager.Disable();
+        else
+            _ = _desktopLyricManager.EnableAsync();
+        UpdateWinDesktopLyricIcon();
+    }
+
+    /// <summary>刷新桌面歌词按钮图标（用户要求固定白色，无状态切换）。</summary>
+    private void UpdateWinDesktopLyricIcon()
+    {
+        if (WinDesktopLyricBtn == null) return;
+        WinDesktopLyricBtn.Source = ImageSourceHelper.FromNameOriginal("ic_lyrics_white");
+    }
+
+    // ═══════════════════════════════════════
     // 收藏
     // ═══════════════════════════════════════
 
@@ -783,17 +817,10 @@ public partial class NowPlayingPage
         _viewModel.ToggleLikeCommand.Execute(null);
     }
 
-    /// <summary>刷新收藏 chip 图标与文字（已收藏时显示爱心 + 主题色）。</summary>
+    /// <summary>刷新收藏状态（Windows 收藏 chip 已移除，方法保留供喜欢状态刷新调用，内部仅保留空实现）。</summary>
     private void UpdateWinLikeIcon()
     {
-        var liked = _viewModel.IsLiked;
-        WinLikeIcon.Source = liked
-            ? ImageSourceHelper.FromNameOriginal("ic_favorite_white")
-            : ImageSourceHelper.FromNameOriginal("ic_favorite_border_white");
-        WinLikeLabel.Text = liked ? "已收藏" : "收藏";
-        WinLikeLabel.TextColor = liked
-            ? (Color)Application.Current!.Resources["LikeColor"]
-            : Colors.White;
+        // Windows 播放页的收藏 chip 已删除（2026-08-09），无需更新 UI
     }
 
     // ═══════════════════════════════════════

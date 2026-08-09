@@ -92,6 +92,8 @@
     <Color x:Key="TabInactiveColor">#9AA0B4</Color>
     <!-- 底部导航栏毛玻璃底：半透明白色叠加（ThemeService 运行时按深浅模式覆盖） -->
     <Color x:Key="TabBarBackgroundColor">#40FFFFFF</Color>
+    <!-- 底部播放器条背景：浅色=纯白 / 深色=页面同底（ThemeService 运行时覆盖） -->
+    <Color x:Key="PlayerBarBackgroundColor">#1A1838</Color>
     <!-- 导航栏毛玻璃色调：深色压暗/浅色提亮（ThemeService 运行时覆盖）。
          必须在 XAML 中先定义，深浅色切换时 DynamicResource 才能实时刷新 -->
     <Color x:Key="TabBarGlassTint">#1E1C40</Color>

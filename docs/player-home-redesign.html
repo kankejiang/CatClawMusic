@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猫爪音乐 · 播放器首页原型（网易云布局参考）</title>
+<style>
+/* ════════════════════════════════════════════════════════════
+   猫爪音乐 首页原型 v3 —— 参考网易云桌面端信息架构
+   ① 顶部 44px 沉浸标题栏：logo + 全局搜索 + 系统按钮融入
+   ② 左侧 220px 分组导航：主导航 / 我的 / 创建的歌单(可折叠)
+   ③ 主内容：横向推荐卡带 + 推荐歌单 4×2 网格 + 精选活动横幅
+   ④ 底部 88px 播放器条：三段式（信息 / 控制 / 工具）
+   配色：猫爪品牌深空蓝 #080B1A + 紫 #8C7BFF + 青 #55D6FF
+   ════════════════════════════════════════════════════════════ */
+:root {
+  --base: #080b1a;
+  --panel: #0d1124;
+  --primary: #8c7bff;
+  --accent: #55d6ff;
+  --pink: #ff6b9d;
+  --text: #eef0fb;
+  --text2: #a7adcc;
+  --text3: #6b7298;
+  --glass: rgba(255,255,255,.055);
+  --glass-strong: rgba(255,255,255,.10);
+  --stroke: rgba(255,255,255,.09);
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.28);
+  --shadow-hover: 0 2px 4px rgba(0,0,0,.35), 0 18px 44px rgba(0,0,0,.42), 0 0 0 1px rgba(140,123,255,.14);
+  --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font); background: #05070f; color: var(--text);
+  padding: 36px 24px 70px;
+}
+.page-title { text-align: center; font-size: 21px; letter-spacing: 1px; font-weight: 600; }
+.page-sub { text-align: center; color: var(--text3); font-size: 13px; margin: 8px 0 30px; }
+.design-note {
+  max-width: 1280px; margin: 0 auto 28px; padding: 12px 18px; border-radius: 14px;
+  background: rgba(140,123,255,.09); border: 1px solid rgba(140,123,255,.25);
+  font-size: 12.5px; color: var(--text2); line-height: 1.9;
+}
+.design-note b { color: #cfc8ff; }
+.design-note code { background: rgba(255,255,255,.07); padding: 1px 7px; border-radius: 6px; font-size: 12px; }
+
+/* ══════════ 应用窗口 ══════════ */
+.window {
+  position: relative; width: 1280px; max-width: 100%; margin: 0 auto;
+  height: 820px; border-radius: 18px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 40px 100px rgba(0,0,0,.65);
+  background: linear-gradient(165deg, #0a0e1f 0%, #0c1126 55%, #111735 100%);
+  display: flex; flex-direction: column;
+}
+/* 极光光晕 + 星点（沉浸背景，贯穿全窗口） */
+.window::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(40% 32% at 76% 4%, rgba(140,123,255,.20) 0%, transparent 62%),
+    radial-gradient(30% 26% at 14% 36%, rgba(85,214,255,.11) 0%, transparent 60%),
+    radial-gradient(44% 38% at 90% 86%, rgba(140,123,255,.09) 0%, transparent 60%);
+  animation: aurora 18s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  0%   { transform: translate3d(-2%, -1%, 0) scale(1); opacity: .85; }
+  50%  { transform: translate3d(1.5%, 2%, 0) scale(1.05); opacity: 1; }
+  100% { transform: translate3d(2%, -2%, 0) scale(1.02); opacity: .9; }
+}
+.window::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 10%, rgba(255,255,255,.45), transparent),
+    radial-gradient(1px 1px at 30% 4%, rgba(255,255,255,.35), transparent),
+    radial-gradient(1.3px 1.3px at 46% 22%, rgba(255,255,255,.30), transparent),
+    radial-gradient(1px 1px at 62% 8%, rgba(255,255,255,.45), transparent),
+    radial-gradient(1.2px 1.2px at 78% 28%, rgba(255,255,255,.28), transparent),
+    radial-gradient(1px 1px at 90% 12%, rgba(255,255,255,.40), transparent),
+    radial-gradient(1.1px 1.1px at 8% 55%, rgba(255,255,255,.26), transparent),
+    radial-gradient(1px 1px at 95% 48%, rgba(255,255,255,.22), transparent),
+    radial-gradient(1.1px 1.1px at 60% 74%, rgba(255,255,255,.28), transparent),
+    radial-gradient(1.2px 1.2px at 32% 86%, rgba(255,255,255,.22), transparent);
+  animation: twinkle 6s ease-in-out infinite alternate;
+}
+@keyframes twinkle { from { opacity: .5; } to { opacity: 1; } }
+
+/* ══════════ 顶部沉浸标题栏（44px，网易云式：搜索框 + 系统按钮融入） ══════════ */
+.titlebar {
+  position: relative; z-index: 3; height: 44px; flex: none;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 0 0 16px;
+  background: rgba(13,17,36,.72);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  backdrop-filter: blur(18px);
+  -webkit-user-select: none; user-select: none;
+}
+.tb-logo {
+  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  padding: 4px 10px 4px 0;
+}
+.tb-logo .mark {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: grid; place-items: center; font-size: 14px;
+  box-shadow: 0 0 18px rgba(140,123,255,.45);
+}
+.tb-logo .name { font-size: 14px; font-weight: 700; letter-spacing: .5px; }
+.tb-logo .name em { font-style: normal; background: linear-gradient(90deg, var(--primary), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tb-search {
+  flex: 1; max-width: 460px; height: 30px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; border-radius: 9px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.08);
+  transition: all .2s;
+}
+.tb-search:hover { background: rgba(255,255,255,.10); border-color: rgba(140,123,255,.4); }
+.tb-search:focus-within { background: rgba(255,255,255,.11); border-color: var(--primary); box-shadow: 0 0 0 3px rgba(140,123,255,.15); }
+.tb-search svg { width: 13px; height: 13px; fill: var(--text3); flex: none; }
+.tb-search input {
+  flex: 1; border: none; outline: none; background: transparent;
+  color: var(--text); font-size: 12.5px; font-family: var(--font);
+}
+.tb-search input::placeholder { color: var(--text3); }
+.tb-search .hot {
+  font-size: 10.5px; color: var(--pink); background: rgba(255,107,157,.14);
+  border: 1px solid rgba(255,107,157,.3); padding: 1px 7px; border-radius: 20px; cursor: pointer;
+}
+.tb-right { margin-left: auto; display: flex; align-items: center; gap: 8px; padding-right: 4px; }
+.tb-icon {
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+  cursor: pointer; transition: all .15s; border: none;
+  background: transparent;
+}
+.tb-icon svg { width: 14px; height: 14px; fill: var(--text2); }
+.tb-icon:hover { background: rgba(255,255,255,.09); }
+.tb-avatar {
+  width: 26px; height: 26px; border-radius: 50%; cursor: pointer; margin-left: 4px;
+  background: linear-gradient(135deg, var(--primary), var(--pink));
+  display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff;
+  box-shadow: 0 0 0 2px rgba(140,123,255,.25);
+}
+/* 系统按钮组（网易云风格：融入工具栏右侧的 caption 按钮） */
+.win-btns { display: flex; gap: 2px; margin-left: 6px; }
+.win-btns button {
+  width: 34px; height: 28px; border: none; cursor: pointer;
+  background: transparent; border-radius: 7px;
+  display: grid; place-items: center; transition: background .15s;
+}
+.win-btns button svg { width: 11px; height: 11px; fill: var(--text2); }
+.win-btns button:hover { background: rgba(255,255,255,.10); }
+.win-btns button.close:hover { background: #e81123; }
+.win-btns button.close:hover svg { fill: #fff; }
+
+/* ══════════ 主体（侧栏 + 内容） ══════════ */
+.body { position: relative; z-index: 2; flex: 1; display: flex; min-height: 0; }
+
+/* ── 左侧导航 220px ── */
+.sidebar {
+  width: 220px; flex: none; display: flex; flex-direction: column;
+  background: rgba(13,17,36,.55);
+  border-right: 1px solid rgba(255,255,255,.06);
+  backdrop-filter: blur(14px);
+  padding: 12px 10px 10px;
+}
+.nav-group { margin-bottom: 14px; }
+.nav-group .g-title {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; color: var(--text3); letter-spacing: 1px;
+  padding: 4px 10px 6px; cursor: default;
+}
+.nav-group .g-title .fold {
+  width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center;
+  cursor: pointer; transition: transform .25s;
+}
+.nav-group .g-title .fold:hover { background: rgba(255,255,255,.08); }
+.nav-group .g-title .fold svg { width: 10px; height: 10px; fill: var(--text3); }
+.nav-group.folded .g-title .fold { transform: rotate(-90deg); }
+.nav-group.folded .nav-item { display: none; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  height: 34px; padding: 0 10px; margin-bottom: 2px;
+  border-radius: 9px; cursor: pointer;
+  font-size: 13px; color: var(--text2);
+  transition: all .15s; position: relative;
+}
+.nav-item svg { width: 15px; height: 15px; fill: currentColor; opacity: .85; flex: none; }
+.nav-item:hover { background: rgba(255,255,255,.06); color: var(--text); }
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(140,123,255,.22), rgba(140,123,255,.08));
+  color: #fff; font-weight: 600;
+}
+.nav-item.active::before {
+  content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 16px; border-radius: 3px;
+  background: linear-gradient(180deg, var(--primary), var(--accent));
+}
+.nav-item .badge {
+  margin-left: auto; font-size: 10px; color: var(--text3);
+  background: rgba(255,255,255,.07); padding: 1px 7px; border-radius: 10px;
+}
+.nav-item .paw { margin-left: auto; font-size: 10px; }
+.sidebar .bottom { margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06); }
+.nav-item.mini { height: 32px; font-size: 12.5px; }
+
+/* ── 主内容区 ── */
+.content {
+  flex: 1; min-width: 0; overflow-y: auto; padding: 22px 26px 30px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent;
+}
+.content::-webkit-scrollbar { width: 6px; }
+.content::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+
+/* 页首问候 */
+.greet { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+.greet h1 { font-size: 21px; font-weight: 600; letter-spacing: .3px; }
+.greet h1 em { font-style: normal; background: linear-gradient(90deg, var(--primary), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.greet .sub { font-size: 12px; color: var(--text3); }
+.greet .refresh { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text3); cursor: pointer; padding: 5px 10px; border-radius: 8px; }
+.greet .refresh:hover { background: rgba(255,255,255,.07); color: var(--text2); }
+.greet .refresh svg { width: 12px; height: 12px; fill: currentColor; }
+
+/* 顶部推荐卡带（横向，网易云 6 卡） */
+.banner-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 26px; }
+.bcard {
+  position: relative; height: 118px; border-radius: 13px; overflow: hidden;
+  cursor: pointer; border: 1px solid rgba(255,255,255,.08);
+  box-shadow: var(--shadow-soft); transition: all .22s;
+}
+.bcard:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+.bcard .bg { position: absolute; inset: 0; }
+.bcard:nth-child(1) .bg { background: linear-gradient(135deg, #8c7bff 0%, #4a3f9e 60%, #2a2458 100%); }
+.bcard:nth-child(2) .bg { background: linear-gradient(135deg, #55d6ff 0%, #2e7fd1 60%, #1c3f7d 100%); }
+.bcard:nth-child(3) .bg { background: linear-gradient(135deg, #ff6b9d 0%, #c2457f 60%, #6e2a52 100%); }
+.bcard:nth-child(4) .bg { background: linear-gradient(135deg, #ffb35c 0%, #e07a2e 60%, #7d3f1c 100%); }
+.bcard:nth-child(5) .bg { background: linear-gradient(135deg, #3ddc97 0%, #1f9e74 60%, #144d3c 100%); }
+.bcard:nth-child(6) .bg { background: linear-gradient(135deg, #6c7bff 0%, #4a55d1 60%, #2a2f7d 100%); }
+.bcard .bg::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(60% 60% at 80% 10%, rgba(255,255,255,.28), transparent 70%);
+}
+.bcard .inner { position: relative; padding: 12px 13px; height: 100%; display: flex; flex-direction: column; }
+.bcard .tag {
+  align-self: flex-start; font-size: 9.5px; letter-spacing: 1px;
+  color: rgba(255,255,255,.85); background: rgba(255,255,255,.16);
+  border: 1px solid rgba(255,255,255,.22); padding: 2px 8px; border-radius: 20px;
+  backdrop-filter: blur(4px);
+}
+.bcard .title { margin-top: auto; font-size: 13px; font-weight: 600; line-height: 1.35; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+.bcard .title small { display: block; font-size: 10.5px; font-weight: 400; opacity: .75; margin-top: 2px; }
+.bcard .play {
+  position: absolute; right: 9px; bottom: 9px; width: 30px; height: 30px;
+  border-radius: 50%; background: rgba(255,255,255,.92); color: #2a1e63;
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  opacity: 0; transform: translateY(6px) scale(.9); transition: all .2s;
+}
+.bcard:hover .play { opacity: 1; transform: translateY(0) scale(1); }
+.bcard .play:hover { background: #fff; }
+.bcard .play svg { width: 13px; height: 13px; fill: currentColor; margin-left: 1px; }
+
+/* 区块标题（主题色竖条 + 副标题/操作） */
+.section-head { display: flex; align-items: center; gap: 10px; margin: 24px 0 14px; }
+.section-head .bar { width: 4px; height: 16px; border-radius: 3px; background: linear-gradient(180deg, var(--primary), var(--accent)); }
+.section-head h2 { font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+.section-head .more { margin-left: auto; font-size: 11.5px; color: var(--text3); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.section-head .more:hover { color: var(--primary); }
+.section-head .more svg { width: 10px; height: 10px; fill: currentColor; }
+
+/* 推荐歌单 4×2 网格 */
+.playlist-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.pcard { cursor: pointer; }
+.pcard .cover {
+  position: relative; aspect-ratio: 1/1; border-radius: 11px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08); box-shadow: var(--shadow-soft);
+  transition: all .22s;
+}
+.pcard:hover .cover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+.pcard .cover .art { position: absolute; inset: 0; background-size: cover; background-position: center; transition: transform .35s; }
+.pcard:hover .cover .art { transform: scale(1.07); }
+.pcard .cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.55)); }
+.pcard .plays {
+  position: absolute; top: 7px; right: 9px; z-index: 2;
+  display: flex; align-items: center; gap: 4px;
+  font-size: 10.5px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+.pcard .plays svg { width: 10px; height: 10px; fill: #fff; }
+.pcard .play {
+  position: absolute; right: 9px; bottom: 9px; z-index: 2;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(140,123,255,.5);
+  opacity: 0; transform: translateY(8px); transition: all .2s;
+}
+.pcard:hover .play { opacity: 1; transform: translateY(0); }
+.pcard .play:hover { transform: translateY(0) scale(1.12); }
+.pcard .play svg { width: 13px; height: 13px; fill: #fff; margin-left: 1px; }
+.pcard .name {
+  margin-top: 8px; font-size: 12.5px; line-height: 1.45;
+  color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pcard:hover .name { color: var(--primary); }
+.pcard .src { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* 精选活动横幅 */
+.activity { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 8px; }
+.acard {
+  height: 96px; border-radius: 13px; position: relative; overflow: hidden; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.08); box-shadow: var(--shadow-soft); transition: all .22s;
+}
+.acard:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.acard .art { position: absolute; inset: 0; }
+.acard:first-child .art { background: linear-gradient(120deg, #141a3a 0%, #3d2f8f 55%, #8c7bff 100%); }
+.acard:nth-child(2) .art { background: linear-gradient(120deg, #0f2438 0%, #14506e 60%, #55d6ff 100%); }
+.acard:nth-child(3) .art { background: linear-gradient(120deg, #2a0f2e 0%, #7d2a55 60%, #ff6b9d 100%); }
+.acard .art::after { content: ""; position: absolute; inset: 0; background: radial-gradient(70% 90% at 85% 0%, rgba(255,255,255,.2), transparent 60%); }
+.acard .txt { position: absolute; left: 14px; bottom: 12px; z-index: 2; }
+.acard .txt .k { font-size: 9.5px; letter-spacing: 1.5px; color: rgba(255,255,255,.7); text-transform: uppercase; }
+.acard .txt .t { font-size: 14.5px; font-weight: 700; margin-top: 3px; text-shadow: 0 2px 8px rgba(0,0,0,.45); }
+
+/* ══════════ 底部播放器条（三段式，网易云式紧凑） ══════════ */
+.playerbar {
+  position: relative; z-index: 3; height: 84px; flex: none;
+  display: flex; align-items: center; gap: 20px;
+  padding: 0 18px;
+  background: rgba(13,17,36,.82);
+  border-top: 1px solid rgba(255,255,255,.07);
+  backdrop-filter: blur(20px);
+}
+/* 左段：曲目信息 */
+.pb-info { display: flex; align-items: center; gap: 12px; width: 320px; flex: none; }
+.pb-cover {
+  width: 52px; height: 52px; border-radius: 9px; position: relative; flex: none;
+  background: linear-gradient(135deg, #7b6cff, #2e5fa8); overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  cursor: pointer;
+}
+.pb-cover .art { position: absolute; inset: 0; background: linear-gradient(135deg, #6c5ce7 0%, #2d5da8 50%, #0e1a3d 100%); }
+.pb-cover::before {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(45% 45% at 30% 25%, rgba(255,255,255,.35), transparent 70%);
+}
+.pb-cover .eq {
+  position: absolute; inset: 0; z-index: 2; display: grid; place-items: center;
+  gap: 3px; opacity: 0; transition: opacity .2s;
+}
+.pb-cover:hover .eq { opacity: 1; }
+.pb-cover .eq span {
+  width: 4px; border-radius: 2px; background: #fff;
+  animation: eq 1s ease-in-out infinite;
+}
+.pb-cover .eq span:nth-child(1) { height: 12px; animation-delay: 0s; }
+.pb-cover .eq span:nth-child(2) { height: 20px; animation-delay: .2s; }
+.pb-cover .eq span:nth-child(3) { height: 15px; animation-delay: .4s; }
+.pb-cover .eq span:nth-child(4) { height: 18px; animation-delay: .1s; }
+@keyframes eq { 0%,100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
+.pb-meta { min-width: 0; }
+.pb-meta .t { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-meta .a { font-size: 11.5px; color: var(--text3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-actions { display: flex; align-items: center; gap: 2px; margin-left: 2px; }
+.pb-actions button {
+  width: 28px; height: 28px; border: none; background: transparent; border-radius: 8px;
+  display: grid; place-items: center; cursor: pointer; transition: all .15s;
+}
+.pb-actions button svg { width: 13px; height: 13px; fill: var(--text2); }
+.pb-actions button:hover { background: rgba(255,255,255,.08); }
+.pb-actions button.liked svg { fill: var(--pink); }
+.pb-actions .cnt { font-size: 10.5px; color: var(--text3); margin-left: 2px; }
+
+/* 中段：播放控制 */
+.pb-controls { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+.pb-btns { display: flex; align-items: center; gap: 12px; }
+.pb-btns button {
+  width: 30px; height: 30px; border: none; background: transparent; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer; transition: all .15s;
+}
+.pb-btns button svg { width: 15px; height: 15px; fill: var(--text2); transition: fill .15s; }
+.pb-btns button:hover svg { fill: var(--text); }
+.pb-btns button.main {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  box-shadow: 0 3px 14px rgba(140,123,255,.45);
+}
+.pb-btns button.main:hover { transform: scale(1.07); }
+.pb-btns button.main svg { fill: #fff; width: 15px; height: 15px; margin-left: 1px; }
+.pb-progress { display: flex; align-items: center; gap: 10px; width: min(480px, 100%); }
+.pb-progress .time { font-size: 10.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.pb-progress .track {
+  flex: 1; height: 4px; border-radius: 3px; background: rgba(255,255,255,.12);
+  cursor: pointer; position: relative;
+}
+.pb-progress .track .fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 31%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+.pb-progress .track .thumb {
+  position: absolute; left: 31%; top: 50%; transform: translate(-50%, -50%);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.5);
+  opacity: 0; transition: opacity .15s;
+}
+.pb-progress .track:hover .thumb { opacity: 1; }
+.pb-progress .track:hover .fill { height: 6px; margin-top: -1px; }
+
+/* 右段：工具 */
+.pb-tools { display: flex; align-items: center; gap: 4px; width: 300px; flex: none; justify-content: flex-end; }
+.pb-tools button {
+  width: 30px; height: 30px; border: none; background: transparent; border-radius: 8px;
+  display: grid; place-items: center; cursor: pointer; transition: all .15s;
+}
+.pb-tools button svg { width: 14px; height: 14px; fill: var(--text2); }
+.pb-tools button:hover { background: rgba(255,255,255,.08); }
+.pb-tools button.on svg { fill: var(--accent); }
+.pb-vol { display: flex; align-items: center; gap: 7px; margin: 0 6px; }
+.pb-vol svg { width: 13px; height: 13px; fill: var(--text3); }
+.pb-vol .track { width: 74px; height: 4px; border-radius: 3px; background: rgba(255,255,255,.12); cursor: pointer; position: relative; }
+.pb-vol .track .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 58%; border-radius: 3px; background: var(--primary); }
+
+/* 入场动画 */
+.rise { animation: rise .5s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.d1 { animation-delay: .05s; } .d2 { animation-delay: .10s; } .d3 { animation-delay: .15s; }
+.d4 { animation-delay: .20s; } .d5 { animation-delay: .25s; } .d6 { animation-delay: .30s; }
+.d7 { animation-delay: .35s; } .d8 { animation-delay: .40s; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-title">🐾 猫爪音乐 · 播放器首页原型</div>
+<div class="page-sub">参考网易云桌面端信息架构 · 保持猫爪品牌深空蓝玻璃拟态 · 1280×820 模拟窗口</div>
+
+<div class="design-note">
+  <b>设计要点（对照网易云截图）：</b>
+  ① 顶部 44px 沉浸标题栏 —— 全局搜索框放大居中偏左，系统按钮（− □ ✕）<code>融入工具栏右端</code>，由 SetTitleBar 注册为 caption 区域；<br>
+  ② 左侧 220px 分组导航 —— 主导航 / 我的 / 创建的歌单（可折叠，歌单分组收纳）；<br>
+  ③ 主内容 —— 顶部 6 卡推荐带（每日推荐/私人漫游/AI 歌单/新歌速递…）+ 推荐歌单 4×2 网格（播放量角标 + hover 播放按钮）+ 精选活动横幅；<br>
+  ④ 底部 84px 三段式播放器条 —— 左：封面+歌名+歌手+喜欢/评论；中：控制+进度；右：歌词/音量/歌单；<br>
+  ⑤ 全部区域为半透明玻璃叠在同一主题背景上（无颜色断层），与现有 FrostedBackground 毛玻璃体系一致。
+</div>
+
+<div class="window">
+
+  <!-- ══════ 顶部沉浸标题栏（可拖拽区 = 整条，系统按钮除外） ══════ -->
+  <div class="titlebar">
+    <div class="tb-logo">
+      <div class="mark">🐾</div>
+      <div class="name">猫爪<em>音乐</em></div>
+    </div>
+    <div class="tb-search">
+      <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+      <input placeholder="搜索歌曲、歌手、歌单、艺术家…">
+      <span class="hot">热搜 · 晴天</span>
+    </div>
+    <div class="tb-right">
+      <button class="tb-icon" title="AI 对话"><svg viewBox="0 0 24 24"><path d="M12 3c.7 0 1.35.38 1.7 1l5.6 9.7a1.98 1.98 0 0 1-1.7 3H6.4a1.98 1.98 0 0 1-1.7-3L10.3 4c.35-.62 1-1 1.7-1zm0 4a1 1 0 0 0-.86.5L8.4 12h7.2l-2.74-4.5A1 1 0 0 0 12 7z"/></svg></button>
+      <button class="tb-icon" title="消息"><svg viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2zm6-6v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z"/></svg></button>
+      <div class="tb-avatar">猫</div>
+      <div class="win-btns">
+        <button title="最小化"><svg viewBox="0 0 12 12"><path d="M1 5.5h10v1H1z"/></svg></button>
+        <button title="最大化"><svg viewBox="0 0 12 12"><path d="M2 2h8v8H2z" fill="none" stroke-width="1.1"/></svg></button>
+        <button class="close" title="关闭"><svg viewBox="0 0 12 12"><path d="M2.2 1.5l3.8 3.8 3.8-3.8 1.4 1.4L7.4 6.7l3.8 3.8-1.4 1.4-3.8-3.8-3.8 3.8-1.4-1.4 3.8-3.8-3.8-3.8z"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ 主体 ══════ -->
+  <div class="body">
+
+    <!-- 左侧导航 -->
+    <div class="sidebar">
+      <div class="nav-group">
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24"><path d="M12 3l9 8h-3v10h-4v-7H10v7H6V11H3z"/></svg>
+          发现音乐
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24"><path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h12V5H6zm3 2h6v2H9V7zm0 4h6v2H9v-2zm0 4h4v2H9v-2z"/></svg>
+          音乐库
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          我喜欢的音乐
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 7 7v2a9 9 0 0 0 0-18zm-1 7l5.6 3.2L17 13l-5-3z"/></svg>
+          最近播放
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <div class="g-title">创建的歌单 3 <span class="fold"><svg viewBox="0 0 24 24"><path d="M8 5.5l7 6.5-7 6.5z"/></svg></span></div>
+        <div class="nav-item"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>夜跑 BGM<span class="paw">🐾 26</span></div>
+        <div class="nav-item"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>纯音乐 · 自习室<span class="paw">🐾 58</span></div>
+        <div class="nav-item"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>深夜 Emo 电台<span class="paw">🐾 12</span></div>
+      </div>
+
+      <div class="nav-group">
+        <div class="g-title">插件</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24"><path d="M19.5 13.5v-2L17 10.5l-1.2-2.9.8-1.6-1.4-1.4-1.6.8-2.9-1.2-.6-2.4h-2l-.6 2.4-2.9 1.2-1.6-.8L1.6 6l.8 1.6-1.2 2.9-2.4.6v2l2.4.6 1.2 2.9-.8 1.6 1.4 1.4 1.6-.8 2.9 1.2.6 2.4h2l.6-2.4 2.9-1.2 1.6.8 1.4-1.4-.8-1.6 1.2-2.9 2.4-.6z"/></svg>
+          插件管理
+          <span class="badge">2</span>
+        </div>
+      </div>
+
+      <div class="bottom">
+        <div class="nav-item mini">
+          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+          设置
+        </div>
+        <div class="nav-item mini">
+          <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-1 6.5c-.1.4-.5.7-.9.6-.4-.1-.7-.5-.6-.9.1-.4.5-.7.9-.6.4.1.7.5.6.9zM12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+          插件 · 网易云音源
+          <span class="badge" style="color:#55d6ff">v0.1.20</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="content">
+      <div class="greet rise d1">
+        <h1>晚上好，<em>猫爪</em></h1>
+        <div class="sub">今天是 8 月 9 日 · 周日 · 已听 214 首</div>
+        <div class="refresh"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>换一批</div>
+      </div>
+
+      <!-- 顶部推荐卡带 -->
+      <div class="banner-strip">
+        <div class="bcard rise d1">
+          <div class="bg"></div>
+          <div class="inner">
+            <span class="tag">每日推荐</span>
+            <div class="title">今天想听什么？<small>为你精选 30 首</small></div>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+        </div>
+        <div class="bcard rise d2">
+          <div class="bg"></div>
+          <div class="inner">
+            <span class="tag">私人漫游</span>
+            <div class="title">私人漫游电台<small>越听越懂你</small></div>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+        </div>
+        <div class="bcard rise d3">
+          <div class="bg"></div>
+          <div class="inner">
+            <span class="tag">AI 歌单</span>
+            <div class="title">深夜 Emo 电台<small>心情点歌 · 一键生成</small></div>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+        </div>
+        <div class="bcard rise d4">
+          <div class="bg"></div>
+          <div class="inner">
+            <span class="tag">新歌速递</span>
+            <div class="title">本周新歌<small>更新 26 首</small></div>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+        </div>
+        <div class="bcard rise d5">
+          <div class="bg"></div>
+          <div class="inner">
+            <span class="tag">元气通勤</span>
+            <div class="title">早八打气歌单<small>通勤 35 分钟</small></div>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+        </div>
+        <div class="bcard rise d6">
+          <div class="bg"></div>
+          <div class="inner">
+            <span class="tag">治愈系</span>
+            <div class="title">雨声白噪音<small>专注 · 助眠</small></div>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 推荐歌单 -->
+      <div class="section-head rise d3">
+        <span class="bar"></span>
+        <h2>推荐歌单</h2>
+        <span class="more">换一批 <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></span>
+      </div>
+      <div class="playlist-grid">
+        <div class="pcard rise d3">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#8c7bff,#3d2f8f 55%,#141a3a)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>128万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">华语经典 · 那些年单曲循环的旋律</div>
+          <div class="src">全网聚合 · 126 首</div>
+        </div>
+        <div class="pcard rise d4">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#55d6ff,#2e7fd1 55%,#0f2438)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>86万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">City Pop 夜行 · 霓虹与海风</div>
+          <div class="src">网易云音源 · 88 首</div>
+        </div>
+        <div class="pcard rise d5">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#ff6b9d,#c2457f 55%,#2a0f2e)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>63万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">独立民谣 · 山谷里的低语</div>
+          <div class="src">本地曲库 · 42 首</div>
+        </div>
+        <div class="pcard rise d6">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#ffb35c,#e07a2e 55%,#3d1f0c)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>45万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">粤语金曲 · 千千阙歌精选</div>
+          <div class="src">网易云音源 · 76 首</div>
+        </div>
+        <div class="pcard rise d5">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#3ddc97,#1f9e74 55%,#0e2b21)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>32万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">Lo-Fi 自习室 · 白噪音专注</div>
+          <div class="src">全网聚合 · 58 首</div>
+        </div>
+        <div class="pcard rise d6">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#6c7bff,#4a55d1 55%,#1a1f4a)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>21万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">K-Pop 燃脂 · 运动歌单</div>
+          <div class="src">本地曲库 · 34 首</div>
+        </div>
+        <div class="pcard rise d7">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#b06cff,#7a3fb8 55%,#2a1240)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>18万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">爵士咖啡馆 · 周末早晨</div>
+          <div class="src">网易云音源 · 51 首</div>
+        </div>
+        <div class="pcard rise d8">
+          <div class="cover">
+            <div class="art" style="background-image:linear-gradient(135deg,#ff7a8a,#d1405c 55%,#40101c)"></div>
+            <span class="plays"><svg viewBox="0 0 24 24"><path d="M12 4C7.6 4 4 5.6 4 7.6c0 1.3 1.7 2.4 4.2 3L12 15l3.8-4.4c2.5-.6 4.2-1.7 4.2-3C20 5.6 16.4 4 12 4z"/></svg>9万</span>
+            <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="name">ACG 电音 · 二次元能量补给</div>
+          <div class="src">全网聚合 · 63 首</div>
+        </div>
+      </div>
+
+      <!-- 精选活动 -->
+      <div class="section-head rise d6">
+        <span class="bar"></span>
+        <h2>精选活动</h2>
+        <span class="more">查看全部</span>
+      </div>
+      <div class="activity rise d6">
+        <div class="acard">
+          <div class="art"></div>
+          <div class="txt"><div class="k">AI 歌单计划</div><div class="t">告诉 Yuki 心情，一键生成专属歌单</div></div>
+        </div>
+        <div class="acard">
+          <div class="art"></div>
+          <div class="txt"><div class="k">插件上新</div><div class="t">网易云音源 v0.1.20</div></div>
+        </div>
+        <div class="acard">
+          <div class="art"></div>
+          <div class="txt"><div class="k">猫爪圈</div><div class="t">P2P 音乐共享开放内测</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ 底部播放器条 ══════ -->
+  <div class="playerbar">
+    <!-- 左：曲目 -->
+    <div class="pb-info">
+      <div class="pb-cover">
+        <div class="art"></div>
+        <div class="eq"><span></span><span></span><span></span><span></span></div>
+      </div>
+      <div class="pb-meta">
+        <div class="t">晴天 · 钢琴版</div>
+        <div class="a">张栋梁 · 猫爪精选</div>
+      </div>
+      <div class="pb-actions">
+        <button class="liked" title="喜欢"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></button>
+        <span class="cnt">99+</span>
+        <button title="评论"><svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg></button>
+        <span class="cnt">21</span>
+      </div>
+    </div>
+
+    <!-- 中：控制 -->
+    <div class="pb-controls">
+      <div class="pb-btns">
+        <button title="播放模式"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg></button>
+        <button title="上一首"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+        <button class="main" title="播放"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+        <button title="下一首"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+        <button title="收藏"><svg viewBox="0 0 24 24"><path d="M12 5.7c-1-1.2-2.8-1.7-4.3-1.2C5.4 5.2 4 7.3 4 9.6c0 4.5 5 7.8 8 9.6 3-1.8 8-5.1 8-9.6 0-2.3-1.4-4.4-3.7-5.1-1.5-.5-3.3 0-4.3 1.2z"/></svg></button>
+      </div>
+      <div class="pb-progress">
+        <span class="time">1:27</span>
+        <div class="track"><div class="fill"></div><div class="thumb"></div></div>
+        <span class="time">4:42</span>
+      </div>
+    </div>
+
+    <!-- 右：工具 -->
+    <div class="pb-tools">
+      <button class="on" title="歌词"><svg viewBox="0 0 24 24"><path d="M9 3v11.55A4 4 0 1 0 11 17V7h4V3H9z"/></svg></button>
+      <button title="列表"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg></button>
+      <button title="高清臻音"><svg viewBox="0 0 24 24"><path d="M12 3v2h7v14h-7v2h9V3h-9zM2.5 12l5.5 5.5v-11L2.5 12z"/></svg></button>
+      <div class="pb-vol">
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+        <div class="track"><div class="fill"></div></div>
+      </div>
+      <button title="展开"><svg viewBox="0 0 24 24"><path d="M7.4 8.6L12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

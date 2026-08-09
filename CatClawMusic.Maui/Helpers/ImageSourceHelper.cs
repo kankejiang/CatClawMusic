@@ -59,8 +59,10 @@ public static class ImageSourceHelper
                 var baseName = name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
                     ? name.Substring(0, name.Length - 4)
                     : name;
-                var scaleFile = Path.Combine(AppContext.BaseDirectory, $"{baseName}.scale-100.png");
-                if (File.Exists(scaleFile))
+                // 按当前 DPI 密度选最接近的 scale 变体（100/125/150/200/400）：
+                // 固定 scale-100（24×24）在高 DPI 下放大显示会锯齿
+                var scaleFile = FindBestScaleFile(baseName);
+                if (scaleFile != null)
                 {
                     result = ImageSource.FromFile(scaleFile);
                     _cache[name] = result;
@@ -77,6 +79,79 @@ public static class ImageSourceHelper
             _cache[name] = null;
             return null;
         }
+    }
+
+    /// <summary>按显示器 DPI 密度选择最接近的 scale PNG（100/125/150/200/400），找不到逐级降级。</summary>
+    private static string? FindBestScaleFile(string baseName)
+    {
+        double density = 1.0;
+        try { density = Microsoft.Maui.Devices.DeviceDisplay.Current.MainDisplayInfo.Density; }
+        catch { }
+
+        string[] preferred = density >= 3.5 ? new[] { "400" }
+            : density >= 1.75 ? new[] { "200" }
+            : density >= 1.4 ? new[] { "150" }
+            : density >= 1.15 ? new[] { "125" }
+            : new[] { "100" };
+
+        foreach (var suffix in preferred.Concat(new[] { "200", "150", "125", "100" }).Distinct())
+        {
+            var p = Path.Combine(AppContext.BaseDirectory, $"{baseName}.scale-{suffix}.png");
+            if (File.Exists(p)) return p;
+        }
+        return null;
+    }
+
+    /// <summary>优先选最高分辨率 scale PNG（400→200→150→125→100）：小尺寸显示时缩小渲染，锐利无锯齿。</summary>
+    private static string? FindHighResScaleFile(string baseName)
+    {
+        foreach (var suffix in new[] { "400", "200", "150", "125", "100" })
+        {
+            var p = Path.Combine(AppContext.BaseDirectory, $"{baseName}.scale-{suffix}.png");
+            if (File.Exists(p)) return p;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 高分辨率版（Windows）：加载最高 scale 的 PNG（如 96×96）缩小显示，小尺寸图标锐利无锯齿。
+    /// ⚠️ 不用 SVG 直接渲染：MAUI Windows 的 ImageSource.FromFile 走 BitmapImage，不支持 .svg（显示空白），
+    /// 因此用"超采样 PNG"等效实现矢量观感。非 Windows 回退 <see cref="FromName"/>。
+    /// </summary>
+    public static ImageSource? FromNameVector(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        if (OperatingSystem.IsWindows())
+        {
+            var hiRes = FindHighResScaleFile(name);
+            if (hiRes != null) return ImageSource.FromFile(hiRes);
+        }
+        return FromName(name);
+    }
+
+    /// <summary>
+    /// 播放模式图标的主题感知高分辨率版：浅色模式优先用主题色预生成变体
+    /// <c>{name}_{hex}_active</c>（存在时），深色模式用原版；加载最高 scale PNG 缩小显示。
+    /// </summary>
+    public static ImageSource? FromNameVectorThemed(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        if (OperatingSystem.IsWindows())
+        {
+            var dark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+            if (!dark)
+            {
+                var hex = GetPrimaryTintHex();
+                if (!string.IsNullOrEmpty(hex))
+                {
+                    var themed = FindHighResScaleFile($"{name}_{hex}_active");
+                    if (themed != null) return ImageSource.FromFile(themed);
+                }
+            }
+            var hiRes = FindHighResScaleFile(name);
+            if (hiRes != null) return ImageSource.FromFile(hiRes);
+        }
+        return FromName(name);
     }
 
     /// <summary>

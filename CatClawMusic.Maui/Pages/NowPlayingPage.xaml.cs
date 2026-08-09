@@ -17,6 +17,7 @@ public partial class NowPlayingPage : ContentPage
     private readonly SleepTimerService _sleepTimer;
     private readonly IMusicLibraryService _musicLibrary;
     private readonly AudioPlayerService _audioPlayer;
+    private readonly Services.DesktopLyricManager _desktopLyricManager;
     private bool _isDragging;
     private readonly List<KaraokeLabel> _lyricLabels = new();
     private readonly List<Border> _lyricBorders = new();
@@ -60,14 +61,17 @@ public partial class NowPlayingPage : ContentPage
     /// <param name="sleepTimer">睡眠定时服务。</param>
     /// <param name="musicLibrary">音乐库服务（歌单操作）。</param>
     /// <param name="audioPlayer">音频播放服务（均衡器应用）。</param>
+    /// <param name="desktopLyricManager">桌面歌词协调器（Windows 悬浮歌词开关）。</param>
     public NowPlayingPage(NowPlayingViewModel viewModel, SleepTimerService sleepTimer,
-        IMusicLibraryService musicLibrary, AudioPlayerService audioPlayer)
+        IMusicLibraryService musicLibrary, AudioPlayerService audioPlayer,
+        Services.DesktopLyricManager desktopLyricManager)
     {
         InitializeComponent();
         _viewModel = viewModel;
         _sleepTimer = sleepTimer;
         _musicLibrary = musicLibrary;
         _audioPlayer = audioPlayer;
+        _desktopLyricManager = desktopLyricManager;
         BindingContext = _viewModel;
 
         // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）

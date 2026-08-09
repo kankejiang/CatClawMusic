@@ -578,6 +578,8 @@ public class ThemeService : IThemeService
         resources["TabInactiveColor"] = Color.FromArgb("#FFFFFF"); // 深色模式：未选中图标/文字为白色
         // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
         resources["TabBarBackgroundColor"] = Color.FromArgb("#30FFFFFF");
+        // 底部播放器条背景：深色模式与页面同底（#1A1838），衔接无缝
+        resources["PlayerBarBackgroundColor"] = darkBase;
         // 导航栏毛玻璃色调：深色模式=白色反差，浅色模式=主题色
         resources["TabBarGlassTint"] = Colors.White; // 深色模式：浅色毛玻璃（白底反差）
         resources["BottomBarTintOpacity"] = 0.18; // 深色模式：白色着色 18%（通透磨砂）
@@ -643,6 +645,8 @@ public class ThemeService : IThemeService
         resources["TabInactiveColor"] = Color.FromArgb("#9AA0B4"); // 浅色模式：未选中图标/文字为灰色
         // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
         resources["TabBarBackgroundColor"] = Color.FromArgb("#A6FFFFFF");
+        // 底部播放器条背景：浅色模式纯白
+        resources["PlayerBarBackgroundColor"] = Color.FromArgb("#FFFFFF");
         // 导航栏毛玻璃色调：浅色模式提亮（与页面遮罩同为白色），深色模式压暗（黑色）
         resources["TabBarGlassTint"] = primary; // 浅色模式：主题色毛玻璃
         resources["BottomBarTintOpacity"] = 0.12; // 浅色模式：主题色着色 12%（通透磨砂）

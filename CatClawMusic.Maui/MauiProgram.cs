@@ -323,9 +323,11 @@ public static class MauiProgram
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
         services.AddSingleton<ILogService, LogService>();
 
-        // 桌面歌词服务（Android 使用 WindowManager 悬浮窗，其他平台空实现）
+        // 桌面歌词服务（Android 使用 WindowManager 悬浮窗；Windows 使用独立悬浮歌词窗口；其他平台空实现）
 #if ANDROID
         services.AddSingleton<Core.Interfaces.IDesktopLyricService, Platforms.Android.DesktopLyricService>();
+#elif WINDOWS
+        services.AddSingleton<Core.Interfaces.IDesktopLyricService, Services.WindowsDesktopLyricService>();
 #else
         services.AddSingleton<Core.Interfaces.IDesktopLyricService, Services.EmptyDesktopLyricService>();
 #endif
@@ -424,6 +426,7 @@ public static class MauiProgram
         // 故 ViewPager2 内的子页面实例也只创建一次。
         services.AddSingleton<Pages.MainPage>();
         services.AddSingleton<Pages.DesktopMainPage>();
+        services.AddSingleton<Pages.DesktopBlankPage>(); // 桌面端重建主窗口页
         services.AddTransient<Pages.NowPlayingPage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();

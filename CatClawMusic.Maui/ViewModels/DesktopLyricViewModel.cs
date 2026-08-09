@@ -68,7 +68,7 @@ public partial class DesktopLyricViewModel : ObservableObject
         PermissionStatus = HasPermission ? "已授权" : "未授权 - 点击请求权限";
 #else
         HasPermission = true;
-        PermissionStatus = "当前平台不支持桌面歌词";
+        PermissionStatus = "无需额外权限";
 #endif
     }
 
@@ -78,13 +78,7 @@ public partial class DesktopLyricViewModel : ObservableObject
         if (_isInternalUpdate) return;
         if (value)
         {
-#if ANDROID
             _ = EnableWithPermissionCheckAsync();
-#else
-            _isInternalUpdate = true;
-            IsDesktopLyricEnabled = false;
-            _isInternalUpdate = false;
-#endif
         }
         else
         {
@@ -92,20 +86,18 @@ public partial class DesktopLyricViewModel : ObservableObject
         }
     }
 
-#if ANDROID
     private async Task EnableWithPermissionCheckAsync()
     {
         var success = await _manager.EnableAsync();
         if (!success)
         {
-            // 权限不足，回退开关
+            // 开启失败（权限不足等），回退开关
             _isInternalUpdate = true;
             IsDesktopLyricEnabled = false;
             _isInternalUpdate = false;
             await CheckPermissionAsync();
         }
     }
-#endif
 
     /// <summary>请求悬浮窗权限</summary>
     [RelayCommand]

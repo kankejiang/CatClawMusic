@@ -1,4 +1,4 @@
-﻿using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
@@ -429,79 +429,101 @@ public partial class App : Application
         StartupLog("CreateWindow: creating Window");
 
 #if WINDOWS
-        // ═══ 桌面端重建设计（第 1 步）：全新空白画布，从零开始逐步搭建 ═══
-        // 暂时不加载 DesktopMainPage（复杂旧布局），改用 DesktopBlankPage；
-        // 也不设置自定义 TitleBar（回系统默认标题栏，保证窗口可拖动/最大化）。
-        var desktopPage = new Pages.DesktopBlankPage();
-        shell.Items.Clear();
-        shell.Items.Add(new ShellContent { Content = desktopPage });
-
-        var window = new Window(shell)
+        // ═══ 桌面端重建设计：全新空白画布，从零开始逐步搭建 ═══
+        // 无边框窗口：不走 Shell（ShellContent 会包一层容器，可能带默认留白产生顶部白条），
+        // 直接 Window(Page) 让页面铺满窗口。
+        // 启动大小：优先恢复用户上次拖拽保存的大小；无存档时按主显示器分辨率自适应
+        // （21:9 及以上超宽屏更宽）。窗口可拖拽调整，SizeChanged 时保存。
+        var desktopPage = MauiProgram.Services.GetRequiredService<Pages.DesktopBlankPage>();
+        var window = new Window(desktopPage)
         {
-            Width = 1200,
-            Height = 800,
             MinimumWidth = 900,
             MinimumHeight = 600,
             // 清空原生窗口标题文字（避免任务栏/Alt+Tab 显示 "CatClawMusic"）
             Title = "",
         };
 
-        // 第 1 步：空白阶段不设置自定义标题栏（后续步骤再启用 SetupWindowTitleBar）
+        // 启动固定窗口分辨率 1600×900（不恢复上次保存的大小，保证每次启动一致），
+        // 位置在主显示器工作区居中；小屏保护：工作区不足时按工作区尺寸收窄，避免窗口越界。
+        var (workW, workH) = GetWorkAreaLogical();
+        window.Width = Math.Min(1600, workW);
+        window.Height = Math.Min(900, workH);
+        window.X = Math.Max(0, (workW - window.Width) / 2);
+        window.Y = Math.Max(0, (workH - window.Height) / 2);
+
+        // MAUI 10 内容根默认按"有标题栏"预留 ~32px 占位（白色）→ 设不可见 TitleBar 让内容显示在标题栏区域
+        window.TitleBar = new Microsoft.Maui.Controls.TitleBar { IsVisible = false };
 
         window.HandlerChanged += (s, e) =>
         {
             if (window.Handler?.PlatformView is Microsoft.UI.Xaml.Window nativeWindow)
             {
                 CurrentNativeWindow = nativeWindow;
-                // 沉浸式：内容延伸至窗口顶部，系统默认 caption 栏不再绘制（消除顶部黑条）
-                try { nativeWindow.ExtendsContentIntoTitleBar = true; } catch { }
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);
                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                 var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
                 CurrentAppWindow = appWindow;
                 _appHwnd = hwnd;
-                // 完全自定义标题栏（官方方案，见 learn.microsoft.com/windows/apps/develop/title-bar）：
-                // 上方已设置 ExtendsContentIntoTitleBar=true → 隐藏系统标题栏但保留系统 caption
-                // 按钮（最小化/最大化/关闭）；按钮颜色由 UpdateWindowsTheme 设为透明融入自定义标题栏；
-                // 拖拽区由 DesktopMainPage 的 SetTitleBar(CustomTitleBar) 注册（系统自动排除 caption 区，
-                // 双击拖拽区=最大化/还原）。
-                // ⚠️ 切勿用 OverlappedPresenter.CreateForContextMenu() 替换 presenter——那是右键菜单
-                // 窗口模式，会破坏最大化/任务栏交互。
+                try
+                {
+                    // ① 内容延伸到标题栏区域（隐藏系统标题栏绘制）
+                    appWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+                    // ② 保留标题栏实体（原生拖拽前提）：不调用 SetBorderAndTitleBar(false,false)！
+                    //    移除标题栏后 AppWindow.TitleBar.SetDragRectangles 会失效（官方约束）。
+                    //    窗口能力全保留：可最大化/调整大小/最小化。
+                    if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter overlappedPresenter)
+                    {
+                        overlappedPresenter.IsMaximizable = true;
+                        overlappedPresenter.IsResizable = true;
+                        overlappedPresenter.IsMinimizable = true;
+                    }
+                    // ③ 显式恢复 Windows 11 原生圆角（SetBorderAndTitleBar 移除后 DWM 默认直角）
+                    int cornerRound = 2; // DWMWCP_ROUND
+                    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerRound,
+                        (uint)System.Runtime.InteropServices.Marshal.SizeOf<int>());
+                    // ④ 窗口根容器背景改蓝色（与页面 BackgroundColor 一致）：MAUI/WinUI 根默认白色 →
+                    //    启动瞬间露出的 32px 标题栏占位也是蓝色，视觉无缝无白条闪烁
+                    try
+                    {
+                        if (nativeWindow.Content is Microsoft.UI.Xaml.FrameworkElement rootFe)
+                        {
+                            SetRootBackgroundTheme(rootFe, 0);
+                        }
+                    }
+                    catch { }
+                }
+                catch { }
 
-                // 应用窗口 chrome（DWM 沉浸式暗色 + 系统按钮色 + 根背景）—— 跟随当前主题
-                // 注意：DI 只注册了 IThemeService（见 MauiProgram），按具体类型 GetService<ThemeService>()
-                // 会拿到 null，导致此处静默回退成深色。必须按接口解析。
-                var themeService = MauiProgram.Services.GetService<IThemeService>();
-                UpdateWindowsTheme(ResolveIsDark(themeService));
-
-                // 此刻 WinUI 的 Content 根面板未必已建好，根背景可能刷不上；
-                // 首次激活后再补刷一次（一次性，避免每次切前后台都重来）。
+                // ⑥ 窗口激活后（布局完成）：
+                //    1) 官方 workaround（dotnet/maui #36040）：反射调用 MAUI 内部
+                //       NavigationRootManager.SetTitleBarVisibility(false) —— 折叠 32px 标题栏宿主、
+                //       清零 NavigationViewContentMargin、清除非客户区输入区域，一步到位；
+                //    2) Dump 视觉树到 %TEMP%\catclaw_startup.log 定位残留白条；
+                //    3) KillTopWhiteBar 兜底折叠 + 根容器刷蓝。
                 global::Windows.Foundation.TypedEventHandler<object, Microsoft.UI.Xaml.WindowActivatedEventArgs>? firstActivated = null;
                 firstActivated = (_, _) =>
                 {
                     nativeWindow.Activated -= firstActivated;
-                    UpdateWindowsTheme(ResolveIsDark(themeService));
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(100);
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            try
+                            {
+                                // 官方方案：调用 MAUI 内部 SetTitleBarVisibility(false)
+                                InvokeMauiSetTitleBarVisibility(window);
+                                WinWndLog("==== visual tree after activation ====");
+                                DumpVisualTree(nativeWindow.Content, 0, 6);
+                                KillTopWhiteBar(nativeWindow.Content);
+                                if (nativeWindow.Content is Microsoft.UI.Xaml.FrameworkElement rootFe2)
+                                    SetRootBackgroundTheme(rootFe2, 0);
+                            }
+                            catch { }
+                        });
+                    });
                 };
                 nativeWindow.Activated += firstActivated;
-
-                // 清除 SystemBackdrop（Mica/Alt 等材质背景会导致白色）
-                try { nativeWindow.SystemBackdrop = null; } catch { }
-
-                // 测量系统任务栏高度
-                UpdateWindowsSafeArea(appWindow);
-                appWindow.Changed += (_, args) =>
-                {
-                    if (args.DidSizeChange || args.DidPositionChange || args.DidPresenterChange)
-                        UpdateWindowsSafeArea(appWindow);
-                };
-
-                // 首次订阅主题切换 → 主题变化时重应用 chrome（防重复订阅）
-                if (!_chromeSubscribed && Application.Current != null)
-                {
-                    _chromeSubscribed = true;
-                    Application.Current.RequestedThemeChanged += (_, _) =>
-                        UpdateWindowsTheme(ResolveIsDark(themeService));
-                }
             }
         };
 #else
@@ -517,6 +539,23 @@ public partial class App : Application
 #endif
 
         StartupLog("CreateWindow: Window created, returning");
+
+#if !ANDROID
+        // 桌面平台（Windows 等）：主窗口创建完成后延迟恢复桌面歌词（上次开启过则自动显示悬浮歌词窗口）
+        var dlManager = MauiProgram.Services.GetService<Services.DesktopLyricManager>();
+        if (dlManager != null)
+        {
+            Dispatcher.Dispatch(() =>
+            {
+                try { _ = dlManager.RestoreAsync(); }
+                catch (Exception ex)
+                {
+                    StartupLog($"Restore desktop lyric failed: {ex.Message}");
+                }
+            });
+        }
+#endif
+
         return window;
     }
 
@@ -538,6 +577,13 @@ public partial class App : Application
 
     private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
 
+    // 主显示器工作区（不含任务栏）尺寸
+    private const int SM_CXWORKAREA = 48;
+    private const int SM_CYWORKAREA = 49;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
@@ -547,6 +593,26 @@ public partial class App : Application
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
 
+    // Win32 原生无标题栏：直接移除窗口 WS_CAPTION 样式（比 MAUI TitleBar/SetBorderAndTitleBar 更彻底）
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+
+    private const int GWL_STYLE = -16;
+    private const long WS_CAPTION = 0x00C00000;      // 标题栏（WS_BORDER | WS_DLGFRAME）
+    private const long WS_THICKFRAME = 0x00040000;   // 可调整大小边框（最大化/缩放依赖，保留）
+    private const uint SWP_FRAMECHANGED = 0x0020;    // 样式变更后强制重绘非客户区
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
+
     // DWM API for dark mode border
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, uint dwAttribute, ref int pvAttribute, uint cbAttribute);
@@ -554,6 +620,33 @@ public partial class App : Application
     private const uint DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const uint DWMWA_BORDER_COLOR = 34;
     private const uint DWMWA_CAPTION_COLOR = 35;
+    private const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33; // 值：0=默认 1=不圆角 2=圆角(ROUND)
+
+    /// <summary>主显示器工作区（不含任务栏）尺寸，换算为逻辑像素（物理像素 ÷ DPI 缩放）。</summary>
+    private static (double W, double H) GetWorkAreaLogical()
+    {
+        var workW = GetSystemMetrics(SM_CXWORKAREA);
+        var workH = GetSystemMetrics(SM_CYWORKAREA);
+        double density = 1.0;
+        try { density = Microsoft.Maui.Devices.DeviceDisplay.Current.MainDisplayInfo.Density; }
+        catch { }
+        return (workW > 0 ? workW / density : 1200, workH > 0 ? workH / density : 800);
+    }
+
+    /// <summary>
+    /// 无存档时的默认窗口大小（逻辑像素）：按主显示器工作区自适应。
+    /// 21:9(≈2.33)/32:9(≈3.56) 超宽屏 → 宽度占比 85%（更宽），标准屏 65%；高度 ≤ 900。
+    /// </summary>
+    private static (double W, double H) ComputeDefaultWindowSize()
+    {
+        var (workW, workH) = GetWorkAreaLogical();
+        if (workW <= 0 || workH <= 0) return (1200, 800);
+        var aspect = workW / workH;
+        var ultraWide = aspect >= 2.1; // 16:9≈1.78 < 2.1 < 21:9≈2.33
+        var winW = (int)(workW * (ultraWide ? 0.85 : 0.65));
+        var winH = Math.Min((int)(workH * 0.78), 900);
+        return (winW, winH);
+    }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct RECT
@@ -607,12 +700,234 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 深度设置窗口背景：遍历前 3 层容器，设置所有 Panel/Border/Control 的背景色，
-    /// 清除 Margin，但不深入到具体 UI 控件内部（避免破坏样式）。
+    /// 窗口根容器背景递归刷为当前主题背景色（浅色 #F8F7FF / 深色 #080B1A，与 UpdateWindowsTheme 一致）：
+    /// MAUI/WinUI 内容根默认白色 → 启动瞬间标题栏占位与页面背景同色，视觉无缝无白条闪烁。
+    /// </summary>
+    private static void SetRootBackgroundTheme(Microsoft.UI.Xaml.DependencyObject? element, int depth = 0)
+    {
+        bool isDark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        var color = isDark
+            ? global::Windows.UI.Color.FromArgb(0xFF, 0x08, 0x0B, 0x1A)
+            : global::Windows.UI.Color.FromArgb(0xFF, 0xF8, 0xF7, 0xFF);
+        SetRootBackgroundColor(element, color, depth);
+    }
+
+    /// <summary>
+    /// 窗口根容器背景递归改色：覆盖 Panel/Border/ContentControl/ContentPresenter。
+    /// </summary>
+    private static void SetRootBackgroundColor(Microsoft.UI.Xaml.DependencyObject? element, global::Windows.UI.Color color, int depth = 0)
+    {
+        if (element == null || depth > 6) return;
+        try
+        {
+            var brush = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
+            if (element is Microsoft.UI.Xaml.Controls.Panel panel)
+            {
+                panel.Background = brush;
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.Border border)
+            {
+                border.Background = brush;
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.ContentControl cc)
+            {
+                // MAUI 标题栏宿主（32px ContentControl）也刷同色
+                cc.Background = brush;
+            }
+            else if (element is Microsoft.UI.Xaml.Controls.ContentPresenter cp)
+            {
+                cp.Background = brush;
+            }
+            // 递归子元素
+            var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(element);
+            for (int i = 0; i < count; i++)
+            {
+                var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(element, i);
+                if (child is Microsoft.UI.Xaml.Controls.Panel ||
+                    child is Microsoft.UI.Xaml.Controls.Border ||
+                    child is Microsoft.UI.Xaml.Controls.ContentControl ||
+                    child is Microsoft.UI.Xaml.Controls.ContentPresenter)
+                {
+                    SetRootBackgroundColor(child, color, depth + 1);
+                }
+            }
+        }
+        catch { /* 刷色失败不影响显示 */ }
+    }
+
+    /// <summary>
+    /// 窗口根容器背景递归改透明（旧方案保留备用）。
+    /// </summary>
+    private static void SetRootBackgroundTransparent(Microsoft.UI.Xaml.DependencyObject? element, int depth = 0)
+    {
+        SetRootBackgroundColor(element, global::Windows.UI.Color.FromArgb(0, 0, 0, 0), depth);
+    }
+
+    /// <summary>
+    /// 清除容器元素 Padding（WinUI Panel 基类无 Padding 属性，需按具体类型设置）。
+    /// </summary>
+    private static void ClearContainerPadding(Microsoft.UI.Xaml.DependencyObject element)
+    {
+        switch (element)
+        {
+            case Microsoft.UI.Xaml.Controls.Grid grid:
+                grid.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                break;
+            case Microsoft.UI.Xaml.Controls.StackPanel stack:
+                stack.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                break;
+            case Microsoft.UI.Xaml.Controls.RelativePanel rel:
+                rel.Padding = new Microsoft.UI.Xaml.Thickness(0);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 官方 workaround（dotnet/maui issue #36040，已验证）：反射调用 MAUI 内部
+    /// NavigationRootManager.SetTitleBarVisibility(false)——一次性折叠 32px 标题栏宿主容器、
+    /// 清零 NavigationViewContentMargin、清除非客户区输入区域，根治顶部白条。
+    /// 该类型为 internal，只能反射访问。
+    /// </summary>
+    private static void InvokeMauiSetTitleBarVisibility(Microsoft.Maui.Controls.Window mauiWindow)
+    {
+        try
+        {
+            var mauiContext = mauiWindow.Handler?.MauiContext;
+            if (mauiContext == null) return;
+
+            var navManager = mauiContext.Services.GetService(
+                typeof(Microsoft.Maui.Platform.NavigationRootManager));
+            if (navManager == null)
+            {
+                // 若 DI 未注册，尝试从平台根视图容器反查（WindowRootViewContainer → RootNavigationManager）
+                navManager = FindNavigationRootManagerFromWindow(mauiWindow);
+            }
+            if (navManager == null) return;
+
+            var method = navManager.GetType().GetMethod("SetTitleBarVisibility",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Public);
+            if (method == null) return;
+            method.Invoke(navManager, new object[] { false });
+            WinWndLog("InvokeMauiSetTitleBarVisibility(false) OK");
+        }
+        catch (Exception ex)
+        {
+            WinWndLog($"InvokeMauiSetTitleBarVisibility failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>通过原生窗口内容树找 NavigationRootManager（internal，用平台视图的私有字段反查）。</summary>
+    private static object? FindNavigationRootManagerFromWindow(Microsoft.Maui.Controls.Window mauiWindow)
+    {
+        try
+        {
+            var nativeWindow = mauiWindow.Handler?.PlatformView as Microsoft.UI.Xaml.Window;
+            if (nativeWindow == null) return null;
+
+            // 遍历视觉树找 WindowRootView（Microsoft.Maui.Platform.WindowRootView），
+            // 其 DataContext/内部字段持有 NavigationRootManager
+            var root = nativeWindow.Content;
+            var windowRootView = FindVisualNode(root, "WindowRootView");
+            if (windowRootView == null) return null;
+
+            // 反射读取 _navigationRootManager 字段（MAUI 内部字段名，见 GetNavigationRootManager）
+            var field = windowRootView.GetType().GetField("_navigationRootManager",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            return field?.GetValue(windowRootView);
+        }
+        catch { return null; }
+    }
+
+    private static Microsoft.UI.Xaml.DependencyObject? FindVisualNode(Microsoft.UI.Xaml.DependencyObject? el, string typeName, int depth = 0)
+    {
+        if (el == null || depth > 8) return null;
+        if (el.GetType().Name == typeName) return el;
+        try
+        {
+            var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(el);
+            for (int i = 0; i < count; i++)
+            {
+                var hit = FindVisualNode(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(el, i), typeName, depth + 1);
+                if (hit != null) return hit;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>输出窗口原生内容树（类型/行号/高度/可见性/背景色），用于定位顶部白条来源。</summary>
+    private static void DumpVisualTree(Microsoft.UI.Xaml.DependencyObject? el, int depth, int maxDepth)
+    {
+        if (el == null || depth > maxDepth) return;
+        try
+        {
+            var indent = new string(' ', depth * 2);
+            var extra = "";
+            if (el is Microsoft.UI.Xaml.FrameworkElement fe)
+                extra += $" h={fe.ActualHeight:F0} vis={fe.Visibility}";
+            if (el is Microsoft.UI.Xaml.Controls.Panel panel && panel.Background is Microsoft.UI.Xaml.Media.SolidColorBrush pb)
+                extra += $" bg=#{pb.Color.A:X2}{pb.Color.R:X2}{pb.Color.G:X2}{pb.Color.B:X2}";
+            if (el is Microsoft.UI.Xaml.Controls.Border border && border.Background is Microsoft.UI.Xaml.Media.SolidColorBrush bb)
+                extra += $" bg=#{bb.Color.A:X2}{bb.Color.R:X2}{bb.Color.G:X2}{bb.Color.B:X2}";
+            if (el is Microsoft.UI.Xaml.Controls.ContentPresenter cp && cp.Content != null)
+                extra += $" content={cp.Content.GetType().Name}";
+            WinWndLog($"{indent}{el.GetType().Name}{extra}");
+
+            if (el is Microsoft.UI.Xaml.Controls.Grid grid)
+            {
+                foreach (var child in grid.Children)
+                {
+                    if (child is Microsoft.UI.Xaml.FrameworkElement cfe)
+                        WinWndLog($"{indent}  row={Microsoft.UI.Xaml.Controls.Grid.GetRow(cfe)} {cfe.GetType().Name} h={cfe.ActualHeight:F0} vis={cfe.Visibility}");
+                }
+            }
+
+            var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(el);
+            for (int i = 0; i < count; i++)
+                DumpVisualTree(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(el, i), depth + 1, maxDepth);
+        }
+        catch { }
+    }
+
+    /// <summary>消除顶部白条：折叠 MAUI 标题栏宿主（叠在内容上方的 ~32px ContentControl），
+    /// 不触碰内容行，让蓝色画布 100% 铺满窗口。</summary>
+    private static void KillTopWhiteBar(Microsoft.UI.Xaml.DependencyObject? el, int depth = 0)
+    {
+        if (el == null || depth > 5) return;
+        try
+        {
+            if (el is Microsoft.UI.Xaml.Controls.ContentControl cc
+                && cc.ActualHeight > 12 && cc.ActualHeight <= 48)
+            {
+                cc.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+                WinWndLog($"KillTopWhiteBar: collapsed TitleBar host {el.GetType().Name} h={cc.ActualHeight:F0}");
+            }
+        }
+        catch { }
+
+        var n = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(el);
+        for (int i = 0; i < n; i++)
+            KillTopWhiteBar(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(el, i), depth + 1);
+    }
+
+    private static void WinWndLog(string msg)
+    {
+        try
+        {
+            File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "catclaw_startup.log"),
+                $"[{DateTime.Now:HH:mm:ss.fff}] WINWND: {msg}\n");
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 深度设置窗口背景：遍历前 10 层容器，设置所有 Panel/Border/Control 的背景色，
+    /// 清除 Margin 与 Padding，但不深入到具体 UI 控件内部（避免破坏样式）。
     /// </summary>
     private static void SetRootWindowBackgroundDeep(Microsoft.UI.Xaml.DependencyObject? element, Microsoft.UI.Xaml.Media.Brush bgBrush, int depth = 0)
     {
-        if (element == null || depth > 3) return;
+        if (element == null || depth > 10) return;
 
         try
         {
@@ -626,6 +941,8 @@ public partial class App : Application
             if (element is Microsoft.UI.Xaml.Controls.Panel panel)
             {
                 panel.Background = bgBrush;
+                // Panel 具体类型的 Padding 也要清（MAUI 窗口根 Grid 可能带标题栏预留 Padding）
+                ClearContainerPadding(panel);
                 // 递归处理子元素（仅限容器层）
                 foreach (var child in panel.Children)
                 {
@@ -781,15 +1098,20 @@ public partial class App : Application
             }
 
             // 4. 窗口根背景色
-            var bgColor = isDark
-                ? global::Windows.UI.Color.FromArgb(0xFF, 0x08, 0x0B, 0x1A)
-                : global::Windows.UI.Color.FromArgb(0xFF, 0xF8, 0xF7, 0xFF);
-            var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(bgColor);
-
-            if (CurrentNativeWindow?.Content != null)
+            // 桌面重建阶段：页面自己管背景（Debug 蓝色画布），窗口层不再递归刷主题色——
+            // 否则会把页面里的蓝色 Grid 覆盖成白色/深色（重建结束后再启用）。
+            if (!_desktopReconstruction)
             {
-                SetRootWindowBackground(CurrentNativeWindow.Content, bgBrush);
-                SetRootWindowBackgroundDeep(CurrentNativeWindow.Content, bgBrush);
+                var bgColor = isDark
+                    ? global::Windows.UI.Color.FromArgb(0xFF, 0x08, 0x0B, 0x1A)
+                    : global::Windows.UI.Color.FromArgb(0xFF, 0xF8, 0xF7, 0xFF);
+                var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(bgColor);
+
+                if (CurrentNativeWindow?.Content != null)
+                {
+                    SetRootWindowBackground(CurrentNativeWindow.Content, bgBrush);
+                    SetRootWindowBackgroundDeep(CurrentNativeWindow.Content, bgBrush);
+                }
             }
 
             // 5. MAUI TitleBar 控件配色跟随主题（仅 caption 按钮前景色，背景已透明）
@@ -808,6 +1130,9 @@ public partial class App : Application
     }
 
     private static bool _chromeSubscribed; // 防止重复订阅 RequestedThemeChanged
+
+    /// <summary>桌面端重建阶段标志：页面自管背景（Debug 蓝色画布），窗口层不递归刷主题色</summary>
+    private static readonly bool _desktopReconstruction = true;
 
     /// <summary>
     /// Windows 专属：测量系统任务栏（底部 dock 栏）高度，并在窗口延伸到任务栏下方或最大化时，

@@ -699,14 +699,15 @@ public partial class NowPlayingViewModel : ObservableObject
     private void RefreshPlayModeDisplay()
     {
         bool fm = _queue.IsFmMode;
+        // Windows 上播放模式图标用 SVG 矢量渲染（FromNameVectorThemed），任意尺寸无锯齿
         (PlayModeIcon, PlayModeLabel, PlayModeIconSource) = _queue.PlayMode switch
         {
-            PlayMode.ListRepeat => ("\U0001f501", "列表循环", ImageSourceHelper.FromNamePlayerCtrl("ic_repeat_all", "ic_repeat_all")),
-            PlayMode.SingleRepeat => ("\U0001f502", "单曲循环", ImageSourceHelper.FromNamePlayerCtrl("ic_repeat_one", "ic_repeat_one")),
-            PlayMode.Shuffle => ("\U0001f500", "随机播放", ImageSourceHelper.FromNamePlayerCtrl("ic_shuffle", "ic_shuffle")),
-            PlayMode.Sequential when fm => ("\u221e", "无限", ImageSourceHelper.FromNamePlayerCtrl("ic_infinite", "ic_infinite")),
-            PlayMode.Sequential => ("\u27a1", "顺序播放", ImageSourceHelper.FromNamePlayerCtrl("ic_repeat_all", "ic_repeat_all")),
-            _ => ("\U0001f501", "列表循环", ImageSourceHelper.FromNamePlayerCtrl("ic_repeat_all", "ic_repeat_all"))
+            PlayMode.ListRepeat => ("\U0001f501", "列表循环", ImageSourceHelper.FromNameVectorThemed("ic_repeat_all")),
+            PlayMode.SingleRepeat => ("\U0001f502", "单曲循环", ImageSourceHelper.FromNameVectorThemed("ic_repeat_one")),
+            PlayMode.Shuffle => ("\U0001f500", "随机播放", ImageSourceHelper.FromNameVectorThemed("ic_shuffle")),
+            PlayMode.Sequential when fm => ("\u221e", "无限", ImageSourceHelper.FromNameVectorThemed("ic_infinite")),
+            PlayMode.Sequential => ("\u27a1", "顺序播放", ImageSourceHelper.FromNameVectorThemed("ic_repeat_all")),
+            _ => ("\U0001f501", "列表循环", ImageSourceHelper.FromNameVectorThemed("ic_repeat_all"))
         };
         PlayModeIconSourceWhite = _queue.PlayMode switch
         {
