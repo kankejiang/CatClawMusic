@@ -73,8 +73,8 @@ public partial class DesktopMainPage : ContentPage
         Instance = this;
 
         #if WINDOWS
-            // Windows: 顶部 44px 占位（标题栏由 MAUI TitleBar 控件渲染在窗口顶部）
-            RootGrid.RowDefinitions[0].Height = new GridLength(44);
+            // Windows: 0 占位（透明标题栏控件覆盖顶部，仅右上显示系统 caption 按钮）
+            RootGrid.RowDefinitions[0].Height = new GridLength(0);
 #else
             // Android: no title bar area
             RootGrid.RowDefinitions[0].Height = new GridLength(0);

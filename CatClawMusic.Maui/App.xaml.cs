@@ -690,10 +690,10 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 构建网易云式自定义标题栏（MAUI 10 官方 TitleBar 控件，仅 Windows；文档：
+    /// 构建极简自定义标题栏（MAUI 10 官方 TitleBar 控件，仅 Windows；文档：
     /// learn.microsoft.com/dotnet/maui/user-interface/controls/titlebar）。
-    /// LeadingContent：logo 徽标；其余区域为标题栏拖拽区（无输入控件）。
-    /// 系统 caption 按钮（最小化/最大化/关闭）由控件在右端自动保留，双击标题栏=最大化/还原。
+    /// 不设 LeadingContent/Content/TrailingContent → 标题栏仅显示右上系统 caption 按钮，
+    /// 左侧被贯穿的侧边栏覆盖（DesktopMainPage SidebarBorder Row0 RowSpan3）。
     /// 深浅色配色由 UpdateWindowsTheme 统一更新。
     /// </summary>
     private static void SetupWindowTitleBar(Microsoft.Maui.Controls.Window window)
@@ -704,50 +704,12 @@ public partial class App : Application
             var themeService = MauiProgram.Services.GetService<IThemeService>();
             var isDark = ResolveIsDark(themeService);
 
-            var logoMark = new Microsoft.Maui.Controls.Border
-            {
-                WidthRequest = 26,
-                HeightRequest = 26,
-                StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
-                Background = new LinearGradientBrush(
-                    new GradientStopCollection
-                    {
-                        new GradientStop(Color.FromArgb("#8C7BFF"), 0f),
-                        new GradientStop(Color.FromArgb("#55D6FF"), 1f)
-                    },
-                    new Point(0, 0), new Point(1, 1)),
-                Content = new Label
-                {
-                    Text = "\U0001F43E", // 🐾
-                    FontSize = 13,
-                    HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.Center
-                }
-            };
-            var logoName = new Label
-            {
-                Text = "猫爪音乐",
-                FontSize = 13.5,
-                FontAttributes = FontAttributes.Bold,
-                VerticalOptions = LayoutOptions.Center,
-                TextColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A")
-            };
-            var leading = new HorizontalStackLayout
-            {
-                Spacing = 9,
-                Padding = new Thickness(16, 0, 0, 0),
-                VerticalOptions = LayoutOptions.Center,
-                Children = { logoMark, logoName }
-            };
-
             var titleBar = new Microsoft.Maui.Controls.TitleBar
             {
                 HeightRequest = 44,
                 Title = "",
-                BackgroundColor = isDark ? Color.FromArgb("#F211172B") : Color.FromArgb("#F2F8F7FF"),
-                ForegroundColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A"),
-                LeadingContent = leading
+                BackgroundColor = Colors.Transparent,
+                ForegroundColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A")
             };
             window.TitleBar = titleBar;
             _mauiTitleBar = titleBar;
@@ -830,12 +792,9 @@ public partial class App : Application
                 SetRootWindowBackgroundDeep(CurrentNativeWindow.Content, bgBrush);
             }
 
-            // 5. MAUI TitleBar 控件配色跟随主题
+            // 5. MAUI TitleBar 控件配色跟随主题（仅 caption 按钮前景色，背景已透明）
             if (_mauiTitleBar != null)
             {
-                _mauiTitleBar.BackgroundColor = isDark
-                    ? Microsoft.Maui.Graphics.Color.FromArgb("#F211172B")
-                    : Microsoft.Maui.Graphics.Color.FromArgb("#F2F8F7FF");
                 _mauiTitleBar.ForegroundColor = isDark
                     ? Microsoft.Maui.Graphics.Color.FromArgb("#EEF0FB")
                     : Microsoft.Maui.Graphics.Color.FromArgb("#1A1F3A");

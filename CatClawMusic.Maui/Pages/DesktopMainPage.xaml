@@ -13,10 +13,10 @@
          沉浸式标题栏：内容背景延伸至窗口顶部，侧边栏从标题栏下方开始。 -->
     <Grid x:Name="RootGrid" ColumnDefinitions="220,*" RowDefinitions="0,*,100">
 
-        <!-- ═══ Left Sidebar (starts below title bar) ═══ -->
-        <!-- 顶部标题栏由 MAUI 官方 TitleBar 控件提供（App.xaml.cs SetupWindowTitleBar），
-            Row0 保留 44px 占位（Windows）避免内容被标题栏遮挡；Android 为 0 -->
-        <Border x:Name="SidebarBorder" Grid.Row="1" Grid.RowSpan="2" Grid.Column="0"
+        <!-- ═══ Left Sidebar (extends to top, overlaps transparent title bar) ═══ -->
+        <!-- 顶部标题栏由 MAUI 官方 TitleBar 控件提供（仅系统 caption 按钮，透明背景），
+            侧边栏上移贯穿顶部（Row0+RowSpan3）覆盖标题栏左侧，标题栏仅剩右上 caption 按钮 -->
+        <Border x:Name="SidebarBorder" Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                 StrokeThickness="0,0,1,0"
                 Stroke="{DynamicResource DividerColor}"
                 BackgroundColor="{DynamicResource CardBackgroundColor}">
