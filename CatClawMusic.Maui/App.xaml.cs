@@ -429,8 +429,10 @@ public partial class App : Application
         StartupLog("CreateWindow: creating Window");
 
 #if WINDOWS
-        // Windows: use desktop layout with sidebar
-        var desktopPage = MauiProgram.Services.GetRequiredService<Pages.DesktopMainPage>();
+        // ═══ 桌面端重建设计（第 1 步）：全新空白画布，从零开始逐步搭建 ═══
+        // 暂时不加载 DesktopMainPage（复杂旧布局），改用 DesktopBlankPage；
+        // 也不设置自定义 TitleBar（回系统默认标题栏，保证窗口可拖动/最大化）。
+        var desktopPage = new Pages.DesktopBlankPage();
         shell.Items.Clear();
         shell.Items.Add(new ShellContent { Content = desktopPage });
 
@@ -440,13 +442,11 @@ public partial class App : Application
             Height = 800,
             MinimumWidth = 900,
             MinimumHeight = 600,
-            // 清空原生窗口标题文字（避免任务栏/Alt+Tab 显示 "CatClawMusic"）；
-            // 窗口已进入沉浸式（ExtendsContentIntoTitleBar=true），不再绘制系统 caption 栏。
+            // 清空原生窗口标题文字（避免任务栏/Alt+Tab 显示 "CatClawMusic"）
             Title = "",
         };
 
-        // MAUI 官方 TitleBar 控件（仅 Windows）：网易云式自定义标题栏（logo/搜索/主题/头像）
-        SetupWindowTitleBar(window);
+        // 第 1 步：空白阶段不设置自定义标题栏（后续步骤再启用 SetupWindowTitleBar）
 
         window.HandlerChanged += (s, e) =>
         {

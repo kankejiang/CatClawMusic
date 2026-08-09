@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.DesktopBlankPage"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}">
+
+    <!-- ════════════════════════════════════════════════════════════════
+         全新空白画布（桌面端重建设计第 1 步）
+         无标题栏 / 无侧边栏 / 无播放器条 / 无内容 —— 从零开始，
+         按「标题栏 → 侧边栏 → 内容区 → 播放器条」的顺序逐步搭建。
+         ════════════════════════════════════════════════════════════════ -->
+    <Grid x:Name="BlankRoot" />
+
+</ContentPage>
