@@ -200,7 +200,7 @@
                                                BindableLayout.ItemsSource="{Binding HeroCards}">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate>
-                                    <Border HeightRequest="168" StrokeThickness="0" StrokeShape="RoundRectangle 18">
+                                    <Border HeightRequest="150" StrokeThickness="0" StrokeShape="RoundRectangle 16">
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnHeroCardTapped" />
                                         </Border.GestureRecognizers>
@@ -210,16 +210,16 @@
                                                 <GradientStop Color="{Binding GradientEnd}" Offset="1" />
                                             </LinearGradientBrush>
                                         </Border.Background>
-                                        <Grid Padding="18">
-                                            <VerticalStackLayout VerticalOptions="Start" Spacing="6">
-                                                <Border Padding="9,3" StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="#30FFFFFF" HorizontalOptions="Start">
-                                                    <Label Text="{Binding Tag}" FontSize="10" FontAttributes="Bold" TextColor="White" />
+                                        <Grid Padding="16">
+                                            <VerticalStackLayout VerticalOptions="Start" Spacing="5">
+                                                <Border Padding="8,3" StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="#30FFFFFF" HorizontalOptions="Start">
+                                                    <Label Text="{Binding Tag}" FontSize="9.5" FontAttributes="Bold" TextColor="White" />
                                                 </Border>
-                                                <Label Text="{Binding Title}" FontSize="20" FontFamily="OpenSansSemibold" TextColor="White" MaxLines="2" Margin="0,4,72,0" />
-                                                <Label Text="{Binding Description}" FontSize="12" TextColor="#CCFFFFFF" MaxLines="2" Margin="0,2,72,0" />
+                                                <Label Text="{Binding Title}" FontSize="17" FontFamily="OpenSansSemibold" TextColor="White" MaxLines="2" Margin="0,4,64,0" />
+                                                <Label Text="{Binding Description}" FontSize="11" TextColor="#CCFFFFFF" MaxLines="2" Margin="0,2,64,0" />
                                             </VerticalStackLayout>
-                                            <Border WidthRequest="48" HeightRequest="48" StrokeShape="RoundRectangle 24" BackgroundColor="#50FFFFFF" HorizontalOptions="End" VerticalOptions="End">
-                                                <ImageButton Source="{Binding PlayIcon}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Aspect="AspectFit" Clicked="OnHeroPlayTapped" />
+                                            <Border WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 20" BackgroundColor="#50FFFFFF" HorizontalOptions="End" VerticalOptions="End">
+                                                <ImageButton Source="{Binding PlayIcon}" WidthRequest="20" HeightRequest="20" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Aspect="AspectFit" Clicked="OnHeroPlayTapped" />
                                             </Border>
                                         </Grid>
                                     </Border>
@@ -238,9 +238,43 @@
                               IndicatorColor="{DynamicResource TextHintColor}" SelectedIndicatorColor="{DynamicResource PrimaryColor}"
                               IndicatorsShape="Circle" HorizontalOptions="Center" />
 
-                <!-- AI 助手入口卡：位于轮播卡片下方，点击进入 AI 聊天模式 -->
+                <!-- 推荐歌单网格（网易云式：4×2 封面网格，点击进专辑） -->
+                <Grid Margin="0,10,0,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
+                                <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <Label Grid.Column="1" Text="推荐歌单" Style="{StaticResource SectionTitleStyle}" VerticalOptions="Center" />
+                    <Label Grid.Column="2" Text="更多 ›" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center" Padding="8,6">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="3" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </Grid>
+                <CollectionView ItemsSource="{Binding RecommendAlbums}" SelectionMode="Single"
+                                SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                    <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                    <CollectionView.ItemsLayout><GridItemsLayout Orientation="Vertical" Span="4" VerticalItemSpacing="14" HorizontalItemSpacing="12" /></CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout Spacing="8">
+                                <Border StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                    <Image Source="{Binding CoverSource, TargetNullValue='ic_music_note'}" Aspect="AspectFill" HeightRequest="200" />
+                                </Border>
+                                <Label Text="{Binding Title}" FontSize="13" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                <Label Text="{Binding ArtistName}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!-- AI 助手入口卡：点击进入 AI 聊天模式 -->
                 <Border x:Name="AiEntryCard"
-                        Margin="0,0,0,16"
+                        Margin="0,16,0,16"
                         Padding="16,14"
                         StrokeThickness="0"
                         StrokeShape="RoundRectangle 16">
@@ -266,9 +300,17 @@
                 </Border>
 
                 <!-- 每日推荐横滑（左右箭头导航） -->
-                <Grid Margin="0,4,0,8" ColumnDefinitions="*,Auto">
-                    <Label Text="每日推荐" Style="{StaticResource SectionTitleStyle}" />
-                    <Button Grid.Column="1" Text="换一批 ↻" FontSize="12" HeightRequest="34" CornerRadius="16"
+                <Grid Margin="0,4,0,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
+                                <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <Label Grid.Column="1" Text="每日推荐" Style="{StaticResource SectionTitleStyle}" />
+                    <Button Grid.Column="2" Text="换一批 ↻" FontSize="12" HeightRequest="34" CornerRadius="16"
                             BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnShuffleDailyClicked" />
                 </Grid>
                 <Grid x:Name="DailyWrap">
@@ -302,9 +344,17 @@
                 </Grid>
 
                 <!-- 推荐艺人横滑（左右箭头导航） -->
-                <Grid Margin="0,4,0,8" ColumnDefinitions="*,Auto">
-                    <Label Text="推荐艺人" Style="{StaticResource SectionTitleStyle}" />
-                    <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16"
+                <Grid Margin="0,4,0,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
+                                <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <Label Grid.Column="1" Text="推荐艺人" Style="{StaticResource SectionTitleStyle}" />
+                    <Button Grid.Column="2" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16"
                             BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnArtistsViewAllClicked" />
                 </Grid>
                 <Grid x:Name="ArtistsWrap">
@@ -331,6 +381,78 @@
                     <ImageButton x:Name="ArtistNext" WidthRequest="30" HeightRequest="30"
                                  BackgroundColor="#1A000000" CornerRadius="15" Padding="6" Aspect="AspectFit"
                                  HorizontalOptions="End" VerticalOptions="Center" Margin="0,0,4,0" Clicked="OnArtistNextClicked" IsVisible="False" />
+                </Grid>
+
+                <!-- 精选活动横幅（网易云式：AI 歌单 / 插件上新 / 猫爪圈） -->
+                <Grid Margin="0,8,0,12" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
+                                <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <Label Grid.Column="1" Text="精选活动" Style="{StaticResource SectionTitleStyle}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12" Margin="0,0,0,4">
+                    <!-- AI 歌单计划：点击进入 Yuki 聊天 -->
+                    <Border HeightRequest="92" StrokeThickness="0" StrokeShape="RoundRectangle 14">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnAiEntryTapped" />
+                        </Border.GestureRecognizers>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#667eea" Offset="0" />
+                                <GradientStop Color="#764ba2" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid Padding="16" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                            <Border WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 19" StrokeThickness="0" BackgroundColor="#26FFFFFF" VerticalOptions="Center">
+                                <Label Text="🐾" FontSize="18" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">
+                                <Label Text="AI 歌单计划" FontSize="13.5" FontAttributes="Bold" TextColor="White" />
+                                <Label Text="告诉 Yuki 心情，一键生成专属歌单" FontSize="10.5" TextColor="#CCFFFFFF" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+                    <!-- 插件上新 -->
+                    <Border Grid.Column="1" HeightRequest="92" StrokeThickness="0" StrokeShape="RoundRectangle 14">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#2e7fd1" Offset="0" />
+                                <GradientStop Color="#55d6ff" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid Padding="16" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                            <Border WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 19" StrokeThickness="0" BackgroundColor="#26FFFFFF" VerticalOptions="Center">
+                                <Label Text="🧩" FontSize="18" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">
+                                <Label Text="插件上新" FontSize="13.5" FontAttributes="Bold" TextColor="White" />
+                                <Label Text="网易云音源 v0.1.20 · 设置 → 插件管理" FontSize="10.5" TextColor="#CCFFFFFF" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+                    <!-- 猫爪圈 -->
+                    <Border Grid.Column="2" HeightRequest="92" StrokeThickness="0" StrokeShape="RoundRectangle 14">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#c2457f" Offset="0" />
+                                <GradientStop Color="#ff6b9d" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid Padding="16" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                            <Border WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 19" StrokeThickness="0" BackgroundColor="#26FFFFFF" VerticalOptions="Center">
+                                <Label Text="🌐" FontSize="18" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="3">
+                                <Label Text="猫爪圈" FontSize="13.5" FontAttributes="Bold" TextColor="White" />
+                                <Label Text="P2P 音乐共享开放内测中" FontSize="10.5" TextColor="#CCFFFFFF" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
                 </Grid>
             </VerticalStackLayout>
 

@@ -72,6 +72,10 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<SearchAlbumItem> _albums = new();
 
+    /// <summary>首页"推荐歌单"网格：已应用筛选的专辑前 8 张（4×2 布局）</summary>
+    [ObservableProperty]
+    private ObservableCollection<SearchAlbumItem> _recommendAlbums = new();
+
     /// <summary>最多播放歌曲集合（已应用筛选）</summary>
     [ObservableProperty]
     private ObservableCollection<Song> _topPlayedSongs = new();
@@ -1202,6 +1206,8 @@ public partial class SearchViewModel : ObservableObject
                     a.ArtistName.Contains(query!, StringComparison.OrdinalIgnoreCase) ||
                     a.Subtitle.Contains(query!, StringComparison.OrdinalIgnoreCase))
                 : _allAlbums);
+        // 首页"推荐歌单"网格只取前 8 张（4 列 × 2 行），与专辑 tab 的全量网格分开
+        RecommendAlbums = new ObservableCollection<SearchAlbumItem>(Albums.Take(8));
         TopPlayedSongs = new ObservableCollection<Song>(
             FilterSongs(_allTopPlayedSongs, query));
         RecentAddedSongs = new ObservableCollection<Song>(
