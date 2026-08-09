@@ -5,10 +5,22 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <!-- ════════════════════════════════════════════════════════════════
-         全新空白画布（桌面端重建设计第 1 步）
-         无标题栏 / 无侧边栏 / 无播放器条 / 无内容 —— 从零开始，
-         按「标题栏 → 侧边栏 → 内容区 → 播放器条」的顺序逐步搭建。
+         全新空白画布（桌面端重建设计第 2 步：三分区框架）
+         左侧导航栏区（30%）| 垂直分割线 | 右侧主页区（70%）
          ════════════════════════════════════════════════════════════════ -->
-    <Grid x:Name="BlankRoot" />
+    <Grid x:Name="BlankRoot" ColumnDefinitions="3*,1,7*">
+
+        <!-- 左侧导航栏区域（30%，待填充） -->
+        <Grid x:Name="NavZone" Grid.Column="0" />
+
+        <!-- 垂直分割线 -->
+        <BoxView Grid.Column="1"
+                 Color="{DynamicResource DividerColor}"
+                 VerticalOptions="Fill" />
+
+        <!-- 右侧主页区域（70%，待填充） -->
+        <Grid x:Name="ContentZone" Grid.Column="2" />
+
+    </Grid>
 
 </ContentPage>
