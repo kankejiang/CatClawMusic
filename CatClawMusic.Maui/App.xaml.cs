@@ -692,7 +692,7 @@ public partial class App : Application
     /// <summary>
     /// 构建网易云式自定义标题栏（MAUI 10 官方 TitleBar 控件，仅 Windows；文档：
     /// learn.microsoft.com/dotnet/maui/user-interface/controls/titlebar）。
-    /// LeadingContent：logo 徽标；TrailingContent：主题切换 + 头像；
+    /// LeadingContent：logo 徽标；TrailingContent：头像；
     /// 中间区域为标题栏拖拽区（无输入控件）。
     /// 系统 caption 按钮（最小化/最大化/关闭）由控件在右端自动保留，双击标题栏=最大化/还原。
     /// 深浅色配色由 UpdateWindowsTheme 统一更新。
@@ -742,25 +742,6 @@ public partial class App : Application
                 Children = { logoMark, logoName }
             };
 
-            var themeBtn = new Button
-            {
-                Text = isDark ? "\U0001F319" : "\u2600\uFE0F", // 🌙 / ☀️
-                FontSize = 13,
-                WidthRequest = 30,
-                HeightRequest = 30,
-                CornerRadius = 8,
-                Padding = 0,
-                BackgroundColor = Colors.Transparent,
-                VerticalOptions = LayoutOptions.Center
-            };
-            themeBtn.Clicked += (_, _) =>
-            {
-                if (themeService == null) return;
-                var next = themeService.IsEffectivelyDark() ? DarkModeSetting.Light : DarkModeSetting.Dark;
-                themeService.SetDarkModeSetting(next);
-                themeBtn.Text = themeService.IsEffectivelyDark() ? "\U0001F319" : "\u2600\uFE0F";
-            };
-
             var avatar = new Microsoft.Maui.Controls.Border
             {
                 WidthRequest = 26,
@@ -790,7 +771,7 @@ public partial class App : Application
                 Spacing = 4,
                 Padding = new Thickness(0, 0, 16, 0),
                 VerticalOptions = LayoutOptions.Center,
-                Children = { themeBtn, avatar }
+                Children = { avatar }
             };
 
             var titleBar = new Microsoft.Maui.Controls.TitleBar
