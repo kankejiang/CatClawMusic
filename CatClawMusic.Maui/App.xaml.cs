@@ -692,8 +692,7 @@ public partial class App : Application
     /// <summary>
     /// 构建网易云式自定义标题栏（MAUI 10 官方 TitleBar 控件，仅 Windows；文档：
     /// learn.microsoft.com/dotnet/maui/user-interface/controls/titlebar）。
-    /// LeadingContent：logo 徽标；TrailingContent：头像；
-    /// 中间区域为标题栏拖拽区（无输入控件）。
+    /// LeadingContent：logo 徽标；其余区域为标题栏拖拽区（无输入控件）。
     /// 系统 caption 按钮（最小化/最大化/关闭）由控件在右端自动保留，双击标题栏=最大化/还原。
     /// 深浅色配色由 UpdateWindowsTheme 统一更新。
     /// </summary>
@@ -742,46 +741,13 @@ public partial class App : Application
                 Children = { logoMark, logoName }
             };
 
-            var avatar = new Microsoft.Maui.Controls.Border
-            {
-                WidthRequest = 26,
-                HeightRequest = 26,
-                StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 13 },
-                Background = new LinearGradientBrush(
-                    new GradientStopCollection
-                    {
-                        new GradientStop(Color.FromArgb("#8C7BFF"), 0f),
-                        new GradientStop(Color.FromArgb("#FF6B9D"), 1f)
-                    },
-                    new Point(0, 0), new Point(1, 1)),
-                VerticalOptions = LayoutOptions.Center,
-                Content = new Label
-                {
-                    Text = "猫",
-                    FontSize = 10,
-                    FontAttributes = FontAttributes.Bold,
-                    TextColor = Colors.White,
-                    HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.Center
-                }
-            };
-            var trailing = new HorizontalStackLayout
-            {
-                Spacing = 4,
-                Padding = new Thickness(0, 0, 16, 0),
-                VerticalOptions = LayoutOptions.Center,
-                Children = { avatar }
-            };
-
             var titleBar = new Microsoft.Maui.Controls.TitleBar
             {
                 HeightRequest = 44,
                 Title = "",
                 BackgroundColor = isDark ? Color.FromArgb("#F211172B") : Color.FromArgb("#F2F8F7FF"),
                 ForegroundColor = isDark ? Color.FromArgb("#EEF0FB") : Color.FromArgb("#1A1F3A"),
-                LeadingContent = leading,
-                TrailingContent = trailing
+                LeadingContent = leading
             };
             window.TitleBar = titleBar;
             _mauiTitleBar = titleBar;
