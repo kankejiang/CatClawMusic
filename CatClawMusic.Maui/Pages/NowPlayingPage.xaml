@@ -569,6 +569,8 @@
                   IsVisible="False"
                   RowDefinitions="Auto,*,Auto"
                   Padding="0"
+                  HorizontalOptions="Center"
+                  MaximumWidthRequest="1280"
                   ZIndex="5">
 
                 <!-- 背景层：透明，露出底层 FrostedBackground 的雾面动态背景（Win2D GPU 虚化专辑封面 + 漂移动画）。
