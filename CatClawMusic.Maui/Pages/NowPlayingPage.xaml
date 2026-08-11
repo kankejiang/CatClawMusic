@@ -569,8 +569,6 @@
                   IsVisible="False"
                   RowDefinitions="Auto,*,Auto"
                   Padding="0"
-                  HorizontalOptions="Center"
-                  MaximumWidthRequest="1280"
                   ZIndex="5">
 
                 <!-- 背景层：透明，露出底层 FrostedBackground 的雾面动态背景（Win2D GPU 虚化专辑封面 + 漂移动画）。
@@ -622,9 +620,9 @@
                     <Grid x:Name="WinDragArea" Grid.Column="3" />
                 </Grid>
 
-                <!-- Row 1：主体（左封面 / 右 歌曲信息 + 歌词） -->
-                <Grid Grid.Row="1" ColumnDefinitions="0.42*,0.58*" ColumnSpacing="0">
-                    <!-- 左：仅封面 -->
+                <!-- Row 1：主体（左封面 / 竖分隔线 / 右 歌曲信息 + 歌词） -->
+                <Grid Grid.Row="1" ColumnDefinitions="0.42*,Auto,0.58*" ColumnSpacing="0">
+                    <!-- 左：仅封面（居中） -->
                     <Grid Grid.Column="0" Padding="42,16,26,16">
                         <Grid>
                             <Border x:Name="WinCover" StrokeThickness="0.6" Stroke="#26FFFFFF"
@@ -650,8 +648,14 @@
                         </Grid>
                     </Grid>
 
-                    <!-- 右：歌曲信息（歌词上方）+ 歌词列 -->
-                    <Grid x:Name="WinLyricColumn" Grid.Column="1" RowDefinitions="Auto,Auto,*" Padding="8,12,44,8">
+                    <!-- 中：竖分隔线（封面与歌词之间） -->
+                    <BoxView Grid.Column="1" WidthRequest="1"
+                             Margin="0,18,0,18"
+                             BackgroundColor="#1FFFFFFF"
+                             HorizontalOptions="Center" VerticalOptions="Center" />
+
+                    <!-- 右：歌曲信息（歌词上方）+ 歌词列（居左） -->
+                    <Grid x:Name="WinLyricColumn" Grid.Column="2" RowDefinitions="Auto,Auto,*" Padding="36,12,44,8">
 
                         <!-- 歌曲信息：标题 / 专辑 / 歌手 -->
                         <VerticalStackLayout Grid.Row="0" Spacing="4" Padding="0,0,24,6">
