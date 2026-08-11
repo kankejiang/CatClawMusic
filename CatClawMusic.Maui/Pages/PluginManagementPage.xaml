@@ -190,22 +190,6 @@
                     </BindableLayout.ItemTemplate>
                 </VerticalStackLayout>
 
-                <Border Style="{StaticResource GlassCardStyle}"
-                        IsVisible="{Binding Plugins.Count, Converter={StaticResource InvertedBoolConverter}}">
-                    <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
-                        <Label Text="🧩"
-                               FontSize="34"
-                               HorizontalOptions="Center" />
-                        <Label Text="当前没有可用插件"
-                               Style="{StaticResource PageSubtitleStyle}"
-                               HorizontalTextAlignment="Center" />
-                        <Label Text="插件系统已就绪，未来可通过安装包扩展功能"
-                               FontSize="11"
-                               TextColor="{DynamicResource TextHintColor}"
-                               HorizontalTextAlignment="Center" />
-                    </VerticalStackLayout>
-                </Border>
-
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="4">
                         <Label Text="💡 关于插件"
