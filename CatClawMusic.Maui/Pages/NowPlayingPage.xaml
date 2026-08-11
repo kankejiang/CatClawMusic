@@ -361,38 +361,38 @@
                       ColumnDefinitions="*,*,*,*,*,*"
                       Margin="8,6,8,2">
                     <!-- 进入歌词页面（使用通知栏媒体控件图标） -->
-                    <ImageButton Grid.Column="0" WidthRequest="22" HeightRequest="22"
-                                 CornerRadius="11" Padding="5"
+                    <ImageButton Grid.Column="0" WidthRequest="33" HeightRequest="33"
+                                 CornerRadius="16" Padding="8"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_notif_lyric_on"
                                  Clicked="OnOpenLyricsClicked" />
                     <!-- 定时关闭 -->
-                    <ImageButton Grid.Column="1" WidthRequest="22" HeightRequest="22"
-                                 CornerRadius="11" Padding="5"
+                    <ImageButton Grid.Column="1" WidthRequest="33" HeightRequest="33"
+                                 CornerRadius="16" Padding="8"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_timer"
                                  Clicked="OnSleepTimerClicked" />
                     <!-- 歌曲详情（白色图标） -->
-                    <ImageButton Grid.Column="2" WidthRequest="22" HeightRequest="22"
-                                 CornerRadius="11" Padding="5"
+                    <ImageButton Grid.Column="2" WidthRequest="33" HeightRequest="33"
+                                 CornerRadius="16" Padding="8"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_info"
                                  Clicked="OnSongDetailTapped" />
                     <!-- 音效/均衡器 -->
-                    <ImageButton Grid.Column="3" WidthRequest="22" HeightRequest="22"
-                                 CornerRadius="11" Padding="5"
+                    <ImageButton Grid.Column="3" WidthRequest="33" HeightRequest="33"
+                                 CornerRadius="16" Padding="8"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_equalizer"
                                  Clicked="OnEqualizerClicked" />
                     <!-- 切换横屏 -->
-                    <ImageButton Grid.Column="4" WidthRequest="22" HeightRequest="22"
-                                 CornerRadius="11" Padding="5"
+                    <ImageButton Grid.Column="4" WidthRequest="33" HeightRequest="33"
+                                 CornerRadius="16" Padding="8"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_rotate"
                                  Clicked="OnRotateClicked" />
                     <!-- 更多 -->
-                    <ImageButton Grid.Column="5" WidthRequest="22" HeightRequest="22"
-                                 CornerRadius="11" Padding="5"
+                    <ImageButton Grid.Column="5" WidthRequest="33" HeightRequest="33"
+                                 CornerRadius="16" Padding="8"
                                  Aspect="AspectFit" BackgroundColor="Transparent"
                                  Source="ic_more"
                                  Clicked="OnMoreClicked" />
