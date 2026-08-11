@@ -654,8 +654,8 @@
                              BackgroundColor="#1FFFFFFF"
                              HorizontalOptions="Center" VerticalOptions="Center" />
 
-                    <!-- 右：歌曲信息（歌词上方）+ 歌词列（居左） -->
-                    <Grid x:Name="WinLyricColumn" Grid.Column="2" RowDefinitions="Auto,Auto,*" Padding="36,12,44,8">
+                    <!-- 右：歌曲信息（歌词上方）+ 歌词列（居左，右移留白） -->
+                    <Grid x:Name="WinLyricColumn" Grid.Column="2" RowDefinitions="Auto,Auto,*" Padding="96,12,44,8">
 
                         <!-- 歌曲信息：标题 / 专辑 / 歌手 -->
                         <VerticalStackLayout Grid.Row="0" Spacing="4" Padding="0,0,24,6">
