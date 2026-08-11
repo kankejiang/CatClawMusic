@@ -88,60 +88,64 @@
                     <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="vm:PluginItemView">
                             <Border Style="{StaticResource GlassCardStyle}">
-                                <Grid Padding="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                                    <Label Text="{Binding IconEmoji}"
-                                           FontSize="26"
-                                           VerticalOptions="Center" />
-                                    <VerticalStackLayout Grid.Column="1" Spacing="3">
-                                        <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="6">
-                                            <Label Text="{Binding DisplayName}"
-                                                   FontSize="15"
-                                                   FontFamily="OpenSansSemibold"
-                                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                                            <Border Grid.Column="1"
-                                                    Padding="6,2"
-                                                    Stroke="{DynamicResource GlassStrokeColor}"
-                                                    StrokeShape="RoundRectangle 8"
-                                                    BackgroundColor="#1AFFFFFF"
-                                                    VerticalOptions="Center">
-                                                <Label Text="{Binding CategoryText}"
-                                                       FontSize="9"
-                                                       TextColor="#B8C7FF" />
-                                            </Border>
-                                            <Border Grid.Column="2"
-                                                    Padding="6,2"
-                                                    Stroke="{DynamicResource GlassStrokeColor}"
-                                                    StrokeShape="RoundRectangle 8"
-                                                    BackgroundColor="#1AFFFFFF"
-                                                    VerticalOptions="Center">
-                                                <Label Text="{Binding SourceText}"
-                                                       FontSize="9"
-                                                       TextColor="#B8C7FF" />
-                                            </Border>
-                                        </Grid>
-                                        <Label Text="{Binding Description}"
-                                               FontSize="11"
-                                               TextColor="{DynamicResource TextHintColor}"
-                                               LineBreakMode="TailTruncation"
-                                               MaxLines="2" />
-                                        <HorizontalStackLayout Spacing="8">
-                                            <Label Text="{Binding Version, StringFormat='v{0}'}"
-                                                   FontSize="10"
-                                                   TextColor="{DynamicResource TextHintColor}" />
-                                            <Label Text="{Binding Author, StringFormat='by {0}'}"
-                                                   FontSize="10"
+                                <Grid Padding="14,12" RowDefinitions="Auto,Auto" RowSpacing="12">
+                                    <!-- Row 0：图标 + 插件信息 -->
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                        <Label Text="{Binding IconEmoji}"
+                                               FontSize="26"
+                                               VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="6">
+                                                <Label Text="{Binding DisplayName}"
+                                                       FontSize="15"
+                                                       FontFamily="OpenSansSemibold"
+                                                       TextColor="{DynamicResource TextPrimaryColor}" />
+                                                <Border Grid.Column="1"
+                                                        Padding="6,2"
+                                                        Stroke="{DynamicResource GlassStrokeColor}"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="#1AFFFFFF"
+                                                        VerticalOptions="Center">
+                                                    <Label Text="{Binding CategoryText}"
+                                                           FontSize="9"
+                                                           TextColor="#B8C7FF" />
+                                                </Border>
+                                                <Border Grid.Column="2"
+                                                        Padding="6,2"
+                                                        Stroke="{DynamicResource GlassStrokeColor}"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="#1AFFFFFF"
+                                                        VerticalOptions="Center">
+                                                    <Label Text="{Binding SourceText}"
+                                                           FontSize="9"
+                                                           TextColor="#B8C7FF" />
+                                                </Border>
+                                            </Grid>
+                                            <Label Text="{Binding Description}"
+                                                   FontSize="11"
                                                    TextColor="{DynamicResource TextHintColor}"
-                                                   IsVisible="{Binding Author, Converter={StaticResource StringToBoolConverter}}" />
-                                            <BoxView WidthRequest="6" HeightRequest="6"
-                                                     CornerRadius="3"
-                                                     Color="{Binding StatusColor}"
-                                                     VerticalOptions="Center" />
-                                            <Label Text="{Binding StatusText}"
-                                                   FontSize="10"
-                                                   TextColor="{Binding StatusColor}" />
-                                        </HorizontalStackLayout>
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
+                                                   LineBreakMode="TailTruncation"
+                                                   MaxLines="2" />
+                                            <HorizontalStackLayout Spacing="8">
+                                                <Label Text="{Binding Version, StringFormat='v{0}'}"
+                                                       FontSize="10"
+                                                       TextColor="{DynamicResource TextHintColor}" />
+                                                <Label Text="{Binding Author, StringFormat='by {0}'}"
+                                                       FontSize="10"
+                                                       TextColor="{DynamicResource TextHintColor}"
+                                                       IsVisible="{Binding Author, Converter={StaticResource StringToBoolConverter}}" />
+                                                <BoxView WidthRequest="6" HeightRequest="6"
+                                                         CornerRadius="3"
+                                                         Color="{Binding StatusColor}"
+                                                         VerticalOptions="Center" />
+                                                <Label Text="{Binding StatusText}"
+                                                       FontSize="10"
+                                                       TextColor="{Binding StatusColor}" />
+                                            </HorizontalStackLayout>
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                    <!-- Row 1：操作栏（启用开关 / 删除 / 配置，放卡片底部） -->
+                                    <HorizontalStackLayout Grid.Row="1" Spacing="14" VerticalOptions="Center">
                                         <Switch IsToggled="{Binding IsEnabled, Mode=TwoWay}"
                                                 OnColor="{DynamicResource PrimaryColor}"
                                                 ThumbColor="White"
@@ -152,7 +156,7 @@
                                                 StrokeThickness="0"
                                                 StrokeShape="RoundRectangle 12"
                                                 BackgroundColor="#22FF6B6B"
-                                                HorizontalOptions="End">
+                                                VerticalOptions="Center">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Command="{Binding UninstallCommand}"
                                                                       CommandParameter="{Binding .}" />
@@ -168,7 +172,7 @@
                                                 StrokeThickness="0"
                                                 StrokeShape="RoundRectangle 12"
                                                 BackgroundColor="#24FFFFFF"
-                                                HorizontalOptions="End">
+                                                VerticalOptions="Center">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Command="{Binding ConfigureCommand}"
                                                                       CommandParameter="{Binding .}" />
@@ -179,7 +183,7 @@
                                                    TextColor="{DynamicResource PrimaryColor}"
                                                    HorizontalOptions="Center" />
                                         </Border>
-                                    </VerticalStackLayout>
+                                    </HorizontalStackLayout>
                                 </Grid>
                             </Border>
                         </DataTemplate>
