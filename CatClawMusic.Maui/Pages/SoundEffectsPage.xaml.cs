@@ -164,7 +164,7 @@ public partial class SoundEffectsPage : ContentPage
             Command = new Command(async () =>
             {
                 var eqPage = new EqualizerPage();
-                if (Shell.Current?.Navigation is { } nav)
+                if (DesktopNavigation.TryGetShell()?.Navigation is { } nav)
                     await nav.PushModalAsync(eqPage);
                 else
                     await Navigation.PushModalAsync(eqPage);

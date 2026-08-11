@@ -142,11 +142,11 @@
                                         </HorizontalStackLayout>
                                     </VerticalStackLayout>
                                     <VerticalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
-                                        <Switch IsToggled="{Binding IsEnabled}"
+                                        <Switch IsToggled="{Binding IsEnabled, Mode=TwoWay}"
                                                 OnColor="{DynamicResource PrimaryColor}"
                                                 ThumbColor="White"
                                                 VerticalOptions="Center"
-                                                IsEnabled="False" />
+                                                Toggled="OnPluginSwitchToggled" />
                                         <Border IsVisible="{Binding CanUninstall}"
                                                 Padding="9,4"
                                                 StrokeThickness="0"
@@ -154,7 +154,7 @@
                                                 BackgroundColor="#22FF6B6B"
                                                 HorizontalOptions="End">
                                             <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.UninstallPluginCommand}"
+                                                <TapGestureRecognizer Command="{Binding UninstallCommand}"
                                                                       CommandParameter="{Binding .}" />
                                             </Border.GestureRecognizers>
                                             <Label Text="🗑 删除"
@@ -170,7 +170,7 @@
                                                 BackgroundColor="#24FFFFFF"
                                                 HorizontalOptions="End">
                                             <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ConfigurePluginCommand}"
+                                                <TapGestureRecognizer Command="{Binding ConfigureCommand}"
                                                                       CommandParameter="{Binding .}" />
                                             </Border.GestureRecognizers>
                                             <Label Text="⚙ 配置"
@@ -181,10 +181,6 @@
                                         </Border>
                                     </VerticalStackLayout>
                                 </Grid>
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleEnabledCommand}"
-                                                          CommandParameter="{Binding .}" />
-                                </Border.GestureRecognizers>
                             </Border>
                         </DataTemplate>
                     </BindableLayout.ItemTemplate>

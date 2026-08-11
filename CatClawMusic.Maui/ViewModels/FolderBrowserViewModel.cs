@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Helpers;
 
 namespace CatClawMusic.Maui.ViewModels;
 
@@ -153,7 +154,7 @@ public partial class FolderBrowserViewModel : ObservableObject, IQueryAttributab
                 // 与 DownloadManager.GetDownloadFolderPath() 读取同一偏好键，保持路径设置全局一致
                 Preferences.Default.Set(Services.DownloadManager.PrefKey, CurrentPath.TrimEnd('/', '\\'));
             }
-            await Shell.Current.GoToAsync("..");
+            DesktopNavigation.GoBack();
         }
         catch (Exception ex)
         {
@@ -163,9 +164,10 @@ public partial class FolderBrowserViewModel : ObservableObject, IQueryAttributab
 
     /// <summary>取消选择并返回上一页</summary>
     [RelayCommand]
-    public async Task CancelAsync()
+    public Task CancelAsync()
     {
-        await Shell.Current.GoToAsync("..");
+        DesktopNavigation.GoBack();
+        return Task.CompletedTask;
     }
 
     private async Task LoadDirectoryAsync(string path)

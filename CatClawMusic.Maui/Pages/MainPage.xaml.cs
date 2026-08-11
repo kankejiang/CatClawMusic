@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Linq;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using System.ComponentModel;
 using Microsoft.Maui.Storage;
@@ -836,11 +837,13 @@ public partial class MainPage : ContentPage
     /// <summary>导航到指定 tab（静态方法，供外部调用。tab 索引 0-4）</summary>
     public static async Task GoToTabAsync(int tabIndex)
     {
-        var currentRoute = Shell.Current.CurrentState.Location.ToString();
+        var shell = DesktopNavigation.TryGetShell();
+        if (shell == null) return; // 桌面无 Shell 不处理
+        var currentRoute = shell.CurrentState.Location.ToString();
         if (currentRoute != "//main")
         {
             PendingTabIndex = tabIndex;
-            await Shell.Current.GoToAsync("//main");
+            await shell.GoToAsync("//main");
         }
         else
         {

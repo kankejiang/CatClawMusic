@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 
@@ -456,7 +457,7 @@ public partial class DesktopMainPage : ContentPage
 #if WINDOWS
         OpenPlaylistEmbedded(pl);
 #else
-        _ = Shell.Current.GoToAsync(
+        DesktopNavigation.TryGoToShell(
             $"playlistdetail?playlistId={pl.Id}&name={Uri.EscapeDataString(pl.Name)}");
 #endif
     }
@@ -657,7 +658,7 @@ public partial class DesktopMainPage : ContentPage
     private void OnLyricsButtonClicked(object? sender, EventArgs e)
     {
         var page = _services.GetRequiredService<FullLyricsPage>();
-        _ = Shell.Current.Navigation.PushAsync(page);
+        DesktopNavigation.PushEmbed(page);
     }
 
     /// <summary>点击底部播放栏的歌曲信息/封面时，跳转到正在播放页。
@@ -665,7 +666,7 @@ public partial class DesktopMainPage : ContentPage
     private void OnPlayerSongInfoTapped(object? sender, EventArgs e)
     {
         var page = _services.GetRequiredService<NowPlayingPage>();
-        _ = Shell.Current.Navigation.PushAsync(page);
+        DesktopNavigation.PushEmbed(page);
     }
 
     private void InitVolumeSlider()

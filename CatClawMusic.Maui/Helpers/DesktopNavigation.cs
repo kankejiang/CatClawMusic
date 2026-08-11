@@ -78,6 +78,41 @@ public static class DesktopNavigation
         }
     }
 
+    /// <summary>返回上一页：Shell 环境 GoToAsync("..")；桌面无 Shell 关闭嵌入恢复原 tab。</summary>
+    public static void GoBack()
+    {
+        if (TryGoToShell("..")) return;
+        CloseEmbedded();
+    }
+
+    /// <summary>PushAsync 的替代：Shell 环境压入导航栈；桌面（无 Shell）嵌入主区域并保留返回按钮。</summary>
+    public static void PushEmbed(Page page)
+    {
+        var shell = TryGetShell();
+        if (shell != null)
+        {
+            _ = shell.Navigation.PushAsync(page);
+            return;
+        }
+        if (page is ContentPage contentPage)
+            OpenEmbedded(contentPage, hideBack: false);
+    }
+
+    /// <summary>PopAsync 的替代：Shell 有导航栈则弹栈；桌面关闭嵌入恢复原 tab。</summary>
+    public static void PopOrClose()
+    {
+        var shell = TryGetShell();
+        if (shell != null && shell.Navigation.NavigationStack.Count > 1)
+        {
+            _ = shell.Navigation.PopAsync();
+            return;
+        }
+        CloseEmbedded();
+    }
+
+    /// <summary>桌面播放页覆盖层专用：关闭 PlayerOverlay 覆盖层（Shell 环境无操作）。</summary>
+    public static void ClosePlayerOverlay() => DesktopBlankPage.Instance?.ClosePlayerOverlay();
+
     /// <summary>桌面无 Shell 环境：关闭嵌入的子页面，恢复原 tab 内容。</summary>
     public static void CloseEmbedded() => DesktopBlankPage.Instance?.CloseEmbeddedPage();
 

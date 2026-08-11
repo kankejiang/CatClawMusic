@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
@@ -43,7 +44,7 @@ public partial class NowPlayingPage
     private async void OnEqualizerClicked(object? sender, EventArgs e)
     {
         var fxPage = new SoundEffectsPage();
-        if (Shell.Current?.Navigation is { } nav)
+        if (DesktopNavigation.TryGetShell()?.Navigation is { } nav)
             await nav.PushModalAsync(fxPage);
         else
             await Navigation.PushModalAsync(fxPage);
@@ -438,7 +439,8 @@ public partial class NowPlayingPage
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 var page = MauiProgram.Services.GetRequiredService<NowPlayingPage>();
-                Shell.Current?.Navigation.PushAsync(page);
+                if (DesktopNavigation.TryGetShell()?.Navigation is { } nav)
+                    _ = nav.PushAsync(page);
             });
         }
 #endif
@@ -658,10 +660,16 @@ public partial class NowPlayingPage
     }
 
     private void NavigateToArtist(string artist)
-        => _ = Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist)}");
+    {
+        if (DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(artist)}")) return;
+        DesktopNavigation.OpenArtistDetail(artist);
+    }
 
     private void NavigateToAlbum(string album)
-        => _ = Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album)}");
+    {
+        if (DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(album)}")) return;
+        DesktopNavigation.OpenAlbumDetail(album);
+    }
 
     /// <summary>分享音频文件：本地歌曲直接分享文件；网络歌曲先下载到本地缓存再以文件分享。</summary>
     private async Task ShareSongAsync(Song song)

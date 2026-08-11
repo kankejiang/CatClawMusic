@@ -1234,16 +1234,23 @@ public partial class FullLyricsPage : ContentPage
     /// <summary>返回播放页</summary>
     private void OnBackClicked(object? sender, EventArgs e)
     {
-        if (Shell.Current.Navigation.NavigationStack.Count > 1)
+        var shell = DesktopNavigation.TryGetShell();
+        if (shell != null && shell.Navigation.NavigationStack.Count > 1)
         {
-            _ = Shell.Current.Navigation.PopAsync();
+            _ = shell.Navigation.PopAsync();
             return;
         }
+        if (shell != null)
+        {
 #if WINDOWS
-        _ = Shell.Current.GoToAsync("//main");
+            _ = shell.GoToAsync("//main");
 #else
-        MainPage.Instance?.SwitchToTab(0);
+            MainPage.Instance?.SwitchToTab(0);
 #endif
+            return;
+        }
+        // 桌面无 Shell：关闭嵌入恢复原 tab
+        DesktopNavigation.CloseEmbedded();
     }
 
     /// <summary>点击歌词设置按钮</summary>

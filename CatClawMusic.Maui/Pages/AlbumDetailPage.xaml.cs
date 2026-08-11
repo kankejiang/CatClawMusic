@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
@@ -27,8 +28,8 @@ public partial class AlbumDetailPage : ContentPage
     /// <summary>点击返回按钮时触发，返回到上一级页面。</summary>
     /// <param name="sender">事件源。</param>
     /// <param name="e">事件参数。</param>
-    private async void OnBackClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync("..");
+    private void OnBackClicked(object? sender, EventArgs e)
+        => DesktopNavigation.GoBack();
 
     /// <summary>在歌曲列表中选中某首歌曲时触发，清除选中状态并播放所选歌曲。</summary>
     /// <param name="sender">事件源。</param>

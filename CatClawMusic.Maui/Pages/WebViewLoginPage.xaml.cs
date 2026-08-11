@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
@@ -104,7 +105,7 @@ public partial class WebViewLoginPage : ContentPage
     private void OnBackTapped(object? sender, EventArgs e)
     {
         _vm.Cancel();
-        Shell.Current.GoToAsync("..");
+        DesktopNavigation.GoBack();
     }
 
     /// <summary>"完成"按钮：手动触发 Cookie 提取（用户觉得已登录可主动点）</summary>
@@ -161,7 +162,7 @@ public partial class WebViewLoginPage : ContentPage
     private async Task TryExtractCookieAndReturnAsync()
     {
         var info = _vm.LoginInfo;
-        if (info == null) { await Shell.Current.GoToAsync(".."); return; }
+        if (info == null) { DesktopNavigation.GoBack(); return; }
 
         try
         {
@@ -170,7 +171,7 @@ public partial class WebViewLoginPage : ContentPage
             {
                 StatusHint.Text = "登录成功，正在返回...";
                 await _vm.CompleteLoginAsync(cookie);
-                await Shell.Current.GoToAsync("..");
+                DesktopNavigation.GoBack();
                 return;
             }
         }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Core.Interfaces;
@@ -151,9 +152,10 @@ public partial class SettingsPage : ContentPage
     /// <param name="pageType">目标二级页类型（从 DI 解析）。</param>
     /// <param name="fallbackRoute">非 Android 时的 Shell 路由回退。</param>
 
-    private async Task OpenSubPageAsync(Type pageType, string fallbackRoute)
+    private Task OpenSubPageAsync(Type pageType, string fallbackRoute)
     {
-        await Shell.Current.GoToAsync(fallbackRoute);
+        DesktopNavigation.TryGoToShell(fallbackRoute);
+        return Task.CompletedTask;
     }
 
 }

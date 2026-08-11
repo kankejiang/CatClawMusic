@@ -310,7 +310,9 @@ public class NeteaseOnlineMusicPage : ContentPage
         // 跳转宿主的 WebView 登录页（通过 Shell 路由）。
         // 宿主 WebViewLoginViewModel 通过 platform 参数匹配 IOnlineMusicPlugin.PlatformName，
         // 网易云插件的 PlatformName 固定为 "netease"。
-        await Shell.Current.GoToAsync($"webviewlogin?platform=netease");
+        // 桌面无 Shell 窗口时 Shell.Current 会抛异常，改走宿主嵌入（反射桥接）。
+        if (TryGoToShell($"webviewlogin?platform=netease")) return;
+        TryGoOrEmbed("webviewlogin?platform=netease", "CatClawMusic.Maui.Pages.WebViewLoginPage");
     }
 
     private void AdjustPlaylistSpan()
@@ -357,9 +359,73 @@ public class NeteaseOnlineMusicPage : ContentPage
         var backLabel = (Label)border.Content!;
         backLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
         var tap = new TapGestureRecognizer();
-        tap.Tapped += async (_, _) => { try { await Shell.Current.Navigation.PopAsync(); } catch { } };
+        tap.Tapped += async (_, _) =>
+        {
+            try
+            {
+                // Shell 环境：弹栈返回
+                if (Shell.Current?.Navigation is { } nav && nav.NavigationStack.Count > 1)
+                {
+                    await nav.PopAsync();
+                    return;
+                }
+            }
+            catch { /* Shell.Current 在桌面无 Shell 窗口会抛异常 */ }
+
+            // 桌面无 Shell：关闭宿主嵌入，恢复原 tab
+            TryCloseEmbedded();
+        };
         border.GestureRecognizers.Add(tap);
         return border;
+    }
+
+    // ── 宿主导航反射桥接（桌面无 Shell 环境；插件不引用 CatClawMusic.Maui 程序集）──
+
+    private static System.Type? HostType(string fullName)
+    {
+        try { return System.Type.GetType($"{fullName}, CatClawMusic.Maui"); }
+        catch { return null; }
+    }
+
+    /// <summary>有 Shell 则 GoToAsync 返回 true；无 Shell（桌面）返回 false。</summary>
+    private static bool TryGoToShell(string route)
+    {
+        try
+        {
+            if (Shell.Current == null) return false;
+            _ = Shell.Current.GoToAsync(route);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>桌面无 Shell：关闭宿主嵌入（DesktopBlankPage.CloseEmbeddedPage）。</summary>
+    private static void TryCloseEmbedded()
+    {
+        try
+        {
+            HostType("CatClawMusic.Maui.Helpers.DesktopNavigation")
+                ?.GetMethod("CloseEmbedded", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                ?.Invoke(null, null);
+        }
+        catch { }
+    }
+
+    /// <summary>桌面无 Shell：把宿主页面（按类型名解析）嵌入主区域并保留返回按钮。</summary>
+    private static void TryGoOrEmbed(string route, string pageTypeFullName)
+    {
+        try
+        {
+            var navType = HostType("CatClawMusic.Maui.Helpers.DesktopNavigation");
+            var pageType = System.Type.GetType($"{pageTypeFullName}, CatClawMusic.Maui");
+            if (navType == null || pageType == null) return;
+            navType.GetMethod("GoOrEmbed", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                ?.Invoke(null, new object[] { route, pageType, false });
+        }
+        catch { }
     }
 
     private static Border CreateEntryCard(string title, string subtitle, string color1, string color2)

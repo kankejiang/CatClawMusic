@@ -1,4 +1,5 @@
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 
 namespace CatClawMusic.Maui.Pages;
@@ -36,7 +37,9 @@ public partial class ArtistDetailPage : ContentPage
                 collectionView.SelectedItem = null;
             }
 
-            await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
+            var title = album.Title ?? string.Empty;
+            if (DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(title)}")) return;
+            DesktopNavigation.OpenAlbumDetail(title);
         }
     }
 

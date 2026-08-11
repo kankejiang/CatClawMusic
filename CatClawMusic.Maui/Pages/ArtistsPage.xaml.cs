@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 
@@ -39,7 +40,7 @@ public partial class ArtistsPage : ContentPage
             DesktopMainPage.Instance.CloseEmbeddedSubPage("library");
             return;
         }
-        await Shell.Current.GoToAsync("..");
+        DesktopNavigation.GoBack();
     }
 
     // ChipList.ChipTapped 事件签名：EventHandler<object?>
@@ -60,7 +61,7 @@ public partial class ArtistsPage : ContentPage
         if (sender is BindableObject bo && bo.BindingContext is ArtistWithCount artist)
         {
             _viewModel.SelectedArtist = artist;
-            await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name ?? string.Empty)}");
+            DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(artist.Name ?? string.Empty)}");
         }
     }
 
@@ -73,7 +74,7 @@ public partial class ArtistsPage : ContentPage
     private async void OnMostPlayedTapped(object? sender, EventArgs e)
     {
         if (_viewModel.MostPlayedArtist != null)
-            await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(_viewModel.MostPlayedArtist.Name ?? string.Empty)}");
+            DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(_viewModel.MostPlayedArtist.Name ?? string.Empty)}");
     }
 
     private void OnArtistMoreTapped(object? sender, TappedEventArgs e)
@@ -132,7 +133,7 @@ public partial class ArtistsPage : ContentPage
         switch (action)
         {
             case "查看详情":
-                await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name ?? string.Empty)}");
+                DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(artist.Name ?? string.Empty)}");
                 break;
             case "播放全部歌曲":
                 // TODO: 播放该艺术家全部歌曲

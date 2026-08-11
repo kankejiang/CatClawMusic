@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -337,7 +338,7 @@ public partial class App : Application
     {
         try
         {
-            var shell = shellOverride ?? Shell.Current;
+            var shell = shellOverride ?? DesktopNavigation.TryGetShell();
             if (shell == null) { Android.Util.Log.Warn("CatClaw", "[Orientation] shell==null, skip"); return; }
 
             bool landscape = IsLandscapeMode();

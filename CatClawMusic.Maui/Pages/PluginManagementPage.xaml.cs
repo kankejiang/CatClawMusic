@@ -24,4 +24,18 @@ public partial class PluginManagementPage : ContentPage
         try { await _vm.OnAppearingAsync(); }
         catch (Exception ex) { Log.Debug("PluginManagementPage.xaml", $"[PluginPage] OnAppearing: {ex.Message}"); }
     }
+
+    /// <summary>插件启用开关拨动：按 e.Value 直接设置（不取反，避免与其它入口双触发翻转）。</summary>
+    private void OnPluginSwitchToggled(object? sender, ToggledEventArgs e)
+    {
+        try
+        {
+            if (sender is Switch sw && sw.BindingContext is PluginItemView item)
+                _vm.ApplyEnabled(item, e.Value);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementPage.xaml", $"[PluginPage] Switch toggled: {ex.Message}");
+        }
+    }
 }

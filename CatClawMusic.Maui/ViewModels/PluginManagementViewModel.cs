@@ -84,7 +84,14 @@ public partial class PluginManagementViewModel : ObservableObject
             Plugins.Clear();
             var list = _pluginManager.GetAllPlugins();
             foreach (var p in list)
-                Plugins.Add(new PluginItemView(p, _pluginManager.IsPluginEnabled(p.PluginTypeId)));
+            {
+                Plugins.Add(new PluginItemView(p, _pluginManager.IsPluginEnabled(p.PluginTypeId))
+                {
+                    UninstallCommand = UninstallPluginCommand,
+                    ConfigureCommand = ConfigurePluginCommand,
+                    ToggleCommand = ToggleEnabledCommand
+                });
+            }
 
             var enabled = Plugins.Count(x => x.IsEnabled);
             Summary = Plugins.Count > 0
@@ -430,9 +437,15 @@ public partial class PluginManagementViewModel : ObservableObject
     public void ToggleEnabled(PluginItemView? item)
     {
         if (item == null) return;
+        ApplyEnabled(item, !item.IsEnabled);
+    }
+
+    /// <summary>按指定状态启用/禁用插件（Switch Toggled 与卡片点击共用；按 e.Value 不取反，避免双触发翻转）</summary>
+    public void ApplyEnabled(PluginItemView item, bool newState)
+    {
+        if (item == null) return;
         try
         {
-            var newState = !item.IsEnabled;
             _pluginManager.SetPluginEnabled(item.PluginTypeId, newState);
             item.IsEnabled = newState;
             UpdateSummary();
@@ -580,6 +593,13 @@ public partial class PluginItemView : ObservableObject
     [NotifyPropertyChangedFor(nameof(StatusText))]
     [NotifyPropertyChangedFor(nameof(StatusColor))]
     private bool _isEnabled;
+
+    /// <summary>卸载命令（由页面 VM 注入；嵌入模式视觉树无 ContentPage 祖先，不能依赖 RelativeSource）</summary>
+    public System.Windows.Input.ICommand? UninstallCommand { get; init; }
+    /// <summary>配置命令（同上）</summary>
+    public System.Windows.Input.ICommand? ConfigureCommand { get; init; }
+    /// <summary>启用切换命令（同上）</summary>
+    public System.Windows.Input.ICommand? ToggleCommand { get; init; }
 
     /// <summary>状态展示文本（已启用 / 已禁用）</summary>
     public string StatusText => IsEnabled ? "已启用" : "已禁用";

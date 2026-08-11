@@ -1,4 +1,5 @@
 using CatClawMusic.Maui.ViewModels;
+using CatClawMusic.Maui.Helpers;
 using AppTheme = Microsoft.Maui.ApplicationModel.AppTheme;
 
 namespace CatClawMusic.Maui.Pages;
@@ -135,7 +136,7 @@ public partial class LogPage : ContentPage
 
     private static LayoutOptions Center => LayoutOptions.Center;
 
-    private void OnBackClicked(object? sender, EventArgs e) => Shell.Current.GoToAsync("..");
+    private void OnBackClicked(object? sender, EventArgs e) => DesktopNavigation.GoBack();
 
     private async void OnRefreshClicked(object? sender, EventArgs e)
     {

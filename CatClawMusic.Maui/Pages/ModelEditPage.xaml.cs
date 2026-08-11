@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services.AI;
+using CatClawMusic.Maui.Helpers;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -367,7 +368,7 @@ public partial class ModelEditPage : ContentPage
                 ContextCaching = ContextCachingSwitch.IsToggled
             };
             AgentService.SaveConfig(config);
-            await Shell.Current.GoToAsync("..");
+            DesktopNavigation.GoBack();
         }
         catch (Exception ex)
         {

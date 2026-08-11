@@ -580,7 +580,7 @@ public partial class DesktopBlankPage : ContentPage
     }
 
     /// <summary>关闭播放页覆盖层（由播放页收起按钮触发）。</summary>
-    private void ClosePlayerOverlay()
+    public void ClosePlayerOverlay()
     {
         if (_overlayPlayerPage != null)
         {

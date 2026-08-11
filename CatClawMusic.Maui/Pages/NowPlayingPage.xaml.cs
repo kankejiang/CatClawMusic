@@ -1301,11 +1301,13 @@ public partial class NowPlayingPage : ContentPage
 #endif
     }
 
-    /// <summary>跳转到全屏歌词页：移动端走 ViewPager 切换，桌面端走 Shell 路由</summary>
+    /// <summary>跳转到全屏歌词页：移动端走 ViewPager 切换，桌面端嵌入全屏歌词页</summary>
     private static void GoToFullLyrics()
     {
 #if WINDOWS
-        _ = Shell.Current.GoToAsync("//fullyrics");
+        // 桌面无 Shell：嵌入 FullLyricsPage（若处于 PlayerOverlay 覆盖层则 MainArea 被遮挡，静默跳过）
+        if (DesktopNavigation.TryGoToShell("//fullyrics")) return;
+        DesktopNavigation.GoOrEmbed("fullyrics", typeof(FullLyricsPage));
 #else
         MainPage.Instance?.SwitchToFullLyrics();
 #endif
@@ -1315,10 +1317,13 @@ public partial class NowPlayingPage : ContentPage
     private void OnCollapseButtonTapped(object? sender, TappedEventArgs e)
     {
 #if WINDOWS
-        if (Shell.Current.Navigation.NavigationStack.Count > 1)
-            _ = Shell.Current.Navigation.PopAsync();
+        var shell = DesktopNavigation.TryGetShell();
+        if (shell != null && shell.Navigation.NavigationStack.Count > 1)
+            _ = shell.Navigation.PopAsync();
+        else if (shell != null)
+            _ = shell.GoToAsync("//main");
         else
-            _ = Shell.Current.GoToAsync("//main");
+            DesktopNavigation.ClosePlayerOverlay(); // 桌面无 Shell：关闭播放页覆盖层
 #else
         MainPage.Instance?.CollapseNowPlaying();
 #endif
@@ -1332,10 +1337,13 @@ public partial class NowPlayingPage : ContentPage
     private void OnLandscapeCollapseTapped(object? sender, TappedEventArgs e)
     {
 #if ANDROID || WINDOWS
-        if (Shell.Current.Navigation.NavigationStack.Count > 1)
-            _ = Shell.Current.Navigation.PopAsync();
+        var shell = DesktopNavigation.TryGetShell();
+        if (shell != null && shell.Navigation.NavigationStack.Count > 1)
+            _ = shell.Navigation.PopAsync();
+        else if (shell != null)
+            _ = shell.GoToAsync("//main");
         else
-            _ = Shell.Current.GoToAsync("//main");
+            DesktopNavigation.ClosePlayerOverlay(); // 桌面无 Shell：关闭播放页覆盖层
 #else
         MainPage.Instance?.CollapseNowPlaying();
 #endif
@@ -1347,7 +1355,7 @@ public partial class NowPlayingPage : ContentPage
         if (_isLandscape)
         {
             var fullLyricsPage = MauiProgram.Services.GetRequiredService<Pages.FullLyricsPage>();
-            _ = Shell.Current.Navigation.PushAsync(fullLyricsPage);
+            DesktopNavigation.PushEmbed(fullLyricsPage);
         }
         else
             GoToFullLyrics();
@@ -1662,7 +1670,8 @@ public partial class NowPlayingPage : ContentPage
         var song = _viewModel.CurrentSong;
         if (song == null || song.Id <= 0) return;
 
-        _ = Shell.Current.GoToAsync($"songdetail?songId={song.Id}");
+        if (DesktopNavigation.TryGoToShell($"songdetail?songId={song.Id}")) return;
+        DesktopNavigation.OpenSongDetail(song.Id.ToString());
     }
     /// <summary>点击播放列表按钮：弹出播放队列弹窗</summary>
     private void OnOpenPlaylistClicked(object? sender, EventArgs e)

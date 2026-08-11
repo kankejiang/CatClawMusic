@@ -2,6 +2,7 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Pages.Base;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
@@ -380,18 +381,18 @@ public partial class SearchPage : DiscoverPageBase
     private void OnQuickRecentTapped(object? sender, TappedEventArgs e) => _vm.CurrentCategory = 0;
 
     /// <summary>点击"查看全部"按钮（推荐艺人/推荐歌手）时触发，导航到全部艺术家列表页。</summary>
-    private async void OnViewAllArtistsClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("artists");
+    private void OnViewAllArtistsClicked(object? sender, EventArgs e) => DesktopNavigation.TryGoToShell("artists");
 
     /// <summary>点击"查看全部"按钮（推荐专辑）时触发，导航到全部专辑列表页。</summary>
-    private async void OnViewAllAlbumsClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("albums");
+    private void OnViewAllAlbumsClicked(object? sender, EventArgs e) => DesktopNavigation.TryGoToShell("albums");
 
     /// <summary>点击"查看全部"按钮（最多播放）时触发，导航到最多播放歌单详情页（系统虚拟歌单 Id=-4）。</summary>
-    private async void OnViewAllTopPlayedClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync($"playlistdetail?playlistId=-4&name={Uri.EscapeDataString("最多播放")}");
+    private void OnViewAllTopPlayedClicked(object? sender, EventArgs e)
+        => DesktopNavigation.TryGoToShell($"playlistdetail?playlistId=-4&name={Uri.EscapeDataString("最多播放")}");
 
     /// <summary>点击"查看全部"按钮（我的最爱）时触发，导航到收藏歌曲歌单详情页（系统虚拟歌单 Id=-2）。</summary>
-    private async void OnViewAllFavoritesClicked(object? sender, EventArgs e)
-        => await Shell.Current.GoToAsync($"playlistdetail?playlistId=-2&name={Uri.EscapeDataString("收藏歌曲")}");
+    private void OnViewAllFavoritesClicked(object? sender, EventArgs e)
+        => DesktopNavigation.TryGoToShell($"playlistdetail?playlistId=-2&name={Uri.EscapeDataString("收藏歌曲")}");
 
     /// <summary>滚动到指定元素位置（适配 CollectionView 的实现）。</summary>
     private async Task ScrollToElementAsync(VisualElement element)
@@ -517,9 +518,9 @@ public partial class SearchPage : DiscoverPageBase
     // === 设置抽屉（竖屏专属：从左侧滑出的毛玻璃面板） ===
 
     /// <summary>点击汉堡菜单按钮，从左到右滑出设置面板</summary>
-    private async void OnHamburgerClicked(object? sender, EventArgs e)
+    private void OnHamburgerClicked(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("settings");
+        DesktopNavigation.TryGoToShell("settings");
     }
 
     /// <summary>创建并嵌入设置页面内容（幂等）。点击汉堡按钮与空闲预热时调用。</summary>

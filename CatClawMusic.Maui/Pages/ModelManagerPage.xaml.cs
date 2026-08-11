@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Services.AI;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Helpers;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -123,9 +124,9 @@ public partial class ModelManagerPage : ContentPage
     }
 
     /// <summary>点击右上角 + 按钮，导航到模型编辑页（新增模式，不带 id）。</summary>
-    private async void OnAddClicked(object? sender, EventArgs e)
+    private void OnAddClicked(object? sender, EventArgs e)
     {
-        await Shell.Current.GoToAsync("settings/modeledit");
+        DesktopNavigation.GoOrEmbed("settings/modeledit", typeof(ModelEditPage));
     }
 
     /// <summary>点击「设为主模型」按钮，将指定配置设为当前主模型。</summary>
@@ -174,11 +175,11 @@ public partial class ModelManagerPage : ContentPage
     }
 
     /// <summary>点击「编辑」按钮，导航到模型编辑页（编辑模式，带 id）。</summary>
-    private async void OnEditClicked(object? sender, EventArgs e)
+    private void OnEditClicked(object? sender, EventArgs e)
     {
         if (sender is Button btn && btn.CommandParameter is string name)
         {
-            await Shell.Current.GoToAsync($"settings/modeledit?id={Uri.EscapeDataString(name)}");
+            DesktopNavigation.GoOrEmbed($"settings/modeledit?id={Uri.EscapeDataString(name)}", typeof(ModelEditPage));
         }
     }
 

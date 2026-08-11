@@ -221,7 +221,7 @@ public abstract class DiscoverPageBase : ContentPage
             {
                 WidthRequest = 32,
                 HeightRequest = 32,
-                StrokeShape = new RoundRectangle { CornerRadius = 16 },
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
                 StrokeThickness = 1,
                 VerticalOptions = LayoutOptions.Center,
                 Content = CreateEntryIcon(contributor.EntryIcon)
@@ -304,14 +304,18 @@ public abstract class DiscoverPageBase : ContentPage
         };
     }
 
-    /// <summary>打开 IViewContributorPlugin 贡献的整页（CreateEntryPage → PushAsync）。</summary>
+    /// <summary>打开 IViewContributorPlugin 贡献的整页（CreateEntryPage → Push / 桌面嵌入）。</summary>
     private async Task OpenPluginEntryAsync(IViewContributorPlugin contributor)
     {
         try
         {
             if (contributor.CreateEntryPage(Services) is not Page page) return;
-            if (Shell.Current != null)
-                await Shell.Current.Navigation.PushAsync(page);
+            // Shell.Current 在桌面无 Shell 窗口会抛异常，必须用 TryGetShell 探测
+            if (DesktopNavigation.TryGetShell() is { } shell)
+                await shell.Navigation.PushAsync(page);
+            else if (page is ContentPage contentPage)
+                // 桌面无 Shell：嵌入 DesktopBlankPage.MainArea（保留插件页返回按钮）
+                DesktopNavigation.OpenEmbedded(contentPage, hideBack: false);
             else
                 await Navigation.PushModalAsync(page);
         }
@@ -365,7 +369,9 @@ public abstract class DiscoverPageBase : ContentPage
         if (sender is CollectionView cv) cv.SelectedItem = null;
         SearchBoxControl.Text = "";
         Vm.ClearSearchDropdown();
-        await Shell.Current.GoToAsync($"artistdetail?artistName={Uri.EscapeDataString(artist.Name)}");
+        var name = artist.Name ?? string.Empty;
+        if (DesktopNavigation.TryGoToShell($"artistdetail?artistName={Uri.EscapeDataString(name)}")) return;
+        DesktopNavigation.OpenArtistDetail(name);
     }
 
     protected async void OnSearchAlbumSelected(object? sender, SelectionChangedEventArgs e)
@@ -374,7 +380,9 @@ public abstract class DiscoverPageBase : ContentPage
         if (sender is CollectionView cv) cv.SelectedItem = null;
         SearchBoxControl.Text = "";
         Vm.ClearSearchDropdown();
-        await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title)}");
+        var title = album.Title ?? string.Empty;
+        if (DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(title)}")) return;
+        DesktopNavigation.OpenAlbumDetail(title);
     }
 
     // === 歌曲更多操作 ===
@@ -392,8 +400,12 @@ public abstract class DiscoverPageBase : ContentPage
         switch (action)
         {
             case "查看歌曲详情":
-                await Shell.Current.GoToAsync($"songdetail?songId={song.Id}");
-                break;
+                {
+                    var songId = song.Id.ToString();
+                    if (DesktopNavigation.TryGoToShell($"songdetail?songId={songId}")) break;
+                    DesktopNavigation.OpenSongDetail(songId);
+                    break;
+                }
             case "添加到播放队列":
                 // TODO: 添加到播放队列
                 break;

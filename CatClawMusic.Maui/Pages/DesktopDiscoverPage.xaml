@@ -32,7 +32,7 @@
                             <Switch IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" Scale="0.72" />
                         </HorizontalStackLayout>
                     </Border>
-                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSearchToggleClicked" />
@@ -40,7 +40,7 @@
                         <Image Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}"
                                WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
-                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRefreshClicked" />
@@ -49,7 +49,7 @@
                                WidthRequest="14" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <!-- 在线音乐入口已移除：由 IViewContributorPlugin 插件提供入口 -->
-                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 16" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
                         <Label x:Name="ThemeIcon" Text="&#x1f319;" FontSize="14" HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>

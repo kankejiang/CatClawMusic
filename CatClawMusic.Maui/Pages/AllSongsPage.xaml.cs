@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 
@@ -52,7 +53,7 @@ public partial class AllSongsPage : ContentPage
         if (Navigation.NavigationStack.Count > 1)
             await Navigation.PopAsync();
         else
-            await Shell.Current.GoToAsync("..");
+            DesktopNavigation.GoBack();
     }
 
     // ChipList.ChipTapped 事件签名：EventHandler<object?>
@@ -98,7 +99,7 @@ public partial class AllSongsPage : ContentPage
         switch (action)
         {
             case "查看歌曲详情":
-                await Shell.Current.GoToAsync($"songdetail?songId={song.Id}");
+                DesktopNavigation.TryGoToShell($"songdetail?songId={song.Id}");
                 break;
             case "添加到播放队列":
                 // TODO: 添加到播放队列

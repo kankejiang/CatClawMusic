@@ -1,5 +1,6 @@
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 
@@ -39,7 +40,7 @@ public partial class AlbumsPage : ContentPage
             DesktopMainPage.Instance.CloseEmbeddedSubPage("library");
             return;
         }
-        await Shell.Current.GoToAsync("..");
+        DesktopNavigation.GoBack();
     }
 
     // ChipList.ChipTapped 事件签名：EventHandler<object?>
@@ -60,7 +61,7 @@ public partial class AlbumsPage : ContentPage
         if (sender is BindableObject bo && bo.BindingContext is AlbumWithCount album)
         {
             _viewModel.SelectedAlbum = album;
-            await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
+            DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
         }
     }
 
@@ -126,7 +127,7 @@ public partial class AlbumsPage : ContentPage
         switch (action)
         {
             case "查看详情":
-                await Shell.Current.GoToAsync($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
+                DesktopNavigation.TryGoToShell($"albumdetail?title={Uri.EscapeDataString(album.Title ?? string.Empty)}");
                 break;
             case "播放全部歌曲":
                 // TODO: 播放该专辑全部歌曲

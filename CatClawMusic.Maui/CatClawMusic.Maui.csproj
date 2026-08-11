@@ -194,4 +194,12 @@
 		</PropertyGroup>
 	</Target>
 
+	<!-- 桌面歌词覆盖层（DesktopLyricOverlay）是 Windows 专属实现（Win32/Composition 半透明悬浮窗），
+	     仅 Windows 目标编译；Android 桌面歌词走 WindowManager 悬浮窗（Platforms/Android/DesktopLyricService.cs）。
+	     cs 端已 #if WINDOWS，这里把 XAML 一并排除，避免 Android 下 XamlC 找不到事件处理器报错。 -->
+	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">
+		<MauiXaml Remove="Pages\DesktopLyricOverlay.xaml" />
+		<Compile Remove="Pages\DesktopLyricOverlay.xaml.cs" />
+	</ItemGroup>
+
 </Project>

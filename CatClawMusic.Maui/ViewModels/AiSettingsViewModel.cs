@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services.AI;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -471,16 +472,18 @@ public partial class AiSettingsViewModel : ObservableObject
 
     /// <summary>导航到模型管理页面</summary>
     [RelayCommand]
-    private async Task ManageModelsAsync()
+    private Task ManageModelsAsync()
     {
         try
         {
-            await Shell.Current.GoToAsync("settings/modelmanager");
+            // Shell 环境 GoToAsync；桌面无 Shell 嵌入模型管理页
+            DesktopNavigation.GoOrEmbed("settings/modelmanager", typeof(CatClawMusic.Maui.Pages.ModelManagerPage));
         }
         catch (Exception ex)
         {
             Log.Debug("AiSettingsViewModel", $"[AiSettings] 导航模型管理失败: {ex.Message}");
         }
+        return Task.CompletedTask;
     }
 
     /// <summary>添加一条长期记忆（弹出输入框）</summary>

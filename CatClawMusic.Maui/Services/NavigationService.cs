@@ -1,11 +1,12 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Helpers;
 using System.Threading.Tasks;
 
 namespace CatClawMusic.Maui.Services;
 
 /// <summary>
-/// 导航服务实现 - 封装 Shell 导航逻辑
+/// 导航服务实现 - 封装 Shell 导航逻辑（桌面无 Shell 时走嵌入回退）
 /// </summary>
 public class NavigationService : INavigationService
 {
@@ -16,13 +17,16 @@ public class NavigationService : INavigationService
     {
         try
         {
+            var shell = DesktopNavigation.TryGetShell();
+            if (shell == null) return; // 桌面无 Shell：此服务不承载嵌入逻辑，静默跳过
+
             if (parameters != null)
             {
-                await Shell.Current.GoToAsync(route, parameters);
+                await shell.GoToAsync(route, parameters);
             }
             else
             {
-                await Shell.Current.GoToAsync(route);
+                await shell.GoToAsync(route);
             }
         }
         catch (Exception ex)
@@ -36,7 +40,7 @@ public class NavigationService : INavigationService
     {
         try
         {
-            await Shell.Current.GoToAsync("..");
+            DesktopNavigation.GoBack();
         }
         catch (Exception ex)
         {
@@ -50,7 +54,7 @@ public class NavigationService : INavigationService
     {
         try
         {
-            var shell = Shell.Current;
+            var shell = DesktopNavigation.TryGetShell();
             if (shell?.CurrentItem is TabBar tabBar && tabBar.Items.Count > tabIndex)
             {
                 shell.CurrentItem = tabBar.Items[tabIndex];

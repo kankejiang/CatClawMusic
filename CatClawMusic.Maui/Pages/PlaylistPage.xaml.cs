@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 using CatClawMusic.Core.Interfaces;
@@ -51,7 +52,7 @@ public partial class PlaylistPage : ContentPage
             {
                 collectionView.SelectedItem = null;
             }
-            await Shell.Current.GoToAsync($"playlistdetail?playlistId={playlist.Id}&name={Uri.EscapeDataString(playlist.Name)}");
+            DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={playlist.Id}&name={Uri.EscapeDataString(playlist.Name)}");
         }
     }
 
@@ -253,7 +254,7 @@ public partial class PlaylistPage : ContentPage
 
             if (newId > 0)
             {
-                await Shell.Current.GoToAsync($"playlistdetail?playlistId={newId}&name={Uri.EscapeDataString(name)}");
+                DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={newId}&name={Uri.EscapeDataString(name)}");
             }
         }
         catch (Exception ex)
@@ -283,6 +284,6 @@ public partial class PlaylistPage : ContentPage
             return;
         }
 
-        _ = Shell.Current.GoToAsync(fallbackRoute);
+        DesktopNavigation.TryGoToShell(fallbackRoute);
     }
 }

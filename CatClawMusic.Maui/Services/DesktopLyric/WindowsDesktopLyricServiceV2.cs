@@ -3,6 +3,7 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Services.DesktopLyric;
 using CatClawMusic.Maui.Pages;
 
+#if WINDOWS
 namespace CatClawMusic.Maui.Services;
 
 public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
@@ -167,3 +168,4 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
         catch { }
     }
 }
+#endif

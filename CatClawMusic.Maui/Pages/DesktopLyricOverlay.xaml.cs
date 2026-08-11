@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
+#if WINDOWS
 namespace CatClawMusic.Maui.Pages;
 
 public partial class DesktopLyricOverlay : ContentPage
@@ -202,3 +203,4 @@ public partial class DesktopLyricOverlay : ContentPage
     { SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE); }
 #endif
 }
+#endif
