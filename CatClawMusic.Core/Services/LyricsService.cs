@@ -899,8 +899,80 @@ public class LyricsService : ILyricsService
             var timeMatches = TimeRegex.Matches(line);
             if (timeMatches.Count == 0) continue;
 
-            // 提取歌词文本（最后一个 ] 之后的内容）
+            // ── 逐字方括号格式适配：[00:00.000]起[00:00.211]风[00:00.422]了[00:00.633] ...
+            // 特征：一行内多个时间戳、最后一个 ] 之后无文本、且时间戳之间夹着非空文本。
+            // 早期实现把每个时间戳拆成独立行，且文本提取（取最后一个 ] 之后）恒为空，
+            // 导致整首歌被解析成 N 个空文本行（如《起风了》903 行全空）→ 歌词区域空白。
+            // 正确处理：整行合并为一行，字词时间戳写入 WordTimestamps（逐字卡拉OK填充）。
             var lastBracketIndex = line.LastIndexOf(']');
+            var trailingText = lastBracketIndex >= 0 ? line.Substring(lastBracketIndex + 1).Trim() : "";
+            if (timeMatches.Count >= 2 && trailingText.Length == 0)
+            {
+                bool hasInterstitial = false;
+                for (int m = 0; m < timeMatches.Count - 1; m++)
+                {
+                    var segStart = timeMatches[m].Index + timeMatches[m].Length;
+                    var segEnd = timeMatches[m + 1].Index;
+                    if (segEnd > segStart && !string.IsNullOrWhiteSpace(line.Substring(segStart, segEnd - segStart)))
+                    {
+                        hasInterstitial = true;
+                        break;
+                    }
+                }
+
+                if (hasInterstitial)
+                {
+                    var wordTimestamps = new List<WordTimestamp>();
+                    var sb = new StringBuilder();
+                    for (int m = 0; m < timeMatches.Count; m++)
+                    {
+                        var mt = timeMatches[m];
+                        var minutes = int.Parse(mt.Groups[1].Value);
+                        var seconds = int.Parse(mt.Groups[2].Value);
+                        var millis = mt.Groups[3].Success
+                            ? int.Parse(mt.Groups[3].Value.PadRight(3, '0').Substring(0, 3))
+                            : 0;
+                        var start = new TimeSpan(0, 0, minutes, seconds, millis);
+
+                        var wordStart = mt.Index + mt.Length;
+                        var wordEnd = m + 1 < timeMatches.Count ? timeMatches[m + 1].Index : line.Length;
+                        var word = line.Substring(wordStart, wordEnd - wordStart);
+                        if (word.Length == 0) continue; // 行尾锚点时间戳（如 [00:03.600]）无文本，跳过
+
+                        TimeSpan duration;
+                        if (m + 1 < timeMatches.Count)
+                        {
+                            var nextM = timeMatches[m + 1];
+                            var nMin = int.Parse(nextM.Groups[1].Value);
+                            var nSec = int.Parse(nextM.Groups[2].Value);
+                            var nMs = nextM.Groups[3].Success
+                                ? int.Parse(nextM.Groups[3].Value.PadRight(3, '0').Substring(0, 3))
+                                : 0;
+                            duration = new TimeSpan(0, 0, nMin, nSec, nMs) - start;
+                        }
+                        else
+                        {
+                            duration = TimeSpan.FromMilliseconds(500);
+                        }
+
+                        wordTimestamps.Add(new WordTimestamp { Word = word, Start = start, Duration = duration });
+                        sb.Append(word);
+                    }
+
+                    if (wordTimestamps.Count > 0)
+                    {
+                        lyrics.Lines.Add(new LrcLyricLine
+                        {
+                            Timestamp = wordTimestamps[0].Start,
+                            Text = sb.ToString(),
+                            WordTimestamps = wordTimestamps
+                        });
+                        continue;
+                    }
+                }
+            }
+
+            // 提取歌词文本（最后一个 ] 之后的内容）
             var text = lastBracketIndex >= 0
                 ? line.Substring(lastBracketIndex + 1).Trim()
                 : "";
