@@ -1882,6 +1882,17 @@ public class LyricsService : ILyricsService
     {
         if (string.IsNullOrEmpty(text)) return (text, null);
 
+        // 策略0：显式分隔符路径 — 原文 / 译文、原文｜译文、原文 - 译文 等。
+        // 某些歌词源用 空格/斜杠/竖线/破折号 等分隔原文与翻译，两侧文字系统不同。
+        var (sepStart, sepEnd) = FindExplicitSeparatorSplit(text);
+        if (sepStart >= 0)
+        {
+            var orig = text.Substring(0, sepStart).TrimEnd();
+            var trans = text.Substring(sepEnd).TrimStart();
+            if (!string.IsNullOrEmpty(orig) && !string.IsNullOrEmpty(trans))
+                return (orig, trans);
+        }
+
         // 策略1：日文+中文分割 — 日文含假名，中文纯汉字
         // 找到"含假名的区域"结束后、"纯汉字区域"开始前的空白分隔点
         var jpCnSplit = FindJapaneseChineseSplit(text);
@@ -1965,6 +1976,36 @@ public class LyricsService : ILyricsService
             }
         }
 
+        // 策略2b：对称方向 — CJK 原文 + 空白 + 非CJK 译文（如 "你好 Hello"、"爱你 I love you"）。
+        // 原策略2 只支持 非CJK→CJK，中文在前英文在后时拆不开。
+        if (splitPos < 0)
+        {
+            for (int i = 1; i < text.Length; i++)
+            {
+                var ch = text[i];
+                if (char.IsLetter(ch) && !IsCjk(ch) && !IsJapanese(ch) && !IsHangul(ch))
+                {
+                    if (char.IsWhiteSpace(text[i - 1]))
+                    {
+                        bool hasCjkBefore = false;
+                        for (int j = 0; j < i; j++)
+                        {
+                            if (IsCjk(text[j]) || IsJapanese(text[j]) || IsHangul(text[j]))
+                            {
+                                hasCjkBefore = true;
+                                break;
+                            }
+                        }
+                        if (hasCjkBefore)
+                        {
+                            splitPos = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         if (splitPos > 0)
         {
             var orig = text.Substring(0, splitPos).TrimEnd();
@@ -1974,6 +2015,48 @@ public class LyricsService : ILyricsService
         }
 
         return (text, null);
+    }
+
+    /// <summary>
+    /// 在显式分隔符（斜杠/竖线/反斜杠/破折号等）处定位双语分割点。
+    /// <para>要求：分隔符两侧均为文字段（含字母或 CJK），且两侧主导文字系统不同
+    /// （如 日文/中文、中文/英文），避免误伤 "1/2"、"和/或"、"a-ha" 等。
+    /// 支持带空白包裹的分隔符（"原文 / 译文"）与紧贴形式（"原文/译文"）。</para>
+    /// </summary>
+    /// <param name="text">待拆分文本</param>
+    /// <returns>(分隔符块起点, 分隔符块末尾)；未找到返回 (-1, -1)。译文从末尾索引开始取。</returns>
+    private static (int start, int end) FindExplicitSeparatorSplit(string text)
+    {
+        const string separators = "/／|｜\\﹨—–-﹣－";
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (separators.IndexOf(text[i]) < 0) continue;
+
+            // 吞掉连续分隔符（如 "//"、"｜｜"）
+            int end = i + 1;
+            while (end < text.Length && separators.IndexOf(text[end]) >= 0)
+                end++;
+
+            var left = text.Substring(0, i).TrimEnd();
+            var right = text.Substring(end).TrimStart();
+            if (left.Length == 0 || right.Length == 0) continue;
+            if (!ContainsLetterOrCjk(left) || !ContainsLetterOrCjk(right)) continue;
+            if (!IsDifferentScript(left, right)) continue;
+
+            return (i, end);
+        }
+        return (-1, -1);
+    }
+
+    /// <summary>判断文本是否包含至少一个字母或中日韩字符（排除纯数字/纯标点段）</summary>
+    private static bool ContainsLetterOrCjk(string s)
+    {
+        foreach (var ch in s)
+        {
+            if (IsCjk(ch) || IsJapanese(ch) || IsHangul(ch)) return true;
+            if (char.IsLetter(ch)) return true;
+        }
+        return false;
     }
 
     /// <summary>
