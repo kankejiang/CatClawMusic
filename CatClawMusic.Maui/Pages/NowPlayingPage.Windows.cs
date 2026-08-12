@@ -37,11 +37,11 @@ public partial class NowPlayingPage
     private double _winLastScrollHeight;   // 兼容字段（已被静态堆叠实测高度替代，无读取方）
     private int _winMeasureRetries;        // 行高测量重试计数（布局未就绪时补偿）
 
-    /// <summary>一行歌词的视图引用（代码构建，非绑定）。</summary>
+    /// <summary>一行歌词的视图引用（代码构建，非绑定）。Main 用 KaraokeLabel 支持逐字填充。</summary>
     private sealed class WinLyricRow
     {
         public Grid Container = null!;
-        public Label Main = null!;
+        public KaraokeLabel Main = null!;
         public Label Trans = null!;
         public Ellipse Dot = null!;
     }
@@ -279,14 +279,18 @@ public partial class NowPlayingPage
                 },
             };
 
-            var main = new Label
+            var main = new KaraokeLabel
             {
                 Text = line.Text,
                 FontSize = baseSize,
                 FontFamily = "OpenSansRegular",
                 FontAttributes = FontAttributes.Bold,
                 TextColor = WinLyricNearColor,
+                // 未唱（逐字未填充部分）与相邻行同色：当前行从灰色渐变为白色 = 逐字填充效果
+                OutlineColor = WinLyricNearColor,
+                FillProgress = 1,
                 LineBreakMode = LineBreakMode.WordWrap,
+                HorizontalTextAlignment = _settings.ToTextAlignment(),
                 HorizontalOptions = alignOptions,
                 VerticalOptions = LayoutOptions.Center,
                 // 以对齐方向为缩放锚点，放大时向对应方向生长而不是向左溢出屏幕外
@@ -419,6 +423,11 @@ public partial class NowPlayingPage
 
         row.Main.TextColor = color;
         row.Main.Opacity = opacity;
+        // 当前行：未唱部分用相邻行灰，逐字填充由 CurrentLineFillProgress 驱动；
+        // 非当前行：FillProgress 归 1（整行实心，逐字残留不跨行）
+        row.Main.OutlineColor = i == index ? WinLyricNearColor : color;
+        if (i != index)
+            row.Main.FillProgress = 1;
         row.Trans.TextColor = color;
         row.Trans.Opacity = opacity * 0.8;
         row.Dot.IsVisible = i == index;

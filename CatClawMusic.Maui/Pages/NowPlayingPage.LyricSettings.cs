@@ -1,3 +1,4 @@
+#if WINDOWS
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using CatClawMusic.Maui.Controls;
@@ -268,3 +269,4 @@ public partial class NowPlayingPage
         };
     }
 }
+#endif

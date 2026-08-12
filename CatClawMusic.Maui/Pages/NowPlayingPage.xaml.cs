@@ -513,16 +513,24 @@ public partial class NowPlayingPage : ContentPage
                 case nameof(NowPlayingViewModel.CurrentLyricIndexObservable):
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
+                        var idx = _viewModel.CurrentLyricIndexObservable;
                         if (_winFollow)
-                            HighlightWindowsLine(_viewModel.CurrentLyricIndexObservable);
+                            HighlightWindowsLine(idx);
                         else
-                            HighlightWindowsLineWithoutScroll(_viewModel.CurrentLyricIndexObservable);
+                            HighlightWindowsLineWithoutScroll(idx);
+                        // 切行瞬间立即同步新行的逐字进度（VM 已算好，无需等下一个 tick）
+                        if (idx >= 0 && idx < _winRows.Count)
+                            _winRows[idx].Main.FillProgress = _viewModel.CurrentLineFillProgress;
                     });
                     return;
                 case nameof(NowPlayingViewModel.CurrentLineFillProgress):
-                    // Windows 歌词行用原生 Label 渲染，不做逐字填充（WinUI 无空心描边文字支持）。
-                    // 行高亮完全由 CurrentLyricIndexObservable 驱动，这里无需处理。
-                    return;
+                    // 逐字填充：当前行 KaraokeLabel 按字符比例着色（已唱=白，未唱=灰）
+                    {
+                        var idx = _viewModel.CurrentLyricIndexObservable;
+                        if (idx >= 0 && idx < _winRows.Count)
+                            _winRows[idx].Main.FillProgress = _viewModel.CurrentLineFillProgress;
+                        return;
+                    }
                 case nameof(NowPlayingViewModel.IsPlaying):
                     MainThread.BeginInvokeOnMainThread(OnWinPlayingChanged);
                     return;
