@@ -69,11 +69,14 @@ public partial class LyricsService
                         var wordText = wordProp.GetString() ?? "";
                         
                         if (!word.TryGetProperty("startTime", out var wsProp)) continue;
-                        var ws = TimeSpan.FromMilliseconds(wsProp.GetInt64());
+                        // ⚠ AMLL 规范的 words.startTime 是"相对行开始"的偏移（0 起），
+                        // 必须加行开始时间转绝对时间；否则 position（绝对时间）永远大于
+                        // 词时间戳 → 逐字进度瞬间=1（一行只闪一下）。
+                        var wordStart = start + TimeSpan.FromMilliseconds(wsProp.GetInt64());
 
                         TimeSpan dur;
                         if (word.TryGetProperty("endTime", out var weProp))
-                            dur = TimeSpan.FromMilliseconds(weProp.GetInt64()) - ws;
+                            dur = TimeSpan.FromMilliseconds(weProp.GetInt64()) - TimeSpan.FromMilliseconds(wsProp.GetInt64());
                         else if (word.TryGetProperty("duration", out var wdProp))
                             dur = TimeSpan.FromMilliseconds(wdProp.GetInt64());
                         else
@@ -84,7 +87,7 @@ public partial class LyricsService
                         wordTimestamps.Add(new WordTimestamp
                         {
                             Word = wordText,
-                            Start = ws,
+                            Start = wordStart,
                             Duration = dur
                         });
                     }

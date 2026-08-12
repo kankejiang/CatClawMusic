@@ -290,6 +290,16 @@ public partial class LyricsService
                     var spanEnd = ParseTtmlTimestamp(el.Attribute("end")?.Value
                         ?? el.Attribute(ttml + "end")?.Value) ?? lineEnd;
 
+                    // ⚠ 网易云等中文歌词 TTML 的 span begin/end 是"相对段落（行）开始"的偏移
+                    // （通常从 0 起），而 TTML 规范也允许绝对时间。启发式判断：span 整体落在
+                    // 段落开始时间之前 → 视为行内偏移，加 lineStart 转绝对时间。
+                    // 不转换的话 position（绝对时间）永远大于 span 时间戳 → 逐字进度瞬间=1。
+                    if (spanBegin < lineStart && spanEnd <= lineEnd)
+                    {
+                        spanBegin = lineStart + spanBegin;
+                        spanEnd = lineStart + spanEnd;
+                    }
+
                     // 递归提取 span 内的所有文本（处理嵌套 span）
                     var spanText = ExtractElementText(el, ttml);
                     if (!string.IsNullOrEmpty(spanText))
