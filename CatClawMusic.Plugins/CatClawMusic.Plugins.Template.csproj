@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- ★ 复制模板后请全局替换：Template → 你的插件名（如 MyPlugin） -->
+    <RootNamespace>CatClawMusic.Plugins.Template</RootNamespace>
+    <AssemblyName>CatClawMusic.Plugins.Template</AssemblyName>
+    <!-- 插件以独立 DLL 交付，不携带依赖（Core/MAUI 由宿主提供） -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+
+    <!-- 宿主 Core 工程路径：模板位于宿主仓内时默认 ..\CatClawMusic.Core；
+         复制到独立仓库（如 D:\Code\MyPlugin）时用
+         -p:CatClawCoreProject=..\CatClawMusic\CatClawMusic.Core\CatClawMusic.Core.csproj 覆盖，
+         或直接修改下面这一行。 -->
+    <CatClawCoreProject Condition="'$(CatClawCoreProject)' == ''">$(MSBuildThisFileDirectory)..\CatClawMusic.Core\CatClawMusic.Core.csproj</CatClawCoreProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(CatClawCoreProject)" />
+  </ItemGroup>
+
+  <!-- 需要构建 MAUI 界面（如 IViewContributorPlugin 整页入口）时取消注释，版本与宿主一致（10.0.20）。
+       注意：CopyLocalLockFileAssemblies=false 保证不随插件分发。 -->
+  <!--
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  -->
+
+  <ItemGroup>
+    <!-- 客户端只认 .ccp 插件包：构建后把程序集复制为 .ccp 作为发布产物 -->
+    <None Include="$(TargetPath)" Pack="false" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
+  <Target Name="PackageCcp" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFiles="$(OutDir)CatClawMusic.Plugins.Template.ccp"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
