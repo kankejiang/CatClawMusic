@@ -5,6 +5,7 @@
              xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
+             xmlns:pages="clr-namespace:CatClawMusic.Maui.Pages"
              x:Class="CatClawMusic.Maui.Pages.DesktopAllSongsPage"
              x:DataType="vm:AllSongsViewModel"
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
@@ -148,6 +149,10 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
                         <Grid Padding="10,6" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                            <Grid.Behaviors>
+                                <controls:SongContextMenuBehavior
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type pages:DesktopAllSongsPage}}, Path=SongMenuCommand}" />
+                            </Grid.Behaviors>
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -208,6 +213,10 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
                         <Border StrokeThickness="0" BackgroundColor="Transparent">
+                            <Border.Behaviors>
+                                <controls:SongContextMenuBehavior
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type pages:DesktopAllSongsPage}}, Path=SongMenuCommand}" />
+                            </Border.Behaviors>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnGridSongTapped" CommandParameter="{Binding}" />
                             </Border.GestureRecognizers>
@@ -262,5 +271,8 @@
 
         <!-- ═══ 歌曲更多操作弹窗（替代 DisplayActionSheet） ═══ -->
         <controls:AppPopup x:Name="SongMorePopupControl" Title="歌曲操作" CloseOnMaskTapped="True" />
+
+        <!-- ═══ 歌曲长按/右键上下文菜单 ═══ -->
+        <controls:AppPopup x:Name="SongContextPopup" Title="歌曲操作" CloseOnMaskTapped="True" Grid.ColumnSpan="2" />
     </Grid>
 </ContentPage>

@@ -1,4 +1,5 @@
 #if WINDOWS
+using CatClawMusic.Core.Interfaces;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
 using WGrid = Microsoft.UI.Xaml.Controls.Grid;
@@ -97,6 +98,9 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
     /// <summary>字符右缘位置缓存（文本+字号+字体 → 每字符右缘，DIP）。同一行歌词每 tick 命中。</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double[]> CharEdgeCache = new();
 
+    /// <summary>诊断日志计数（限前 30 次输出，用于定位"只着色一个字"问题，定位后移除）</summary>
+    private static int _debugLogCount;
+
     /// <summary>
     /// 应用逐字填充：底层涂未唱色、上层涂已唱色并裁剪出 [0, fillXPx]。
     /// 边界位置 = 字符右缘表映射：前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
@@ -176,6 +180,16 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
                     TextAlignment.End => elementWidth - textWidthPx,
                     _ => (elementWidth - textWidthPx) / 2
                 };
+            }
+
+            // 诊断日志（定位"只着色一个字"）：输出 progress/字符宽度表/边界参数
+            if (_debugLogCount < 30)
+            {
+                _debugLogCount++;
+                var preview = string.Join(",", edges.Take(Math.Min(6, edges.Length)).Select(e => e.ToString("F1")));
+                Log.Debug("KaraokeWin",
+                    $"[Karaoke] p={progress:F3} len={edges.Length} edges=[{preview}] " +
+                    $"fillX={fillXPx:F1} textW={textWidthPx:F1} elW={elementWidth:F0} off={leftOffset:F1} scale={scale:F2} '{text}'");
             }
 
             fillText.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry

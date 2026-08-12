@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:pages="clr-namespace:CatClawMusic.Maui.Pages"
              x:Class="CatClawMusic.Maui.Pages.PlaylistDetailPage"
              x:DataType="vm:PlaylistDetailViewModel"
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
@@ -110,6 +111,10 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
                         <Grid Padding="14,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                            <Grid.Behaviors>
+                                <controls:SongContextMenuBehavior
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type pages:PlaylistDetailPage}}, Path=SongMenuCommand}" />
+                            </Grid.Behaviors>
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -186,5 +191,8 @@
 
         <!-- ═══ 歌曲更多操作弹窗（替代 DisplayActionSheet，MAUI 11 兼容） ═══ -->
         <controls:AppPopup x:Name="SongMorePopupControl" Title="歌曲操作" CloseOnMaskTapped="True" />
+
+        <!-- ═══ 歌曲长按/右键上下文菜单 ═══ -->
+        <controls:AppPopup x:Name="SongContextPopup" Title="歌曲操作" CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

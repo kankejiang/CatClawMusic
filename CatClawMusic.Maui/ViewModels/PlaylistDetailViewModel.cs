@@ -372,6 +372,37 @@ public partial class PlaylistDetailViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 下一首播放：播放队列为空时直接播放该曲，否则插入当前曲之后。
+    /// </summary>
+    /// <returns>是否已插入播放队列（true=入队，false=直接播放/无队列）</returns>
+    public async Task<bool> PlaySongNextAsync(Song? song)
+    {
+        if (song == null) return false;
+        if (_playQueue == null || _playQueue.CurrentSong == null)
+        {
+            await PlaySongAsync(song);
+            return false;
+        }
+        _playQueue.AddNext(song);
+        return true;
+    }
+
+    /// <summary>切换收藏状态并返回最新收藏状态。</summary>
+    public async Task<bool> ToggleFavoriteForSongAsync(Song song)
+    {
+        var isFavorite = !await _db.IsFavoriteAsync(song.Id);
+        await _db.SetFavoriteAsync(song.Id, isFavorite);
+        return isFavorite;
+    }
+
+    /// <summary>获取用户歌单列表（"添加到歌单"选择器使用）。</summary>
+    public Task<List<Playlist>> GetPlaylistsAsync() => _musicLibrary.GetAllPlaylistsAsync();
+
+    /// <summary>把歌曲加入指定歌单。</summary>
+    public Task AddSongToPlaylistAsync(int playlistId, int songId)
+        => _musicLibrary.AddSongToPlaylistAsync(playlistId, songId);
+
     // === 歌单管理 ===
 
     /// <summary>

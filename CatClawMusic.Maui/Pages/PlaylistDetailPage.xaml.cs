@@ -3,6 +3,7 @@ using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
+using System.Windows.Input;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -46,6 +47,7 @@ public partial class PlaylistDetailPage : ContentPage
         InitializeComponent();
         _viewModel = viewModel;
         BindingContext = viewModel;
+        SongMenuCommand = new Command<Song>(ShowSongMenu);
     }
 
     private async Task LoadPlaylistIfReady()
@@ -55,6 +57,41 @@ public partial class PlaylistDetailPage : ContentPage
     }
 
     // === 事件处理 ===
+
+    /// <summary>歌曲行长按（Android）/右键（Windows）弹出上下文菜单命令。</summary>
+    public ICommand SongMenuCommand { get; }
+
+    private void ShowSongMenu(Song song)
+    {
+        SongContextMenu.Show(SongContextPopup, song, new SongMenuActions
+        {
+            Play = () => _viewModel.PlaySongCommand.ExecuteAsync(song),
+            PlayNext = () => PlaySongNextAsync(song),
+            ToggleFavorite = () => ToggleFavoriteAsync(song),
+            SongInfo = () => OpenSongInfoAsync(song),
+            GetPlaylists = () => _viewModel.GetPlaylistsAsync(),
+            AddSongToPlaylist = playlistId => _viewModel.AddSongToPlaylistAsync(playlistId, song.Id)
+        });
+    }
+
+    private async Task PlaySongNextAsync(Song song)
+    {
+        if (await _viewModel.PlaySongNextAsync(song))
+            SongContextMenu.Toast("已加入播放队列");
+    }
+
+    private async Task ToggleFavoriteAsync(Song song)
+    {
+        var isFavorite = await _viewModel.ToggleFavoriteForSongAsync(song);
+        SongContextMenu.Toast(isFavorite ? "已收藏" : "已取消收藏");
+    }
+
+    private async Task OpenSongInfoAsync(Song song)
+    {
+        if (DesktopNavigation.TryGoToShell($"songdetail?songId={song.Id}")) return;
+        DesktopNavigation.OpenSongDetail(song.Id.ToString());
+        await Task.CompletedTask;
+    }
 
     private async void OnBackTapped(object? sender, EventArgs e)
     {
