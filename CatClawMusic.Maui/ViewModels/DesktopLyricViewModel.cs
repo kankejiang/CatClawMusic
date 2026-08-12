@@ -29,6 +29,8 @@ public partial class DesktopLyricViewModel : ObservableObject
     [ObservableProperty] private string _textColor;
     /// <summary>高亮颜色</summary>
     [ObservableProperty] private string _highlightColor;
+    /// <summary>显示模式（0=单行，1=双行）</summary>
+    [ObservableProperty] private int _displayMode;
     /// <summary>预览歌词文本</summary>
     [ObservableProperty] private string _previewText = "猫爪音乐 · 桌面歌词预览";
 
@@ -52,6 +54,7 @@ public partial class DesktopLyricViewModel : ObservableObject
         IsLocked = _settings.DesktopLocked;
         TextColor = _settings.DesktopTextColor;
         HighlightColor = _settings.DesktopHighlightColor;
+        DisplayMode = (int)_settings.DesktopLyricMode;
     }
 
     /// <summary>页面显示时检查权限状态</summary>
@@ -152,6 +155,20 @@ public partial class DesktopLyricViewModel : ObservableObject
     partial void OnHighlightColorChanged(string value)
     {
         _settings.DesktopHighlightColor = value;
+        _manager.ApplySettings();
+    }
+
+    /// <summary>选择显示模式（0=单行，1=双行）</summary>
+    [RelayCommand]
+    private void SelectDisplayMode(int mode)
+    {
+        DisplayMode = mode;
+    }
+
+    /// <summary>显示模式变化时保存设置并应用</summary>
+    partial void OnDisplayModeChanged(int value)
+    {
+        _settings.DesktopLyricMode = (LyricsSettingsService.DesktopMode)value;
         _manager.ApplySettings();
     }
 }

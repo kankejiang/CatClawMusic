@@ -93,6 +93,57 @@
 
                 <Border Style="{StaticResource GlassCardStyle}">
                     <VerticalStackLayout Spacing="10">
+                        <Label Text="显示模式" FontSize="16" FontFamily="OpenSansSemibold"
+                               TextColor="{DynamicResource TextPrimaryColor}" />
+                        <HorizontalStackLayout Spacing="10">
+                            <Border WidthRequest="150" HeightRequest="64"
+                                    StrokeThickness="2" Stroke="#33FFFFFF"
+                                    BackgroundColor="#14000000"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="0">
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding DisplayMode}" Value="0">
+                                        <Setter Property="Stroke" Value="{DynamicResource PrimaryColor}" />
+                                        <Setter Property="StrokeThickness" Value="3" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectDisplayModeCommand}" CommandParameter="0" />
+                                </Border.GestureRecognizers>
+                                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                    <Label Text="单行" FontSize="15" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
+                                    <Label Text="仅当前行，简洁" FontSize="11"
+                                           TextColor="{DynamicResource TextHintColor}" HorizontalOptions="Center" />
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border WidthRequest="150" HeightRequest="64"
+                                    StrokeThickness="2" Stroke="#33FFFFFF"
+                                    BackgroundColor="#14000000"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="0">
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding DisplayMode}" Value="1">
+                                        <Setter Property="Stroke" Value="{DynamicResource PrimaryColor}" />
+                                        <Setter Property="StrokeThickness" Value="3" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectDisplayModeCommand}" CommandParameter="1" />
+                                </Border.GestureRecognizers>
+                                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                    <Label Text="双行" FontSize="15" FontFamily="OpenSansSemibold"
+                                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" />
+                                    <Label Text="当前行 + 下一行" FontSize="11"
+                                           TextColor="{DynamicResource TextHintColor}" HorizontalOptions="Center" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
                         <Grid ColumnDefinitions="*,Auto">
                             <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[DesktopLyricFontSize]}"
                                    FontSize="16" FontFamily="OpenSansSemibold"

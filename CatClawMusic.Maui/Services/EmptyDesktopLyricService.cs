@@ -13,6 +13,7 @@ public class EmptyDesktopLyricService : IDesktopLyricService
     public void Show() { }
     public void Hide() { }
     public void UpdateLyric(string? text) { }
+    public void UpdateLyricLines(string? currentText, string? nextText, double progress) { }
     public void UpdateFillProgress(double progress) { }
     public void SetLyrics(LrcLyrics? lyrics) { }
     public void ApplySettings() { }

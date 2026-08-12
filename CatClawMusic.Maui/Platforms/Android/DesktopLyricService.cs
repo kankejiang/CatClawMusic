@@ -134,6 +134,15 @@ public class DesktopLyricService : IDesktopLyricService
         UpdateTextInternal();
     }
 
+    public void UpdateLyricLines(string? currentText, string? nextText, double progress)
+    {
+        // Android 悬浮窗仅显示当前行，忽略 nextText
+        _currentText = currentText ?? "";
+        _fillProgress = progress;
+        UpdateTextInternal();
+        UpdateFillInternal();
+    }
+
     public void UpdateFillProgress(double progress)
     {
         _fillProgress = progress;

@@ -47,7 +47,7 @@ public class DesktopLyricManager
         _currentLineIndex = -1;
         _desktopLyricService.SetLyrics(lyrics);
         if (lyrics == null && _desktopLyricService.IsShowing)
-            MainThread.BeginInvokeOnMainThread(() => _desktopLyricService.UpdateLyric(""));
+            MainThread.BeginInvokeOnMainThread(() => _desktopLyricService.UpdateLyricLines("", null, -1));
     }
 
     /// <summary>开启桌面歌词</summary>
@@ -91,11 +91,9 @@ public class DesktopLyricManager
         if (_currentLyrics != null)
         {
             var pos = TimeSpan.FromSeconds(_audioService.CurrentPosition);
-            var (text, progress) = ComputeLyricUpdate(pos);
-            if (text != null)
-                _desktopLyricService.UpdateLyric(text);
-            if (progress >= 0)
-                _desktopLyricService.UpdateFillProgress(progress);
+            var (text, next, progress) = ComputeLyricUpdate(pos);
+            if (text != null || next != null)
+                _desktopLyricService.UpdateLyricLines(text, next, progress);
         }
 #if ANDROID
         Android.Util.Log.Info(Tag, "EnableAsync: success");
@@ -138,6 +136,7 @@ public class DesktopLyricManager
 
     // 缓存主线程调度委托，避免每次 tick 创建新 Action 闭包
     private string? _pendingLyricText;
+    private string? _pendingNextText;
     private double _pendingLyricProgress = -1;
     private Action? _cachedLyricUpdate;
 
@@ -149,42 +148,52 @@ public class DesktopLyricManager
         // IsUserInteracting 同时覆盖 Tab 滑动（BeginInteraction）和列表滚动（NotifyScrollStarted）。
         if (_interactionState?.IsUserInteracting == true) return;
         // PositionChanged 可能在后台线程触发，UI 操作需切回主线程
-        var (text, progress) = ComputeLyricUpdate(position);
-        if (text == null && progress < 0) return;
+        var (text, next, progress) = ComputeLyricUpdate(position);
+        if (text == null && next == null && progress < 0) return;
 
         _pendingLyricText = text;
+        _pendingNextText = next;
         _pendingLyricProgress = progress;
         _cachedLyricUpdate ??= () =>
         {
-            if (_pendingLyricText != null)
-                _desktopLyricService.UpdateLyric(_pendingLyricText);
-            if (_pendingLyricProgress >= 0)
+            if (_pendingLyricText != null || _pendingNextText != null)
+                _desktopLyricService.UpdateLyricLines(_pendingLyricText, _pendingNextText, _pendingLyricProgress);
+            else if (_pendingLyricProgress >= 0)
                 _desktopLyricService.UpdateFillProgress(_pendingLyricProgress);
         };
         MainThread.BeginInvokeOnMainThread(_cachedLyricUpdate);
     }
 
-    /// <summary>计算当前应显示的歌词文本和填充进度（可在任意线程调用）</summary>
-    private (string? text, double progress) ComputeLyricUpdate(TimeSpan position)
+    /// <summary>
+    /// 计算当前应显示的歌词行（当前行 + 双行模式下的下一行）与填充进度（可在任意线程调用）。
+    /// </summary>
+    private (string? text, string? next, double progress) ComputeLyricUpdate(TimeSpan position)
     {
         if (_currentLyrics == null || _currentLyrics.Lines.Count == 0)
-            return ("", 1.0);
+            return ("", null, 1.0);
 
         var newIndex = _lyricsService.GetCurrentLyricIndex(_currentLyrics, position);
-        if (newIndex < 0 || newIndex >= _currentLyrics.Lines.Count) return (null, -1);
+        if (newIndex < 0 || newIndex >= _currentLyrics.Lines.Count) return (null, null, -1);
 
         var line = _currentLyrics.Lines[newIndex];
         string? text = null;
+        string? next = null;
         if (newIndex != _currentLineIndex)
         {
             _currentLineIndex = newIndex;
             text = line.Text;
+            // 双行模式：行变化时附带下一行文本（无下一行时为 null，仅显示当前行）
+            if (LyricsSettingsService.Instance.DesktopLyricMode == LyricsSettingsService.DesktopMode.Double
+                && newIndex + 1 < _currentLyrics.Lines.Count)
+            {
+                next = _currentLyrics.Lines[newIndex + 1].Text;
+            }
         }
 
         var lineMode = LyricsSettingsService.Instance.LyricsMode == LyricsSettingsService.Mode.Line;
         var progress = LyricFillCalculator.ComputeFillProgress(
             line, newIndex, _currentLyrics.Lines, position, lineMode);
 
-        return (text, progress);
+        return (text, next, progress);
     }
 }

@@ -12,13 +12,29 @@
             <PanGestureRecognizer PanUpdated="OnPanUpdated" />
         </Grid.GestureRecognizers>
         <ctrl:SwapChainHost x:Name="SwapChainHost" Grid.RowSpan="2" />
-        <Label x:Name="LyricLabel"
-               Text="欢迎使用猫爪音乐"
-               HorizontalOptions="Center"
-               VerticalOptions="Center"
-               FontSize="28"
-               TextColor="White"
-               FontAttributes="Bold" />
+        <VerticalStackLayout Grid.RowSpan="2"
+                             Spacing="4"
+                             HorizontalOptions="Center"
+                             VerticalOptions="Center">
+            <Label x:Name="LyricLabel"
+                   Text="欢迎使用猫爪音乐"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"
+                   FontSize="28"
+                   TextColor="White"
+                   FontAttributes="Bold"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation" />
+            <Label x:Name="NextLyricLabel"
+                   Text=""
+                   IsVisible="false"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"
+                   FontSize="22"
+                   TextColor="#99FFFFFF"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation" />
+        </VerticalStackLayout>
         <HorizontalStackLayout x:Name="Toolbar"
                                Grid.Row="1"
                                HorizontalOptions="Center"

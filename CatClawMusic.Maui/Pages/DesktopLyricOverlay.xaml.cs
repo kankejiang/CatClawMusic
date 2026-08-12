@@ -12,9 +12,33 @@ public partial class DesktopLyricOverlay : ContentPage
         LyricLabel.Text = string.IsNullOrWhiteSpace(text) ? "欢迎使用猫爪音乐" : text;
         LyricLabel.TextColor = Microsoft.Maui.Graphics.Color.FromArgb(textColor);
     }
-    public void SetFontSize(double f) => LyricLabel.FontSize = f;
+
+    /// <summary>更新当前行 + 下一行（双行模式）。next 为 null 时隐藏第二行。</summary>
+    public void UpdateLyric(string text, string? next, string textColor)
+    {
+        UpdateLyric(text, textColor);
+        if (NextLyricLabel == null) return;
+        NextLyricLabel.Text = next ?? "";
+        NextLyricLabel.IsVisible = !string.IsNullOrEmpty(next);
+    }
+
+    /// <summary>设置单行/双行模式：双行时当前行略上移，显示下一行。</summary>
+    public void SetMode(bool doubleLine)
+    {
+        if (NextLyricLabel == null) return;
+        NextLyricLabel.IsVisible = doubleLine && !string.IsNullOrEmpty(NextLyricLabel.Text);
+    }
+
+    public void SetFontSize(double f)
+    {
+        LyricLabel.FontSize = f;
+        if (NextLyricLabel != null)
+            NextLyricLabel.FontSize = Math.Max(12, f - 6);
+    }
     public void SetPlaying(bool p) => PlayPauseBtn.Text = p ? "\u23F8" : "\u25B6";
-    public void SetLocked(bool l) => LockBtn.Text = l ? "\U0001F512" : "\U0001F513";
+
+    private bool _locked;
+    public void SetLocked(bool l) { _locked = l; LockBtn.Text = l ? "\U0001F512" : "\U0001F513"; }
 
     /// <summary>
     /// 设置整窗半透明黑背景（网易云式：窗口透明 + 页面层半透明黑底 → 必生效，
@@ -173,6 +197,8 @@ public partial class DesktopLyricOverlay : ContentPage
 
     private void OnPanUpdated(object? sender, PanUpdatedEventArgs e)
     {
+        // 锁定状态禁止拖动（防止误触移动桌面歌词位置）
+        if (_locked) return;
         var h = GetHwnd(); if (h == IntPtr.Zero) return;
         if (e.StatusType == GestureStatus.Running)
             NativeMoveWindow(h, _startX + (int)e.TotalX, _startY + (int)e.TotalY);

@@ -39,6 +39,16 @@ public class LyricsSettingsService
     private const string KeyDesktopLocked = "desktop_lyric_locked";
     private const string KeyDesktopBgOpacity = "desktop_lyric_bg_opacity";
     private const string KeyDesktopPosY = "desktop_lyric_pos_y";
+    private const string KeyDesktopMode = "desktop_lyric_mode";
+
+    /// <summary>桌面歌词显示模式</summary>
+    public enum DesktopMode
+    {
+        /// <summary>单行：仅显示当前歌词行</summary>
+        Single = 0,
+        /// <summary>双行：当前行 + 下一行（主流播放器默认形态）</summary>
+        Double = 1
+    }
 
     /// <summary>默认字体大小（当前行）</summary>
     public const double DefaultFontSize = 22;
@@ -140,6 +150,13 @@ public class LyricsSettingsService
     {
         get => Preferences.Get(KeyDesktopPosY, 0.75);
         set => Preferences.Set(KeyDesktopPosY, Math.Clamp(value, 0.1, 0.95));
+    }
+
+    /// <summary>桌面歌词显示模式（单行 / 双行）</summary>
+    public DesktopMode DesktopLyricMode
+    {
+        get => (DesktopMode)Preferences.Get(KeyDesktopMode, (int)DesktopMode.Single);
+        set => Preferences.Set(KeyDesktopMode, (int)value);
     }
 
     /// <summary>歌词对齐方式转换为 MAUI TextAlignment</summary>

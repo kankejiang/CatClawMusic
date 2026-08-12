@@ -20,6 +20,15 @@ public interface IDesktopLyricService
     /// <summary>更新歌词内容（当前行文本）</summary>
     void UpdateLyric(string? text);
 
+    /// <summary>
+    /// 更新歌词行数据（当前行 + 下一行）。双行模式显示下一行，单行模式 nextText 为 null。
+    /// 部分平台（如 Android 悬浮窗）只显示当前行，可忽略 nextText。
+    /// </summary>
+    /// <param name="currentText">当前行文本</param>
+    /// <param name="nextText">下一行文本（双行模式；无下一行或单行模式为 null）</param>
+    /// <param name="progress">逐字填充进度（0~1，-1 表示不使用逐字效果）</param>
+    void UpdateLyricLines(string? currentText, string? nextText, double progress);
+
     /// <summary>更新逐字填充进度（0~1，-1 表示不使用逐字效果）</summary>
     void UpdateFillProgress(double progress);
 

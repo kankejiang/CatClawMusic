@@ -10,6 +10,7 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
 {
     private Microsoft.Maui.Controls.Window? _window;
     private DesktopLyricOverlay? _overlay;
+    private Microsoft.UI.Windowing.AppWindow? _appWindow;
     private LrcLyrics? _lyrics;
     private string _currentText = "";
     private LyricsSettingsService S => LyricsSettingsService.Instance;
@@ -23,6 +24,11 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
 
     public void Hide() { if (_window == null) return; var w = _window; _window = null; Application.Current?.CloseWindow(w); }
     public void UpdateLyric(string? text) { _currentText = text ?? ""; MainThread.BeginInvokeOnMainThread(() => _overlay?.UpdateLyric(_currentText, S.DesktopHighlightColor)); }
+    public void UpdateLyricLines(string? currentText, string? nextText, double progress)
+    {
+        _currentText = currentText ?? "";
+        MainThread.BeginInvokeOnMainThread(() => _overlay?.UpdateLyric(_currentText, nextText, S.DesktopHighlightColor));
+    }
     public void SetLyrics(LrcLyrics? lyrics) => _lyrics = lyrics;
     public void UpdateFillProgress(double p) { }
     public void ApplySettings() => MainThread.BeginInvokeOnMainThread(ApplyLook);
@@ -50,6 +56,25 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
         _overlay.SetLocked(S.DesktopLocked);
         // 背景黑度滑条 → 页面层半透明黑底（网易云式；0.08 下限保证文字可读性）
         _overlay.SetBackgroundOpacity(Math.Clamp(S.DesktopBgOpacity, 0.08, 1.0));
+        // 单行/双行模式 → 布局 + 窗口高度（双行需要更高窗口容纳第二行）
+        _overlay.SetMode(S.DesktopLyricMode == LyricsSettingsService.DesktopMode.Double);
+        ResizeForMode();
+    }
+
+    /// <summary>按当前模式调整窗口高度（单行 fontSize×7 / 双行 fontSize×10），顶部位置保持不变。</summary>
+    private void ResizeForMode()
+    {
+        try
+        {
+            if (_appWindow == null || _window?.Handler?.PlatformView is not Microsoft.UI.Xaml.Window nativeWin) return;
+            var doubleLine = S.DesktopLyricMode == LyricsSettingsService.DesktopMode.Double;
+            var scale = DesktopLyricNativeHelper.GetScaleAdjustment(nativeWin);
+            var w = (int)(980 * scale);
+            var h = (int)(Math.Max(170, S.DesktopFontSize * (doubleLine ? 10.0 : 7.0)) * scale);
+            _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32
+            { X = _appWindow.Position.X, Y = _appWindow.Position.Y, Width = w, Height = h });
+        }
+        catch { }
     }
 
     private void SetupWindow(object? sender, EventArgs e)
@@ -61,6 +86,7 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWin);
             var wid = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(wid);
+            _appWindow = appWindow;
             var scale = DesktopLyricNativeHelper.GetScaleAdjustment(nativeWin);
 
             // Standard presenter: disable min/max (only close stays)
@@ -121,7 +147,8 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
             // Size and position
             var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
             var w = (int)(980 * scale);
-            var h = (int)(Math.Max(170, S.DesktopFontSize * 7.0) * scale);
+            var doubleLine = S.DesktopLyricMode == LyricsSettingsService.DesktopMode.Double;
+            var h = (int)(Math.Max(170, S.DesktopFontSize * (doubleLine ? 10.0 : 7.0)) * scale);
             appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32
             { X = work.X + (work.Width - w) / 2, Y = work.Y + (int)(work.Height * Math.Clamp(S.DesktopPosY, 0.1, 0.95)), Width = w, Height = h });
             appWindow.Changed += (_, args) => { if (args.DidPositionChange) S.DesktopPosY = Math.Clamp((appWindow.Position.Y - work.Y) / (double)work.Height, 0.1, 0.95); };
