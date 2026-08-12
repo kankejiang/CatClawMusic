@@ -185,6 +185,7 @@ public static class LyricFillCalculator
         {
             if (string.IsNullOrEmpty(syl.Word)) continue;
 
+            var len = syl.Word.Length;
             var sylStart = syl.Start;
             var sylDur = syl.Duration;
             if (sylDur <= TimeSpan.Zero)
@@ -193,13 +194,22 @@ public static class LyricFillCalculator
 
             if (position >= sylEnd)
             {
-                filledChars += syl.Word.Length;
+                filledChars += len;
             }
             else if (position > sylStart)
             {
-                var sylProgress = (position - sylStart).TotalMilliseconds / sylDur.TotalMilliseconds;
-                sylProgress = Math.Clamp(sylProgress, 0.0, 1.0);
-                filledChars += syl.Word.Length * sylProgress;
+                // 词内逐字：把词的时长均匀分给词内每个字符（空格/符号也是独立字符单元），
+                // 当前字符按时间进度部分贡献 → 空格/符号前后的歌词不会整词同时着色，
+                // 而是像标准 LRC 一样一个字一个字从左往右亮。
+                var charDurMs = sylDur.TotalMilliseconds / len;
+                if (charDurMs <= 0)
+                {
+                    filledChars += len;
+                    continue;
+                }
+                var elapsedMs = (position - sylStart).TotalMilliseconds;
+                var charFrac = elapsedMs / charDurMs;   // 已"经过"的字符数（含当前字符的部分）
+                filledChars += Math.Clamp(charFrac, 0.0, len);
             }
         }
 

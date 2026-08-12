@@ -77,14 +77,20 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
         ApplyFillProgress(handler.PlatformView, view.Text ?? string.Empty, view.FillProgress, view.TextColor, view.OutlineColor);
     }
 
+    /// <summary>字符右缘位置缓存（文本+字号+字体 → 每字符右缘，DIP）。同一行歌词每 tick 命中。</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double[]> CharEdgeCache = new();
+
     /// <summary>
     /// 逐字填充前景：LinearGradientBrush 在 progress 处硬切"已唱（TextColor）/未唱（OutlineColor）"，
     /// 边界随进度连续移动 → 已唱色从左往右刷过（与 Android ClipRect 裁剪同一视觉）。
     ///
-    /// ⚠ 关键校准：渐变 RelativeToBoundingBox 相对的是 **TextBlock 元素框**（歌词行整列宽），
-    /// 不是文本本身——若不校准，边界按列宽推进会"一次跨过多个字同时着色"。
-    /// 这里用 Win2D CanvasTextLayout 精确测量文本自然宽度，把渐变边界换算到
-    /// 文本实际宽度上（visualOffset = progress × 文本宽 / 元素宽），实现逐字平滑推进。
+    /// ⚠ 关键校准：
+    /// ① 渐变 RelativeToBoundingBox 相对的是 **TextBlock 元素框**（歌词行整列宽），不是文本本身——
+    ///    必须把边界换算到文本实际宽度上（否则边界按列宽推进会"一次跨过多个字"）。
+    /// ② 逐字进度是"字符比例"（filledChars / totalChars），但字符**不等宽**（空格/窄符号/全角标点）——
+    ///    若用"字符比例 × 文本总宽"映射像素，边界会与字符实际位置错位。
+    ///    这里用 Win2D 逐前缀测量每个字符的右缘（缓存），把字符比例精确映射到像素位置：
+    ///    边界 = 前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
     ///
     /// 铁律：
     /// 1. 绝不设置 tb.Opacity —— 那会覆盖 MAUI View.Opacity 属性绑定。
@@ -125,16 +131,22 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
             return;
         }
 
-        // 校准：渐变相对元素框，而我们要的是"相对文本"。
-        // visualOffset = progress × (文本宽 / 元素宽)，使 0→1 映射到文本实际宽度。
+        // 字符比例 → 文本内像素位置（按字符实际宽度，缓存字符右缘表）
         var visualOffset = progress;
         try
         {
             var elementWidth = tb.ActualWidth;
             var scale = tb.XamlRoot?.RasterizationScale ?? 1.0;
-            var textWidth = MeasureTextWidthDp(tb, text) * scale;
-            if (elementWidth > 1 && textWidth > 0 && textWidth < elementWidth)
-                visualOffset = progress * (textWidth / elementWidth);
+            if (elementWidth > 1)
+            {
+                var edges = GetCharRightEdges(tb, text);
+                var totalWidth = edges.Length > 0 ? edges[^1] : 0.0;
+                if (totalWidth > 0)
+                {
+                    var fillX = CharFractionToPixels(edges, progress);   // DIP
+                    visualOffset = fillX * scale / elementWidth;
+                }
+            }
         }
         catch { }
         visualOffset = Math.Clamp(visualOffset, 0.0, 1.0);
@@ -151,25 +163,49 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
         tb.Foreground = brush;
     }
 
-    /// <summary>用 Win2D 精确测量文本自然宽度（DIP），与 TextBlock 同字体/字号。
-    /// 用于把渐变边界从"元素框比例"校准到"文本实际宽度比例"。</summary>
-    private static double MeasureTextWidthDp(WTextBlock tb, string text)
+    /// <summary>字符比例 → 文本内像素位置（DIP）：前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
+    /// 字符边界处硬切（前字全亮），字符内部平滑过渡（正在唱的字半亮半暗）——空格/符号作为独立
+    /// 字符单元宽度精确，穿过时不会影响前后字的着色状态。</summary>
+    private static double CharFractionToPixels(double[] edges, double progress)
     {
-        try
+        if (edges.Length == 0) return 0;
+        if (progress <= 0) return 0;
+        if (progress >= 1) return edges[^1];
+
+        var charF = progress * edges.Length;
+        var idx = (int)charF;
+        if (idx >= edges.Length) return edges[^1];
+        var frac = charF - idx;
+        var left = idx == 0 ? 0 : edges[idx - 1];
+        var right = edges[idx];
+        return left + (right - left) * frac;
+    }
+
+    /// <summary>用 Win2D 逐前缀测量每个字符的右缘（DIP），与 TextBlock 同字体/字号。结果按
+    /// 文本+字号+字体缓存（同一行歌词每 tick 命中，避免重复测量）。</summary>
+    private static double[] GetCharRightEdges(WTextBlock tb, string text)
+    {
+        var key = tb.FontSize.ToString("F1") + "|" + (tb.FontFamily?.Source ?? "") + "|" + text;
+        if (CharEdgeCache.TryGetValue(key, out var cached))
+            return cached;
+        if (CharEdgeCache.Count > 128)
+            CharEdgeCache.Clear();
+
+        var edges = new double[text.Length];
+        var format = new Microsoft.Graphics.Canvas.Text.CanvasTextFormat
         {
-            var format = new Microsoft.Graphics.Canvas.Text.CanvasTextFormat
-            {
-                FontSize = (float)tb.FontSize,
-                FontFamily = string.IsNullOrEmpty(tb.FontFamily?.Source) ? "Segoe UI" : tb.FontFamily!.Source,
-            };
+            FontSize = (float)tb.FontSize,
+            FontFamily = string.IsNullOrEmpty(tb.FontFamily?.Source) ? "Segoe UI" : tb.FontFamily!.Source,
+        };
+        var device = Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice();
+        for (int i = 0; i < text.Length; i++)
+        {
             using var layout = new Microsoft.Graphics.Canvas.Text.CanvasTextLayout(
-                Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice(), text, format, 0, 0);
-            return layout.LayoutBounds.Width;
+                device, text[..(i + 1)], format, 0, 0);
+            edges[i] = layout.LayoutBounds.Width;
         }
-        catch
-        {
-            return 0;
-        }
+        CharEdgeCache[key] = edges;
+        return edges;
     }
 
     private static WColor ToWColor(Color color)
