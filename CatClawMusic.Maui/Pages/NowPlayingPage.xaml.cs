@@ -532,14 +532,6 @@ public partial class NowPlayingPage : ContentPage
                     {
                         var idx = _viewModel.CurrentLyricIndexObservable;
                         var fill = _viewModel.CurrentLineFillProgress;
-                        // 诊断日志（定位"每行只着色一个字"）：VM 侧 progress 值
-                        try
-                        {
-                            System.IO.File.AppendAllText(
-                                System.IO.Path.Combine(System.IO.Path.GetTempPath(), "karaoke_debug.txt"),
-                                $"{DateTime.Now:HH:mm:ss.fff} VM fill idx={idx} p={fill:F4} rows={_winRows.Count}\n");
-                        }
-                        catch { }
                         if (idx >= 0 && idx < _winRows.Count)
                         {
                             // 强制刷新：先设 -1 再设目标值，防 PropertyChanged 同值漏触发

@@ -1,29 +1,30 @@
 #if WINDOWS
 using CatClawMusic.Core.Interfaces;
+using Microsoft.Graphics.Canvas;
+using Microsoft.Graphics.Canvas.Text;
+using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
-using WGrid = Microsoft.UI.Xaml.Controls.Grid;
-using WTextBlock = Microsoft.UI.Xaml.Controls.TextBlock;
-using WSolidBrush = Microsoft.UI.Xaml.Media.SolidColorBrush;
-using WTextAlignment = Microsoft.UI.Xaml.TextAlignment;
 using WColor = Windows.UI.Color;
 
 namespace CatClawMusic.Maui.Platforms.Windows;
 
 /// <summary>
-/// Windows 平台 KaraokeLabel：双层 TextBlock + Clip 裁剪实现卡拉OK逐字填充。
-/// 与 Android 端 canvas.ClipRect 逐行裁剪完全同构：
-/// - 底层 _baseText：未唱色（灰）完整文本
-/// - 上层 _fillText：已唱色（白）完整文本，叠加其上，Clip 只露出左侧 [0, fillXPx]
-/// 边界 = 字符右缘表映射（Win2D 逐前缀测量，缓存），逐字从左往右推进，
-/// 当前字内部按宽度比例平滑过渡（半亮半暗）。
-/// Clip 是确定性的像素裁剪，不依赖渐变坐标系 → 修复"一行里多字同时着色"。
-/// 未唱色透明时回退为已唱色的 55% 透明度，保证任何情况下文字可见。
+/// Windows 平台 KaraokeLabel：Win2D CanvasControl 自绘，与 Android 端 KaraokePlatformView
+/// （Canvas + ClipRect 逐行裁剪）完全同构：
+/// 1. 未唱色（灰）绘制整行文本
+/// 2. 已唱色（白）再次绘制，裁剪只露出左侧 [0, progress × 文本宽] → 已唱色从左往右
+///    "刷"过，边界随进度连续移动（正在唱的字半亮半暗）。
+/// 测量与绘制使用同一个 CanvasTextLayout（Win2D 引擎内自洽），不存在字体 fallback
+/// 不一致 / 渐变坐标系 / Clip 坐标单位等 TextBlock 方案的坑。
 /// </summary>
-public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
+public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasControl>
 {
-    private WTextBlock _baseText = null!;
-    private WTextBlock _fillText = null!;
+    private CanvasTextLayout? _layout;
+    private string _layoutText = "";
+    private float _layoutFontSize = -1;
+    private bool _layoutBold;
+    private float _layoutMaxWidth = -1;
 
     public static IPropertyMapper<Controls.KaraokeLabel, KaraokeLabelHandler> Mapper =
         new PropertyMapper<Controls.KaraokeLabel, KaraokeLabelHandler>(ViewMapper)
@@ -35,7 +36,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
             [nameof(Controls.KaraokeLabel.TextColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.OutlineColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.StrokeWidth)] = MapAll,
-            // FillProgress 单独处理：仅更新上层 Clip，不触发 InvalidateMeasure
+            // FillProgress 单独处理：仅请求重绘，不触发布局重测
             [nameof(Controls.KaraokeLabel.FillProgress)] = MapFillProgress,
             [nameof(Controls.KaraokeLabel.HorizontalTextAlignment)] = MapAll,
             [nameof(Controls.KaraokeLabel.LineBreakMode)] = MapAll,
@@ -44,190 +45,148 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
 
     public KaraokeLabelHandler() : base(Mapper) { }
 
-    protected override WGrid CreatePlatformView()
+    protected override CanvasControl CreatePlatformView()
     {
-        var grid = new WGrid();
-        // 两层同格完全重叠：未唱层在底、已唱层在上（Clip 裁剪露出左侧已唱部分）
-        _baseText = new WTextBlock { TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap };
-        _fillText = new WTextBlock { TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap };
-        grid.Children.Add(_baseText);
-        grid.Children.Add(_fillText);
-        return grid;
+        var control = new CanvasControl();
+        control.Draw += OnDraw;
+        return control;
+    }
+
+    protected override void DisconnectHandler(CanvasControl platformView)
+    {
+        platformView.Draw -= OnDraw;
+        _layout?.Dispose();
+        _layout = null;
+        base.DisconnectHandler(platformView);
     }
 
     private static void MapAll(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
     {
         if (handler.PlatformView == null || view == null) return;
-        var baseText = handler._baseText;
-        var fillText = handler._fillText;
-        if (baseText == null || fillText == null) return;
-
-        var text = view.Text ?? string.Empty;
-        var fontFamily = new Microsoft.UI.Xaml.Media.FontFamily(
-            string.IsNullOrEmpty(view.FontFamily) ? "OpenSansSemibold" : view.FontFamily);
-        var alignment = view.HorizontalTextAlignment switch
-        {
-            TextAlignment.Start => WTextAlignment.Left,
-            TextAlignment.End => WTextAlignment.Right,
-            _ => WTextAlignment.Center
-        };
-        var padding = new Microsoft.UI.Xaml.Thickness(
-            view.Padding.Left, view.Padding.Top, view.Padding.Right, view.Padding.Bottom);
-
-        foreach (var tb in new[] { baseText, fillText })
-        {
-            tb.Text = text;
-            tb.FontSize = view.FontSize;
-            tb.FontFamily = fontFamily;
-            tb.TextAlignment = alignment;
-            tb.Padding = padding;
-        }
-
-        ApplyFillProgress(handler, view, text);
-
-        handler.PlatformView.InvalidateMeasure();
+        handler.InvalidateLayoutAndRedraw();
     }
 
-    /// <summary>FillProgress 变化：仅更新上层已唱层的 Clip（逐字填充左→右推进），不触发重测</summary>
+    /// <summary>FillProgress 变化：仅请求重绘（逐字填充左→右推进）</summary>
     private static void MapFillProgress(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
     {
-        if (handler.PlatformView == null || view == null || handler._fillText == null) return;
-        ApplyFillProgress(handler, view, view.Text ?? string.Empty);
+        if (handler.PlatformView == null || view == null) return;
+        try { handler.PlatformView.Invalidate(); } catch { }
     }
 
-    /// <summary>诊断日志计数（限前 30 次输出，用于定位"只着色一个字"问题，定位后移除）</summary>
-    private static int _debugLogCount;
+    /// <summary>文本/字体属性变化：布局可能改变，重测 + 重绘</summary>
+    private void InvalidateLayoutAndRedraw()
+    {
+        _layout?.Dispose();
+        _layout = null;
+        _layoutText = "";
+        try { PlatformView?.Invalidate(); } catch { }
+        try { PlatformView?.InvalidateMeasure(); } catch { }
+    }
 
-    /// <summary>诊断日志写入临时文件（定位"只着色一个字"用，定位后移除）</summary>
-    private static void DebugLog(string msg)
+    /// <summary>测量：用 CanvasTextLayout 计算文本尺寸（DIP），支持换行。</summary>
+    public override Size GetDesiredSize(double widthConstraint, double heightConstraint)
     {
         try
         {
-            System.IO.File.AppendAllText(
-                System.IO.Path.Combine(System.IO.Path.GetTempPath(), "karaoke_debug.txt"),
-                $"{DateTime.Now:HH:mm:ss.fff} {msg}\n");
+            var layout = EnsureLayout((float)Math.Max(0, widthConstraint));
+            var pad = VirtualView.Padding;
+            var w = layout.LayoutBounds.Width + pad.Left + pad.Right;
+            var h = layout.LayoutBounds.Height + pad.Top + pad.Bottom;
+            return new Size(Math.Min(w, widthConstraint > 0 ? widthConstraint : w), h);
         }
-        catch { }
+        catch
+        {
+            return new Size(0, 0);
+        }
     }
 
-    /// <summary>
-    /// 应用逐字填充：底层涂未唱色、上层涂已唱色并裁剪出 [0, fillXPx]。
-    /// 边界位置 = 字符右缘表映射：前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
-    ///
-    /// ⚠ 元素框校准：Clip 相对 TextBlock 自身坐标（物理像素）。若元素被拉伸到列宽
-    /// （宽于文本），按对齐方式把文本起点偏移计入，保证边界落在文本实际位置上。
-    ///
-    /// 铁律：
-    /// 1. 绝不设置 TextBlock.Opacity —— 那会覆盖 MAUI View.Opacity 属性绑定。
-    /// 2. TextColor 被设成全透明时退回 OutlineColor；OutlineColor 也透明时
-    ///    未唱段用 TextColor 的 55% 透明度（任何情况下文字都可见）。
-    /// </summary>
-    private static void ApplyFillProgress(KaraokeLabelHandler handler, Controls.KaraokeLabel view, string text)
+    /// <summary>按文本/字号/粗体/最大宽度创建（或复用）文本布局。Win2D 坐标均为 DIP。</summary>
+    private CanvasTextLayout EnsureLayout(float maxWidth)
     {
-        var progress = Math.Clamp(view.FillProgress, 0.0, 1.0);
+        var view = VirtualView;
+        var text = view.Text ?? "";
+        var size = (float)view.FontSize;
+        var bold = view.FontAttributes.HasFlag(FontAttributes.Bold);
 
-        // 已唱色：TextColor，透明则退 OutlineColor，再退白色
-        var filledColor = view.TextColor;
-        if (filledColor is null || filledColor.Alpha <= 0.01f)
-            filledColor = view.OutlineColor;
-        if (filledColor is null || filledColor.Alpha <= 0.01f)
-            filledColor = Colors.White;
+        if (_layout != null && _layoutText == text && Math.Abs(_layoutFontSize - size) < 0.01f
+            && _layoutBold == bold && Math.Abs(_layoutMaxWidth - maxWidth) < 0.5f)
+            return _layout;
 
-        // 未唱色：OutlineColor，透明则用已唱色的 55% 透明度（保持可读）
-        var emptyColor = view.OutlineColor;
-        if (emptyColor is null || emptyColor.Alpha <= 0.01f)
-            emptyColor = new Color(filledColor.Red, filledColor.Green, filledColor.Blue, filledColor.Alpha * 0.55f);
-
-        handler._baseText.Foreground = new WSolidBrush(ToWColor(emptyColor));
-        handler._fillText.Foreground = new WSolidBrush(ToWColor(filledColor));
-
-        var fillText = handler._fillText;
-        if (string.IsNullOrEmpty(text))
+        _layout?.Dispose();
+        var format = new CanvasTextFormat
         {
-            fillText.Clip = null;
-            return;
-        }
-
-        // 极端进度：整行单色（清除/全露 Clip）
-        if (progress <= 0.001)
-        {
-            fillText.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+            FontSize = size,
+            FontWeight = new global::Windows.UI.Text.FontWeight(bold ? (ushort)700 : (ushort)400),
+            WordWrapping = CanvasWordWrapping.Wrap,
+            HorizontalAlignment = view.HorizontalTextAlignment switch
             {
-                Rect = new global::Windows.Foundation.Rect(0, -1e6, 0.01, 2e6)
-            };
-            return;
-        }
-        if (progress >= 0.999)
-        {
-            fillText.Clip = null;
-            return;
-        }
+                TextAlignment.Start => CanvasHorizontalAlignment.Left,
+                TextAlignment.End => CanvasHorizontalAlignment.Right,
+                _ => CanvasHorizontalAlignment.Center
+            },
+        };
+        _layout = new CanvasTextLayout(
+            CanvasDevice.GetSharedDevice(), text, format, maxWidth, 0);
+        _layoutText = text;
+        _layoutFontSize = size;
+        _layoutBold = bold;
+        _layoutMaxWidth = maxWidth;
+        return _layout;
+    }
 
+    private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
+    {
         try
         {
-            var scale = fillText.XamlRoot?.RasterizationScale ?? 1.0;
-            var textWidthDp = MeasureTextWidthDp(fillText, text);
-            if (textWidthDp <= 0)
-            {
-                fillText.Clip = null;
-                return;
-            }
+            var view = VirtualView;
+            if (view == null) return;
+            var text = view.Text ?? "";
+            if (text.Length == 0) return;
 
-            // 边界 = 字符比例 × 文本实际宽度（等宽近似，与 Android 端
-            // fillEndX = lineWidth × (fillCharOffset / lineCharCount) 完全一致）
-            var fillXPx = progress * textWidthDp * scale;
-            var textWidthPx = textWidthDp * scale;
+            var layout = EnsureLayout((float)Math.Max(0, sender.ActualWidth));
+            var ds = args.DrawingSession;
+            ds.Clear(global::Microsoft.UI.Colors.Transparent);
 
-            // 元素被拉伸（宽于文本）时，把文本起点偏移计入（按对齐方式）
-            var elementWidth = fillText.ActualWidth;
-            double leftOffset = 0;
-            if (elementWidth > textWidthPx + 1 && textWidthPx > 0)
+            var progress = Math.Clamp(view.FillProgress, 0.0, 1.0);
+
+            // 已唱色：TextColor，透明则退 OutlineColor，再退白色（铁律：任何情况文字可见）
+            var filled = view.TextColor;
+            if (filled is null || filled.Alpha <= 0.01f)
+                filled = view.OutlineColor;
+            if (filled is null || filled.Alpha <= 0.01f)
+                filled = Colors.White;
+
+            // 未唱色：OutlineColor，透明则用已唱色的 55% 透明度
+            var empty = view.OutlineColor;
+            if (empty is null || empty.Alpha <= 0.01f)
+                empty = new Color(filled.Red, filled.Green, filled.Blue, filled.Alpha * 0.55f);
+
+            var padLeft = (float)view.Padding.Left;
+            var padTop = (float)view.Padding.Top;
+            var layoutW = (float)layout.LayoutBounds.Width;
+            var layoutH = (float)layout.LayoutBounds.Height;
+
+            // 1. 未唱色整行
+            ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(empty));
+
+            // 2. 已唱色按进度从左到右裁剪（与 Android ClipRect 同构）。
+            //    Win2D 1.3.2 裁剪用 CreateLayer(float, CanvasGeometry)：
+            //    矩形几何裁剪 + 活动层（using 结束自动恢复绘制状态）。
+            if (progress > 0.01f && layoutW > 0)
             {
-                leftOffset = view.HorizontalTextAlignment switch
+                var fillX = (float)Math.Min(progress * layoutW, layoutW);
+                using (var clipGeom = Microsoft.Graphics.Canvas.Geometry.CanvasGeometry.CreateRectangle(
+                    CanvasDevice.GetSharedDevice(),
+                    new global::Windows.Foundation.Rect(padLeft, padTop, fillX, layoutH)))
+                using (var layer = ds.CreateLayer(1.0f, clipGeom))
                 {
-                    TextAlignment.Start => 0,
-                    TextAlignment.End => elementWidth - textWidthPx,
-                    _ => (elementWidth - textWidthPx) / 2
-                };
+                    ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(filled));
+                }
             }
-
-            // 诊断日志（定位"只着色一个字"）：输出 progress/边界参数
-            if (_debugLogCount < 30)
-            {
-                _debugLogCount++;
-                DebugLog(
-                    $"Karaoke p={progress:F3} fillX={fillXPx:F1} textW={textWidthPx:F1} " +
-                    $"elW={elementWidth:F0} off={leftOffset:F1} scale={scale:F2} '{text}'");
-            }
-
-            fillText.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
-            {
-                Rect = new global::Windows.Foundation.Rect(leftOffset, -1e6, fillXPx, 2e6)
-            };
         }
         catch
         {
-            fillText.Clip = null;
-        }
-    }
-
-    /// <summary>用 Win2D 测量文本自然宽度（DIP），与 TextBlock 同字体/字号。</summary>
-    private static double MeasureTextWidthDp(WTextBlock tb, string text)
-    {
-        try
-        {
-            var format = new Microsoft.Graphics.Canvas.Text.CanvasTextFormat
-            {
-                FontSize = (float)tb.FontSize,
-                FontFamily = string.IsNullOrEmpty(tb.FontFamily?.Source) ? "Segoe UI" : tb.FontFamily!.Source,
-            };
-            using var layout = new Microsoft.Graphics.Canvas.Text.CanvasTextLayout(
-                Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice(), text, format, 0, 0);
-            return layout.LayoutBounds.Width;
-        }
-        catch
-        {
-            return 0;
+            // 绘制异常不影响歌词功能
         }
     }
 
