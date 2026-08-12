@@ -3,14 +3,13 @@ using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
-using System.Windows.Input;
 
 namespace CatClawMusic.Maui.Pages;
 
 /// <summary>横屏桌面模式全部歌曲页：双列网格歌曲列表，复用 AllSongsViewModel。
 /// 公共 UI 组件见 <see cref="Controls"/> 命名空间；本类仅保留横屏专属的网格列数自适应与 AppPopup 弹窗。</summary>
 [QueryProperty(nameof(Source), "source")]
-public partial class DesktopAllSongsPage : ContentPage
+public partial class DesktopAllSongsPage : ContentPage, ISongContextMenuHost
 {
     private readonly AllSongsViewModel _vm;
 
@@ -21,7 +20,6 @@ public partial class DesktopAllSongsPage : ContentPage
         InitializeComponent();
         _vm = vm;
         BindingContext = _vm;
-        SongMenuCommand = new Command<Song>(ShowSongMenu);
     }
 
     protected override void OnAppearing()
@@ -32,10 +30,16 @@ public partial class DesktopAllSongsPage : ContentPage
 
     // === 事件处理 ===
 
-    /// <summary>歌曲行长按（Android）/右键（Windows）弹出上下文菜单命令。</summary>
-    public ICommand SongMenuCommand { get; }
+    /// <summary>歌曲行右键（Windows）触发：仅响应右键，经识别器所在行取 Song 弹出上下文菜单。</summary>
+    private void OnRowPointerPressed(object? sender, PointerEventArgs e)
+    {
+        if (e.Button != ButtonsMask.Secondary) return;
+        if (sender is PointerGestureRecognizer gr && gr.Parent is View row && row.BindingContext is Song song)
+            ShowSongMenu(song);
+    }
 
-    private void ShowSongMenu(Song song)
+    /// <summary>弹出歌曲上下文菜单（Android 长按由 SongContextMenuBehavior 调用，Windows 右键由 OnRowPointerPressed 调用）。</summary>
+    public void ShowSongMenu(Song song)
     {
         SongContextMenu.Show(SongContextPopup, song, new SongMenuActions
         {

@@ -4,6 +4,15 @@ using Microsoft.Maui.Controls.Shapes;
 namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
+/// 歌曲上下文菜单宿主接口：由歌曲行手势（Android 长按 / Windows 右键）的目标页面实现，
+/// 用于在长按/右键时弹出歌曲操作菜单。
+/// </summary>
+public interface ISongContextMenuHost
+{
+    void ShowSongMenu(Song song);
+}
+
+/// <summary>
 /// 歌曲上下文菜单操作回调集合。由歌单详情页 / 全部歌曲页（本地音乐）提供具体实现，
 /// 通过 <see cref="SongContextMenu.Show"/> 统一渲染"播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息"菜单。
 /// </summary>

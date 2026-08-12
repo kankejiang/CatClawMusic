@@ -5,7 +5,6 @@
              xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
-             xmlns:pages="clr-namespace:CatClawMusic.Maui.Pages"
              x:Class="CatClawMusic.Maui.Pages.DesktopAllSongsPage"
              x:DataType="vm:AllSongsViewModel"
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
@@ -150,9 +149,11 @@
                     <DataTemplate x:DataType="models:Song">
                         <Grid Padding="10,6" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                             <Grid.Behaviors>
-                                <controls:SongContextMenuBehavior
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type pages:DesktopAllSongsPage}}, Path=SongMenuCommand}" />
+                                <controls:SongContextMenuBehavior />
                             </Grid.Behaviors>
+                            <Grid.GestureRecognizers>
+                                <PointerGestureRecognizer PointerPressed="OnRowPointerPressed" />
+                            </Grid.GestureRecognizers>
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -214,10 +215,10 @@
                     <DataTemplate x:DataType="models:Song">
                         <Border StrokeThickness="0" BackgroundColor="Transparent">
                             <Border.Behaviors>
-                                <controls:SongContextMenuBehavior
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type pages:DesktopAllSongsPage}}, Path=SongMenuCommand}" />
+                                <controls:SongContextMenuBehavior />
                             </Border.Behaviors>
                             <Border.GestureRecognizers>
+                                <PointerGestureRecognizer PointerPressed="OnRowPointerPressed" />
                                 <TapGestureRecognizer Tapped="OnGridSongTapped" CommandParameter="{Binding}" />
                             </Border.GestureRecognizers>
                             <VerticalStackLayout Spacing="6">

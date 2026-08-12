@@ -1,26 +1,13 @@
-using System.Windows.Input;
-
 namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
-/// 歌曲行上下文菜单手势行为：
-/// - Android：原生 LongClick（长按）触发；
-/// - Windows：原生 PointerPressed（右键）触发；
-/// 触发时以行自身的 BindingContext（Song）作为参数执行 <see cref="Command"/>。
-/// 用于歌单详情 / 全部歌曲（本地音乐）列表行，实现长按/右键弹出歌曲操作菜单。
+/// 歌曲行手势行为（仅 Android 长按；Windows 右键由行上的 PointerGestureRecognizer 事件处理）。
+/// 触发时直接以行自身的 BindingContext（Song）为参数，沿逻辑父链找到 <see cref="ISongContextMenuHost"/> 页面弹出菜单。
+/// 注意：本行为不使用任何 XAML 绑定——MAUI 中 Behavior 不是 Element，RelativeSource 绑定应用到 Behavior
+/// 会在 BindingContext 传播时抛异常，导致整行内容空白（此前歌单歌曲不显示的根因）。
 /// </summary>
 public class SongContextMenuBehavior : Behavior<View>
 {
-    public static readonly BindableProperty CommandProperty =
-        BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SongContextMenuBehavior), null);
-
-    /// <summary>触发菜单时要执行的命令（参数为当前行的 Song）。</summary>
-    public ICommand? Command
-    {
-        get => (ICommand?)GetValue(CommandProperty);
-        set => SetValue(CommandProperty, value);
-    }
-
     private View? _view;
     private object? _platformView;
 
@@ -57,12 +44,6 @@ public class SongContextMenuBehavior : Behavior<View>
             _platformView = androidView;
             androidView.LongClick += OnAndroidLongClick;
         }
-#elif WINDOWS
-        if (_view.Handler.PlatformView is global::Microsoft.UI.Xaml.UIElement uiElement)
-        {
-            _platformView = uiElement;
-            uiElement.PointerPressed += OnWinPointerPressed;
-        }
 #endif
     }
 
@@ -72,12 +53,6 @@ public class SongContextMenuBehavior : Behavior<View>
         if (_platformView is global::Android.Views.View androidView)
         {
             androidView.LongClick -= OnAndroidLongClick;
-            _platformView = null;
-        }
-#elif WINDOWS
-        if (_platformView is global::Microsoft.UI.Xaml.UIElement uiElement)
-        {
-            uiElement.PointerPressed -= OnWinPointerPressed;
             _platformView = null;
         }
 #endif
@@ -92,27 +67,25 @@ public class SongContextMenuBehavior : Behavior<View>
                 global::Android.Views.FeedbackConstants.LongPress);
         }
         catch { }
-        ExecuteCommand();
+        ShowMenu();
         e.Handled = true;
-    }
-#elif WINDOWS
-    private void OnWinPointerPressed(object sender, global::Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        var point = e.GetCurrentPoint((global::Microsoft.UI.Xaml.UIElement)sender);
-        if (point.Properties.IsRightButtonPressed)
-        {
-            ExecuteCommand();
-            e.Handled = true;
-        }
     }
 #endif
 
-    private void ExecuteCommand()
+    private void ShowMenu()
     {
-        var command = Command;
-        if (command == null) return;
-        var parameter = _view?.BindingContext;
-        if (command.CanExecute(parameter))
-            command.Execute(parameter);
+        var song = _view?.BindingContext as Song;
+        if (song == null) return;
+
+        var node = _view as Element;
+        while (node != null)
+        {
+            if (node is ISongContextMenuHost host)
+            {
+                host.ShowSongMenu(song);
+                return;
+            }
+            node = node.Parent;
+        }
     }
 }
