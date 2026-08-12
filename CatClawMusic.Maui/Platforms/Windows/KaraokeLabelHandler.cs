@@ -1,6 +1,7 @@
 #if WINDOWS
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
+using WGrid = Microsoft.UI.Xaml.Controls.Grid;
 using WTextBlock = Microsoft.UI.Xaml.Controls.TextBlock;
 using WSolidBrush = Microsoft.UI.Xaml.Media.SolidColorBrush;
 using WTextAlignment = Microsoft.UI.Xaml.TextAlignment;
@@ -9,14 +10,20 @@ using WColor = Windows.UI.Color;
 namespace CatClawMusic.Maui.Platforms.Windows;
 
 /// <summary>
-/// Windows 平台 KaraokeLabel：TextBlock + 线性渐变前景实现卡拉OK逐字填充。
-/// 与 Android 端 ClipRect 逐行裁剪同视觉：先整行未唱色，已唱色（TextColor）作为
-/// LinearGradientBrush 从 0 到 progress 的硬边界渐变"从左往右刷过"，边界按进度
-/// 连续移动（正在唱的字半亮半暗），progress 0→1 平滑推进。
+/// Windows 平台 KaraokeLabel：双层 TextBlock + Clip 裁剪实现卡拉OK逐字填充。
+/// 与 Android 端 canvas.ClipRect 逐行裁剪完全同构：
+/// - 底层 _baseText：未唱色（灰）完整文本
+/// - 上层 _fillText：已唱色（白）完整文本，叠加其上，Clip 只露出左侧 [0, fillXPx]
+/// 边界 = 字符右缘表映射（Win2D 逐前缀测量，缓存），逐字从左往右推进，
+/// 当前字内部按宽度比例平滑过渡（半亮半暗）。
+/// Clip 是确定性的像素裁剪，不依赖渐变坐标系 → 修复"一行里多字同时着色"。
 /// 未唱色透明时回退为已唱色的 55% 透明度，保证任何情况下文字可见。
 /// </summary>
-public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock>
+public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
 {
+    private WTextBlock _baseText = null!;
+    private WTextBlock _fillText = null!;
+
     public static IPropertyMapper<Controls.KaraokeLabel, KaraokeLabelHandler> Mapper =
         new PropertyMapper<Controls.KaraokeLabel, KaraokeLabelHandler>(ViewMapper)
         {
@@ -27,7 +34,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
             [nameof(Controls.KaraokeLabel.TextColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.OutlineColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.StrokeWidth)] = MapAll,
-            // FillProgress 单独处理：仅重建前景渐变，不触发 InvalidateMeasure
+            // FillProgress 单独处理：仅更新上层 Clip，不触发 InvalidateMeasure
             [nameof(Controls.KaraokeLabel.FillProgress)] = MapFillProgress,
             [nameof(Controls.KaraokeLabel.HorizontalTextAlignment)] = MapAll,
             [nameof(Controls.KaraokeLabel.LineBreakMode)] = MapAll,
@@ -36,131 +43,150 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
 
     public KaraokeLabelHandler() : base(Mapper) { }
 
-    protected override WTextBlock CreatePlatformView()
+    protected override WGrid CreatePlatformView()
     {
-        return new WTextBlock
-        {
-            TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
-            TextAlignment = WTextAlignment.Center
-        };
+        var grid = new WGrid();
+        // 两层同格完全重叠：未唱层在底、已唱层在上（Clip 裁剪露出左侧已唱部分）
+        _baseText = new WTextBlock { TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap };
+        _fillText = new WTextBlock { TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap };
+        grid.Children.Add(_baseText);
+        grid.Children.Add(_fillText);
+        return grid;
     }
 
     private static void MapAll(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
     {
         if (handler.PlatformView == null || view == null) return;
-        var tb = handler.PlatformView;
+        var baseText = handler._baseText;
+        var fillText = handler._fillText;
+        if (baseText == null || fillText == null) return;
 
-        // 先设 Text（会清空 Inlines），再按进度重建前景渐变
-        tb.Text = view.Text ?? string.Empty;
-        tb.FontSize = view.FontSize;
-        tb.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(string.IsNullOrEmpty(view.FontFamily) ? "OpenSansSemibold" : view.FontFamily);
-
-        tb.TextAlignment = view.HorizontalTextAlignment switch
+        var text = view.Text ?? string.Empty;
+        var fontFamily = new Microsoft.UI.Xaml.Media.FontFamily(
+            string.IsNullOrEmpty(view.FontFamily) ? "OpenSansSemibold" : view.FontFamily);
+        var alignment = view.HorizontalTextAlignment switch
         {
             TextAlignment.Start => WTextAlignment.Left,
             TextAlignment.End => WTextAlignment.Right,
             _ => WTextAlignment.Center
         };
-
-        ApplyFillProgress(tb, view.Text ?? string.Empty, view.FillProgress, view.TextColor, view.OutlineColor);
-
-        tb.Padding = new Microsoft.UI.Xaml.Thickness(
+        var padding = new Microsoft.UI.Xaml.Thickness(
             view.Padding.Left, view.Padding.Top, view.Padding.Right, view.Padding.Bottom);
 
-        tb.InvalidateMeasure();
+        foreach (var tb in new[] { baseText, fillText })
+        {
+            tb.Text = text;
+            tb.FontSize = view.FontSize;
+            tb.FontFamily = fontFamily;
+            tb.TextAlignment = alignment;
+            tb.Padding = padding;
+        }
+
+        ApplyFillProgress(handler, view, text);
+
+        handler.PlatformView.InvalidateMeasure();
     }
 
-    /// <summary>FillProgress 变化：仅重建前景渐变（逐字填充左→右推进），不触发重测</summary>
+    /// <summary>FillProgress 变化：仅更新上层已唱层的 Clip（逐字填充左→右推进），不触发重测</summary>
     private static void MapFillProgress(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
     {
-        if (handler.PlatformView == null || view == null) return;
-        ApplyFillProgress(handler.PlatformView, view.Text ?? string.Empty, view.FillProgress, view.TextColor, view.OutlineColor);
+        if (handler.PlatformView == null || view == null || handler._fillText == null) return;
+        ApplyFillProgress(handler, view, view.Text ?? string.Empty);
     }
 
     /// <summary>字符右缘位置缓存（文本+字号+字体 → 每字符右缘，DIP）。同一行歌词每 tick 命中。</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double[]> CharEdgeCache = new();
 
     /// <summary>
-    /// 逐字填充前景：LinearGradientBrush 在 progress 处硬切"已唱（TextColor）/未唱（OutlineColor）"，
-    /// 边界随进度连续移动 → 已唱色从左往右刷过（与 Android ClipRect 裁剪同一视觉）。
+    /// 应用逐字填充：底层涂未唱色、上层涂已唱色并裁剪出 [0, fillXPx]。
+    /// 边界位置 = 字符右缘表映射：前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
     ///
-    /// ⚠ 关键校准：
-    /// ① 渐变 RelativeToBoundingBox 相对的是 **TextBlock 元素框**（歌词行整列宽），不是文本本身——
-    ///    必须把边界换算到文本实际宽度上（否则边界按列宽推进会"一次跨过多个字"）。
-    /// ② 逐字进度是"字符比例"（filledChars / totalChars），但字符**不等宽**（空格/窄符号/全角标点）——
-    ///    若用"字符比例 × 文本总宽"映射像素，边界会与字符实际位置错位。
-    ///    这里用 Win2D 逐前缀测量每个字符的右缘（缓存），把字符比例精确映射到像素位置：
-    ///    边界 = 前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
+    /// ⚠ 元素框校准：Clip 相对 TextBlock 自身坐标（物理像素）。若元素被拉伸到列宽
+    /// （宽于文本），按对齐方式把文本起点偏移计入，保证边界落在文本实际位置上。
     ///
     /// 铁律：
-    /// 1. 绝不设置 tb.Opacity —— 那会覆盖 MAUI View.Opacity 属性绑定。
+    /// 1. 绝不设置 TextBlock.Opacity —— 那会覆盖 MAUI View.Opacity 属性绑定。
     /// 2. TextColor 被设成全透明时退回 OutlineColor；OutlineColor 也透明时
     ///    未唱段用 TextColor 的 55% 透明度（任何情况下文字都可见）。
     /// </summary>
-    private static void ApplyFillProgress(WTextBlock tb, string text, double fillProgress, Color textColor, Color outlineColor)
+    private static void ApplyFillProgress(KaraokeLabelHandler handler, Controls.KaraokeLabel view, string text)
     {
-        var progress = Math.Clamp(fillProgress, 0.0, 1.0);
+        var progress = Math.Clamp(view.FillProgress, 0.0, 1.0);
 
         // 已唱色：TextColor，透明则退 OutlineColor，再退白色
-        var filledColor = textColor;
+        var filledColor = view.TextColor;
         if (filledColor is null || filledColor.Alpha <= 0.01f)
-            filledColor = outlineColor;
+            filledColor = view.OutlineColor;
         if (filledColor is null || filledColor.Alpha <= 0.01f)
             filledColor = Colors.White;
 
         // 未唱色：OutlineColor，透明则用已唱色的 55% 透明度（保持可读）
-        var emptyColor = outlineColor;
+        var emptyColor = view.OutlineColor;
         if (emptyColor is null || emptyColor.Alpha <= 0.01f)
             emptyColor = new Color(filledColor.Red, filledColor.Green, filledColor.Blue, filledColor.Alpha * 0.55f);
 
+        handler._baseText.Foreground = new WSolidBrush(ToWColor(emptyColor));
+        handler._fillText.Foreground = new WSolidBrush(ToWColor(filledColor));
+
+        var fillText = handler._fillText;
         if (string.IsNullOrEmpty(text))
         {
-            tb.Foreground = new WSolidBrush(ToWColor(filledColor));
+            fillText.Clip = null;
             return;
         }
 
-        // 边界极端值：整行单色（避免零宽渐变段的渲染开销）
+        // 极端进度：整行单色（清除/全露 Clip）
         if (progress <= 0.001)
         {
-            tb.Foreground = new WSolidBrush(ToWColor(emptyColor));
+            fillText.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+            {
+                Rect = new global::Windows.Foundation.Rect(0, -1e6, 0.01, 2e6)
+            };
             return;
         }
         if (progress >= 0.999)
         {
-            tb.Foreground = new WSolidBrush(ToWColor(filledColor));
+            fillText.Clip = null;
             return;
         }
 
-        // 字符比例 → 文本内像素位置（按字符实际宽度，缓存字符右缘表）
-        var visualOffset = progress;
         try
         {
-            var elementWidth = tb.ActualWidth;
-            var scale = tb.XamlRoot?.RasterizationScale ?? 1.0;
-            if (elementWidth > 1)
+            var scale = fillText.XamlRoot?.RasterizationScale ?? 1.0;
+            var edges = GetCharRightEdges(handler._baseText, text);
+            var totalWidthDp = edges.Length > 0 ? edges[^1] : 0.0;
+            if (totalWidthDp <= 0)
             {
-                var edges = GetCharRightEdges(tb, text);
-                var totalWidth = edges.Length > 0 ? edges[^1] : 0.0;
-                if (totalWidth > 0)
-                {
-                    var fillX = CharFractionToPixels(edges, progress);   // DIP
-                    visualOffset = fillX * scale / elementWidth;
-                }
+                fillText.Clip = null;
+                return;
             }
-        }
-        catch { }
-        visualOffset = Math.Clamp(visualOffset, 0.0, 1.0);
 
-        // 两个 stop 同 offset → 硬边界：边界左侧已唱色、右侧未唱色，边界随进度平滑右移。
-        var brush = new Microsoft.UI.Xaml.Media.LinearGradientBrush
+            // 字符比例 → 文本内像素位置（DIP）→ 物理像素
+            var fillXPx = CharFractionToPixels(edges, progress) * scale;
+            var textWidthPx = totalWidthDp * scale;
+
+            // 元素被拉伸（宽于文本）时，把文本起点偏移计入（按对齐方式）
+            var elementWidth = fillText.ActualWidth;
+            double leftOffset = 0;
+            if (elementWidth > textWidthPx + 1 && textWidthPx > 0)
+            {
+                leftOffset = view.HorizontalTextAlignment switch
+                {
+                    TextAlignment.Start => 0,
+                    TextAlignment.End => elementWidth - textWidthPx,
+                    _ => (elementWidth - textWidthPx) / 2
+                };
+            }
+
+            fillText.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+            {
+                Rect = new global::Windows.Foundation.Rect(leftOffset, -1e6, fillXPx, 2e6)
+            };
+        }
+        catch
         {
-            StartPoint = new global::Windows.Foundation.Point(0, 0.5),
-            EndPoint = new global::Windows.Foundation.Point(1, 0.5),
-            MappingMode = Microsoft.UI.Xaml.Media.BrushMappingMode.RelativeToBoundingBox
-        };
-        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(filledColor), Offset = visualOffset });
-        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(emptyColor), Offset = visualOffset });
-        tb.Foreground = brush;
+            fillText.Clip = null;
+        }
     }
 
     /// <summary>字符比例 → 文本内像素位置（DIP）：前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
