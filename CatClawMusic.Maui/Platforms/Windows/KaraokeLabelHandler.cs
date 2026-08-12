@@ -80,6 +80,12 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
     /// <summary>
     /// 逐字填充前景：LinearGradientBrush 在 progress 处硬切"已唱（TextColor）/未唱（OutlineColor）"，
     /// 边界随进度连续移动 → 已唱色从左往右刷过（与 Android ClipRect 裁剪同一视觉）。
+    ///
+    /// ⚠ 关键校准：渐变 RelativeToBoundingBox 相对的是 **TextBlock 元素框**（歌词行整列宽），
+    /// 不是文本本身——若不校准，边界按列宽推进会"一次跨过多个字同时着色"。
+    /// 这里用 Win2D CanvasTextLayout 精确测量文本自然宽度，把渐变边界换算到
+    /// 文本实际宽度上（visualOffset = progress × 文本宽 / 元素宽），实现逐字平滑推进。
+    ///
     /// 铁律：
     /// 1. 绝不设置 tb.Opacity —— 那会覆盖 MAUI View.Opacity 属性绑定。
     /// 2. TextColor 被设成全透明时退回 OutlineColor；OutlineColor 也透明时
@@ -119,17 +125,51 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
             return;
         }
 
-        // 渐变相对文本包围盒（TextBlock 宽度=内容宽，与 Android 按行文本宽度裁剪一致）。
-        // 两个 stop 同 offset → 硬边界：边界左侧已唱色、右侧未唱色，边界随 progress 平滑右移。
+        // 校准：渐变相对元素框，而我们要的是"相对文本"。
+        // visualOffset = progress × (文本宽 / 元素宽)，使 0→1 映射到文本实际宽度。
+        var visualOffset = progress;
+        try
+        {
+            var elementWidth = tb.ActualWidth;
+            var scale = tb.XamlRoot?.RasterizationScale ?? 1.0;
+            var textWidth = MeasureTextWidthDp(tb, text) * scale;
+            if (elementWidth > 1 && textWidth > 0 && textWidth < elementWidth)
+                visualOffset = progress * (textWidth / elementWidth);
+        }
+        catch { }
+        visualOffset = Math.Clamp(visualOffset, 0.0, 1.0);
+
+        // 两个 stop 同 offset → 硬边界：边界左侧已唱色、右侧未唱色，边界随进度平滑右移。
         var brush = new Microsoft.UI.Xaml.Media.LinearGradientBrush
         {
             StartPoint = new global::Windows.Foundation.Point(0, 0.5),
             EndPoint = new global::Windows.Foundation.Point(1, 0.5),
             MappingMode = Microsoft.UI.Xaml.Media.BrushMappingMode.RelativeToBoundingBox
         };
-        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(filledColor), Offset = progress });
-        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(emptyColor), Offset = progress });
+        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(filledColor), Offset = visualOffset });
+        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(emptyColor), Offset = visualOffset });
         tb.Foreground = brush;
+    }
+
+    /// <summary>用 Win2D 精确测量文本自然宽度（DIP），与 TextBlock 同字体/字号。
+    /// 用于把渐变边界从"元素框比例"校准到"文本实际宽度比例"。</summary>
+    private static double MeasureTextWidthDp(WTextBlock tb, string text)
+    {
+        try
+        {
+            var format = new Microsoft.Graphics.Canvas.Text.CanvasTextFormat
+            {
+                FontSize = (float)tb.FontSize,
+                FontFamily = string.IsNullOrEmpty(tb.FontFamily?.Source) ? "Segoe UI" : tb.FontFamily!.Source,
+            };
+            using var layout = new Microsoft.Graphics.Canvas.Text.CanvasTextLayout(
+                Microsoft.Graphics.Canvas.CanvasDevice.GetSharedDevice(), text, format, 0, 0);
+            return layout.LayoutBounds.Width;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     private static WColor ToWColor(Color color)
