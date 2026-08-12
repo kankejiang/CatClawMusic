@@ -9,9 +9,10 @@ using WColor = Windows.UI.Color;
 namespace CatClawMusic.Maui.Platforms.Windows;
 
 /// <summary>
-/// Windows 平台 KaraokeLabel：TextBlock + 逐字 Run 着色实现卡拉OK填充。
-/// FillProgress ∈ [0,1]：按字符数把文本切成"已唱（TextColor）"与"未唱（OutlineColor）"
-/// 两段 Run，实现真正逐字渐进效果（Android 端 Canvas 描边+实心同理，仅绘制手段不同）。
+/// Windows 平台 KaraokeLabel：TextBlock + 线性渐变前景实现卡拉OK逐字填充。
+/// 与 Android 端 ClipRect 逐行裁剪同视觉：先整行未唱色，已唱色（TextColor）作为
+/// LinearGradientBrush 从 0 到 progress 的硬边界渐变"从左往右刷过"，边界按进度
+/// 连续移动（正在唱的字半亮半暗），progress 0→1 平滑推进。
 /// 未唱色透明时回退为已唱色的 55% 透明度，保证任何情况下文字可见。
 /// </summary>
 public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock>
@@ -26,7 +27,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
             [nameof(Controls.KaraokeLabel.TextColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.OutlineColor)] = MapAll,
             [nameof(Controls.KaraokeLabel.StrokeWidth)] = MapAll,
-            // FillProgress 单独处理：仅重建前景 Run，不触发 InvalidateMeasure
+            // FillProgress 单独处理：仅重建前景渐变，不触发 InvalidateMeasure
             [nameof(Controls.KaraokeLabel.FillProgress)] = MapFillProgress,
             [nameof(Controls.KaraokeLabel.HorizontalTextAlignment)] = MapAll,
             [nameof(Controls.KaraokeLabel.LineBreakMode)] = MapAll,
@@ -49,7 +50,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
         if (handler.PlatformView == null || view == null) return;
         var tb = handler.PlatformView;
 
-        // 先设 Text（会清空 Inlines），再按进度重建前景 Run
+        // 先设 Text（会清空 Inlines），再按进度重建前景渐变
         tb.Text = view.Text ?? string.Empty;
         tb.FontSize = view.FontSize;
         tb.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(string.IsNullOrEmpty(view.FontFamily) ? "OpenSansSemibold" : view.FontFamily);
@@ -69,7 +70,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
         tb.InvalidateMeasure();
     }
 
-    /// <summary>FillProgress 变化：仅重建前景 Run（逐字着色），不触发重测</summary>
+    /// <summary>FillProgress 变化：仅重建前景渐变（逐字填充左→右推进），不触发重测</summary>
     private static void MapFillProgress(KaraokeLabelHandler handler, Controls.KaraokeLabel view)
     {
         if (handler.PlatformView == null || view == null) return;
@@ -77,7 +78,8 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
     }
 
     /// <summary>
-    /// 逐字填充前景色：已唱字符用 TextColor，未唱字符用 OutlineColor。
+    /// 逐字填充前景：LinearGradientBrush 在 progress 处硬切"已唱（TextColor）/未唱（OutlineColor）"，
+    /// 边界随进度连续移动 → 已唱色从左往右刷过（与 Android ClipRect 裁剪同一视觉）。
     /// 铁律：
     /// 1. 绝不设置 tb.Opacity —— 那会覆盖 MAUI View.Opacity 属性绑定。
     /// 2. TextColor 被设成全透明时退回 OutlineColor；OutlineColor 也透明时
@@ -105,30 +107,29 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WTextBlock
             return;
         }
 
-        // 逐字：按字符比例切分已唱/未唱两段 Run（0=全未唱，1=全已唱）
-        var filled = (int)Math.Round(text.Length * progress);
-        if (filled <= 0)
+        // 边界极端值：整行单色（避免零宽渐变段的渲染开销）
+        if (progress <= 0.001)
         {
             tb.Foreground = new WSolidBrush(ToWColor(emptyColor));
             return;
         }
-        if (filled >= text.Length)
+        if (progress >= 0.999)
         {
             tb.Foreground = new WSolidBrush(ToWColor(filledColor));
             return;
         }
 
-        tb.Inlines.Clear();
-        tb.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+        // 渐变相对文本包围盒（TextBlock 宽度=内容宽，与 Android 按行文本宽度裁剪一致）。
+        // 两个 stop 同 offset → 硬边界：边界左侧已唱色、右侧未唱色，边界随 progress 平滑右移。
+        var brush = new Microsoft.UI.Xaml.Media.LinearGradientBrush
         {
-            Text = text[..filled],
-            Foreground = new WSolidBrush(ToWColor(filledColor))
-        });
-        tb.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
-        {
-            Text = text[filled..],
-            Foreground = new WSolidBrush(ToWColor(emptyColor))
-        });
+            StartPoint = new global::Windows.Foundation.Point(0, 0.5),
+            EndPoint = new global::Windows.Foundation.Point(1, 0.5),
+            MappingMode = Microsoft.UI.Xaml.Media.BrushMappingMode.RelativeToBoundingBox
+        };
+        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(filledColor), Offset = progress });
+        brush.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = ToWColor(emptyColor), Offset = progress });
+        tb.Foreground = brush;
     }
 
     private static WColor ToWColor(Color color)
