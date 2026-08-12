@@ -3,6 +3,7 @@
 > 生成日期：2026-08-11
 > 基于对 CatClawMusic 全仓（Core / Data / Maui / Plugins）插件架构与功能面的摸底分析。
 > 2026-08-11 补充：新增「七、预制插件蓝图」——播客/有声书、AI DJ、下载入库、批量标签编辑、音频分析、听歌识曲、年度报告、Scrobble、自建服务器同步、Subsonic 补全（详见文末）。
+> 2026-08-12 进度：A4（LRCLIB 歌词插件）已完成 ✅ —— `CatClawMusic.Plugins.Lrclib`（纯 Core 依赖、宿主零改动，`.ccp` 已构建）。
 
 ## 一、现状速览
 
@@ -36,7 +37,7 @@ Core 共定义 11 类插件契约接口，但宿主**真正接线消费的只有
 | A1 | QQ 音乐插件 | IOnlineMusicPlugin + 发现子 tab + IViewContributorPlugin | 中 | API 成熟，歌词/封面/歌单/排行榜齐全；NeteaseUiKit 可抽成多插件共享模板 |
 | A2 | 咪咕插件 | 同上 | 中 | 免费无损是最大差异化卖点 |
 | A3 | 酷我 / 酷狗插件 | 同上 | 中 | 直链易得，扩充聚合搜索源数量 |
-| A4 | LRCLIB 歌词插件 | ILyricsProviderPlugin | 低 | 按标题/时长/艺人在线匹配歌词，补齐本地歌曲歌词；接口已消费、零实现者，装上即生效 |
+| A4 | LRCLIB 歌词插件 | ILyricsProviderPlugin | 低 | ✅ 已完成（2026-08-12）：`CatClawMusic.Plugins.Lrclib`，按歌名/艺人/时长匹配 lrclib.net，同步歌词优先、纯文本兜底，内存缓存防限流；接口已消费、零实现者，装上即生效 |
 | A5 | 歌单工具箱 | IViewContributorPlugin + DI 取 MusicDatabase | 低 | m3u/m3u8/pls/csv 导入导出——宿主完全空白的功能，纯插件实现无需宿主改动 |
 
 ## 三、B 档：接口已预留，宿主接线后即可做

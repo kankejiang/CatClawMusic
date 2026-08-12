@@ -3,4 +3,5 @@
   <Project Path="CatClawMusic.Data/CatClawMusic.Data.csproj" />
   <Project Path="CatClawMusic.Core.Tests/CatClawMusic.Core.Tests.csproj" />
   <Project Path="CatClawMusic.Maui/CatClawMusic.Maui.csproj" />
+  <Project Path="CatClawMusic.Plugins/CatClawMusic.Plugins.Lrclib.csproj" />
 </Solution>
