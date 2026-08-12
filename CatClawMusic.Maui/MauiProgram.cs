@@ -604,7 +604,7 @@ public static class MauiProgram
             SslOptions = new SslClientAuthenticationOptions
             {
                 RemoteCertificateValidationCallback =
-                    CatClawMusic.Data.WebDavService.CreateCertValidationCallback("LyricsStreamOpener")
+                    CatClawMusic.Data.WebDavCertPolicy.CreateCertValidationCallback("LyricsStreamOpener")
             },
             AllowAutoRedirect = true
         })
