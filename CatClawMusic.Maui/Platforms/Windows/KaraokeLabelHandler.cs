@@ -25,6 +25,9 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
     private float _layoutFontSize = -1;
     private bool _layoutBold;
     private float _layoutMaxWidth = -1;
+    /// <summary>最近一次布局的宽度约束：OnDraw 必须与布局用同一换行宽度，
+    /// 否则（ActualWidth 与约束的浮点差异）会把最后一个字 Wrap 到第二行被裁剪。</summary>
+    private float _layoutConstraint = -1;
 
     public static IPropertyMapper<Controls.KaraokeLabel, KaraokeLabelHandler> Mapper =
         new PropertyMapper<Controls.KaraokeLabel, KaraokeLabelHandler>(ViewMapper)
@@ -83,12 +86,14 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
         try { PlatformView?.InvalidateMeasure(); } catch { }
     }
 
-    /// <summary>测量：用 CanvasTextLayout 计算文本尺寸（DIP），支持换行。</summary>
+    /// <summary>测量：用 CanvasTextLayout 计算文本尺寸（DIP），支持换行。
+    /// 记录宽度约束供 OnDraw 复用，保证布局/绘制换行一致。</summary>
     public override Size GetDesiredSize(double widthConstraint, double heightConstraint)
     {
         try
         {
-            var layout = EnsureLayout((float)Math.Max(0, widthConstraint));
+            _layoutConstraint = (float)Math.Max(0, widthConstraint);
+            var layout = EnsureLayout(_layoutConstraint);
             var pad = VirtualView.Padding;
             var w = layout.LayoutBounds.Width + pad.Left + pad.Right;
             var h = layout.LayoutBounds.Height + pad.Top + pad.Bottom;
@@ -143,7 +148,10 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             var text = view.Text ?? "";
             if (text.Length == 0) return;
 
-            var layout = EnsureLayout((float)Math.Max(0, sender.ActualWidth));
+            // 用布局时的宽度约束创建/复用 layout（与 GetDesiredSize 一致，避免换行漂移）；
+            // 从未布局时兜底用控件实际宽。
+            var maxWidth = _layoutConstraint >= 0 ? _layoutConstraint : (float)Math.Max(0, sender.ActualWidth);
+            var layout = EnsureLayout(maxWidth);
             var ds = args.DrawingSession;
             ds.Clear(global::Microsoft.UI.Colors.Transparent);
 
