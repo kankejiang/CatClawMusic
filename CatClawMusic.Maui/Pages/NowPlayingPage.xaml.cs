@@ -520,15 +520,33 @@ public partial class NowPlayingPage : ContentPage
                             HighlightWindowsLineWithoutScroll(idx);
                         // 切行瞬间立即同步新行的逐字进度（VM 已算好，无需等下一个 tick）
                         if (idx >= 0 && idx < _winRows.Count)
-                            _winRows[idx].Main.FillProgress = _viewModel.CurrentLineFillProgress;
+                        {
+                            var row = _winRows[idx];
+                            row.Main.FillProgress = -1;   // 强制刷新（防同值漏触发）
+                            row.Main.FillProgress = _viewModel.CurrentLineFillProgress;
+                        }
                     });
                     return;
                 case nameof(NowPlayingViewModel.CurrentLineFillProgress):
                     // 逐字填充：当前行 KaraokeLabel 按字符比例着色（已唱=白，未唱=灰）
                     {
                         var idx = _viewModel.CurrentLyricIndexObservable;
+                        var fill = _viewModel.CurrentLineFillProgress;
+                        // 诊断日志（定位"每行只着色一个字"）：VM 侧 progress 值
+                        try
+                        {
+                            System.IO.File.AppendAllText(
+                                System.IO.Path.Combine(System.IO.Path.GetTempPath(), "karaoke_debug.txt"),
+                                $"{DateTime.Now:HH:mm:ss.fff} VM fill idx={idx} p={fill:F4} rows={_winRows.Count}\n");
+                        }
+                        catch { }
                         if (idx >= 0 && idx < _winRows.Count)
-                            _winRows[idx].Main.FillProgress = _viewModel.CurrentLineFillProgress;
+                        {
+                            // 强制刷新：先设 -1 再设目标值，防 PropertyChanged 同值漏触发
+                            var row = _winRows[idx];
+                            row.Main.FillProgress = -1;
+                            row.Main.FillProgress = fill;
+                        }
                         return;
                     }
                 case nameof(NowPlayingViewModel.IsPlaying):

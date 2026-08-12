@@ -98,6 +98,18 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
     /// <summary>诊断日志计数（限前 30 次输出，用于定位"只着色一个字"问题，定位后移除）</summary>
     private static int _debugLogCount;
 
+    /// <summary>诊断日志写入临时文件（定位"只着色一个字"用，定位后移除）</summary>
+    private static void DebugLog(string msg)
+    {
+        try
+        {
+            System.IO.File.AppendAllText(
+                System.IO.Path.Combine(System.IO.Path.GetTempPath(), "karaoke_debug.txt"),
+                $"{DateTime.Now:HH:mm:ss.fff} {msg}\n");
+        }
+        catch { }
+    }
+
     /// <summary>
     /// 应用逐字填充：底层涂未唱色、上层涂已唱色并裁剪出 [0, fillXPx]。
     /// 边界位置 = 字符右缘表映射：前 n 个字符的实际宽度和 + 当前字符内部按宽度比例渐变。
@@ -183,8 +195,8 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, WGrid>
             if (_debugLogCount < 30)
             {
                 _debugLogCount++;
-                Log.Debug("KaraokeWin",
-                    $"[Karaoke] p={progress:F3} fillX={fillXPx:F1} textW={textWidthPx:F1} " +
+                DebugLog(
+                    $"Karaoke p={progress:F3} fillX={fillXPx:F1} textW={textWidthPx:F1} " +
                     $"elW={elementWidth:F0} off={leftOffset:F1} scale={scale:F2} '{text}'");
             }
 
