@@ -670,14 +670,14 @@
                                 <Label Text="LYRICS · 同步歌词" FontSize="11" FontAttributes="Bold" CharacterSpacing="2"
                                        TextColor="#8D93B7" VerticalOptions="Center" />
                             </HorizontalStackLayout>
-                            <Border Grid.Column="1" x:Name="WinFollowBtn" StrokeThickness="1"
+                            <Border Grid.Column="1" x:Name="WinLyricSettingsBtn" StrokeThickness="1"
                                     Stroke="#408C7BFF" BackgroundColor="#148C7BFF" Padding="13,0" HeightRequest="30"
                                     HorizontalOptions="End" VerticalOptions="Center">
                                 <Border.StrokeShape><RoundRectangle CornerRadius="15" /></Border.StrokeShape>
-                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnWinFollowTapped" /></Border.GestureRecognizers>
+                                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnWinLyricSettingsTapped" /></Border.GestureRecognizers>
                                 <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
-                                    <Label Text="◎" FontSize="13" TextColor="#D7D3FF" VerticalOptions="Center" />
-                                    <Label x:Name="WinFollowLabel" Text="跟随" FontSize="11.5" FontAttributes="Bold" TextColor="#D7D3FF" VerticalOptions="Center" />
+                                    <Label Text="⚙" FontSize="13" TextColor="#D7D3FF" VerticalOptions="Center" />
+                                    <Label x:Name="WinLyricSettingsLabel" Text="歌词设置" FontSize="11.5" FontAttributes="Bold" TextColor="#D7D3FF" VerticalOptions="Center" />
                                 </HorizontalStackLayout>
                             </Border>
                         </Grid>
@@ -798,6 +798,11 @@
         <!-- 更多操作：复用 AppPopup（与睡眠定时同款，在 ViewPager2 内稳定显示） -->
         <controls:AppPopup x:Name="MorePopup"
                            Title="歌曲操作"
+                           CloseOnMaskTapped="True" />
+
+        <!-- 歌词设置弹窗（参考全屏歌词页，预定义默认隐藏） -->
+        <controls:AppPopup x:Name="LyricsSettingsPopup"
+                           Title="歌词设置"
                            CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

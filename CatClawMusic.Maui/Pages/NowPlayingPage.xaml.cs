@@ -476,7 +476,7 @@ public partial class NowPlayingPage : ContentPage
     private void OnWinLikeTapped(object? sender, TappedEventArgs e)
         => _viewModel.ToggleLikeCommand.Execute(null);
 
-    private void OnWinFollowTapped(object? sender, TappedEventArgs e) { }
+    private void OnWinLyricSettingsTapped(object? sender, TappedEventArgs e) { }
 
     private void OnWinVolumeChanged(object? sender, ValueChangedEventArgs e) { }
 

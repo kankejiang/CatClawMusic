@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
+using CatClawMusic.Maui.Services;
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.UI.Xaml.Media;
 using DispatcherTimer = Microsoft.UI.Xaml.DispatcherTimer;
@@ -246,6 +247,16 @@ public partial class NowPlayingPage
         var baseSize = _settings.FontSize;
         var transSize = Math.Max(10, baseSize - 4);
 
+        // 歌词对齐（歌词设置弹窗可调）：居左/居中/居右。AnchorX 跟随对齐，
+        // 保证当前行放大时向对应方向生长而不是溢出（居左=0 向左锚定 / 居中=0.5 / 居右=1）。
+        var alignOptions = _settings.ToLayoutOptions();
+        var alignAnchor = _settings.LyricsAlignment switch
+        {
+            LyricsSettingsService.Alignment.Left => 0.0,
+            LyricsSettingsService.Alignment.Right => 1.0,
+            _ => 0.5
+        };
+
         foreach (var line in lines)
         {
             var row = new Grid
@@ -276,10 +287,10 @@ public partial class NowPlayingPage
                 FontAttributes = FontAttributes.Bold,
                 TextColor = WinLyricNearColor,
                 LineBreakMode = LineBreakMode.WordWrap,
-                HorizontalOptions = LayoutOptions.Start,
+                HorizontalOptions = alignOptions,
                 VerticalOptions = LayoutOptions.Center,
-                // 以左边缘为缩放锚点，放大时向右生长而不是向左溢出屏幕外
-                AnchorX = 0,
+                // 以对齐方向为缩放锚点，放大时向对应方向生长而不是向左溢出屏幕外
+                AnchorX = alignAnchor,
                 AnchorY = 0.5,
             };
             Grid.SetRow(main, 0); Grid.SetColumn(main, 0);
@@ -293,7 +304,7 @@ public partial class NowPlayingPage
                 TextColor = WinLyricNearColor,
                 Opacity = 0.85,
                 LineBreakMode = LineBreakMode.WordWrap,
-                HorizontalOptions = LayoutOptions.Start,
+                HorizontalOptions = alignOptions,
                 VerticalOptions = LayoutOptions.Center,
                 HeightRequest = transSize * 1.4,
             };
@@ -824,22 +835,14 @@ public partial class NowPlayingPage
     }
 
     // ═══════════════════════════════════════
-    // 跟随开关
+    // 歌词跟随（默认跟随；用户拖动歌词行时自动退出跟随，不再有手动切换按钮）
     // ═══════════════════════════════════════
-
-    private void OnWinFollowTapped(object? sender, TappedEventArgs e)
-        => SetWinFollow(!_winFollow);
 
     /// <summary>切换歌词跟随模式，并同步按钮外观；重新开启时立即缓动回到当前行。</summary>
     private void SetWinFollow(bool follow)
     {
         if (_winFollow == follow) return;
         _winFollow = follow;
-
-        WinFollowLabel.Text = follow ? "跟随" : "手动";
-        WinFollowBtn.BackgroundColor = follow
-            ? (Color)Application.Current!.Resources["PrimaryColor"]
-            : Color.FromArgb("#10FFFFFF");
 
         // 当前行滚动 = WinLyricStack.TranslationY 缓动平移（合成线程变换，不重排）。
         // 重新跟随时从当前位移 tween 回当前行，无跳动。不再需要旧 CollectionView 的自动滚动定时器。
