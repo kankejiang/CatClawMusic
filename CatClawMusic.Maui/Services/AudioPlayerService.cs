@@ -94,8 +94,9 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
         try
         {
             var pos = svc.CurrentPosition;
-            // 5fps 下每 tick 约 0.2s 变化，阈值 0.05 确保不跳过有效更新但过滤抖动
-            if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.05 && pos > 0)
+            // 16ms tick（约 60fps）下每 tick 位置变化约 0.016s，
+            // 阈值 0.01 保证 60fps 全量通知但过滤播放器位置抖动/重复值
+            if (Math.Abs(pos - svc._lastNotifiedPosition) < 0.01 && pos > 0)
                 return;
             svc._lastNotifiedPosition = pos;
             svc.PositionChanged?.Invoke(svc, TimeSpan.FromSeconds(pos));
@@ -222,16 +223,16 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 50ms 触发一次位置更新（20fps）。
-    /// 提升逐字歌词（Karaoke）着色帧率，使 FillProgress 平滑过渡而非 5fps 跳变。
-    /// 50ms 在主流设备上对进度条/歌词绑定求值开销可控，不影响播放页滑动流畅度。</summary>
+    /// <summary>启动进度定时器，每 16ms 触发一次位置更新（约 60fps）。
+    /// 提升逐字歌词（Karaoke）着色帧率，使 FillProgress 平滑过渡而非 20fps 跳变。
+    /// 16ms 在主流设备上对进度条/歌词绑定求值开销可控，不影响播放页滑动流畅度。</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
 #if DEBUG
         Log.Debug("AudioPlayerService", "[PositionTimer] Started");
 #endif
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 50, 50);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, 16, 16);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>
