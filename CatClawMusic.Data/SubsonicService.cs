@@ -126,7 +126,8 @@ public class SubsonicService : ISubsonicService
         Func<List<Song>, Task>? songCallback = null)
     {
         var songs = new List<Song>();
-        var seenIds = new HashSet<string>();
+        // 去重集合：并行任务中并发 Add，HashSet 非线程安全会损坏内部状态/漏去重，用 ConcurrentDictionary
+        var seenIds = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
 
         try
         {
@@ -196,7 +197,7 @@ public class SubsonicService : ISubsonicService
                             foreach (var item in EnumerateSongArray(songArr))
                             {
                                 var songId = GetString(item, "id");
-                                if (!seenIds.Add(songId)) continue;
+                                if (!seenIds.TryAdd(songId, 0)) continue;
 
                                 var songArtist = GetString(item, "artist").Trim();
                                 var songAlbum = GetString(item, "album").Trim();

@@ -455,6 +455,16 @@ public class PlaySongTool : IAgentTool
 /// </summary>
 public class WebSearchTool : IAgentTool
 {
+    // 静态编译正则：避免每次解析/清理都走 Regex.Match 非编译路径（含 RegexOptions.Compiled 的重复创建开销）
+    private static readonly System.Text.RegularExpressions.Regex RegexTag = new(@"<[^>]+>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex RegexWhitespace = new(@"\s+", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex RegexBingBlock = new(@"<li class=""b_algo[\s\S]*?</li>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex RegexBingAnchor = new(@"<h2[^>]*>\s*<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex RegexBingSnippet = new(@"<p[^>]*>([\s\S]*?)</p>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex RegexBaiduBlock = new(@"<h3[^>]*>[\s\S]*?<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>[\s\S]*?</h3>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    /// <summary>搜索页 HTML 最大处理长度（2MB），防止畸形页面拉长正则回溯时间</summary>
+    private const int MaxHtmlLength = 2 * 1024 * 1024;
+
     /// <summary>HTTP 客户端，用于发起搜索请求</summary>
     private readonly HttpClient _httpClient;
     /// <summary>工具名称</summary>
@@ -547,11 +557,11 @@ public class WebSearchTool : IAgentTool
     {
         if (string.IsNullOrEmpty(html)) return "";
         // 去除所有 HTML 标签
-        var text = System.Text.RegularExpressions.Regex.Replace(html, @"<[^>]+>", "");
+        var text = RegexTag.Replace(html, "");
         // 解码常见 HTML 实体
         text = System.Net.WebUtility.HtmlDecode(text);
         // 压缩空白
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+        text = RegexWhitespace.Replace(text, " ").Trim();
         return text;
     }
 
@@ -583,17 +593,16 @@ public class WebSearchTool : IAgentTool
         var results = new List<object>();
         try
         {
-            var blockPattern = @"<li class=""b_algo[\s\S]*?</li>";
-            foreach (System.Text.RegularExpressions.Match block in System.Text.RegularExpressions.Regex.Matches(html, blockPattern))
+            if (html.Length > MaxHtmlLength) html = html[..MaxHtmlLength];
+            foreach (System.Text.RegularExpressions.Match block in RegexBingBlock.Matches(html))
             {
                 var seg = block.Value;
-                var aMatch = System.Text.RegularExpressions.Regex.Match(seg,
-                    @"<h2[^>]*>\s*<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>");
+                var aMatch = RegexBingAnchor.Match(seg);
                 if (!aMatch.Success) continue;
                 var url = aMatch.Groups[1].Value;
                 var title = CleanHtmlText(aMatch.Groups[2].Value);
                 if (string.IsNullOrEmpty(title)) continue;
-                var pMatch = System.Text.RegularExpressions.Regex.Match(seg, @"<p[^>]*>([\s\S]*?)</p>");
+                var pMatch = RegexBingSnippet.Match(seg);
                 var snippet = pMatch.Success ? CleanHtmlText(pMatch.Groups[1].Value) : "";
                 results.Add(new { title, url, snippet });
                 if (results.Count >= 5) break;
@@ -634,8 +643,8 @@ public class WebSearchTool : IAgentTool
         var results = new List<object>();
         try
         {
-            var linkPattern = @"<h3[^>]*>[\s\S]*?<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>[\s\S]*?</h3>";
-            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(html, linkPattern))
+            if (html.Length > MaxHtmlLength) html = html[..MaxHtmlLength];
+            foreach (System.Text.RegularExpressions.Match m in RegexBaiduBlock.Matches(html))
             {
                 var url = m.Groups[1].Value;
                 var title = CleanHtmlText(m.Groups[2].Value);

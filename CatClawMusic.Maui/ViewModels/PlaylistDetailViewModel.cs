@@ -2,6 +2,7 @@ using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Helpers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
@@ -33,9 +34,10 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
     // === 歌曲列表 ===
 
-    /// <summary>当前展示的歌曲集合（已应用搜索 + 排序）</summary>
+    /// <summary>当前展示的歌曲集合（已应用搜索 + 排序）。
+    /// 用 ObservableRangeCollection：搜索/排序时 ReplaceAll 复用实例，避免 CollectionView 重置。</summary>
     [ObservableProperty]
-    private ObservableCollection<Song> _songs = new();
+    private ObservableRangeCollection<Song> _songs = new();
 
     [ObservableProperty]
     private Song? _selectedSong;
@@ -201,7 +203,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
         return MainThread.InvokeOnMainThreadAsync(() =>
         {
             var filtered = SortSongs(_allSongs.ToList());
-            Songs = new ObservableCollection<Song>(filtered);
+            Songs.ReplaceAll(filtered);
             SongCountText = $"{filtered.Count:N0} 首歌曲";
             ShowIndexRail = SortKey == "title" && string.IsNullOrWhiteSpace(SearchQuery);
             if (ShowIndexRail)
@@ -253,7 +255,7 @@ public partial class PlaylistDetailViewModel : ObservableObject
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                Songs = new ObservableCollection<Song>(filtered);
+                Songs.ReplaceAll(filtered);
                 SongCountText = $"{filtered.Count:N0} 首歌曲";
                 ShowIndexRail = SortKey == "title" && string.IsNullOrWhiteSpace(SearchQuery);
                 if (ShowIndexRail)

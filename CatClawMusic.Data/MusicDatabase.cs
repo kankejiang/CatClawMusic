@@ -343,9 +343,8 @@ public class MusicDatabase
         var history = await _database.Table<PlayHistory>().OrderByDescending(h => h.PlayedAt).Take(200).ToListAsync();
         if (history.Count == 0) return 0;
         var songIds = history.Select(h => h.SongId).ToHashSet();
-        // 只统计 Songs 表中仍存在的歌曲数量
-        var allSongs = await _database.Table<Song>().ToListAsync();
-        return allSongs.Count(s => songIds.Contains(s.Id));
+        // 只统计 Songs 表中仍存在的歌曲数量（IN 查询，而非整表加载后内存过滤）
+        return await _database.Table<Song>().CountAsync(s => songIds.Contains(s.Id));
     }
 
     /// <summary>
@@ -794,6 +793,17 @@ public class MusicDatabase
     {
         await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Artist>().ToListAsync();
+    }
+
+    /// <summary>
+    /// 按名称精确查询单个艺术家（单行查询，避免全表加载后内存过滤）
+    /// </summary>
+    /// <param name="name">艺术家名称</param>
+    /// <returns>匹配的艺术家；无匹配返回 null</returns>
+    public async Task<Artist?> FindArtistByNameAsync(string name)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        return await _database.Table<Artist>().Where(a => a.Name == name).FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -1382,16 +1392,19 @@ public class MusicDatabase
         if (history.Count == 0) return new List<Song>();
 
         var songIds = history.Select(h => h.SongId).ToHashSet();
-        var allSongs = await _database.Table<Song>().ToListAsync();
-        var songs = allSongs.Where(s => songIds.Contains(s.Id)).ToList();
+        // IN 查询只取命中歌曲，而非整表加载后内存过滤
+        var songs = await _database.Table<Song>().Where(s => songIds.Contains(s.Id)).ToListAsync();
         if (songs.Count == 0) return new List<Song>();
 
         // 只过滤孤立记录，不删除（歌曲可能因权限过期暂时不可见，重新扫描后可恢复）
         var foundIds = songs.Select(s => s.Id).ToHashSet();
         var validHistory = history.Where(h => foundIds.Contains(h.SongId)).ToList();
 
-        var artists = await _database.Table<Artist>().ToListAsync();
-        var albums = await _database.Table<Album>().ToListAsync();
+        // 只取用到的艺术家/专辑，而非整表
+        var neededArtistIds = songs.Select(s => s.ArtistId).Distinct().ToList();
+        var neededAlbumIds = songs.Select(s => s.AlbumId).Distinct().ToList();
+        var artists = await _database.Table<Artist>().Where(a => neededArtistIds.Contains(a.Id)).ToListAsync();
+        var albums = await _database.Table<Album>().Where(a => neededAlbumIds.Contains(a.Id)).ToListAsync();
         var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
         var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
 

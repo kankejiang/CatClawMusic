@@ -23,8 +23,9 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <summary>
     /// 临时配置覆盖（仅用于编辑页测试连接/获取模型列表时使用，不污染持久化存储）。
     /// 设置后，所有 _configProvider() 调用都会优先返回此配置；置空则回退到持久化配置。
+    /// 实例属性而非静态：静态共享会让多实例/并发测试互相污染。
     /// </summary>
-    public static LlmConfig? TempConfigOverride { get; set; }
+    public LlmConfig? TempConfigOverride { get; set; }
 
     /// <summary>JSON 序列化选项，使用蛇形命名与忽略 null 值</summary>
     private static readonly JsonSerializerOptions JsonOpts = new()

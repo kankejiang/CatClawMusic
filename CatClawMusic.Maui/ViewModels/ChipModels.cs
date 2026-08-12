@@ -3,10 +3,58 @@ using Microsoft.Maui.Graphics;
 
 namespace CatClawMusic.Maui.ViewModels;
 
+/// <summary>主题色 chip 接口：主题切换时由 <see cref="ChipThemeBroadcast"/> 广播刷新。</summary>
+internal interface IThemedChip
+{
+    void RefreshThemeColors();
+}
+
+/// <summary>
+/// 主题切换广播（弱引用版）。原实现由每个 chip 构造时订阅
+/// <c>Application.Current.RequestedThemeChanged</c>、终结器退订——事件源强引用委托、
+/// 委托强引用 chip，chip 永不回收、终结器永不执行（死循环泄漏），每进入一次
+/// 专辑/艺术家页就永久泄漏一组 chip。现改为：静态弱引用列表 + 只注册一次的静态处理器，
+/// 主题切换时通知仍存活的 chip，已回收的自动剔除，彻底消除泄漏。
+/// </summary>
+internal static class ChipThemeBroadcast
+{
+    private static readonly object Sync = new();
+    private static readonly List<WeakReference<IThemedChip>> Chips = new();
+    private static bool _subscribed;
+
+    public static void Track(IThemedChip chip)
+    {
+        lock (Sync)
+        {
+            Chips.Add(new WeakReference<IThemedChip>(chip));
+            if (_subscribed) return;
+            if (Application.Current != null)
+                Application.Current.RequestedThemeChanged += OnAppThemeChanged;
+            _subscribed = true;
+        }
+    }
+
+    private static void OnAppThemeChanged(object? sender, AppThemeChangedEventArgs e)
+    {
+        lock (Sync)
+        {
+            // 主题色资源已由 ThemeService.ApplyTheme() 在事件触发前重写完毕，
+            // 通知仍存活的 chip 重新触发 PropertyChanged 即拿新值。
+            for (var i = Chips.Count - 1; i >= 0; i--)
+            {
+                if (Chips[i].TryGetTarget(out var chip))
+                    chip.RefreshThemeColors();
+                else
+                    Chips.RemoveAt(i);
+            }
+        }
+    }
+}
+
 /// <summary>
 /// 来源筛选 chip（与艺术家/专辑页完全一致的实现）。
 /// </summary>
-public partial class FilterChip : ObservableObject
+public partial class FilterChip : ObservableObject, IThemedChip
 {
     public string FilterKey { get; }
     public string Label { get; }
@@ -19,12 +67,7 @@ public partial class FilterChip : ObservableObject
         FilterKey = key;
         Label = label;
         IsActive = active;
-        SubscribeTheme();
-    }
-
-    ~FilterChip()
-    {
-        UnsubscribeTheme();
+        ChipThemeBroadcast.Track(this);
     }
 
     // 主题色从 Application.Current.Resources 实时读取，跟随 ThemeService 主题切换。
@@ -49,24 +92,8 @@ public partial class FilterChip : ObservableObject
         OnPropertyChanged(nameof(BorderColor));
     }
 
-    // === 主题切换实时刷新（从 Application.Current.Resources 重新读） ===
-
-    private void SubscribeTheme()
+    void IThemedChip.RefreshThemeColors()
     {
-        if (Application.Current != null)
-            Application.Current.RequestedThemeChanged += OnAppThemeChanged;
-    }
-
-    private void UnsubscribeTheme()
-    {
-        if (Application.Current != null)
-            Application.Current.RequestedThemeChanged -= OnAppThemeChanged;
-    }
-
-    private void OnAppThemeChanged(object? sender, AppThemeChangedEventArgs e)
-    {
-        // 主题色资源已由 ThemeService.ApplyTheme() 在事件触发前重写完毕，
-        // 此时重新触发 PropertyChanged 即拿新值。
         OnPropertyChanged(nameof(BackgroundColor));
         OnPropertyChanged(nameof(TextColor));
         OnPropertyChanged(nameof(BorderColor));
@@ -76,7 +103,7 @@ public partial class FilterChip : ObservableObject
 /// <summary>
 /// 排序选项 chip（与艺术家/专辑页完全一致的实现）。
 /// </summary>
-public partial class SortOption : ObservableObject
+public partial class SortOption : ObservableObject, IThemedChip
 {
     public string Key { get; }
     public string Label { get; }
@@ -89,12 +116,7 @@ public partial class SortOption : ObservableObject
         Key = key;
         Label = label;
         IsActive = active;
-        SubscribeTheme();
-    }
-
-    ~SortOption()
-    {
-        UnsubscribeTheme();
+        ChipThemeBroadcast.Track(this);
     }
 
     // 主题色从 Application.Current.Resources 实时读取，跟随 ThemeService 主题切换。
@@ -118,21 +140,7 @@ public partial class SortOption : ObservableObject
         OnPropertyChanged(nameof(BorderColor));
     }
 
-    // === 主题切换实时刷新 ===
-
-    private void SubscribeTheme()
-    {
-        if (Application.Current != null)
-            Application.Current.RequestedThemeChanged += OnAppThemeChanged;
-    }
-
-    private void UnsubscribeTheme()
-    {
-        if (Application.Current != null)
-            Application.Current.RequestedThemeChanged -= OnAppThemeChanged;
-    }
-
-    private void OnAppThemeChanged(object? sender, AppThemeChangedEventArgs e)
+    void IThemedChip.RefreshThemeColors()
     {
         OnPropertyChanged(nameof(BackgroundColor));
         OnPropertyChanged(nameof(TextColor));

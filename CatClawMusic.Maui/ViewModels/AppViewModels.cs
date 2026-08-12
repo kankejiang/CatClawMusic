@@ -18,6 +18,11 @@ namespace CatClawMusic.Maui.ViewModels;
 /// </summary>
 public partial class NowPlayingViewModel : ObservableObject
 {
+    /// <summary>封面/预缓冲下载共享客户端（30s 超时），复用连接池避免 socket 泄漏</summary>
+    private static readonly HttpClient SharedHttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
+    /// <summary>完整音频缓存下载共享客户端（2 分钟超时，大文件）</summary>
+    private static readonly HttpClient CacheHttpClient = new() { Timeout = TimeSpan.FromMinutes(2) };
+
     private readonly PlayQueue _queue;
     private readonly ILyricsService _lyrics;
     private readonly MusicDatabase _db;
@@ -1186,8 +1191,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 try
                 {
                     ct.ThrowIfCancellationRequested();
-                    using var httpClient = new HttpClient();
-                    var bytes = await httpClient.GetByteArrayAsync(song.CoverArtPath, ct);
+                    var bytes = await SharedHttpClient.GetByteArrayAsync(song.CoverArtPath, ct);
                     if (bytes != null && bytes.Length > 0)
                     {
                         Directory.CreateDirectory(_coverCacheDir);
@@ -1911,8 +1915,7 @@ public partial class NowPlayingViewModel : ObservableObject
                         if (string.IsNullOrEmpty(proxyUrl)) return null;
                         try
                         {
-                            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-                            return await http.GetByteArrayAsync(proxyUrl);
+                            return await SharedHttpClient.GetByteArrayAsync(proxyUrl);
                         }
                         catch { return null; }
                     });
@@ -2037,8 +2040,7 @@ public partial class NowPlayingViewModel : ObservableObject
                 song.FilePath,
                 async url =>
                 {
-                    using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-                    return await http.GetByteArrayAsync(downloadUrl, ct);
+                    return await CacheHttpClient.GetByteArrayAsync(downloadUrl, ct);
                 },
                 ct);
             Log.Debug("AppViewModels", $"[Resolve] 缓存完成: {song.Title}, {(localPath != null ? "成功" : "失败")}");

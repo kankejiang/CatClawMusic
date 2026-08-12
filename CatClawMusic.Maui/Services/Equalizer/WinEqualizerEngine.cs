@@ -10,6 +10,9 @@ namespace CatClawMusic.Maui.Services.Equalizer;
 /// <summary>Windows 均衡器播放引擎：AudioGraph + 双二阶(Biquad)峰值滤波器实时处理</summary>
 public class WinEqualizerEngine : IDisposable
 {
+    /// <summary>网络源下载共享客户端（连接池复用，避免每次加载 new HttpClient 造成 socket 泄漏）</summary>
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(2) };
+
     private AudioGraph? _graph;
     private AudioFileInputNode? _fileInput;
     private AudioFrameOutputNode? _frameTap;
@@ -66,8 +69,7 @@ public class WinEqualizerEngine : IDisposable
             {
                 // 网络源下载到临时文件
                 _tempDownloadPath = Path.Combine(Path.GetTempPath(), $"cc_eq_{Guid.NewGuid():N}{GetExt(source)}");
-                using var http = new HttpClient();
-                await using var stream = await http.GetStreamAsync(source);
+                await using var stream = await _http.GetStreamAsync(source);
                 await using var fs = File.Create(_tempDownloadPath);
                 await stream.CopyToAsync(fs);
                 localPath = _tempDownloadPath;

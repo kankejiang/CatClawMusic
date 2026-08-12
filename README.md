@@ -1,13 +1,13 @@
 # 🐾 猫爪音乐 (CatClaw Music)
 
-> 萌系 Android 音乐播放器 · .NET 10 + C# 13 + MAUI 原生开发
+> 萌系跨平台音乐播放器 · .NET 10 + C# 13 + MAUI 原生开发（Android + Windows）
 
 <div align="center">
 
-![平台](https://img.shields.io/badge/平台-Android-green)
+![平台](https://img.shields.io/badge/平台-Android%20%2F%20Windows-green)
 ![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)
 ![语言](https://img.shields.io/badge/C%23-13.0-blue)
-![版本](https://img.shields.io/badge/版本-1.8.0-ff69b4)
+![版本](https://img.shields.io/badge/版本-1.8.1-ff69b4)
 ![最低版本](https://img.shields.io/badge/最低版本-Android%2012%20(API%2031)-orange)
 ![协议](https://img.shields.io/badge/协议-MIT-yellow)
 
@@ -22,7 +22,7 @@
 - **5 页 Tab 架构**：Android 原生 ViewPager2 水平滑动，GPU 合成零卡顿
 - **ExoPlayer 播放引擎**：FFmpeg 软解兜底，FLAC/APE/DSD 等 26 种格式全支持
 - **逐字 KTV 歌词**：Canvas ClipRect 像素级渐变高亮，TTML/AMLL/LRC 多格式兼容
-- **桌面悬浮歌词**：可拖拽锁定，单行跑马灯 / 双行 KTV 切换
+- **桌面歌词**：Android 悬浮窗拖拽锁定 · 单行跑马灯 / 双行 KTV；Windows 独立置顶歌词窗（可拖拽、黑度可调、Win2D 渲染）
 - **AI 对话式搜索**：18 个 Agent 工具，8 个内置 LLM 供应商，猫娘人格
 - **Navidrome / WebDAV / SMB**：三种远程协议，增量扫描 + 流媒体播放
 - **音效系统**：5 频段均衡器 + 低音增强 + 环绕声 + 混响，12 种预设
@@ -36,12 +36,14 @@
 
 ```
 CatClawMusic/
-├── CatClawMusic.Core/         # 核心层：接口、模型、服务、AI Agent
+├── CatClawMusic.Core/         # 核心层：接口、模型、服务、AI Agent、插件管理
 ├── CatClawMusic.Data/         # 数据层：SQLite、Navidrome、WebDAV、SMB、爬虫
-└── CatClawMusic.Maui/         # UI 层：MAUI 页面、ViewModel、Android 平台代码
+├── CatClawMusic.Maui/         # UI 层：MAUI 页面、ViewModel、Android/Windows 平台代码
+├── CatClawMusic.Plugins/      # 插件实现（宿主空壳，插件自治）
+└── CatClawMusic.Core.Tests/   # 核心层单元测试
 ```
 
-**技术栈**：.NET 10 · C# 13 · MAUI 10 · ExoPlayer 1.10 · CommunityToolkit.Mvvm · TagLibSharp · SQLite · SMBLibrary · NativeAOT
+**技术栈**：.NET 10 · C# 13 · MAUI 10 · ExoPlayer 1.10 · CommunityToolkit.Mvvm · TagLibSharp · SQLite · SMBLibrary · Win2D / WinUIEx（Windows）
 
 ---
 
@@ -75,7 +77,8 @@ ExoPlayer + FFmpeg 转码 · 流媒体 · Basic Auth · WakeLock 保活 · 音�
 LRC/TTML/AMLL 解析 · 多源三级回退 · 编码自适应 · 逐字渐变高亮 · 全屏毛玻璃 · 拖拽定位 · 双语歌词 · 横屏模式
 
 ### 桌面歌词
-悬浮窗拖拽锁定 · 单行跑马灯 · 双行 KTV · 字体颜色透明度可配 · 通知栏快捷控制
+Android 悬浮窗拖拽锁定 · 单行跑马灯 · 双行 KTV · 字体颜色透明度可配 · 通知栏快捷控制
+Windows 置顶歌词窗：Win2D 像素级透明（分层窗口 + 颜色键挖空）· 半透明黑底可调 · 鼠标进出自动显隐控制条 · 拖拽位置记忆
 
 ### 通知栏 / MediaSession
 HyperOS 5 按钮通知 · MediaStyle 大封面 · 蓝牙/车载/穿戴设备控制 · foregroundService 保活

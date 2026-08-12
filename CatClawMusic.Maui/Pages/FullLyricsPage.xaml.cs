@@ -36,8 +36,6 @@ public partial class FullLyricsPage : ContentPage
     private double _landscapeLyricClipHeight;
     private int _lyricMeasureRetries;
     private int _landscapeLyricMeasureRetries;
-    private double _panStartY;
-    private bool _panWired;
 
     // 歌词行视觉层次（与播放页一致）：所有行统一字号（锚点依赖行高恒定），当前行用 Scale 放大 + 行距呼吸。
     private const double LyricCurrentScale = 1.25;
@@ -120,9 +118,6 @@ public partial class FullLyricsPage : ContentPage
         LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
         LandscapeLyricClip.HandlerChanged += OnLandscapeCollectionViewHandlerChanged;
 
-        // 歌词拖动浏览（暂停跟随 3 秒）
-        WireLyricPanGesture();
-
         // 封面图片打标签确保高分辨率解码
         LandscapeCoverImage.HandlerChanged += (_, _) => TagPlayerCoverViews();
 
@@ -142,6 +137,7 @@ public partial class FullLyricsPage : ContentPage
 #endif
                 _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                App.Resumed -= OnAppResumed;
             }
             else
             {
@@ -1182,47 +1178,6 @@ public partial class FullLyricsPage : ContentPage
             ActiveLyricStack.TranslateTo(0, targetY, LyricAnimMs, Easing.CubicInOut);
         }
         catch { }
-    }
-
-    /// <summary>给歌词裁剪区挂平移手势：用户拖动即暂停跟随 3 秒（期间不自动滚动）。</summary>
-    private void WireLyricPanGesture()
-    {
-        if (_panWired) return;
-        _panWired = true;
-
-        WirePan(LyricClip, LyricStack);
-        WirePan(LandscapeLyricClip, LandscapeLyricStack);
-    }
-
-    private void WirePan(Grid clip, VerticalStackLayout stack)
-    {
-        var pan = new PanGestureRecognizer();
-        pan.PanUpdated += (_, e) =>
-        {
-            if (e.StatusType == GestureStatus.Started)
-            {
-                stack.CancelAnimations();
-                _panStartY = stack.TranslationY;
-                OnUserScrolled(); // 拖动 → 3 秒内不自动跟随
-            }
-            else if (e.StatusType == GestureStatus.Running)
-            {
-                stack.TranslationY = _panStartY + e.TotalY;
-            }
-        };
-        clip.GestureRecognizers.Add(pan);
-    }
-
-    private void OnUserScrolled()
-    {
-        _userScrolling = true;
-        _ = ResetUserScrollingAsync();
-    }
-
-    private async Task ResetUserScrollingAsync()
-    {
-        await Task.Delay(3000);
-        _userScrolling = false;
     }
 
     /// <summary>轻击歌词区域返回播放页</summary>

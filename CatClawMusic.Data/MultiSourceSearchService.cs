@@ -140,7 +140,7 @@ public class MultiSourceSearchService
             }
             return results;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     /// <summary>
@@ -167,7 +167,7 @@ public class MultiSourceSearchService
             song.TlyricContent = tlyric;
             return song;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     // ═══════════════════════════════════════════
@@ -219,7 +219,7 @@ public class MultiSourceSearchService
             }
             return results;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     /// <summary>
@@ -271,7 +271,7 @@ public class MultiSourceSearchService
             song.TlyricContent = tlyric;
             return song;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     // ═══════════════════════════════════════════
@@ -325,7 +325,7 @@ public class MultiSourceSearchService
             }
             return results;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     /// <summary>
@@ -375,7 +375,7 @@ public class MultiSourceSearchService
             song.LrcContent = lyricText;
             return song;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     // ═══════════════════════════════════════════
@@ -443,7 +443,7 @@ public class MultiSourceSearchService
             }
             return results;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     /// <summary>
@@ -493,7 +493,7 @@ public class MultiSourceSearchService
             }
             return results;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Debug("MultiSourceSearchService", $"[MultiSource] 请求失败: {ex.Message}"); return null; }
     }
 
     /// <summary>

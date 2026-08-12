@@ -30,6 +30,19 @@ public class NetworkMusicService : INetworkMusicService
     private static readonly SemaphoreSlim ScanSemaphore = new(8, 8);
     /// <summary>控制递归目录扫描的并发数（OpenList 等不支持深度 PROPFIND 的服务器）</summary>
     private static readonly SemaphoreSlim DirScanSemaphore = new(4, 4);
+    /// <summary>分享音频大文件下载用共享客户端（10 分钟超时），避免每请求 new HttpClient 造成 socket 泄漏</summary>
+    private static readonly HttpClient ShareHttpClient = new() { Timeout = TimeSpan.FromMinutes(10) };
+    /// <summary>OpenList 封面头部下载共享客户端（连接池复用；证书策略统一走 WebDavService 全局开关）</summary>
+    private static readonly HttpClient OpenListCoverClient = new(new SocketsHttpHandler
+    {
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = CatClawMusic.Data.WebDavService.CreateCertValidationCallback("OpenListCover")
+        },
+        ConnectTimeout = TimeSpan.FromSeconds(10),
+        AllowAutoRedirect = true
+    })
+    { Timeout = TimeSpan.FromSeconds(15) };
 
     /// <summary>OpenList stream URL 缓存：filePath → (url, expiry)，避免每次播放重复 API 调用</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string url, DateTime expiry)> _streamUrlCache = new();
@@ -431,26 +444,9 @@ public class NetworkMusicService : INetworkMusicService
 
                     if (!string.IsNullOrEmpty(downloadUrl))
                     {
-                        using var httpClient = new HttpClient(new SocketsHttpHandler
-                        {
-                            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
-                            {
-                                RemoteCertificateValidationCallback = (_, _, _, sslErrors) =>
-                                {
-                                    if (sslErrors == System.Net.Security.SslPolicyErrors.None)
-                                        return true;
-                                    Log.Warn("NetworkMusicService", $"[OpenList] 已接受无效 TLS 证书（{sslErrors}），存在中间人攻击风险。");
-                                    return true;
-                                }
-                            },
-                            ConnectTimeout = TimeSpan.FromSeconds(10),
-                            AllowAutoRedirect = true
-                        })
-                        { Timeout = TimeSpan.FromSeconds(15) };
-
                         var rangeReq = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
                         rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, TagHeadSize - 1);
-                        var rangeResp = await httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead);
+                        var rangeResp = await OpenListCoverClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead);
                         if (rangeResp.IsSuccessStatusCode)
                         {
                             var ms = new MemoryStream();
@@ -1171,8 +1167,8 @@ public class NetworkMusicService : INetworkMusicService
             if (profile.Protocol == ProtocolType.Navidrome)
             {
                 var url = _subsonic.GetStreamUrl(song.RemoteId ?? song.FilePath, profile);
-                var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-                return await http.GetStreamAsync(url);
+                // 复用静态共享客户端（大文件下载 10 分钟超时），避免每请求 new HttpClient 造成 socket 泄漏
+                return await ShareHttpClient.GetStreamAsync(url);
             }
 
             var remotePath = song.RemoteId ?? song.FilePath;

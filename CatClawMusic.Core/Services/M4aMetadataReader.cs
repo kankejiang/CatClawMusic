@@ -1058,28 +1058,34 @@ public static class M4aMetadataReader
 
     // ──── 辅助方法 ────
 
+    // 大端读取实现：BinaryReader 有内部缓冲，必须走 br.ReadUInt32/ReadUInt16 再反转字节序，
+    // 避免 ReadBytes 每次分配 byte[4]/[8]（大 atom 树上千次分配）且不破坏缓冲一致性。
+    // EOF 用 BaseStream 长度预检（文件流/MemoryStream 均支持），不足时返回 0 与原行为一致。
+
     private static uint ReadUInt32BE(BinaryReader br)
     {
-        var bytes = br.ReadBytes(4);
-        if (bytes.Length < 4) return 0;
-        return (uint)((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
+        if (br.BaseStream.Length - br.BaseStream.Position < 4) return 0;
+        var v = br.ReadUInt32(); // 小端组装
+        // 反转字节序 → 大端值
+        return (v & 0x000000FFu) << 24 | (v & 0x0000FF00u) << 8 | (v & 0x00FF0000u) >> 8 | (v & 0xFF000000u) >> 24;
     }
 
     private static ulong ReadUInt64BE(BinaryReader br)
     {
-        var bytes = br.ReadBytes(8);
-        if (bytes.Length < 8) return 0;
-        return ((ulong)bytes[0] << 56) | ((ulong)bytes[1] << 48) |
-               ((ulong)bytes[2] << 40) | ((ulong)bytes[3] << 32) |
-               ((ulong)bytes[4] << 24) | ((ulong)bytes[5] << 16) |
-               ((ulong)bytes[6] << 8) | bytes[7];
+        if (br.BaseStream.Length - br.BaseStream.Position < 8) return 0;
+        var v = br.ReadUInt64(); // 小端组装
+        // 反转字节序 → 大端值
+        return (v & 0x00000000000000FFUL) << 56 | (v & 0x000000000000FF00UL) << 40 |
+               (v & 0x0000000000FF0000UL) << 24 | (v & 0x00000000FF000000UL) << 8 |
+               (v & 0x000000FF00000000UL) >> 8 | (v & 0x0000FF0000000000UL) >> 24 |
+               (v & 0x00FF000000000000UL) >> 40 | (v & 0xFF00000000000000UL) >> 56;
     }
 
     private static ushort ReadUInt16BE(BinaryReader br)
     {
-        var bytes = br.ReadBytes(2);
-        if (bytes.Length < 2) return 0;
-        return (ushort)((bytes[0] << 8) | bytes[1]);
+        if (br.BaseStream.Length - br.BaseStream.Position < 2) return 0;
+        var v = br.ReadUInt16();
+        return (ushort)(v << 8 | v >> 8);
     }
 
     private static string ReadFourCC(BinaryReader br)

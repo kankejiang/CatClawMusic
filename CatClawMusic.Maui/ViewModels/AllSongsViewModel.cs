@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -114,8 +115,9 @@ public partial class AllSongsViewModel : ObservableObject
 
     // === 歌曲列表 ===
 
-    [ObservableProperty] private ObservableCollection<Song> _songs = new();
-    [ObservableProperty] private Song? _selectedSong;
+    // 用 ObservableRangeCollection：搜索/排序时 ReplaceAll（复用实例 + 单次 Reset 通知），
+    // 避免重建集合引用导致 CollectionView 失活全部行、丢失滚动位置
+    [ObservableProperty] private ObservableRangeCollection<Song> _songs = new();    [ObservableProperty] private Song? _selectedSong;
 
     /// <summary>A-Z 分组标签列表（按标题排序时显示）</summary>
     [ObservableProperty] private ObservableCollection<GroupHeader> _groupHeaders = new();
@@ -263,7 +265,7 @@ public partial class AllSongsViewModel : ObservableObject
 
         _allSongs = q.ToList();
         var filtered = SortSongs(_allSongs.ToList());
-        Songs = new ObservableCollection<Song>(filtered);
+        Songs.ReplaceAll(filtered);
         SongCountText = $"{filtered.Count:N0} 首歌曲";
         ShowIndexRail = SortKey == "title" && string.IsNullOrWhiteSpace(SearchQuery);
         if (ShowIndexRail)
@@ -313,7 +315,7 @@ public partial class AllSongsViewModel : ObservableObject
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                Songs = new ObservableCollection<Song>(filtered);
+                Songs.ReplaceAll(filtered);
                 SongCountText = $"{filtered.Count:N0} 首歌曲";
                 ShowIndexRail = SortKey == "title" && string.IsNullOrWhiteSpace(SearchQuery);
                 if (ShowIndexRail)

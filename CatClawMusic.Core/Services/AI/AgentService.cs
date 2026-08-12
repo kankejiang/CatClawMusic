@@ -78,7 +78,7 @@ public class AgentService : IAgentService
         if (string.IsNullOrWhiteSpace(userMessage)) return null;
         var text = userMessage.Trim();
 
-        var toolMap = _tools.ToDictionary(t => t.Name);
+        var toolMap = _toolMap;
 
         // ── 播放控制：暂停/下一首/上一首/停止/继续 ──
         string? action = null;
@@ -256,7 +256,15 @@ public class AgentService : IAgentService
         _musicLibrary = musicLibrary;
         _player = player;
         _currentAgentId = LoadCurrentAgentId();
+        // 工具集合在构造后固定：定义与查找表缓存一次，避免每条消息/每个工具轮次重复构建
+        _toolDefs = _tools.Select(t => t.GetDefinition()).ToList();
+        _toolMap = _tools.ToDictionary(t => t.Name);
     }
+
+    /// <summary>工具函数定义（构造时缓存）</summary>
+    private readonly List<ToolDefinition> _toolDefs;
+    /// <summary>工具名 → 工具实例查找表（构造时缓存）</summary>
+    private readonly Dictionary<string, IAgentTool> _toolMap;
 
     /// <summary>获取所有支持的 LLM 服务商列表</summary>
     public static LlmProviderInfo[] GetProviders() => LlmProviderInfo.GetAll();
@@ -427,8 +435,8 @@ public class AgentService : IAgentService
 
         _conversationHistory.Add(new ChatMessage { Role = "user", Content = userMessage });
 
-        var toolDefs = _tools.Select(t => t.GetDefinition()).ToList();
-        var toolMap = _tools.ToDictionary(t => t.Name);
+        var toolDefs = _toolDefs;
+        var toolMap = _toolMap;
 
         TrimConversationHistory();
 
@@ -445,7 +453,8 @@ public class AgentService : IAgentService
             try
             {
                 var requestMessages = BuildRequestMessages();
-                response = await Task.Run(() => _llmClient.ChatAsync(requestMessages, toolDefs, ct), ct);
+                // ChatAsync 本身是 async HTTP 调用，无需 Task.Run 包装（多余线程跳转 + Task 分配）
+                response = await _llmClient.ChatAsync(requestMessages, toolDefs, ct).ConfigureAwait(false);
                 _logService.Info("Agent", $"Agent LLM 响应: content='{Truncate(response.Content, 200)}', toolCalls={response.ToolCalls.Count}, finishReason={response.FinishReason}");
                 if (!string.IsNullOrEmpty(response.ReasoningContent))
                 {

@@ -455,7 +455,7 @@ public partial class AlbumsViewModel : ObservableObject
     }
 
     /// <summary>排序选项模型</summary>
-    public partial class SortOption : ObservableObject
+    public partial class SortOption : ObservableObject, IThemedChip
     {
         public string Key { get; }
         public string Label { get; }
@@ -468,10 +468,8 @@ public partial class AlbumsViewModel : ObservableObject
             Key = key;
             Label = label;
             IsActive = active;
-            SubscribeTheme();
+            ChipThemeBroadcast.Track(this);
         }
-
-        ~SortOption() => UnsubscribeTheme();
 
         // 主题色从 Application.Current.Resources 实时读取，跟随 ThemeService 主题切换。
         private static Color Accent() => (Color)(Application.Current?.Resources["PrimaryColor"] ?? Color.FromArgb("#8C7BFF"));
@@ -494,17 +492,7 @@ public partial class AlbumsViewModel : ObservableObject
             OnPropertyChanged(nameof(BorderColor));
         }
 
-        private void SubscribeTheme()
-        {
-            if (Application.Current != null)
-                Application.Current.RequestedThemeChanged += OnAppThemeChanged;
-        }
-        private void UnsubscribeTheme()
-        {
-            if (Application.Current != null)
-                Application.Current.RequestedThemeChanged -= OnAppThemeChanged;
-        }
-        private void OnAppThemeChanged(object? sender, AppThemeChangedEventArgs e)
+        void IThemedChip.RefreshThemeColors()
         {
             OnPropertyChanged(nameof(BackgroundColor));
             OnPropertyChanged(nameof(TextColor));

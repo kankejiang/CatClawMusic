@@ -31,7 +31,8 @@ public class OnlineMusicAggregator
         var providers = GetProviders();
         if (providers.Count == 0) return new List<OnlineSong>();
 
-        var tasks = providers.Select(p => Task.Run(async () =>
+        // SearchAsync 本身返回 Task，直接并行即可（Task.Run 包裹已 async 的 lambda 只会多余跳线程）
+        var tasks = providers.Select(async p =>
         {
             try
             {
@@ -41,7 +42,7 @@ public class OnlineMusicAggregator
             {
                 return null;
             }
-        })).ToArray();
+        }).ToArray();
 
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
         var songs = new List<OnlineSong>();

@@ -62,7 +62,11 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private readonly float _rotationAmp;
     private readonly float _rotationFreq;
 
+    /// <summary>模糊封面位图缓存（带容量上限的 LRU）：长会话切歌数百首若只写不删会持续膨胀，
+    /// 每张 512px ≈ 1MB，上限 16 张 ≈ 16MB，最久未用的先淘汰。</summary>
     private static readonly Dictionary<string, WriteableBitmap> _cache = new();
+    private static readonly LinkedList<string> _cacheLru = new();
+    private const int CacheLimit = 16;
 
     public FrostedBackgroundHandler() : base(Mapper)
     {
@@ -153,12 +157,24 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
             if (!string.IsNullOrEmpty(cacheKey) && _cache.TryGetValue(cacheKey, out var cached))
             {
                 bitmap = cached;
+                // 命中：移到 LRU 尾部（最近使用）
+                _cacheLru.Remove(cacheKey);
+                _cacheLru.AddLast(cacheKey);
             }
             else
             {
                 bitmap = await ProcessSourceAsync(source);
                 if (bitmap != null && !string.IsNullOrEmpty(cacheKey))
+                {
                     _cache[cacheKey] = bitmap;
+                    _cacheLru.AddLast(cacheKey);
+                    while (_cache.Count > CacheLimit)
+                    {
+                        var evict = _cacheLru.First!.Value;
+                        _cacheLru.RemoveFirst();
+                        _cache.Remove(evict);
+                    }
+                }
             }
 
             if (_image != null && bitmap != null)

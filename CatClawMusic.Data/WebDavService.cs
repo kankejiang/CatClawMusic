@@ -297,10 +297,10 @@ public class WebDavService : INetworkFileService, IDisposable
 
     /// <summary>
     /// 创建统一的 TLS 证书校验回调：有效证书直接通过；无效证书按 <see cref="TrustAllCertificates"/>
-    /// 决定接受（记录中间人风险告警）或拒绝（严格模式）。
+    /// 决定接受（记录中间人风险告警）或拒绝（严格模式）。项目内所有 HttpClient 的证书策略统一走此入口。
     /// </summary>
     /// <param name="host">服务器主机名，仅用于日志定位。</param>
-    private static System.Net.Security.RemoteCertificateValidationCallback CreateCertValidationCallback(string host)
+    public static System.Net.Security.RemoteCertificateValidationCallback CreateCertValidationCallback(string host)
     {
         return (_, _, _, sslErrors) =>
         {
@@ -1696,6 +1696,18 @@ public class WebDavService : INetworkFileService, IDisposable
         }
     }
 
+    /// <summary>OpenList CDN 直连下载共享客户端（连接池/TLS 复用；静态持有保证返回的流安全可读）</summary>
+    private static readonly HttpClient OpenListDownloadClient = new(new SocketsHttpHandler
+    {
+        SslOptions = new SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = CreateCertValidationCallback("OpenList")
+        },
+        ConnectTimeout = TimeSpan.FromSeconds(15),
+        AllowAutoRedirect = true
+    })
+    { Timeout = TimeSpan.FromSeconds(60) };
+
     /// <summary>通过 OpenList raw_url 下载文件（无认证直连 CDN）</summary>
     private async Task<Stream> OpenListDownloadViaRawUrlAsync(string filePath)
     {
@@ -1703,18 +1715,7 @@ public class WebDavService : INetworkFileService, IDisposable
         if (string.IsNullOrEmpty(rawUrl))
             throw new HttpRequestException($"无法获取 OpenList 下载链接: {filePath}");
 
-        using var client = new HttpClient(new SocketsHttpHandler
-        {
-            SslOptions = new SslClientAuthenticationOptions
-            {
-                RemoteCertificateValidationCallback = CreateCertValidationCallback("OpenList")
-            },
-            ConnectTimeout = TimeSpan.FromSeconds(15),
-            AllowAutoRedirect = true
-        })
-        { Timeout = TimeSpan.FromSeconds(60) };
-
-        var response = await client.GetAsync(rawUrl, HttpCompletionOption.ResponseHeadersRead);
+        var response = await OpenListDownloadClient.GetAsync(rawUrl, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStreamAsync();
     }
@@ -1726,21 +1727,10 @@ public class WebDavService : INetworkFileService, IDisposable
         if (string.IsNullOrEmpty(rawUrl))
             return Array.Empty<byte>();
 
-        using var client = new HttpClient(new SocketsHttpHandler
-        {
-            SslOptions = new SslClientAuthenticationOptions
-            {
-                RemoteCertificateValidationCallback = CreateCertValidationCallback("OpenList")
-            },
-            ConnectTimeout = TimeSpan.FromSeconds(15),
-            AllowAutoRedirect = true
-        })
-        { Timeout = TimeSpan.FromSeconds(30) };
-
         var request = new HttpRequestMessage(HttpMethod.Get, rawUrl);
         request.Headers.Range = new RangeHeaderValue(offset, offset + length - 1);
 
-        var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        var response = await OpenListDownloadClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
         if (!response.IsSuccessStatusCode) return Array.Empty<byte>();
         return await response.Content.ReadAsByteArrayAsync();
     }

@@ -1156,47 +1156,60 @@ public class PluginManager : IPluginManager
         {
             _target = target;
             _targetType = target.GetType();
+            // 反射元数据缓存：属性/方法对给定 target 固定不变，构造时查一次，
+            // 避免每次访问都执行 GetProperty/GetMethod 反射查找（音频热路径每帧调用）。
+            _pluginIdProp = _targetType.GetProperty("PluginId");
+            _nameProp = _targetType.GetProperty("Name");
+            _versionProp = _targetType.GetProperty("Version");
+            _authorProp = _targetType.GetProperty("Author");
+            _descriptionProp = _targetType.GetProperty("Description");
+            _capabilitiesProp = _targetType.GetProperty("Capabilities");
+            _initializeMethod = _targetType.GetMethod("InitializeAsync");
+            _shutdownMethod = _targetType.GetMethod("ShutdownAsync");
         }
+
+        private readonly System.Reflection.PropertyInfo? _pluginIdProp, _nameProp, _versionProp, _authorProp, _descriptionProp, _capabilitiesProp;
+        private readonly System.Reflection.MethodInfo? _initializeMethod, _shutdownMethod;
 
         /// <summary>
         /// 插件唯一标识，通过反射读取目标对象的 PluginId 属性
         /// </summary>
-        public string PluginId => (string?)_targetType.GetProperty("PluginId")?.GetValue(_target) ?? "";
+        public string PluginId => (string?)_pluginIdProp?.GetValue(_target) ?? "";
 
         /// <summary>
         /// 插件显示名称，通过反射读取目标对象的 Name 属性
         /// </summary>
-        public string Name => (string?)_targetType.GetProperty("Name")?.GetValue(_target) ?? "";
+        public string Name => (string?)_nameProp?.GetValue(_target) ?? "";
 
         /// <summary>
         /// 插件版本号，通过反射读取目标对象的 Version 属性
         /// </summary>
-        public string Version => (string?)_targetType.GetProperty("Version")?.GetValue(_target) ?? "";
+        public string Version => (string?)_versionProp?.GetValue(_target) ?? "";
 
         /// <summary>
         /// 插件作者，通过反射读取目标对象的 Author 属性
         /// </summary>
-        public string Author => (string?)_targetType.GetProperty("Author")?.GetValue(_target) ?? "";
+        public string Author => (string?)_authorProp?.GetValue(_target) ?? "";
 
         /// <summary>
         /// 插件描述，通过反射读取目标对象的 Description 属性
         /// </summary>
-        public string Description => (string?)_targetType.GetProperty("Description")?.GetValue(_target) ?? "";
+        public string Description => (string?)_descriptionProp?.GetValue(_target) ?? "";
 
         /// <summary>
         /// 插件能力列表，通过反射读取目标对象的 Capabilities 属性
         /// </summary>
-        public List<string> Capabilities => (List<string>?)_targetType.GetProperty("Capabilities")?.GetValue(_target) ?? new();
+        public List<string> Capabilities => (List<string>?)_capabilitiesProp?.GetValue(_target) ?? new();
 
         /// <summary>
         /// 异步初始化插件，通过反射调用目标对象的 InitializeAsync 方法
         /// </summary>
-        public Task InitializeAsync() => (Task)_targetType.GetMethod("InitializeAsync")!.Invoke(_target, null)!;
+        public Task InitializeAsync() => (Task)_initializeMethod!.Invoke(_target, null)!;
 
         /// <summary>
         /// 异步关闭插件，通过反射调用目标对象的 ShutdownAsync 方法
         /// </summary>
-        public Task ShutdownAsync() => (Task)_targetType.GetMethod("ShutdownAsync")!.Invoke(_target, null)!;
+        public Task ShutdownAsync() => (Task)_shutdownMethod!.Invoke(_target, null)!;
     }
 
     /// <summary>
@@ -1524,7 +1537,18 @@ public class PluginManager : IPluginManager
         /// 初始化音频增强器适配器
         /// </summary>
         /// <param name="target">要代理的目标音频增强器对象实例</param>
-        public AudioEnhancerAdapter(object target) : base(target) { }
+        public AudioEnhancerAdapter(object target) : base(target)
+        {
+            // 反射元数据缓存：ProcessSamples 在音频渲染回调中每帧调用，
+            // GetMethod 缓存后热路径零反射查找开销
+            _isEnabledProp = _targetType.GetProperty("IsEnabled");
+            _processSamplesMethod = _targetType.GetMethod("ProcessSamples");
+            _resetMethod = _targetType.GetMethod("Reset");
+        }
+
+        private readonly System.Reflection.PropertyInfo? _isEnabledProp;
+        private readonly System.Reflection.MethodInfo? _processSamplesMethod;
+        private readonly System.Reflection.MethodInfo? _resetMethod;
 
         /// <summary>
         /// 音频增强器是否启用。
@@ -1535,11 +1559,10 @@ public class PluginManager : IPluginManager
         /// </summary>
         public bool IsEnabled
         {
-            get => (bool?)_targetType.GetProperty("IsEnabled")?.GetValue(_target) ?? false;
+            get => (bool?)_isEnabledProp?.GetValue(_target) ?? false;
             set
             {
-                var prop = _targetType.GetProperty("IsEnabled");
-                if (prop?.CanWrite == true) prop.SetValue(_target, value);
+                if (_isEnabledProp?.CanWrite == true) _isEnabledProp.SetValue(_target, value);
             }
         }
 
@@ -1556,9 +1579,8 @@ public class PluginManager : IPluginManager
         /// <returns>处理后的采样数据，或原始数据（处理失败时）</returns>
         public float[] ProcessSamples(float[] samples, int sampleRate, int channels)
         {
-            var method = _targetType.GetMethod("ProcessSamples");
-            if (method == null) return samples;
-            var result = method.Invoke(_target, new object[] { samples, sampleRate, channels });
+            if (_processSamplesMethod == null) return samples;
+            var result = _processSamplesMethod.Invoke(_target, new object[] { samples, sampleRate, channels });
             return result as float[] ?? samples;
         }
 
@@ -1567,8 +1589,7 @@ public class PluginManager : IPluginManager
         /// </summary>
         public void Reset()
         {
-            var method = _targetType.GetMethod("Reset");
-            method?.Invoke(_target, null);
+            _resetMethod?.Invoke(_target, null);
         }
     }
 

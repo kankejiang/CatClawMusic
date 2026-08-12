@@ -6,6 +6,7 @@ using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Net.Security;
 
 namespace CatClawMusic.Maui;
 
@@ -596,9 +597,15 @@ public static class MauiProgram
 
         // 扩展 RemoteUrlStreamOpener 支持 smb:// URL（用于读取内嵌歌词）和 WebDAV URL 修复
         var prevStreamOpener = LyricsService.RemoteUrlStreamOpener;
-        var webDavHttpClient = new HttpClient(new HttpClientHandler
+        var webDavHttpClient = new HttpClient(new SocketsHttpHandler
         {
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+            // 证书策略统一走 WebDavService 全局开关：有效证书直接通过；无效证书在
+            // "忽略证书错误"开启时接受（记告警）、关闭时拒绝。勿在此无条件放行。
+            SslOptions = new SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback =
+                    CatClawMusic.Data.WebDavService.CreateCertValidationCallback("LyricsStreamOpener")
+            },
             AllowAutoRedirect = true
         })
         {

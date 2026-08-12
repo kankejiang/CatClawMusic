@@ -208,13 +208,20 @@ public class ThemeService : IThemeService
         ApplyTheme();
     }
 
-    /// <summary>仅更新自定义背景的不透明度</summary>
+    /// <summary>仅更新自定义背景的不透明度（滑条拖动快路径：只改 opacity 资源键，
+    /// 不做 ApplyTheme 全量重刷——那会重写约 40 个资源键并触发全 App 绑定重求值，
+    /// 拖动每帧调用会明显卡顿）</summary>
     /// <param name="opacity">不透明度（0.1 ~ 1.0），自动钳制到范围内</param>
     public void SetCustomBackgroundOpacity(double opacity)
     {
         _customBackgroundOpacity = Math.Clamp(opacity, 0.1, 1.0);
         Preferences.Default.Set(KeyCustomBgOpacity, _customBackgroundOpacity);
-        ApplyTheme();
+        try
+        {
+            if (Application.Current?.Resources != null)
+                Application.Current.Resources["CustomBackgroundOpacity"] = _customBackgroundOpacity;
+        }
+        catch { }
     }
 
     /// <summary>清除自定义背景图片设置</summary>
@@ -341,18 +348,34 @@ public class ThemeService : IThemeService
         resources["ThemeBackgroundEnabled"] = true;
     }
 
-    /// <summary>代码绘制背景缓存（主题色 + 深/浅模式 双键）</summary>
+    /// <summary>代码绘制背景缓存（主题色 + 深/浅模式 双键），带容量上限的 LRU：
+    /// 每套 1080×1920 ARGB ≈ 8MB 解码内存，10 套全缓存常驻几十 MB（低端机伤）。
+    /// 最多保留 4 套（当前主题的深浅两套 + 最近切换过的），最久未用的先淘汰。</summary>
     private static readonly Dictionary<(CoreAppTheme Theme, bool IsDark), ImageSource> BackgroundImageCache = new();
+    private static readonly LinkedList<(CoreAppTheme Theme, bool IsDark)> BackgroundImageLru = new();
+    private const int BackgroundImageCacheLimit = 4;
 
     /// <summary>获取（或生成并缓存）代码绘制的主题背景 ImageSource</summary>
     private static ImageSource GetOrCreateBackgroundImage(CoreAppTheme theme, bool isDark)
     {
         var key = (theme, isDark);
         if (BackgroundImageCache.TryGetValue(key, out var cached))
+        {
+            // 命中：移到 LRU 尾部（最近使用）
+            BackgroundImageLru.Remove(key);
+            BackgroundImageLru.AddLast(key);
             return cached;
+        }
 
         var source = ImageSource.FromStream(() => new MemoryStream(RenderThemeBackgroundPng(theme, isDark)));
         BackgroundImageCache[key] = source;
+        BackgroundImageLru.AddLast(key);
+        while (BackgroundImageCache.Count > BackgroundImageCacheLimit)
+        {
+            var evict = BackgroundImageLru.First!.Value;
+            BackgroundImageLru.RemoveFirst();
+            BackgroundImageCache.Remove(evict);
+        }
         return source;
     }
 

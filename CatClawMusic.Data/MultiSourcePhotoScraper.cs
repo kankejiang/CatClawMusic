@@ -26,10 +26,12 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
     }
 
     /// <summary>
-    /// 创建配置好浏览器 UA 和超时的 HTTP 客户端。
-    /// 每次调用都新建实例，避免连接池长期占用。
+    /// 共享 HTTP 客户端（进程级复用连接池与 TLS 会话）。
+    /// 注意：不要每次请求 new HttpClient——每新建一个都会创建新连接池 + 新 TLS 握手，
+    /// 移动端高频调用会耗尽 socket。配置好 UA/超时后全局复用。
     /// </summary>
-    /// <returns>配置好的 HttpClient 实例。</returns>
+    private static readonly HttpClient _sharedClient = CreateClient();
+
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(NetworkTimeouts.ScrapeSeconds) };
@@ -61,7 +63,7 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
             var cachePath = GetArtistCoverPath(artistName);
             if (File.Exists(cachePath)) return cachePath;
 
-            using var client = CreateClient();
+            var client = _sharedClient;
             var bytes = await client.GetByteArrayAsync(coverUrl);
             if (bytes is { Length: > 0 })
             {
@@ -84,7 +86,7 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
     {
         try
         {
-            using var client = CreateClient();
+            var client = _sharedClient;
             var url = "https://u.y.qq.com/cgi-bin/musicu.fcg";
             var postJson = "{\"req_1\":{\"method\":\"GetSingerDetail\",\"module\":\"music.web_singer_info_svr\",\"param\":{\"singermid\":\"" + mid + "\"}}}";
             var content = new StringContent(postJson, System.Text.Encoding.UTF8, "application/json");
@@ -142,7 +144,7 @@ public class MultiSourcePhotoScraper : IArtistMetadataScraper
         var results = new List<ArtistSearchResult>();
         try
         {
-            using var client = CreateClient();
+            var client = _sharedClient;
             var url = $"https://c.y.qq.com/splcloud/fcg-bin/smartbox_new.fcg?key={Uri.EscapeDataString(name)}&format=json";
             var response = await client.GetAsync(url);
             if (!response.IsSuccessStatusCode) return results;

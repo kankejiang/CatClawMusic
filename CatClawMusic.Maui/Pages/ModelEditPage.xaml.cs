@@ -290,7 +290,8 @@ public partial class ModelEditPage : ContentPage
         }
         finally
         {
-            OpenAiCompatibleLlmClient.TempConfigOverride = null;
+            if (_llmClient is OpenAiCompatibleLlmClient oc)
+                oc.TempConfigOverride = null;
             FetchModelsButton.IsEnabled = true;
         }
     }
@@ -325,7 +326,8 @@ public partial class ModelEditPage : ContentPage
         }
         finally
         {
-            OpenAiCompatibleLlmClient.TempConfigOverride = null;
+            if (_llmClient is OpenAiCompatibleLlmClient oc)
+                oc.TempConfigOverride = null;
             TestConnectionButton.IsEnabled = true;
         }
     }
@@ -388,7 +390,9 @@ public partial class ModelEditPage : ContentPage
     {
         var provider = ProviderPicker.SelectedItem as LlmProviderInfo;
         int.TryParse(MaxCompletionTokensEntry.Text?.Trim() ?? "0", out var maxCompletionTokens);
-        OpenAiCompatibleLlmClient.TempConfigOverride = new LlmConfig
+        OpenAiCompatibleLlmClient client = (_llmClient as OpenAiCompatibleLlmClient)!;
+        if (client == null) return;
+        client.TempConfigOverride = new LlmConfig
         {
             Name = string.IsNullOrWhiteSpace(NameEntry.Text) ? "__temp__" : NameEntry.Text.Trim(),
             Provider = provider?.Id ?? "custom",

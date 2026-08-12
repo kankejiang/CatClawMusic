@@ -73,8 +73,7 @@ public class NetEaseMusicScraper : IArtistMetadataScraper
         // 2. 检查数据库中的 Cover 字段
         try
         {
-            var artists = await _db.GetAllArtistsAsync();
-            var artist = artists.FirstOrDefault(a => a.Name == artistName);
+            var artist = await _db.FindArtistByNameAsync(artistName);
             if (artist?.Cover != null && File.Exists(artist.Cover))
             {
                 // 复制到缓存
