@@ -81,6 +81,12 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasLocalMusic = true;
 
+    /// <summary>
+    /// 启动页预加载标记：App 冷启动在启动页期间已完成协议/歌曲列表/总览的加载，
+    /// LibraryPage 首次 OnAppearing 时跳过重复加载，直接渲染已就绪数据（进入即秒开）。
+    /// </summary>
+    public bool IsPreloaded { get; set; }
+
     public string DiscoverSourceDisplayText => DiscoverSource switch
     {
         "auto" => "自动",

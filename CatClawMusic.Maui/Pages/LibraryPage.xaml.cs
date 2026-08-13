@@ -518,13 +518,21 @@ public partial class LibraryPage : ContentPage
         if (_isFirstAppearing)
         {
             _isFirstAppearing = false;
-            // 三个无依赖的 IO 操作并行执行，缩短首屏等待
-            // （同文件 OnScanCompleted 已用 Task.WhenAll 并行这组操作，证明互不依赖）
-            await Task.WhenAll(
-                _vm.RefreshProtocolsAsync(),
-                LoadInitialDataAsync(),
-                _vm.LoadOverviewDataAsync()
-            );
+            if (_vm.IsPreloaded)
+            {
+                // 启动页已预加载（协议/歌曲列表/总览），直接渲染，避免进入音乐库时现场加载卡顿
+                Log.Debug("LibraryPage.xaml", "[LibraryPage] 启动页已预加载，跳过首次重载");
+            }
+            else
+            {
+                // 三个无依赖的 IO 操作并行执行，缩短首屏等待
+                // （同文件 OnScanCompleted 已用 Task.WhenAll 并行这组操作，证明互不依赖）
+                await Task.WhenAll(
+                    _vm.RefreshProtocolsAsync(),
+                    LoadInitialDataAsync(),
+                    _vm.LoadOverviewDataAsync()
+                );
+            }
         }
         else if (Services.LocalScanService.NeedsReload || Services.LocalScanService.NetworkNeedsReload)
         {

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Pages.SplashLoadingPage"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             Shell.NavBarIsVisible="False"
+             Shell.TabBarIsVisible="False">
+    <Grid>
+        <VerticalStackLayout VerticalOptions="Center"
+                             HorizontalOptions="Center"
+                             Spacing="40">
+            <!-- 应用 Logo：玻璃拟态圆角容器，与主题背景无缝衔接 -->
+            <Border StrokeThickness="1"
+                    Stroke="{DynamicResource GlassStrokeColor}"
+                    BackgroundColor="{DynamicResource GlassButtonColor}"
+                    Padding="20"
+                    StrokeShape="RoundRectangle 30"
+                    HorizontalOptions="Center">
+                <Image Source="splash_logo.png"
+                       WidthRequest="112"
+                       HeightRequest="112"
+                       Aspect="AspectFit" />
+            </Border>
+
+            <!-- 加载指示：关键服务初始化完成后由 App 移除本页 -->
+            <ActivityIndicator IsRunning="True"
+                               Color="{DynamicResource PrimaryColor}"
+                               WidthRequest="34"
+                               HeightRequest="34"
+                               HorizontalOptions="Center" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

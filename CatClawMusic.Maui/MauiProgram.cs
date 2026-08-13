@@ -97,11 +97,22 @@ public static class MauiProgram
         var services = builder.Services;
 
         // ═══════════════════════════════════════════════════
+        // Startup coordinator (冷启动协调器：启动页等待关键服务就绪后才进入主界面)
+        // ═══════════════════════════════════════════════════
+        var startupCoordinator = new Services.StartupCoordinator();
+        services.AddSingleton(startupCoordinator);
+
+        // ═══════════════════════════════════════════════════
         // Database (singleton — one SQLite connection)
         // ═══════════════════════════════════════════════════
         var dbPath = Path.Combine(FileSystem.AppDataDirectory, "catclaw.db");
         var db = new MusicDatabase(dbPath);
-        _ = Task.Run(async () => { try { await db.EnsureInitializedAsync(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"数据库初始化失败: {ex.Message}"); } });
+        _ = Task.Run(async () =>
+        {
+            try { await db.EnsureInitializedAsync(); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"数据库初始化失败: {ex.Message}"); }
+            finally { startupCoordinator.MarkDatabaseReady(); }
+        });
         services.AddSingleton(db);
 
         // ═══════════════════════════════════════════════════
@@ -562,6 +573,7 @@ public static class MauiProgram
                 audio.SetFFmpegService(ffmpeg);
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"FFmpeg 初始化失败: {ex.Message}"); }
+            finally { startupCoordinator.MarkFFmpegReady(); }
         });
 #endif
 

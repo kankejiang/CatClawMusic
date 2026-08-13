@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
@@ -108,6 +109,11 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Log.Debug("App.xaml", $"[CatClaw] PluginManager init failed: {ex.Message}");
+            }
+            finally
+            {
+                // 无论成败都报告就绪：启动页不因插件异常而卡死
+                MauiProgram.Services.GetService<StartupCoordinator>()?.MarkPluginsReady();
             }
         });
 
@@ -276,6 +282,108 @@ public partial class App : Application
     private bool _manualPortrait;
     /// <summary>当前是否由用户锁定在横屏模式（用于按钮状态判断与切换，不受物理旋转回调清除）。</summary>
     private bool _manualLandscapeLocked;
+    /// <summary>关键服务（数据库/插件/FFmpeg）是否已就绪。
+    /// 未就绪时 ApplyOrientationLayout 直接返回，让启动加载页等待，避免主界面提前构建
+    /// 与服务初始化并发竞争造成启动卡顿。</summary>
+    private bool _coreServicesReady;
+
+    /// <summary>启动加载页最多等待时长：服务初始化异常未报告就绪时强制放行，避免无限卡在启动页。</summary>
+    private static readonly TimeSpan StartupWaitTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>启动加载页最短展示时长：保证用户能看到启动页，也避免加载太快时主界面在
+    /// 首帧渲染前就被替换（服务就绪太早会让启动页一帧都来不及显示）。</summary>
+    private static readonly TimeSpan MinSplashDuration = TimeSpan.FromSeconds(1.2);
+
+    /// <summary>
+    /// 冷启动入口：先展示轻量启动加载页，等关键服务全部就绪（或超时兜底）后再按当前方向
+    /// 构建主界面（MainPage/DesktopMainPage）。主界面构建（ViewPager2 + 5 个子页面）与
+    /// 数据库/插件/FFmpeg 初始化错峰执行，消除「App 已能操作但仍卡顿」的冷启动窗口。
+    /// </summary>
+    /// <param name="shell">应用 Shell 实例</param>
+    /// <param name="splash">启动加载页实例（用于感知其真正渲染上屏的时机）</param>
+    private async Task EnterMainWhenReadyAsync(Shell shell, VisualElement splash)
+    {
+        try
+        {
+            var startup = MauiProgram.Services.GetService<StartupCoordinator>();
+            if (startup != null)
+                await Task.WhenAny(startup.AllReadyTask, Task.Delay(StartupWaitTimeout));
+        }
+        catch { }
+
+        // 音乐库数据预加载：歌曲列表/协议/总览聚合这些重 IO 都在启动页展示期间完成，
+        // 用户首次滑到音乐库 tab 时直接渲染已就绪数据，消除「进入音乐库卡顿」。
+        try
+        {
+            await Task.WhenAny(PreloadLibraryDataAsync(), Task.Delay(StartupWaitTimeout));
+        }
+        catch { }
+
+        // 等启动页真正渲染上屏（Loaded）后再计最短展示时长：
+        // 若从 CreateWindow 起算，慢设备上首帧尚未渲染时预加载可能已完成，
+        // 导致主界面在启动页亮相前就替换掉它，用户根本看不到启动页。
+        var splashShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler? onLoaded = null;
+        onLoaded = (_, _) =>
+        {
+            splash.Loaded -= onLoaded;
+            splashShown.TrySetResult();
+        };
+        splash.Loaded += onLoaded;
+        try
+        {
+            await Task.WhenAny(splashShown.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+        }
+        catch { }
+
+        // 启动页最短展示时长：预加载很快时也保证启动页可见、过渡不突兀
+        await Task.Delay(MinSplashDuration);
+
+        if (!_coreServicesReady)
+        {
+            _coreServicesReady = true;
+            StartupLog("EnterMainWhenReadyAsync: ready, entering main UI");
+            await ApplyOrientationLayout(shell);
+        }
+    }
+
+    /// <summary>
+    /// 启动页期间预加载音乐库数据：协议列表、当前 tab 歌曲列表、总览聚合，
+    /// 并预热专辑/艺术家聚合缓存（与 LibraryPage.WarmExploreCaches 同一组操作），
+    /// 把重 IO/重聚合的 CPU 开销从「首次进入音乐库时」提前到启动页展示期间。
+    /// 完成后置位 LibraryViewModel.IsPreloaded，让页面首次出现时跳过重复加载。
+    /// </summary>
+    private static async Task PreloadLibraryDataAsync()
+    {
+        var libraryVm = MauiProgram.Services.GetService<ViewModels.LibraryViewModel>();
+        if (libraryVm == null || libraryVm.IsPreloaded) return;
+        try
+        {
+            await Task.WhenAll(
+                libraryVm.RefreshProtocolsAsync(),
+                libraryVm.CurrentTab == "Local" ? libraryVm.LoadLocalAsync() : libraryVm.LoadNetworkAsync(),
+                libraryVm.LoadOverviewDataAsync());
+
+            // 预热专辑/艺术家聚合 + 列表页 VM 静态缓存（命中缓存后二次调用近零成本）
+            var explore = MauiProgram.Services.GetService<ExploreDataService>();
+            if (explore != null)
+            {
+                await Task.WhenAll(explore.GetAllAlbumsAsync(), explore.GetAllArtistsAsync());
+                var albumsVm = MauiProgram.Services.GetService<ViewModels.AlbumsViewModel>();
+                var artistsVm = MauiProgram.Services.GetService<ViewModels.ArtistsViewModel>();
+                var warmVmTasks = new List<Task>();
+                if (albumsVm != null) warmVmTasks.Add(albumsVm.LoadAsync());
+                if (artistsVm != null) warmVmTasks.Add(artistsVm.LoadAsync());
+                if (warmVmTasks.Count > 0) await Task.WhenAll(warmVmTasks);
+            }
+
+            libraryVm.IsPreloaded = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("App.xaml", $"[Splash] 音乐库预加载失败（进入页面时按需加载兜底）: {ex.Message}");
+        }
+    }
 
     /// <summary>强制进入横屏：锁定 SensorLandscape，延迟一帧切换 Shell 布局。</summary>
     public void ForceLandscape()
@@ -338,6 +446,9 @@ public partial class App : Application
     {
         try
         {
+            // 关键服务未就绪时保持启动加载页，不提前构建主界面（见 EnterMainWhenReadyAsync）
+            if (!_coreServicesReady) return;
+
             var shell = shellOverride ?? DesktopNavigation.TryGetShell();
             if (shell == null) { Android.Util.Log.Warn("CatClaw", "[Orientation] shell==null, skip"); return; }
 
@@ -553,8 +664,14 @@ public partial class App : Application
         // 物理旋转 → 直切 Shell 布局（单一路径，无需 modal 推弹和多路对账）
         DeviceDisplay.MainDisplayInfoChanged -= OnDisplayOrientationChanged;
         DeviceDisplay.MainDisplayInfoChanged += OnDisplayOrientationChanged;
-        // 首次启动按当前方向直选布局（Shell.Current 尚未就绪，传实例）
-        _ = ApplyOrientationLayout(shell);
+
+        // 先展示轻量启动加载页，等关键服务（数据库/插件/FFmpeg）就绪后再按方向构建主界面，
+        // 避免 ViewPager2 + 5 子页面构建与服务初始化并发竞争主线程/IO 导致启动卡顿。
+        StartupLog("CreateWindow: showing splash loading page");
+        var splashPage = new Pages.SplashLoadingPage();
+        shell.Items.Clear();
+        shell.Items.Add(new ShellContent { Content = splashPage });
+        _ = EnterMainWhenReadyAsync(shell, splashPage);
 #endif
 #endif
 
