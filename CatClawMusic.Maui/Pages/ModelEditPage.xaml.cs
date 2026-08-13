@@ -139,7 +139,7 @@ public partial class ModelEditPage : ContentPage
         NameEntry.Text = "";
         ApiUrlEntry.Text = "https://api.deepseek.com/v1";
         ApiKeyEntry.Text = "";
-        ModelEntry.Text = "deepseek-chat";
+        ModelEntry.Text = "deepseek-v4-flash";
         EnabledSwitch.IsToggled = true;
         FallbackSwitch.IsToggled = false;
 

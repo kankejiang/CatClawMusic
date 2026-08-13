@@ -310,7 +310,7 @@ public class AgentService : IAgentService
                 Provider = ConfigStorage.GetString("provider", "deepseek") ?? "deepseek",
                 ApiUrl = ConfigStorage.GetString("api_url", "https://api.deepseek.com/v1") ?? "",
                 ApiKey = ConfigStorage.GetString("api_key", "") ?? "",
-                Model = ConfigStorage.GetString("model", "deepseek-chat") ?? "deepseek-chat",
+                Model = ConfigStorage.GetString("model", "deepseek-v4-flash") ?? "deepseek-v4-flash",
                 Temperature = (double)ConfigStorage.GetFloat("temperature", 0.7f),
                 MaxTokens = ConfigStorage.GetInt("max_tokens", 2048),
                 Enabled = ConfigStorage.GetBool("enabled", false)

@@ -15,8 +15,8 @@ public class LlmConfig
     public string ApiUrl { get; set; } = "https://api.deepseek.com/v1";
     /// <summary>API 密钥</summary>
     public string ApiKey { get; set; } = "";
-    /// <summary>模型名称（如 deepseek-chat）</summary>
-    public string Model { get; set; } = "deepseek-chat";
+    /// <summary>模型名称（如 deepseek-v4-flash）</summary>
+    public string Model { get; set; } = "deepseek-v4-flash";
     /// <summary>采样温度（0.0 - 2.0，值越大回复越发散）。仅对非推理模型生效，推理模型会被忽略</summary>
     public double Temperature { get; set; } = 0.7;
     /// <summary>单次响应最大 token 数（旧字段，保留用于反序列化兼容；新配置请使用 <see cref="MaxCompletionTokens"/>）</summary>
@@ -111,18 +111,23 @@ public class LlmProviderInfo
     public string[] PresetModels { get; set; } = Array.Empty<string>();
 
     /// <summary>
-    /// 获取所有内置支持的 LLM 服务商列表
+    /// 获取所有内置支持的 LLM 服务商列表（2026-08 官方接口）
     /// </summary>
     /// <returns>包含 DeepSeek、魔搭、llama.cpp、智谱、Moonshot、通义千问、讯飞星火、自定义的数组</returns>
     public static LlmProviderInfo[] GetAll() => new[]
     {
-        new LlmProviderInfo { Id = "deepseek", Name = "DeepSeek", DefaultApiUrl = "https://api.deepseek.com/v1", DefaultModel = "", PresetModels = new[] { "deepseek-chat", "deepseek-reasoner" } },
-        new LlmProviderInfo { Id = "modelscope", Name = "魔搭社区", DefaultApiUrl = "https://api-inference.modelscope.cn/v1", DefaultModel = "", PresetModels = new[] { "Qwen/Qwen3.5-35B-A3B", "Qwen/Qwen3-235B-A22B", "Qwen/Qwen2.5-Coder-32B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1" } },
+        // DeepSeek V4 系列（2026-08 官方：deepseek-v4-flash / deepseek-v4-pro，1M 上下文）
+        new LlmProviderInfo { Id = "deepseek", Name = "DeepSeek", DefaultApiUrl = "https://api.deepseek.com/v1", DefaultModel = "deepseek-v4-flash", PresetModels = new[] { "deepseek-v4-flash", "deepseek-v4-pro" } },
+        new LlmProviderInfo { Id = "modelscope", Name = "魔搭社区", DefaultApiUrl = "https://api-inference.modelscope.cn/v1", DefaultModel = "", PresetModels = new[] { "Qwen/Qwen3.5-32B-A3B-Instruct", "Qwen/Qwen3.5-235B-A22B-Instruct", "Qwen/Qwen3-235B-A22B", "Qwen/Qwen2.5-Coder-32B-Instruct", "deepseek-ai/DeepSeek-V4-Flash", "deepseek-ai/DeepSeek-V4-Pro" } },
         new LlmProviderInfo { Id = "llamacpp", Name = "llama.cpp (本地)", DefaultApiUrl = "http://127.0.0.1:8080/v1", DefaultModel = "" },
-        new LlmProviderInfo { Id = "zhipu", Name = "智谱 AI", DefaultApiUrl = "https://open.bigmodel.cn/api/paas/v1", DefaultModel = "", PresetModels = new[] { "glm-4-flash", "glm-4-plus", "glm-4-air", "glm-4-long", "glm-4" } },
-        new LlmProviderInfo { Id = "moonshot", Name = "Moonshot (Kimi)", DefaultApiUrl = "https://api.moonshot.cn/v1", DefaultModel = "", PresetModels = new[] { "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k" } },
-        new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "", PresetModels = new[] { "qwen-turbo", "qwen-plus", "qwen-max", "qwen-long" } },
-        new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "", PresetModels = new[] { "generalv3.5", "generalv3", "4.0Ultra" } },
+        // 智谱：OpenAI 兼容端点已升级到 v4（2026-08），模型 GLM-5.2 旗舰
+        new LlmProviderInfo { Id = "zhipu", Name = "智谱 AI", DefaultApiUrl = "https://open.bigmodel.cn/api/paas/v4", DefaultModel = "glm-4.7-flash", PresetModels = new[] { "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo", "glm-4.7", "glm-4.7-flashx", "glm-4.6", "glm-4.5-air", "glm-4.7-flash", "glm-4-long" } },
+        // Moonshot/Kimi：旧 moonshot-v1-* 系列 2026-08-31 全平台下线，K3 为旗舰（1M 上下文）
+        new LlmProviderInfo { Id = "moonshot", Name = "Moonshot (Kimi)", DefaultApiUrl = "https://api.moonshot.cn/v1", DefaultModel = "kimi-k3", PresetModels = new[] { "kimi-k3", "kimi-k2.7-code", "kimi-k2.6" } },
+        // 通义千问（百炼）：qwen3.8-max / qwen3.7-plus / qwen3.7-flash（2026-08）
+        new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "", PresetModels = new[] { "qwen3.8-max", "qwen3.7-plus", "qwen3.7-flash" } },
+        // 讯飞星火：spark 命名系列（lite/pro/max/4.0-ultra）
+        new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "", PresetModels = new[] { "spark-4.0-ultra", "spark-max", "spark-pro", "spark-lite" } },
         new LlmProviderInfo { Id = "custom", Name = "自定义 (OpenAI 兼容)", DefaultApiUrl = "", DefaultModel = "" },
     };
 }

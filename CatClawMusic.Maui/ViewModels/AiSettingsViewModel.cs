@@ -45,9 +45,9 @@ public partial class AiSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _apiKey = "";
 
-    /// <summary>模型名称，如 deepseek-chat</summary>
+    /// <summary>模型名称，如 deepseek-v4-flash</summary>
     [ObservableProperty]
-    private string _model = "deepseek-chat";
+    private string _model = "deepseek-v4-flash";
 
     /// <summary>温度（0-2）</summary>
     [ObservableProperty]
@@ -381,7 +381,7 @@ public partial class AiSettingsViewModel : ObservableObject
         SelectedProvider = Providers.FirstOrDefault(p => p.Id == "deepseek") ?? Providers[0];
         ApiUrl = "https://api.deepseek.com/v1";
         ApiKey = "";
-        Model = "deepseek-chat";
+        Model = "deepseek-v4-flash";
         Temperature = 0.7;
         MaxTokens = 2048;
         IsEnabled = false;
