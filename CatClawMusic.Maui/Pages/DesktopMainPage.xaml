@@ -52,7 +52,10 @@
                     <Border x:Name="NavDiscover" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavDiscoverTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -66,7 +69,10 @@
                     <Border x:Name="NavPlaylists" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavPlaylistsTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -80,7 +86,10 @@
                     <Border x:Name="NavLibrary" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavLibraryTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -102,7 +111,10 @@
                                FontSize="18" TextColor="{DynamicResource TextSecondaryColor}"
                                HorizontalOptions="End" VerticalOptions="Center"
                                WidthRequest="24" HeightRequest="28">
-                            <Label.GestureRecognizers>
+                            <Label.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Label.Behaviors>
+<Label.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnAddPlaylistTapped" />
                             </Label.GestureRecognizers>
                         </Label>
@@ -116,7 +128,10 @@
                 <VerticalStackLayout Grid.Row="3" Spacing="2" Padding="8,0,8,12">
                     <Border x:Name="NavSettings" StrokeThickness="0" StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -143,7 +158,10 @@
                    Completed="OnSearchSubmitted" />
             <HorizontalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="8">
                 <Grid WidthRequest="36" HeightRequest="36" VerticalOptions="Center">
-                    <Grid.GestureRecognizers>
+                    <Grid.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Grid.Behaviors>
+<Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnLyricsButtonClicked" />
                     </Grid.GestureRecognizers>
                     <Image Source="{helpers:ThemedIcon Name=ic_lyrics, Original=True}"
@@ -215,7 +233,10 @@
                                 Aspect="AspectFit"
                                 Source="{Binding PlayModeIconSource}"
                                 HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.GestureRecognizers>
+                            <Image.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Image.Behaviors>
+<Image.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding CyclePlayModeCommand}" />
                             </Image.GestureRecognizers>
                         </Image>
@@ -223,7 +244,10 @@
                                 Aspect="AspectFit"
                                 Source="{Binding PlayPreviousIconSource}"
                                 HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.GestureRecognizers>
+                            <Image.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Image.Behaviors>
+<Image.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding PlayPreviousCommand}" />
                             </Image.GestureRecognizers>
                         </Image>
@@ -231,7 +255,10 @@
                              用普通版（非 White）跟随 PlayerCtrl 逻辑，浅色=主题色/深色=白色 -->
                         <Grid Grid.Column="2" WidthRequest="46" HeightRequest="46"
                               HorizontalOptions="Center" VerticalOptions="Center">
-                            <Grid.GestureRecognizers>
+                            <Grid.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Grid.Behaviors>
+<Grid.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding TogglePlayPauseCommand}" />
                             </Grid.GestureRecognizers>
                             <Image WidthRequest="24" HeightRequest="24"
@@ -243,7 +270,10 @@
                                 Aspect="AspectFit"
                                 Source="{Binding PlayNextIconSource}"
                                 HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.GestureRecognizers>
+                            <Image.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Image.Behaviors>
+<Image.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding PlayNextCommand}" />
                             </Image.GestureRecognizers>
                         </Image>
@@ -251,7 +281,10 @@
                                 Aspect="AspectFit"
                                 Source="{Binding LikeIconSource}"
                                 HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.GestureRecognizers>
+                            <Image.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Image.Behaviors>
+<Image.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding ToggleLikeCommand}" />
                             </Image.GestureRecognizers>
                         </Image>

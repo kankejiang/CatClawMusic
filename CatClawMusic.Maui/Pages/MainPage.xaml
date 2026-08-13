@@ -113,6 +113,9 @@
                         WidthRequest="32" HeightRequest="32"
                         Source="{Binding PlayPreviousIconSource}"
                         VerticalOptions="Center" HorizontalOptions="Center">
+                    <Image.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Image.Behaviors>
                     <Image.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding PlayPreviousCommand}" />
                     </Image.GestureRecognizers>
@@ -123,6 +126,9 @@
                         WidthRequest="42" HeightRequest="42"
                         Source="{Binding PlayPauseIconSource}"
                         VerticalOptions="Center" HorizontalOptions="Center">
+                    <Image.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Image.Behaviors>
                     <Image.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding TogglePlayPauseCommand}" />
                     </Image.GestureRecognizers>
@@ -133,6 +139,9 @@
                         WidthRequest="32" HeightRequest="32"
                         Source="{Binding PlayNextIconSource}"
                         VerticalOptions="Center" HorizontalOptions="Center">
+                    <Image.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Image.Behaviors>
                     <Image.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding PlayNextCommand}" />
                     </Image.GestureRecognizers>
@@ -180,6 +189,9 @@
 
                 <Grid Grid.Column="0" x:Name="TabItem0"
                       HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Grid.Behaviors>
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnTabTapped" />
                     </Grid.GestureRecognizers>
@@ -203,6 +215,9 @@
 
                 <Grid Grid.Column="1" x:Name="TabItem1"
                       HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Grid.Behaviors>
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnTabTapped" />
                     </Grid.GestureRecognizers>
@@ -226,6 +241,9 @@
 
                 <Grid Grid.Column="2" x:Name="TabItem2"
                       HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Grid.Behaviors>
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnTabTapped" />
                     </Grid.GestureRecognizers>
@@ -249,6 +267,9 @@
 
                 <Grid Grid.Column="3" x:Name="TabItem3"
                       HorizontalOptions="Fill" VerticalOptions="Fill">
+                    <Grid.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Grid.Behaviors>
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnTabTapped" />
                     </Grid.GestureRecognizers>

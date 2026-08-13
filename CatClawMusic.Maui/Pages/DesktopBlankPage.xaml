@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.DesktopBlankPage"
              Shell.NavBarIsVisible="False"
@@ -56,7 +57,10 @@
                     <Border x:Name="NavDiscover" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavDiscoverTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -70,7 +74,10 @@
                     <Border x:Name="NavPlaylists" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavPlaylistsTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -84,7 +91,10 @@
                     <Border x:Name="NavLibrary" StrokeThickness="0"
                             StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavLibraryTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -106,7 +116,10 @@
                                FontSize="18" TextColor="{DynamicResource TextSecondaryColor}"
                                HorizontalOptions="End" VerticalOptions="Center"
                                WidthRequest="24" HeightRequest="28">
-                            <Label.GestureRecognizers>
+                            <Label.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Label.Behaviors>
+<Label.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnAddPlaylistTapped" />
                             </Label.GestureRecognizers>
                         </Label>
@@ -120,7 +133,10 @@
                 <VerticalStackLayout Grid.Row="3" Spacing="2" Padding="8,0,8,12">
                     <Border x:Name="NavSettings" StrokeThickness="0" StrokeShape="RoundRectangle 8"
                             Padding="12,7" BackgroundColor="Transparent">
-                        <Border.GestureRecognizers>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
+<Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -194,7 +210,10 @@
                 <!-- ② 中左：喜欢（红心，状态跟随 VM） -->
                 <Image Grid.Column="1" WidthRequest="22" HeightRequest="22" Aspect="AspectFit"
                        Source="{Binding LikeIconSource}" VerticalOptions="Center">
-                    <Image.GestureRecognizers>
+                    <Image.Behaviors>
+                        <controls:PressFeedbackBehavior />
+                    </Image.Behaviors>
+<Image.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding ToggleLikeCommand}" />
                     </Image.GestureRecognizers>
                 </Image>
@@ -252,7 +271,10 @@
 
                     <!-- 歌词（预留：后续接歌词页/歌词面板；图标=安卓通知栏媒体控件同款 ic_notif_lyric_on，主题感知见 code-behind） -->
                     <Grid Grid.Column="0" WidthRequest="32" HeightRequest="32">
-                        <Grid.GestureRecognizers>
+                        <Grid.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Grid.Behaviors>
+<Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnLyricsTapped" />
                         </Grid.GestureRecognizers>
                         <Image x:Name="DesktopLyricIcon" WidthRequest="20" HeightRequest="20"
@@ -262,7 +284,10 @@
 
                     <!-- 音量：图标 + hover 向上弹出垂直音量条 -->
                     <Grid x:Name="VolumeWrap" Grid.Column="1" WidthRequest="32" HeightRequest="32">
-                        <Grid.GestureRecognizers>
+                        <Grid.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Grid.Behaviors>
+<Grid.GestureRecognizers>
                             <PointerGestureRecognizer PointerEntered="OnVolumePointerEntered"
                                                       PointerExited="OnVolumePointerExited" />
                         </Grid.GestureRecognizers>

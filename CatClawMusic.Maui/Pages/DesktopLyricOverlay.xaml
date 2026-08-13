@@ -41,26 +41,41 @@
                                Margin="0,0,0,6"
                                IsVisible="false">
             <Label Text="⏮" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.Behaviors>
+                    <ctrl:PressFeedbackBehavior />
+                </Label.Behaviors>
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnPrev" />
                 </Label.GestureRecognizers>
             </Label>
             <Label x:Name="PlayPauseBtn" Text="▶" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.Behaviors>
+                    <ctrl:PressFeedbackBehavior />
+                </Label.Behaviors>
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnPlayPause" />
                 </Label.GestureRecognizers>
             </Label>
             <Label Text="⏭" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.Behaviors>
+                    <ctrl:PressFeedbackBehavior />
+                </Label.Behaviors>
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnNext" />
                 </Label.GestureRecognizers>
             </Label>
             <Label x:Name="LockBtn" Text="🔓" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.Behaviors>
+                    <ctrl:PressFeedbackBehavior />
+                </Label.Behaviors>
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnLock" />
                 </Label.GestureRecognizers>
             </Label>
             <Label Text="✕" TextColor="White" FontSize="22" Margin="10,0">
+                <Label.Behaviors>
+                    <ctrl:PressFeedbackBehavior />
+                </Label.Behaviors>
                 <Label.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnClose" />
                 </Label.GestureRecognizers>

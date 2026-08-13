@@ -580,6 +580,9 @@
                             StrokeThickness="1" Stroke="#1FFFFFFF" BackgroundColor="#0FFFFFFF"
                             HorizontalOptions="Start" VerticalOptions="Center">
                         <Border.StrokeShape><RoundRectangle CornerRadius="17" /></Border.StrokeShape>
+                        <Border.Behaviors>
+                            <controls:PressFeedbackBehavior />
+                        </Border.Behaviors>
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnCollapseButtonTapped" />
                         </Border.GestureRecognizers>
@@ -674,6 +677,9 @@
                                     Stroke="#408C7BFF" BackgroundColor="#148C7BFF" Padding="13,0" HeightRequest="30"
                                     HorizontalOptions="End" VerticalOptions="Center">
                                 <Border.StrokeShape><RoundRectangle CornerRadius="15" /></Border.StrokeShape>
+                                <Border.Behaviors>
+                                    <controls:PressFeedbackBehavior />
+                                </Border.Behaviors>
                                 <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnWinLyricSettingsTapped" /></Border.GestureRecognizers>
                                 <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
                                     <Label Text="⚙" FontSize="13" TextColor="#D7D3FF" VerticalOptions="Center" />
@@ -730,6 +736,9 @@
                         <Border x:Name="WinPlayBtn" WidthRequest="60" HeightRequest="60" StrokeThickness="0"
                                 BackgroundColor="Transparent"
                                 HorizontalOptions="Center" VerticalOptions="Center">
+                            <Border.Behaviors>
+                                <controls:PressFeedbackBehavior PressedScale="0.9" />
+                            </Border.Behaviors>
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnWinPlayTapped" /></Border.GestureRecognizers>
                             <Image x:Name="WinPlayIcon" WidthRequest="28" HeightRequest="28" Aspect="AspectFit"
                                    HorizontalOptions="Center" VerticalOptions="Center" />
@@ -773,6 +782,9 @@
                                 StrokeThickness="1" Stroke="#1FFFFFFF" BackgroundColor="#0FFFFFFF"
                                 HorizontalOptions="End" VerticalOptions="Center">
                             <Border.StrokeShape><RoundRectangle CornerRadius="17" /></Border.StrokeShape>
+                            <Border.Behaviors>
+                                <controls:PressFeedbackBehavior />
+                            </Border.Behaviors>
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnOpenPlaylistClicked" /></Border.GestureRecognizers>
                             <HorizontalStackLayout Spacing="7" VerticalOptions="Center">
                                 <Image WidthRequest="15" HeightRequest="15" Source="{Binding PlaylistIconSource}" Aspect="AspectFit" />

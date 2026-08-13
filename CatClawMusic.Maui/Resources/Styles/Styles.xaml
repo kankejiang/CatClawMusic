@@ -127,8 +127,73 @@
         <Setter Property="Padding" Value="12,6" />
     </Style>
 
+    <!-- ═══════════════════════════════════════════
+         全局按钮点击反馈（1.8.2）：所有 Button/ImageButton 按压时
+         变暗 + 缩小，松开恢复。MAUI 在设置 BackgroundColor 后
+         Android ripple 会丢失，这里用 VSM 统一补齐反馈。
+         ═══════════════════════════════════════════ -->
+    <Style x:Key="ButtonBaseStyle" TargetType="Button">
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="Scale" Value="1" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.62" />
+                            <Setter Property="Scale" Value="0.96" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter Property="Scale" Value="1" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- 隐式样式：未指定 Style 的 Button 自动获得点击反馈 -->
+    <Style TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}" />
+
+    <Style x:Key="ImageButtonBaseStyle" TargetType="ImageButton">
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="Scale" Value="1" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.55" />
+                            <Setter Property="Scale" Value="0.94" />
+                        </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter Property="Scale" Value="1" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+
+    <!-- 隐式样式：未指定 Style 的 ImageButton 自动获得点击反馈 -->
+    <Style TargetType="ImageButton" BasedOn="{StaticResource ImageButtonBaseStyle}" />
+
     <!-- 主操作按钮：半透明毛玻璃底，白字 -->
-    <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+    <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
         <Setter Property="BackgroundColor" Value="{DynamicResource PrimaryButtonBackgroundColor}" />
         <Setter Property="TextColor" Value="White" />
         <Setter Property="CornerRadius" Value="14" />
@@ -139,7 +204,7 @@
     </Style>
 
     <!-- 次要操作按钮：玻璃卡片底色，主色文字 -->
-    <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+    <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
         <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundStrongColor}" />
         <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
         <Setter Property="CornerRadius" Value="14" />
