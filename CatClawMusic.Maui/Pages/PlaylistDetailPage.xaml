@@ -190,8 +190,5 @@
 
         <!-- ═══ 歌曲更多操作弹窗（替代 DisplayActionSheet，MAUI 11 兼容） ═══ -->
         <controls:AppPopup x:Name="SongMorePopupControl" Title="歌曲操作" CloseOnMaskTapped="True" />
-
-        <!-- ═══ 歌曲长按/右键上下文菜单 ═══ -->
-        <controls:AppPopup x:Name="SongContextPopup" Title="歌曲操作" CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

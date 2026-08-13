@@ -162,21 +162,38 @@ public class SongContextMenuBehavior : Behavior<View>
         }
         catch { }
 
-        ShowMenu();
+        ShowMenu(GetLocalPosition(view));
+    }
+
+    /// <summary>按下点在行内的 DIP 坐标（下拉菜单定位用）。</summary>
+    private Point GetLocalPosition(global::Android.Views.View view)
+    {
+        try
+        {
+            var loc = new int[2];
+            view.GetLocationOnScreen(loc);
+            var density = view.Context?.Resources?.DisplayMetrics?.Density ?? 1;
+            if (density <= 0) density = 1;
+            return new Point((_downRawX - loc[0]) / density, (_downRawY - loc[1]) / density);
+        }
+        catch
+        {
+            return new Point(8, 8);
+        }
     }
 #endif
 
-    private void ShowMenu()
+    private void ShowMenu(Point position)
     {
         var song = _view?.BindingContext as Song;
-        if (song == null) return;
+        if (song == null || _view == null) return;
 
         var node = _view as Element;
         while (node != null)
         {
             if (node is ISongContextMenuHost host)
             {
-                host.ShowSongMenu(song);
+                host.ShowSongMenu(song, _view, position);
                 return;
             }
             node = node.Parent;

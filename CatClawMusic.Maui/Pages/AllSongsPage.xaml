@@ -189,8 +189,5 @@
         <ActivityIndicator Grid.Row="4" IsRunning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
                            HorizontalOptions="Center" VerticalOptions="Center"
                            Color="{DynamicResource PrimaryColor}" />
-
-        <!-- ═══ 歌曲长按/右键上下文菜单 ═══ -->
-        <controls:AppPopup x:Name="SongContextPopup" Title="歌曲操作" CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

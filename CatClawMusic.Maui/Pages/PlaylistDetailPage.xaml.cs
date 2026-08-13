@@ -78,13 +78,13 @@ public partial class PlaylistDetailPage : ContentPage, ISongContextMenuHost
     {
         if (e.Button != ButtonsMask.Secondary) return;
         if (sender is PointerGestureRecognizer gr && gr.Parent is View row && row.BindingContext is Song song)
-            ShowSongMenu(song);
+            ShowSongMenu(song, row, e.GetPosition(row) ?? new Point(4, 4));
     }
 
     /// <summary>弹出歌曲上下文菜单（Android 长按由 SongContextMenuBehavior 调用，Windows 右键由 OnRowPointerPressed 调用）。</summary>
-    public void ShowSongMenu(Song song)
+    public void ShowSongMenu(Song song, View row, Point position)
     {
-        SongContextMenu.Show(SongContextPopup, song, new SongMenuActions
+        SongContextMenu.ShowAt(song, row, position, new SongMenuActions
         {
             Play = () => _viewModel.PlaySongCommand.ExecuteAsync(song),
             PlayNext = () => PlaySongNextAsync(song),

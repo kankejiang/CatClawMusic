@@ -24,6 +24,9 @@ public partial class WebViewLoginPage : ContentPage
     /// 即使 SPA hash 路由跳转不触发 WebNavigated，也能检测到登录完成。</summary>
     private IDispatcherTimer? _cookieTimer;
 
+    /// <summary>是否已开始加载登录页（OnNavigatedTo / OnAppearing 双入口幂等）</summary>
+    private bool _loginLoadStarted;
+
     public WebViewLoginPage(WebViewLoginViewModel vm)
     {
         InitializeComponent();
@@ -40,11 +43,29 @@ public partial class WebViewLoginPage : ContentPage
     protected override void OnNavigatedTo(NavigatedToEventArgs args)
     {
         base.OnNavigatedTo(args);
+        EnsureLoginLoaded();
+    }
+
+    /// <summary>
+    /// 桌面无 Shell 模式（嵌入主区域）不会触发 OnNavigatedTo，只经反射调 OnAppearing，
+    /// 故此处兜底触发加载（幂等，Shell 环境下 OnNavigatedTo 已加载则跳过）。
+    /// </summary>
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        EnsureLoginLoaded();
+    }
+
+    /// <summary>幂等加载：LoginInfo 就绪后给 WebView 指定登录 URL 并启动 Cookie 轮询</summary>
+    private void EnsureLoginLoaded()
+    {
+        if (_loginLoadStarted) return;
 
         var info = _vm.LoginInfo;
         TitleLabel.Text = info?.Title ?? "账号登录";
         if (info?.LoginUrl is string url && !string.IsNullOrWhiteSpace(url))
         {
+            _loginLoadStarted = true;
             if (!string.Equals(LoginWebView.Source?.ToString(), url, StringComparison.OrdinalIgnoreCase))
                 LoginWebView.Source = new UrlWebViewSource { Url = url };
             StatusHint.Text = "请在下方页面完成登录，登录成功后自动返回";
@@ -104,6 +125,7 @@ public partial class WebViewLoginPage : ContentPage
     /// <summary>返回按钮：直接返回上一页</summary>
     private void OnBackTapped(object? sender, EventArgs e)
     {
+        StopCookiePolling();
         _vm.Cancel();
         DesktopNavigation.GoBack();
     }
@@ -158,7 +180,9 @@ public partial class WebViewLoginPage : ContentPage
         }
     }
 
-    /// <summary>提取 Cookie 并回传插件，然后返回上一页</summary>
+    /// <summary>提取 Cookie 并回传插件，然后返回上一页。
+    /// 必须包含插件声明的成功标识 Cookie（如 MUSIC_U）才算登录成功，
+    /// 防止未登录时把匿名 Cookie 回传覆盖插件的已登录状态。</summary>
     private async Task TryExtractCookieAndReturnAsync()
     {
         var info = _vm.LoginInfo;
@@ -167,7 +191,9 @@ public partial class WebViewLoginPage : ContentPage
         try
         {
             var cookie = await ExtractCookieAsync(info.CookieDomain);
-            if (!string.IsNullOrWhiteSpace(cookie))
+            if (!string.IsNullOrWhiteSpace(cookie)
+                && info.SuccessCookieNames.Count > 0
+                && info.SuccessCookieNames.All(n => cookie.Contains(n + "=", StringComparison.OrdinalIgnoreCase)))
             {
                 StatusHint.Text = "登录成功，正在返回...";
                 await _vm.CompleteLoginAsync(cookie);
