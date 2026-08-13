@@ -2,7 +2,6 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
-using Microsoft.Maui.Controls.Shapes;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -56,32 +55,7 @@ public partial class PlaylistDetailPage : ContentPage, ISongContextMenuHost
 
     // === 事件处理 ===
 
-    /// <summary>
-    /// 歌曲行加载完成（Windows）：为行挂载右键 PointerGestureRecognizer。
-    /// 不在 XAML 中声明——Android 上行的直接手势识别器会让 MAUI 安装 OnTouchListener
-    /// 消费 ACTION_DOWN，绕过 View.onTouchEvent，导致原生长按检测失效。
-    /// </summary>
-    private void OnRowLoaded(object? sender, EventArgs e)
-    {
-#if WINDOWS
-        if (sender is not View row) return;
-        if (row.GestureRecognizers.OfType<PointerGestureRecognizer>().Any()) return;
-
-        var pointer = new PointerGestureRecognizer();
-        pointer.PointerPressed += OnRowPointerPressed;
-        row.GestureRecognizers.Add(pointer);
-#endif
-    }
-
-    /// <summary>歌曲行右键（Windows）触发：仅响应右键，经识别器所在行取 Song 弹出上下文菜单。</summary>
-    private void OnRowPointerPressed(object? sender, PointerEventArgs e)
-    {
-        if (e.Button != ButtonsMask.Secondary) return;
-        if (sender is PointerGestureRecognizer gr && gr.Parent is View row && row.BindingContext is Song song)
-            ShowSongMenu(song, row, e.GetPosition(row) ?? new Point(4, 4));
-    }
-
-    /// <summary>弹出歌曲上下文菜单（Android 长按由 SongContextMenuBehavior 调用，Windows 右键由 OnRowPointerPressed 调用）。</summary>
+    /// <summary>弹出歌曲上下文菜单（由 ⋮ 更多按钮触发）。</summary>
     public void ShowSongMenu(Song song, View row, Point position)
     {
         SongContextMenu.ShowAt(song, row, position, new SongMenuActions
@@ -93,6 +67,16 @@ public partial class PlaylistDetailPage : ContentPage, ISongContextMenuHost
             GetPlaylists = () => _viewModel.GetPlaylistsAsync(),
             AddSongToPlaylist = playlistId => _viewModel.AddSongToPlaylistAsync(playlistId, song.Id)
         });
+    }
+
+    /// <summary>
+    /// 从 ⋮ 按钮触发下拉菜单：以按钮在行内的位置为锚点弹出。
+    /// sender 为 TapGestureRecognizer，其 Parent 为 ⋮ Label，再上一级为行 Grid。
+    /// </summary>
+    private void ShowSongMenuAtMoreButton(object? sender, Song song)
+    {
+        if (sender is Element recognizer && recognizer.Parent is View moreLabel && moreLabel.Parent is View row)
+            ShowSongMenu(song, row, new Point(moreLabel.X + moreLabel.Width / 2, moreLabel.Y + moreLabel.Height / 2));
     }
 
     private async Task PlaySongNextAsync(Song song)
@@ -150,7 +134,7 @@ public partial class PlaylistDetailPage : ContentPage, ISongContextMenuHost
     private void OnMoreTapped(object? sender, TappedEventArgs e)
     {
         if (e.Parameter is not Song song) return;
-        ShowSongMorePopup(song);
+        ShowSongMenuAtMoreButton(sender, song);
     }
 
     private void OnIndexTapped(object? sender, TappedEventArgs e)
@@ -159,70 +143,6 @@ public partial class PlaylistDetailPage : ContentPage, ISongContextMenuHost
         {
             var targetSong = _viewModel.Songs[index];
             SongListView?.ScrollTo(targetSong, position: ScrollToPosition.MakeVisible);
-        }
-    }
-
-    // === AppPopup 弹窗（MAUI 11 Android 端 DisplayActionSheet 兼容性问题） ===
-
-    private void ShowSongMorePopup(Song song)
-    {
-        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
-        var cardBg = (Color)Application.Current!.Resources["CardBackgroundStrongColor"];
-
-        SongMorePopupControl.Title = song.Title;
-        SongMorePopupControl.ClearContent();
-
-        string[] actions = { "添加到播放队列", "添加到歌单", "查看歌曲详情", "分享" };
-        foreach (var action in actions)
-        {
-            var captured = action;
-            var row = new Border
-            {
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
-                Stroke = cardBg,
-                StrokeThickness = 0,
-                BackgroundColor = cardBg,
-                Padding = new Thickness(14, 11),
-                Margin = new Thickness(0, 0, 0, 6),
-                HorizontalOptions = LayoutOptions.Fill
-            };
-            row.GestureRecognizers.Add(new TapGestureRecognizer
-            {
-                Command = new Command(async () =>
-                {
-                    await SongMorePopupControl.CloseAsync();
-                    await HandleSongAction(captured, song);
-                })
-            });
-            row.Content = new Label
-            {
-                Text = action,
-                FontSize = 14,
-                TextColor = textPrimary,
-                VerticalOptions = LayoutOptions.Center
-            };
-            SongMorePopupControl.AddContent(row);
-        }
-
-        SongContextMenu.OpenAtTop(SongMorePopupControl);
-    }
-
-    private async Task HandleSongAction(string? action, Song song)
-    {
-        switch (action)
-        {
-            case "查看歌曲详情":
-                {
-                    if (DesktopNavigation.TryGoToShell($"songdetail?songId={song.Id}")) break;
-                    DesktopNavigation.OpenSongDetail(song.Id.ToString());
-                    break;
-                }
-            case "添加到播放队列":
-                // TODO: 添加到播放队列
-                break;
-            case "添加到歌单":
-                // TODO: 添加到歌单
-                break;
         }
     }
 }

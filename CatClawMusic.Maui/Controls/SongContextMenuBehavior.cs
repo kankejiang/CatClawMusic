@@ -1,7 +1,9 @@
 namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
-/// 歌曲行手势行为（仅 Android 长按；Windows 右键由行 Loaded 时代码挂载的 PointerGestureRecognizer 处理）。
+/// 歌曲行手势行为：
+/// - Android：长按（不消费事件的 OnTouchListener + 按下定时器判定）；
+/// - Windows：右键（原生 PointerPressed，检查 IsRightButtonPressed）。
 /// 触发时以行自身的 BindingContext（Song）为参数，沿逻辑父链找到 <see cref="ISongContextMenuHost"/> 页面弹出菜单。
 ///
 /// 实现要点（Android）：
@@ -9,9 +11,10 @@ namespace CatClawMusic.Maui.Controls;
 ///   ItemContentView 的原生点击（列表选中）失效；
 /// - 不能依赖 MAUI 手势识别器：行上有直接识别器时 MAUI 会装 OnTouchListener 消费 DOWN，
 ///   绕过 View.onTouchEvent，长按检测不触发；
-/// 因此这里用「返回 false 的 OnTouchListener + 按下定时器」自行判定长按：
-/// DOWN 不消费（列表点击/滚动不受影响），超时未移动/抬起即视为长按；触发时对父容器
-/// PerformLongClick 置位 mHasPerformedLongPress，抑制松手后的点击。
+/// 因此用「返回 false 的 OnTouchListener + 按下定时器」自行判定长按：DOWN 不消费
+/// （列表点击/滚动不受影响），超时未移动/抬起即视为长按；触发时对父容器 PerformLongClick
+/// 置位 mHasPerformedLongPress，抑制松手后的点击。
+///
 /// 本行为不使用任何 XAML 绑定——MAUI 中 Behavior 不是 Element，RelativeSource 绑定应用到 Behavior
 /// 会在 BindingContext 传播时抛异常，导致整行内容空白（此前歌单歌曲不显示的根因）。
 /// </summary>
@@ -66,6 +69,12 @@ public class SongContextMenuBehavior : Behavior<View>
             catch { }
             androidView.Touch += OnAndroidTouch;
         }
+#elif WINDOWS
+        if (_view.Handler.PlatformView is global::Microsoft.UI.Xaml.UIElement uiElement)
+        {
+            _platformView = uiElement;
+            uiElement.PointerPressed += OnWinPointerPressed;
+        }
 #endif
     }
 
@@ -76,6 +85,12 @@ public class SongContextMenuBehavior : Behavior<View>
         if (_platformView is global::Android.Views.View androidView)
         {
             androidView.Touch -= OnAndroidTouch;
+            _platformView = null;
+        }
+#elif WINDOWS
+        if (_platformView is global::Microsoft.UI.Xaml.UIElement uiElement)
+        {
+            uiElement.PointerPressed -= OnWinPointerPressed;
             _platformView = null;
         }
 #endif
@@ -180,6 +195,14 @@ public class SongContextMenuBehavior : Behavior<View>
         {
             return new Point(8, 8);
         }
+    }
+#elif WINDOWS
+    private void OnWinPointerPressed(object sender, global::Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is not global::Microsoft.UI.Xaml.UIElement element) return;
+        var point = e.GetCurrentPoint(element);
+        if (!point.Properties.IsRightButtonPressed) return;
+        ShowMenu(new Point(point.Position.X, point.Position.Y));
     }
 #endif
 

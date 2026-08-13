@@ -147,11 +147,7 @@
                             IsVisible="{Binding IsGridView, Converter={StaticResource InvertedBoolConverter}}">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
-                        <Grid Padding="10,6" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8"
-                              Loaded="OnRowLoaded">
-                            <Grid.Behaviors>
-                                <controls:SongContextMenuBehavior />
-                            </Grid.Behaviors>
+                        <Grid Padding="10,6,34,6" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -211,11 +207,7 @@
                 </CollectionView.ItemsLayout>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
-                        <Border StrokeThickness="0" BackgroundColor="Transparent"
-                                Loaded="OnRowLoaded">
-                            <Border.Behaviors>
-                                <controls:SongContextMenuBehavior />
-                            </Border.Behaviors>
+                        <Border StrokeThickness="0" BackgroundColor="Transparent">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnGridSongTapped" CommandParameter="{Binding}" />
                             </Border.GestureRecognizers>
@@ -267,8 +259,5 @@
         <ActivityIndicator Grid.Column="1" IsRunning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
                            HorizontalOptions="Center" VerticalOptions="Center"
                            Color="{DynamicResource PrimaryColor}" />
-
-        <!-- ═══ 歌曲更多操作弹窗（替代 DisplayActionSheet） ═══ -->
-        <controls:AppPopup x:Name="SongMorePopupControl" Title="歌曲操作" CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

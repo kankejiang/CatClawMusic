@@ -109,11 +109,7 @@
                 </CollectionView.Behaviors>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
-                        <Grid Padding="14,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12"
-                              Loaded="OnRowLoaded">
-                            <Grid.Behaviors>
-                                <controls:SongContextMenuBehavior />
-                            </Grid.Behaviors>
+                        <Grid Padding="14,9,34,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -187,8 +183,5 @@
         <ActivityIndicator Grid.Row="3" IsRunning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
                            HorizontalOptions="Center" VerticalOptions="Center"
                            Color="{DynamicResource PrimaryColor}" />
-
-        <!-- ═══ 歌曲更多操作弹窗（替代 DisplayActionSheet，MAUI 11 兼容） ═══ -->
-        <controls:AppPopup x:Name="SongMorePopupControl" Title="歌曲操作" CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

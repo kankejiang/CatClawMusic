@@ -39,32 +39,7 @@ public partial class AllSongsPage : ContentPage, ISongContextMenuHost
 
     // === 事件处理 ===
 
-    /// <summary>
-    /// 歌曲行加载完成（Windows）：为行挂载右键 PointerGestureRecognizer。
-    /// 不在 XAML 中声明——Android 上行的直接手势识别器会让 MAUI 安装 OnTouchListener
-    /// 消费 ACTION_DOWN，绕过 View.onTouchEvent，导致原生长按检测失效。
-    /// </summary>
-    private void OnRowLoaded(object? sender, EventArgs e)
-    {
-#if WINDOWS
-        if (sender is not View row) return;
-        if (row.GestureRecognizers.OfType<PointerGestureRecognizer>().Any()) return;
-
-        var pointer = new PointerGestureRecognizer();
-        pointer.PointerPressed += OnRowPointerPressed;
-        row.GestureRecognizers.Add(pointer);
-#endif
-    }
-
-    /// <summary>歌曲行右键（Windows）触发：仅响应右键，经识别器所在行取 Song 弹出上下文菜单。</summary>
-    private void OnRowPointerPressed(object? sender, PointerEventArgs e)
-    {
-        if (e.Button != ButtonsMask.Secondary) return;
-        if (sender is PointerGestureRecognizer gr && gr.Parent is View row && row.BindingContext is Song song)
-            ShowSongMenu(song, row, e.GetPosition(row) ?? new Point(4, 4));
-    }
-
-    /// <summary>弹出歌曲上下文菜单（Android 长按由 SongContextMenuBehavior 调用，Windows 右键由 OnRowPointerPressed 调用）。</summary>
+    /// <summary>弹出歌曲上下文菜单（由 ⋮ 更多按钮触发）。</summary>
     public void ShowSongMenu(Song song, View row, Point position)
     {
         SongContextMenu.ShowAt(song, row, position, new SongMenuActions
@@ -74,7 +49,9 @@ public partial class AllSongsPage : ContentPage, ISongContextMenuHost
             ToggleFavorite = () => ToggleFavoriteAsync(song),
             SongInfo = () => OpenSongInfoAsync(song),
             GetPlaylists = () => _vm.GetPlaylistsAsync(),
-            AddSongToPlaylist = playlistId => _vm.AddSongToPlaylistAsync(playlistId, song.Id)
+            AddSongToPlaylist = playlistId => _vm.AddSongToPlaylistAsync(playlistId, song.Id),
+            // 网络歌曲支持下载到本地（下载管理页可查看进度）
+            Download = song.Source == SongSource.Local ? null : () => DownloadSongAsync(song)
         });
     }
 
@@ -130,17 +107,12 @@ public partial class AllSongsPage : ContentPage, ISongContextMenuHost
         }
     }
 
-    private async void OnMoreTapped(object? sender, TappedEventArgs e)
+    /// <summary>点击 ⋮ 更多按钮：以按钮位置为锚点弹出下拉菜单。</summary>
+    private void OnMoreTapped(object? sender, TappedEventArgs e)
     {
         if (e.Parameter is not Song song) return;
-
-        var options = new List<string> { "添加到播放队列", "添加到歌单", "查看歌曲详情", "分享" };
-        // 网络歌曲支持下载到本地（下载管理页可查看进度）
-        if (song.Source != SongSource.Local)
-            options.Insert(0, "下载到本地");
-
-        var action = await DisplayActionSheet(song.Title, "取消", null, options.ToArray());
-        await HandleSongAction(action, song);
+        if (sender is Element recognizer && recognizer.Parent is View moreLabel && moreLabel.Parent is View row)
+            ShowSongMenu(song, row, new Point(moreLabel.X + moreLabel.Width / 2, moreLabel.Y + moreLabel.Height / 2));
     }
 
     private void OnIndexTapped(object? sender, TappedEventArgs e)
@@ -149,25 +121,6 @@ public partial class AllSongsPage : ContentPage, ISongContextMenuHost
         {
             var targetSong = _vm.Songs[index];
             SongListView?.ScrollTo(targetSong, position: ScrollToPosition.MakeVisible);
-        }
-    }
-
-    private async Task HandleSongAction(string? action, Song song)
-    {
-        switch (action)
-        {
-            case "查看歌曲详情":
-                DesktopNavigation.TryGoToShell($"songdetail?songId={song.Id}");
-                break;
-            case "添加到播放队列":
-                // TODO: 添加到播放队列
-                break;
-            case "添加到歌单":
-                // TODO: 添加到歌单
-                break;
-            case "下载到本地":
-                await DownloadSongAsync(song);
-                break;
         }
     }
 

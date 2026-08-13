@@ -3,7 +3,7 @@ using Microsoft.Maui.Controls.Shapes;
 namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
-/// 上下文菜单下拉弹层：全窗透明遮罩 + 在指定坐标处弹出的圆角卡片（带轻微缩放淡入）。
+/// 上下文菜单下拉弹层：全窗透明遮罩 + 在指定坐标处弹出的圆角卡片。
 /// 用于歌曲行长按（Android）/右键（Windows）的右键菜单式下拉菜单，与 AppPopup 的居中弹窗不同：
 /// 菜单位置跟随手指/鼠标按下点，超出边界时自动收缩进可视区域。
 /// </summary>
@@ -81,24 +81,13 @@ public class ContextMenuPopup : ContentView
 
         ClampAndPosition(x, y);
 
+        // 立即可见，不依赖动画：弹层是打开时新建的，首次布局前可能尚无平台 Handler，
+        // FadeTo/ScaleTo 此时会抛异常（被吞掉后卡片停留在 Opacity=0 永久不可见）。
+        _card.Opacity = 1;
+        _card.Scale = 1;
+        this.Opacity = 1;
         this.InputTransparent = false;
         this.IsVisible = true;
-        this.Opacity = 1;
-
-        _mask.Opacity = 0;
-        _card.Opacity = 0;
-        _card.Scale = 0.92;
-
-        MainThread.BeginInvokeOnMainThread(async () =>
-        {
-            try
-            {
-                await Task.WhenAll(
-                    _card.FadeTo(1, 140, Easing.CubicOut),
-                    _card.ScaleTo(1, 140, Easing.CubicOut));
-            }
-            catch { }
-        });
     }
 
     /// <summary>内容变化（如进入"添加到歌单"子视图）后重新测量并按原边界收缩定位。</summary>
@@ -110,21 +99,23 @@ public class ContextMenuPopup : ContentView
 
     private void ClampAndPosition(double x, double y)
     {
+        double w = CardWidth;
+        double h = 280; // 估算兜底：主菜单 5 项
         try
         {
             _card.Measure(double.PositiveInfinity, double.PositiveInfinity);
-            var w = Math.Min(CardWidth, _card.DesiredSize.Width);
-            var h = _card.DesiredSize.Height;
-            var maxX = Math.Max(EdgeMargin, _maxWidth - w - EdgeMargin);
-            var maxY = Math.Max(EdgeMargin, _maxHeight - h - EdgeMargin);
-            _card.TranslationX = Math.Clamp(x + 4, EdgeMargin, maxX);
-            _card.TranslationY = Math.Clamp(y + 8, EdgeMargin, maxY);
+            if (_card.DesiredSize.Width > 0) w = Math.Min(CardWidth, _card.DesiredSize.Width);
+            if (_card.DesiredSize.Height > 0) h = _card.DesiredSize.Height;
         }
-        catch
-        {
-            _card.TranslationX = x;
-            _card.TranslationY = y;
-        }
+        catch { }
+
+        if (double.IsNaN(x) || double.IsInfinity(x)) x = EdgeMargin;
+        if (double.IsNaN(y) || double.IsInfinity(y)) y = EdgeMargin;
+
+        var maxX = Math.Max(EdgeMargin, _maxWidth - w - EdgeMargin);
+        var maxY = Math.Max(EdgeMargin, _maxHeight - h - EdgeMargin);
+        _card.TranslationX = Math.Clamp(x + 4, EdgeMargin, maxX);
+        _card.TranslationY = Math.Clamp(y + 8, EdgeMargin, maxY);
     }
 
     /// <summary>关闭菜单（淡出后隐藏并触发 <see cref="Closed"/>）。</summary>

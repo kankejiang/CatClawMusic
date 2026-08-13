@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
@@ -15,7 +16,7 @@ namespace CatClawMusic.Maui.Pages;
 /// sidebar playlists, top command-bar search, keyboard shortcuts, responsive sidebar,
 /// and right-click context menus (replacing mobile swipe gestures).
 /// </summary>
-public partial class DesktopMainPage : ContentPage
+public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
 {
     private readonly NowPlayingViewModel _npVm;
     private readonly IServiceProvider _services;
@@ -51,6 +52,16 @@ public partial class DesktopMainPage : ContentPage
 
     /// <summary>窗口级根网格（全窗覆盖层宿主：弹窗临时挂载于此可覆盖侧栏/播放条，不受 ContentArea 裁剪影响）。</summary>
     public Grid WindowRoot => RootGrid;
+
+    /// <summary>
+    /// 歌曲上下文菜单宿主转发：嵌入子页面的 Content 被摘出后，行父链走不到子页面，
+    /// 只能走到本壳页面——这里转发给当前嵌入的子页面。
+    /// </summary>
+    public void ShowSongMenu(Song song, View row, Point position)
+    {
+        if (_embeddedSubPage is ISongContextMenuHost host)
+            host.ShowSongMenu(song, row, position);
+    }
 
     public DesktopMainPage(NowPlayingViewModel npVm, IServiceProvider services)
     {

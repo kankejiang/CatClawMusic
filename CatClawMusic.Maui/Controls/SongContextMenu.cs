@@ -39,6 +39,9 @@ public sealed record SongMenuActions
 
     /// <summary>把歌曲加入指定歌单（参数为歌单 Id）</summary>
     public Func<int, Task>? AddSongToPlaylist { get; init; }
+
+    /// <summary>下载到本地（网络歌曲）；为 null 时隐藏该项</summary>
+    public Func<Task>? Download { get; init; }
 }
 
 /// <summary>
@@ -84,11 +87,12 @@ public static class SongContextMenu
         }
         catch (Exception ex)
         {
-            Log.Debug("SongContextMenu", $"[SongContextMenu] ShowAt 失败: {ex.Message}");
+            Log.Debug("SongContextMenu", $"[SongContextMenu] ShowAt 失败: {ex}");
+            Toast($"菜单打开失败：{ex.Message}");
         }
     }
 
-    /// <summary>构建主菜单（播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息）。</summary>
+    /// <summary>构建主菜单（播放 / 下一首播放 / 收藏 / 添加到歌单 / [下载到本地] / 歌曲信息）。</summary>
     private static void BuildMainMenu(ContextMenuPopup popup, Song song, SongMenuActions actions)
     {
         popup.ClearContent();
@@ -108,6 +112,14 @@ public static class SongContextMenu
             if (actions.ToggleFavorite != null) await actions.ToggleFavorite();
         }));
         popup.AddContent(CreateRow("＋", "添加到歌单", () => ShowPlaylistPicker(popup, song, actions)));
+        if (actions.Download != null)
+        {
+            popup.AddContent(CreateRow("↓", "下载到本地", async () =>
+            {
+                await popup.CloseAsync();
+                await actions.Download();
+            }));
+        }
         popup.AddContent(CreateRow("ℹ", "歌曲信息", async () =>
         {
             await popup.CloseAsync();
@@ -229,78 +241,6 @@ public static class SongContextMenu
             Log.Debug("SongContextMenu", $"[SongContextMenu] 加入歌单失败: {ex.Message}");
             await popup.CloseAsync();
         }
-    }
-
-    /// <summary>
-    /// 将弹窗临时挂载到窗口级根网格（Windows 的 DesktopBlankPage / 横屏的 DesktopMainPage）打开：
-    /// 页面被嵌入 ContentArea/MainArea 且设置了 IsClippedToBounds，页面内弹窗会被裁剪、并被后声明的
-    /// 底部播放条压在下面；挂到窗口根后弹窗才真正处于最上层。关闭后自动归还原父容器。
-    /// 竖屏 Shell 导航（页面即窗口顶层）时宿主解析为空，保持页面内原位弹出。
-    /// </summary>
-    public static void OpenAtTop(AppPopup popup)
-    {
-        var host = ResolveWindowRoot();
-        var originalParent = popup.Parent as Layout;
-
-        if (host == null || ReferenceEquals(host, popup.Parent))
-        {
-            popup.Open();
-            return;
-        }
-
-        var origRow = Grid.GetRow(popup);
-        var origRowSpan = Grid.GetRowSpan(popup);
-        var origColumn = Grid.GetColumn(popup);
-        var origColumnSpan = Grid.GetColumnSpan(popup);
-        var reparented = false;
-
-        try
-        {
-            originalParent?.Children.Remove(popup);
-            if (!ReferenceEquals(popup.Parent, host))
-            {
-                // 覆盖整个窗口根网格，避免落入左上角单元格（如侧栏列）
-                Grid.SetRow(popup, 0);
-                Grid.SetRowSpan(popup, Math.Max(1, ((Grid)host).RowDefinitions.Count));
-                Grid.SetColumn(popup, 0);
-                Grid.SetColumnSpan(popup, Math.Max(1, ((Grid)host).ColumnDefinitions.Count));
-                host.Children.Add(popup);
-                reparented = true;
-            }
-        }
-        catch
-        {
-            reparented = false;
-        }
-
-        EventHandler? restore = null;
-        restore = (_, _) =>
-        {
-            popup.Closed -= restore;
-            try
-            {
-                if (reparented && popup.Parent is Layout current && !ReferenceEquals(current, originalParent))
-                    current.Children.Remove(popup);
-                Grid.SetRow(popup, origRow);
-                Grid.SetRowSpan(popup, origRowSpan);
-                Grid.SetColumn(popup, origColumn);
-                Grid.SetColumnSpan(popup, origColumnSpan);
-                if (originalParent != null && !ReferenceEquals(popup.Parent, originalParent))
-                    originalParent.Children.Add(popup);
-            }
-            catch { }
-        };
-        popup.Closed += restore;
-
-        popup.Open();
-
-        // 按宿主实际高度居中（非全屏窗口时用屏幕高度会导致卡片偏下/被裁）
-        try
-        {
-            if (reparented && host is { } grid && grid.Height > 0)
-                popup.HeightRequest = grid.Height;
-        }
-        catch { }
     }
 
     /// <summary>解析窗口级根网格宿主；竖屏 Shell 模式（页面即顶层）返回 null。</summary>

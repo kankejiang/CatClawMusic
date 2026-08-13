@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
@@ -14,7 +15,7 @@ namespace CatClawMusic.Maui.Pages;
 /// 拖动区 = 左侧导航区整条 + 顶部标题栏。
 /// 首页：默认 tab = 发现页（DesktopDiscoverPage，嵌入 MainArea）。
 /// </summary>
-public partial class DesktopBlankPage : ContentPage
+public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 {
     private readonly NowPlayingViewModel _npVm;
     private readonly IServiceProvider _services;
@@ -38,6 +39,19 @@ public partial class DesktopBlankPage : ContentPage
 
     /// <summary>窗口级根网格（全窗覆盖层宿主：弹窗临时挂载于此可覆盖标题栏/播放条，不受 MainArea 裁剪影响）。</summary>
     public Grid WindowRoot => BlankRoot;
+
+    /// <summary>当前嵌入 MainArea 的子页面（OpenEmbeddedPage 打开、SwitchTab/关闭时清空）。</summary>
+    private ContentPage? _embeddedPage;
+
+    /// <summary>
+    /// 歌曲上下文菜单宿主转发：嵌入子页面的 Content 被摘出后，行父链走不到子页面，
+    /// 只能走到本壳页面——这里转发给当前嵌入的子页面。
+    /// </summary>
+    public void ShowSongMenu(Song song, View row, Point position)
+    {
+        if (_embeddedPage is ISongContextMenuHost host)
+            host.ShowSongMenu(song, row, position);
+    }
 
     public DesktopBlankPage(NowPlayingViewModel npVm, IServiceProvider services)
     {
@@ -122,6 +136,7 @@ public partial class DesktopBlankPage : ContentPage
         if (_pageHostCache.TryGetValue(_currentTab, out var oldHost))
             InvokeLifecycle(oldHost, "OnDisappearing");
 
+        _embeddedPage = null;
         _currentTab = tab;
         UpdateNavHighlight();
 
@@ -339,6 +354,7 @@ public partial class DesktopBlankPage : ContentPage
 
             MainArea.Children.Clear();
             MainArea.Children.Add(content);
+            _embeddedPage = page;
 
             InvokeLifecycle(page, "OnAppearing");
         }
