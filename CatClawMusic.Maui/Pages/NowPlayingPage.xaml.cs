@@ -23,6 +23,10 @@ public partial class NowPlayingPage : ContentPage
     private readonly List<Border> _lyricBorders = new();
     private int _lastHighlightIndex = -1;
 
+    /// <summary>歌词表面可见性令牌：页面可见期间持有，Disappearing 时释放，
+    /// 驱动 AudioPlayerService 位置定时器的 60fps ↔ 5Hz 自适应降频。</summary>
+    private IDisposable? _playerSurfaceToken;
+
     // 竖屏歌词滚动（复刻 Windows）：自绘静态堆叠 + 整体平移 TranslationY。
     // _lyricRowViews = 每行根视图（Border 或 含译文的 VerticalStackLayout）；
     // _lyricRowTops = 实测行高累加锚点表；滚动目标 = 当前行中心恒钉在裁剪区 1/3 处。
@@ -400,6 +404,8 @@ public partial class NowPlayingPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        // 标记歌词表面可见 → AudioPlayerService 位置定时器切到 60fps（逐字歌词平滑着色）
+        _playerSurfaceToken ??= Services.PlayerSurfaceTracker.Acquire();
         TagPlayerCoverViews();
         CrashReporter.MarkStage("NowPlayingPage.OnAppearing: 开始");
 #if WINDOWS
@@ -453,6 +459,9 @@ public partial class NowPlayingPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        // 歌词表面不再可见 → 位置定时器降频到 5Hz，把主线程让给当前页面
+        _playerSurfaceToken?.Dispose();
+        _playerSurfaceToken = null;
         Application.Current!.RequestedThemeChanged -= OnThemeChanged;
     }
 

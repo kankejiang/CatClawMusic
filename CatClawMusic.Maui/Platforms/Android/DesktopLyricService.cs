@@ -46,6 +46,10 @@ public class DesktopLyricService : IDesktopLyricService
     /// <summary>桌面歌词是否正在显示</summary>
     public bool IsShowing { get; private set; }
 
+    /// <summary>歌词表面可见性令牌：悬浮歌词显示期间持有（Hide 时释放），
+    /// 让 AudioPlayerService 位置定时器保持 60fps，保证悬浮歌词逐字着色平滑。</summary>
+    private IDisposable? _surfaceToken;
+
     public void Show()
     {
         if (IsShowing) return;
@@ -85,6 +89,8 @@ public class DesktopLyricService : IDesktopLyricService
         {
             _windowManager!.AddView(_overlayView, _layoutParams);
             IsShowing = true;
+            // 悬浮歌词可见：保持 60fps 位置更新，逐字着色平滑
+            _surfaceToken ??= CatClawMusic.Maui.Services.PlayerSurfaceTracker.Acquire();
             // 如果设置中已锁定，立即应用锁定状态（隐藏按钮 + 触摸穿透）
             if (_locked) ApplyLockState();
             ALog.Info(Tag, "Show() success: overlay view added to WindowManager");
@@ -126,6 +132,9 @@ public class DesktopLyricService : IDesktopLyricService
         _scrollView = null;
         _lockButton = null;
         IsShowing = false;
+        // 悬浮歌词隐藏：释放可见性令牌，位置定时器回到自适应降频
+        _surfaceToken?.Dispose();
+        _surfaceToken = null;
     }
 
     public void UpdateLyric(string? text)

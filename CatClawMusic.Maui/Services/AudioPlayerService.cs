@@ -126,8 +126,22 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     /// <summary>构造函数，初始化平台原生播放器</summary>
     public AudioPlayerService()
     {
+        // 歌词表面可见性变化时重启位置定时器（60fps ↔ 5Hz 自适应），
+        // 仅 Android 需要：Windows 端定时器不随页面可见性降频。
+#if ANDROID
+        PlayerSurfaceTracker.VisibilityChanged += OnPlayerSurfaceVisibilityChanged;
+#endif
         InitializePlatform();
     }
+
+#if ANDROID
+    /// <summary>歌词表面可见性变化：播放中则按新频率重启位置定时器</summary>
+    private void OnPlayerSurfaceVisibilityChanged()
+    {
+        if (_positionTimer != null)
+            StartPositionTimer();
+    }
+#endif
 
     /// <summary>异步初始化服务（占位实现，平台可在 partial 中扩展）</summary>
     public Task InitializeAsync()
@@ -223,16 +237,35 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>启动进度定时器，每 16ms 触发一次位置更新（约 60fps）。
+    /// <summary>歌词表面可见时的位置更新间隔（16ms ≈ 60fps，逐字歌词着色平滑）</summary>
+    private const int PositionIntervalVisibleMs = 16;
+
+    /// <summary>歌词表面不可见时的位置更新间隔（200ms = 5Hz）：
+    /// 迷你播放器进度条/时间显示足够平滑，同时避免浏览音乐库等页面时
+    /// 60Hz 位置事件风暴（跨线程回投 + 绑定求值 + 进度条重绘）拖慢整个 App。</summary>
+    private const int PositionIntervalHiddenMs = 200;
+
+    /// <summary>按当前歌词表面可见性计算位置更新间隔（仅 Android 自适应，其他平台恒定 60fps）。</summary>
+    private static int GetPositionIntervalMs()
+    {
+#if ANDROID
+        return PlayerSurfaceTracker.IsVisible ? PositionIntervalVisibleMs : PositionIntervalHiddenMs;
+#else
+        return PositionIntervalVisibleMs;
+#endif
+    }
+
+    /// <summary>启动进度定时器：歌词表面可见时 16ms 触发一次（约 60fps），
     /// 提升逐字歌词（Karaoke）着色帧率，使 FillProgress 平滑过渡而非 20fps 跳变。
-    /// 16ms 在主流设备上对进度条/歌词绑定求值开销可控，不影响播放页滑动流畅度。</summary>
+    /// 不可见时自动降频到 200ms（5Hz），把 CPU/主线程让给当前正在浏览的页面。</summary>
     internal void StartPositionTimer()
     {
         StopPositionTimer();
+        var interval = GetPositionIntervalMs();
 #if DEBUG
-        Log.Debug("AudioPlayerService", "[PositionTimer] Started");
+        Log.Debug("AudioPlayerService", $"[PositionTimer] Started ({interval}ms)");
 #endif
-        _positionTimer = new System.Threading.Timer(_positionCallback, this, 16, 16);
+        _positionTimer = new System.Threading.Timer(_positionCallback, this, interval, interval);
     }
 
     /// <summary>停止进度定时器并释放资源</summary>
@@ -266,6 +299,9 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+#if ANDROID
+        PlayerSurfaceTracker.VisibilityChanged -= OnPlayerSurfaceVisibilityChanged;
+#endif
         StopPositionTimer();
         DisposePlatform();
     }

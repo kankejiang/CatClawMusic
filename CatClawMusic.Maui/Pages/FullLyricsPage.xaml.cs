@@ -24,6 +24,10 @@ public partial class FullLyricsPage : ContentPage
     private int _lastCoverSize;
     private readonly LyricsSettingsService _settings = LyricsSettingsService.Instance;
 
+    /// <summary>歌词表面可见性令牌：页面可见期间持有，Disappearing 时释放，
+    /// 驱动 AudioPlayerService 位置定时器的 60fps ↔ 5Hz 自适应降频。</summary>
+    private IDisposable? _playerSurfaceToken;
+
     // 滚动歌词（复刻 Windows）：自绘静态堆叠 + 整体平移 TranslationY。
     // 行视图/锚点/裁剪区高度按横竖屏各一套，Active* 抽象统一访问。
     private readonly List<View> _lyricRowViews = new();
@@ -491,6 +495,8 @@ public partial class FullLyricsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        // 标记歌词表面可见 → AudioPlayerService 位置定时器切到 60fps（逐字歌词平滑着色）
+        _playerSurfaceToken ??= Services.PlayerSurfaceTracker.Acquire();
 #if WINDOWS
         Shell.SetNavBarIsVisible(this, false);
 #endif
@@ -519,6 +525,9 @@ public partial class FullLyricsPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        // 歌词表面不再可见 → 位置定时器降频到 5Hz，把主线程让给当前页面
+        _playerSurfaceToken?.Dispose();
+        _playerSurfaceToken = null;
         Application.Current!.RequestedThemeChanged -= OnThemeChanged;
     }
 
