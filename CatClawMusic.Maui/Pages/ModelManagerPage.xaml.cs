@@ -179,7 +179,22 @@ public partial class ModelManagerPage : ContentPage
     {
         if (sender is Button btn && btn.CommandParameter is string name)
         {
-            DesktopNavigation.GoOrEmbed($"settings/modeledit?id={Uri.EscapeDataString(name)}", typeof(ModelEditPage));
+            // Shell 环境（Android）：带 id 导航，QueryProperty 注入配置名
+            if (DesktopNavigation.TryGoToShell($"settings/modeledit?id={Uri.EscapeDataString(name)}"))
+                return;
+
+            // 桌面无 Shell：GoOrEmbed 无法传递 query 参数（会丢 id 变成新建模式），
+            // 手动创建页面并直接注入 ConfigId（OnAppearing 时按 _originalName 加载现有配置）
+            try
+            {
+                var page = MauiProgram.Services.GetRequiredService<ModelEditPage>();
+                page.ConfigId = name;
+                DesktopNavigation.OpenEmbedded(page, hideBack: false);
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("ModelManagerPage", $"[ModelManager] 打开编辑页失败: {ex.Message}");
+            }
         }
     }
 

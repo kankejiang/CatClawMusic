@@ -67,6 +67,9 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("desktoplyric", typeof(Pages.DesktopLyricPage));
         Routing.RegisterRoute("modelmanager", typeof(Pages.ModelManagerPage));
         Routing.RegisterRoute("modeledit", typeof(Pages.ModelEditPage));
+        // 设置 Tab 子页面别名：AI 设置页/模型管理页按 "settings/xxx" 约定导航
+        Routing.RegisterRoute("settings/modelmanager", typeof(Pages.ModelManagerPage));
+        Routing.RegisterRoute("settings/modeledit", typeof(Pages.ModelEditPage));
 
         // 兼容旧路由调用
         Routing.RegisterRoute("appearancesettings", typeof(Pages.AppearanceSettingsPage));
