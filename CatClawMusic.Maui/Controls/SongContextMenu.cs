@@ -76,7 +76,91 @@ public static class SongContextMenu
         }));
 
         popup.AddContent(menu);
+        OpenAtTop(popup);
+    }
+
+    /// <summary>
+    /// 将弹窗临时挂载到窗口级根网格（Windows 的 DesktopBlankPage / 横屏的 DesktopMainPage）打开：
+    /// 页面被嵌入 ContentArea/MainArea 且设置了 IsClippedToBounds，页面内弹窗会被裁剪、并被后声明的
+    /// 底部播放条压在下面；挂到窗口根后弹窗才真正处于最上层。关闭后自动归还原父容器。
+    /// 竖屏 Shell 导航（页面即窗口顶层）时宿主解析为空，保持页面内原位弹出。
+    /// </summary>
+    public static void OpenAtTop(AppPopup popup)
+    {
+        var host = ResolveWindowRoot();
+        var originalParent = popup.Parent as Layout;
+
+        if (host == null || ReferenceEquals(host, popup.Parent))
+        {
+            popup.Open();
+            return;
+        }
+
+        var origRow = Grid.GetRow(popup);
+        var origRowSpan = Grid.GetRowSpan(popup);
+        var origColumn = Grid.GetColumn(popup);
+        var origColumnSpan = Grid.GetColumnSpan(popup);
+        var reparented = false;
+
+        try
+        {
+            originalParent?.Children.Remove(popup);
+            if (!ReferenceEquals(popup.Parent, host))
+            {
+                // 覆盖整个窗口根网格，避免落入左上角单元格（如侧栏列）
+                Grid.SetRow(popup, 0);
+                Grid.SetRowSpan(popup, Math.Max(1, ((Grid)host).RowDefinitions.Count));
+                Grid.SetColumn(popup, 0);
+                Grid.SetColumnSpan(popup, Math.Max(1, ((Grid)host).ColumnDefinitions.Count));
+                host.Children.Add(popup);
+                reparented = true;
+            }
+        }
+        catch
+        {
+            reparented = false;
+        }
+
+        EventHandler? restore = null;
+        restore = (_, _) =>
+        {
+            popup.Closed -= restore;
+            try
+            {
+                if (reparented && popup.Parent is Layout current && !ReferenceEquals(current, originalParent))
+                    current.Children.Remove(popup);
+                Grid.SetRow(popup, origRow);
+                Grid.SetRowSpan(popup, origRowSpan);
+                Grid.SetColumn(popup, origColumn);
+                Grid.SetColumnSpan(popup, origColumnSpan);
+                if (originalParent != null && !ReferenceEquals(popup.Parent, originalParent))
+                    originalParent.Children.Add(popup);
+            }
+            catch { }
+        };
+        popup.Closed += restore;
+
         popup.Open();
+
+        // 按宿主实际高度居中（非全屏窗口时用屏幕高度会导致卡片偏下/被裁）
+        try
+        {
+            if (reparented && host is { } grid && grid.Height > 0)
+                popup.HeightRequest = grid.Height;
+        }
+        catch { }
+    }
+
+    /// <summary>解析窗口级根网格宿主；竖屏 Shell 模式（页面即顶层）返回 null。</summary>
+    private static Layout? ResolveWindowRoot()
+    {
+#if WINDOWS
+        if (Pages.DesktopBlankPage.Instance?.WindowRoot is { } blankRoot)
+            return blankRoot;
+#endif
+        if (App.IsLandscapeMode() && Pages.DesktopMainPage.Instance?.WindowRoot is { } desktopRoot)
+            return desktopRoot;
+        return null;
     }
 
     /// <summary>"添加到歌单"子视图：列出用户歌单，点击即加入；支持返回主菜单。</summary>

@@ -39,6 +39,23 @@ public partial class AllSongsPage : ContentPage, ISongContextMenuHost
 
     // === 事件处理 ===
 
+    /// <summary>
+    /// 歌曲行加载完成（Windows）：为行挂载右键 PointerGestureRecognizer。
+    /// 不在 XAML 中声明——Android 上行的直接手势识别器会让 MAUI 安装 OnTouchListener
+    /// 消费 ACTION_DOWN，绕过 View.onTouchEvent，导致原生长按检测失效。
+    /// </summary>
+    private void OnRowLoaded(object? sender, EventArgs e)
+    {
+#if WINDOWS
+        if (sender is not View row) return;
+        if (row.GestureRecognizers.OfType<PointerGestureRecognizer>().Any()) return;
+
+        var pointer = new PointerGestureRecognizer();
+        pointer.PointerPressed += OnRowPointerPressed;
+        row.GestureRecognizers.Add(pointer);
+#endif
+    }
+
     /// <summary>歌曲行右键（Windows）触发：仅响应右键，经识别器所在行取 Song 弹出上下文菜单。</summary>
     private void OnRowPointerPressed(object? sender, PointerEventArgs e)
     {

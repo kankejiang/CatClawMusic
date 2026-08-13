@@ -49,6 +49,9 @@ public partial class DesktopMainPage : ContentPage
     /// <summary>全局实例，供嵌入的子页面（如 SearchPage）请求切换 tab</summary>
     public static DesktopMainPage? Instance { get; private set; }
 
+    /// <summary>窗口级根网格（全窗覆盖层宿主：弹窗临时挂载于此可覆盖侧栏/播放条，不受 ContentArea 裁剪影响）。</summary>
+    public Grid WindowRoot => RootGrid;
+
     public DesktopMainPage(NowPlayingViewModel npVm, IServiceProvider services)
     {
         InitializeComponent();

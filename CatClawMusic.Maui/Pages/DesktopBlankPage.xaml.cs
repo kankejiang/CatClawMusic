@@ -36,6 +36,9 @@ public partial class DesktopBlankPage : ContentPage
     /// <summary>全局实例，供嵌入的子页面（如 SearchPage）请求切换 tab</summary>
     public static DesktopBlankPage? Instance { get; private set; }
 
+    /// <summary>窗口级根网格（全窗覆盖层宿主：弹窗临时挂载于此可覆盖标题栏/播放条，不受 MainArea 裁剪影响）。</summary>
+    public Grid WindowRoot => BlankRoot;
+
     public DesktopBlankPage(NowPlayingViewModel npVm, IServiceProvider services)
     {
         InitializeComponent();
