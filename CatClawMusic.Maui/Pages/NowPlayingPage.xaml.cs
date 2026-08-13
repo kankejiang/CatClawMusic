@@ -523,10 +523,8 @@ public partial class NowPlayingPage : ContentPage
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         var idx = _viewModel.CurrentLyricIndexObservable;
-                        if (_winFollow)
-                            HighlightWindowsLine(idx);
-                        else
-                            HighlightWindowsLineWithoutScroll(idx);
+                        // 恒为跟随模式：切行直接高亮 + 滚动跟随
+                        HighlightWindowsLine(idx);
                         // 切行瞬间立即同步新行的逐字进度（VM 已算好，无需等下一个 tick）
                         if (idx >= 0 && idx < _winRows.Count)
                         {

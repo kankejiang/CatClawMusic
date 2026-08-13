@@ -31,9 +31,6 @@ public partial class NowPlayingPage
     private double _winStackHeight;     // 整个 stack 高度
     private double _winClipHeight;      // 歌词裁剪区高度
     private int _winLastHighlight = -1;
-    private bool _winFollow = true;
-    private bool _winPanWired;
-    private double _winPanStartY;
     private double _winLastScrollHeight;   // 兼容字段（已被静态堆叠实测高度替代，无读取方）
     private int _winMeasureRetries;        // 行高测量重试计数（布局未就绪时补偿）
 
@@ -155,10 +152,9 @@ public partial class NowPlayingPage
         }
         catch { }
 
-        // 歌词构建（自绘静态堆叠 + 平移滚动）
+        // 歌词构建（自绘静态堆叠 + 跟随滚动；已禁用手动拖拽，歌词始终跟随播放）
         BuildWindowsLyricViews();
         ApplyWindowsLyricBackdrop();
-        WireWinLyricPanGesture();
 
         // EQ 动画
         UpdateWinEqAnimation();
@@ -349,9 +345,9 @@ public partial class NowPlayingPage
         _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
         {
             MeasureWinRows();
-            if (_winFollow)
-                ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
-                    ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
+            // 恒为跟随模式：测量完成后直接钉到当前行
+            ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
+                ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
         }));
 
         WinLog($"Build done: sourceLines={lines.Count} rows={_winRows.Count} baseSize={baseSize}");
@@ -391,7 +387,7 @@ public partial class NowPlayingPage
         ApplyWinRowGap(index, animate: true);
 
         ScrollToWindowsLine(index, animate: true);
-        WinLog($"Highlight idx={index}/{_winRows.Count} follow={_winFollow}");
+        WinLog($"Highlight idx={index}/{_winRows.Count}");
     }
 
     /// <summary>
@@ -583,9 +579,9 @@ public partial class NowPlayingPage
             _ = Task.Delay(120).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
             {
                 MeasureWinRows();
-                if (_winFollow)
-                    ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
-                        ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
+                // 恒为跟随模式：重测后直接钉到当前行
+                ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
+                    ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
             }));
         }
     }
@@ -619,41 +615,6 @@ public partial class NowPlayingPage
             FallbackColor = tint,
         };
         platform.Background = brush;
-    }
-
-    // ═══════════════════════════════════════
-    // 手动拖拽（用户拖动歌词 → 退出跟随、自由浏览）
-    // ═══════════════════════════════════════
-
-    /// <summary>给歌词裁剪区挂一个平移手势：用户拖动即退出跟随、手动浏览歌词。</summary>
-    private void WireWinLyricPanGesture()
-    {
-        if (_winPanWired) return;
-        _winPanWired = true;
-        var pan = new PanGestureRecognizer();
-        pan.PanUpdated += OnWinLyricPan;
-        WinLyricClip.GestureRecognizers.Add(pan);
-    }
-
-    private void OnWinLyricPan(object? sender, PanUpdatedEventArgs e)
-    {
-        if (e.StatusType == GestureStatus.Started)
-        {
-            WinLyricStack.CancelAnimations();
-            _winPanStartY = WinLyricStack.TranslationY;
-            if (_winFollow) SetWinFollow(false); // 拖动即退出跟随
-        }
-        else if (e.StatusType == GestureStatus.Running)
-        {
-            // 拖拽范围与自动滚动保持一致：允许把第 1 行拖到第 3 行位置（正向上界 = topGap），
-            // 也允许把最后一行拖到第 3 行位置（负向下界）。否则拖到首尾会被硬弹回，
-            // 与"当前行恒定钉在第 3 行"的观感不符。
-            double topGap = 2 * (_winRowHeight > 0 ? _winRowHeight : 1);
-            double lastTop = _winRowTops.Length > 0 ? _winRowTops[^1] : 0;
-            double minTranslate = topGap - lastTop;   // 末行钉到第 3 行时的平移量（负值）
-            var y = Math.Clamp(_winPanStartY + e.TotalY, Math.Min(minTranslate, topGap), topGap);
-            WinLyricStack.TranslationY = y;
-        }
     }
 
     private static void WinLog(string msg)
@@ -844,23 +805,8 @@ public partial class NowPlayingPage
     }
 
     // ═══════════════════════════════════════
-    // 歌词跟随（默认跟随；用户拖动歌词行时自动退出跟随，不再有手动切换按钮）
+    // 歌词跟随（恒为跟随模式：已禁用手动拖拽，歌词始终自动跟随播放）
     // ═══════════════════════════════════════
-
-    /// <summary>切换歌词跟随模式，并同步按钮外观；重新开启时立即缓动回到当前行。</summary>
-    private void SetWinFollow(bool follow)
-    {
-        if (_winFollow == follow) return;
-        _winFollow = follow;
-
-        // 当前行滚动 = WinLyricStack.TranslationY 缓动平移（合成线程变换，不重排）。
-        // 重新跟随时从当前位移 tween 回当前行，无跳动。不再需要旧 CollectionView 的自动滚动定时器。
-        if (follow && _winRows.Count > 0 && _viewModel.CurrentLyricIndexObservable >= 0)
-        {
-            HighlightWindowsLine(_viewModel.CurrentLyricIndexObservable);
-        }
-        // follow=false 时无需停任何定时器（平移由手势直接驱动，跟随由切句时 HighlightWindowsLine 驱动）。
-    }
 
     // ═══════════════════════════════════════
     // 音量与静音
