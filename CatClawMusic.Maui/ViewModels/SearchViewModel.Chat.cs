@@ -204,7 +204,8 @@ public partial class SearchViewModel
         {
             var response = await _agentService.SendMessageAsync(userMessage, OnPartialMessage);
 
-            // 思考完成：填充回复内容、移除占位步骤、自动折叠
+            // 思考完成：填充回复内容、移除占位步骤。
+            // 推理过程保持展开（用户要求展开在对话里），发送新消息时才自动折叠上一条
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 assistantMsg.Content = BuildAssistantMessage(response);
@@ -214,8 +215,6 @@ public partial class SearchViewModel
                 // 移除"正在思考"占位项（如果有工具调用，工具步骤已追加在后面，只移除第一项占位）
                 if (assistantMsg.ThinkingSteps.Count > 0 && assistantMsg.ThinkingSteps[0].StartsWith("💭"))
                     assistantMsg.ThinkingSteps.RemoveAt(0);
-                // 自动折叠
-                assistantMsg.IsThinkingExpanded = false;
             });
 
             _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
