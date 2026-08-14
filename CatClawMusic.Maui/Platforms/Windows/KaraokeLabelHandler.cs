@@ -24,6 +24,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
     private string _layoutText = "";
     private float _layoutFontSize = -1;
     private bool _layoutBold;
+    private CanvasHorizontalAlignment _layoutAlign = CanvasHorizontalAlignment.Left;
     private float _layoutMaxWidth = -1;
     /// <summary>最近一次布局的宽度约束：OnDraw 必须与布局用同一换行宽度，
     /// 否则（ActualWidth 与约束的浮点差异）会把最后一个字 Wrap 到第二行被裁剪。</summary>
@@ -109,33 +110,42 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
         }
     }
 
-    /// <summary>按文本/字号/粗体/最大宽度创建（或复用）文本布局。Win2D 坐标均为 DIP。</summary>
+    /// <summary>按文本/字号/粗体/对齐/最大宽度创建（或复用）文本布局。Win2D 坐标均为 DIP。
+    /// 对齐由 CanvasTextLayout 内部完成（标签恒为满宽，layout maxWidth = 控件宽，坐标系一致）：
+    /// 左/中/右对齐时 Win2D 在 layout 内按 maxWidth 对齐文本，与 Android StaticLayout 行为一致。
+    /// 已唱填充的裁剪起点用 LayoutBounds.X（文本实际左缘，含对齐偏移），见 OnDraw。</summary>
     private CanvasTextLayout EnsureLayout(float maxWidth)
     {
         var view = VirtualView;
         var text = view.Text ?? "";
         var size = (float)view.FontSize;
         var bold = view.FontAttributes.HasFlag(FontAttributes.Bold);
+        var align = view.HorizontalTextAlignment switch
+        {
+            TextAlignment.Start => CanvasHorizontalAlignment.Left,
+            TextAlignment.End => CanvasHorizontalAlignment.Right,
+            _ => CanvasHorizontalAlignment.Center
+        };
 
         if (_layout != null && _layoutText == text && Math.Abs(_layoutFontSize - size) < 0.01f
-            && _layoutBold == bold && Math.Abs(_layoutMaxWidth - maxWidth) < 0.5f)
+            && _layoutBold == bold && _layoutAlign == align
+            && Math.Abs(_layoutMaxWidth - maxWidth) < 0.5f)
             return _layout;
 
         _layout?.Dispose();
-        // 布局内部**恒用左对齐**：Win2D 的 HorizontalAlignment 是按 maxWidth 计算对齐的，
-        // 与控件实际渲染宽度不一致时，居中/居右会被整体右移出可视区。
-        // 真正的对齐偏移在 OnDraw 里用控件实际宽手动计算（见 alignX），彻底避免该错位。
         var format = new CanvasTextFormat
         {
             FontSize = size,
             FontWeight = new global::Windows.UI.Text.FontWeight(bold ? (ushort)700 : (ushort)400),
             WordWrapping = CanvasWordWrapping.Wrap,
-            HorizontalAlignment = CanvasHorizontalAlignment.Left,
-        };        _layout = new CanvasTextLayout(
+            HorizontalAlignment = align,
+        };
+        _layout = new CanvasTextLayout(
             CanvasDevice.GetSharedDevice(), text, format, maxWidth, 0);
         _layoutText = text;
         _layoutFontSize = size;
         _layoutBold = bold;
+        _layoutAlign = align;
         _layoutMaxWidth = maxWidth;
         return _layout;
     }
@@ -180,24 +190,12 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             var padTop = (float)view.Padding.Top;
             var layoutW = (float)layout.LayoutBounds.Width;
             var layoutH = (float)layout.LayoutBounds.Height;
-
-            // 水平对齐偏移：文字宽 < 控件宽（控件通常被外层设为满宽）时，
-            // 按 HorizontalTextAlignment 把文字整体偏移到居中/居右位置；
-            // 文字充满控件宽（换行铺满）时偏移为 0。与 Android StaticLayout 对齐行为一致。
-            var availableW = controlW - padLeft - (float)view.Padding.Right;
-            var alignX = 0f;
-            switch (view.HorizontalTextAlignment)
-            {
-                case TextAlignment.Center:
-                    alignX = Math.Max(0, (availableW - layoutW) / 2f);
-                    break;
-                case TextAlignment.End:
-                    alignX = Math.Max(0, availableW - layoutW);
-                    break;
-            }
+            // 文本实际左缘（相对 layout 原点）：左对齐=0；居中/居右时 Win2D 在 maxWidth
+            // 内对齐文本 → LayoutBounds.X 给出对齐偏移。已唱填充与裁剪都从该左缘开始。
+            var textLeft = (float)layout.LayoutBounds.X;
 
             // 1. 未唱色整行
-            ds.DrawTextLayout(layout, padLeft + alignX, padTop, ToWColor(empty));
+            ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(empty));
 
             // 2. 已唱色按进度从左到右裁剪（与 Android ClipRect 同构）。
             //    Win2D 1.3.2 裁剪用 CreateLayer(float, CanvasGeometry)：
@@ -207,10 +205,10 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
                 var fillX = (float)Math.Min(progress * layoutW, layoutW);
                 using (var clipGeom = Microsoft.Graphics.Canvas.Geometry.CanvasGeometry.CreateRectangle(
                     CanvasDevice.GetSharedDevice(),
-                    new global::Windows.Foundation.Rect(padLeft + alignX, padTop, fillX, layoutH)))
+                    new global::Windows.Foundation.Rect(padLeft + textLeft, padTop, fillX, layoutH)))
                 using (var layer = ds.CreateLayer(1.0f, clipGeom))
                 {
-                    ds.DrawTextLayout(layout, padLeft + alignX, padTop, ToWColor(filled));
+                    ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(filled));
                 }
             }
         }
