@@ -113,8 +113,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                 }
             }
 
-            // 所有退回都失败，抛出原始异常
-            throw;
+            // 所有退回都失败：抛出聚合异常，明确说明主模型与备用模型均被尝试，
+            // 便于上层提示与日志排查（否则只抛主模型异常，无法确认备用是否被尝试过）
+            throw new InvalidOperationException(
+                $"主模型 {config.Name} 及 {fallbacks.Count} 个备用模型均调用失败，最后错误: {primaryEx.Message}",
+                primaryEx);
         }
     }
 
