@@ -215,7 +215,7 @@ public partial class SearchViewModel
         try { if (File.Exists(_aiCacheFilePath)) File.Delete(_aiCacheFilePath); } catch { }
     }
 
-    /// <summary>AI 推荐开关切换时：持久化并重新生成 Hero 卡</summary>
+    /// <summary>AI 推荐开关切换时：持久化、重建 Hero 卡、刷新 AI 歌单可见性并准备歌单数据</summary>
     partial void OnIsAiRecommendationEnabledChanged(bool value)
     {
         Preferences.Default.Set("ai_recommendation_enabled", value);
@@ -223,6 +223,11 @@ public partial class SearchViewModel
         {
             GenerateHeroCards();
         }
+        // AI 歌单区可见性跟随开关；开启时准备当天歌单数据
+        OnPropertyChanged(nameof(IsAiPlaylistsVisible));
+        OnPropertyChanged(nameof(IsAiPlaylistsSectionVisible));
+        if (value)
+            _ = EnsureDailyAiPlaylistsAsync();
     }
 
     /// <summary>刷新数据</summary>

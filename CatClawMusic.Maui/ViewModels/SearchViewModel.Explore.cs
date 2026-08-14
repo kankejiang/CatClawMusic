@@ -175,6 +175,8 @@ public partial class SearchViewModel
     public async Task LoadExploreDataAsync()
     {
         await LoadDataAsync();
+        // 后台准备当天 AI 歌单（每天一次；未开启智能推荐/未配置模型时自动跳过）
+        _ = EnsureDailyAiPlaylistsAsync();
     }
 
     /// <summary>
@@ -231,6 +233,7 @@ public partial class SearchViewModel
         {
             _exploreDataService.InvalidateDailyRecommendCache();
             InvalidateAiCache();
+            InvalidateAiPlaylistsCache();
             Services.CoverHelper.ClearCache();
             Preferences.Default.Remove("explore_last_load_date");
 
@@ -245,6 +248,9 @@ public partial class SearchViewModel
             ApplyFilters();
 
             await LoadDataAsync();
+
+            // 扫描后数据已刷新：重新准备当天 AI 歌单（缓存已失效，重新生成）
+            _ = EnsureDailyAiPlaylistsAsync();
         }
         catch (Exception ex)
         {

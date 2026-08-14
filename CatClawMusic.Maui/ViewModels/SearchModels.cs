@@ -89,6 +89,43 @@ public class AiRecCache
     public List<AiRecItem> Items { get; set; } = new();
 }
 
+/// <summary>AI 生成的主题歌单（每个含若干歌曲与推荐理由，由 AI 每天生成一次）。</summary>
+public class AiPlaylist
+{
+    /// <summary>歌单名</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    /// <summary>推荐理由</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("reason")]
+    public string Reason { get; set; } = "";
+
+    /// <summary>歌单内歌曲 ID（AI 返回，解析时按 ID 匹配本地曲库）</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("song_ids")]
+    public List<int> SongIds { get; set; } = new();
+
+    /// <summary>解析后映射的本地歌曲（UI 使用，不落盘）</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<Song> Songs { get; set; } = new();
+
+    /// <summary>歌单封面：取第一首歌封面</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string CoverPath => Songs.FirstOrDefault()?.CoverArtPath ?? "";
+
+    /// <summary>副标题（卡片展示：歌曲数）</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string Subtitle => $"{Songs.Count} 首 · AI 主题歌单";
+}
+
+/// <summary>AI 歌单磁盘缓存（每天一份）</summary>
+public class AiPlaylistsCache
+{
+    /// <summary>缓存日期 "yyyy-MM-dd"</summary>
+    public string Date { get; set; } = "";
+    /// <summary>当天歌单列表</summary>
+    public List<AiPlaylist> Playlists { get; set; } = new();
+}
+
 public class HeroCardItem
 {
     /// <summary>标签</summary>

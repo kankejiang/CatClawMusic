@@ -324,6 +324,13 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             body["max_completion_tokens"] = config.MaxCompletionTokens;
         else if (config.MaxTokens > 0)
             body["max_tokens"] = config.MaxTokens;
+        else
+        {
+            // 未配置输出上限时按模型自动设置：大部分模型支持大输出（200k+ 上下文），
+            // 服务端会按各自实际上限截断，给大值安全；推理模型（DeepSeek 等）的
+            // reasoning_content 会占用大量 token，长输出场景需要更大的上限
+            body["max_tokens"] = GetDefaultMaxTokens(config.Model);
+        }
 
         // 核采样（仅在非默认值时发送，避免与服务端默认冲突）
         if (config.TopP > 0 && config.TopP < 1.0)
@@ -469,4 +476,17 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <returns>截断后的字符串</returns>
     private static string Truncate(string s, int maxLen) =>
         s.Length <= maxLen ? s : s[..maxLen] + "...";
+
+    /// <summary>
+    /// 未配置输出上限时按模型名自动选择默认 max_tokens（服务端会按实际上限截断，给大值安全）。
+    /// 规则：已知小上限模型（DeepSeek 系列输出上限 ~8K，且推理 token 计入）取 8K；
+    /// 其余主流模型（Qwen/Kimi/GLM/GPT/Claude/Gemini 等，普遍 200k+ 上下文、大输出上限）取大默认值。
+    /// </summary>
+    private static int GetDefaultMaxTokens(string model)
+    {
+        var m = (model ?? "").ToLowerInvariant();
+        if (m.Contains("deepseek"))
+            return 8192;
+        return 65536;
+    }
 }

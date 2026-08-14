@@ -1,4 +1,4 @@
-using CatClawMusic.Core.Interfaces;
+﻿using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
@@ -176,13 +176,28 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     /// </summary>
     private void RebuildHeroTrack()
     {
-        HeroTrack.Children.Clear();
-        HeroTrack.Children.Add(CreateAiCardView());
-        foreach (var hero in _vm.HeroCards)
+        try
         {
-            HeroTrack.Children.Add(CreateHeroCardView(hero));
+            HeroTrack.Children.Clear();
+            HeroTrack.Children.Add(CreateAiCardView());
+            foreach (var hero in _vm.HeroCards)
+            {
+                try
+                {
+                    if (hero != null)
+                        HeroTrack.Children.Add(CreateHeroCardView(hero));
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("DesktopDiscoverPage.xaml", $"[HeroTrack] 英雄卡构建失败(跳过): {ex.Message}");
+                }
+            }
+            LayoutHeroCards();
         }
-        LayoutHeroCards();
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopDiscoverPage.xaml", $"[HeroTrack] 重建失败: {ex.Message}");
+        }
     }
 
     /// <summary>构建 AI 助手卡（方形，点击进入 AI 聊天模式）。</summary>
@@ -546,23 +561,37 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
         SubscribeEvents();
         _vm.GreetingText = CalculateGreeting();
 
         // 重建英雄卡区（AI 助手卡 + 英雄卡），数据未就绪时也保留 AI 入口
-        RebuildHeroTrack();
-        if (_vm.HeroCards.Count > 0)
+        try
         {
-            _heroTimer?.Start();
+            RebuildHeroTrack();
+            if (_vm.HeroCards.Count > 0)
+            {
+                _heroTimer?.Start();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopDiscoverPage.xaml", $"[OnAppearing] HeroTrack 初始化失败(继续): {ex.Message}");
         }
 
+        // 准备当天 AI 歌单（幂等：内部有会话级 loaded 标记；未开启/未配置模型时自动跳过）
+        _ = _vm.EnsureDailyAiPlaylistsAsync();
+
 #if WINDOWS
+
         // PC 端：将横向 CollectionView 的纵向滚轮事件转发给父级 ScrollView，
         // 解决"鼠标滚轮被横向内容截获、无法翻页"的问题
         FixHorizontalMouseWheelCapture();
 
+
         // PC 端：聊天消息列表（Rotation=180 翻转）滚轮方向反转，恢复自然滚动
         FixChatMouseWheelDirection();
+
 #endif
 
         if (LocalScanService.NeedsReload)
@@ -582,12 +611,26 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
         if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0)
         {
+            // 缓存命中早退：数据已在内存池（_allTopPlayedSongs 等）中，直接准备 AI 歌单
+
+            _ = _vm.EnsureDailyAiPlaylistsAsync();
             RefreshArrowVisibility();
             return;
         }
 
-        try { await _vm.LoadExploreDataAsync(); }
-        catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover OnAppearing: {ex.Message}"); }
+        try
+        {
+            await _vm.LoadExploreDataAsync();
+
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover OnAppearing: {ex.Message}");
+
+        }
+
+        // 数据加载完成后准备当天 AI 歌单（候选池已就绪）
+        _ = _vm.EnsureDailyAiPlaylistsAsync();
 
         RebuildHeroTrack();
         if (_vm.HeroCards.Count > 0)
@@ -803,6 +846,15 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         if (!list.Any(s => s.Id == song.Id))
             list.Insert(0, song);
         await PlaySongAsync(song, list);
+    }
+
+    /// <summary>AI 歌单卡片点击：以歌单内歌曲为播放队列，播放第一首。</summary>
+    private async void OnAiPlaylistTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not AiPlaylist playlist) return;
+        if (playlist.Songs.Count == 0) return;
+        var first = playlist.Songs[0];
+        await PlaySongAsync(first, playlist.Songs);
     }
 
     // === 搜索结果中的歌曲播放 ===
