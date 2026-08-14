@@ -453,6 +453,11 @@ public class AgentService : IAgentService
         // 累积推理模型每一轮的思考内容，最终附到回复上供 UI 思考区展示
         var reasoningBuilder = new System.Text.StringBuilder();
 
+        // 死循环检测：同一工具 + 相同参数连续调用 3 次 → 视为无效重试（如抓取反爬页面
+        // 反复失败），强制中断返回提示，避免白白耗尽轮次后报"步骤过多"
+        string? lastToolKey = null;
+        int lastToolRepeat = 0;
+
         for (int round = 0; round < maxToolRounds; round++)
         {
             LlmResponse response;
@@ -504,6 +509,29 @@ public class AgentService : IAgentService
             };
             _conversationHistory.Add(assistantToolCallMsg);
             onPartialMessage?.Invoke(assistantToolCallMsg);
+
+            // 死循环检测：本轮首个工具与上一轮完全相同（工具名+参数）则计数
+            var firstToolKey = response.ToolCalls.Count > 0
+                ? $"{response.ToolCalls[0].Function.Name}|{response.ToolCalls[0].Function.Arguments}"
+                : null;
+            if (firstToolKey != null && firstToolKey == lastToolKey)
+                lastToolRepeat++;
+            else
+            {
+                lastToolKey = firstToolKey;
+                lastToolRepeat = 1;
+            }
+            if (lastToolRepeat >= 3)
+            {
+                _logService.Warn("Agent", $"Agent 工具 {response.ToolCalls[0].Function.Name} 连续重复调用 3 次，判定死循环，中断");
+                var loopMsg = new ChatMessage
+                {
+                    Role = "assistant",
+                    Content = $"抱歉喵，{response.ToolCalls[0].Function.Name} 连续多次没有返回有效结果，我换个方式处理一下：{response.Content ?? "请稍后再试"}"
+                };
+                _conversationHistory.Add(loopMsg);
+                return loopMsg;
+            }
 
             foreach (var toolCall in response.ToolCalls)
             {

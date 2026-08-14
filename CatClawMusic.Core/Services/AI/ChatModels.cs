@@ -56,8 +56,9 @@ public static class AgentRunSettings
     /// <summary>配置存储键：推理力度（auto/disabled/high/max）</summary>
     public const string KeyReasoningEffort = "agent_reasoning_effort";
 
-    /// <summary>执行轮数上限默认值（0=不限）</summary>
-    public const int DefaultMaxToolRounds = 5;
+    /// <summary>执行轮数上限默认值（0=不限）。
+    /// 搜索→抓取等联网场景需要多轮（搜索+抓取+再搜索），5 轮偏紧容易误报"步骤过多"</summary>
+    public const int DefaultMaxToolRounds = 8;
     /// <summary>规划轮数上限默认值（0=不限）</summary>
     public const int DefaultMaxPlanRounds = 0;
     /// <summary>推理力度默认值</summary>
