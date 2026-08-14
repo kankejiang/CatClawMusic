@@ -5,6 +5,7 @@
              xmlns:viewmodels="clr-namespace:CatClawMusic.Maui.ViewModels"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              x:Class="CatClawMusic.Maui.Pages.BackupRestorePage"
+             x:Name="BackupRestorePageRoot"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[BackupRestore]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
@@ -119,7 +120,7 @@
                                         </VerticalStackLayout>
                                         <Button Grid.Column="1"
                                                 Text="恢复"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ShowRestoreOptionsCommand}"
+                                                Command="{Binding Source={x:Reference BackupRestorePageRoot}, Path=BindingContext.ShowRestoreOptionsCommand}"
                                                 CommandParameter="{Binding .}"
                                                 BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}"
                                                 TextColor="White"

@@ -81,6 +81,11 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         if (content != null)
             MainArea.Children.Add(content);
 
+        // 首次显示也要触发 OnAppearing（加载数据）：SwitchTab 只在点击导航时触发，
+        // 启动默认停在发现页时若不调用，页面数据/AI 歌单永远不会加载
+        if (_pageHostCache.TryGetValue(_currentTab, out var initialHost))
+            InvokeLifecycle(initialHost, "OnAppearing");
+
         _ = LoadPlaylistsAsync();
     }
 

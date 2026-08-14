@@ -391,9 +391,22 @@ public partial class BackupRestoreViewModel : ObservableObject
             return dir;
         }
 #else
-        var dir = Path.Combine(FileSystem.AppDataDirectory, "backups");
-        Directory.CreateDirectory(dir);
-        return dir;
+        // 桌面端（Windows）：备份放到「文档」目录下的 CatClawMusic\backups，方便用户查找；
+        // 获取文档目录失败时回退到应用私有目录
+        try
+        {
+            var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (!string.IsNullOrEmpty(documents))
+            {
+                var docDir = Path.Combine(documents, "CatClawMusic", "backups");
+                Directory.CreateDirectory(docDir);
+                return docDir;
+            }
+        }
+        catch { }
+        var fallbackDir = Path.Combine(FileSystem.AppDataDirectory, "backups");
+        Directory.CreateDirectory(fallbackDir);
+        return fallbackDir;
 #endif
     }
 
