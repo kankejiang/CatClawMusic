@@ -298,6 +298,7 @@ public static class MauiProgram
         services.AddSingleton<IAgentTool, DeletePlaylistTool>();
         services.AddSingleton<IAgentTool, PlaySongTool>();
         services.AddSingleton<IAgentTool, WebSearchTool>();
+        services.AddSingleton<IAgentTool, FetchWebPageTool>();
         services.AddSingleton<IAgentTool, ControlPlaybackTool>();
         services.AddSingleton<IAgentTool, GetCurrentSongTool>();
         services.AddSingleton<IAgentTool, GetPlayQueueTool>();

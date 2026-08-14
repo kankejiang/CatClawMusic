@@ -28,7 +28,7 @@ public class WebSearchTool : IAgentTool
     /// <summary>工具名称</summary>
     public string Name => "web_search";
     /// <summary>工具描述</summary>
-    public string Description => "在互联网上搜索信息，可以搜索新闻、知识、音乐资讯等内容。当用户询问实时信息、最新资讯或你不确定的知识时使用此工具。";
+    public string Description => "在互联网上搜索信息，返回标题、链接与摘要，可以搜索新闻、知识、音乐资讯等内容。当用户询问实时信息、最新资讯或你不确定的知识时使用此工具。找到需要深入了解的页面时，请继续用 fetch_web_page 工具抓取正文。";
 
     /// <summary>
     /// 构造 WebSearchTool 实例，初始化 HttpClient 并设置完整的浏览器请求头。
