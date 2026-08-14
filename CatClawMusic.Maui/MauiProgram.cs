@@ -299,6 +299,12 @@ public static class MauiProgram
         services.AddSingleton<IAgentTool, PlaySongTool>();
         services.AddSingleton<IAgentTool, WebSearchTool>();
         services.AddSingleton<IAgentTool, FetchWebPageTool>();
+        services.AddSingleton<IAgentTool, BrowserOpenTool>();
+        // Agent 浏览器：browser_open 工具经桥接控制内置浏览器页
+        var agentBrowserCoordinator = new Services.AgentBrowser.AgentBrowserCoordinator();
+        services.AddSingleton(agentBrowserCoordinator);
+        CatClawMusic.Core.Services.AI.AgentBrowserBridge.Navigator = (url, ct) =>
+            agentBrowserCoordinator.NavigateAndExtractAsync(url, ct);
         services.AddSingleton<IAgentTool, ControlPlaybackTool>();
         services.AddSingleton<IAgentTool, GetCurrentSongTool>();
         services.AddSingleton<IAgentTool, GetPlayQueueTool>();
