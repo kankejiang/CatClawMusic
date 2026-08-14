@@ -243,9 +243,13 @@ public partial class NowPlayingPage
         var baseSize = _settings.FontSize;
         var transSize = Math.Max(10, baseSize - 4);
 
-        // 歌词对齐（歌词设置弹窗可调）：居左/居中/居右。AnchorX 跟随对齐，
+        // 歌词对齐（歌词设置弹窗可调）：居左/居中/居右。
+        // 正文与译文标签统一恒为 Fill（满宽）：① StackLayout 交叉轴对 Center/End
+        // 子元素传 ∞ 测量约束，会让 Win2D 文本布局整句不换行 → 长句超出容器；
+        // Fill 时约束为有限列宽，文本在列宽内换行。② 对齐改由标签内部完成——
+        // KaraokeLabel 由 Win2D handler 按 HorizontalTextAlignment 计算绘制偏移，
+        // 译文 Label 用自带 HorizontalTextAlignment。AnchorX 跟随对齐，
         // 保证当前行放大时向对应方向生长而不是溢出（居左=0 向左锚定 / 居中=0.5 / 居右=1）。
-        var alignOptions = _settings.ToLayoutOptions();
         var alignAnchor = _settings.LyricsAlignment switch
         {
             LyricsSettingsService.Alignment.Left => 0.0,
@@ -287,7 +291,8 @@ public partial class NowPlayingPage
                 FillProgress = 1,
                 LineBreakMode = LineBreakMode.WordWrap,
                 HorizontalTextAlignment = _settings.ToTextAlignment(),
-                HorizontalOptions = alignOptions,
+                // 恒为 Fill：满宽标签 + 内部按 HorizontalTextAlignment 对齐（见上方注释）
+                HorizontalOptions = LayoutOptions.Fill,
                 VerticalOptions = LayoutOptions.Center,
                 // 以对齐方向为缩放锚点，放大时向对应方向生长而不是向左溢出屏幕外
                 AnchorX = alignAnchor,
@@ -306,7 +311,8 @@ public partial class NowPlayingPage
                 LineBreakMode = LineBreakMode.WordWrap,
                 // 译文与正文同对齐：标签满宽 + 内部按 HorizontalTextAlignment 对齐
                 HorizontalTextAlignment = _settings.ToTextAlignment(),
-                HorizontalOptions = alignOptions,
+                // 恒为 Fill：满宽标签（与正文一致），对齐由内部完成
+                HorizontalOptions = LayoutOptions.Fill,
                 VerticalOptions = LayoutOptions.Center,
                 HeightRequest = transSize * 1.4,
             };
