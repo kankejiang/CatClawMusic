@@ -18,6 +18,8 @@ public class WebSearchTool : IAgentTool
     private static readonly System.Text.RegularExpressions.Regex RegexBingAnchor = new(@"<h2[^>]*>\s*<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>", System.Text.RegularExpressions.RegexOptions.Compiled);
     private static readonly System.Text.RegularExpressions.Regex RegexBingSnippet = new(@"<p[^>]*>([\s\S]*?)</p>", System.Text.RegularExpressions.RegexOptions.Compiled);
     private static readonly System.Text.RegularExpressions.Regex RegexBaiduBlock = new(@"<h3[^>]*>[\s\S]*?<a[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>[\s\S]*?</h3>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex RegexDdgBlock = new(@"<a[^>]*class=""result__a""[^>]*href=""([^""]+)""[^>]*>([\s\S]*?)</a>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex RegexDdgSnippet = new(@"<a[^>]*class=""result__snippet""[^>]*>([\s\S]*?)</a>", System.Text.RegularExpressions.RegexOptions.Compiled);
     /// <summary>搜索页 HTML 最大处理长度（2MB），防止畸形页面拉长正则回溯时间</summary>
     private const int MaxHtmlLength = 2 * 1024 * 1024;
 
@@ -78,9 +80,27 @@ public class WebSearchTool : IAgentTool
 
         try
         {
-            // 多源回退：Bing（国内直连）→ 百度（国内直连）
-            var results = await SearchBingAsync(query);
-            if (results.Count == 0) results = await SearchBaiduAsync(query);
+            // 多源并行搜索 + 合并去重：cn.bing.com（国内稳定主源）→ 百度 → DuckDuckGo（海外补充）。
+            // 任一源失败不影响其他；结果按 URL 去重，优先保留先到源的结果。
+            var results = new List<object>();
+            var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void AddUnique(IEnumerable<object> items)
+            {
+                foreach (var r in items)
+                {
+                    var url = GetResultUrl(r);
+                    if (string.IsNullOrEmpty(url) || !seenUrls.Add(url)) continue;
+                    results.Add(r);
+                    if (results.Count >= 8) return;
+                }
+            }
+
+            AddUnique(await SearchBingAsync(query));
+            if (results.Count < 5)
+                AddUnique(await SearchBaiduAsync(query));
+            if (results.Count < 3)
+                AddUnique(await SearchDuckDuckGoAsync(query));
 
             if (results.Count > 0)
             {
@@ -108,6 +128,79 @@ public class WebSearchTool : IAgentTool
         }
     }
 
+    /// <summary>提取匿名结果对象的 URL（匿名类型动态读取）</summary>
+    private static string? GetResultUrl(object result)
+    {
+        try
+        {
+            var t = result.GetType();
+            var p = t.GetProperty("url");
+            return p?.GetValue(result)?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 通过 DuckDuckGo HTML 版搜索（海外补充源；对中文结果有限，但对英文/技术查询有效）
+    /// </summary>
+    private async Task<List<object>> SearchDuckDuckGoAsync(string query)
+    {
+        try
+        {
+            var url = $"https://html.duckduckgo.com/html/?q={Uri.EscapeDataString(query)}";
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            var html = await response.Content.ReadAsStringAsync();
+            return ParseDuckDuckGoResults(html);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AgentTools", $"[WebSearch] DuckDuckGo 搜索失败: {ex.Message}");
+            return new List<object>();
+        }
+    }
+
+    /// <summary>解析 DuckDuckGo 结果（result__a 标题链接 + result__snippet 摘要）</summary>
+    private List<object> ParseDuckDuckGoResults(string html)
+    {
+        var results = new List<object>();
+        try
+        {
+            if (html.Length > MaxHtmlLength) html = html[..MaxHtmlLength];
+            foreach (System.Text.RegularExpressions.Match m in RegexDdgBlock.Matches(html))
+            {
+                var url = m.Groups[1].Value;
+                var title = CleanHtmlText(m.Groups[2].Value);
+                if (string.IsNullOrEmpty(title)) continue;
+                // DDG 链接为跳转链接（//duckduckgo.com/l/?uddg=...），解码出真实 URL
+                if (url.Contains("/l/?uddg=", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var uddg = System.Net.WebUtility.UrlDecode(url[(url.IndexOf("uddg=", StringComparison.OrdinalIgnoreCase) + 5)..]);
+                        url = uddg.Split('&')[0];
+                    }
+                    catch { }
+                }
+                if (!url.StartsWith("http", StringComparison.OrdinalIgnoreCase)) continue;
+                var snippet = "";
+                var sMatch = RegexDdgSnippet.Match(html, m.Index, Math.Min(3000, html.Length - m.Index));
+                if (sMatch.Success)
+                    snippet = CleanHtmlText(sMatch.Groups[1].Value);
+                results.Add(new { title, url, snippet });
+                if (results.Count >= 8) break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AgentTools", $"[WebSearch] 解析 DuckDuckGo 结果失败: {ex.Message}");
+        }
+        return results;
+    }
+
     /// <summary>清理 HTML 文本：去除标签、解码实体、压缩空白</summary>
     private static string CleanHtmlText(string html)
     {
@@ -122,13 +215,14 @@ public class WebSearchTool : IAgentTool
     }
 
     /// <summary>
-    /// 通过必应（Bing）搜索（国内可直连，结果结构稳定）
+    /// 通过必应中国版（cn.bing.com）搜索——国内可直连，结果结构稳定。
+    /// ⚠ 勿用 www.bing.com：国内常被重定向到国际版，中文查询返回无关结果。
     /// </summary>
     private async Task<List<object>> SearchBingAsync(string query)
     {
         try
         {
-            var url = $"https://www.bing.com/search?q={Uri.EscapeDataString(query)}&setlang=zh-hans&count=10";
+            var url = $"https://cn.bing.com/search?q={Uri.EscapeDataString(query)}&mkt=zh-CN&setlang=zh-hans&count=10";
             var response = await _httpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
             var html = await response.Content.ReadAsStringAsync();
