@@ -300,6 +300,18 @@ public static class MauiProgram
         services.AddSingleton<IAgentTool, WebSearchTool>();
         services.AddSingleton<IAgentTool, FetchWebPageTool>();
         services.AddSingleton<IAgentTool, BrowserOpenTool>();
+        services.AddSingleton<IAgentTool, DownloadFileTool>();
+        // Agent 下载：download_file 工具复用应用内置下载管理器（任务出现在下载中心）
+        services.AddSingleton<Services.DownloadManager>(sp =>
+        {
+            var dm = new Services.DownloadManager();
+            CatClawMusic.Core.Services.AI.DownloadAgentBridge.EnqueueDownload = (url, filename) =>
+            {
+                var item = dm.EnqueueUrl(url, filename);
+                return $"已开始下载「{item.DisplayName}」，保存到 {item.LocalPath}，可在下载管理查看进度";
+            };
+            return dm;
+        });
         // Agent 浏览器：browser_open 工具经桥接控制内置浏览器页
         var agentBrowserCoordinator = new Services.AgentBrowser.AgentBrowserCoordinator();
         services.AddSingleton(agentBrowserCoordinator);
@@ -368,8 +380,8 @@ public static class MauiProgram
 
         // ═══════════════════════════════════════════════════
         // Download manager（下载管理：任务队列/进度/持久化/下载路径）
+        // 已在 AI Agent 注册处（DownloadAgentBridge）提供带桥接的注册，此处不再重复注册
         // ═══════════════════════════════════════════════════
-        services.AddSingleton<Services.DownloadManager>();
 
         // ═══════════════════════════════════════════════════
         // Music library snapshot & chat memory
