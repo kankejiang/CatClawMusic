@@ -87,7 +87,11 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
     }
 
     /// <summary>测量：用 CanvasTextLayout 计算文本尺寸（DIP），支持换行。
-    /// 记录宽度约束供 OnDraw 复用，保证布局/绘制换行一致。</summary>
+    /// 记录宽度约束供 OnDraw 复用，保证布局/绘制换行一致。
+    /// 按**文字内容宽**排布（短句=文字宽，长句=换行到约束宽）；
+    /// 水平对齐（居左/居中/居右）在 OnDraw 里用控件实际宽与文字宽之差计算
+    /// （见 alignX），标签内部自洽完成对齐，不依赖外层容器定位——
+    /// 外层容器通常把标签设为满宽，避免 Windows 下内容宽标签在居中/居右时撑出窗口。</summary>
     public override Size GetDesiredSize(double widthConstraint, double heightConstraint)
     {
         try
@@ -118,19 +122,16 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             return _layout;
 
         _layout?.Dispose();
+        // 布局内部**恒用左对齐**：Win2D 的 HorizontalAlignment 是按 maxWidth 计算对齐的，
+        // 与控件实际渲染宽度不一致时，居中/居右会被整体右移出可视区。
+        // 真正的对齐偏移在 OnDraw 里用控件实际宽手动计算（见 alignX），彻底避免该错位。
         var format = new CanvasTextFormat
         {
             FontSize = size,
             FontWeight = new global::Windows.UI.Text.FontWeight(bold ? (ushort)700 : (ushort)400),
             WordWrapping = CanvasWordWrapping.Wrap,
-            HorizontalAlignment = view.HorizontalTextAlignment switch
-            {
-                TextAlignment.Start => CanvasHorizontalAlignment.Left,
-                TextAlignment.End => CanvasHorizontalAlignment.Right,
-                _ => CanvasHorizontalAlignment.Center
-            },
-        };
-        _layout = new CanvasTextLayout(
+            HorizontalAlignment = CanvasHorizontalAlignment.Left,
+        };        _layout = new CanvasTextLayout(
             CanvasDevice.GetSharedDevice(), text, format, maxWidth, 0);
         _layoutText = text;
         _layoutFontSize = size;
@@ -174,8 +175,24 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             var layoutW = (float)layout.LayoutBounds.Width;
             var layoutH = (float)layout.LayoutBounds.Height;
 
+            // 水平对齐偏移：文字宽 < 控件宽（控件通常被外层设为满宽）时，
+            // 按 HorizontalTextAlignment 把文字整体偏移到居中/居右位置；
+            // 文字充满控件宽（换行铺满）时偏移为 0。与 Android StaticLayout 对齐行为一致。
+            var controlW = (float)Math.Max(0, sender.ActualWidth);
+            var availableW = controlW - padLeft - (float)view.Padding.Right;
+            var alignX = 0f;
+            switch (view.HorizontalTextAlignment)
+            {
+                case TextAlignment.Center:
+                    alignX = Math.Max(0, (availableW - layoutW) / 2f);
+                    break;
+                case TextAlignment.End:
+                    alignX = Math.Max(0, availableW - layoutW);
+                    break;
+            }
+
             // 1. 未唱色整行
-            ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(empty));
+            ds.DrawTextLayout(layout, padLeft + alignX, padTop, ToWColor(empty));
 
             // 2. 已唱色按进度从左到右裁剪（与 Android ClipRect 同构）。
             //    Win2D 1.3.2 裁剪用 CreateLayer(float, CanvasGeometry)：
@@ -185,10 +202,10 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
                 var fillX = (float)Math.Min(progress * layoutW, layoutW);
                 using (var clipGeom = Microsoft.Graphics.Canvas.Geometry.CanvasGeometry.CreateRectangle(
                     CanvasDevice.GetSharedDevice(),
-                    new global::Windows.Foundation.Rect(padLeft, padTop, fillX, layoutH)))
+                    new global::Windows.Foundation.Rect(padLeft + alignX, padTop, fillX, layoutH)))
                 using (var layer = ds.CreateLayer(1.0f, clipGeom))
                 {
-                    ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(filled));
+                    ds.DrawTextLayout(layout, padLeft + alignX, padTop, ToWColor(filled));
                 }
             }
         }

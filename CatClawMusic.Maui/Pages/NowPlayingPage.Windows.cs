@@ -304,6 +304,8 @@ public partial class NowPlayingPage
                 TextColor = WinLyricNearColor,
                 Opacity = 0.85,
                 LineBreakMode = LineBreakMode.WordWrap,
+                // 译文与正文同对齐：标签满宽 + 内部按 HorizontalTextAlignment 对齐
+                HorizontalTextAlignment = _settings.ToTextAlignment(),
                 HorizontalOptions = alignOptions,
                 VerticalOptions = LayoutOptions.Center,
                 HeightRequest = transSize * 1.4,
@@ -329,6 +331,21 @@ public partial class NowPlayingPage
             // 整行（正文 + 译文）一起失焦：模糊挂在行容器上，而不是逐个 Label，
             // 这样译文与正文的模糊程度一致，不会出现"正文糊了译文还清晰"的割裂。
             row.Effects.Add(new CatClawMusic.Maui.Effects.LyricBlurEffect());
+
+            // Windows 下按文字内容宽排布（无 WidthRequest）的标签在居中/居右对齐时
+            // 会把整行撑出窗口（内容宽超过容器宽时向两侧/左侧溢出）。
+            // 与 FullLyricsPage/Android 一致：标签宽度显式钳制为行宽（-1 安全边距），
+            // 文本对齐改由标签内部完成——KaraokeLabel 由 Win2D handler 按
+            // HorizontalTextAlignment 计算绘制偏移，译文 Label 用自带 HorizontalTextAlignment。
+            row.SizeChanged += (s, _) =>
+            {
+                if (s is View v && v.Width > 0)
+                {
+                    var w = Math.Max(40, v.Width - 1);
+                    main.WidthRequest = w;
+                    trans.WidthRequest = w;
+                }
+            };
 
             WinLyricStack.Children.Add(row);
             _winRows.Add(new WinLyricRow { Container = row, Main = main, Trans = trans, Dot = dot });
