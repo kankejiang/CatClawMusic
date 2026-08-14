@@ -322,7 +322,7 @@ public class AgentService : IAgentService
         }
     }
 
-    /// <summary>保存单个 LLM 配置，并同步更新当前生效配置与兼容字段</summary>
+    /// <summary>保存单个 LLM 配置，并同步更新当前生效配置与兼容字段。</summary>
     /// <param name="config">待保存的配置</param>
     public static void SaveConfig(LlmConfig config)
     {
@@ -340,14 +340,20 @@ public class AgentService : IAgentService
 
         SaveAllConfigs(allConfigs);
 
-        ConfigStorage.SetString("current_config_name", config.Name);
-        ConfigStorage.SetString("provider", config.Provider);
-        ConfigStorage.SetString("api_url", config.ApiUrl);
-        ConfigStorage.SetString("api_key", config.ApiKey);
-        ConfigStorage.SetString("model", config.Model);
-        ConfigStorage.SetFloat("temperature", (float)config.Temperature);
-        ConfigStorage.SetInt("max_tokens", config.MaxTokens);
-        ConfigStorage.SetBool("enabled", config.Enabled);
+        // ⚠ 仅当保存的配置**就是当前生效配置**时才同步兼容字段，
+        // 且绝不无条件把 current_config_name 改为本配置——否则在模型管理页
+        // "切换备"（保存备用模型）时会把主模型悄悄切到该模型。
+        var currentName = ConfigStorage.GetString("current_config_name", "默认配置") ?? "默认配置";
+        if (config.Name == currentName)
+        {
+            ConfigStorage.SetString("provider", config.Provider);
+            ConfigStorage.SetString("api_url", config.ApiUrl);
+            ConfigStorage.SetString("api_key", config.ApiKey);
+            ConfigStorage.SetString("model", config.Model);
+            ConfigStorage.SetFloat("temperature", (float)config.Temperature);
+            ConfigStorage.SetInt("max_tokens", config.MaxTokens);
+            ConfigStorage.SetBool("enabled", config.Enabled);
+        }
     }
 
     /// <summary>删除指定名称的 LLM 配置</summary>

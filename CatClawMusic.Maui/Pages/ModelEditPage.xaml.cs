@@ -370,6 +370,9 @@ public partial class ModelEditPage : ContentPage
                 ContextCaching = ContextCachingSwitch.IsToggled
             };
             AgentService.SaveConfig(config);
+            // 若编辑的是当前主模型且改了名，主模型名跟随新名（SaveConfig 不再自动改主）
+            if (_originalName == AgentService.GetCurrentConfigName() && config.Name != _originalName)
+                AgentService.SetCurrentConfigName(config.Name);
             DesktopNavigation.GoBack();
         }
         catch (Exception ex)
