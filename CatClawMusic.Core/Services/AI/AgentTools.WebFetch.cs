@@ -26,8 +26,8 @@ public class FetchWebPageTool : IAgentTool
     private const int MaxTextLength = 8000;
     /// <summary>返回链接数量上限（附在正文后供继续抓取）</summary>
     private const int MaxLinks = 12;
-    /// <summary>页面最大下载字节数</summary>
-    private const int MaxHtmlBytes = 1_500_000;
+    /// <summary>页面最大下载字节数（限流读取，避免大页面全量下载拖慢响应）</summary>
+    private const int MaxHtmlBytes = 600_000;
 
     private readonly HttpClient _httpClient;
 
@@ -92,10 +92,19 @@ public class FetchWebPageTool : IAgentTool
             }
 
             using var ms = new MemoryStream();
+            // 限流读取：正文抓取最多 600KB（提取后仅需 8KB 文本），避免大页面全量下载拖慢响应
             using (var stream = await response.Content.ReadAsStreamAsync())
-                await stream.CopyToAsync(ms);
-            if (ms.Length > MaxHtmlBytes)
-                ms.SetLength(MaxHtmlBytes);
+            {
+                var buffer = new byte[8192];
+                int total = 0;
+                while (total < MaxHtmlBytes)
+                {
+                    var read = await stream.ReadAsync(buffer, 0, Math.Min(buffer.Length, MaxHtmlBytes - total));
+                    if (read == 0) break;
+                    ms.Write(buffer, 0, read);
+                    total += read;
+                }
+            }
             var bytes = ms.ToArray();
 
             // 编码探测：BOM / charset 头 / 常见编码

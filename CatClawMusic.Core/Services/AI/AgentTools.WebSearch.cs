@@ -80,11 +80,21 @@ public class WebSearchTool : IAgentTool
 
         try
         {
-            // 多源并行搜索 + 合并去重：cn.bing.com（国内稳定主源）→ 百度 → DuckDuckGo（海外补充）。
-            // 任一源失败不影响其他；结果按 URL 去重，优先保留先到源的结果。
+            // 三源并行 + 独立超时：总耗时 ≈ 最慢源（通常 Bing ~1s），
+            // 慢源不拖累整体（原串行实现会依次等待每个源）。
+            using var ctsBing = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            using var ctsBaidu = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            using var ctsDdg = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+
+            var bingTask = SearchBingAsync(query, ctsBing.Token);
+            var baiduTask = SearchBaiduAsync(query, ctsBaidu.Token);
+            var ddgTask = SearchDuckDuckGoAsync(query, ctsDdg.Token);
+
+            var sources = await Task.WhenAll(bingTask, baiduTask, ddgTask);
+
+            // 按优先级合并去重：cn.bing（主）→ 百度 → DDG
             var results = new List<object>();
             var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
             void AddUnique(IEnumerable<object> items)
             {
                 foreach (var r in items)
@@ -95,12 +105,9 @@ public class WebSearchTool : IAgentTool
                     if (results.Count >= 8) return;
                 }
             }
-
-            AddUnique(await SearchBingAsync(query));
-            if (results.Count < 5)
-                AddUnique(await SearchBaiduAsync(query));
-            if (results.Count < 3)
-                AddUnique(await SearchDuckDuckGoAsync(query));
+            AddUnique(sources[0]);
+            if (results.Count < 5) AddUnique(sources[1]);
+            if (results.Count < 3) AddUnique(sources[2]);
 
             if (results.Count > 0)
             {
@@ -146,14 +153,14 @@ public class WebSearchTool : IAgentTool
     /// <summary>
     /// 通过 DuckDuckGo HTML 版搜索（海外补充源；对中文结果有限，但对英文/技术查询有效）
     /// </summary>
-    private async Task<List<object>> SearchDuckDuckGoAsync(string query)
+    private async Task<List<object>> SearchDuckDuckGoAsync(string query, CancellationToken ct = default)
     {
         try
         {
             var url = $"https://html.duckduckgo.com/html/?q={Uri.EscapeDataString(query)}";
-            var response = await _httpClient.GetAsync(url);
+            var response = await _httpClient.GetAsync(url, ct);
             response.EnsureSuccessStatusCode();
-            var html = await response.Content.ReadAsStringAsync();
+            var html = await ReadHtmlLimitedAsync(response, MaxPageBytes);
             return ParseDuckDuckGoResults(html);
         }
         catch (Exception ex)
@@ -214,18 +221,49 @@ public class WebSearchTool : IAgentTool
         return text;
     }
 
+    /// <summary>搜索结果页最多读取的字节数：搜索结果都在页面头部，截断大幅降低下载/解析耗时
+    /// （百度结果页实测 1.19MB，全量下载+正则解析明显拖慢搜索）</summary>
+    private const int MaxPageBytes = 400 * 1024;
+
+    /// <summary>限流读取响应内容（最多 maxBytes 字节），并按 UTF-8/GBK 探测解码。</summary>
+    private static async Task<string> ReadHtmlLimitedAsync(HttpResponseMessage response, int maxBytes)
+    {
+        using var stream = await response.Content.ReadAsStreamAsync();
+        using var ms = new MemoryStream();
+        var buffer = new byte[8192];
+        int total = 0;
+        while (total < maxBytes)
+        {
+            var read = await stream.ReadAsync(buffer, 0, Math.Min(buffer.Length, maxBytes - total));
+            if (read == 0) break;
+            ms.Write(buffer, 0, read);
+            total += read;
+        }
+        var bytes = ms.ToArray();
+        // UTF-8 严格校验：有效用 UTF-8，否则回退 GBK（中文站点常见）
+        try
+        {
+            return new System.Text.UTF8Encoding(false, true).GetString(bytes);
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            try { return System.Text.Encoding.GetEncoding("GBK").GetString(bytes); }
+            catch { return System.Text.Encoding.UTF8.GetString(bytes); }
+        }
+    }
+
     /// <summary>
     /// 通过必应中国版（cn.bing.com）搜索——国内可直连，结果结构稳定。
     /// ⚠ 勿用 www.bing.com：国内常被重定向到国际版，中文查询返回无关结果。
     /// </summary>
-    private async Task<List<object>> SearchBingAsync(string query)
+    private async Task<List<object>> SearchBingAsync(string query, CancellationToken ct = default)
     {
         try
         {
             var url = $"https://cn.bing.com/search?q={Uri.EscapeDataString(query)}&mkt=zh-CN&setlang=zh-hans&count=10";
-            var response = await _httpClient.GetAsync(url);
+            var response = await _httpClient.GetAsync(url, ct);
             response.EnsureSuccessStatusCode();
-            var html = await response.Content.ReadAsStringAsync();
+            var html = await ReadHtmlLimitedAsync(response, MaxPageBytes);
             return ParseBingResults(html);
         }
         catch (Exception ex)
@@ -268,14 +306,14 @@ public class WebSearchTool : IAgentTool
     /// <summary>
     /// 通过百度搜索（国内可直连；摘要结构多变，仅提取标题与链接）
     /// </summary>
-    private async Task<List<object>> SearchBaiduAsync(string query)
+    private async Task<List<object>> SearchBaiduAsync(string query, CancellationToken ct = default)
     {
         try
         {
             var url = $"https://www.baidu.com/s?wd={Uri.EscapeDataString(query)}&rn=10";
-            var response = await _httpClient.GetAsync(url);
+            var response = await _httpClient.GetAsync(url, ct);
             response.EnsureSuccessStatusCode();
-            var html = await response.Content.ReadAsStringAsync();
+            var html = await ReadHtmlLimitedAsync(response, MaxPageBytes);
             return ParseBaiduResults(html);
         }
         catch (Exception ex)
