@@ -574,7 +574,11 @@ public class AgentService : IAgentService
             return total;
         }
 
-        while (messages.Count > 3 && CalculateEstimatedTokens() > 4500)
+        // 上下文预算：Agent 工具循环会累积大量 tool 消息，4500 只够几轮就会把
+        // 早期工具结果/历史裁光 → 决策链断裂。新模型（DeepSeek V4 / GLM-5.2 /
+        // Kimi K3 等）上下文 128K~1M，预算提到 32000（128K 的 1/4，安全余量），
+        // 保留 3 条消息底线防止 system 也被裁掉。
+        while (messages.Count > 3 && CalculateEstimatedTokens() > 32000)
         {
             int removeIdx = -1;
             for (int i = 1; i < messages.Count; i++)
@@ -600,16 +604,17 @@ public class AgentService : IAgentService
 
     /// <summary>
     /// 裁剪对话历史：保留 system 消息 + 最近 N 轮对话，防止 token 超限。
-    /// 每轮包含 user+assistant（及中间的 tool 消息），保留约 8 轮 ≈ 16-24 条消息。
+    /// Agent 工具循环一轮包含 user+assistant+多条 tool 消息，保留 24 条
+    /// （约 12 轮工具循环），远高于旧值 10 条，避免多轮工具调用中途丢上下文。
     /// </summary>
     private void TrimConversationHistory()
     {
-        if (_conversationHistory.Count <= 12) return;
+        if (_conversationHistory.Count <= 24) return;
 
         var systemMsgs = _conversationHistory.Where(m => m.Role == "system").ToList();
         var recent = _conversationHistory
             .Where(m => m.Role != "system")
-            .TakeLast(10)
+            .TakeLast(20)
             .ToList();
 
         _conversationHistory.Clear();

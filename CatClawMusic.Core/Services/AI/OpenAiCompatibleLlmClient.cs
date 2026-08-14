@@ -351,17 +351,23 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             body["response_format"] = new Dictionary<string, object> { ["type"] = config.ResponseFormat };
         }
 
-        // 上下文缓存：使用稳定的 cache key，前缀相同时提高 API 端缓存命中率
-        if (config.ContextCaching)
-        {
-            body["prompt_cache_key"] = "catclaw_agent_v1";
-        }
+        // 上下文缓存：各平台多为隐式/自动缓存（DeepSeek 自动前缀缓存、Kimi 自动缓存、
+        // 通义 prompt cache 等），显式 prompt_cache_key 仅 DeepSeek 支持，其他供应商
+        // 可能因未知参数报 400 —— 不再发送显式 key，保留 ContextCaching 字段仅作配置展示。
+        _ = config.ContextCaching;
 
-        // 推理力度参数（仅 disabled 以外的值才发送，避免不支持的模型报错）
-        if (!string.IsNullOrEmpty(config.ReasoningEffort)
-            && config.ReasoningEffort != "disabled")
+        // 推理力度参数：配置级优先；未设置（disabled/空）时兜底用全局
+        // AgentRunSettings（模型管理页的全局推理力度选择），使全局设置真正生效。
+        var effort = config.ReasoningEffort;
+        if (string.IsNullOrEmpty(effort) || effort == "disabled")
         {
-            body["reasoning_effort"] = config.ReasoningEffort;
+            var globalEffort = AgentService.GetReasoningEffort();
+            if (!string.IsNullOrEmpty(globalEffort) && globalEffort != "disabled")
+                effort = globalEffort;
+        }
+        if (!string.IsNullOrEmpty(effort) && effort != "disabled")
+        {
+            body["reasoning_effort"] = effort;
         }
 
         if (tools != null && tools.Count > 0)
@@ -383,6 +389,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                     }
                 }
             }).ToArray();
+
+            // Agent 场景：允许一次响应并行调用多个工具（主流新模型均支持），
+            // 多工具任务（如同时搜索+查库）显著减少轮次
+            body["parallel_tool_calls"] = true;
         }
 
         return JsonSerializer.Serialize(body, JsonOpts);

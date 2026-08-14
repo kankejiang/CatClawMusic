@@ -63,8 +63,8 @@ public static class AgentRunSettings
     /// <summary>推理力度默认值</summary>
     public const string DefaultReasoningEffort = "disabled";
 
-    /// <summary>可选推理力度列表</summary>
-    public static readonly string[] ReasoningEffortOptions = { "auto", "disabled", "high", "max" };
+    /// <summary>可选推理力度列表（auto 跟随模型默认；low/high/max 为 Kimi K3 等支持的档位）</summary>
+    public static readonly string[] ReasoningEffortOptions = { "auto", "disabled", "low", "high", "max" };
 }
 
 /// <summary>
